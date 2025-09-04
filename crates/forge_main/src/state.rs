@@ -20,14 +20,10 @@ pub struct UIState {
 }
 
 impl UIState {
-    pub fn new(env: Environment, workflow: Workflow) -> Self {
-        let operating_agent = workflow
-            .variables
-            .get("operating_agent")
-            .and_then(|value| value.as_str())
-            .and_then(|agent_id_str| {
-                // Validate that the agent exists in the workflow before creating AgentId
-                let agent_id = AgentId::new(agent_id_str);
+    pub fn new(env: Environment, workflow: Workflow, operating_agent: Option<AgentId>) -> Self {
+        let operating_agent = operating_agent
+            .and_then(|agent_id| {
+                // Validate that the agent exists in the workflow
                 if workflow.agents.iter().any(|agent| agent.id == agent_id) {
                     Some(agent_id)
                 } else {

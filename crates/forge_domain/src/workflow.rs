@@ -1,11 +1,8 @@
-use std::collections::HashMap;
-
 use derive_setters::Setters;
 use lazy_static::lazy_static;
 use merge::Merge;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 use crate::temperature::Temperature;
 use crate::update::Update;
@@ -21,11 +18,6 @@ pub struct Workflow {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub templates: Option<String>,
-
-    /// Variables that can be used in templates
-    #[merge(strategy = crate::merge::hashmap)]
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub variables: HashMap<String, Value>,
 
     /// configurations that can be used to update forge
     #[merge(strategy = crate::merge::option)]
@@ -168,7 +160,6 @@ impl Workflow {
     /// scratch.
     pub fn new() -> Self {
         Self {
-            variables: HashMap::new(),
             commands: Vec::new(),
             model: None,
             max_walker_depth: None,
@@ -209,7 +200,6 @@ mod tests {
         let actual = Workflow::new();
 
         // Assert
-        assert!(actual.variables.is_empty());
         assert!(actual.commands.is_empty());
         assert_eq!(actual.model, None);
         assert_eq!(actual.max_walker_depth, None);

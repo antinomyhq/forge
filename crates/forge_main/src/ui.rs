@@ -122,15 +122,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.state.is_first = true;
         self.state.operating_agent = agent.id.clone();
 
-        // Update the workflow with the new operating agent.
-        self.api
-            .update_workflow(self.cli.workflow.as_deref(), |workflow| {
-                workflow.variables.insert(
-                    "operating_agent".to_string(),
-                    Value::from(agent.id.as_str()),
-                );
-            })
-            .await?;
+        // Update the app config with the new operating agent.
+        self.api.set_operating_agent(agent.id.clone()).await?;
 
         self.writeln_title(TitleFormat::action(format!(
             "Switched to agent {}",
@@ -345,7 +338,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let mut info = Info::from(&self.state).extend(Info::from(&self.api.environment()));
 
         // Add user information if available
-        if let Ok(config) = self.api.app_config().await
+        if let Some(config) = self.api.app_config().await
             && let Some(login_info) = &config.key_info
         {
             info = info.extend(Info::from(login_info));
@@ -474,7 +467,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.api.logout().await?;
                 self.login().await?;
                 self.spinner.stop(None)?;
-                let config: AppConfig = self.api.app_config().await?;
+                let config: AppConfig = self.api.app_config().await.unwrap_or_default();
                 tracker::login(
                     config
                         .key_info
@@ -649,7 +642,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .await?;
 
         self.command.register_all(&base_workflow);
-        self.state = UIState::new(self.api.environment(), base_workflow).provider(provider);
+        let operating_agent = self.api.get_operating_agent().await;
+        self.state =
+            UIState::new(self.api.environment(), base_workflow, operating_agent).provider(provider);
 
         Ok(workflow)
     }
