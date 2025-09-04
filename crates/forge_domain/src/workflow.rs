@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::temperature::Temperature;
 use crate::update::Update;
-use crate::{Agent, AgentId, Compact, MaxTokens, ModelId, TopK, TopP};
+use crate::{Compact, MaxTokens, ModelId, TopK, TopP};
 
 /// Configuration for a workflow that contains all settings
 /// required to initialize a workflow.
