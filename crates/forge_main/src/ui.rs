@@ -438,14 +438,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         write!(f, "{}", self.label)
                     }
                 }
-                let n = workflow
-                    .agents
+
+                let agents = self.api.get_agents().await?;
+                let n = agents
                     .iter()
                     .map(|a| a.id.as_str().len())
                     .max()
                     .unwrap_or_default();
-                let display_agents = workflow
-                    .agents
+                let display_agents = agents
                     .into_iter()
                     .map(|agent| {
                         let title = &agent.title.unwrap_or("<Missing agent.title>".to_string());

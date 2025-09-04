@@ -4,9 +4,9 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use forge_app::dto::{AppConfig, InitAuth};
 use forge_app::{
-    AppConfigService, AuthService, ConversationService, EnvironmentService, FileDiscoveryService,
-    ForgeApp, McpConfigManager, ProviderRegistry, ProviderService, Services, User, UserUsage,
-    Walker, WorkflowService,
+    AgentLoaderService, AppConfigService, AuthService, ConversationService, EnvironmentService,
+    FileDiscoveryService, ForgeApp, McpConfigManager, ProviderRegistry, ProviderService,
+    Services, User, UserUsage, Walker, WorkflowService,
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
@@ -52,6 +52,9 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
             .services
             .models(self.provider().await.context("User is not logged in")?)
             .await?)
+    }
+    async fn get_agents(&self) -> Result<Vec<Agent>> {
+        self.services.load_agents().await
     }
 
     async fn chat(
