@@ -19,7 +19,7 @@ compact:
   retention_window: 6
   message_threshold: 200
   eviction_window: 0.2
-  prompt: "{{> forge-system-prompt-context-summarizer.hbs }}"
+  prompt: "{{> forge-system-prompt-context-summarizer.md }}"
   on_turn_end: false
 
 updates:
@@ -33,7 +33,7 @@ agents:
       Hands-on implementation agent that executes software development tasks through a structured 4-phase approach: task analysis, solution strategy, implementation, and quality assurance. Makes actual changes to codebases, runs shell commands, creates/modifies files, installs dependencies, and performs concrete development work. Use for building features, fixing bugs, refactoring code, or any task requiring actual modifications. Do not use for analysis-only tasks or when you want to explore options without making changes. Always validates changes through compilation and testing.
     model: *advanced_model
     system_prompt: |-
-      {{> forge-system-prompt-engineer-act.hbs }}
+      {{> forge-system-prompt-engineer-act.md }}
     user_prompt: |-
       {{#if (eq event.name 'forge/user_task_update')}}
       <feedback>{{event.value}}</feedback>
@@ -60,7 +60,7 @@ agents:
       Strategic planning agent that analyzes codebases and creates comprehensive implementation plans without making any actual changes. Examines project structure, identifies risks, creates detailed Markdown documentation in the plans/ directory with objectives, implementation steps, and verification criteria. Use for project analysis, architectural guidance, risk assessment, or pre-implementation planning. Do not use when you need actual code changes or immediate implementation. Provides advisory recommendations and strategic roadmaps only.
     model: *advanced_model
     system_prompt: |-
-      {{> forge-system-prompt-engineer-plan.hbs }}
+      {{> forge-system-prompt-engineer-plan.md }}
     user_prompt: |-
       {{#if (eq event.name 'muse/user_task_update')}}
       <feedback>{{event.value}}</feedback>
@@ -80,7 +80,7 @@ agents:
       Documentation and blog review agent that analyzes and reviews documentation, blog posts, and other written content. Provides feedback on clarity, structure, and technical accuracy. Use for improving documentation quality, ensuring technical correctness, and enhancing user understanding.
     model: *advanced_model
     system_prompt: |-
-      {{> forge-system-prompt-prime-review.hbs }}
+      {{> forge-system-prompt-prime-review.md }}
     tools:
       - forge_tool_fs_read
       - forge_tool_net_fetch
@@ -93,7 +93,7 @@ agents:
       Code review agent that analyzes code changes, provides feedback on quality, style, and best practices. Use for ensuring code quality, identifying potential issues, and improving maintainability.
     model: *advanced_model
     system_prompt: |-
-      {{> forge-system-prompt-parker-code-review.hbs }}
+      {{> forge-system-prompt-parker-code-review.md }}
     tools:
       - forge_tool_fs_read
       - forge_tool_net_fetch
@@ -106,7 +106,7 @@ agents:
       Research-only tool for systematic codebase exploration and analysis. Performs comprehensive, read-only investigation: maps project architecture and module relationships, traces data/logic flow across files, analyzes API usage patterns, examines test coverage and build configurations, identifies design patterns and technical debt. Accepts detailed research questions or investigation tasks as input parameters. Use when you need to understand how systems work, why architectural decisions were made, or to investigate bugs, dependencies, complex behavior patterns, or code quality issues. Do NOT use for code modifications, running commands, or file operations—choose implementation or planning agents instead. Returns structured reports with research summaries, key findings, technical details, contextual insights, and actionable follow-up suggestions. Strictly read-only with no side effects or system modifications.
     model: *advanced_model
     system_prompt: |-
-      {{> forge-system-prompt-sage-research.hbs }}
+      {{> forge-system-prompt-sage-research.md }}
     user_prompt: |-
       {{#if (eq event.name 'sage/user_task_update')}}
       <feedback>{{event.value}}</feedback>

@@ -4,7 +4,7 @@ Please retry with correct tool use
 </tool_call_error>
 
 {{#if (not tool_supported)}}
-{{> forge-partial-tool-use-example.hbs }}
+{{> forge-partial-tool-use-example.md }}
 {{/if}}
 
 NEXT STEPS:
