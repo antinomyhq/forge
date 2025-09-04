@@ -4,13 +4,13 @@ use std::sync::Arc;
 use forge_domain::Workflow;
 use merge::Merge;
 
-use crate::{AgentLoaderService, WorkflowService};
+use crate::{AgentLoaderService, ProfileService, Services, WorkflowService};
 
 pub struct WorkflowManager<S> {
     service: Arc<S>,
 }
 
-impl<S: WorkflowService + AgentLoaderService + Sized> WorkflowManager<S> {
+impl<S: Services> WorkflowManager<S> {
     pub fn new(service: Arc<S>) -> WorkflowManager<S> {
         Self { service }
     }
@@ -36,6 +36,9 @@ impl<S: WorkflowService + AgentLoaderService + Sized> WorkflowManager<S> {
     }
     pub async fn read_merged(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
         let mut workflow = self.service.read_merged(path).await?;
+        if let Ok(Some(profile)) = self.service.profile_service().get_active_profile().await {
+            workflow.merge(profile.to_workflow()?);
+        }
         workflow = self.extend_agents(workflow).await?;
         Ok(workflow)
     }

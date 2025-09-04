@@ -13,8 +13,8 @@ use crate::services::{CustomInstructionsService, TemplateService};
 use crate::tool_registry::ToolRegistry;
 use crate::workflow_manager::WorkflowManager;
 use crate::{
-    AppConfigService, AttachmentService, ConversationService, EnvironmentService,
-    FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker,
+    AttachmentService, ConversationService, EnvironmentService, FileDiscoveryService,
+    ProviderRegistry, ProviderService, Services, Walker,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -55,9 +55,8 @@ impl<S: Services> ForgeApp<S> {
 
         // Get tool definitions and models
         let tool_definitions = self.tool_registry.list().await?;
-        let config = services.get_app_config().await.unwrap_or_default();
         let provider = services
-            .get_provider(config)
+            .get_provider()
             .await
             .context("Failed to get provider")?;
         let models = services.models(provider).await?;

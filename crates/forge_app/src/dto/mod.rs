@@ -3,5 +3,7 @@
 pub mod anthropic;
 mod app_config;
 pub mod openai;
+mod profile;
 
 pub use app_config::*;
+pub use profile::*;

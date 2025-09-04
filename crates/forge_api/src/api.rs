@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use forge_app::dto::{AppConfig, InitAuth};
+use forge_app::dto::{AppConfig, InitAuth, Profile};
 use forge_app::{User, UserUsage};
 use forge_domain::AgentId;
 use forge_stream::MpscStream;
@@ -101,6 +101,9 @@ pub trait API: Sync + Send {
     async fn app_config(&self) -> Option<AppConfig>;
     async fn user_info(&self) -> anyhow::Result<Option<User>>;
     async fn user_usage(&self) -> anyhow::Result<Option<UserUsage>>;
+    async fn list_profiles(&self) -> anyhow::Result<Vec<Profile>>;
+    async fn get_active_profile(&self) -> anyhow::Result<Option<Profile>>;
+    async fn set_active_profile(&self, profile_name: String) -> anyhow::Result<()>;
 
     /// Gets the currently operating agent
     async fn get_operating_agent(&self) -> Option<AgentId>;

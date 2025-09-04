@@ -7,7 +7,7 @@ use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
-    InterruptionReason, Model, ModelId, Workflow,
+    InterruptionReason, Model, ModelId, Profile, Workflow,
 };
 use forge_display::MarkdownFormat;
 use forge_domain::{
@@ -94,6 +94,69 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         banner::display()?;
         self.trace_user();
         self.hydrate_caches();
+        Ok(())
+    }
+
+    async fn select_profile(&mut self, providers: Vec<Profile>) -> Result<Option<String>> {
+        if providers.is_empty() {
+            self.writeln(
+                "No profiles configured. Create a profiles.yaml file to configure profiles.",
+            )?;
+            return Ok(None);
+        }
+
+        let cli_profiles: Vec<CliProfile> = providers.into_iter().map(CliProfile).collect();
+
+        // Get the current active profile to determine cursor position
+        let active_profile = self.api.get_active_profile().await.ok().flatten();
+        let active_profile_name = active_profile.map(|p| p.name.0).unwrap_or_default();
+
+        let starting_cursor = cli_profiles
+            .iter()
+            .position(|p| p.0.name.as_ref() == active_profile_name)
+            .unwrap_or(0);
+
+        match ForgeSelect::select("Select a profile:", cli_profiles)
+            .with_starting_cursor(starting_cursor)
+            .prompt()?
+        {
+            Some(selected_provider) => Ok(Some(selected_provider.0.name.to_string())),
+            None => Ok(None),
+        }
+    }
+
+    async fn on_profile_selection(&mut self) -> Result<()> {
+        let profiles = self.api.list_profiles().await?;
+
+        let profile = match self.select_profile(profiles.clone()).await? {
+            Some(profile) => profile,
+            None => return Ok(()),
+        };
+
+        // Set the active profile
+        self.api.set_active_profile(profile.clone()).await?;
+        self.writeln(format!("✓ Selected profile: {profile}"))?;
+        let new_workflow = self.api.read_merged(self.cli.workflow.as_deref()).await?;
+
+        if let Some(ref model) = new_workflow.model {
+            self.update_model(model.clone());
+        }
+
+        let conversation_id = self.init_conversation().await?;
+
+        // Fetch the current conversation, update it with the new workflow, and save it.
+        if let Some(mut conversation) = self.api.conversation(&conversation_id).await? {
+            let additional_tools = self
+                .api
+                .tools()
+                .await?
+                .into_iter()
+                .map(|t| t.name)
+                .collect::<Vec<_>>();
+            conversation.update_from_workflow(new_workflow, additional_tools);
+            self.api.upsert_conversation(conversation).await?;
+        }
+
         Ok(())
     }
 
@@ -399,6 +462,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 let output = format_tools(&tools);
                 self.writeln(output)?;
             }
+            Command::Profile => {
+                self.on_profile_selection().await?;
+            }
             Command::Update => {
                 on_update(self.api.clone(), None).await;
             }
@@ -549,7 +615,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Some(model) => model,
             None => return Ok(()),
         };
+        self.writeln(format!("Switched to model: {model}"))?;
+        self.update_model_state(model.clone()).await
+    }
 
+    // Helper method to update model in workflow, conversation, and UI state
+    async fn update_model_state(&mut self, model: ModelId) -> Result<()> {
+        // Update the workflow with the new model
         self.api
             .update_workflow(self.cli.workflow.as_deref(), |workflow| {
                 workflow.model = Some(model.clone());
@@ -624,29 +696,40 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn init_state(&mut self, first: bool) -> Result<Workflow> {
         let provider = self.init_provider().await?;
         let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
-        if workflow.model.is_none() {
+
+        let mut base_workflow = Workflow::default();
+        base_workflow.merge(workflow.clone());
+
+        if let Ok(Some(profile)) = self.api.get_active_profile().await {
+            base_workflow.merge(profile.to_workflow()?);
+        }
+
+        if base_workflow.model.is_none() {
             workflow.model = Some(
                 self.select_model()
                     .await?
                     .ok_or(anyhow::anyhow!("Model selection is required to continue"))?,
             );
         }
-        let mut base_workflow = Workflow::default();
-        base_workflow.merge(workflow.clone());
-        if first {
-            // only call on_update if this is the first initialization
-            on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
-        }
         self.api
             .write_workflow(self.cli.workflow.as_deref(), &workflow)
             .await?;
 
+        if first {
+            // only call on_update if this is the first initialization
+            on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
+        }
+
         self.command.register_all(&base_workflow);
         let operating_agent = self.api.get_operating_agent().await;
-        self.state =
-            UIState::new(self.api.environment(), base_workflow, operating_agent).provider(provider);
+        self.state = UIState::new(
+            self.api.environment(),
+            base_workflow.clone(),
+            operating_agent,
+        )
+        .provider(provider);
 
-        Ok(workflow)
+        Ok(base_workflow)
     }
     async fn init_provider(&mut self) -> Result<Provider> {
         self.api.provider().await
@@ -941,6 +1024,21 @@ fn parse_env(env: Vec<String>) -> BTreeMap<String, String> {
             }
         })
         .collect()
+}
+
+struct CliProfile(Profile);
+
+impl Display for CliProfile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let profile = &self.0;
+        write!(f, "{}", profile.name)?;
+
+        if let Some(model_name) = &profile.model {
+            write!(f, " {}", model_name.as_str().dimmed())?;
+        }
+
+        Ok(())
+    }
 }
 
 struct CliModel(Model);

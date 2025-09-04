@@ -10,6 +10,7 @@ use futures::StreamExt;
 use tokio::sync::RwLock;
 
 use crate::error::Error;
+use crate::workflow_manager::WorkflowManager;
 use crate::{ConversationService, Services, WorkflowService};
 
 #[derive(Clone)]
@@ -53,7 +54,8 @@ impl<S: Services> AgentExecutor<S> {
         .await?;
 
         // Create a new conversation for agent execution
-        let workflow = self.services.read_merged(None).await?;
+        let workflow_manager = WorkflowManager::new(self.services.clone());
+        let workflow = workflow_manager.read_merged(None).await?;
         let conversation =
             ConversationService::create_conversation(self.services.as_ref(), workflow).await?;
 

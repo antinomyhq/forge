@@ -22,6 +22,12 @@ pub enum Provider {
     Anthropic { url: Url, key: String },
 }
 
+impl Default for Provider {
+    fn default() -> Self {
+        Provider::OpenAI { url: Url::parse(Provider::OPENAI_URL).unwrap(), key: None }
+    }
+}
+
 impl Provider {
     pub fn url(&mut self, url: ProviderUrl) {
         match url {

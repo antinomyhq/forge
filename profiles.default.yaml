@@ -1,0 +1,38 @@
+# The active_profile key determines which profile is used by default.
+# If 'api_key' is omitted, it will be loaded from the corresponding environment variable.
+# For example, for the 'openai' provider, set OPENAI_API_KEY.
+
+active_profile: Default
+
+profiles:
+  - name: Default
+    model: "gpt-4"
+    temperature: 0.7
+    config:
+      provider: "openai"
+      # api_key: "sk-..."
+      # base_url: "sk-..."
+
+  - name: OpenRouter
+    config:
+      provider: "openrouter"
+
+  - name: Requesty
+    config:
+      provider: "requesty"
+
+  - name: Anthropic
+    config:
+      provider: "anthropic"
+
+  - name: Xai
+    config:
+      provider: "xai"
+
+  - name: Zai
+    config:
+      provider: "zai"
+
+  - name: Cerebras
+    config:
+      provider: "cerebras"

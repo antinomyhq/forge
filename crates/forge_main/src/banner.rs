@@ -15,6 +15,7 @@ pub fn display() -> io::Result<()> {
         ("New conversation:", "/new"),
         ("Get started:", "/info, /usage, /help"),
         ("Switch model:", "/model"),
+        ("Switch profile:", "/profile"),
         ("Switch agent:", "/forge or /muse or /agent"),
         ("Update:", "/update"),
         ("Quit:", "/exit or <CTRL+D>"),

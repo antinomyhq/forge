@@ -13,6 +13,7 @@ mod http;
 mod infra;
 mod mcp;
 mod policy;
+mod profile;
 mod provider;
 mod range;
 mod template;

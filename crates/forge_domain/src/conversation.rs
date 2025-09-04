@@ -103,11 +103,12 @@ impl Conversation {
         self
     }
 
-    fn new_inner(id: ConversationId, workflow: Workflow, additional_tools: Vec<ToolName>) -> Self {
-        let mut agents = Vec::new();
-        let mut metrics = Metrics::new();
-        metrics.start();
+    pub fn update_from_workflow(&mut self, workflow: Workflow, additional_tools: Vec<ToolName>) {
+        self.apply_workflow(workflow, additional_tools);
+    }
 
+    fn apply_workflow(&mut self, workflow: Workflow, additional_tools: Vec<ToolName>) {
+        let mut agents = Vec::new();
         for mut agent in workflow.agents.into_iter() {
             // Handle deprecated tool names
             for tool in agent.tools.iter_mut().flatten() {
@@ -207,17 +208,29 @@ impl Conversation {
             agents.push(agent);
         }
 
-        Self {
+        self.agents = agents;
+        self.max_tool_failure_per_turn = workflow.max_tool_failure_per_turn;
+        self.max_requests_per_turn = workflow.max_requests_per_turn;
+    }
+
+    fn new_inner(id: ConversationId, workflow: Workflow, additional_tools: Vec<ToolName>) -> Self {
+        let agents = Vec::new();
+        let mut metrics = Metrics::new();
+        metrics.start();
+
+        let mut conversation = Self {
             id,
             archived: false,
             context: None,
             variables: Default::default(),
             agents,
             events: Default::default(),
-            max_tool_failure_per_turn: workflow.max_tool_failure_per_turn,
-            max_requests_per_turn: workflow.max_requests_per_turn,
+            max_tool_failure_per_turn: None,
+            max_requests_per_turn: None,
             metrics,
-        }
+        };
+        conversation.apply_workflow(workflow, additional_tools);
+        conversation
     }
 
     /// Returns all the agents that are subscribed to the given event.

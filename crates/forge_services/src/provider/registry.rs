@@ -1,25 +1,25 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_app::ProviderRegistry;
 use forge_app::domain::{Provider, ProviderUrl};
-use forge_app::dto::AppConfig;
+use forge_app::{ProfileService, ProviderRegistry};
 use tokio::sync::RwLock;
 
 use crate::EnvironmentInfra;
 
 type ProviderSearch = (&'static str, Box<dyn FnOnce(&str) -> Provider>);
 
-pub struct ForgeProviderRegistry<F> {
+pub struct ForgeProviderRegistry<F, P> {
     infra: Arc<F>,
+    profile_service: Arc<P>,
     // IMPORTANT: This cache is used to avoid logging out if the user has logged out from other
     // session. This helps to keep the user logged in for current session.
     cache: Arc<RwLock<Option<Provider>>>,
 }
 
-impl<F: EnvironmentInfra> ForgeProviderRegistry<F> {
-    pub fn new(infra: Arc<F>) -> Self {
-        Self { infra, cache: Arc::new(Default::default()) }
+impl<F: EnvironmentInfra, P: ProfileService> ForgeProviderRegistry<F, P> {
+    pub fn new(infra: Arc<F>, profile_service: Arc<P>) -> Self {
+        Self { infra, profile_service, cache: Arc::new(Default::default()) }
     }
 
     fn provider_url(&self) -> Option<ProviderUrl> {
@@ -27,33 +27,54 @@ impl<F: EnvironmentInfra> ForgeProviderRegistry<F> {
             return Some(ProviderUrl::OpenAI(url));
         }
 
-        // Check for Anthropic URL override
         if let Some(url) = self.infra.get_env_var("ANTHROPIC_URL") {
             return Some(ProviderUrl::Anthropic(url));
         }
         None
     }
-    fn get_provider(&self, _forge_config: AppConfig) -> Option<Provider> {
-        // if let Some(forge_key) = &forge_config.key_info {
-        //     let provider = Provider::forge(forge_key.api_key.as_str());
-        //     return Some(override_url(provider, self.provider_url()));
-        // }
-        resolve_env_provider(self.provider_url(), self.infra.as_ref())
+
+    async fn resolve_provider(&self) -> Option<Provider> {
+        // First, try to find the explicitly active provider
+        if let Some(profile) = self
+            .profile_service
+            .get_active_profile()
+            .await
+            .ok()
+            .flatten()
+        {
+            return Some(profile.provider);
+        }
+        // If no active provider, try to find the first one that can be configured
+        // otherwise fallback to env provider
+        let profiles = self
+            .profile_service
+            .list_profiles()
+            .await
+            .ok()
+            .unwrap_or(vec![]);
+        profiles
+            .into_iter()
+            .find_map(|p| p.provider.key().map(|_| p.provider.clone()))
+            .or_else(|| resolve_env_provider(self.provider_url(), self.infra.as_ref()))
     }
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra> ProviderRegistry for ForgeProviderRegistry<F> {
-    async fn get_provider(&self, config: AppConfig) -> anyhow::Result<Provider> {
+impl<F: EnvironmentInfra, P: ProfileService + Send + Sync> ProviderRegistry
+    for ForgeProviderRegistry<F, P>
+{
+    async fn get_provider(&self) -> anyhow::Result<Provider> {
         if let Some(provider) = self.cache.read().await.as_ref() {
             return Ok(provider.clone());
         }
 
-        let provider = self
-            .get_provider(config)
-            .context("No valid provider configuration found. Please set one of the following environment variables: OPENROUTER_API_KEY, REQUESTY_API_KEY, XAI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY. For more details, visit: https://forgecode.dev/docs/custom-providers/")?;
+        let provider = self.resolve_provider().await.context("No valid provider configuration found. Please configure a profile in your `profiles.yaml` file or set one of the following environment variables: OPENROUTER_API_KEY, REQUESTY_API_KEY, XAI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY.")?;
         self.cache.write().await.replace(provider.clone());
         Ok(provider)
+    }
+
+    async fn clear_provider_cache(&self) {
+        *self.cache.write().await = None;
     }
 }
 
