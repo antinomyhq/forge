@@ -49,6 +49,7 @@ pub trait Key {
     fn key(&self) -> &Self::Id;
 }
 
+#[allow(unused)]
 pub fn hashmap<K: Eq + Hash, V>(base: &mut HashMap<K, V>, other: HashMap<K, V>) {
     for (key, value) in other {
         base.insert(key, value);

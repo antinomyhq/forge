@@ -315,8 +315,8 @@ pub trait ShellService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait AppConfigService: Send + Sync {
-    async fn read_app_config(&self) -> anyhow::Result<AppConfig>;
-    async fn write_app_config(&self, config: &AppConfig) -> anyhow::Result<()>;
+    async fn get_app_config(&self) -> Option<AppConfig>;
+    async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -664,12 +664,12 @@ impl<I: Services> ProviderRegistry for I {
 
 #[async_trait::async_trait]
 impl<I: Services> AppConfigService for I {
-    async fn read_app_config(&self) -> anyhow::Result<AppConfig> {
-        self.app_config_service().read_app_config().await
+    async fn get_app_config(&self) -> Option<AppConfig> {
+        self.app_config_service().get_app_config().await
     }
 
-    async fn write_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
-        self.app_config_service().write_app_config(config).await
+    async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
+        self.app_config_service().set_app_config(config).await
     }
 }
 

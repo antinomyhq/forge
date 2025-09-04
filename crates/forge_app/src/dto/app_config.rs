@@ -1,4 +1,5 @@
 use derive_more::From;
+use forge_domain::AgentId;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
@@ -13,6 +14,8 @@ pub struct InitAuth {
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
     pub key_info: Option<LoginInfo>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operating_agent: Option<AgentId>,
 }
 
 #[derive(Clone, Serialize, Deserialize, From)]

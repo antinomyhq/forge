@@ -162,11 +162,12 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     }
     async fn provider(&self) -> anyhow::Result<Provider> {
         self.services
-            .get_provider(self.services.read_app_config().await.unwrap_or_default())
+            .get_provider(self.services.get_app_config().await.unwrap_or_default())
             .await
     }
-    async fn app_config(&self) -> anyhow::Result<AppConfig> {
-        self.services.read_app_config().await
+
+    async fn app_config(&self) -> Option<AppConfig> {
+        self.services.get_app_config().await
     }
 
     async fn user_info(&self) -> Result<Option<User>> {
@@ -185,5 +186,18 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
             return Ok(Some(user_usage));
         }
         Ok(None)
+    }
+
+    async fn get_operating_agent(&self) -> Option<AgentId> {
+        self.services
+            .get_app_config()
+            .await
+            .and_then(|config| config.operating_agent)
+    }
+
+    async fn set_operating_agent(&self, agent_id: AgentId) -> anyhow::Result<()> {
+        let mut config = self.services.get_app_config().await.unwrap_or_default();
+        config.operating_agent = Some(agent_id);
+        self.services.set_app_config(&config).await
     }
 }
