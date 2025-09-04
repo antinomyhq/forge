@@ -186,4 +186,15 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         }
         Ok(None)
     }
+
+    async fn get_operating_agent(&self) -> anyhow::Result<Option<AgentId>> {
+        let config = self.services.read_app_config().await?;
+        Ok(config.operating_agent)
+    }
+
+    async fn set_operating_agent(&self, agent_id: AgentId) -> anyhow::Result<()> {
+        let mut config = self.services.read_app_config().await.unwrap_or_default();
+        config.operating_agent = Some(agent_id);
+        self.services.write_app_config(&config).await
+    }
 }

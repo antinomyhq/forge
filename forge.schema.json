@@ -138,11 +138,6 @@
           "type": "null"
         }
       ]
-    },
-    "variables": {
-      "description": "Variables that can be used in templates",
-      "type": "object",
-      "additionalProperties": true
     }
   },
   "definitions": {
