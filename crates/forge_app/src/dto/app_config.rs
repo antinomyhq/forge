@@ -1,7 +1,6 @@
 use derive_more::From;
-use serde::{Deserialize, Serialize};
-
 use forge_domain::AgentId;
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]

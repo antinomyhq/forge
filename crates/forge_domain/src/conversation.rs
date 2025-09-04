@@ -338,8 +338,6 @@ mod tests {
         assert!(conversation.events.is_empty());
     }
 
-
-
     #[test]
     fn test_conversation_new_applies_workflow_settings_to_agents() {
         // Arrange

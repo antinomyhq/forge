@@ -123,9 +123,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.state.operating_agent = agent.id.clone();
 
         // Update the app config with the new operating agent.
-        self.api
-            .set_operating_agent(agent.id.clone()) 
-            .await?;
+        self.api.set_operating_agent(agent.id.clone()).await?;
 
         self.writeln_title(TitleFormat::action(format!(
             "Switched to agent {}",
@@ -645,7 +643,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         self.command.register_all(&base_workflow);
         let operating_agent = self.api.get_operating_agent().await.unwrap_or(None);
-        self.state = UIState::new(self.api.environment(), base_workflow, operating_agent).provider(provider);
+        self.state =
+            UIState::new(self.api.environment(), base_workflow, operating_agent).provider(provider);
 
         Ok(workflow)
     }

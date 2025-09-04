@@ -1,11 +1,8 @@
-
-
 use derive_setters::Setters;
 use lazy_static::lazy_static;
 use merge::Merge;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
 
 use crate::temperature::Temperature;
 use crate::update::Update;
@@ -26,8 +23,6 @@ pub struct Workflow {
     #[merge(strategy = crate::merge::vec::unify_by_key)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub agents: Vec<Agent>,
-
-
 
     /// configurations that can be used to update forge
     #[merge(strategy = crate::merge::option)]
