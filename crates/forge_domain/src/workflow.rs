@@ -176,14 +176,6 @@ impl Workflow {
             compact: None,
         }
     }
-
-    fn find_agent(&self, id: &AgentId) -> Option<&Agent> {
-        todo!();
-    }
-
-    pub fn get_agent(&self, id: &AgentId) -> crate::Result<&Agent> {
-        todo!();
-    }
 }
 
 #[cfg(test)]

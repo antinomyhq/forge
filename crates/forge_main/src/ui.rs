@@ -107,10 +107,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     // Set the current mode and update conversation variable
     async fn on_agent_change(&mut self, agent_id: AgentId) -> Result<()> {
-        let workflow = self.active_workflow().await?;
-
         // Convert string to AgentId for validation
-        let agent = workflow.get_agent(&AgentId::new(agent_id))?;
+        let agent = self
+            .api
+            .get_agents()
+            .await?
+            .iter()
+            .find(|agent| agent.id == agent_id)
+            .cloned()
+            .expect(&format!("Undefined agent: {agent_id}"));
 
         let conversation_id = self.init_conversation().await?;
         if let Some(mut conversation) = self.api.conversation(&conversation_id).await? {
@@ -642,7 +647,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .await?;
 
         self.command.register_all(&base_workflow);
-        let operating_agent = self.api.get_operating_agent().await;
+        let operating_agent = self.api.get_operating_agent().await.unwrap_or_default();
         self.state =
             UIState::new(self.api.environment(), base_workflow, operating_agent).provider(provider);
 
