@@ -103,12 +103,16 @@ impl Conversation {
         self
     }
 
-    fn new_inner(id: ConversationId, workflow: Workflow, additional_tools: Vec<ToolName>) -> Self {
-        let mut agents = Vec::new();
+    fn new_inner(
+        id: ConversationId,
+        workflow: Workflow,
+        additional_tools: Vec<ToolName>,
+        mut agents: Vec<Agent>,
+    ) -> Self {
         let mut metrics = Metrics::new();
         metrics.start();
 
-        for mut agent in workflow.agents.into_iter() {
+        for agent in agents.iter_mut() {
             // Handle deprecated tool names
             for tool in agent.tools.iter_mut().flatten() {
                 if let Some(new_tool_name) = DEPRECATED_TOOL_NAMES.get(tool) {
@@ -191,20 +195,13 @@ impl Conversation {
             }
 
             if !additional_tools.is_empty() {
-                agent.tools = Some(
-                    agent
-                        .tools
-                        .unwrap_or_default()
-                        .into_iter()
-                        .chain(additional_tools.iter().cloned())
-                        .collect::<Vec<_>>(),
-                );
+                agent.tools.iter_mut().for_each(|tools| {
+                    tools.extend(additional_tools.clone());
+                });
             }
 
             let id = agent.id.clone();
             agent.add_subscription(format!("{id}"));
-
-            agents.push(agent);
         }
 
         Self {
