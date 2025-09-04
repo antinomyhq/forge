@@ -1,7 +1,8 @@
 {
-  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "image": "mcr.microsoft.com/devcontainers/rust:1-1-bullseye",
+  "remoteUser": "vscode",
+  "updateRemoteUserUID": true,
   "features": {
-    "ghcr.io/devcontainers/features/rust:1": {},
     "ghcr.io/devcontainers/features/node:1": {
       "version": "lts"
     },
@@ -9,7 +10,18 @@
     "ghcr.io/devcontainers/features/git:1": {
       "ppa": true,
       "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "installOhMyZsh": true,
+      "upgradePackages": true,
+      "username": "vscode",
+      "uid": "automatic",
+      "gid": "automatic"
     }
+  },
+  "containerEnv": {
+    "SHELL": "/usr/bin/zsh"
   },
   "customizations": {
     "vscode": {
@@ -23,5 +35,5 @@
       }
     }
   },
-  "postCreateCommand": "npm i -g forgecode && rustup component add clippy rustfmt && cargo install cargo-insta"
+  "postCreateCommand": "npm i -g forgecode && rustup component add clippy rustfmt && cargo install cargo-insta && chsh -s /usr/bin/zsh"
 }
