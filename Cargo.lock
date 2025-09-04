@@ -1459,22 +1459,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "forge_inte"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "dotenv",
- "forge_api",
- "forge_domain",
- "forge_tracker",
- "futures",
- "lazy_static",
- "serde_yml",
- "tokio",
- "tokio-stream",
-]
-
-[[package]]
 name = "forge_json_repair"
 version = "0.1.0"
 dependencies = [

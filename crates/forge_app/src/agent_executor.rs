@@ -10,7 +10,7 @@ use futures::StreamExt;
 use tokio::sync::RwLock;
 
 use crate::error::Error;
-use crate::{ConversationService, Services, WorkflowService};
+use crate::{AgentLoaderService, ConversationService, Services, WorkflowService};
 
 #[derive(Clone)]
 pub struct AgentExecutor<S> {
@@ -24,15 +24,14 @@ impl<S: Services> AgentExecutor<S> {
     }
 
     /// Returns a list of tool definitions for all available agents.
-    pub async fn tool_agents(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+    pub async fn agent_definitions(&self) -> anyhow::Result<Vec<ToolDefinition>> {
         if let Some(tool_agents) = self.tool_agents.read().await.clone() {
             return Ok(tool_agents);
         }
-        let workflow = self.services.read_merged(None).await?;
-
-        let agents: Vec<ToolDefinition> = workflow.agents.into_iter().map(Into::into).collect();
-        *self.tool_agents.write().await = Some(agents.clone());
-        Ok(agents)
+        let agents = self.services.load_agents().await?;
+        let tools: Vec<ToolDefinition> = agents.into_iter().map(Into::into).collect();
+        *self.tool_agents.write().await = Some(tools.clone());
+        Ok(tools)
     }
 
     /// Executes an agent tool call by creating a new chat request for the
@@ -99,7 +98,7 @@ impl<S: Services> AgentExecutor<S> {
     }
 
     pub async fn contains_tool(&self, tool_name: &ToolName) -> anyhow::Result<bool> {
-        let agent_tools = self.tool_agents().await?;
+        let agent_tools = self.agent_definitions().await?;
         Ok(agent_tools.iter().any(|tool| tool.name == *tool_name))
     }
 }
