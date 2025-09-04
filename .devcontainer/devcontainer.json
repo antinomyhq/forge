@@ -13,30 +13,15 @@
   },
   "customizations": {
     "vscode": {
-      "extensions": [
-        "rust-lang.rust-analyzer",
-        "vadimcn.vscode-lldb",
-        "serayuzgur.crates",
-        "tamasfe.even-better-toml",
-        "GitHub.vscode-github-actions",
-        "ms-vscode.vscode-json"
-      ],
       "settings": {
         "terminal.integrated.defaultProfile.linux": "zsh",
         "terminal.integrated.profiles.linux": {
           "zsh": {
             "path": "/usr/bin/zsh"
           }
-        },
-        "rust-analyzer.cargo.buildScripts.enable": true,
-        "rust-analyzer.checkOnSave.command": "clippy",
-        "rust-analyzer.rustfmt.rangeFormatting.enable": true,
-        "[rust]": {
-          "editor.defaultFormatter": "rust-lang.rust-analyzer",
-          "editor.formatOnSave": true
         }
       }
     }
   },
-  "postCreateCommand": "rustup component add clippy rustfmt && cargo install cargo-insta"
+  "postCreateCommand": "npm i -g forgecode && rustup component add clippy rustfmt && cargo install cargo-insta"
 }
