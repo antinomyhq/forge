@@ -191,9 +191,11 @@ impl Conversation {
             }
 
             if !tools.is_empty() {
-                agent.tools.iter_mut().for_each(|input| {
-                    input.extend(tools.clone());
-                });
+                if let Some(ref mut base_tools) = agent.tools {
+                    base_tools.extend(tools.clone());
+                } else {
+                    agent.tools = Some(tools.clone());
+                }
             }
 
             let id = agent.id.clone();
@@ -1148,5 +1150,75 @@ mod tests {
                 assert_eq!(compact.model, Some(model_id.clone()));
             }
         }
+    }
+    #[test]
+    fn test_workflow_model_is_set_for_all_agents() {
+        // Arrange
+        let id = super::ConversationId::generate();
+
+        // Create agents with different initial states
+        let agent1 = Agent::new("agent-1"); // No model, no compact
+        let agent2 = Agent::new("agent-2").model(ModelId::new("old-model")); // Has model, no compact
+        let agent3 = Agent::new("agent-3").compact(Compact::new().token_threshold(1000_usize)); // No model, has compact
+        let agent4 = Agent::new("agent-4")
+            .model(ModelId::new("another-old-model"))
+            .compact(Compact::new().model(ModelId::new("old-compact-model"))); // Has both model and compact
+
+        let agents = vec![agent1, agent2, agent3, agent4];
+
+        // Create workflow with a model
+        let workflow_model = ModelId::new("workflow-model");
+        let workflow = Workflow::new().model(workflow_model.clone());
+
+        // Act
+        let conversation = super::Conversation::new(id, workflow, vec![], agents);
+
+        // Assert
+        assert_eq!(conversation.agents.len(), 4);
+
+        // Check that ALL agents have the workflow model set
+        for agent in &conversation.agents {
+            // Every agent should have the workflow model
+            assert_eq!(agent.model, Some(workflow_model.clone()));
+
+            // Every agent should have compact configuration with the workflow model
+            assert!(agent.compact.is_some());
+            let compact = agent.compact.as_ref().unwrap();
+            assert_eq!(compact.model, Some(workflow_model.clone()));
+        }
+
+        // Verify specific agent behaviors
+        let agent1 = conversation.get_agent(&AgentId::new("agent-1")).unwrap();
+        assert_eq!(agent1.model, Some(workflow_model.clone()));
+        assert_eq!(
+            agent1.compact.as_ref().unwrap().model,
+            Some(workflow_model.clone())
+        );
+
+        let agent2 = conversation.get_agent(&AgentId::new("agent-2")).unwrap();
+        assert_eq!(agent2.model, Some(workflow_model.clone())); // Overridden from "old-model"
+        assert_eq!(
+            agent2.compact.as_ref().unwrap().model,
+            Some(workflow_model.clone())
+        );
+
+        let agent3 = conversation.get_agent(&AgentId::new("agent-3")).unwrap();
+        assert_eq!(agent3.model, Some(workflow_model.clone()));
+        assert_eq!(
+            agent3.compact.as_ref().unwrap().model,
+            Some(workflow_model.clone())
+        );
+        // Should preserve other compact settings
+        assert_eq!(
+            agent3.compact.as_ref().unwrap().token_threshold,
+            Some(1000_usize)
+        );
+
+        let agent4 = conversation.get_agent(&AgentId::new("agent-4")).unwrap();
+        assert_eq!(agent4.model, Some(workflow_model.clone())); // Overridden from "another-old-model"
+        assert_eq!(
+            agent4.compact.as_ref().unwrap().model,
+            Some(workflow_model.clone())
+        ); // Overridden from "old-compact-model"
     }
 }
