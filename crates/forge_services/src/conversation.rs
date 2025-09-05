@@ -11,14 +11,14 @@ use tokio::sync::Mutex;
 /// updates
 #[derive(Clone)]
 pub struct ForgeConversationService<M> {
-    workflows: Arc<Mutex<HashMap<ConversationId, Conversation>>>,
+    conversations: Arc<Mutex<HashMap<ConversationId, Conversation>>>,
     mcp_service: Arc<M>,
 }
 
 impl<M: McpService> ForgeConversationService<M> {
     /// Creates a new ForgeConversationService with the provided MCP service
     pub fn new(mcp_service: Arc<M>) -> Self {
-        Self { workflows: Arc::new(Mutex::new(HashMap::new())), mcp_service }
+        Self { conversations: Arc::new(Mutex::new(HashMap::new())), mcp_service }
     }
 }
 
@@ -28,17 +28,17 @@ impl<M: McpService> ConversationService for ForgeConversationService<M> {
     where
         F: FnOnce(&mut Conversation) -> T + Send,
     {
-        let mut workflows = self.workflows.lock().await;
+        let mut workflows = self.conversations.lock().await;
         let conversation = workflows.get_mut(id).context("Conversation not found")?;
         Ok(f(conversation))
     }
 
     async fn find(&self, id: &ConversationId) -> Result<Option<Conversation>> {
-        Ok(self.workflows.lock().await.get(id).cloned())
+        Ok(self.conversations.lock().await.get(id).cloned())
     }
 
     async fn upsert(&self, conversation: Conversation) -> Result<()> {
-        self.workflows
+        self.conversations
             .lock()
             .await
             .insert(conversation.id, conversation);
@@ -61,7 +61,7 @@ impl<M: McpService> ConversationService for ForgeConversationService<M> {
                 .collect(),
             agents,
         );
-        self.workflows.lock().await.insert(id, conversation.clone());
+        self.conversations.lock().await.insert(id, conversation.clone());
         Ok(conversation)
     }
 }
