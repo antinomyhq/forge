@@ -422,9 +422,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.api.execute_shell_command_raw(command).await?;
             }
             Command::Agent => {
-                // Read the current workflow to validate the agent
-                let workflow = self.active_workflow().await?;
-
                 #[derive(Clone)]
                 struct Agent {
                     id: AgentId,
