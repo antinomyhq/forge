@@ -1,5 +1,4 @@
 use std::path::{Path, PathBuf};
-use nonempty::NonEmpty;
 
 use bytes::Bytes;
 use forge_domain::{
@@ -8,6 +7,7 @@ use forge_domain::{
     ToolCallFull, ToolDefinition, ToolOutput, Workflow,
 };
 use merge::Merge;
+use nonempty::NonEmpty;
 use reqwest::Response;
 use reqwest::header::HeaderMap;
 use reqwest_eventsource::EventSource;
