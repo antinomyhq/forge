@@ -81,6 +81,7 @@ fn handle_spotlight_navigation(
                         // For now, just hide spotlight - proper model selection would need more UI
                         Command::Empty
                     }
+                    crate::domain::slash_command::SlashCommand::New => Command::New,
                     _ => {
                         // For other commands, just hide spotlight for now
                         Command::Empty
@@ -694,5 +695,199 @@ mod tests {
         assert_eq!(actual, expected);
         assert_eq!(fixture.messages.len(), 0);
         assert!(!fixture.show_spinner);
+    }
+    #[test]
+    fn test_spotlight_new_command_execution() {
+        let mut state = State::default();
+        state.spotlight.is_visible = true;
+
+        // Set up to select the new command
+        state
+            .spotlight
+            .editor
+            .set_text_insert_mode("new".to_string());
+        state.spotlight.selected_index = 0;
+
+        // Test Enter key executes the New command
+        let key_event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+        let actual_command = handle_key_event(&mut state, key_event);
+        let expected_command = Command::New;
+
+        assert_eq!(actual_command, expected_command);
+        // Spotlight should be hidden after command execution
+        assert!(!state.spotlight.is_visible);
+    }
+
+    #[test]
+    fn test_spotlight_new_command_selection_with_partial_match() {
+        let mut state = State::default();
+        state.spotlight.is_visible = true;
+
+        // Set up partial match for "new" command
+        state
+            .spotlight
+            .editor
+            .set_text_insert_mode("ne".to_string());
+
+        // Get filtered commands and verify "new" is included
+        let filtered_commands = state.spotlight.filtered_commands();
+        assert!(filtered_commands.contains(&SlashCommand::New));
+
+        // Find the index of the "new" command in filtered results
+        let new_command_index = filtered_commands
+            .iter()
+            .position(|cmd| *cmd == SlashCommand::New)
+            .unwrap();
+
+        state.spotlight.selected_index = new_command_index;
+
+        // Test Enter key executes the New command
+        let key_event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+        let actual_command = handle_key_event(&mut state, key_event);
+        let expected_command = Command::New;
+
+        assert_eq!(actual_command, expected_command);
+        // Spotlight should be hidden after command execution
+        assert!(!state.spotlight.is_visible);
+    }
+
+    #[test]
+    fn test_spotlight_new_command_navigation_and_execution() {
+        let mut state = State::default();
+        state.spotlight.is_visible = true;
+        state.spotlight.selected_index = 0;
+
+        // Navigate to find the "new" command
+        // First, let's find where "new" is in the list
+        let all_commands = state.spotlight.filtered_commands();
+        let new_command_index = all_commands
+            .iter()
+            .position(|cmd| *cmd == SlashCommand::New)
+            .unwrap();
+
+        // Navigate to the new command using down arrow keys
+        for _ in 0..new_command_index {
+            let key_event = KeyEvent::new(KeyCode::Down, KeyModifiers::NONE);
+            let actual_command = handle_key_event(&mut state, key_event);
+            assert_eq!(actual_command, Command::Empty);
+        }
+
+        // Verify we're at the correct position
+        assert_eq!(state.spotlight.selected_index, new_command_index);
+        assert_eq!(state.spotlight.selected_command(), Some(SlashCommand::New));
+
+        // Execute the New command
+        let key_event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+        let actual_command = handle_key_event(&mut state, key_event);
+        let expected_command = Command::New;
+
+        assert_eq!(actual_command, expected_command);
+        // Spotlight should be hidden after command execution
+        assert!(!state.spotlight.is_visible);
+    }
+
+    #[test]
+    fn test_spotlight_new_command_tab_completion() {
+        let mut state = State::default();
+        state.spotlight.is_visible = true;
+
+        // Set up partial input that should auto-complete to "new"
+        state
+            .spotlight
+            .editor
+            .set_text_insert_mode("ne".to_string());
+
+        // Test Tab key auto-completes to first match
+        let key_event = KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE);
+        let actual_command = handle_key_event(&mut state, key_event);
+        let expected_command = Command::Empty;
+
+        assert_eq!(actual_command, expected_command);
+
+        // Check that the first matching command was auto-completed
+        let filtered_commands = state.spotlight.filtered_commands();
+        if !filtered_commands.is_empty() {
+            let first_match = filtered_commands[0].to_string();
+            assert_eq!(state.spotlight.editor.get_text(), first_match);
+            assert_eq!(state.spotlight.selected_index, 0);
+        }
+    }
+
+    #[test]
+    fn test_spotlight_new_command_exact_match_filtering() {
+        let mut state = State::default();
+        state.spotlight.is_visible = true;
+
+        // Set exact match for "new" command
+        state
+            .spotlight
+            .editor
+            .set_text_insert_mode("new".to_string());
+
+        // Get filtered commands and verify only "new" matches exactly
+        let filtered_commands = state.spotlight.filtered_commands();
+        assert_eq!(filtered_commands.len(), 1);
+        assert_eq!(filtered_commands[0], SlashCommand::New);
+
+        // Test that selected command is "new"
+        let selected = state.spotlight.selected_command();
+        assert_eq!(selected, Some(SlashCommand::New));
+    }
+
+    #[test]
+    fn test_spotlight_new_command_case_insensitive_matching() {
+        let mut state = State::default();
+        state.spotlight.is_visible = true;
+
+        // Set uppercase input
+        state
+            .spotlight
+            .editor
+            .set_text_insert_mode("NEW".to_string());
+
+        // Get filtered commands - should still match "new" (case insensitive)
+        let filtered_commands = state.spotlight.filtered_commands();
+        assert!(filtered_commands.contains(&SlashCommand::New));
+    }
+
+    #[test]
+    fn test_spotlight_new_command_not_executed_when_spotlight_hidden() {
+        let mut state = State::default();
+        state.spotlight.is_visible = false;
+
+        // Try to execute Enter when spotlight is hidden
+        let key_event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+        let actual_command = handle_key_event(&mut state, key_event);
+
+        // Should not execute New command when spotlight is hidden
+        assert_ne!(actual_command, Command::New);
+        assert!(!state.spotlight.is_visible);
+    }
+
+    #[test]
+    fn test_spotlight_new_command_state_reset_after_execution() {
+        let mut state = State::default();
+        state.spotlight.is_visible = true;
+
+        // Set up some state in spotlight
+        state
+            .spotlight
+            .editor
+            .set_text_insert_mode("new".to_string());
+        // Since "new" is an exact match, selected_index should be 0 for the filtered
+        // results
+        state.spotlight.selected_index = 0;
+
+        // Execute the New command
+        let key_event = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+        let actual_command = handle_key_event(&mut state, key_event);
+        let expected_command = Command::New;
+
+        assert_eq!(actual_command, expected_command);
+
+        // Verify spotlight state is reset to default
+        assert!(!state.spotlight.is_visible);
+        assert_eq!(state.spotlight.selected_index, 0);
+        assert_eq!(state.spotlight.editor.get_text(), "");
     }
 }
