@@ -198,7 +198,7 @@ mod tests {
     #[test]
     fn test_actual_llm_respone() {
         // Test with real LLM response including newlines and indentation
-        let str = r#"To find the cat hidden in the codebase, I will use the `forge_tool_fs_search` to grep for the string "cat" in all markdown files except those in the `docs` directory.
+        let str = r#"To find the cat hidden in the codebase, I will use the `search` to grep for the string "cat" in all markdown files except those in the `docs` directory.
                 <analysis>
                 Files Read: */*.md
                 Git Status: Not applicable, as we are not dealing with version control changes.
@@ -208,16 +208,16 @@ mod tests {
                 Let's check the implementation in the fs_read.rs file:
 
                 <forge_tool_call>
-                <forge_tool_fs_read>
+                <read>
                 <path>/a/b/c.txt</path>
-                </forge_tool_fs_read>
+                </read>
                 </forge_tool_call>
                 "#;
 
         let action = parse(str).unwrap();
 
         let expected = vec![ToolCallFull {
-            name: ToolName::new("forge_tool_fs_read"),
+            name: ToolName::new("read"),
             call_id: None,
             arguments: json!({"path":"/a/b/c.txt"}).into(),
         }];
@@ -368,11 +368,11 @@ mod tests {
 
     #[test]
     fn test_parse_new_tool_call_format() {
-        let input = r#"<forge_tool_call><forge_tool_fs_search><path>/test/path</path><regex>test</regex></forge_tool_fs_search></forge_tool_call>"#;
+        let input = r#"<forge_tool_call><search><path>/test/path</path><regex>test</regex></search></forge_tool_call>"#;
 
         let action = parse(input).unwrap();
         let expected = vec![ToolCallFull {
-            name: ToolName::new("forge_tool_fs_search"),
+            name: ToolName::new("search"),
             call_id: None,
             arguments: json!({"path":"/test/path","regex":"test"}).into(),
         }];
