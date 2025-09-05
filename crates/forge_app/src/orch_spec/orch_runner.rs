@@ -62,7 +62,7 @@ impl Runner {
             ConversationId::generate(),
             setup.workflow.clone(),
             Default::default(),
-            agents
+            agents,
         );
 
         let orch = Orchestrator::new(
