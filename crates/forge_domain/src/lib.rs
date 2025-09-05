@@ -96,3 +96,5 @@ pub use transformer::*;
 pub use update::*;
 pub use workflow::*;
 pub use xml::*;
+/// Type alias for tokio mpsc Sender that sends ChatResponse results
+pub type ArcSender = tokio::sync::mpsc::Sender<anyhow::Result<ChatResponse>>;
