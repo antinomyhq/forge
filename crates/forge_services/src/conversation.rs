@@ -30,8 +30,8 @@ impl<M: McpService> ConversationService for ForgeConversationService<M> {
     where
         F: FnOnce(&mut Conversation) -> T + Send,
     {
-        let mut workflows = self.conversations.lock().await;
-        let conversation = workflows.get_mut(id).context("Conversation not found")?;
+        let mut conversation = self.conversations.lock().await;
+        let conversation = conversation.get_mut(id).context("Conversation not found")?;
         Ok(f(conversation))
     }
 

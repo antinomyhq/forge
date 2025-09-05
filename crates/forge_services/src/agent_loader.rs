@@ -4,7 +4,6 @@ use anyhow::{Context, Result};
 use forge_app::domain::{Agent, Template};
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
-use nonempty::NonEmpty;
 
 use crate::{
     DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
@@ -18,7 +17,7 @@ pub struct AgentLoaderService<F> {
     // Cache is used to maintain the loaded agents
     // for this service instance.
     // So that they could live till user starts a new session.
-    cache: tokio::sync::OnceCell<NonEmpty<Agent>>,
+    cache: tokio::sync::OnceCell<Vec<Agent>>,
 }
 
 impl<F> AgentLoaderService<F> {
@@ -32,7 +31,7 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
     forge_app::AgentLoaderService for AgentLoaderService<F>
 {
     /// Load all agent definitions from the forge/agent directory
-    async fn get_agents(&self) -> anyhow::Result<NonEmpty<Agent>> {
+    async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
         self.cache_or_init().await
     }
 }
@@ -41,11 +40,11 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
     AgentLoaderService<F>
 {
     /// Load all agent definitions from the forge/agent directory
-    async fn cache_or_init(&self) -> anyhow::Result<NonEmpty<Agent>> {
+    async fn cache_or_init(&self) -> anyhow::Result<Vec<Agent>> {
         self.cache.get_or_try_init(|| self.init()).await.cloned()
     }
 
-    async fn init(&self) -> anyhow::Result<NonEmpty<Agent>> {
+    async fn init(&self) -> anyhow::Result<Vec<Agent>> {
         // Load built-in agents
         let mut agents = self.init_default().await?;
 
@@ -56,8 +55,8 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
         Ok(agents)
     }
 
-    async fn init_default(&self) -> anyhow::Result<NonEmpty<Agent>> {
-        Ok(NonEmpty::from_vec(parse_agent_iter(
+    async fn init_default(&self) -> anyhow::Result<Vec<Agent>> {
+        parse_agent_iter(
             [
                 ("forge", include_str!("agents/forge.md")),
                 ("muse", include_str!("agents/muse.md")),
@@ -67,8 +66,7 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
             ]
             .into_iter()
             .map(|(name, content)| (name.to_string(), content.to_string())),
-        )?)
-        .unwrap())
+        )
     }
 
     async fn init_custom(&self) -> anyhow::Result<Vec<Agent>> {
