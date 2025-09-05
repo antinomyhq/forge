@@ -25,3 +25,4 @@ compact:
 updates:
   frequency: "daily"
   auto_update: false
+model: *advanced_model
