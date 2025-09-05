@@ -73,6 +73,6 @@ impl<T: Services> AgentService for T {
     }
 
     async fn update(&self, conversation: Conversation) -> anyhow::Result<()> {
-        self.upsert(conversation).await
+        self.upsert_conversation(conversation).await
     }
 }

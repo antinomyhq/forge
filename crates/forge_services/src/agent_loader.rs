@@ -31,8 +31,8 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
     forge_app::AgentLoaderService for AgentLoaderService<F>
 {
     /// Load all agent definitions from the forge/agent directory
-    async fn load_agents(&self) -> anyhow::Result<Vec<Agent>> {
-        self.load_agents().await
+    async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
+        self.cache_or_init().await
     }
 }
 
@@ -40,17 +40,40 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
     AgentLoaderService<F>
 {
     /// Load all agent definitions from the forge/agent directory
-    async fn load_agents(&self) -> anyhow::Result<Vec<Agent>> {
+    async fn cache_or_init(&self) -> anyhow::Result<Vec<Agent>> {
         self.cache.get_or_try_init(|| self.init()).await.cloned()
     }
 
     async fn init(&self) -> anyhow::Result<Vec<Agent>> {
+        // Load built-in agents
+        let mut agents = self.init_default().await?;
+
+        // Load custom agents
+        let custom_agents = self.init_custom().await?;
+        agents.extend(custom_agents);
+
+        Ok(agents)
+    }
+
+    async fn init_default(&self) -> anyhow::Result<Vec<Agent>> {
+        parse_agent_iter(
+            [
+                ("forge", include_str!("agents/forge.md")),
+                ("muse", include_str!("agents/muse.md")),
+                ("prime", include_str!("agents/prime.md")),
+                ("parker", include_str!("agents/parker.md")),
+                ("sage", include_str!("agents/sage.md")),
+            ]
+            .into_iter()
+            .map(|(name, content)| (name.to_string(), content.to_string())),
+        )
+    }
+
+    async fn init_custom(&self) -> anyhow::Result<Vec<Agent>> {
         let agent_dir = self.infra.get_environment().agent_path();
         if !self.infra.exists(&agent_dir).await? {
             return Ok(vec![]);
         }
-
-        let mut agents = vec![];
 
         // Use DirectoryReaderInfra to read all .md files in parallel
         let files = self
@@ -59,15 +82,33 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
             .await
             .with_context(|| "Failed to read agent directory")?;
 
-        for (path, content) in files {
-            agents.push(
-                parse_agent_file(&content)
-                    .with_context(|| format!("Failed to parse agent: {}", path.display()))?,
-            )
-        }
-
-        Ok(agents)
+        parse_agent_iter(files.into_iter().map(|(path, content)| {
+            let name = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("unknown")
+                .to_string();
+            (name, content)
+        }))
     }
+}
+
+fn parse_agent_iter<I, Path: AsRef<str>, Content: AsRef<str>>(
+    contents: I,
+) -> anyhow::Result<Vec<Agent>>
+where
+    I: Iterator<Item = (Path, Content)>,
+{
+    let mut agents = vec![];
+
+    for (name, content) in contents {
+        agents.push(
+            parse_agent_file(content.as_ref())
+                .with_context(|| format!("Failed to parse agent: {}", name.as_ref()))?,
+        );
+    }
+
+    Ok(agents)
 }
 
 /// Parse raw content into an Agent with YAML frontmatter
@@ -140,5 +181,28 @@ mod tests {
 
         let result = parse_agent_file(content);
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_parse_builtin_agents() {
+        // Test that all built-in agents parse correctly
+        let builtin_agents = [
+            ("forge", include_str!("agents/forge.md")),
+            ("muse", include_str!("agents/muse.md")),
+            ("prime", include_str!("agents/prime.md")),
+            ("parker", include_str!("agents/parker.md")),
+            ("sage", include_str!("agents/sage.md")),
+        ];
+
+        for (name, content) in builtin_agents {
+            let agent = parse_agent_file(content)
+                .with_context(|| format!("Failed to parse built-in agent: {}", name))
+                .unwrap();
+
+            assert_eq!(agent.id.as_str(), name);
+            assert!(agent.title.is_some());
+            assert!(agent.description.is_some());
+            assert!(agent.system_prompt.is_some());
+        }
     }
 }

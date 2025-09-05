@@ -75,6 +75,7 @@ This document contains guidelines and best practices for AI agents working with 
   assert_eq(actual.b, expected.b);
 
 ## Verification
+Always verify changes by running tests and linting the codebase
 
 1. Run crate specific tests to ensure they pass.
 

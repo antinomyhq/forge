@@ -12,7 +12,6 @@ use tracing::{debug, info, warn};
 
 use crate::agent::AgentService;
 use crate::compact::Compactor;
-pub type ArcSender = Arc<tokio::sync::mpsc::Sender<anyhow::Result<ChatResponse>>>;
 
 #[derive(Clone, Setters)]
 #[setters(into, strip_option)]

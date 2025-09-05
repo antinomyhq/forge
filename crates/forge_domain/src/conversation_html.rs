@@ -386,7 +386,7 @@ mod tests {
         let id = crate::conversation::ConversationId::generate();
         let workflow = crate::Workflow::new();
 
-        let fixture = Conversation::new(id, workflow, Default::default());
+        let fixture = Conversation::new(id, workflow, Default::default(), vec![]);
         let actual = render_conversation_html(&fixture);
 
         // We're verifying that the function runs without errors

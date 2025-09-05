@@ -4,13 +4,6 @@
   "description": "Configuration for a workflow that contains all settings required to initialize a workflow.",
   "type": "object",
   "properties": {
-    "agents": {
-      "description": "Agents that are part of this workflow",
-      "type": "array",
-      "items": {
-        "$ref": "#/definitions/Agent"
-      }
-    },
     "commands": {
       "description": "Commands that can be used to interact with the workflow",
       "type": "array",
@@ -141,174 +134,6 @@
     }
   },
   "definitions": {
-    "Agent": {
-      "type": "object",
-      "required": [
-        "id"
-      ],
-      "properties": {
-        "compact": {
-          "description": "Configuration for automatic context compaction",
-          "anyOf": [
-            {
-              "$ref": "#/definitions/Compact"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "custom_rules": {
-          "description": "A set of custom rules that the agent should follow",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "description": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "max_tokens": {
-          "description": "Maximum number of tokens the model can generate\n\nControls the maximum length of the model's response. - Lower values (e.g., 100) limit response length for concise outputs - Higher values (e.g., 4000) allow for longer, more detailed responses - Valid range is 1 to 100,000 - If not specified, the model provider's default will be used",
-          "anyOf": [
-            {
-              "$ref": "#/definitions/MaxTokens"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "max_turns": {
-          "description": "Maximum number of turns the agent can take",
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint64",
-          "minimum": 0.0
-        },
-        "max_walker_depth": {
-          "description": "Maximum depth to which the file walker should traverse for this agent If not provided, the maximum possible depth will be used",
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint",
-          "minimum": 0.0
-        },
-        "model": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "reasoning": {
-          "description": "Reasoning configuration for the agent. Controls the reasoning capabilities of the agent",
-          "anyOf": [
-            {
-              "$ref": "#/definitions/ReasoningConfig"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "subscribe": {
-          "description": "Used to specify the events the agent is interested in",
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "string"
-          }
-        },
-        "system_prompt": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/String"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "temperature": {
-          "description": "Temperature used for agent\n\nTemperature controls the randomness in the model's output. - Lower values (e.g., 0.1) make responses more focused, deterministic, and coherent - Higher values (e.g., 0.8) make responses more creative, diverse, and exploratory - Valid range is 0.0 to 2.0 - If not specified, the model provider's default temperature will be used",
-          "anyOf": [
-            {
-              "$ref": "#/definitions/Temperature"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "title": {
-          "description": "Human-readable title for the agent",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "tool_supported": {
-          "description": "Flag to enable/disable tool support for this agent.",
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "tools": {
-          "description": "Tools that the agent can use",
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "string"
-          }
-        },
-        "top_k": {
-          "description": "Top-k used for agent\n\nControls the number of highest probability vocabulary tokens to keep. - Lower values (e.g., 10) make responses more focused - Higher values (e.g., 100) make responses more diverse - Valid range is 1 to 1000 - If not specified, the model provider's default will be used",
-          "anyOf": [
-            {
-              "$ref": "#/definitions/TopK"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "top_p": {
-          "description": "Top-p (nucleus sampling) used for agent\n\nControls the diversity of the model's output by considering only the most probable tokens up to a cumulative probability threshold. - Lower values (e.g., 0.1) make responses more focused - Higher values (e.g., 0.9) make responses more diverse - Valid range is 0.0 to 1.0 - If not specified, the model provider's default will be used",
-          "anyOf": [
-            {
-              "$ref": "#/definitions/TopP"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "user_prompt": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/String"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      }
-    },
     "Command": {
       "type": "object",
       "required": [
@@ -413,61 +238,11 @@
         }
       }
     },
-    "Effort": {
-      "type": "string",
-      "enum": [
-        "high",
-        "medium",
-        "low"
-      ]
-    },
     "MaxTokens": {
       "description": "A newtype for max_tokens values with built-in validation\n\nMax tokens controls the maximum number of tokens the model can generate: - Lower values (e.g., 100) limit response length for concise outputs - Higher values (e.g., 4000) allow for longer, more detailed responses - Valid range is 1 to 100,000 (reasonable upper bound for most models) - If not specified, the model provider's default will be used",
       "type": "integer",
       "format": "uint32",
       "minimum": 0.0
-    },
-    "ReasoningConfig": {
-      "type": "object",
-      "properties": {
-        "effort": {
-          "description": "Controls the effort level of the agent's reasoning supported by openrouter and forge provider",
-          "anyOf": [
-            {
-              "$ref": "#/definitions/Effort"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "enabled": {
-          "description": "Enables reasoning at the “medium” effort level with no exclusions. supported by openrouter, anthropic and forge provider",
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "exclude": {
-          "description": "Model thinks deeply, but the reasoning is hidden from you. supported by openrouter and forge provider",
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "max_tokens": {
-          "description": "Controls how many tokens the model can spend thinking. supported by openrouter, anthropic and forge provider should be greater then 1024 but less than overall max_tokens",
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint",
-          "minimum": 0.0
-        }
-      }
-    },
-    "String": {
-      "type": "string"
     },
     "Temperature": {
       "description": "A newtype for temperature values with built-in validation\n\nTemperature controls the randomness in the model's output: - Lower values (e.g., 0.1) make responses more focused, deterministic, and coherent - Higher values (e.g., 0.8) make responses more creative, diverse, and exploratory - Valid range is 0.0 to 2.0",

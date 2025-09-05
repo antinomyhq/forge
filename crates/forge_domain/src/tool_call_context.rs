@@ -1,12 +1,8 @@
 use std::sync::{Arc, Mutex};
 
 use derive_setters::Setters;
-use tokio::sync::mpsc::Sender;
 
-use crate::{ChatResponse, ChatResponseContent, Metrics, TitleFormat};
-
-/// Type alias for Arc<Sender<Result<ChatResponse>>>
-type ArcSender = Arc<Sender<anyhow::Result<ChatResponse>>>;
+use crate::{ArcSender, ChatResponse, ChatResponseContent, Metrics, TitleFormat};
 
 /// Provides additional context for tool calls.
 #[derive(Debug, Clone, Setters)]

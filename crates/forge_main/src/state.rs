@@ -20,19 +20,7 @@ pub struct UIState {
 }
 
 impl UIState {
-    pub fn new(env: Environment, workflow: Workflow, operating_agent: Option<AgentId>) -> Self {
-        let operating_agent = operating_agent
-            .and_then(|agent_id| {
-                // Validate that the agent exists in the workflow
-                if workflow.agents.iter().any(|agent| agent.id == agent_id) {
-                    Some(agent_id)
-                } else {
-                    None
-                }
-            })
-            .or_else(|| workflow.agents.first().map(|agent| agent.id.clone()))
-            .unwrap_or_default();
-
+    pub fn new(env: Environment, workflow: Workflow, operating_agent: AgentId) -> Self {
         Self {
             cwd: env.cwd,
             conversation_id: Default::default(),

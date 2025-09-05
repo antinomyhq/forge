@@ -134,15 +134,19 @@ pub trait McpService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait ConversationService: Send + Sync {
-    async fn find(&self, id: &ConversationId) -> anyhow::Result<Option<Conversation>>;
+    async fn find_conversation(&self, id: &ConversationId) -> anyhow::Result<Option<Conversation>>;
 
-    async fn upsert(&self, conversation: Conversation) -> anyhow::Result<()>;
+    async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()>;
 
-    async fn create_conversation(&self, workflow: Workflow) -> anyhow::Result<Conversation>;
+    async fn init_conversation(
+        &self,
+        workflow: Workflow,
+        agent: Vec<Agent>,
+    ) -> anyhow::Result<Conversation>;
 
     /// This is useful when you want to perform several operations on a
     /// conversation atomically.
-    async fn update<F, T>(&self, id: &ConversationId, f: F) -> anyhow::Result<T>
+    async fn modify_conversation<F, T>(&self, id: &ConversationId, f: F) -> anyhow::Result<T>
     where
         F: FnOnce(&mut Conversation) -> T + Send;
 }
@@ -334,7 +338,7 @@ pub trait ProviderRegistry: Send + Sync {
 #[async_trait::async_trait]
 pub trait AgentLoaderService: Send + Sync {
     /// Load all agent definitions from the forge/agent directory
-    async fn load_agents(&self) -> anyhow::Result<Vec<Agent>>;
+    async fn get_agents(&self) -> anyhow::Result<Vec<Agent>>;
 }
 
 #[async_trait::async_trait]
@@ -407,25 +411,31 @@ pub trait Services: Send + Sync + 'static + Clone {
 
 #[async_trait::async_trait]
 impl<I: Services> ConversationService for I {
-    async fn find(&self, id: &ConversationId) -> anyhow::Result<Option<Conversation>> {
-        self.conversation_service().find(id).await
+    async fn find_conversation(&self, id: &ConversationId) -> anyhow::Result<Option<Conversation>> {
+        self.conversation_service().find_conversation(id).await
     }
 
-    async fn upsert(&self, conversation: Conversation) -> anyhow::Result<()> {
-        self.conversation_service().upsert(conversation).await
-    }
-
-    async fn create_conversation(&self, workflow: Workflow) -> anyhow::Result<Conversation> {
+    async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()> {
         self.conversation_service()
-            .create_conversation(workflow)
+            .upsert_conversation(conversation)
             .await
     }
 
-    async fn update<F, T>(&self, id: &ConversationId, f: F) -> anyhow::Result<T>
+    async fn init_conversation(
+        &self,
+        workflow: Workflow,
+        agents: Vec<Agent>,
+    ) -> anyhow::Result<Conversation> {
+        self.conversation_service()
+            .init_conversation(workflow, agents)
+            .await
+    }
+
+    async fn modify_conversation<F, T>(&self, id: &ConversationId, f: F) -> anyhow::Result<T>
     where
         F: FnOnce(&mut Conversation) -> T + Send,
     {
-        self.conversation_service().update(id, f).await
+        self.conversation_service().modify_conversation(id, f).await
     }
 }
 #[async_trait::async_trait]
@@ -710,8 +720,8 @@ pub trait HttpClientService: Send + Sync + 'static {
 
 #[async_trait::async_trait]
 impl<I: Services> AgentLoaderService for I {
-    async fn load_agents(&self) -> anyhow::Result<Vec<Agent>> {
-        self.agent_loader_service().load_agents().await
+    async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
+        self.agent_loader_service().get_agents().await
     }
 }
 

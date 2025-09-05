@@ -93,22 +93,22 @@ impl Conversation {
         Ok(())
     }
 
-    pub fn new(id: ConversationId, workflow: Workflow, additional_tools: Vec<ToolName>) -> Self {
-        Self::new_inner(id, workflow, additional_tools)
-    }
-
     pub fn reset_metric(&mut self) -> &mut Self {
         self.metrics = Metrics::new();
         self.metrics.start();
         self
     }
 
-    fn new_inner(id: ConversationId, workflow: Workflow, additional_tools: Vec<ToolName>) -> Self {
-        let mut agents = Vec::new();
+    pub fn new(
+        id: ConversationId,
+        workflow: Workflow,
+        tools: Vec<ToolName>,
+        mut agents: Vec<Agent>,
+    ) -> Self {
         let mut metrics = Metrics::new();
         metrics.start();
 
-        for mut agent in workflow.agents.into_iter() {
+        for agent in agents.iter_mut() {
             // Handle deprecated tool names
             for tool in agent.tools.iter_mut().flatten() {
                 if let Some(new_tool_name) = DEPRECATED_TOOL_NAMES.get(tool) {
@@ -190,21 +190,16 @@ impl Conversation {
                 }
             }
 
-            if !additional_tools.is_empty() {
-                agent.tools = Some(
-                    agent
-                        .tools
-                        .unwrap_or_default()
-                        .into_iter()
-                        .chain(additional_tools.iter().cloned())
-                        .collect::<Vec<_>>(),
-                );
+            if !tools.is_empty() {
+                if let Some(ref mut base_tools) = agent.tools {
+                    base_tools.extend(tools.clone());
+                } else {
+                    agent.tools = Some(tools.clone());
+                }
             }
 
             let id = agent.id.clone();
             agent.add_subscription(format!("{id}"));
-
-            agents.push(agent);
         }
 
         Self {
@@ -327,7 +322,7 @@ mod tests {
         let workflow = Workflow::new();
 
         // Act
-        let conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
+        let conversation = super::Conversation::new(id.clone(), workflow, vec![], vec![]);
 
         // Assert
         assert_eq!(conversation.id, id);
@@ -346,7 +341,6 @@ mod tests {
         let agent2 = Agent::new("agent2");
 
         let workflow = Workflow::new()
-            .agents(vec![agent1, agent2])
             .model(ModelId::new("test-model"))
             .max_walker_depth(5usize)
             .custom_rules("Be helpful".to_string())
@@ -355,7 +349,8 @@ mod tests {
             .tool_supported(true);
 
         // Act
-        let conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
+        let conversation =
+            super::Conversation::new(id.clone(), workflow, vec![], vec![agent1, agent2]);
 
         // Assert
         assert_eq!(conversation.agents.len(), 2);
@@ -388,8 +383,8 @@ mod tests {
         // Agent without specific settings
         let agent2 = Agent::new("agent2");
 
+        let agents = vec![agent1, agent2];
         let workflow = Workflow::new()
-            .agents(vec![agent1, agent2])
             .model(ModelId::new("default-model"))
             .max_walker_depth(5usize)
             .custom_rules("Default rules".to_string())
@@ -398,7 +393,7 @@ mod tests {
             .tool_supported(true);
 
         // Act
-        let conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
+        let conversation = super::Conversation::new(id.clone(), workflow, vec![], agents);
 
         // Assert
         assert_eq!(conversation.agents.len(), 2);
@@ -458,12 +453,11 @@ mod tests {
             },
         ];
 
-        let workflow = Workflow::new()
-            .agents(vec![Agent::new(main_agent), other_agent])
-            .commands(commands.clone());
+        let agents = vec![Agent::new(main_agent), other_agent];
+        let workflow = Workflow::new().commands(commands.clone());
 
         // Act
-        let conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
+        let conversation = super::Conversation::new(id.clone(), workflow, vec![], agents);
 
         // Assert
         assert_eq!(conversation.agents.len(), 2);
@@ -516,12 +510,11 @@ mod tests {
             .token_threshold(1500_usize)
             .turn_threshold(3_usize);
 
-        let workflow = Workflow::new()
-            .agents(vec![agent1, agent2])
-            .compact(compact.clone());
+        let agents = vec![agent1, agent2];
+        let workflow = Workflow::new().compact(compact.clone());
 
         // Act
-        let conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
+        let conversation = super::Conversation::new(id.clone(), workflow, vec![], agents);
 
         // Assert
         assert_eq!(conversation.agents.len(), 2);
@@ -549,12 +542,11 @@ mod tests {
             .token_threshold(1500_usize)
             .turn_threshold(3_usize);
 
-        let workflow = Workflow::new()
-            .agents(vec![agent1, agent2])
-            .compact(workflow_compact.clone());
+        let agents = vec![agent1, agent2];
+        let workflow = Workflow::new().compact(workflow_compact.clone());
 
         // Act
-        let conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
+        let conversation = super::Conversation::new(id.clone(), workflow, vec![], agents);
 
         // Assert
         assert_eq!(conversation.agents.len(), 2);
@@ -610,12 +602,11 @@ mod tests {
             .message_threshold(20_usize)
             .turn_threshold(10_usize);
 
-        let workflow = Workflow::new()
-            .agents(vec![agent])
-            .compact(workflow_compact);
+        let agents = vec![agent];
+        let workflow = Workflow::new().compact(workflow_compact);
 
         // Act
-        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+        let conversation = super::Conversation::new(id, workflow, vec![], agents);
 
         // Assert
         let result_agent = &conversation.agents[0];
@@ -654,12 +645,11 @@ mod tests {
             },
         ];
 
-        let workflow = Workflow::new()
-            .agents(vec![main_agent])
-            .commands(commands.clone());
+        let agents = vec![main_agent];
+        let workflow = Workflow::new().commands(commands.clone());
 
         // Act
-        let conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
+        let conversation = super::Conversation::new(id.clone(), workflow, vec![], agents);
 
         // Assert
         let main_agent = conversation
@@ -686,9 +676,10 @@ mod tests {
         let id = super::ConversationId::generate();
         let main_agent = Agent::new(AgentId::default()).model(ModelId::new("test-model"));
 
-        let workflow = Workflow::new().agents(vec![main_agent]);
+        let agents = vec![main_agent];
+        let workflow = Workflow::new();
 
-        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+        let conversation = super::Conversation::new(id, workflow, vec![], agents);
 
         // Act
         let model_id = conversation.main_model().unwrap();
@@ -703,9 +694,10 @@ mod tests {
         let id = super::ConversationId::generate();
         let agent = Agent::new("some-other-agent");
 
-        let workflow = Workflow::new().agents(vec![agent]);
+        let agents = vec![agent];
+        let workflow = Workflow::new();
 
-        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+        let conversation = super::Conversation::new(id, workflow, vec![], agents);
 
         // Act
         let result = conversation.main_model();
@@ -721,9 +713,10 @@ mod tests {
         let main_agent = Agent::new(AgentId::default());
         // No model defined for the agent
 
-        let workflow = Workflow::new().agents(vec![main_agent]);
+        let agents = vec![main_agent];
+        let workflow = Workflow::new();
 
-        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+        let conversation = super::Conversation::new(id, workflow, vec![], agents);
 
         // Act
         let result = conversation.main_model();
@@ -739,12 +732,11 @@ mod tests {
         let agent1 = Agent::new("agent1");
         let agent2 = Agent::new("agent2");
 
-        let workflow = Workflow::new()
-            .agents(vec![agent1, agent2])
-            .tool_supported(true);
+        let agents = vec![agent1, agent2];
+        let workflow = Workflow::new().tool_supported(true);
 
         // Act
-        let conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
+        let conversation = super::Conversation::new(id.clone(), workflow, vec![], agents);
 
         // Assert
         assert_eq!(conversation.agents.len(), 2);
@@ -766,12 +758,11 @@ mod tests {
         // Agent without specific setting
         let agent2 = Agent::new("agent2");
 
-        let workflow = Workflow::new()
-            .agents(vec![agent1, agent2])
-            .tool_supported(true);
+        let agents = vec![agent1, agent2];
+        let workflow = Workflow::new().tool_supported(true);
 
         // Act
-        let conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
+        let conversation = super::Conversation::new(id.clone(), workflow, vec![], agents);
 
         // Assert
         assert_eq!(conversation.agents.len(), 2);
@@ -807,12 +798,11 @@ mod tests {
         let agent2 = Agent::new("agent2");
 
         // Use setters pattern to create the workflow
-        let workflow = Workflow::new()
-            .agents(vec![agent1, agent2])
-            .model(ModelId::new("workflow-model"));
+        let agents = vec![agent1, agent2];
+        let workflow = Workflow::new().model(ModelId::new("workflow-model"));
 
         // Act
-        let conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
+        let conversation = super::Conversation::new(id.clone(), workflow, vec![], agents);
 
         // Check that agent1's compact.model was updated to the workflow model
         let agent1 = conversation.get_agent(&AgentId::new("agent1")).unwrap();
@@ -842,8 +832,9 @@ mod tests {
             Agent::new("agent2").subscribe(vec!["event2".to_string(), "event3".to_string()]);
         let agent3 = Agent::new("agent3").subscribe(vec!["event3".to_string()]);
 
-        let workflow = Workflow::new().agents(vec![agent1, agent2, agent3]);
-        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+        let agents = vec![agent1, agent2, agent3];
+        let workflow = Workflow::new();
+        let conversation = super::Conversation::new(id, workflow, vec![], agents);
 
         // Act
         let actual = conversation.subscriptions("event2");
@@ -865,8 +856,9 @@ mod tests {
             Agent::new("agent1").subscribe(vec!["event1".to_string(), "event2".to_string()]);
         let agent2 = Agent::new("agent2").subscribe(vec!["event3".to_string()]);
 
-        let workflow = Workflow::new().agents(vec![agent1, agent2]);
-        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+        let agents = vec![agent1, agent2];
+        let workflow = Workflow::new();
+        let conversation = super::Conversation::new(id, workflow, vec![], agents);
 
         // Act
         let actual = conversation.subscriptions("nonexistent_event");
@@ -885,8 +877,9 @@ mod tests {
         let agent1 = Agent::new("agent1"); // No subscriptions
         let agent2 = Agent::new("agent2").subscribe(vec!["event1".to_string()]);
 
-        let workflow = Workflow::new().agents(vec![agent1, agent2]);
-        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+        let agents = vec![agent1, agent2];
+        let workflow = Workflow::new();
+        let conversation = super::Conversation::new(id, workflow, vec![], agents);
 
         // Act
         let actual = conversation.subscriptions("event1");
@@ -903,7 +896,7 @@ mod tests {
         // Arrange
         let id = super::ConversationId::generate();
         let workflow = Workflow::new(); // No agents
-        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+        let conversation = super::Conversation::new(id, workflow, vec![], vec![]);
 
         // Act
         let actual = conversation.subscriptions("any_event");
@@ -922,8 +915,9 @@ mod tests {
         let agent1 =
             Agent::new("agent1").subscribe(vec!["event1".to_string(), "event2".to_string()]);
 
-        let workflow = Workflow::new().agents(vec![agent1]);
-        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+        let agents = vec![agent1];
+        let workflow = Workflow::new();
+        let conversation = super::Conversation::new(id, workflow, vec![], agents);
 
         // Act
         let actual = conversation.subscriptions("event1");
@@ -950,8 +944,9 @@ mod tests {
         let agent1 = Agent::new("agent1").subscribe(vec!["event".to_string(), "task".to_string()]);
         let agent2 = Agent::new("agent2").subscribe(vec!["prefix_event".to_string()]);
 
-        let workflow = Workflow::new().agents(vec![agent1, agent2]);
-        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+        let agents = vec![agent1, agent2];
+        let workflow = Workflow::new();
+        let conversation = super::Conversation::new(id, workflow, vec![], agents);
 
         // Act
         let actual = conversation.subscriptions("event_with_suffix");
@@ -972,8 +967,9 @@ mod tests {
         let agent2 = Agent::new("agent2").subscribe(vec!["user_task".to_string()]);
         let agent3 = Agent::new("agent3").subscribe(vec!["other".to_string()]);
 
-        let workflow = Workflow::new().agents(vec![agent1, agent2, agent3]);
-        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+        let agents = vec![agent1, agent2, agent3];
+        let workflow = Workflow::new();
+        let conversation = super::Conversation::new(id, workflow, vec![], agents);
 
         // Act
         let actual = conversation.subscriptions("user_task_init");
@@ -995,8 +991,9 @@ mod tests {
         let agent1 = Agent::new("agent1").subscribe(vec!["event".to_string()]);
         let agent2 = Agent::new("agent2").subscribe(vec!["event_long".to_string()]);
 
-        let workflow = Workflow::new().agents(vec![agent1, agent2]);
-        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+        let agents = vec![agent1, agent2];
+        let workflow = Workflow::new();
+        let conversation = super::Conversation::new(id, workflow, vec![], agents);
 
         // Act
         let actual = conversation.subscriptions("event");
@@ -1017,8 +1014,9 @@ mod tests {
         let agent1 = Agent::new("agent1").subscribe(vec!["long_event".to_string()]);
         let agent2 = Agent::new("agent2").subscribe(vec!["other_event".to_string()]);
 
-        let workflow = Workflow::new().agents(vec![agent1, agent2]);
-        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+        let agents = vec![agent1, agent2];
+        let workflow = Workflow::new();
+        let conversation = super::Conversation::new(id, workflow, vec![], agents);
 
         // Act
         let actual = conversation.subscriptions("event");
@@ -1038,8 +1036,9 @@ mod tests {
         let agent1 = Agent::new("agent1").subscribe(vec!["".to_string()]);
         let agent2 = Agent::new("agent2").subscribe(vec!["event".to_string()]);
 
-        let workflow = Workflow::new().agents(vec![agent1, agent2]);
-        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+        let agents = vec![agent1, agent2];
+        let workflow = Workflow::new();
+        let conversation = super::Conversation::new(id, workflow, vec![], agents);
 
         // Act
         let actual = conversation.subscriptions("any_event");
@@ -1062,8 +1061,9 @@ mod tests {
         let agent2 = Agent::new("agent2").subscribe(vec!["system/user".to_string()]);
         let agent3 = Agent::new("agent3").subscribe(vec!["system/user/task".to_string()]);
 
-        let workflow = Workflow::new().agents(vec![agent1, agent2, agent3]);
-        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+        let agents = vec![agent1, agent2, agent3];
+        let workflow = Workflow::new();
+        let conversation = super::Conversation::new(id, workflow, vec![], agents);
 
         // Act
         let actual = conversation.subscriptions("system/user/task/complete");
@@ -1085,8 +1085,9 @@ mod tests {
         let agent1 = Agent::new("agent1").subscribe(vec!["Event".to_string()]);
         let agent2 = Agent::new("agent2").subscribe(vec!["event".to_string()]);
 
-        let workflow = Workflow::new().agents(vec![agent1, agent2]);
-        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+        let agents = vec![agent1, agent2];
+        let workflow = Workflow::new();
+        let conversation = super::Conversation::new(id, workflow, vec![], agents);
 
         // Act
         let actual = conversation.subscriptions("event_test");
@@ -1105,8 +1106,9 @@ mod tests {
 
         let agent1 = Agent::new("agent1").subscribe(vec!["event1".to_string()]);
 
-        let workflow = Workflow::new().agents(vec![agent1]);
-        let conversation = super::Conversation::new_inner(id, workflow, vec![]);
+        let agents = vec![agent1];
+        let workflow = Workflow::new();
+        let conversation = super::Conversation::new(id, workflow, vec![], agents);
 
         // Act
         let actual = conversation.subscriptions("event1");
@@ -1123,15 +1125,20 @@ mod tests {
 
     #[test]
     fn test_set_model() {
-        let workflow = Workflow::new().agents(vec![
-            Agent::new("agent-1")
-                .model(ModelId::new("sonnet-4"))
-                .compact(Compact::new().model(ModelId::new("gemini-1.5"))),
-            Agent::new("agent-2").model(ModelId::new("sonnet-3.5")),
-        ]);
+        let workflow = Workflow::new();
 
         let id = super::ConversationId::generate();
-        let mut conversation = super::Conversation::new_inner(id.clone(), workflow, vec![]);
+        let mut conversation = super::Conversation::new(
+            id.clone(),
+            workflow,
+            vec![],
+            vec![
+                Agent::new("agent-1")
+                    .model(ModelId::new("sonnet-4"))
+                    .compact(Compact::new().model(ModelId::new("gemini-1.5"))),
+                Agent::new("agent-2").model(ModelId::new("sonnet-3.5")),
+            ],
+        );
 
         let model_id = ModelId::new("qwen-2");
         conversation.set_model(&model_id).unwrap();
@@ -1143,5 +1150,75 @@ mod tests {
                 assert_eq!(compact.model, Some(model_id.clone()));
             }
         }
+    }
+    #[test]
+    fn test_workflow_model_is_set_for_all_agents() {
+        // Arrange
+        let id = super::ConversationId::generate();
+
+        // Create agents with different initial states
+        let agent1 = Agent::new("agent-1"); // No model, no compact
+        let agent2 = Agent::new("agent-2").model(ModelId::new("old-model")); // Has model, no compact
+        let agent3 = Agent::new("agent-3").compact(Compact::new().token_threshold(1000_usize)); // No model, has compact
+        let agent4 = Agent::new("agent-4")
+            .model(ModelId::new("another-old-model"))
+            .compact(Compact::new().model(ModelId::new("old-compact-model"))); // Has both model and compact
+
+        let agents = vec![agent1, agent2, agent3, agent4];
+
+        // Create workflow with a model
+        let workflow_model = ModelId::new("workflow-model");
+        let workflow = Workflow::new().model(workflow_model.clone());
+
+        // Act
+        let conversation = super::Conversation::new(id, workflow, vec![], agents);
+
+        // Assert
+        assert_eq!(conversation.agents.len(), 4);
+
+        // Check that ALL agents have the workflow model set
+        for agent in &conversation.agents {
+            // Every agent should have the workflow model
+            assert_eq!(agent.model, Some(workflow_model.clone()));
+
+            // Every agent should have compact configuration with the workflow model
+            assert!(agent.compact.is_some());
+            let compact = agent.compact.as_ref().unwrap();
+            assert_eq!(compact.model, Some(workflow_model.clone()));
+        }
+
+        // Verify specific agent behaviors
+        let agent1 = conversation.get_agent(&AgentId::new("agent-1")).unwrap();
+        assert_eq!(agent1.model, Some(workflow_model.clone()));
+        assert_eq!(
+            agent1.compact.as_ref().unwrap().model,
+            Some(workflow_model.clone())
+        );
+
+        let agent2 = conversation.get_agent(&AgentId::new("agent-2")).unwrap();
+        assert_eq!(agent2.model, Some(workflow_model.clone())); // Overridden from "old-model"
+        assert_eq!(
+            agent2.compact.as_ref().unwrap().model,
+            Some(workflow_model.clone())
+        );
+
+        let agent3 = conversation.get_agent(&AgentId::new("agent-3")).unwrap();
+        assert_eq!(agent3.model, Some(workflow_model.clone()));
+        assert_eq!(
+            agent3.compact.as_ref().unwrap().model,
+            Some(workflow_model.clone())
+        );
+        // Should preserve other compact settings
+        assert_eq!(
+            agent3.compact.as_ref().unwrap().token_threshold,
+            Some(1000_usize)
+        );
+
+        let agent4 = conversation.get_agent(&AgentId::new("agent-4")).unwrap();
+        assert_eq!(agent4.model, Some(workflow_model.clone())); // Overridden from "another-old-model"
+        assert_eq!(
+            agent4.compact.as_ref().unwrap().model,
+            Some(workflow_model.clone())
+        ); // Overridden from "old-compact-model"
     }
 }

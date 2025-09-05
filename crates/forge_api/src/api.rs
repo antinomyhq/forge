@@ -20,6 +20,8 @@ pub trait API: Sync + Send {
 
     /// Provides a list of models available in the current environment
     async fn models(&self) -> Result<Vec<Model>>;
+    /// Provides a list of agents available in the current environment
+    async fn get_agents(&self) -> Result<Vec<Agent>>;
 
     /// Executes a chat request and returns a stream of responses
     async fn chat(&self, chat: ChatRequest) -> Result<MpscStream<Result<ChatResponse>>>;
