@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
+use std::time::Duration;
 
 use forge_domain::{
     ChatCompletionMessage, ChatResponse, Conversation, ConversationId, ToolCallFull, ToolResult,
@@ -72,14 +73,18 @@ impl Runner {
             setup.current_time,
             vec![], // empty custom_instructions
         )
-        .sender(Arc::new(tx))
+        .sender(tx)
         .files(setup.files.clone());
 
         let (mut orch, runner) = (orch, services);
         let event = setup.event.clone();
         let mut chat_responses = Vec::new();
         let result = orch.chat(event).await;
-        rx.recv_many(&mut chat_responses, LIMIT).await;
+        tokio::time::timeout(
+            Duration::from_secs(1),
+            rx.recv_many(&mut chat_responses, LIMIT),
+        )
+        .await?;
         setup.output.chat_responses.extend(chat_responses);
         setup
             .output
