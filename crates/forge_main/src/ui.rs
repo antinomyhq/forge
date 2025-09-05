@@ -7,7 +7,7 @@ use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
-    InterruptionReason, Model, ModelId, Workflow,
+    InterruptionReason, Model, ModelId, ToolName, Workflow,
 };
 use forge_display::MarkdownFormat;
 use forge_domain::{
@@ -352,6 +352,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
+    async fn agent_tools(&self) -> anyhow::Result<Vec<ToolName>> {
+        let agent_id = &self.state.operating_agent;
+        let agents = self.api.get_agents().await?;
+        let agent = agents.into_iter().find(|agent| &agent.id == agent_id);
+        Ok(agent
+            .and_then(|agent| agent.tools.clone())
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>())
+    }
+
     async fn on_command(&mut self, command: Command) -> anyhow::Result<bool> {
         match command {
             Command::Compact => {
@@ -391,9 +402,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Command::Tools => {
                 self.spinner.start(Some("Loading"))?;
                 use crate::tools_display::format_tools;
-                let tools = self.api.tools().await?;
-
-                let info = format_tools(&tools);
+                let all_tools = self.api.tools().await?;
+                let agent_tools = self.agent_tools().await?;
+                println!("{:?}", agent_tools);
+                let info = format_tools(&agent_tools, &all_tools);
                 self.writeln(info)?;
             }
             Command::Update => {
