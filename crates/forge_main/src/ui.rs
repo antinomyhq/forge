@@ -404,7 +404,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 use crate::tools_display::format_tools;
                 let all_tools = self.api.tools().await?;
                 let agent_tools = self.agent_tools().await?;
-                println!("{:?}", agent_tools);
                 let info = format_tools(&agent_tools, &all_tools);
                 self.writeln(info)?;
             }
