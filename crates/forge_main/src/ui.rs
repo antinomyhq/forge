@@ -393,8 +393,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 use crate::tools_display::format_tools;
                 let tools = self.api.tools().await?;
 
-                let output = format_tools(&tools);
-                self.writeln(output)?;
+                let info = format_tools(&tools);
+                self.writeln(info)?;
             }
             Command::Update => {
                 on_update(self.api.clone(), None).await;
