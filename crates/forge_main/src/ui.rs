@@ -107,7 +107,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .iter()
             .find(|agent| agent.id == agent_id)
             .cloned()
-            .unwrap_or_else(|| panic!("Undefined agent: {agent_id}"));
+            .ok_or(anyhow::anyhow!("Undefined agent: {agent_id}"))?;
 
         let conversation_id = self.init_conversation().await?;
         if let Some(mut conversation) = self.api.conversation(&conversation_id).await? {

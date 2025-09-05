@@ -191,8 +191,8 @@ impl Conversation {
             }
 
             if !tools.is_empty() {
-                agent.tools.iter_mut().for_each(|tools| {
-                    tools.extend(tools.clone());
+                agent.tools.iter_mut().for_each(|input| {
+                    input.extend(tools.clone());
                 });
             }
 
