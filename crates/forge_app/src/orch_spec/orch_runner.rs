@@ -56,7 +56,7 @@ impl Runner {
     pub async fn run(setup: &mut TestContext) -> anyhow::Result<()> {
         const LIMIT: usize = 1024;
         let (tx, mut rx) = tokio::sync::mpsc::channel::<anyhow::Result<ChatResponse>>(LIMIT);
-        let agents = Vec::new(); // FIXME: inject agents from somewhere
+        let agents = setup.agents.clone();
         let services = Arc::new(Runner::new(setup));
         let conversation = Conversation::new(
             ConversationId::generate(),

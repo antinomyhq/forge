@@ -25,7 +25,7 @@ pub struct TestContext {
 
     // Final output of the test is store in the context
     pub output: TestOutput,
-    pub agents: Vec<Agent>, // FIXME: Use this agent while creating a conversation
+    pub agents: Vec<Agent>,
 }
 
 impl TestContext {
