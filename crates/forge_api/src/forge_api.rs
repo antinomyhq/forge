@@ -70,11 +70,14 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         &self,
         workflow: W,
     ) -> anyhow::Result<Conversation> {
-        self.services.create_conversation(workflow.into()).await
+        let agents = self.get_agents().await?;
+        self.services
+            .init_conversation(workflow.into(), agents)
+            .await
     }
 
     async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()> {
-        self.services.upsert(conversation).await
+        self.services.upsert_conversation(conversation).await
     }
 
     async fn compact_conversation(
@@ -115,7 +118,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         &self,
         conversation_id: &ConversationId,
     ) -> anyhow::Result<Option<Conversation>> {
-        self.services.find(conversation_id).await
+        self.services.find_conversation(conversation_id).await
     }
 
     async fn execute_shell_command(

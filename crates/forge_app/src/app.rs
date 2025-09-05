@@ -45,7 +45,7 @@ impl<S: Services> ForgeApp<S> {
 
         // Get the conversation for the chat request
         let conversation = services
-            .find(&chat.conversation_id)
+            .find_conversation(&chat.conversation_id)
             .await
             .unwrap_or_default()
             .expect("conversation for the request should've been created at this point.");
@@ -118,7 +118,7 @@ impl<S: Services> ForgeApp<S> {
 
                     // Always save conversation using get_conversation()
                     let conversation = orch.get_conversation().clone();
-                    let save_result = services.upsert(conversation).await;
+                    let save_result = services.upsert_conversation(conversation).await;
 
                     // Send any error to the stream (prioritize dispatch error over save error)
                     #[allow(clippy::collapsible_if)]
@@ -146,7 +146,7 @@ impl<S: Services> ForgeApp<S> {
         // Get the conversation
         let mut conversation = self
             .services
-            .find(conversation_id)
+            .find_conversation(conversation_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Conversation not found: {}", conversation_id))?;
 
@@ -184,7 +184,7 @@ impl<S: Services> ForgeApp<S> {
         conversation.context = Some(compacted_context);
 
         // Save the updated conversation
-        self.services.upsert(conversation).await?;
+        self.services.upsert_conversation(conversation).await?;
 
         // Return the compaction metrics
         Ok(CompactionResult::new(
