@@ -49,6 +49,7 @@ impl<M: McpService> ConversationService for ForgeConversationService<M> {
         let mut workflow = Workflow::default();
         workflow.merge(given_workflow);
         let id = ConversationId::generate();
+        let agents = Vec::new(); // FIXME: agents need to provided from somewhere
         let conversation = Conversation::new(
             id,
             workflow,
@@ -58,6 +59,7 @@ impl<M: McpService> ConversationService for ForgeConversationService<M> {
                 .into_iter()
                 .map(|a| a.name)
                 .collect(),
+            agents,
         );
         self.workflows.lock().await.insert(id, conversation.clone());
         Ok(conversation)
