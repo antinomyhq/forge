@@ -636,9 +636,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .await?;
 
         self.command.register_all(&base_workflow);
-        let operating_agent = self.api.get_operating_agent().await.unwrap_or_default();
-        self.state =
-            UIState::new(self.api.environment(), base_workflow, operating_agent).provider(provider);
+        let agent = self.api.get_operating_agent().await.unwrap_or_default();
+        self.state = UIState::new(self.api.environment(), base_workflow, agent).provider(provider);
 
         Ok(workflow)
     }
