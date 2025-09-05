@@ -231,8 +231,8 @@ impl JsonSchema for PatchOperation {
 /// prepend, append, replace, replace_all, swap, delete
 /// operations. Ideal for precise changes to configs, code, or docs while
 /// preserving context. Not suitable for complex refactoring or modifying all
-/// pattern occurrences - use `forge_tool_fs_create` instead for complete
-/// rewrites and `forge_tool_fs_undo` for undoing the last operation. Fails if
+/// pattern occurrences - use `write` instead for complete
+/// rewrites and `undo` for undoing the last operation. Fails if
 /// search pattern isn't found.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct FSPatch {
@@ -732,7 +732,7 @@ mod tests {
     #[test]
     fn test_is_complete() {
         let complete_tool = ToolName::new("attempt_completion");
-        let incomplete_tool = ToolName::new("forge_tool_fs_read");
+        let incomplete_tool = ToolName::new("read");
 
         assert!(Tools::is_attempt_completion(&complete_tool));
         assert!(!Tools::is_attempt_completion(&incomplete_tool));

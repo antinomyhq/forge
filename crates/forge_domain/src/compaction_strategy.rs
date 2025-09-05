@@ -165,12 +165,12 @@ mod tests {
         let pattern = pattern.to_string();
 
         let tool_call = ToolCallFull {
-            name: ToolName::new("forge_tool_fs_read"),
+            name: ToolName::new("read"),
             call_id: Some(ToolCallId::new("call_123")),
             arguments: serde_json::json!({"path": "/test/path"}).into(),
         };
 
-        let tool_result = ToolResult::new(ToolName::new("forge_tool_fs_read"))
+        let tool_result = ToolResult::new(ToolName::new("read"))
             .call_id(ToolCallId::new("call_123"))
             .success(json!({"content": "File content"}).to_string());
 

@@ -6,14 +6,14 @@ model: "anthropic/claude-sonnet-4"
 reasoning:
   enabled: true
 tools: 
-  - forge_tool_fs_read
-  - forge_tool_fs_create
-  - forge_tool_fs_remove
-  - forge_tool_fs_patch
-  - forge_tool_process_shell
-  - forge_tool_net_fetch
-  - forge_tool_fs_search
-  - forge_tool_fs_undo
+  - read
+  - write
+  - remove
+  - patch
+  - shell
+  - fetch
+  - search
+  - undo
   - sage
 ---
 

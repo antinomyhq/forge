@@ -190,8 +190,8 @@ fn apply_replacement(
 /// prepend, append, replace, swap, delete operations on first pattern
 /// occurrence. Ideal for precise changes to configs, code, or docs while
 /// preserving context. Not suitable for complex refactoring or modifying all
-/// pattern occurrences - use forge_tool_fs_create instead for complete
-/// rewrites and forge_tool_fs_undo for undoing the last operation. Fails if
+/// pattern occurrences - use write instead for complete
+/// rewrites and undo for undoing the last operation. Fails if
 /// search pattern isn't found.
 pub struct ForgeFsPatch<F>(Arc<F>);
 

@@ -4,10 +4,10 @@ title: "Analysis and planning focussed"
 description: "Strategic planning agent that analyzes codebases and creates comprehensive implementation plans without making any actual changes. Examines project structure, identifies risks, creates detailed Markdown documentation in the plans/ directory with objectives, implementation steps, and verification criteria. Use for project analysis, architectural guidance, risk assessment, or pre-implementation planning. Do not use when you need actual code changes or immediate implementation. Provides advisory recommendations and strategic roadmaps only."
 model: "anthropic/claude-sonnet-4"
 tools:
-  - forge_tool_fs_read
-  - forge_tool_net_fetch
-  - forge_tool_fs_search
-  - forge_tool_plan_create
+  - read
+  - fetch
+  - search
+  - plan
   - sage
 ---
 
