@@ -110,8 +110,6 @@ impl<S: Services> ForgeApp<S> {
         let stream = MpscStream::spawn(
             |tx: tokio::sync::mpsc::Sender<Result<ChatResponse, anyhow::Error>>| {
                 async move {
-                    let tx = Arc::new(tx);
-
                     // Execute dispatch and always save conversation afterwards
                     let mut orch = orch.sender(tx.clone());
                     let dispatch_result = orch.chat(chat.event).await;
