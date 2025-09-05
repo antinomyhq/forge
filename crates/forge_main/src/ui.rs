@@ -97,14 +97,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn active_workflow(&self) -> Result<Workflow> {
-        // Read the current workflow to validate the agent
-        let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
-        let mut base_workflow = Workflow::default();
-        base_workflow.merge(workflow.clone());
-        Ok(base_workflow)
-    }
-
     // Set the current mode and update conversation variable
     async fn on_agent_change(&mut self, agent_id: AgentId) -> Result<()> {
         // Convert string to AgentId for validation
