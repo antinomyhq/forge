@@ -143,10 +143,10 @@ expression: tools
 }
 {
   "name": "patch",
-  "description": "Modifies files with targeted line operations on matched patterns. Supports\n prepend, append, replace, replace_all, swap, delete\n operations. Ideal for precise changes to configs, code, or docs while\n preserving context. Not suitable for complex refactoring or modifying all\n pattern occurrences - use `forge_tool_fs_create` instead for complete\n rewrites and `forge_tool_fs_undo` for undoing the last operation. Fails if\n search pattern isn\\'t found.",
+  "description": "Modifies files with targeted line operations on matched patterns. Supports\n prepend, append, replace, replace_all, swap, delete\n operations. Ideal for precise changes to configs, code, or docs while\n preserving context. Not suitable for complex refactoring or modifying all\n pattern occurrences - use `write` instead for complete\n rewrites and `undo` for undoing the last operation. Fails if\n search pattern isn\\'t found.",
   "input_schema": {
     "title": "FSPatch",
-    "description": "Modifies files with targeted line operations on matched patterns. Supports prepend, append, replace, replace_all, swap, delete operations. Ideal for precise changes to configs, code, or docs while preserving context. Not suitable for complex refactoring or modifying all pattern occurrences - use `forge_tool_fs_create` instead for complete rewrites and `forge_tool_fs_undo` for undoing the last operation. Fails if search pattern isn't found.",
+    "description": "Modifies files with targeted line operations on matched patterns. Supports prepend, append, replace, replace_all, swap, delete operations. Ideal for precise changes to configs, code, or docs while preserving context. Not suitable for complex refactoring or modifying all pattern occurrences - use `write` instead for complete rewrites and `undo` for undoing the last operation. Fails if search pattern isn't found.",
     "type": "object",
     "required": [
       "content",
