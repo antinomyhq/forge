@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use derive_more::derive::Display;
 use derive_setters::Setters;
-
 use merge::Merge;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -47,8 +46,6 @@ pub struct Conversation {
     pub metrics: Metrics,
 }
 
-
-
 impl Conversation {
     /// Returns the model of the main agent
     ///
@@ -91,8 +88,6 @@ impl Conversation {
         metrics.start();
 
         for agent in agents.iter_mut() {
-
-
             if let Some(custom_rules) = workflow.custom_rules.clone() {
                 if let Some(existing_rules) = &agent.custom_rules {
                     agent.custom_rules = Some(existing_rules.clone() + "\n\n" + &custom_rules);
