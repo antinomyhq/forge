@@ -28,7 +28,7 @@ impl<S: Services> AgentExecutor<S> {
         if let Some(tool_agents) = self.tool_agents.read().await.clone() {
             return Ok(tool_agents);
         }
-        let agents = self.services.load_agents().await?;
+        let agents = self.services.get_agents().await?;
         let tools: Vec<ToolDefinition> = agents.into_iter().map(Into::into).collect();
         *self.tool_agents.write().await = Some(tools.clone());
         Ok(tools)
@@ -53,7 +53,7 @@ impl<S: Services> AgentExecutor<S> {
 
         // Create a new conversation for agent execution
         let workflow = self.services.read_merged(None).await?;
-        let agents = self.services.load_agents().await?;
+        let agents = self.services.get_agents().await?;
         let conversation =
             ConversationService::init_conversation(self.services.as_ref(), workflow, agents)
                 .await?;

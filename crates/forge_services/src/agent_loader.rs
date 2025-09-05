@@ -31,7 +31,7 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
     forge_app::AgentLoaderService for AgentLoaderService<F>
 {
     /// Load all agent definitions from the forge/agent directory
-    async fn load_agents(&self) -> anyhow::Result<Vec<Agent>> {
+    async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
         self.load_agents().await
     }
 }
