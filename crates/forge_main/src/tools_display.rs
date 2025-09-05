@@ -9,7 +9,7 @@ use crate::info::Info;
 /// organized by categories with availability checkboxes.
 pub fn format_tools(agent_tools: &Vec<ToolName>, overview: &ToolsOverview) -> Info {
     let mut info = Info::new();
-    let agent_tools = agent_tools.into_iter().collect::<HashSet<_>>();
+    let agent_tools = agent_tools.iter().collect::<HashSet<_>>();
     let checkbox = |tool_name: &ToolName| -> &str {
         if agent_tools.contains(&tool_name) {
             "[✓]"
