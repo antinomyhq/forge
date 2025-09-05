@@ -59,8 +59,9 @@ impl<M: McpService> ConversationService for ForgeConversationService<M> {
             self.mcp_service
                 .list()
                 .await?
-                .into_iter()
-                .map(|a| a.name)
+                .into_values()
+                .flatten()
+                .map(|tool| tool.name)
                 .collect(),
             agents,
         );

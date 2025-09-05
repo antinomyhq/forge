@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::dto::{AppConfig, InitAuth};
+use forge_app::dto::{AppConfig, InitAuth, ToolsOverview};
 use forge_app::{
     AgentLoaderService, AppConfigService, AuthService, ConversationService, EnvironmentService,
     FileDiscoveryService, ForgeApp, McpConfigManager, ProviderRegistry, ProviderService, Services,
@@ -42,7 +42,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         self.services.collect_files(config).await
     }
 
-    async fn tools(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+    async fn tools(&self) -> anyhow::Result<ToolsOverview> {
         let forge_app = ForgeApp::new(self.services.clone());
         forge_app.list_tools().await
     }

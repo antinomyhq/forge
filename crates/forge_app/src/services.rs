@@ -128,7 +128,7 @@ pub trait McpConfigManager: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait McpService: Send + Sync {
-    async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>>;
+    async fn list(&self) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>>;
     async fn call(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput>;
 }
 
@@ -469,7 +469,7 @@ impl<I: Services> McpConfigManager for I {
 
 #[async_trait::async_trait]
 impl<I: Services> McpService for I {
-    async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+    async fn list(&self) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>> {
         self.mcp_service().list().await
     }
 

@@ -12,6 +12,7 @@ use strum::IntoEnumIterator;
 use tokio::time::timeout;
 
 use crate::agent_executor::AgentExecutor;
+use crate::dto::ToolsOverview;
 use crate::error::Error;
 use crate::mcp_executor::McpExecutor;
 use crate::tool_executor::ToolExecutor;
@@ -122,16 +123,20 @@ impl<S: Services> ToolRegistry<S> {
     }
 
     pub async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+        Ok(self.tools_overview().await?.into())
+    }
+    pub async fn tools_overview(&self) -> anyhow::Result<ToolsOverview> {
         let mcp_tools = self.mcp_executor.services.list().await?;
         let agent_tools = self.agent_executor.agent_definitions().await?;
 
-        let tools = Tools::iter()
+        let system_tools = Tools::iter()
             .map(|tool| tool.definition())
-            .chain(mcp_tools.into_iter())
-            .chain(agent_tools.into_iter())
             .collect::<Vec<_>>();
 
-        Ok(tools)
+        Ok(ToolsOverview::new()
+            .system(system_tools)
+            .agents(agent_tools)
+            .mcp(mcp_tools))
     }
 }
 

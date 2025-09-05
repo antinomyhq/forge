@@ -7,7 +7,7 @@ use forge_domain::*;
 use forge_stream::MpscStream;
 
 use crate::authenticator::Authenticator;
-use crate::dto::InitAuth;
+use crate::dto::{InitAuth, ToolsOverview};
 use crate::orch::Orchestrator;
 use crate::services::{CustomInstructionsService, TemplateService};
 use crate::tool_registry::ToolRegistry;
@@ -193,8 +193,8 @@ impl<S: Services> ForgeApp<S> {
         ))
     }
 
-    pub async fn list_tools(&self) -> Result<Vec<ToolDefinition>> {
-        self.tool_registry.list().await
+    pub async fn list_tools(&self) -> Result<ToolsOverview> {
+        self.tool_registry.tools_overview().await
     }
     pub async fn login(&self, init_auth: &InitAuth) -> Result<()> {
         self.authenticator.login(init_auth).await
