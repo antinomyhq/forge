@@ -27,6 +27,8 @@ impl<S: McpService> McpExecutor<S> {
 
     pub async fn contains_tool(&self, tool_name: &ToolName) -> anyhow::Result<bool> {
         let mcp_tools = self.services.list().await?;
-        Ok(mcp_tools.iter().any(|tool| tool.name == *tool_name))
+        Ok(mcp_tools
+            .values()
+            .any(|tools| tools.iter().any(|tool| tool.name == *tool_name)))
     }
 }

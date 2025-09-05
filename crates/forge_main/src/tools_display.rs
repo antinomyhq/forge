@@ -7,7 +7,7 @@ use crate::info::Info;
 
 /// Formats the tools overview for display using the Info component,
 /// organized by categories with availability checkboxes.
-pub fn format_tools(agent_tools: &Vec<ToolName>, overview: &ToolsOverview) -> Info {
+pub fn format_tools(agent_tools: &[ToolName], overview: &ToolsOverview) -> Info {
     let mut info = Info::new();
     let agent_tools = agent_tools.iter().collect::<HashSet<_>>();
     let checkbox = |tool_name: &ToolName| -> &str {

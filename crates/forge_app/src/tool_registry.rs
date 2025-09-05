@@ -133,17 +133,10 @@ impl<S: Services> ToolRegistry<S> {
             .map(|tool| tool.definition())
             .collect::<Vec<_>>();
 
-        // For now, put all MCP tools under a generic "mcp" category
-        // TODO: Group MCP tools by their actual server names
-        let mut mcp_grouped = std::collections::HashMap::new();
-        if !mcp_tools.is_empty() {
-            mcp_grouped.insert("mcp".to_string(), mcp_tools);
-        }
-
         Ok(ToolsOverview::new()
             .system(system_tools)
             .agents(agent_tools)
-            .mcp(mcp_grouped))
+            .mcp(mcp_tools))
     }
 }
 
