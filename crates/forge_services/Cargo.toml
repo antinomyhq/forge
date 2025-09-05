@@ -60,6 +60,7 @@ url.workspace = true
 reqwest-eventsource.workspace = true
 derive_builder.workspace = true
 lazy_static = "1.5.0"
+nonempty.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

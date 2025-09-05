@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use nonempty::NonEmpty;
 
 use bytes::Bytes;
 use forge_domain::{
@@ -338,7 +339,7 @@ pub trait ProviderRegistry: Send + Sync {
 #[async_trait::async_trait]
 pub trait AgentLoaderService: Send + Sync {
     /// Load all agent definitions from the forge/agent directory
-    async fn get_agents(&self) -> anyhow::Result<Vec<Agent>>;
+    async fn get_agents(&self) -> anyhow::Result<NonEmpty<Agent>>;
 }
 
 #[async_trait::async_trait]
@@ -720,7 +721,7 @@ pub trait HttpClientService: Send + Sync + 'static {
 
 #[async_trait::async_trait]
 impl<I: Services> AgentLoaderService for I {
-    async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
+    async fn get_agents(&self) -> anyhow::Result<NonEmpty<Agent>> {
         self.agent_loader_service().get_agents().await
     }
 }

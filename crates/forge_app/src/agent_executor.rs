@@ -55,7 +55,7 @@ impl<S: Services> AgentExecutor<S> {
         let workflow = self.services.read_merged(None).await?;
         let agents = self.services.get_agents().await?;
         let conversation =
-            ConversationService::init_conversation(self.services.as_ref(), workflow, agents)
+            ConversationService::init_conversation(self.services.as_ref(), workflow, agents.into())
                 .await?;
 
         // Execute the request through the ForgeApp

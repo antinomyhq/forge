@@ -54,7 +54,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
             .await?)
     }
     async fn get_agents(&self) -> Result<Vec<Agent>> {
-        self.services.get_agents().await
+        Ok(self.services.get_agents().await?.into())
     }
 
     async fn chat(

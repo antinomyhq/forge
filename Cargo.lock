@@ -1327,6 +1327,7 @@ dependencies = [
  "handlebars",
  "insta",
  "merge 0.2.0",
+ "nonempty",
  "pretty_assertions",
  "regex",
  "reqwest 0.12.23",
@@ -1580,6 +1581,7 @@ dependencies = [
  "mockito",
  "moka2",
  "nom 8.0.0",
+ "nonempty",
  "pretty_assertions",
  "regex",
  "reqwest 0.12.23",
@@ -3182,6 +3184,12 @@ checksum = "df9761775871bdef83bee530e60050f7e54b1105350d6884eb0fb4f46c2f9405"
 dependencies = [
  "memchr",
 ]
+
+[[package]]
+name = "nonempty"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aeaf4ad7403de93e699c191202f017118df734d3850b01e13a3a8b2e6953d3c9"
 
 [[package]]
 name = "ntapi"

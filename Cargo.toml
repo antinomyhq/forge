@@ -112,6 +112,7 @@ nucleo = "0.5.0"
 humantime = "2.2.0"
 gray_matter = "0.3.2"
 num-format = "0.4"
+nonempty = "0.8.1"
 
 # Internal crates
 forge_api = { path = "crates/forge_api" }

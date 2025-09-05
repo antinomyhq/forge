@@ -37,6 +37,7 @@ reqwest-eventsource.workspace = true
 schemars.workspace = true
 strum_macros.workspace = true
 serde_yml.workspace = true
+nonempty.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true
