@@ -115,20 +115,16 @@ impl<S: AgentService> Orchestrator<S> {
 
     /// Get the allowed tools for an agent
     fn get_allowed_tools(&mut self, agent: &Agent) -> anyhow::Result<Vec<ToolDefinition>> {
-        let completion = ToolsDiscriminants::AttemptCompletion;
         let mut tools = vec![];
         if !self.tool_definitions.is_empty() {
             let allowed = agent.tools.iter().flatten().collect::<HashSet<_>>();
             tools.extend(
                 self.tool_definitions
                     .iter()
-                    .filter(|tool| tool.name != completion.name())
                     .filter(|tool| allowed.contains(&tool.name))
                     .cloned(),
             );
         }
-
-        tools.push(completion.definition());
 
         Ok(tools)
     }

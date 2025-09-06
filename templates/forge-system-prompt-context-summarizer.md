@@ -18,45 +18,24 @@ Follow these steps to create a meaningful summary:
 <default_summarization_format>
 
 <{{summary_tag}}>
-<objective>
-Primary Objective:
-- [Concise statement of the goal]
-
-Success Criteria:
-- [List specific outcomes]
-
-Constraints or Requirements:
-- [List limitations or specific requirements]
-</objective>
-
-<file_changes>
-Files Created:
+### Files Created:
 - [Path] - [Purpose]
 
-Files Modified:
+### Files Modified:
 - [Path] - [Modifications]
 
-Files Deleted:
+### Files Deleted:
 - [Path] - [Reason]
-</file_changes>
 
-<action_log>
+
+### Action Logs
 - [Action description] - [Reason] - [Outcome]
 - [Next action description] - [Reason] - [Outcome]
-</action_log>
 
-<user_feedback>
-- Initial Request: [Original request verbatim]
-- Clarifications Provided: [User responses and their impact]
-- Direction Changes: [Any pivots or changes requested]
-- Preferences Expressed: [Specific preferences mentioned]
-</user_feedback>
-
-<status>
+### Task Status
 - Progress Summary: [Brief progress assessment]
 - Blockers: [Issues preventing progress]
 - Next Steps: [Immediate actions to take]
-</status>
 </{{summary_tag}}>
 
 </default_summarization_format>

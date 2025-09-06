@@ -94,7 +94,7 @@ fn find_sequence_preserving_last_n(
     let start = messages
         .iter()
         .enumerate()
-        .find(|(_, message)| !message.has_role(Role::System))
+        .find(|(_, message)| message.has_role(Role::Assistant))
         .map(|(index, _)| index)?;
 
     // Don't compact if there's no assistant message
@@ -112,9 +112,8 @@ fn find_sequence_preserving_last_n(
     // Use saturating subtraction to prevent potential overflow
     let mut end = length.saturating_sub(max_retention).saturating_sub(1);
 
-    // Ensure we have at least two messages to create a meaningful summary
     // If start > end or end is invalid, don't compact
-    if start > end || end >= length || end.saturating_sub(start) < 1 {
+    if start > end || end >= length {
         return None;
     }
 
@@ -228,53 +227,53 @@ mod tests {
     fn test_sequence_finding() {
         // Basic compaction scenarios
         let actual = seq("suaaau", 0);
-        let expected = "s[uaaau]";
+        let expected = "su[aaau]";
         assert_eq!(actual, expected);
 
         let actual = seq("sua", 0);
-        let expected = "s[ua]";
+        let expected = "su[a]";
         assert_eq!(actual, expected);
 
         let actual = seq("suauaa", 0);
-        let expected = "s[uauaa]";
+        let expected = "su[auaa]";
         assert_eq!(actual, expected);
 
         // Tool call scenarios
         let actual = seq("suttu", 0);
-        let expected = "s[uttu]";
+        let expected = "su[ttu]";
         assert_eq!(actual, expected);
 
         let actual = seq("sutraau", 0);
-        let expected = "s[utraau]";
+        let expected = "su[traau]";
         assert_eq!(actual, expected);
 
         let actual = seq("utrutru", 0);
-        let expected = "[utrutru]";
+        let expected = "u[trutru]";
         assert_eq!(actual, expected);
 
         let actual = seq("uttarru", 0);
-        let expected = "[uttarru]";
+        let expected = "u[ttarru]";
         assert_eq!(actual, expected);
 
         let actual = seq("urru", 0);
-        let expected = "[urru]";
+        let expected = "urru";
         assert_eq!(actual, expected);
 
         let actual = seq("uturu", 0);
-        let expected = "[uturu]";
+        let expected = "u[turu]";
         assert_eq!(actual, expected);
 
         // Preservation window scenarios
         let actual = seq("suaaaauaa", 0);
-        let expected = "s[uaaaauaa]";
+        let expected = "su[aaaauaa]";
         assert_eq!(actual, expected);
 
         let actual = seq("suaaaauaa", 3);
-        let expected = "s[uaaaa]uaa";
+        let expected = "su[aaaa]uaa";
         assert_eq!(actual, expected);
 
         let actual = seq("suaaaauaa", 5);
-        let expected = "s[uaa]aauaa";
+        let expected = "su[aa]aauaa";
         assert_eq!(actual, expected);
 
         let actual = seq("suaaaauaa", 8);
@@ -282,66 +281,66 @@ mod tests {
         assert_eq!(actual, expected);
 
         let actual = seq("suauaaa", 0);
-        let expected = "s[uauaaa]";
+        let expected = "su[auaaa]";
         assert_eq!(actual, expected);
 
         let actual = seq("suauaaa", 2);
-        let expected = "s[uaua]aa";
+        let expected = "su[aua]aa";
         assert_eq!(actual, expected);
 
         let actual = seq("suauaaa", 1);
-        let expected = "s[uauaa]a";
+        let expected = "su[auaa]a";
         assert_eq!(actual, expected);
 
         // Tool call atomicity preservation
         let actual = seq("sutrtrtra", 0);
-        let expected = "s[utrtrtra]";
+        let expected = "su[trtrtra]";
         assert_eq!(actual, expected);
 
         let actual = seq("sutrtrtra", 1);
-        let expected = "s[utrtrtr]a";
+        let expected = "su[trtrtr]a";
         assert_eq!(actual, expected);
 
         let actual = seq("sutrtrtra", 2);
-        let expected = "s[utrtr]tra";
+        let expected = "su[trtr]tra";
         assert_eq!(actual, expected);
 
         // Parallel tool calls
         let actual = seq("sutrtrtrra", 2);
-        let expected = "s[utrtr]trra";
+        let expected = "su[trtr]trra";
         assert_eq!(actual, expected);
 
         let actual = seq("sutrtrtrra", 3);
-        let expected = "s[utrtr]trra";
+        let expected = "su[trtr]trra";
         assert_eq!(actual, expected);
 
         let actual = seq("sutrrtrrtrra", 5);
-        let expected = "s[utrr]trrtrra";
+        let expected = "su[trr]trrtrra";
         assert_eq!(actual, expected);
 
         let actual = seq("sutrrrrrra", 2);
-        let expected = "s[u]trrrrrra";
+        let expected = "sutrrrrrra"; // No compaction due to tool preservation logic
         assert_eq!(actual, expected);
 
         // Conversation patterns
         let actual = seq("suauauaua", 0);
-        let expected = "s[uauauaua]";
+        let expected = "su[auauaua]";
         assert_eq!(actual, expected);
 
         let actual = seq("suauauaua", 2);
-        let expected = "s[uauaua]ua";
+        let expected = "su[auaua]ua";
         assert_eq!(actual, expected);
 
         let actual = seq("suauauaua", 6);
-        let expected = "s[ua]uauaua";
+        let expected = "su[a]uauaua";
         assert_eq!(actual, expected);
 
         let actual = seq("sutruaua", 0);
-        let expected = "s[utruaua]";
+        let expected = "su[truaua]";
         assert_eq!(actual, expected);
 
         let actual = seq("sutruaua", 3);
-        let expected = "s[utru]aua";
+        let expected = "su[tru]aua";
         assert_eq!(actual, expected);
 
         // Special cases
@@ -350,7 +349,7 @@ mod tests {
         assert_eq!(actual, expected);
 
         let actual = seq("suaut", 0);
-        let expected = "s[uau]t";
+        let expected = "su[au]t";
         assert_eq!(actual, expected);
 
         // Edge cases
@@ -367,11 +366,11 @@ mod tests {
         assert_eq!(actual, expected);
 
         let actual = seq("ut", 0);
-        let expected = "[u]t";
+        let expected = "ut"; // No compaction due to tool preservation
         assert_eq!(actual, expected);
 
         let actual = seq("suuu", 0);
-        let expected = "s[uuu]";
+        let expected = "suuu"; // No assistant messages, so no compaction
         assert_eq!(actual, expected);
 
         let actual = seq("ut", 1);
@@ -379,7 +378,7 @@ mod tests {
         assert_eq!(actual, expected);
 
         let actual = seq("ua", 0);
-        let expected = "[ua]";
+        let expected = "u[a]";
         assert_eq!(actual, expected);
     }
 
@@ -442,11 +441,11 @@ mod tests {
         let percentage_strategy = CompactionStrategy::evict(0.4);
         percentage_strategy.to_fixed(&fixture);
 
-        // Use fixed window strategy - preserve last 1 message, so we can compact the
-        // first 3
+        // Use fixed window strategy - preserve last 1 message, starting from first
+        // assistant
         let preserve_strategy = CompactionStrategy::retain(1);
         let actual_sequence = preserve_strategy.eviction_range(&fixture);
-        let expected = Some((0, 2));
+        let expected = Some((1, 2)); // Start from first assistant at index 1
         assert_eq!(actual_sequence, expected);
     }
 
