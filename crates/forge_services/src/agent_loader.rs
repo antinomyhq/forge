@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::domain::{Agent, Template};
+use forge_app::domain::{Agent, Template, ToolsDiscriminants};
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
 
@@ -123,11 +123,27 @@ fn parse_agent_file(content: &str) -> Result<Agent> {
         .context("Empty system prompt content")?
         .system_prompt(Template::new(result.content));
 
-    Ok(agent)
+    // Add attempt completion tool by default if not already present
+    Ok(add_attempt_completion_tool(agent))
+}
+
+/// Adds the attempt completion tool to the agent's tools list by default
+fn add_attempt_completion_tool(mut agent: Agent) -> Agent {
+    let completion_tool = ToolsDiscriminants::AttemptCompletion.name();
+
+    if let Some(tools) = agent.tools.as_mut() {
+        // If agent supports tool calling and doesn't have it already
+        if !tools.contains(&completion_tool) && !tools.is_empty() {
+            tools.push(completion_tool);
+        }
+    }
+
+    agent
 }
 
 #[cfg(test)]
 mod tests {
+    use forge_app::domain::ToolName;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -204,5 +220,93 @@ mod tests {
             assert!(agent.description.is_some());
             assert!(agent.system_prompt.is_some());
         }
+    }
+    #[test]
+    fn test_add_attempt_completion_tool_with_no_tools() {
+        let fixture = Agent::new("test-add-completion-no-tools")
+            .title("Test Agent - No Tools")
+            .description("Agent without any tools field for testing add_attempt_completion_tool")
+            .system_prompt(Template::new("Agent fixture for testing add_attempt_completion_tool function with no tools field."));
+
+        let actual = add_attempt_completion_tool(fixture.clone());
+        let expected = fixture; // Should remain unchanged
+
+        // Compare relevant fields since Agent doesn't implement PartialEq
+        assert_eq!(actual.id, expected.id);
+        assert_eq!(actual.tools, expected.tools);
+        assert!(actual.tools.is_none());
+    }
+
+    #[test]
+    fn test_add_attempt_completion_tool_with_empty_tools() {
+        let fixture = Agent::new("test-add-completion-empty-tools")
+            .title("Test Agent - Empty Tools")
+            .description("Agent with empty tools list for testing add_attempt_completion_tool")
+            .tools(Vec::<ToolName>::new())
+            .system_prompt(Template::new("Agent fixture for testing add_attempt_completion_tool function with empty tools list."));
+
+        let actual = add_attempt_completion_tool(fixture.clone());
+        let expected = fixture; // Should remain unchanged
+
+        // Compare relevant fields since Agent doesn't implement PartialEq
+        assert_eq!(actual.id, expected.id);
+        assert_eq!(actual.tools, expected.tools);
+        assert_eq!(actual.tools.as_ref().unwrap(), &Vec::<ToolName>::new());
+    }
+
+    #[test]
+    fn test_add_attempt_completion_tool_already_has_completion() {
+        let fixture = Agent::new("test-add-completion-has-completion")
+            .title("Test Agent - Has Completion")
+            .description("Agent that already has attempt_completion for testing add_attempt_completion_tool")
+            .tools(vec![
+                ToolName::new("fs_read"),
+                ToolName::new("attempt_completion"),
+                ToolName::new("shell")
+            ])
+            .system_prompt(Template::new("Agent fixture for testing add_attempt_completion_tool function when attempt_completion already exists."));
+
+        let actual = add_attempt_completion_tool(fixture.clone());
+        let expected = fixture; // Should remain unchanged
+
+        // Compare relevant fields since Agent doesn't implement PartialEq
+        assert_eq!(actual.id, expected.id);
+        assert_eq!(actual.tools, expected.tools);
+        let tools = actual.tools.as_ref().unwrap();
+        assert!(tools.contains(&ToolName::new("attempt_completion")));
+        // Should not duplicate the tool
+        assert_eq!(
+            tools
+                .iter()
+                .filter(|&tool| *tool == ToolName::new("attempt_completion"))
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn test_add_attempt_completion_tool_should_add_completion() {
+        let fixture = Agent::new("test-add-completion-needs-completion")
+            .title("Test Agent - Needs Completion")
+            .description("Agent with tools but missing attempt_completion for testing add_attempt_completion_tool")
+            .tools(vec![
+                ToolName::new("fs_read"),
+                ToolName::new("fs_write"),
+                ToolName::new("shell")
+            ])
+            .system_prompt(Template::new("Agent fixture for testing add_attempt_completion_tool function when attempt_completion needs to be added."));
+
+        let actual = add_attempt_completion_tool(fixture.clone());
+
+        // Create expected result manually
+        let mut expected_tools = fixture.tools.as_ref().unwrap().clone();
+        expected_tools.push(ToolName::new("attempt_completion"));
+
+        // Compare relevant fields
+        assert_eq!(actual.id, fixture.id);
+        assert_eq!(actual.tools.as_ref().unwrap(), &expected_tools);
+        let tools = actual.tools.as_ref().unwrap();
+        assert!(tools.contains(&ToolName::new("attempt_completion")));
+        assert_eq!(tools.len(), 4); // Original 3 + 1 added
     }
 }

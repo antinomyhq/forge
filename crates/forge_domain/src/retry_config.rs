@@ -42,7 +42,7 @@ impl Default for RetryConfig {
             min_delay_ms: 1000,
             backoff_factor: 2,
             max_retry_attempts: 8,
-            retry_status_codes: vec![429, 500, 502, 503, 504],
+            retry_status_codes: vec![429, 500, 502, 503, 504, 408],
             max_delay: None,
             suppress_retry_errors: false,
         }
@@ -69,7 +69,10 @@ mod tests {
         assert_eq!(config.min_delay_ms, 1000);
         assert_eq!(config.backoff_factor, 2);
         assert_eq!(config.max_retry_attempts, 8);
-        assert_eq!(config.retry_status_codes, vec![429, 500, 502, 503, 504]);
+        assert_eq!(
+            config.retry_status_codes,
+            vec![429, 500, 502, 503, 504, 408]
+        );
         assert_eq!(config.suppress_retry_errors, false);
     }
 

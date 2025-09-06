@@ -45,14 +45,12 @@ jobs:
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         toolchain: stable
-    - name: Install nextest
-      run: cargo install cargo-nextest --locked
     - name: Cache Rust dependencies
       uses: Swatinem/rust-cache@v2
       with:
         cache-all-crates: 'true'
-    - name: Cargo Nextest
-      run: cargo nextest run --all-features --workspace
+    - name: Cargo Test
+      run: cargo test --all-features --workspace
   lint:
     name: Lint
     runs-on: ubuntu-latest
