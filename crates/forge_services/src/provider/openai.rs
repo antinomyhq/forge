@@ -10,7 +10,7 @@ use reqwest::header::AUTHORIZATION;
 use tracing::{debug, info};
 
 use crate::provider::client::{create_headers, join_url};
-use crate::provider::event::into_chat_completion_message;
+use crate::provider::event::{into_chat_completion_message, into_chat_completion_message_post};
 use crate::provider::utils::{format_http_context, sanitize_headers};
 
 #[derive(Clone)]
@@ -45,7 +45,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         request = pipeline.transform(request);
 
         let url = join_url(self.provider.to_base_url().as_str(), "chat/completions")?;
-        let headers = create_headers(self.get_headers());
+        let mut headers = create_headers(self.get_headers());
 
         info!(
             url = %url,
@@ -59,9 +59,23 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         let json_bytes =
             serde_json::to_vec(&request).with_context(|| "Failed to serialize request")?;
 
+        if !request.stream.unwrap_or(false) {
+            headers.insert(
+                reqwest::header::CONTENT_TYPE,
+                "application/json".parse().unwrap(),
+            );
+            let message = into_chat_completion_message_post::<Response, _>(
+                url.clone(),
+                headers,
+                json_bytes.into(),
+                self.http.as_ref(),
+            )
+            .await?;
+            return Ok(Box::pin(tokio_stream::once(Ok(message))));
+        }
         let es = self
             .http
-            .eventsource(&url, Some(headers), json_bytes.into())
+            .eventsource(&url, Some(headers.clone()), json_bytes.clone().into())
             .await
             .with_context(|| format_http_context(None, "POST", &url))?;
 
@@ -173,6 +187,7 @@ mod tests {
         async fn post(
             &self,
             _url: &reqwest::Url,
+            _headers: Option<HeaderMap>,
             _body: Bytes,
         ) -> anyhow::Result<reqwest::Response> {
             unimplemented!()
