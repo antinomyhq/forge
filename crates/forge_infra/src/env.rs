@@ -219,6 +219,7 @@ mod tests {
     use std::{env, fs};
 
     use forge_domain::{TlsBackend, TlsVersion};
+    use serial_test::serial;
     use tempfile::{TempDir, tempdir};
 
     use super::*;
@@ -281,6 +282,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_dot_env_loading() {
         // Test single env file
         let (_root, cwd) = setup_envs(vec![("", "TEST_KEY1=VALUE1")]);
@@ -311,6 +313,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_retry_config_parsing() {
         clean_retry_env_vars();
 
@@ -343,6 +346,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_retry_config_invalid_values() {
         clean_retry_env_vars();
 
@@ -363,6 +367,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_http_config_parsing() {
         clean_http_env_vars();
 
@@ -409,6 +414,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_http_config_keep_alive_special_cases() {
         clean_http_env_vars();
 
@@ -425,6 +431,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_max_search_result_bytes() {
         unsafe {
             env::remove_var("FORGE_MAX_SEARCH_RESULT_BYTES");
@@ -463,6 +470,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_tool_timeout_env_var() {
         let cwd = tempdir().unwrap().path().to_path_buf();
         let infra = ForgeEnvironmentInfra::new(false, cwd);

@@ -5,6 +5,7 @@ use crate::jobs::{self, ReleaseBuilderJob};
 /// Generate the main CI workflow
 pub fn generate_ci_workflow() {
     let workflow = StandardWorkflow::default()
+        .test_runner(TestRunner::Cargo)
         .auto_fix(true)
         .to_ci_workflow()
         .concurrency(Concurrency {
