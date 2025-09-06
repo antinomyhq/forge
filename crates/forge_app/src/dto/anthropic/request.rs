@@ -205,6 +205,7 @@ impl Message {
                     .rev()
                     .find_map(|(idx, content)| match content {
                         Content::Text { .. }
+                        | Content::Image { .. }
                         | Content::ToolUse { .. }
                         | Content::ToolResult { .. } => Some(idx),
                         _ => None,
@@ -232,11 +233,12 @@ impl From<Image> for Content {
     fn from(value: Image) -> Self {
         Content::Image {
             source: ImageSource {
-                type_: "url".to_string(),
-                media_type: None,
-                data: None,
-                url: Some(value.url().clone()),
+                type_: "base64".to_string(),
+                media_type: Some(value.mime_type().to_string()),
+                data: Some(value.data().into()),
+                url: None,
             },
+            cache_control: None,
         }
     }
 }
@@ -258,6 +260,8 @@ pub struct ImageSource {
 pub enum Content {
     Image {
         source: ImageSource,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_control: Option<CacheControl>,
     },
     Text {
         text: String,
@@ -306,8 +310,8 @@ impl Content {
             Content::ToolResult { tool_use_id, content, is_error, .. } => {
                 Content::ToolResult { tool_use_id, content, is_error, cache_control }
             }
-            // Image and Thinking variants don't support cache control
-            Content::Image { source } => Content::Image { source },
+            Content::Image { source, .. } => Content::Image { source, cache_control },
+            // TODO: verify this Thinking variants don't support cache control
             Content::Thinking { signature, thinking } => Content::Thinking { signature, thinking },
         }
     }
@@ -317,7 +321,7 @@ impl Content {
             Content::Text { cache_control, .. } => cache_control.is_some(),
             Content::ToolUse { cache_control, .. } => cache_control.is_some(),
             Content::ToolResult { cache_control, .. } => cache_control.is_some(),
-            Content::Image { .. } => false,
+            Content::Image { cache_control, .. } => cache_control.is_some(),
             Content::Thinking { .. } => false,
         }
     }
