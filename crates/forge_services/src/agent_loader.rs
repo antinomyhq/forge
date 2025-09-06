@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::domain::{Agent, Template};
+use forge_app::domain::{Agent, Template, ToolsDiscriminants};
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
 
@@ -123,7 +123,22 @@ fn parse_agent_file(content: &str) -> Result<Agent> {
         .context("Empty system prompt content")?
         .system_prompt(Template::new(result.content));
 
-    Ok(agent)
+    // Add attempt completion tool by default if not already present
+    Ok(add_attempt_completion_tool(agent))
+}
+
+/// Adds the attempt completion tool to the agent's tools list by default
+fn add_attempt_completion_tool(mut agent: Agent) -> Agent {
+    let completion_tool = ToolsDiscriminants::AttemptCompletion.name();
+
+    if let Some(tools) = agent.tools.as_mut() {
+        // If agent supports tool calling and doesn't have it already
+        if !tools.contains(&completion_tool) && !tools.is_empty() {
+            tools.push(completion_tool);
+        }
+    }
+
+    agent
 }
 
 #[cfg(test)]
