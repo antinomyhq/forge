@@ -62,10 +62,15 @@ impl Conversation {
 
     /// Sets the model for all agents in the conversation
     pub fn set_model(&mut self, model: &ModelId) -> Result<()> {
+        // Only set models for agents that don't have a model set already
         for agent in self.agents.iter_mut() {
-            agent.model = Some(model.clone());
+            if agent.model.is_none() {
+                agent.model = Some(model.clone());
+            }
             if let Some(ref mut compact) = agent.compact {
-                compact.model = Some(model.clone());
+                if compact.model.is_none() {
+                    compact.model = Some(model.clone());
+                }
             }
         }
 
@@ -116,20 +121,6 @@ impl Conversation {
                 agent.max_tokens = Some(max_tokens);
             }
 
-            if let Some(model) = workflow.model.clone() {
-                agent.model = Some(model.clone());
-
-                // If a workflow model is specified, ensure all agents have a compact model
-                // initialized with that model, creating the compact configuration if needed
-                if agent.compact.is_some() {
-                    if let Some(ref mut compact) = agent.compact {
-                        compact.model = Some(model);
-                    }
-                } else {
-                    agent.compact = Some(Compact::new().model(model));
-                }
-            }
-
             if let Some(tool_supported) = workflow.tool_supported {
                 agent.tool_supported = Some(tool_supported);
             }
@@ -174,7 +165,7 @@ impl Conversation {
             agent.add_subscription(format!("{id}"));
         }
 
-        Self {
+        let conversation = Self {
             id,
             archived: false,
             context: None,
@@ -184,6 +175,12 @@ impl Conversation {
             max_tool_failure_per_turn: workflow.max_tool_failure_per_turn,
             max_requests_per_turn: workflow.max_requests_per_turn,
             metrics,
+        };
+
+        if let Some(model) = workflow.model {
+            conversation.set_model(model)
+        } else {
+            conversation
         }
     }
 
