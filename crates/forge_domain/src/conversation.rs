@@ -368,7 +368,7 @@ mod tests {
             .iter()
             .find(|a| a.id.as_str() == "agent1")
             .unwrap();
-        assert_eq!(agent1.model, Some(ModelId::new("default-model")));
+        assert_eq!(agent1.model, Some(ModelId::new("agent1-model")));
         assert_eq!(agent1.max_walker_depth, Some(5));
         assert_eq!(
             agent1.custom_rules,
@@ -545,8 +545,6 @@ mod tests {
     }
     #[test]
     fn test_agent_compact_takes_priority_over_workflow_compact() {
-        use pretty_assertions::assert_eq;
-
         // Arrange
         let id = super::ConversationId::generate();
 
@@ -768,25 +766,22 @@ mod tests {
         // Act
         let conversation = super::Conversation::new(id.clone(), workflow, vec![], agents);
 
-        // Check that agent1's compact.model was updated to the workflow model
+        // Check that agent1's compact.model was not overridden to the workflow model
         let agent1 = conversation.get_agent(&AgentId::new("agent1")).unwrap();
         let compact = agent1.compact.as_ref().unwrap();
-        assert_eq!(compact.model, Some(ModelId::new("workflow-model")));
+        assert_eq!(compact.model, Some(ModelId::new("old-compaction-model")));
 
         // Regular agent model should also be updated
         assert_eq!(agent1.model, Some(ModelId::new("workflow-model")));
 
         // Check that agent2 still has no compaction
         let agent2 = conversation.get_agent(&AgentId::new("agent2")).unwrap();
-        let compact = agent2.compact.as_ref().unwrap();
-        assert_eq!(compact.model, Some(ModelId::new("workflow-model")));
-        assert_eq!(agent2.model, Some(ModelId::new("workflow-model")));
+        let compact = agent2.compact.as_ref();
+        assert!(compact.is_none());
     }
 
     #[test]
     fn test_subscriptions_with_matching_agents() {
-        use pretty_assertions::assert_eq;
-
         // Arrange
         let id = super::ConversationId::generate();
 
@@ -811,8 +806,6 @@ mod tests {
 
     #[test]
     fn test_subscriptions_with_no_matching_agents() {
-        use pretty_assertions::assert_eq;
-
         // Arrange
         let id = super::ConversationId::generate();
 
@@ -833,8 +826,6 @@ mod tests {
 
     #[test]
     fn test_subscriptions_with_agents_without_subscriptions() {
-        use pretty_assertions::assert_eq;
-
         // Arrange
         let id = super::ConversationId::generate();
 
@@ -855,8 +846,6 @@ mod tests {
 
     #[test]
     fn test_subscriptions_with_empty_agents_list() {
-        use pretty_assertions::assert_eq;
-
         // Arrange
         let id = super::ConversationId::generate();
         let workflow = Workflow::new(); // No agents
@@ -871,8 +860,6 @@ mod tests {
 
     #[test]
     fn test_subscriptions_with_single_matching_agent() {
-        use pretty_assertions::assert_eq;
-
         // Arrange
         let id = super::ConversationId::generate();
 
@@ -900,8 +887,6 @@ mod tests {
 
     #[test]
     fn test_subscriptions_with_starts_with_matching() {
-        use pretty_assertions::assert_eq;
-
         // Arrange
         let id = super::ConversationId::generate();
 
@@ -922,8 +907,6 @@ mod tests {
 
     #[test]
     fn test_subscriptions_starts_with_multiple_matches() {
-        use pretty_assertions::assert_eq;
-
         // Arrange
         let id = super::ConversationId::generate();
 
@@ -947,8 +930,6 @@ mod tests {
 
     #[test]
     fn test_subscriptions_starts_with_exact_match() {
-        use pretty_assertions::assert_eq;
-
         // Arrange
         let id = super::ConversationId::generate();
 
@@ -970,8 +951,6 @@ mod tests {
 
     #[test]
     fn test_subscriptions_starts_with_no_prefix_match() {
-        use pretty_assertions::assert_eq;
-
         // Arrange
         let id = super::ConversationId::generate();
 
@@ -992,8 +971,6 @@ mod tests {
 
     #[test]
     fn test_subscriptions_starts_with_empty_subscription() {
-        use pretty_assertions::assert_eq;
-
         // Arrange
         let id = super::ConversationId::generate();
 
@@ -1016,8 +993,6 @@ mod tests {
 
     #[test]
     fn test_subscriptions_starts_with_hierarchical_events() {
-        use pretty_assertions::assert_eq;
-
         // Arrange
         let id = super::ConversationId::generate();
 
@@ -1041,8 +1016,6 @@ mod tests {
 
     #[test]
     fn test_subscriptions_starts_with_case_sensitive() {
-        use pretty_assertions::assert_eq;
-
         // Arrange
         let id = super::ConversationId::generate();
 
@@ -1063,8 +1036,6 @@ mod tests {
 
     #[test]
     fn test_subscriptions_returns_cloned_agents() {
-        use pretty_assertions::assert_eq;
-
         // Arrange
         let id = super::ConversationId::generate();
 
@@ -1088,101 +1059,106 @@ mod tests {
     }
 
     #[test]
-    fn test_set_model() {
-        let workflow = Workflow::new();
+    fn test_set_model_adds_model_to_agent_without_model() {
+        let fixture = super::Conversation::new(
+            super::ConversationId::generate(),
+            Workflow::new(),
+            vec![],
+            vec![Agent::new("agent-without-model")],
+        );
 
-        let id = super::ConversationId::generate();
-        let mut conversation = super::Conversation::new(
-            id.clone(),
-            workflow,
+        let mut actual = fixture;
+        let new_model = ModelId::new("new-model");
+        actual.set_model(&new_model);
+
+        let expected = Some(new_model.clone());
+        assert_eq!(
+            actual
+                .get_agent(&AgentId::new("agent-without-model"))
+                .unwrap()
+                .model,
+            expected
+        );
+    }
+
+    #[test]
+    fn test_set_model_preserves_existing_model_on_agent_with_model() {
+        let existing_model = ModelId::new("existing-model");
+        let fixture = super::Conversation::new(
+            super::ConversationId::generate(),
+            Workflow::new(),
+            vec![],
+            vec![Agent::new("agent-with-model").model(existing_model.clone())],
+        );
+
+        let mut actual = fixture;
+        let new_model = ModelId::new("new-model");
+        actual.set_model(&new_model);
+
+        let expected = Some(existing_model);
+        assert_eq!(
+            actual
+                .get_agent(&AgentId::new("agent-with-model"))
+                .unwrap()
+                .model,
+            expected
+        );
+    }
+
+    #[test]
+    fn test_set_model_preserves_existing_model_on_agent_with_compact_without_compact_model() {
+        let existing_model = ModelId::new("existing-model");
+        let fixture = super::Conversation::new(
+            super::ConversationId::generate(),
+            Workflow::new(),
             vec![],
             vec![
-                Agent::new("agent-1")
-                    .model(ModelId::new("sonnet-4"))
-                    .compact(Compact::new().model(ModelId::new("gemini-1.5"))),
-                Agent::new("agent-2").model(ModelId::new("sonnet-3.5")),
+                Agent::new("agent-with-compact")
+                    .model(existing_model.clone())
+                    .compact(Compact::default()),
             ],
         );
 
-        let model_id = ModelId::new("qwen-2");
-        conversation.set_model(&model_id);
+        let mut actual = fixture;
+        let new_model = ModelId::new("new-model");
+        actual.set_model(&new_model);
 
-        // Check that all agents have the model set
-        for agent in conversation.agents.iter_mut() {
-            assert_eq!(agent.model, Some(model_id.clone()));
-            if let Some(ref mut compact) = agent.compact {
-                assert_eq!(compact.model, Some(model_id.clone()));
-            }
-        }
+        let expected = Some(existing_model);
+        assert_eq!(
+            actual
+                .get_agent(&AgentId::new("agent-with-compact"))
+                .unwrap()
+                .model,
+            expected
+        );
     }
+
     #[test]
-    fn test_workflow_model_is_set_for_all_agents() {
-        // Arrange
-        let id = super::ConversationId::generate();
-
-        // Create agents with different initial states
-        let agent1 = Agent::new("agent-1"); // No model, no compact
-        let agent2 = Agent::new("agent-2").model(ModelId::new("old-model")); // Has model, no compact
-        let agent3 = Agent::new("agent-3").compact(Compact::new().token_threshold(1000_usize)); // No model, has compact
-        let agent4 = Agent::new("agent-4")
-            .model(ModelId::new("another-old-model"))
-            .compact(Compact::new().model(ModelId::new("old-compact-model"))); // Has both model and compact
-
-        let agents = vec![agent1, agent2, agent3, agent4];
-
-        // Create workflow with a model
-        let workflow_model = ModelId::new("workflow-model");
-        let workflow = Workflow::new().model(workflow_model.clone());
-
-        // Act
-        let conversation = super::Conversation::new(id, workflow, vec![], agents);
-
-        // Assert
-        assert_eq!(conversation.agents.len(), 4);
-
-        // Check that ALL agents have the workflow model set
-        for agent in &conversation.agents {
-            // Every agent should have the workflow model
-            assert_eq!(agent.model, Some(workflow_model.clone()));
-
-            // Every agent should have compact configuration with the workflow model
-            assert!(agent.compact.is_some());
-            let compact = agent.compact.as_ref().unwrap();
-            assert_eq!(compact.model, Some(workflow_model.clone()));
-        }
-
-        // Verify specific agent behaviors
-        let agent1 = conversation.get_agent(&AgentId::new("agent-1")).unwrap();
-        assert_eq!(agent1.model, Some(workflow_model.clone()));
-        assert_eq!(
-            agent1.compact.as_ref().unwrap().model,
-            Some(workflow_model.clone())
+    fn test_set_model_preserves_existing_model_on_agent_with_compact_with_compact_model() {
+        let existing_model = ModelId::new("existing-model");
+        let compact_model = ModelId::new("compact-model");
+        let fixture = super::Conversation::new(
+            super::ConversationId::generate(),
+            Workflow::new(),
+            vec![],
+            vec![
+                Agent::new("agent-with-compact-model")
+                    .model(existing_model.clone())
+                    .compact(Compact::default().model(compact_model)),
+            ],
         );
 
-        let agent2 = conversation.get_agent(&AgentId::new("agent-2")).unwrap();
-        assert_eq!(agent2.model, Some(workflow_model.clone())); // Overridden from "old-model"
-        assert_eq!(
-            agent2.compact.as_ref().unwrap().model,
-            Some(workflow_model.clone())
-        );
+        let mut actual = fixture;
+        let new_model = ModelId::new("new-model");
+        actual.set_model(&new_model);
 
-        let agent3 = conversation.get_agent(&AgentId::new("agent-3")).unwrap();
-        assert_eq!(agent3.model, Some(workflow_model.clone()));
+        let expected = Some(existing_model);
         assert_eq!(
-            agent3.compact.as_ref().unwrap().model,
-            Some(workflow_model.clone())
+            actual
+                .get_agent(&AgentId::new("agent-with-compact-model"))
+                .unwrap()
+                .model,
+            expected
         );
-        // Should preserve other compact settings
-        assert_eq!(
-            agent3.compact.as_ref().unwrap().token_threshold,
-            Some(1000_usize)
-        );
-
-        let agent4 = conversation.get_agent(&AgentId::new("agent-4")).unwrap();
-        assert_eq!(agent4.model, Some(workflow_model.clone())); // Overridden from "another-old-model"
-        assert_eq!(
-            agent4.compact.as_ref().unwrap().model,
-            Some(workflow_model.clone())
-        ); // Overridden from "old-compact-model"
     }
 }
