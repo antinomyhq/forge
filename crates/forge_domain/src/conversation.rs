@@ -66,9 +66,10 @@ impl Conversation {
                 agent.model = Some(model.clone());
             }
             if let Some(ref mut compact) = agent.compact
-                && compact.model.is_none() {
-                    compact.model = Some(model.clone());
-                }
+                && compact.model.is_none()
+            {
+                compact.model = Some(model.clone());
+            }
         }
     }
 
