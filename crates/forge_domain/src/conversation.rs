@@ -7,9 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::{
-    Agent, AgentId, Compact, Context, Error, Event, Metrics, ModelId, Result, ToolName, Workflow,
-};
+use crate::{Agent, AgentId, Context, Error, Event, Metrics, ModelId, Result, ToolName, Workflow};
 
 #[derive(Debug, Default, Display, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(transparent)]
@@ -61,7 +59,7 @@ impl Conversation {
     }
 
     /// Sets the model for all agents in the conversation
-    pub fn set_model(&mut self, model: &ModelId) -> Result<()> {
+    pub fn set_model(&mut self, model: &ModelId) {
         // Only set models for agents that don't have a model set already
         for agent in self.agents.iter_mut() {
             if agent.model.is_none() {
@@ -73,8 +71,6 @@ impl Conversation {
                 }
             }
         }
-
-        Ok(())
     }
 
     pub fn reset_metric(&mut self) -> &mut Self {
@@ -165,7 +161,7 @@ impl Conversation {
             agent.add_subscription(format!("{id}"));
         }
 
-        let conversation = Self {
+        let mut conversation = Self {
             id,
             archived: false,
             context: None,
@@ -178,10 +174,9 @@ impl Conversation {
         };
 
         if let Some(model) = workflow.model {
-            conversation.set_model(model)
-        } else {
-            conversation
+            conversation.set_model(&model);
         }
+        conversation
     }
 
     /// Returns all the agents that are subscribed to the given event.
@@ -1110,7 +1105,7 @@ mod tests {
         );
 
         let model_id = ModelId::new("qwen-2");
-        conversation.set_model(&model_id).unwrap();
+        conversation.set_model(&model_id);
 
         // Check that all agents have the model set
         for agent in conversation.agents.iter_mut() {

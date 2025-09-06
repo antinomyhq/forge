@@ -566,7 +566,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         if let Some(mut conversation) = self.api.conversation(&conversation_id).await? {
             // Update the model in the conversation
-            conversation.set_model(&model)?;
+            conversation.set_model(&model);
 
             // Upsert the updated conversation
             self.api.upsert_conversation(conversation).await?;
