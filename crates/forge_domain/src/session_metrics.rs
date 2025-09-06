@@ -22,6 +22,11 @@ impl FileChangeMetrics {
         self.lines_added += lines_added;
         self.lines_removed += lines_removed;
     }
+
+    pub fn undo_operation(&mut self, lines_added: u64, lines_removed: u64) {
+        self.lines_added = self.lines_added.saturating_sub(lines_added);
+        self.lines_removed = self.lines_removed.saturating_sub(lines_removed);
+    }
 }
 
 #[derive(Debug, Clone, Default, Setters, Serialize, Deserialize)]
@@ -45,6 +50,11 @@ impl Metrics {
         // Update file-specific metrics
         let file_metrics = self.files_changed.entry(path).or_default();
         file_metrics.add_operation(lines_added, lines_removed);
+    }
+
+    pub fn record_file_undo(&mut self, path: String, lines_added: u64, lines_removed: u64) {
+        let file_metrics = self.files_changed.entry(path).or_default();
+        file_metrics.undo_operation(lines_added, lines_removed);
     }
 
     /// Gets the session duration if tracking has started
