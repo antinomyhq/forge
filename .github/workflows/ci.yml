@@ -40,13 +40,15 @@ jobs:
       contents: read
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     - name: Setup Rust Toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         toolchain: stable
     - name: Install nextest
-      run: cargo install cargo-nextest --locked
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-nextest
     - name: Cache Rust dependencies
       uses: Swatinem/rust-cache@v2
       with:
@@ -60,21 +62,21 @@ jobs:
       contents: read
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     - name: Setup Rust Toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
-        toolchain: nightly
+        toolchain: nightly-2025-09-02
         components: clippy, rustfmt
-        cache: true
+        cache: 'true'
         cache-directories: |-
           ~/.cargo/registry
           ~/.cargo/git
           target
     - name: Cargo Fmt
-      run: cargo +nightly fmt --all --check
+      run: cargo +nightly-2025-09-02 fmt --all --check
     - name: Cargo Clippy
-      run: cargo +nightly clippy --all-features --workspace -- -D warnings
+      run: cargo +nightly-2025-09-02 clippy --all-features --workspace -- -D warnings
   draft_release:
     needs:
     - build

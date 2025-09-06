@@ -1,3 +1,4 @@
+use gh_workflow_tailcall::toolchain::Toolchain;
 use gh_workflow_tailcall::*;
 
 use crate::jobs::{self, ReleaseBuilderJob};
@@ -13,6 +14,53 @@ pub fn generate_ci_workflow() {
             limit: None,
         })
         .add_env(("OPENROUTER_API_KEY", "${{secrets.OPENROUTER_API_KEY}}"));
+
+    // Replace the default build job to install nextest via taiki-e/install-action
+    let custom_build = Job::new("Build and Test")
+        .permissions(Permissions::default().contents(Level::Read))
+        .add_step(Step::checkout())
+        .add_step(Toolchain::default().add_stable())
+        .add_step(
+            Step::uses("taiki-e", "install-action", "v2")
+                .name("Install nextest")
+                .add_with(("tool", "cargo-nextest")),
+        )
+        .add_step(
+            Step::uses("Swatinem", "rust-cache", "v2")
+                .name("Cache Rust dependencies")
+                .add_with(("cache-all-crates", "true")),
+        )
+        .add_step(
+            Cargo::new("nextest")
+                .args("run --all-features --workspace")
+                .name("Cargo Nextest"),
+        );
+
+    let workflow = workflow.add_job("build", custom_build);
+
+    // Replace the default lint job to pin nightly Clippy/Rustfmt to a known-good
+    // version
+    let custom_lint = Job::new("Lint")
+        .permissions(Permissions::default().contents(Level::Read))
+        .add_step(Step::checkout())
+        .add_step(
+            Step::uses("actions-rust-lang", "setup-rust-toolchain", "v1")
+                .name("Setup Rust Toolchain")
+                .add_with(("toolchain", "nightly-2025-09-02"))
+                .add_with(("components", "clippy, rustfmt"))
+                .add_with(("cache", "true"))
+                .add_with((
+                    "cache-directories",
+                    "~/.cargo/registry\n~/.cargo/git\ntarget",
+                )),
+        )
+        .add_step(Step::run("cargo +nightly-2025-09-02 fmt --all --check").name("Cargo Fmt"))
+        .add_step(
+            Step::run("cargo +nightly-2025-09-02 clippy --all-features --workspace -- -D warnings")
+                .name("Cargo Clippy"),
+        );
+
+    let workflow = workflow.add_job("lint", custom_lint);
 
     // Get the jobs
     let build_job = workflow.jobs.clone().unwrap().get("build").unwrap().clone();
