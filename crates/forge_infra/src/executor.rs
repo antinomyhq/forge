@@ -23,7 +23,6 @@ impl ForgeCommandExecutorService {
         Self { restricted, env, ready: Arc::new(Mutex::new(())) }
     }
 
-    
     fn prepare_command(
         &self,
         command_str: &str,

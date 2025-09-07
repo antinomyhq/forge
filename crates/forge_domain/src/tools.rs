@@ -302,8 +302,9 @@ pub struct Shell {
     #[serde(default)]
     #[serde(skip_serializing_if = "is_default")]
     pub keep_ansi: bool,
-    /// Environment variable names to pass to command execution (e.g., ["PATH", "HOME", "USER"]).
-    /// The system automatically reads the specified values and applies them during command execution.
+    /// Environment variable names to pass to command execution (e.g., ["PATH",
+    /// "HOME", "USER"]). The system automatically reads the specified
+    /// values and applies them during command execution.
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub env: Option<Vec<String>>,
