@@ -37,6 +37,9 @@ pub enum SlashCommand {
     #[strum(message = "Start a new conversation")]
     New,
 
+    #[strum(message = "Enable research mode for systematic codebase exploration and analysis")]
+    Sage,
+
     #[strum(message = "List all available tools with their descriptions and schema")]
     Tools,
 
@@ -88,7 +91,23 @@ mod tests {
     fn test_enum_iteration() {
         let fixture = SlashCommand::iter().collect::<Vec<_>>();
         let actual = fixture.len();
-        let expected = 12;
+        let expected = 13;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_sage_command_parsing() {
+        let fixture = "sage";
+        let actual = SlashCommand::from_str(fixture).unwrap();
+        let expected = SlashCommand::Sage;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_sage_command_description() {
+        let fixture = SlashCommand::Sage;
+        let actual = fixture.description();
+        let expected = "Enable research mode for systematic codebase exploration and analysis";
         assert_eq!(actual, expected);
     }
 

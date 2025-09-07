@@ -7,7 +7,7 @@ use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
-    InterruptionReason, Model, ModelId, Workflow,
+    InterruptionReason, Model, ModelId, ToolName, Workflow,
 };
 use forge_display::MarkdownFormat;
 use forge_domain::{
@@ -97,20 +97,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn active_workflow(&self) -> Result<Workflow> {
-        // Read the current workflow to validate the agent
-        let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
-        let mut base_workflow = Workflow::default();
-        base_workflow.merge(workflow.clone());
-        Ok(base_workflow)
-    }
-
     // Set the current mode and update conversation variable
     async fn on_agent_change(&mut self, agent_id: AgentId) -> Result<()> {
-        let workflow = self.active_workflow().await?;
-
         // Convert string to AgentId for validation
-        let agent = workflow.get_agent(&AgentId::new(agent_id))?;
+        let agent = self
+            .api
+            .get_agents()
+            .await?
+            .iter()
+            .find(|agent| agent.id == agent_id)
+            .cloned()
+            .ok_or(anyhow::anyhow!("Undefined agent: {agent_id}"))?;
 
         let conversation_id = self.init_conversation().await?;
         if let Some(mut conversation) = self.api.conversation(&conversation_id).await? {
@@ -122,20 +119,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.state.is_first = true;
         self.state.operating_agent = agent.id.clone();
 
-        // Update the workflow with the new operating agent.
-        self.api
-            .update_workflow(self.cli.workflow.as_deref(), |workflow| {
-                workflow.variables.insert(
-                    "operating_agent".to_string(),
-                    Value::from(agent.id.as_str()),
-                );
-            })
-            .await?;
+        // Update the app config with the new operating agent.
+        self.api.set_operating_agent(agent.id.clone()).await?;
+        let name = agent.id.as_str().to_case(Case::UpperSnake).bold();
 
-        self.writeln_title(TitleFormat::action(format!(
-            "Switched to agent {}",
-            agent.id.as_str().to_case(Case::UpperSnake).bold()
-        )))?;
+        let title = format!(
+            "∙ {}",
+            agent.title.as_deref().unwrap_or("<Missing agent.title>")
+        )
+        .dimmed();
+        self.writeln_title(TitleFormat::action(format!("{name} {title}")))?;
 
         Ok(())
     }
@@ -345,7 +338,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let mut info = Info::from(&self.state).extend(Info::from(&self.api.environment()));
 
         // Add user information if available
-        if let Ok(config) = self.api.app_config().await
+        if let Some(config) = self.api.app_config().await
             && let Some(login_info) = &config.key_info
         {
             info = info.extend(Info::from(login_info));
@@ -360,6 +353,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.spinner.stop(None)?;
 
         Ok(())
+    }
+
+    async fn agent_tools(&self) -> anyhow::Result<Vec<ToolName>> {
+        let agent_id = &self.state.operating_agent;
+        let agents = self.api.get_agents().await?;
+        let agent = agents.into_iter().find(|agent| &agent.id == agent_id);
+        Ok(agent
+            .and_then(|agent| agent.tools.clone())
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>())
     }
 
     async fn on_command(&mut self, command: Command) -> anyhow::Result<bool> {
@@ -391,6 +395,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Command::Muse => {
                 self.on_agent_change(AgentId::MUSE).await?;
             }
+            Command::Sage => {
+                self.on_agent_change(AgentId::SAGE).await?;
+            }
             Command::Help => {
                 let info = Info::from(self.command.as_ref());
                 self.writeln(info)?;
@@ -398,10 +405,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Command::Tools => {
                 self.spinner.start(Some("Loading"))?;
                 use crate::tools_display::format_tools;
-                let tools = self.api.tools().await?;
-
-                let output = format_tools(&tools);
-                self.writeln(output)?;
+                let all_tools = self.api.tools().await?;
+                let agent_tools = self.agent_tools().await?;
+                let info = format_tools(&agent_tools, &all_tools);
+                self.writeln(info)?;
             }
             Command::Update => {
                 on_update(self.api.clone(), None).await;
@@ -421,9 +428,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.api.execute_shell_command_raw(command).await?;
             }
             Command::Agent => {
-                // Read the current workflow to validate the agent
-                let workflow = self.active_workflow().await?;
-
                 #[derive(Clone)]
                 struct Agent {
                     id: AgentId,
@@ -435,14 +439,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         write!(f, "{}", self.label)
                     }
                 }
-                let n = workflow
-                    .agents
+
+                let agents = self.api.get_agents().await?;
+                let n = agents
                     .iter()
                     .map(|a| a.id.as_str().len())
                     .max()
                     .unwrap_or_default();
-                let display_agents = workflow
-                    .agents
+                let display_agents = agents
                     .into_iter()
                     .map(|agent| {
                         let title = &agent.title.unwrap_or("<Missing agent.title>".to_string());
@@ -471,7 +475,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.api.logout().await?;
                 self.login().await?;
                 self.spinner.stop(None)?;
-                let config: AppConfig = self.api.app_config().await?;
+                let config: AppConfig = self.api.app_config().await.unwrap_or_default();
                 tracker::login(
                     config
                         .key_info
@@ -565,7 +569,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         if let Some(mut conversation) = self.api.conversation(&conversation_id).await? {
             // Update the model in the conversation
-            conversation.set_model(&model)?;
+            conversation.set_model(&model);
 
             // Upsert the updated conversation
             self.api.upsert_conversation(conversation).await?;
@@ -646,7 +650,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .await?;
 
         self.command.register_all(&base_workflow);
-        self.state = UIState::new(self.api.environment(), base_workflow).provider(provider);
+        let agent = self.api.get_operating_agent().await.unwrap_or_default();
+        self.state = UIState::new(self.api.environment(), base_workflow, agent).provider(provider);
 
         Ok(workflow)
     }
@@ -798,12 +803,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     return Ok(());
                 }
             }
-            ChatResponse::Usage(mut usage) => {
-                // accumulate the cost
-                usage.cost = usage
-                    .cost
-                    .map(|cost| cost + self.state.usage.cost.as_ref().map_or(0.0, |c| *c));
-                self.state.usage = usage;
+            ChatResponse::Usage(usage) => {
+                // Accumulate all metrics (tokens + cost) instead of overwriting
+                self.state.usage = self.state.usage.clone().accumulate(&usage);
             }
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 if !self.api.environment().retry_config.suppress_retry_errors {
@@ -856,10 +858,23 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn on_completion(&mut self, metrics: Metrics) -> anyhow::Result<()> {
-        self.spinner.stop(None)?;
+        self.spinner.start(Some("Loading Summary"))?;
+
+        let mut info = Info::default();
 
         // Show summary
-        self.writeln(Info::from(&metrics))?;
+        info = info.extend(Info::from(&metrics));
+
+        // Fetch Usage
+        info = info.extend(get_usage(&self.state));
+
+        if let Ok(Some(usage)) = self.api.user_usage().await {
+            info = info.extend(Info::from(&usage));
+        }
+
+        self.writeln(info)?;
+
+        self.spinner.stop(None)?;
 
         let prompt_text = "Start a new conversation?";
         let should_start_new_chat = ForgeSelect::confirm(prompt_text)

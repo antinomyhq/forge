@@ -49,7 +49,7 @@ impl<T: Services> AgentService for T {
         id: &ModelId,
         context: Context,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        let config = self.read_app_config().await.unwrap_or_default();
+        let config = self.get_app_config().await.unwrap_or_default();
         let provider = self.get_provider(config).await?;
         self.chat(id, context, provider).await
     }
@@ -73,6 +73,6 @@ impl<T: Services> AgentService for T {
     }
 
     async fn update(&self, conversation: Conversation) -> anyhow::Result<()> {
-        self.upsert(conversation).await
+        self.upsert_conversation(conversation).await
     }
 }

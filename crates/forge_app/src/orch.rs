@@ -12,7 +12,6 @@ use tracing::{debug, info, warn};
 
 use crate::agent::AgentService;
 use crate::compact::Compactor;
-pub type ArcSender = Arc<tokio::sync::mpsc::Sender<anyhow::Result<ChatResponse>>>;
 
 #[derive(Clone, Setters)]
 #[setters(into, strip_option)]
@@ -116,20 +115,16 @@ impl<S: AgentService> Orchestrator<S> {
 
     /// Get the allowed tools for an agent
     fn get_allowed_tools(&mut self, agent: &Agent) -> anyhow::Result<Vec<ToolDefinition>> {
-        let completion = ToolsDiscriminants::ForgeToolAttemptCompletion;
         let mut tools = vec![];
         if !self.tool_definitions.is_empty() {
             let allowed = agent.tools.iter().flatten().collect::<HashSet<_>>();
             tools.extend(
                 self.tool_definitions
                     .iter()
-                    .filter(|tool| tool.name != completion.name())
                     .filter(|tool| allowed.contains(&tool.name))
                     .cloned(),
             );
         }
-
-        tools.push(completion.definition());
 
         Ok(tools)
     }
@@ -234,7 +229,7 @@ impl<S: AgentService> Orchestrator<S> {
             let static_block = self.services.render(&system_prompt.template, &()).await?;
             let non_static_block = self
                 .services
-                .render("{{> forge-custom-agent-template.hbs }}", &ctx)
+                .render("{{> forge-custom-agent-template.md }}", &ctx)
                 .await?;
 
             context.set_system_messages(vec![static_block, non_static_block])
@@ -557,7 +552,7 @@ impl<S: AgentService> Orchestrator<S> {
                 let content = self
                     .services
                     .render(
-                        "{{> forge-partial-tool-required.hbs}}",
+                        "{{> forge-partial-tool-required.md}}",
                         &serde_json::json!({
                             "tool_supported": tool_supported
                         }),
@@ -646,6 +641,8 @@ impl<S: AgentService> Orchestrator<S> {
         tool_context.with_metrics(|metrics| {
             self.conversation.metrics = metrics.clone();
         })?;
+        self.services.update(self.conversation.clone()).await?;
+
         // Signal Task Completion
         if has_attempted_completion {
             self.send(ChatResponse::TaskComplete).await?;

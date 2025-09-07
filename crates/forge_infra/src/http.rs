@@ -1,3 +1,4 @@
+use std::fs;
 use std::time::Duration;
 
 use anyhow::Context;
@@ -6,9 +7,9 @@ use forge_domain::{HttpConfig, TlsBackend, TlsVersion};
 use forge_services::HttpInfra;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use reqwest::redirect::Policy;
-use reqwest::{Client, Response, StatusCode, Url};
+use reqwest::{Certificate, Client, Response, StatusCode, Url};
 use reqwest_eventsource::{EventSource, RequestBuilderExt};
-use tracing::debug;
+use tracing::{debug, warn};
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     None => env!("CARGO_PKG_VERSION"),
@@ -44,6 +45,36 @@ impl ForgeHttpInfra {
             .http2_keep_alive_interval(config.keep_alive_interval.map(Duration::from_secs))
             .http2_keep_alive_timeout(Duration::from_secs(config.keep_alive_timeout))
             .http2_keep_alive_while_idle(config.keep_alive_while_idle);
+
+        // Add root certificates from config
+        if let Some(ref cert_paths) = config.root_cert_paths {
+            for cert_path in cert_paths {
+                match fs::read(cert_path) {
+                    Ok(buf) => {
+                        if let Ok(cert) = Certificate::from_pem(&buf) {
+                            client = client.add_root_certificate(cert);
+                        } else if let Ok(cert) = Certificate::from_der(&buf) {
+                            client = client.add_root_certificate(cert);
+                        } else {
+                            warn!(
+                                "Failed to parse certificate as PEM or DER format, cert = {}",
+                                cert_path
+                            );
+                        }
+                    }
+                    Err(error) => {
+                        warn!(
+                            "Failed to read certificate file, path = {}, error = {}",
+                            cert_path, error
+                        );
+                    }
+                }
+            }
+        }
+
+        if config.accept_invalid_certs {
+            client = client.danger_accept_invalid_certs(true);
+        }
 
         if let Some(version) = config.min_tls_version {
             client = client.min_tls_version(to_reqwest_tls(version));

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::{Image, ToolCallFull, ToolCallId, ToolName};
 
 const REFLECTION_PROMPT: &str =
-    include_str!("../../../templates/forge-partial-tool-error-reflection.hbs");
+    include_str!("../../../templates/forge-partial-tool-error-reflection.md");
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, Setters)]
 #[setters(into)]

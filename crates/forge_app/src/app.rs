@@ -7,14 +7,13 @@ use forge_domain::*;
 use forge_stream::MpscStream;
 
 use crate::authenticator::Authenticator;
-use crate::dto::InitAuth;
+use crate::dto::{InitAuth, ToolsOverview};
 use crate::orch::Orchestrator;
 use crate::services::{CustomInstructionsService, TemplateService};
 use crate::tool_registry::ToolRegistry;
-use crate::workflow_manager::WorkflowManager;
 use crate::{
     AppConfigService, AttachmentService, ConversationService, EnvironmentService,
-    FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker,
+    FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker, WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -24,7 +23,6 @@ pub struct ForgeApp<S> {
     services: Arc<S>,
     tool_registry: ToolRegistry<S>,
     authenticator: Authenticator<S>,
-    workflow_manager: WorkflowManager<S>,
 }
 
 impl<S: Services> ForgeApp<S> {
@@ -33,7 +31,6 @@ impl<S: Services> ForgeApp<S> {
         Self {
             tool_registry: ToolRegistry::new(services.clone()),
             authenticator: Authenticator::new(services.clone()),
-            workflow_manager: WorkflowManager::new(services.clone()),
             services,
         }
     }
@@ -48,14 +45,14 @@ impl<S: Services> ForgeApp<S> {
 
         // Get the conversation for the chat request
         let conversation = services
-            .find(&chat.conversation_id)
+            .find_conversation(&chat.conversation_id)
             .await
             .unwrap_or_default()
             .expect("conversation for the request should've been created at this point.");
 
         // Get tool definitions and models
         let tool_definitions = self.tool_registry.list().await?;
-        let config = services.read_app_config().await.unwrap_or_default();
+        let config = services.get_app_config().await.unwrap_or_default();
         let provider = services
             .get_provider(config)
             .await
@@ -63,11 +60,7 @@ impl<S: Services> ForgeApp<S> {
         let models = services.models(provider).await?;
 
         // Discover files using the discovery service
-        let workflow = self
-            .workflow_manager
-            .read_merged(None)
-            .await
-            .unwrap_or_default();
+        let workflow = self.services.read_merged(None).await.unwrap_or_default();
         let max_depth = workflow.max_walker_depth;
         let environment = services.get_environment();
 
@@ -117,15 +110,13 @@ impl<S: Services> ForgeApp<S> {
         let stream = MpscStream::spawn(
             |tx: tokio::sync::mpsc::Sender<Result<ChatResponse, anyhow::Error>>| {
                 async move {
-                    let tx = Arc::new(tx);
-
                     // Execute dispatch and always save conversation afterwards
                     let mut orch = orch.sender(tx.clone());
                     let dispatch_result = orch.chat(chat.event).await;
 
                     // Always save conversation using get_conversation()
                     let conversation = orch.get_conversation().clone();
-                    let save_result = services.upsert(conversation).await;
+                    let save_result = services.upsert_conversation(conversation).await;
 
                     // Send any error to the stream (prioritize dispatch error over save error)
                     #[allow(clippy::collapsible_if)]
@@ -153,7 +144,7 @@ impl<S: Services> ForgeApp<S> {
         // Get the conversation
         let mut conversation = self
             .services
-            .find(conversation_id)
+            .find_conversation(conversation_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Conversation not found: {}", conversation_id))?;
 
@@ -191,7 +182,7 @@ impl<S: Services> ForgeApp<S> {
         conversation.context = Some(compacted_context);
 
         // Save the updated conversation
-        self.services.upsert(conversation).await?;
+        self.services.upsert_conversation(conversation).await?;
 
         // Return the compaction metrics
         Ok(CompactionResult::new(
@@ -202,8 +193,8 @@ impl<S: Services> ForgeApp<S> {
         ))
     }
 
-    pub async fn list_tools(&self) -> Result<Vec<ToolDefinition>> {
-        self.tool_registry.list().await
+    pub async fn list_tools(&self) -> Result<ToolsOverview> {
+        self.tool_registry.tools_overview().await
     }
     pub async fn login(&self, init_auth: &InitAuth) -> Result<()> {
         self.authenticator.login(init_auth).await
@@ -215,13 +206,13 @@ impl<S: Services> ForgeApp<S> {
         self.authenticator.logout().await
     }
     pub async fn read_workflow(&self, path: Option<&Path>) -> Result<Workflow> {
-        self.workflow_manager.read_workflow(path).await
+        self.services.read_workflow(path).await
     }
 
     pub async fn read_workflow_merged(&self, path: Option<&Path>) -> Result<Workflow> {
-        self.workflow_manager.read_merged(path).await
+        self.services.read_merged(path).await
     }
     pub async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> Result<()> {
-        self.workflow_manager.write_workflow(path, workflow).await
+        self.services.write_workflow(path, workflow).await
     }
 }

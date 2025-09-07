@@ -20,22 +20,39 @@ use crate::{
     PlanCreateOutput, ReadOutput, ResponseContext, SearchResult, ShellOutput,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OperationType {
+    Change,
+    Undo,
+}
+
 struct FileOperationStats {
     path: String,
     tool_name: ToolName,
     lines_added: u64,
     lines_removed: u64,
+    operation_type: OperationType,
 }
 
 fn file_change_stats(operation: FileOperationStats, metrics: &mut Metrics) {
     tracing::info!(path = %operation.path, type = %operation.tool_name, lines_added = %operation.lines_added, lines_removed = %operation.lines_removed, "File change stats");
 
-    // Record the operations
-    metrics.record_file_operation(
-        operation.path,
-        operation.lines_added,
-        operation.lines_removed,
-    );
+    match operation.operation_type {
+        OperationType::Undo => {
+            metrics.record_file_undo(
+                operation.path,
+                operation.lines_added,
+                operation.lines_removed,
+            );
+        }
+        OperationType::Change => {
+            metrics.record_file_operation(
+                operation.path,
+                operation.lines_added,
+                operation.lines_removed,
+            );
+        }
+    }
 }
 
 #[derive(Debug, Default, Setters)]
@@ -230,9 +247,10 @@ impl ToolOperation {
                 file_change_stats(
                     FileOperationStats {
                         path: input.path.clone(),
-                        tool_name,
+                        tool_name: tool_name.clone(),
                         lines_added: diff_result.lines_added(),
                         lines_removed: diff_result.lines_removed(),
+                        operation_type: OperationType::Change,
                     },
                     metrics,
                 );
@@ -257,9 +275,10 @@ impl ToolOperation {
                 file_change_stats(
                     FileOperationStats {
                         path: input.path.clone(),
-                        tool_name,
+                        tool_name: tool_name.clone(),
                         lines_added: 0,
                         lines_removed: output.content.lines().count() as u64,
+                        operation_type: OperationType::Change,
                     },
                     metrics,
                 );
@@ -348,9 +367,10 @@ impl ToolOperation {
                 file_change_stats(
                     FileOperationStats {
                         path: input.path.clone(),
-                        tool_name,
+                        tool_name: tool_name.clone(),
                         lines_added: diff_result.lines_added(),
                         lines_removed: diff_result.lines_removed(),
+                        operation_type: OperationType::Change,
                     },
                     metrics,
                 );
@@ -358,6 +378,23 @@ impl ToolOperation {
                 forge_domain::ToolOutput::text(elm)
             }
             ToolOperation::FsUndo { input, output } => {
+                // Diff between snapshot state (after_undo) and modified state
+                // (before_undo)
+                let diff = DiffFormat::format(
+                    output.after_undo.as_deref().unwrap_or(""),
+                    output.before_undo.as_deref().unwrap_or(""),
+                );
+
+                file_change_stats(
+                    FileOperationStats {
+                        path: input.path.clone(),
+                        tool_name: tool_name.clone(),
+                        lines_added: diff.lines_added(),
+                        lines_removed: diff.lines_removed(),
+                        operation_type: OperationType::Undo,
+                    },
+                    metrics,
+                );
                 match (&output.before_undo, &output.after_undo) {
                     (None, None) => {
                         let elm = Element::new("file_undo")
@@ -381,17 +418,10 @@ impl ToolOperation {
                             .cdata(before);
                         forge_domain::ToolOutput::text(elm)
                     }
-                    (Some(after), Some(before)) => {
+                    (Some(before), Some(after)) => {
+                        // This diff is between modified state (before_undo) and snapshot
+                        // state (after_undo)
                         let diff = DiffFormat::format(before, after);
-                        file_change_stats(
-                            FileOperationStats {
-                                path: input.path.clone(),
-                                tool_name,
-                                lines_added: diff.lines_added(),
-                                lines_removed: diff.lines_removed(),
-                            },
-                            metrics,
-                        );
 
                         let elm = Element::new("file_undo")
                             .attr("path", input.path)
@@ -570,7 +600,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_fs_read"),
+            ToolName::new("read"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -599,7 +629,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_fs_read"),
+            ToolName::new("read"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -628,7 +658,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_fs_read"),
+            ToolName::new("read"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -659,7 +689,7 @@ mod tests {
             TempContentFiles::default().stdout(PathBuf::from("/tmp/truncated_content.txt"));
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_fs_read"),
+            ToolName::new("read"),
             truncation_path,
             &env,
             &mut Metrics::new(),
@@ -687,7 +717,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_fs_create"),
+            ToolName::new("write"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -714,7 +744,7 @@ mod tests {
 
         let env = fixture_environment();
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_fs_create"),
+            ToolName::new("write"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -739,7 +769,7 @@ mod tests {
 
         let env = fixture_environment();
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_fs_create"),
+            ToolName::new("write"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -773,7 +803,7 @@ mod tests {
         let truncation_path =
             TempContentFiles::default().stdout(PathBuf::from("/tmp/stdout_content.txt"));
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_process_shell"),
+            ToolName::new("shell"),
             truncation_path,
             &env,
             &mut Metrics::new(),
@@ -807,7 +837,7 @@ mod tests {
         let truncation_path =
             TempContentFiles::default().stderr(PathBuf::from("/tmp/stderr_content.txt"));
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_process_shell"),
+            ToolName::new("shell"),
             truncation_path,
             &env,
             &mut Metrics::new(),
@@ -848,7 +878,7 @@ mod tests {
             .stdout(PathBuf::from("/tmp/stdout_content.txt"))
             .stderr(PathBuf::from("/tmp/stderr_content.txt"));
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_process_shell"),
+            ToolName::new("shell"),
             truncation_path,
             &env,
             &mut Metrics::new(),
@@ -880,7 +910,7 @@ mod tests {
 
         let env = fixture_environment();
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_process_shell"),
+            ToolName::new("shell"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -905,7 +935,7 @@ mod tests {
 
         let env = fixture_environment();
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_process_shell"),
+            ToolName::new("shell"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -930,7 +960,7 @@ mod tests {
 
         let env = fixture_environment();
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_process_shell"),
+            ToolName::new("shell"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -971,7 +1001,7 @@ mod tests {
             .stdout(PathBuf::from("/tmp/stdout_content.txt"))
             .stderr(PathBuf::from("/tmp/stderr_content.txt"));
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_process_shell"),
+            ToolName::new("shell"),
             truncation_path,
             &env,
             &mut Metrics::new(),
@@ -1010,7 +1040,7 @@ mod tests {
         let env = fixture_environment(); // max_search_lines is 25
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_fs_search"),
+            ToolName::new("search"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -1051,7 +1081,7 @@ mod tests {
         env.max_search_lines = 10;
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_fs_search"),
+            ToolName::new("search"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -1094,7 +1124,7 @@ mod tests {
         env.max_search_result_bytes = max_bytes.ceil() as usize; // limit to 0.001 MB
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_fs_search"),
+            ToolName::new("search"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -1140,7 +1170,7 @@ mod tests {
         env.max_search_result_bytes = max_bytes.ceil() as usize; // limit to 0.001 MB
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_fs_search"),
+            ToolName::new("search"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -1166,7 +1196,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_fs_search"),
+            ToolName::new("search"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -1194,7 +1224,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_fs_create"),
+            ToolName::new("write"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -1216,7 +1246,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_fs_remove"),
+            ToolName::new("remove"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -1259,7 +1289,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_fs_search"),
+            ToolName::new("search"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -1285,7 +1315,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_fs_search"),
+            ToolName::new("search"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -1314,7 +1344,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_fs_patch"),
+            ToolName::new("patch"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -1343,7 +1373,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_fs_patch"),
+            ToolName::new("patch"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -1365,7 +1395,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_fs_undo"),
+            ToolName::new("undo"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -1390,7 +1420,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_fs_undo"),
+            ToolName::new("undo"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -1417,7 +1447,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_fs_undo"),
+            ToolName::new("undo"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -1442,7 +1472,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_fs_undo"),
+            ToolName::new("undo"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -1467,7 +1497,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_fs_undo"),
+            ToolName::new("undo"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -1495,7 +1525,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_net_fetch"),
+            ToolName::new("fetch"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -1531,7 +1561,7 @@ mod tests {
             TempContentFiles::default().stdout(PathBuf::from("/tmp/forge_fetch_abc123.txt"));
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_net_fetch"),
+            ToolName::new("fetch"),
             truncation_path,
             &env,
             &mut Metrics::new(),
@@ -1567,7 +1597,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_process_shell"),
+            ToolName::new("shell"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -1583,7 +1613,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_attempt_completion"),
+            ToolName::new("attempt_completion"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -1601,7 +1631,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_followup"),
+            ToolName::new("followup"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
@@ -1617,7 +1647,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolName::new("forge_tool_followup"),
+            ToolName::new("followup"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),

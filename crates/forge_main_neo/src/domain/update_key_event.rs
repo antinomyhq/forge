@@ -4,10 +4,11 @@ use edtui::actions::{
     Execute, MoveToEndOfLine, MoveToStartOfLine, MoveWordBackward, MoveWordForward,
 };
 use edtui::{EditorEventHandler, EditorMode};
+use forge_api::AgentId;
 use ratatui::crossterm::event::{KeyCode, KeyModifiers};
 
 use crate::domain::spotlight::SpotlightState;
-use crate::domain::{Command, EditorStateExt, State};
+use crate::domain::{Command, EditorStateExt, SpotlightCommand, State};
 
 fn handle_spotlight_input_change(state: &mut State) {
     // Reset selection index when input changes to ensure it's within bounds
@@ -63,6 +64,15 @@ fn handle_spotlight_navigation(
                 // Convert SlashCommand to appropriate Command
                 let command = match selected_cmd {
                     crate::domain::slash_command::SlashCommand::Exit => Command::Exit,
+                    crate::domain::slash_command::SlashCommand::Forge => {
+                        Command::Spotlight(SpotlightCommand::Agent(AgentId::FORGE))
+                    }
+                    crate::domain::slash_command::SlashCommand::Muse => {
+                        Command::Spotlight(SpotlightCommand::Agent(AgentId::MUSE))
+                    }
+                    crate::domain::slash_command::SlashCommand::Sage => {
+                        Command::Spotlight(SpotlightCommand::Agent(AgentId::SAGE))
+                    }
                     crate::domain::slash_command::SlashCommand::Agent => {
                         // For now, just hide spotlight - proper agent selection would need more UI
                         Command::Empty
@@ -632,7 +642,7 @@ mod tests {
 
         // Test that spotlight shows all slash commands
         let filtered_commands = state.spotlight.filtered_commands();
-        assert_eq!(filtered_commands.len(), 12); // All 12 slash commands
+        assert_eq!(filtered_commands.len(), 13); // All 13 slash commands
 
         // Test that filtering works
         state

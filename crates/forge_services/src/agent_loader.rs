@@ -1,10 +1,9 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::domain::{Agent, Template};
+use forge_app::domain::{Agent, Template, ToolsDiscriminants};
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
-use tokio::sync::Mutex;
 
 use crate::{
     DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
@@ -18,12 +17,12 @@ pub struct AgentLoaderService<F> {
     // Cache is used to maintain the loaded agents
     // for this service instance.
     // So that they could live till user starts a new session.
-    cache: Arc<Mutex<Option<Vec<Agent>>>>,
+    cache: tokio::sync::OnceCell<Vec<Agent>>,
 }
 
 impl<F> AgentLoaderService<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        Self { infra, cache: Arc::new(Default::default()) }
+        Self { infra, cache: Default::default() }
     }
 }
 
@@ -32,8 +31,8 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
     forge_app::AgentLoaderService for AgentLoaderService<F>
 {
     /// Load all agent definitions from the forge/agent directory
-    async fn load_agents(&self) -> anyhow::Result<Vec<Agent>> {
-        self.load_agents().await
+    async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
+        self.cache_or_init().await
     }
 }
 
@@ -41,16 +40,40 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
     AgentLoaderService<F>
 {
     /// Load all agent definitions from the forge/agent directory
-    async fn load_agents(&self) -> anyhow::Result<Vec<Agent>> {
-        if let Some(agents) = self.cache.lock().await.as_ref() {
-            return Ok(agents.clone());
-        }
+    async fn cache_or_init(&self) -> anyhow::Result<Vec<Agent>> {
+        self.cache.get_or_try_init(|| self.init()).await.cloned()
+    }
+
+    async fn init(&self) -> anyhow::Result<Vec<Agent>> {
+        // Load built-in agents
+        let mut agents = self.init_default().await?;
+
+        // Load custom agents
+        let custom_agents = self.init_custom().await?;
+        agents.extend(custom_agents);
+
+        Ok(agents)
+    }
+
+    async fn init_default(&self) -> anyhow::Result<Vec<Agent>> {
+        parse_agent_iter(
+            [
+                ("forge", include_str!("agents/forge.md")),
+                ("muse", include_str!("agents/muse.md")),
+                ("prime", include_str!("agents/prime.md")),
+                ("parker", include_str!("agents/parker.md")),
+                ("sage", include_str!("agents/sage.md")),
+            ]
+            .into_iter()
+            .map(|(name, content)| (name.to_string(), content.to_string())),
+        )
+    }
+
+    async fn init_custom(&self) -> anyhow::Result<Vec<Agent>> {
         let agent_dir = self.infra.get_environment().agent_path();
         if !self.infra.exists(&agent_dir).await? {
             return Ok(vec![]);
         }
-
-        let mut agents = vec![];
 
         // Use DirectoryReaderInfra to read all .md files in parallel
         let files = self
@@ -59,17 +82,33 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
             .await
             .with_context(|| "Failed to read agent directory")?;
 
-        for (path, content) in files {
-            agents.push(
-                parse_agent_file(&content)
-                    .with_context(|| format!("Failed to parse agent: {}", path.display()))?,
-            )
-        }
-
-        *self.cache.lock().await = Some(agents.clone());
-
-        Ok(agents)
+        parse_agent_iter(files.into_iter().map(|(path, content)| {
+            let name = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("unknown")
+                .to_string();
+            (name, content)
+        }))
     }
+}
+
+fn parse_agent_iter<I, Path: AsRef<str>, Content: AsRef<str>>(
+    contents: I,
+) -> anyhow::Result<Vec<Agent>>
+where
+    I: Iterator<Item = (Path, Content)>,
+{
+    let mut agents = vec![];
+
+    for (name, content) in contents {
+        agents.push(
+            parse_agent_file(content.as_ref())
+                .with_context(|| format!("Failed to parse agent: {}", name.as_ref()))?,
+        );
+    }
+
+    Ok(agents)
 }
 
 /// Parse raw content into an Agent with YAML frontmatter
@@ -84,11 +123,27 @@ fn parse_agent_file(content: &str) -> Result<Agent> {
         .context("Empty system prompt content")?
         .system_prompt(Template::new(result.content));
 
-    Ok(agent)
+    // Add attempt completion tool by default if not already present
+    Ok(add_attempt_completion_tool(agent))
+}
+
+/// Adds the attempt completion tool to the agent's tools list by default
+fn add_attempt_completion_tool(mut agent: Agent) -> Agent {
+    let completion_tool = ToolsDiscriminants::AttemptCompletion.name();
+
+    if let Some(tools) = agent.tools.as_mut() {
+        // If agent supports tool calling and doesn't have it already
+        if !tools.contains(&completion_tool) && !tools.is_empty() {
+            tools.push(completion_tool);
+        }
+    }
+
+    agent
 }
 
 #[cfg(test)]
 mod tests {
+    use forge_app::domain::ToolName;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -142,5 +197,116 @@ mod tests {
 
         let result = parse_agent_file(content);
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_parse_builtin_agents() {
+        // Test that all built-in agents parse correctly
+        let builtin_agents = [
+            ("forge", include_str!("agents/forge.md")),
+            ("muse", include_str!("agents/muse.md")),
+            ("prime", include_str!("agents/prime.md")),
+            ("parker", include_str!("agents/parker.md")),
+            ("sage", include_str!("agents/sage.md")),
+        ];
+
+        for (name, content) in builtin_agents {
+            let agent = parse_agent_file(content)
+                .with_context(|| format!("Failed to parse built-in agent: {}", name))
+                .unwrap();
+
+            assert_eq!(agent.id.as_str(), name);
+            assert!(agent.title.is_some());
+            assert!(agent.description.is_some());
+            assert!(agent.system_prompt.is_some());
+        }
+    }
+    #[test]
+    fn test_add_attempt_completion_tool_with_no_tools() {
+        let fixture = Agent::new("test-add-completion-no-tools")
+            .title("Test Agent - No Tools")
+            .description("Agent without any tools field for testing add_attempt_completion_tool")
+            .system_prompt(Template::new("Agent fixture for testing add_attempt_completion_tool function with no tools field."));
+
+        let actual = add_attempt_completion_tool(fixture.clone());
+        let expected = fixture; // Should remain unchanged
+
+        // Compare relevant fields since Agent doesn't implement PartialEq
+        assert_eq!(actual.id, expected.id);
+        assert_eq!(actual.tools, expected.tools);
+        assert!(actual.tools.is_none());
+    }
+
+    #[test]
+    fn test_add_attempt_completion_tool_with_empty_tools() {
+        let fixture = Agent::new("test-add-completion-empty-tools")
+            .title("Test Agent - Empty Tools")
+            .description("Agent with empty tools list for testing add_attempt_completion_tool")
+            .tools(Vec::<ToolName>::new())
+            .system_prompt(Template::new("Agent fixture for testing add_attempt_completion_tool function with empty tools list."));
+
+        let actual = add_attempt_completion_tool(fixture.clone());
+        let expected = fixture; // Should remain unchanged
+
+        // Compare relevant fields since Agent doesn't implement PartialEq
+        assert_eq!(actual.id, expected.id);
+        assert_eq!(actual.tools, expected.tools);
+        assert_eq!(actual.tools.as_ref().unwrap(), &Vec::<ToolName>::new());
+    }
+
+    #[test]
+    fn test_add_attempt_completion_tool_already_has_completion() {
+        let fixture = Agent::new("test-add-completion-has-completion")
+            .title("Test Agent - Has Completion")
+            .description("Agent that already has attempt_completion for testing add_attempt_completion_tool")
+            .tools(vec![
+                ToolName::new("fs_read"),
+                ToolName::new("attempt_completion"),
+                ToolName::new("shell")
+            ])
+            .system_prompt(Template::new("Agent fixture for testing add_attempt_completion_tool function when attempt_completion already exists."));
+
+        let actual = add_attempt_completion_tool(fixture.clone());
+        let expected = fixture; // Should remain unchanged
+
+        // Compare relevant fields since Agent doesn't implement PartialEq
+        assert_eq!(actual.id, expected.id);
+        assert_eq!(actual.tools, expected.tools);
+        let tools = actual.tools.as_ref().unwrap();
+        assert!(tools.contains(&ToolName::new("attempt_completion")));
+        // Should not duplicate the tool
+        assert_eq!(
+            tools
+                .iter()
+                .filter(|&tool| *tool == ToolName::new("attempt_completion"))
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn test_add_attempt_completion_tool_should_add_completion() {
+        let fixture = Agent::new("test-add-completion-needs-completion")
+            .title("Test Agent - Needs Completion")
+            .description("Agent with tools but missing attempt_completion for testing add_attempt_completion_tool")
+            .tools(vec![
+                ToolName::new("fs_read"),
+                ToolName::new("fs_write"),
+                ToolName::new("shell")
+            ])
+            .system_prompt(Template::new("Agent fixture for testing add_attempt_completion_tool function when attempt_completion needs to be added."));
+
+        let actual = add_attempt_completion_tool(fixture.clone());
+
+        // Create expected result manually
+        let mut expected_tools = fixture.tools.as_ref().unwrap().clone();
+        expected_tools.push(ToolName::new("attempt_completion"));
+
+        // Compare relevant fields
+        assert_eq!(actual.id, fixture.id);
+        assert_eq!(actual.tools.as_ref().unwrap(), &expected_tools);
+        let tools = actual.tools.as_ref().unwrap();
+        assert!(tools.contains(&ToolName::new("attempt_completion")));
+        assert_eq!(tools.len(), 4); // Original 3 + 1 added
     }
 }
