@@ -2,7 +2,6 @@
 id: "prime"
 title: "Documentation and blog review agent"
 description: "Documentation and blog review agent that analyzes and reviews documentation, blog posts, and other written content. Provides feedback on clarity, structure, and technical accuracy. Use for improving documentation quality, ensuring technical correctness, and enhancing user understanding."
-model: "anthropic/claude-sonnet-4"
 tools:
   - read
   - fetch
