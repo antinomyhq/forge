@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use anyhow::{Context as AnyhowContext, Result};
+use anyhow::Result;
 use forge_app::domain::{Agent, Conversation, ConversationId, Workflow};
 use forge_app::{ConversationService, McpService};
 use tokio::sync::Mutex;
@@ -26,15 +26,6 @@ impl<M: McpService> ForgeConversationService<M> {
 
 #[async_trait::async_trait]
 impl<M: McpService> ConversationService for ForgeConversationService<M> {
-    async fn modify_conversation<F, T>(&self, id: &ConversationId, f: F) -> Result<T>
-    where
-        F: FnOnce(&mut Conversation) -> T + Send,
-    {
-        let mut conversation = self.conversations.lock().await;
-        let conversation = conversation.get_mut(id).context("Conversation not found")?;
-        Ok(f(conversation))
-    }
-
     async fn find_conversation(&self, id: &ConversationId) -> Result<Option<Conversation>> {
         Ok(self.conversations.lock().await.get(id).cloned())
     }

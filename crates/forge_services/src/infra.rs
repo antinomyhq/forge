@@ -10,6 +10,7 @@ use forge_snaps::Snapshot;
 use reqwest::Response;
 use reqwest::header::HeaderMap;
 use reqwest_eventsource::EventSource;
+use serde::{Deserialize, Serialize};
 use url::Url;
 
 pub trait EnvironmentInfra: Send + Sync {
@@ -208,4 +209,76 @@ pub trait DirectoryReaderInfra: Send + Sync {
         directory: &Path,
         pattern: Option<&str>, // Optional glob pattern like "*.md"
     ) -> anyhow::Result<Vec<(PathBuf, String)>>;
+}
+
+/// Repository trait for managing OpenAI API requests
+/// Provides an abstraction for storing, retrieving, and managing request data
+#[async_trait::async_trait]
+pub trait RequestRepositoryInfra: Send + Sync {
+    type Request: Serialize + Deserialize<'static>;
+
+    /// Saves a request with a unique identifier
+    /// Returns the generated or provided request ID
+    async fn save_request(
+        &self,
+        request_id: Option<String>,
+        request: &Self::Request,
+    ) -> anyhow::Result<String>;
+
+    /// Retrieves a request by its ID
+    /// Returns None if the request is not found
+    async fn get_request(&self, request_id: &str) -> anyhow::Result<Option<Self::Request>>;
+
+    /// Updates an existing request
+    /// Returns true if the request was updated, false if not found
+    async fn update_request(
+        &self,
+        request_id: &str,
+        request: &Self::Request,
+    ) -> anyhow::Result<bool>;
+
+    /// Deletes a request by its ID
+    /// Returns true if the request was deleted, false if not found
+    async fn delete_request(&self, request_id: &str) -> anyhow::Result<bool>;
+
+    /// Lists all stored request IDs
+    /// Useful for managing and cleaning up stored requests
+    async fn list_request_ids(&self) -> anyhow::Result<Vec<String>>;
+
+    /// Counts the total number of stored requests
+    async fn count_requests(&self) -> anyhow::Result<usize>;
+
+    /// Searches for requests by model ID
+    /// Returns a list of (request_id, request) pairs matching the model
+    async fn search_by_model(&self, model_id: &str)
+    -> anyhow::Result<Vec<(String, Self::Request)>>;
+
+    /// Searches for requests by session ID
+    /// Returns a list of (request_id, request) pairs matching the session
+    async fn search_by_session(
+        &self,
+        session_id: &str,
+    ) -> anyhow::Result<Vec<(String, Self::Request)>>;
+
+    /// Searches for requests that use specific tools
+    /// Returns a list of (request_id, request) pairs that include any of the specified tool names
+    async fn search_by_tools(
+        &self,
+        tool_names: &[String],
+    ) -> anyhow::Result<Vec<(String, Self::Request)>>;
+
+    /// Searches for requests by provider preferences
+    /// Returns a list of (request_id, request) pairs matching the provider
+    async fn search_by_provider(
+        &self,
+        provider: &str,
+    ) -> anyhow::Result<Vec<(String, Self::Request)>>;
+
+    /// Full text search across request messages and prompts
+    /// Returns a list of (request_id, request) pairs where content matches the query
+    async fn search_content(
+        &self,
+        query: &str,
+        case_sensitive: bool,
+    ) -> anyhow::Result<Vec<(String, Self::Request)>>;
 }
