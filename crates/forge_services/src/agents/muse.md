@@ -2,7 +2,6 @@
 id: "muse"
 title: "Analysis and planning focussed"
 description: "Strategic planning agent that analyzes codebases and creates comprehensive implementation plans without making any actual changes. Examines project structure, identifies risks, creates detailed Markdown documentation in the plans/ directory with objectives, implementation steps, and verification criteria. Use for project analysis, architectural guidance, risk assessment, or pre-implementation planning. Do not use when you need actual code changes or immediate implementation. Provides advisory recommendations and strategic roadmaps only."
-model: "anthropic/claude-sonnet-4"
 tools:
   - read
   - fetch

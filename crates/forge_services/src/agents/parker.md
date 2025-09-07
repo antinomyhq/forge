@@ -2,7 +2,6 @@
 id: "parker"
 title: "Expert technical writer crafting engaging content."
 description: "Code review agent that analyzes code changes, provides feedback on quality, style, and best practices. Use for ensuring code quality, identifying potential issues, and improving maintainability."
-model: "anthropic/claude-sonnet-4"
 tools:
   - read
   - fetch

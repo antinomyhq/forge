@@ -2,7 +2,6 @@
 id: "forge"
 title: "Implementation focussed"
 description: "Hands-on implementation agent that executes software development tasks through a structured 4-phase approach: task analysis, solution strategy, implementation, and quality assurance. Makes actual changes to codebases, runs shell commands, creates/modifies files, installs dependencies, and performs concrete development work. Use for building features, fixing bugs, refactoring code, or any task requiring actual modifications. Do not use for analysis-only tasks or when you want to explore options without making changes. Always validates changes through compilation and testing."
-model: "anthropic/claude-sonnet-4"
 reasoning:
   enabled: true
 tools: 
