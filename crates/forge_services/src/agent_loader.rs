@@ -56,17 +56,22 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
     }
 
     async fn init_default(&self) -> anyhow::Result<Vec<Agent>> {
-        parse_agent_iter(
-            [
-                ("forge", include_str!("agents/forge.md")),
-                ("muse", include_str!("agents/muse.md")),
-                ("prime", include_str!("agents/prime.md")),
-                ("parker", include_str!("agents/parker.md")),
-                ("sage", include_str!("agents/sage.md")),
-            ]
-            .into_iter()
-            .map(|(name, content)| (name.to_string(), content.to_string())),
-        )
+        let builtin_agents = [
+            ("forge", include_str!("agents/forge.md")),
+            ("muse", include_str!("agents/muse.md")),
+            ("prime", include_str!("agents/prime.md")),
+            ("parker", include_str!("agents/parker.md")),
+            ("sage", include_str!("agents/sage.md")),
+        ];
+
+        let mut agents = Vec::new();
+        for (name, content) in builtin_agents {
+            let path_str = format!("{}.md", name);
+            let path = std::path::Path::new(&path_str);
+            agents.push(parse_agent_file_by_format(content, path)?);
+        }
+
+        Ok(agents)
     }
 
     async fn init_custom(&self) -> anyhow::Result<Vec<Agent>> {
@@ -75,44 +80,70 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
             return Ok(vec![]);
         }
 
-        // Use DirectoryReaderInfra to read all .md files in parallel
-        let files = self
+        // Read all supported agent file formats
+        let mut all_files = Vec::new();
+
+        // Read .md files
+        if let Ok(md_files) = self
             .infra
             .read_directory_files(&agent_dir, Some("*.md"))
             .await
-            .with_context(|| "Failed to read agent directory")?;
+        {
+            all_files.extend(md_files);
+        }
 
-        parse_agent_iter(files.into_iter().map(|(path, content)| {
-            let name = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("unknown")
-                .to_string();
-            (name, content)
-        }))
+        // Read .yaml files
+        if let Ok(yaml_files) = self
+            .infra
+            .read_directory_files(&agent_dir, Some("*.yaml"))
+            .await
+        {
+            all_files.extend(yaml_files);
+        }
+
+        // Read .yml files
+        if let Ok(yml_files) = self
+            .infra
+            .read_directory_files(&agent_dir, Some("*.yml"))
+            .await
+        {
+            all_files.extend(yml_files);
+        }
+
+        // Read .json files
+        if let Ok(json_files) = self
+            .infra
+            .read_directory_files(&agent_dir, Some("*.json"))
+            .await
+        {
+            all_files.extend(json_files);
+        }
+
+        if all_files.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let mut agents = Vec::new();
+        for (path, content) in all_files {
+            agents.push(parse_agent_file_by_format(&content, &path)?);
+        }
+
+        Ok(agents)
     }
 }
 
-fn parse_agent_iter<I, Path: AsRef<str>, Content: AsRef<str>>(
-    contents: I,
-) -> anyhow::Result<Vec<Agent>>
-where
-    I: Iterator<Item = (Path, Content)>,
-{
-    let mut agents = vec![];
-
-    for (name, content) in contents {
-        agents.push(
-            parse_agent_file(content.as_ref())
-                .with_context(|| format!("Failed to parse agent: {}", name.as_ref()))?,
-        );
+/// Parse agent file based on its format (detected from file extension)
+fn parse_agent_file_by_format(content: &str, file_path: &std::path::Path) -> Result<Agent> {
+    match file_path.extension().and_then(|ext| ext.to_str()) {
+        Some("md") => parse_markdown_agent_file(content),
+        Some("yaml") | Some("yml") => parse_yaml_agent_file(content),
+        Some("json") => parse_json_agent_file(content),
+        _ => parse_markdown_agent_file(content), // Default to markdown for unknown extensions
     }
-
-    Ok(agents)
 }
 
-/// Parse raw content into an Agent with YAML frontmatter
-fn parse_agent_file(content: &str) -> Result<Agent> {
+/// Parse raw content into an Agent with YAML frontmatter (Markdown format)
+fn parse_markdown_agent_file(content: &str) -> Result<Agent> {
     // Parse the frontmatter using gray_matter with type-safe deserialization
     let gray_matter = Matter::<YAML>::new();
     let result = gray_matter.parse::<Agent>(content)?;
@@ -126,6 +157,33 @@ fn parse_agent_file(content: &str) -> Result<Agent> {
     Ok(agent)
 }
 
+/// Parse pure YAML agent file
+fn parse_yaml_agent_file(content: &str) -> Result<Agent> {
+    let agent: Agent = serde_yml::from_str(content)
+        .context("Failed to parse YAML agent file")?;
+    
+    // Validate that system_prompt is present
+    if agent.system_prompt.is_none() {
+        return Err(anyhow::anyhow!("system_prompt field is required in YAML agent files"));
+    }
+
+    Ok(agent)
+}
+
+/// Parse pure JSON agent file
+fn parse_json_agent_file(content: &str) -> Result<Agent> {
+    let agent: Agent = serde_json::from_str(content)
+        .context("Failed to parse JSON agent file")?;
+    
+    // Validate that system_prompt is present
+    if agent.system_prompt.is_none() {
+        return Err(anyhow::anyhow!("system_prompt field is required in JSON agent files"));
+    }
+
+    Ok(agent)
+}
+
+
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
@@ -136,7 +194,7 @@ mod tests {
     async fn test_parse_basic_agent() {
         let content = include_str!("fixtures/agents/basic.md");
 
-        let actual = parse_agent_file(content).unwrap();
+        let actual = parse_markdown_agent_file(content).unwrap();
 
         assert_eq!(actual.id.as_str(), "test-basic");
         assert_eq!(actual.title.as_ref().unwrap(), "Basic Test Agent");
@@ -154,7 +212,7 @@ mod tests {
     async fn test_parse_advanced_agent() {
         let content = include_str!("fixtures/agents/advanced.md");
 
-        let actual = parse_agent_file(content).unwrap();
+        let actual = parse_markdown_agent_file(content).unwrap();
 
         assert_eq!(actual.id.as_str(), "test-advanced");
         assert_eq!(actual.title.as_ref().unwrap(), "Advanced Test Agent");
@@ -179,8 +237,174 @@ mod tests {
     async fn test_parse_invalid_frontmatter() {
         let content = include_str!("fixtures/agents/invalid.md");
 
-        let result = parse_agent_file(content);
+        let result = parse_markdown_agent_file(content);
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_parse_basic_yaml_agent() {
+        let content = include_str!("fixtures/agents/basic.yaml");
+
+        let actual = parse_yaml_agent_file(content).unwrap();
+
+        assert_eq!(actual.id.as_str(), "test-basic-yaml");
+        assert_eq!(actual.title.as_ref().unwrap(), "Basic YAML Test Agent");
+        assert_eq!(
+            actual.description.as_ref().unwrap(),
+            "A simple test agent for basic functionality defined in YAML"
+        );
+        assert_eq!(
+            actual.system_prompt.as_ref().unwrap().template,
+            "You are a helpful assistant for basic tasks. This is a YAML-defined agent."
+        );
+    }
+
+    #[tokio::test]
+    async fn test_parse_basic_json_agent() {
+        let content = include_str!("fixtures/agents/basic.json");
+
+        let actual = parse_json_agent_file(content).unwrap();
+
+        assert_eq!(actual.id.as_str(), "test-basic-json");
+        assert_eq!(actual.title.as_ref().unwrap(), "Basic JSON Test Agent");
+        assert_eq!(
+            actual.description.as_ref().unwrap(),
+            "A simple test agent for basic functionality defined in JSON"
+        );
+        assert_eq!(
+            actual.system_prompt.as_ref().unwrap().template,
+            "You are a helpful assistant for basic tasks. This is a JSON-defined agent."
+        );
+    }
+
+    #[tokio::test]
+    async fn test_parse_advanced_yaml_agent() {
+        let content = include_str!("fixtures/agents/advanced.yaml");
+
+        let actual = parse_yaml_agent_file(content).unwrap();
+
+        assert_eq!(actual.id.as_str(), "test-advanced-yaml");
+        assert_eq!(actual.title.as_ref().unwrap(), "Advanced YAML Test Agent");
+        assert_eq!(
+            actual.description.as_ref().unwrap(),
+            "An advanced test agent with full configuration defined in YAML"
+        );
+        assert_eq!(
+            actual.model.as_ref().unwrap().as_str(),
+            "claude-3-5-sonnet-20241022"
+        );
+        assert_eq!(actual.tool_supported, Some(true));
+        assert!(actual.tools.is_some());
+        assert_eq!(actual.temperature.as_ref().unwrap().value(), 0.7);
+        assert_eq!(actual.top_p.as_ref().unwrap().value(), 0.9);
+        assert_eq!(actual.max_tokens.as_ref().unwrap().value(), 2000);
+        assert_eq!(actual.max_turns, Some(10));
+        assert!(actual.reasoning.is_some());
+        assert!(
+            actual
+                .system_prompt
+                .as_ref()
+                .unwrap()
+                .template
+                .contains("Advanced YAML Test Agent")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_parse_advanced_json_agent() {
+        let content = include_str!("fixtures/agents/advanced.json");
+
+        let actual = parse_json_agent_file(content).unwrap();
+
+        assert_eq!(actual.id.as_str(), "test-advanced-json");
+        assert_eq!(actual.title.as_ref().unwrap(), "Advanced JSON Test Agent");
+        assert_eq!(
+            actual.description.as_ref().unwrap(),
+            "An advanced test agent with full configuration defined in JSON"
+        );
+        assert_eq!(
+            actual.model.as_ref().unwrap().as_str(),
+            "claude-3-5-sonnet-20241022"
+        );
+        assert_eq!(actual.tool_supported, Some(true));
+        assert!(actual.tools.is_some());
+        assert_eq!(actual.temperature.as_ref().unwrap().value(), 0.7);
+        assert_eq!(actual.top_p.as_ref().unwrap().value(), 0.9);
+        assert_eq!(actual.max_tokens.as_ref().unwrap().value(), 2000);
+        assert_eq!(actual.max_turns, Some(10));
+        assert!(actual.reasoning.is_some());
+        assert!(
+            actual
+                .system_prompt
+                .as_ref()
+                .unwrap()
+                .template
+                .contains("Advanced JSON Test Agent")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_parse_format_detection() {
+        // Test Markdown format
+        let md_content = include_str!("fixtures/agents/basic.md");
+        let md_path = std::path::Path::new("test.md");
+        let md_agent = parse_agent_file_by_format(md_content, md_path).unwrap();
+        assert_eq!(md_agent.id.as_str(), "test-basic");
+
+        // Test YAML format
+        let yaml_content = include_str!("fixtures/agents/basic.yaml");
+        let yaml_path = std::path::Path::new("test.yaml");
+        let yaml_agent = parse_agent_file_by_format(yaml_content, yaml_path).unwrap();
+        assert_eq!(yaml_agent.id.as_str(), "test-basic-yaml");
+
+        // Test JSON format
+        let json_content = include_str!("fixtures/agents/basic.json");
+        let json_path = std::path::Path::new("test.json");
+        let json_agent = parse_agent_file_by_format(json_content, json_path).unwrap();
+        assert_eq!(json_agent.id.as_str(), "test-basic-json");
+
+        // Test YML format (should be treated same as YAML)
+        let yml_path = std::path::Path::new("test.yml");
+        let yml_agent = parse_agent_file_by_format(yaml_content, yml_path).unwrap();
+        assert_eq!(yml_agent.id.as_str(), "test-basic-yaml");
+    }
+
+    #[tokio::test]
+    async fn test_parse_yaml_missing_system_prompt() {
+        let content = r#"
+id: "test-agent"
+title: "Test Agent"
+description: "A test agent without system prompt"
+"#;
+
+        let result = parse_yaml_agent_file(content);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("system_prompt field is required")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_parse_json_missing_system_prompt() {
+        let content = r#"
+{
+  "id": "test-agent",
+  "title": "Test Agent", 
+  "description": "A test agent without system prompt"
+}
+"#;
+
+        let result = parse_json_agent_file(content);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("system_prompt field is required")
+        );
     }
 
     #[tokio::test]
@@ -195,7 +419,7 @@ mod tests {
         ];
 
         for (name, content) in builtin_agents {
-            let agent = parse_agent_file(content)
+            let agent = parse_markdown_agent_file(content)
                 .with_context(|| format!("Failed to parse built-in agent: {}", name))
                 .unwrap();
 

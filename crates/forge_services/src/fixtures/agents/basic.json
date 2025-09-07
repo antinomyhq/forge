@@ -1,0 +1,6 @@
+{
+  "id": "test-basic-json",
+  "title": "Basic JSON Test Agent",
+  "description": "A simple test agent for basic functionality defined in JSON",
+  "system_prompt": "You are a helpful assistant for basic tasks. This is a JSON-defined agent."
+}

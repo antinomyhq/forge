@@ -1,0 +1,4 @@
+id: "test-basic-yaml"
+title: "Basic YAML Test Agent"
+description: "A simple test agent for basic functionality defined in YAML"
+system_prompt: "You are a helpful assistant for basic tasks. This is a YAML-defined agent."
