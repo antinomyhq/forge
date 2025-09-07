@@ -20,22 +20,39 @@ use crate::{
     PlanCreateOutput, ReadOutput, ResponseContext, SearchResult, ShellOutput,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OperationType {
+    Change,
+    Undo,
+}
+
 struct FileOperationStats {
     path: String,
     tool_name: ToolName,
     lines_added: u64,
     lines_removed: u64,
+    operation_type: OperationType,
 }
 
 fn file_change_stats(operation: FileOperationStats, metrics: &mut Metrics) {
     tracing::info!(path = %operation.path, type = %operation.tool_name, lines_added = %operation.lines_added, lines_removed = %operation.lines_removed, "File change stats");
 
-    // Record the operations
-    metrics.record_file_operation(
-        operation.path,
-        operation.lines_added,
-        operation.lines_removed,
-    );
+    match operation.operation_type {
+        OperationType::Undo => {
+            metrics.record_file_undo(
+                operation.path,
+                operation.lines_added,
+                operation.lines_removed,
+            );
+        }
+        OperationType::Change => {
+            metrics.record_file_operation(
+                operation.path,
+                operation.lines_added,
+                operation.lines_removed,
+            );
+        }
+    }
 }
 
 #[derive(Debug, Default, Setters)]
@@ -230,9 +247,10 @@ impl ToolOperation {
                 file_change_stats(
                     FileOperationStats {
                         path: input.path.clone(),
-                        tool_name,
+                        tool_name: tool_name.clone(),
                         lines_added: diff_result.lines_added(),
                         lines_removed: diff_result.lines_removed(),
+                        operation_type: OperationType::Change,
                     },
                     metrics,
                 );
@@ -257,9 +275,10 @@ impl ToolOperation {
                 file_change_stats(
                     FileOperationStats {
                         path: input.path.clone(),
-                        tool_name,
+                        tool_name: tool_name.clone(),
                         lines_added: 0,
                         lines_removed: output.content.lines().count() as u64,
+                        operation_type: OperationType::Change,
                     },
                     metrics,
                 );
@@ -348,9 +367,10 @@ impl ToolOperation {
                 file_change_stats(
                     FileOperationStats {
                         path: input.path.clone(),
-                        tool_name,
+                        tool_name: tool_name.clone(),
                         lines_added: diff_result.lines_added(),
                         lines_removed: diff_result.lines_removed(),
+                        operation_type: OperationType::Change,
                     },
                     metrics,
                 );
@@ -358,6 +378,23 @@ impl ToolOperation {
                 forge_domain::ToolOutput::text(elm)
             }
             ToolOperation::FsUndo { input, output } => {
+                // Diff between snapshot state (after_undo) and modified state
+                // (before_undo)
+                let diff = DiffFormat::format(
+                    output.after_undo.as_deref().unwrap_or(""),
+                    output.before_undo.as_deref().unwrap_or(""),
+                );
+
+                file_change_stats(
+                    FileOperationStats {
+                        path: input.path.clone(),
+                        tool_name: tool_name.clone(),
+                        lines_added: diff.lines_added(),
+                        lines_removed: diff.lines_removed(),
+                        operation_type: OperationType::Undo,
+                    },
+                    metrics,
+                );
                 match (&output.before_undo, &output.after_undo) {
                     (None, None) => {
                         let elm = Element::new("file_undo")
@@ -381,17 +418,10 @@ impl ToolOperation {
                             .cdata(before);
                         forge_domain::ToolOutput::text(elm)
                     }
-                    (Some(after), Some(before)) => {
+                    (Some(before), Some(after)) => {
+                        // This diff is between modified state (before_undo) and snapshot
+                        // state (after_undo)
                         let diff = DiffFormat::format(before, after);
-                        file_change_stats(
-                            FileOperationStats {
-                                path: input.path.clone(),
-                                tool_name,
-                                lines_added: diff.lines_added(),
-                                lines_removed: diff.lines_removed(),
-                            },
-                            metrics,
-                        );
 
                         let elm = Element::new("file_undo")
                             .attr("path", input.path)
