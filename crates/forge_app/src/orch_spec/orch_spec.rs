@@ -465,7 +465,7 @@ async fn test_reasoning_not_supported_when_disabled() {
         agent.reasoning = Some(
             ReasoningConfig::default()
                 .effort(forge_domain::Effort::High)
-                .enabled(false),    // disable the reasoning explicitly
+                .enabled(false), // disable the reasoning explicitly
         );
     });
     ctx.run().await.unwrap();
