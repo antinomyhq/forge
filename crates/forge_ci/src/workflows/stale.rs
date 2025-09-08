@@ -9,7 +9,7 @@ pub fn generate_stale_workflow() {
         .name("Close Stale Issues and PR")
         .on(Event {
             schedule: Some(Schedule {
-                cron: vec!["0 * * * *"], // This runs every hour
+                cron: vec!["0 * * * *".to_string()], // This runs every hour
             }),
             workflow_dispatch: Some(WorkflowDispatch::default()),
             ..Event::default()
@@ -20,10 +20,10 @@ pub fn generate_stale_workflow() {
                 .pull_requests(Level::Write),
         )
         .env(Env::from(indexmap! {
-            "DAYS_BEFORE_ISSUE_STALE" => json!("30"),
-            "DAYS_BEFORE_ISSUE_CLOSE" => json!("7"),
-            "DAYS_BEFORE_PR_STALE" => json!("5"),
-            "DAYS_BEFORE_PR_CLOSE" => json!("10"),
+            "DAYS_BEFORE_ISSUE_STALE".to_string() => json!("30"),
+            "DAYS_BEFORE_ISSUE_CLOSE".to_string() => json!("7"),
+            "DAYS_BEFORE_PR_STALE".to_string() => json!("5"),
+            "DAYS_BEFORE_PR_CLOSE".to_string() => json!("10"),
         }))
         .add_job(
             "stale",
@@ -32,18 +32,18 @@ pub fn generate_stale_workflow() {
                 .add_step(
                     Step::uses("actions", "stale", "v9")
                         .with(Input::from(indexmap! {
-                            "stale-issue-label" => json!("state: inactive"),
-                            "stale-pr-label" => json!("state: inactive"),
-                            "stale-issue-message" => json!(r#"**Action required:** Issue inactive for ${{ env.DAYS_BEFORE_ISSUE_STALE }} days.
+                            "stale-issue-label".to_string() => json!("state: inactive"),
+                            "stale-pr-label".to_string() => json!("state: inactive"),
+                            "stale-issue-message".to_string() => json!(r#"**Action required:** Issue inactive for ${{ env.DAYS_BEFORE_ISSUE_STALE }} days.
 Status update or closure in ${{ env.DAYS_BEFORE_ISSUE_CLOSE }} days."#),
-                            "close-issue-message" => json!("Issue closed after ${{ env.DAYS_BEFORE_ISSUE_CLOSE }} days of inactivity."),
-                            "stale-pr-message" => json!(r#"**Action required:** PR inactive for ${{ env.DAYS_BEFORE_PR_STALE }} days.
+                            "close-issue-message".to_string() => json!("Issue closed after ${{ env.DAYS_BEFORE_ISSUE_CLOSE }} days of inactivity."),
+                            "stale-pr-message".to_string() => json!(r#"**Action required:** PR inactive for ${{ env.DAYS_BEFORE_PR_STALE }} days.
 Status update or closure in ${{ env.DAYS_BEFORE_PR_CLOSE }} days."#),
-                            "close-pr-message" => json!("PR closed after ${{ env.DAYS_BEFORE_PR_CLOSE }} days of inactivity."),
-                            "days-before-issue-stale" => json!("${{ env.DAYS_BEFORE_ISSUE_STALE }}"),
-                            "days-before-issue-close" => json!("${{ env.DAYS_BEFORE_ISSUE_CLOSE }}"),
-                            "days-before-pr-stale" => json!("${{ env.DAYS_BEFORE_PR_STALE }}"),
-                            "days-before-pr-close" => json!("${{ env.DAYS_BEFORE_PR_CLOSE }}"),
+                            "close-pr-message".to_string() => json!("PR closed after ${{ env.DAYS_BEFORE_PR_CLOSE }} days of inactivity."),
+                            "days-before-issue-stale".to_string() => json!("${{ env.DAYS_BEFORE_ISSUE_STALE }}"),
+                            "days-before-issue-close".to_string() => json!("${{ env.DAYS_BEFORE_ISSUE_CLOSE }}"),
+                            "days-before-pr-stale".to_string() => json!("${{ env.DAYS_BEFORE_PR_STALE }}"),
+                            "days-before-pr-close".to_string() => json!("${{ env.DAYS_BEFORE_PR_CLOSE }}"),
                         })),
                 ),
         );
