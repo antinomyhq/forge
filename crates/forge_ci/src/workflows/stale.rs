@@ -1,0 +1,55 @@
+use gh_workflow_tailcall::generate::Generate;
+use gh_workflow_tailcall::*;
+use indexmap::indexmap;
+use serde_json::json;
+
+/// Generate the stale issues and PRs workflow
+pub fn generate_stale_workflow() {
+    let workflow = Workflow::default()
+        .name("Close Stale Issues and PR")
+        .on(Event {
+            schedule: Some(Schedule {
+                cron: vec!["0 * * * *".to_string()], // This runs every hour
+            }),
+            workflow_dispatch: Some(WorkflowDispatch::default()),
+            ..Event::default()
+        })
+        .permissions(
+            Permissions::default()
+                .issues(Level::Write)
+                .pull_requests(Level::Write),
+        )
+        .env(Env::from(indexmap! {
+            "DAYS_BEFORE_ISSUE_STALE".to_string() => json!("30"),
+            "DAYS_BEFORE_ISSUE_CLOSE".to_string() => json!("7"),
+            "DAYS_BEFORE_PR_STALE".to_string() => json!("5"),
+            "DAYS_BEFORE_PR_CLOSE".to_string() => json!("10"),
+        }))
+        .add_job(
+            "stale",
+            Job::default()
+                .runs_on("ubuntu-latest")
+                .add_step(
+                    Step::uses("actions", "stale", "v9")
+                        .with(Input::from(indexmap! {
+                            "stale-issue-label".to_string() => json!("state: inactive"),
+                            "stale-pr-label".to_string() => json!("state: inactive"),
+                            "stale-issue-message".to_string() => json!(r#"**Action required:** Issue inactive for ${{ env.DAYS_BEFORE_ISSUE_STALE }} days.
+Status update or closure in ${{ env.DAYS_BEFORE_ISSUE_CLOSE }} days."#),
+                            "close-issue-message".to_string() => json!("Issue closed after ${{ env.DAYS_BEFORE_ISSUE_CLOSE }} days of inactivity."),
+                            "stale-pr-message".to_string() => json!(r#"**Action required:** PR inactive for ${{ env.DAYS_BEFORE_PR_STALE }} days.
+Status update or closure in ${{ env.DAYS_BEFORE_PR_CLOSE }} days."#),
+                            "close-pr-message".to_string() => json!("PR closed after ${{ env.DAYS_BEFORE_PR_CLOSE }} days of inactivity."),
+                            "days-before-issue-stale".to_string() => json!("${{ env.DAYS_BEFORE_ISSUE_STALE }}"),
+                            "days-before-issue-close".to_string() => json!("${{ env.DAYS_BEFORE_ISSUE_CLOSE }}"),
+                            "days-before-pr-stale".to_string() => json!("${{ env.DAYS_BEFORE_PR_STALE }}"),
+                            "days-before-pr-close".to_string() => json!("${{ env.DAYS_BEFORE_PR_CLOSE }}"),
+                        })),
+                ),
+        );
+
+    Generate::new(workflow)
+        .name("stale.yml")
+        .generate()
+        .unwrap();
+}
