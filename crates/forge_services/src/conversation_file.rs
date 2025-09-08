@@ -11,31 +11,6 @@ use crate::{
     EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
 };
 
-/// Infrastructure requirements for FileConversationService
-pub trait ConversationInfra:
-    EnvironmentInfra
-    + FileReaderInfra
-    + FileWriterInfra
-    + FileDirectoryInfra
-    + FileInfoInfra
-    + Send
-    + Sync
-    + 'static
-{
-}
-
-impl<T> ConversationInfra for T where
-    T: EnvironmentInfra
-        + FileReaderInfra
-        + FileWriterInfra
-        + FileDirectoryInfra
-        + FileInfoInfra
-        + Send
-        + Sync
-        + 'static
-{
-}
-
 /// File-backed conversation service that persists conversations as JSON files
 pub struct FileConversationService<M, I> {
     mcp_service: Arc<M>,
@@ -43,56 +18,80 @@ pub struct FileConversationService<M, I> {
     conversation_dir: PathBuf,
 }
 
-impl<M: McpService, I: ConversationInfra> FileConversationService<M, I> {
+impl<M: McpService, I> FileConversationService<M, I>
+where
+    I: EnvironmentInfra
+        + FileReaderInfra
+        + FileWriterInfra
+        + FileDirectoryInfra
+        + FileInfoInfra
+        + Send
+        + Sync
+        + 'static,
+{
     /// Creates a new FileConversationService instance
     pub fn new(mcp_service: Arc<M>, infra: Arc<I>) -> Self {
         let conversation_dir = infra.get_environment().conversation_path();
-        Self { mcp_service, infra, conversation_dir }
-    }
+        let cwd = &infra.get_environment().cwd;
 
-    /// Generates a workspace ID based on the current working directory
-    fn generate_workspace_id(&self) -> String {
-        let cwd = &self.infra.get_environment().cwd;
+        // Generate workspace ID based on current working directory
         let mut hasher = DefaultHasher::new();
         cwd.hash(&mut hasher);
-        format!("{:x}", hasher.finish())
+        let workspace_id = format!("{:x}", hasher.finish());
+
+        Self {
+            mcp_service,
+            infra,
+            conversation_dir: conversation_dir.join(workspace_id),
+        }
     }
 
-    /// Returns the workspace directory for the current project
-    fn workspace_dir(&self) -> PathBuf {
-        let workspace_id = self.generate_workspace_id();
-        self.conversation_dir.join(workspace_id)
+    fn conversation_path(&self, id: &ConversationId) -> PathBuf {
+        self.conversation_dir
+            .join(format!("{}.json", id.into_string()))
     }
 
-    /// Returns the file path for a specific conversation in the current
-    /// workspace
-    fn conversation_file_path(&self, id: &ConversationId) -> PathBuf {
-        let workspace_dir = self.workspace_dir();
-        workspace_dir.join(format!("{}.json", id.into_string()))
+    /// File path where the last active conversation id was stored.
+    fn last_active_path(&self) -> PathBuf {
+        self.conversation_dir.join(".last_active")
     }
 
     /// Saves a conversation to disk and updates the .latest file
     async fn save_conversation(&self, conversation: &Conversation) -> Result<()> {
-        let workspace_dir = self.workspace_dir();
+        // Ensure conversation directory exists
         self.infra
-            .create_dirs(&workspace_dir)
+            .create_dirs(&self.conversation_dir)
             .await
             .context("Failed to create workspace conversations directory")?;
-        let path = self.conversation_file_path(&conversation.id);
+
+        // Write conversation file
         let json = serde_json::to_string_pretty(conversation)
             .context("Failed to serialize conversation")?;
+
         self.infra
-            .write(&path, Bytes::from(json), false)
+            .write(
+                &self.conversation_path(&conversation.id),
+                Bytes::from(json),
+                false,
+            )
             .await
             .context("Failed to write conversation file")?;
 
-        // Update the .latest file to track this as the most recent conversation
-        self.update_latest_conversation(&conversation.id).await
+        // Update the .latest file
+        self.infra
+            .write(
+                &self.last_active_path(),
+                Bytes::from(conversation.id.to_string()),
+                false,
+            )
+            .await
+            .context("Failed to write workspace .latest file")
     }
 
     /// Loads a conversation from disk
     async fn load_conversation(&self, id: &ConversationId) -> Result<Option<Conversation>> {
-        let path = self.conversation_file_path(id);
+        let path = self.conversation_path(id);
+
         if !self.infra.exists(&path).await? {
             return Ok(None);
         }
@@ -107,76 +106,32 @@ impl<M: McpService, I: ConversationInfra> FileConversationService<M, I> {
             .map(Some)
             .context("Failed to parse conversation file")
     }
-
-    /// Gets a conversation, returning an error if it doesn't exist
-    async fn require_conversation(&self, id: &ConversationId) -> Result<Conversation> {
-        self.load_conversation(id)
-            .await?
-            .with_context(|| format!("Conversation {id} not found"))
-    }
-
-    /// Gets the last active conversation from the workspace-specific .latest
-    /// file
-    async fn find_latest_conversation(&self) -> Result<Option<Conversation>> {
-        let workspace_dir = self.workspace_dir();
-        let latest_file_path = workspace_dir.join(".latest");
-
-        // Check if the workspace .latest file exists
-        if !self.infra.exists(&latest_file_path).await? {
-            return Ok(None);
-        }
-
-        // Read the conversation ID from the workspace .latest file
-        let conversation_id_str = self
-            .infra
-            .read_utf8(&latest_file_path)
-            .await
-            .context("Failed to read workspace .latest file")?
-            .trim()
-            .to_string();
-
-        // Parse the conversation ID and load the conversation
-        match ConversationId::parse(&conversation_id_str) {
-            Ok(conversation_id) => self.load_conversation(&conversation_id).await,
-            Err(_) => Ok(None),
-        }
-    }
-
-    /// Updates the workspace-specific .latest file with the given conversation
-    /// ID
-    async fn update_latest_conversation(&self, conversation_id: &ConversationId) -> Result<()> {
-        let workspace_dir = self.workspace_dir();
-        self.infra
-            .create_dirs(&workspace_dir)
-            .await
-            .context("Failed to create workspace conversations directory")?;
-
-        let latest_file_path = workspace_dir.join(".latest");
-        let content = conversation_id.to_string();
-
-        self.infra
-            .write(&latest_file_path, Bytes::from(content), false)
-            .await
-            .context("Failed to write workspace .latest file")
-    }
 }
 
 #[async_trait::async_trait]
-impl<M: McpService, I: ConversationInfra> ConversationService for FileConversationService<M, I> {
+impl<M: McpService, I> ConversationService for FileConversationService<M, I>
+where
+    I: EnvironmentInfra
+        + FileReaderInfra
+        + FileWriterInfra
+        + FileDirectoryInfra
+        + FileInfoInfra
+        + Send
+        + Sync
+        + 'static,
+{
     /// Modifies a conversation atomically and persists the changes
     async fn modify_conversation<F, T: Send>(&self, id: &ConversationId, f: F) -> Result<T>
     where
         F: FnOnce(&mut Conversation) -> T + Send,
     {
-        // Load conversation
-        let mut conversation = self.require_conversation(id).await?;
+        let mut conversation = self
+            .load_conversation(id)
+            .await?
+            .with_context(|| format!("Conversation {id} not found"))?;
 
-        // Apply modification
         let result = f(&mut conversation);
-
-        // Save the modified conversation (this will also update .latest)
         self.save_conversation(&conversation).await?;
-
         Ok(result)
     }
 
@@ -211,7 +166,25 @@ impl<M: McpService, I: ConversationInfra> ConversationService for FileConversati
         self.save_conversation(&conversation).await?;
         Ok(conversation)
     }
+
     async fn find_last_active_conversation(&self) -> Result<Option<Conversation>> {
-        self.find_latest_conversation().await
+        if !self.infra.exists(&self.last_active_path()).await? {
+            return Ok(None);
+        }
+
+        let conversation_id_str = self
+            .infra
+            .read_utf8(&self.last_active_path())
+            .await
+            .context("Failed to read workspace .latest file")?;
+
+        // Parse the conversation ID - if parsing fails, treat as if no latest
+        // conversation exists
+        let conversation_id = match ConversationId::parse(conversation_id_str.trim()) {
+            Ok(id) => id,
+            Err(_) => return Ok(None),
+        };
+
+        self.load_conversation(&conversation_id).await
     }
 }
