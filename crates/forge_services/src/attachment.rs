@@ -571,6 +571,55 @@ pub mod tests {
         }
     }
 
+    #[async_trait::async_trait]
+    impl FileWriterInfra for MockCompositeService {
+        async fn write(
+            &self,
+            path: &Path,
+            contents: bytes::Bytes,
+            capture_snapshot: bool,
+        ) -> anyhow::Result<()> {
+            self.file_service
+                .write(path, contents, capture_snapshot)
+                .await
+        }
+
+        async fn write_temp(
+            &self,
+            prefix: &str,
+            ext: &str,
+            content: &str,
+        ) -> anyhow::Result<PathBuf> {
+            self.file_service.write_temp(prefix, ext, content).await
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl FileInfoInfra for MockCompositeService {
+        async fn is_binary(&self, path: &Path) -> anyhow::Result<bool> {
+            self.file_service.is_binary(path).await
+        }
+
+        async fn is_file(&self, path: &Path) -> anyhow::Result<bool> {
+            self.file_service.is_file(path).await
+        }
+
+        async fn exists(&self, path: &Path) -> anyhow::Result<bool> {
+            self.file_service.exists(path).await
+        }
+
+        async fn file_size(&self, path: &Path) -> anyhow::Result<u64> {
+            self.file_service.file_size(path).await
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl FileDirectoryInfra for MockCompositeService {
+        async fn create_dirs(&self, path: &Path) -> anyhow::Result<()> {
+            self.file_service.create_dirs(path).await
+        }
+    }
+
     #[tokio::test]
     async fn test_add_url_with_text_file() {
         // Setup

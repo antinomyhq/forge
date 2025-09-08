@@ -182,3 +182,196 @@ where
         self.load_conversation(&conversation_id).await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    use anyhow::{Result, anyhow};
+    use forge_app::domain::{
+        Agent, Conversation, ConversationId, ToolCallFull, ToolDefinition, ToolName,
+        ToolOutput, Workflow,
+    };
+    use forge_app::{ConversationService, McpService};
+    use pretty_assertions::assert_eq;
+
+    use crate::attachment::tests::MockCompositeService;
+    use crate::{FileInfoInfra, FileReaderInfra, ForgeConversationService};
+
+    // Mock MCP service for testing
+    struct MockMcpService {
+        tools: HashMap<String, Vec<ToolDefinition>>,
+        should_fail_list: bool,
+    }
+
+    impl Default for MockMcpService {
+        fn default() -> Self {
+            let tools = HashMap::from([
+                (
+                    "server1".to_string(),
+                    vec![
+                        ToolDefinition {
+                            name: ToolName::new("tool1"),
+                            description: "Test tool 1".to_string(),
+                            input_schema: schemars::schema_for!(String),
+                        },
+                        ToolDefinition {
+                            name: ToolName::new("tool2"),
+                            description: "Test tool 2".to_string(),
+                            input_schema: schemars::schema_for!(String),
+                        },
+                    ],
+                ),
+                (
+                    "server2".to_string(),
+                    vec![ToolDefinition {
+                        name: ToolName::new("tool3"),
+                        description: "Test tool 3".to_string(),
+                        input_schema: schemars::schema_for!(String),
+                    }],
+                ),
+            ]);
+
+            Self { tools, should_fail_list: false }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl McpService for MockMcpService {
+        async fn list(&self) -> Result<HashMap<String, Vec<ToolDefinition>>> {
+            if self.should_fail_list {
+                return Err(anyhow!("Mock MCP list failure"));
+            }
+            Ok(self.tools.clone())
+        }
+
+        async fn call(&self, _call: ToolCallFull) -> Result<ToolOutput> {
+            Ok(ToolOutput::text("mock output".to_string()))
+        }
+    }
+
+    // Test fixtures
+    fn conversation_fixture() -> Conversation {
+        let id = ConversationId::generate();
+        let workflow = Workflow::new();
+        let agents = vec![Agent::new("test-agent")];
+        Conversation::new(id, workflow, vec![ToolName::new("test-tool")], agents)
+    }
+
+    fn service_fixture() -> ForgeConversationService<MockMcpService, MockCompositeService> {
+        ForgeConversationService::new(
+            Arc::new(MockMcpService::default()),
+            Arc::new(MockCompositeService::new()),
+        )
+    }
+
+    #[tokio::test]
+    async fn test_upsert_conversation_saves_and_updates_last_active() {
+        let fixture = conversation_fixture();
+        let service = service_fixture();
+
+        let actual = service.upsert_conversation(fixture.clone()).await;
+
+        assert!(actual.is_ok());
+        let conversation_path = service.conversation_path(&fixture.id);
+        assert!(service.infra.exists(&conversation_path).await.unwrap());
+
+        let last_active_path = service.last_active_path();
+        assert!(service.infra.exists(&last_active_path).await.unwrap());
+        let saved_id = service.infra.read_utf8(&last_active_path).await.unwrap();
+        assert_eq!(saved_id, fixture.id.to_string());
+    }
+
+    #[tokio::test]
+    async fn test_find_conversation_returns_existing_conversation() {
+        let fixture = conversation_fixture();
+        let id = fixture.id.clone();
+        let conversation_json = serde_json::to_string_pretty(&fixture).unwrap();
+
+        let service = service_fixture();
+        service
+            .infra
+            .add_file(service.conversation_path(&id), conversation_json);
+
+        let actual = service.find_conversation(&id).await.unwrap();
+
+        assert!(actual.is_some());
+        let found_conversation = actual.unwrap();
+        assert_eq!(found_conversation.id, fixture.id);
+        assert_eq!(found_conversation.agents.len(), fixture.agents.len());
+    }
+
+    #[tokio::test]
+    async fn test_init_conversation() {
+        let workflow = Workflow::new();
+        let agents = vec![Agent::new("test-agent")];
+        let service = service_fixture();
+
+        let actual = service.init_conversation(workflow, agents).await.unwrap();
+        let last_active_path = service.last_active_path();
+        assert!(service.infra.exists(&last_active_path).await.unwrap());
+        let saved_id = service.infra.read_utf8(&last_active_path).await.unwrap();
+        assert_eq!(actual.id.into_string(), saved_id);
+    }
+
+    #[tokio::test]
+    async fn test_modify_conversation_applies_changes_and_persists() {
+        let mut fixture = conversation_fixture();
+        fixture.archived = false;
+        let id = fixture.id.clone();
+        let conversation_json = serde_json::to_string_pretty(&fixture).unwrap();
+
+        let service = service_fixture();
+        service
+            .infra
+            .add_file(service.conversation_path(&id), conversation_json);
+
+        let actual = service
+            .modify_conversation(&id, |conversation| {
+                conversation.archived = true;
+                "modified"
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(actual, "modified");
+
+        // Verify the conversation was persisted with changes
+        let saved_conversation = service.find_conversation(&id).await.unwrap().unwrap();
+        assert_eq!(saved_conversation.archived, true);
+    }
+
+    #[tokio::test]
+    async fn test_modify_conversation_fails_when_conversation_not_found() {
+        let service = service_fixture();
+        let id = ConversationId::generate();
+
+        let actual = service.modify_conversation(&id, |_| "test").await;
+
+        assert!(actual.is_err());
+        let error_msg = actual.unwrap_err().to_string();
+        assert!(error_msg.contains(&format!("Conversation {} not found", id)));
+    }
+
+    #[tokio::test]
+    async fn test_find_last_active_conversation_returns_existing_conversation() {
+        let fixture = conversation_fixture();
+        let id = fixture.id.clone();
+        let conversation_json = serde_json::to_string_pretty(&fixture).unwrap();
+
+        let service = service_fixture();
+        service
+            .infra
+            .add_file(service.last_active_path(), id.to_string());
+        service
+            .infra
+            .add_file(service.conversation_path(&id), conversation_json);
+
+        let actual = service.find_last_active_conversation().await.unwrap();
+
+        assert!(actual.is_some());
+        let found_conversation = actual.unwrap();
+        assert_eq!(found_conversation.id, fixture.id);
+    }
+}
