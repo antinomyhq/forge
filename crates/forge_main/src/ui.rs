@@ -121,11 +121,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Update the app config with the new operating agent.
         self.api.set_operating_agent(agent.id.clone()).await?;
+        let name = agent.id.as_str().to_case(Case::UpperSnake).bold();
 
-        self.writeln_title(TitleFormat::action(format!(
-            "Switched to agent {}",
-            agent.id.as_str().to_case(Case::UpperSnake).bold()
-        )))?;
+        let title = format!(
+            "∙ {}",
+            agent.title.as_deref().unwrap_or("<Missing agent.title>")
+        )
+        .dimmed();
+        self.writeln_title(TitleFormat::action(format!("{name} {title}")))?;
 
         Ok(())
     }

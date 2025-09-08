@@ -114,6 +114,7 @@ pub trait CommandInfra: Send + Sync {
         command: String,
         working_dir: PathBuf,
         silent: bool,
+        env_vars: Option<Vec<String>>,
     ) -> anyhow::Result<CommandOutput>;
 
     /// execute the shell command on present stdio.
@@ -121,6 +122,7 @@ pub trait CommandInfra: Send + Sync {
         &self,
         command: &str,
         working_dir: PathBuf,
+        env_vars: Option<Vec<String>>,
     ) -> anyhow::Result<std::process::ExitStatus>;
 }
 
