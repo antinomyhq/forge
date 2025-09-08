@@ -1,5 +1,5 @@
-use gh_workflow_tailcall::generate::Generate;
-use gh_workflow_tailcall::*;
+use gh_workflow::generate::Generate;
+use gh_workflow::*;
 
 use crate::jobs::label_sync_job;
 
