@@ -635,6 +635,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         if resume_last == Some(true) {
                             last_conversation
                         } else {
+                            self.spinner.start(Some("Initializing"))?;
                             self.api.init_conversation(workflow).await?
                         }
                     } else {
