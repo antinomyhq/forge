@@ -74,16 +74,20 @@ jobs:
           os: windows-latest
           target: aarch64-pc-windows-msvc
     steps:
-    - uses: actions/checkout@v5
-    - if: ${{ matrix.cross == 'false' }}
+    - name: Checkout Code
+      uses: actions/checkout@v5
+    - name: Setup Cross Toolchain
+      if: ${{ matrix.cross == 'false' }}
       uses: taiki-e/setup-cross-toolchain-action@v1
       with:
         target: ${{ matrix.target }}
     - name: Add Rust target
       run: rustup target add ${{ matrix.target }}
-    - if: '!contains(matrix.target, ''-unknown-linux-'')'
+    - name: Set Rust Flags
+      if: '!contains(matrix.target, ''-unknown-linux-'')'
       run: echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV
-    - uses: ClementTsang/cargo-action@v0.0.6
+    - name: Build Binary
+      uses: ClementTsang/cargo-action@v0.0.6
       with:
         command: build --release
         args: --target ${{ matrix.target }}
@@ -93,8 +97,10 @@ jobs:
         RUSTFLAGS: ${{ env.RUSTFLAGS }}
         POSTHOG_API_SECRET: ${{secrets.POSTHOG_API_SECRET}}
         APP_VERSION: ${{ github.event.release.tag_name }}
-    - run: cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}
-    - uses: xresloader/upload-to-github-release@v1
+    - name: Copy Binary
+      run: cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}
+    - name: Upload to Release
+      uses: xresloader/upload-to-github-release@v1
       with:
         release_id: ${{ github.event.release.id }}
         file: ${{ matrix.binary_name }}
@@ -110,12 +116,14 @@ jobs:
         - antinomyhq/npm-code-forge
         - antinomyhq/npm-forgecode
     steps:
-    - uses: actions/checkout@v5
+    - name: Checkout Code
+      uses: actions/checkout@v5
       with:
         repository: ${{ matrix.repository }}
         ref: main
         token: ${{ secrets.NPM_ACCESS }}
-    - run: ./update-package.sh ${{ github.event.release.tag_name }}
+    - name: Update NPM Package
+      run: ./update-package.sh ${{ github.event.release.tag_name }}
       env:
         AUTO_PUSH: 'true'
         CI: 'true'
@@ -126,9 +134,11 @@ jobs:
     name: homebrew_release
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
+    - name: Checkout Code
+      uses: actions/checkout@v5
       with:
         repository: antinomyhq/homebrew-code-forge
         ref: main
         token: ${{ secrets.HOMEBREW_ACCESS }}
-    - run: GITHUB_TOKEN="${{ secrets.HOMEBREW_ACCESS }}" ./update-formula.sh ${{ github.event.release.tag_name }}
+    - name: Update Homebrew Formula
+      run: GITHUB_TOKEN="${{ secrets.HOMEBREW_ACCESS }}" ./update-formula.sh ${{ github.event.release.tag_name }}

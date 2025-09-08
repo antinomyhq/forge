@@ -1,5 +1,5 @@
-use gh_workflow_tailcall::generate::Generate;
-use gh_workflow_tailcall::*;
+use gh_workflow::generate::Generate;
+use gh_workflow::*;
 use indexmap::indexmap;
 use serde_json::json;
 
@@ -7,13 +7,7 @@ use serde_json::json;
 pub fn generate_stale_workflow() {
     let workflow = Workflow::default()
         .name("Close Stale Issues and PR")
-        .on(Event {
-            schedule: Some(Schedule {
-                cron: vec!["0 * * * *".to_string()], // This runs every hour
-            }),
-            workflow_dispatch: Some(WorkflowDispatch::default()),
-            ..Event::default()
-        })
+        .on(Event::default().add_schedule(Schedule::new("0 * * * *")))
         .permissions(
             Permissions::default()
                 .issues(Level::Write)
@@ -27,10 +21,9 @@ pub fn generate_stale_workflow() {
         }))
         .add_job(
             "stale",
-            Job::default()
-                .runs_on("ubuntu-latest")
+            Job::new("Stale Issues")
                 .add_step(
-                    Step::uses("actions", "stale", "v9")
+                    Step::new("Mark Stale Issues").uses("actions", "stale", "v9")
                         .with(Input::from(indexmap! {
                             "stale-issue-label".to_string() => json!("state: inactive"),
                             "stale-pr-label".to_string() => json!("state: inactive"),
