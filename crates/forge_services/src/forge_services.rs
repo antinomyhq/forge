@@ -85,8 +85,6 @@ impl<
 
         let workflow_service = Arc::new(ForgeWorkflowService::new(infra.clone()));
         let suggestion_service = Arc::new(ForgeDiscoveryService::new(infra.clone()));
-        // let conversation_service =
-        // Arc::new(ForgeConversationService::new(mcp_service.clone()));
         let conversation_service = Arc::new(ForgeConversationService::new(
             mcp_service.clone(),
             infra.clone(),
