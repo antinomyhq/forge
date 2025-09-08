@@ -370,6 +370,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_list(&mut self) -> Result<()> {
         let conversation_list = self.api.list_conversations().await?;
         self.spinner.stop(None)?;
+
+        if conversation_list.is_empty() {
+            self.writeln_title(TitleFormat::error("No Conversations found to list."))?;
+            return Ok(());
+        }
+
         let conversation_id = match ForgeSelect::select("Select a model:", conversation_list)
             .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
             .prompt()?
