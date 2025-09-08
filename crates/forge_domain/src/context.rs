@@ -428,10 +428,9 @@ impl Context {
             if reasoning.enabled.is_some() {
                 return reasoning.enabled.unwrap_or_default();
             }
-            
+
             // If not defined (None), check other parameters
-            reasoning.effort.is_some()
-                || reasoning.max_tokens.is_some_and(|token| token > 0)
+            reasoning.effort.is_some() || reasoning.max_tokens.is_some_and(|token| token > 0)
         })
     }
 }
@@ -738,10 +737,8 @@ mod tests {
 
     #[test]
     fn test_context_is_reasoning_supported_when_enabled() {
-        let fixture = Context::default().reasoning(crate::agent::ReasoningConfig {
-            enabled: Some(true),
-            ..Default::default()
-        });
+        let fixture = Context::default()
+            .reasoning(crate::agent::ReasoningConfig { enabled: Some(true), ..Default::default() });
 
         let actual = fixture.is_reasoning_supported();
         let expected = true;
@@ -777,10 +774,8 @@ mod tests {
 
     #[test]
     fn test_context_is_reasoning_not_supported_when_max_tokens_zero() {
-        let fixture = Context::default().reasoning(crate::agent::ReasoningConfig {
-            max_tokens: Some(0),
-            ..Default::default()
-        });
+        let fixture = Context::default()
+            .reasoning(crate::agent::ReasoningConfig { max_tokens: Some(0), ..Default::default() });
 
         let actual = fixture.is_reasoning_supported();
         let expected = false;
