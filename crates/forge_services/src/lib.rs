@@ -22,9 +22,9 @@ mod workflow;
 
 pub use agent_loader::*;
 pub use clipper::*;
+pub use conversation::*;
 pub use custom_instructions::*;
 pub use discovery::*;
 pub use forge_services::*;
 pub use infra::*;
 pub use policy::*;
-pub use conversation::*;
