@@ -121,6 +121,10 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         self.services.find_conversation(conversation_id).await
     }
 
+    async fn find_last_active_conversation(&self) -> anyhow::Result<Option<Conversation>> {
+        self.services.find_last_active_conversation().await
+    }
+
     async fn execute_shell_command(
         &self,
         command: &str,

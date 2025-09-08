@@ -199,6 +199,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         banner::display()?;
 
         self.init_state(true).await?;
+        self.init_conversation().await?;
         self.trace_user();
 
         // Hydrate the models cache
@@ -617,10 +618,21 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     self.api.upsert_conversation(conversation).await?;
                     conversation_id
                 } else {
-                    let conversation = self.api.init_conversation(workflow).await?;
-                    self.state.conversation_id = Some(conversation.id);
-                    self.update_model(conversation.main_model()?);
-                    conversation.id
+                    // Try to load the last active conversation first
+                    if let Some(last_conversation) =
+                        self.api.find_last_active_conversation().await?
+                    {
+                        let conversation_id = last_conversation.id;
+                        self.state.conversation_id = Some(conversation_id);
+                        self.update_model(last_conversation.main_model()?);
+                        conversation_id
+                    } else {
+                        // Create a new conversation if none exists
+                        let conversation = self.api.init_conversation(workflow).await?;
+                        self.state.conversation_id = Some(conversation.id);
+                        self.update_model(conversation.main_model()?);
+                        conversation.id
+                    }
                 };
 
                 Ok(id)

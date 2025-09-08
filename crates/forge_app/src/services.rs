@@ -146,9 +146,12 @@ pub trait ConversationService: Send + Sync {
 
     /// This is useful when you want to perform several operations on a
     /// conversation atomically.
-    async fn modify_conversation<F, T>(&self, id: &ConversationId, f: F) -> anyhow::Result<T>
+    async fn modify_conversation<F, T: Send>(&self, id: &ConversationId, f: F) -> anyhow::Result<T>
     where
         F: FnOnce(&mut Conversation) -> T + Send;
+
+    /// Finds the most recently modified conversation
+    async fn find_last_active_conversation(&self) -> anyhow::Result<Option<Conversation>>;
 }
 
 #[async_trait::async_trait]
@@ -432,11 +435,17 @@ impl<I: Services> ConversationService for I {
             .await
     }
 
-    async fn modify_conversation<F, T>(&self, id: &ConversationId, f: F) -> anyhow::Result<T>
+    async fn modify_conversation<F, T: Send>(&self, id: &ConversationId, f: F) -> anyhow::Result<T>
     where
         F: FnOnce(&mut Conversation) -> T + Send,
     {
         self.conversation_service().modify_conversation(id, f).await
+    }
+
+    async fn find_last_active_conversation(&self) -> anyhow::Result<Option<Conversation>> {
+        self.conversation_service()
+            .find_last_active_conversation()
+            .await
     }
 }
 #[async_trait::async_trait]

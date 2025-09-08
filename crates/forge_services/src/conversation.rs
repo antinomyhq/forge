@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -70,5 +71,38 @@ impl<M: McpService> ConversationService for ForgeConversationService<M> {
             .await
             .insert(id, conversation.clone());
         Ok(conversation)
+    }
+    async fn find_last_active_conversation(&self) -> Result<Option<Conversation>> {
+        let conversations = self.conversations.lock().await;
+
+        if conversations.is_empty() {
+            return Ok(None);
+        }
+
+        // Find the conversation with the most recent event timestamp
+        let mut latest_conversation: Option<&Conversation> = None;
+        let mut latest_timestamp: Option<String> = None;
+
+        for conversation in conversations.values() {
+            if let Some(latest_event) = conversation.events.last() {
+                match &latest_timestamp {
+                    None => {
+                        latest_timestamp = Some(latest_event.timestamp.clone());
+                        latest_conversation = Some(conversation);
+                    }
+                    Some(current_latest) => {
+                        if latest_event.timestamp > *current_latest {
+                            latest_timestamp = Some(latest_event.timestamp.clone());
+                            latest_conversation = Some(conversation);
+                        }
+                    }
+                }
+            } else if latest_conversation.is_none() {
+                // If no events, use the first conversation found as fallback
+                latest_conversation = Some(conversation);
+            }
+        }
+
+        Ok(latest_conversation.cloned())
     }
 }

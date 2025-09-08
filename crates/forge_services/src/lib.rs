@@ -6,6 +6,7 @@ mod clipper;
 mod custom_instructions;
 
 mod conversation;
+mod conversation_file;
 mod discovery;
 mod env;
 mod forge_services;
@@ -22,6 +23,7 @@ mod workflow;
 
 pub use agent_loader::*;
 pub use clipper::*;
+pub use conversation_file::FileConversationService;
 pub use custom_instructions::*;
 pub use discovery::*;
 pub use forge_services::*;

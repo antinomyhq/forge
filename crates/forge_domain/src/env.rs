@@ -93,4 +93,8 @@ impl Environment {
     pub fn app_config(&self) -> PathBuf {
         self.base_path.join(".config.json")
     }
+
+    pub fn conversation_path(&self) -> PathBuf {
+        self.base_path.join("conversations")
+    }
 }

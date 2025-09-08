@@ -65,6 +65,9 @@ pub trait API: Sync + Send {
 
     /// Returns the conversation with the given ID
     async fn conversation(&self, conversation_id: &ConversationId) -> Result<Option<Conversation>>;
+    
+    /// Finds the most recently active conversation
+    async fn find_last_active_conversation(&self) -> Result<Option<Conversation>>;
 
     /// Compacts the context of the main agent for the given conversation and
     /// persists it. Returns metrics about the compaction (original vs.
