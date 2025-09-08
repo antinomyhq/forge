@@ -618,21 +618,36 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     self.api.upsert_conversation(conversation).await?;
                     conversation_id
                 } else {
-                    // Try to load the last active conversation first
-                    if let Some(last_conversation) =
+                    // Check if there's a last active conversation to potentially resume
+                    let conversation = if let Some(last_conversation) =
                         self.api.find_last_active_conversation().await?
                     {
-                        let conversation_id = last_conversation.id;
-                        self.state.conversation_id = Some(conversation_id);
-                        self.update_model(last_conversation.main_model()?);
-                        conversation_id
+                        self.spinner.stop(None)?;
+
+                        // Ask user if they want to resume the last conversation
+                        let resume_last = ForgeSelect::confirm(format!(
+                            "Resume last conversation ({})?", 
+                            last_conversation.id
+                        ))
+                        .with_default(true)
+                        .with_help_message("Select 'yes' to continue your previous conversation or 'no' to start fresh")
+                        .prompt()?;
+
+                        self.spinner.start(Some("Initializing"))?;
+
+                        if resume_last == Some(true) {
+                            last_conversation
+                        } else {
+                            self.api.init_conversation(workflow).await?
+                        }
                     } else {
-                        // Create a new conversation if none exists
-                        let conversation = self.api.init_conversation(workflow).await?;
-                        self.state.conversation_id = Some(conversation.id);
-                        self.update_model(conversation.main_model()?);
-                        conversation.id
-                    }
+                        self.api.init_conversation(workflow).await?
+                    };
+
+                    // Common setup for both new and resumed conversations
+                    self.state.conversation_id = Some(conversation.id);
+                    self.update_model(conversation.main_model()?);
+                    conversation.id
                 };
 
                 Ok(id)
