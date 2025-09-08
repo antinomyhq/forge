@@ -194,7 +194,12 @@ impl<
             Tools::Shell(input) => {
                 let output = self
                     .services
-                    .execute(input.command.clone(), input.cwd.clone(), input.keep_ansi)
+                    .execute(
+                        input.command.clone(),
+                        input.cwd.clone(),
+                        input.keep_ansi,
+                        input.env.clone(),
+                    )
                     .await?;
                 output.into()
             }

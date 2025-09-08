@@ -23,7 +23,12 @@ impl ForgeCommandExecutorService {
         Self { restricted, env, ready: Arc::new(Mutex::new(())) }
     }
 
-    fn prepare_command(&self, command_str: &str, working_dir: &Path) -> Command {
+    fn prepare_command(
+        &self,
+        command_str: &str,
+        working_dir: &Path,
+        env_vars: Option<Vec<String>>,
+    ) -> Command {
         // Create a basic command
         let is_windows = cfg!(target_os = "windows");
         let shell = if self.restricted && !is_windows {
@@ -71,6 +76,18 @@ impl ForgeCommandExecutorService {
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());
 
+        // Set requested environment variables
+        if let Some(env_vars) = env_vars {
+            for env_var in env_vars {
+                if let Ok(value) = std::env::var(&env_var) {
+                    command.env(&env_var, value);
+                    tracing::debug!(env_var = %env_var, "Set environment variable from system");
+                } else {
+                    tracing::warn!(env_var = %env_var, "Environment variable not found in system");
+                }
+            }
+        }
+
         command
     }
 
@@ -80,10 +97,11 @@ impl ForgeCommandExecutorService {
         command: String,
         working_dir: &Path,
         silent: bool,
+        env_vars: Option<Vec<String>>,
     ) -> anyhow::Result<CommandOutput> {
         let ready = self.ready.lock().await;
 
-        let mut prepared_command = self.prepare_command(&command, working_dir);
+        let mut prepared_command = self.prepare_command(&command, working_dir, env_vars);
 
         // Spawn the command
         let mut child = prepared_command.spawn()?;
@@ -150,8 +168,9 @@ impl CommandInfra for ForgeCommandExecutorService {
         command: String,
         working_dir: PathBuf,
         silent: bool,
+        env_vars: Option<Vec<String>>,
     ) -> anyhow::Result<CommandOutput> {
-        self.execute_command_internal(command, &working_dir, silent)
+        self.execute_command_internal(command, &working_dir, silent, env_vars)
             .await
     }
 
@@ -159,8 +178,9 @@ impl CommandInfra for ForgeCommandExecutorService {
         &self,
         command: &str,
         working_dir: PathBuf,
+        env_vars: Option<Vec<String>>,
     ) -> anyhow::Result<std::process::ExitStatus> {
-        let mut prepared_command = self.prepare_command(command, &working_dir);
+        let mut prepared_command = self.prepare_command(command, &working_dir, env_vars);
 
         // overwrite the stdin, stdout and stderr to inherit
         prepared_command
@@ -216,7 +236,7 @@ mod tests {
         let dir = ".";
 
         let actual = fixture
-            .execute_command(cmd.to_string(), PathBuf::new().join(dir), false)
+            .execute_command(cmd.to_string(), PathBuf::new().join(dir), false, None)
             .await
             .unwrap();
 
@@ -235,6 +255,121 @@ mod tests {
         assert_eq!(actual.stderr, expected.stderr);
         assert_eq!(actual.success(), expected.success());
     }
+    #[tokio::test]
+    async fn test_command_executor_with_env_vars_success() {
+        // Set up test environment variables
+        unsafe {
+            std::env::set_var("TEST_ENV_VAR", "test_value");
+            std::env::set_var("ANOTHER_TEST_VAR", "another_value");
+        }
+
+        let fixture = ForgeCommandExecutorService::new(false, test_env());
+        let cmd = if cfg!(target_os = "windows") {
+            "echo %TEST_ENV_VAR%"
+        } else {
+            "echo $TEST_ENV_VAR"
+        };
+
+        let actual = fixture
+            .execute_command(
+                cmd.to_string(),
+                PathBuf::new().join("."),
+                false,
+                Some(vec!["TEST_ENV_VAR".to_string()]),
+            )
+            .await
+            .unwrap();
+
+        assert!(actual.success());
+        assert!(actual.stdout.contains("test_value"));
+
+        // Clean up
+        unsafe {
+            std::env::remove_var("TEST_ENV_VAR");
+            std::env::remove_var("ANOTHER_TEST_VAR");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_command_executor_with_missing_env_vars() {
+        unsafe {
+            std::env::remove_var("MISSING_ENV_VAR");
+        }
+
+        let fixture = ForgeCommandExecutorService::new(false, test_env());
+        let cmd = if cfg!(target_os = "windows") {
+            "echo %MISSING_ENV_VAR%"
+        } else {
+            "echo ${MISSING_ENV_VAR:-default_value}"
+        };
+
+        let actual = fixture
+            .execute_command(
+                cmd.to_string(),
+                PathBuf::new().join("."),
+                false,
+                Some(vec!["MISSING_ENV_VAR".to_string()]),
+            )
+            .await
+            .unwrap();
+
+        // Should still succeed even with missing env vars
+        assert!(actual.success());
+    }
+
+    #[tokio::test]
+    async fn test_command_executor_with_empty_env_list() {
+        let fixture = ForgeCommandExecutorService::new(false, test_env());
+        let cmd = "echo 'no env vars'";
+
+        let actual = fixture
+            .execute_command(
+                cmd.to_string(),
+                PathBuf::new().join("."),
+                false,
+                Some(vec![]),
+            )
+            .await
+            .unwrap();
+
+        assert!(actual.success());
+        assert!(actual.stdout.contains("no env vars"));
+    }
+
+    #[tokio::test]
+    async fn test_command_executor_with_multiple_env_vars() {
+        unsafe {
+            std::env::set_var("FIRST_VAR", "first");
+            std::env::set_var("SECOND_VAR", "second");
+        }
+
+        let fixture = ForgeCommandExecutorService::new(false, test_env());
+        let cmd = if cfg!(target_os = "windows") {
+            "echo %FIRST_VAR% %SECOND_VAR%"
+        } else {
+            "echo $FIRST_VAR $SECOND_VAR"
+        };
+
+        let actual = fixture
+            .execute_command(
+                cmd.to_string(),
+                PathBuf::new().join("."),
+                false,
+                Some(vec!["FIRST_VAR".to_string(), "SECOND_VAR".to_string()]),
+            )
+            .await
+            .unwrap();
+
+        assert!(actual.success());
+        assert!(actual.stdout.contains("first"));
+        assert!(actual.stdout.contains("second"));
+
+        // Clean up
+        unsafe {
+            std::env::remove_var("FIRST_VAR");
+            std::env::remove_var("SECOND_VAR");
+        }
+    }
 
     #[tokio::test]
     async fn test_command_executor_silent() {
@@ -243,7 +378,7 @@ mod tests {
         let dir = ".";
 
         let actual = fixture
-            .execute_command(cmd.to_string(), PathBuf::new().join(dir), true)
+            .execute_command(cmd.to_string(), PathBuf::new().join(dir), true, None)
             .await
             .unwrap();
 
