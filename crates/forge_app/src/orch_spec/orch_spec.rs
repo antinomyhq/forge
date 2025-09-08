@@ -440,6 +440,7 @@ async fn test_reasoning_should_be_in_context() {
                 .finish_reason(FinishReason::Stop),
         ]);
 
+    // Update the agent to set the reasoning.
     ctx.update_agent("forge", |agent| {
         agent.reasoning = Some(ReasoningConfig::default().effort(forge_domain::Effort::High));
     });
@@ -459,6 +460,7 @@ async fn test_reasoning_not_supported_when_disabled() {
                 .finish_reason(FinishReason::Stop),
         ]);
 
+    // Update the agent to set the reasoning.
     ctx.update_agent("forge", |agent| {
         agent.reasoning = Some(
             ReasoningConfig::default()
