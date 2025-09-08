@@ -33,11 +33,18 @@ impl TestContext {
         Self::from_event(Event::new("forge/user_task_init", Some(task)))
     }
 
-    pub fn update_agent(&mut self, agent_id: &str, update: impl FnMut(&mut Agent) -> ()) {
-        self.agents
-            .iter_mut()
-            .find(|agent| agent.id.as_str() == agent_id)
-            .map(update);
+    pub fn update_agent(
+        &mut self,
+        agent_id: &str,
+        mut updater: impl FnMut(&mut Agent) -> (),
+    ) -> anyhow::Result<()> {
+        updater(
+            self.agents
+                .iter_mut()
+                .find(|agent| agent.id.as_str() == agent_id)
+                .ok_or_else(|| anyhow::anyhow!("Agent '{}' not found.", agent_id))?,
+        );
+        Ok(())
     }
 
     pub fn from_event(event: Event) -> Self {
