@@ -69,7 +69,7 @@ where
             .await
             .context("Failed to write conversation file")?;
 
-        // Update the .latest file
+        // Update the LAST_ACTIVE_CONVERSATION_FILE_NAME file
         self.infra
             .write(
                 &self.last_active_path(),
