@@ -1,3 +1,4 @@
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -49,18 +50,34 @@ impl<M: McpService, I: ConversationInfra> FileConversationService<M, I> {
         Self { mcp_service, infra, conversation_dir }
     }
 
-    /// Returns the file path for a specific conversation
+    /// Generates a workspace ID based on the current working directory
+    fn generate_workspace_id(&self) -> String {
+        let cwd = &self.infra.get_environment().cwd;
+        let mut hasher = DefaultHasher::new();
+        cwd.hash(&mut hasher);
+        format!("{:x}", hasher.finish())
+    }
+
+    /// Returns the workspace directory for the current project
+    fn workspace_dir(&self) -> PathBuf {
+        let workspace_id = self.generate_workspace_id();
+        self.conversation_dir.join(workspace_id)
+    }
+
+    /// Returns the file path for a specific conversation in the current
+    /// workspace
     fn conversation_file_path(&self, id: &ConversationId) -> PathBuf {
-        self.conversation_dir
-            .join(format!("{}.json", id.into_string()))
+        let workspace_dir = self.workspace_dir();
+        workspace_dir.join(format!("{}.json", id.into_string()))
     }
 
     /// Saves a conversation to disk and updates the .latest file
     async fn save_conversation(&self, conversation: &Conversation) -> Result<()> {
+        let workspace_dir = self.workspace_dir();
         self.infra
-            .create_dirs(&self.conversation_dir)
+            .create_dirs(&workspace_dir)
             .await
-            .context("Failed to create conversations directory")?;
+            .context("Failed to create workspace conversations directory")?;
         let path = self.conversation_file_path(&conversation.id);
         let json = serde_json::to_string_pretty(conversation)
             .context("Failed to serialize conversation")?;
@@ -98,21 +115,23 @@ impl<M: McpService, I: ConversationInfra> FileConversationService<M, I> {
             .with_context(|| format!("Conversation {id} not found"))
     }
 
-    /// Gets the last active conversation from the .latest file
+    /// Gets the last active conversation from the workspace-specific .latest
+    /// file
     async fn find_latest_conversation(&self) -> Result<Option<Conversation>> {
-        let latest_file_path = self.conversation_dir.join(".latest");
+        let workspace_dir = self.workspace_dir();
+        let latest_file_path = workspace_dir.join(".latest");
 
-        // Check if the .latest file exists
+        // Check if the workspace .latest file exists
         if !self.infra.exists(&latest_file_path).await? {
             return Ok(None);
         }
 
-        // Read the conversation ID from the .latest file
+        // Read the conversation ID from the workspace .latest file
         let conversation_id_str = self
             .infra
             .read_utf8(&latest_file_path)
             .await
-            .context("Failed to read .latest file")?
+            .context("Failed to read workspace .latest file")?
             .trim()
             .to_string();
 
@@ -123,20 +142,22 @@ impl<M: McpService, I: ConversationInfra> FileConversationService<M, I> {
         }
     }
 
-    /// Updates the .latest file with the given conversation ID
+    /// Updates the workspace-specific .latest file with the given conversation
+    /// ID
     async fn update_latest_conversation(&self, conversation_id: &ConversationId) -> Result<()> {
+        let workspace_dir = self.workspace_dir();
         self.infra
-            .create_dirs(&self.conversation_dir)
+            .create_dirs(&workspace_dir)
             .await
-            .context("Failed to create conversations directory")?;
+            .context("Failed to create workspace conversations directory")?;
 
-        let latest_file_path = self.conversation_dir.join(".latest");
+        let latest_file_path = workspace_dir.join(".latest");
         let content = conversation_id.to_string();
 
         self.infra
             .write(&latest_file_path, Bytes::from(content), false)
             .await
-            .context("Failed to write .latest file")
+            .context("Failed to write workspace .latest file")
     }
 }
 
