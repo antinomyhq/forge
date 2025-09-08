@@ -99,7 +99,7 @@ impl Environment {
         let mut hasher = DefaultHasher::new();
         self.cwd.hash(&mut hasher);
         let workspace_id = format!("{:x}", hasher.finish());
-        self.base_path.join(workspace_id)
+        self.base_path.join("workspaces").join(workspace_id)
     }
 
     pub fn conversation_path(&self) -> PathBuf {
