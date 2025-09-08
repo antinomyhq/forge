@@ -66,6 +66,9 @@ pub trait API: Sync + Send {
     /// Returns the conversation with the given ID
     async fn conversation(&self, conversation_id: &ConversationId) -> Result<Option<Conversation>>;
 
+    /// Returns the list of conversations.
+    async fn list_conversations(&self) -> Result<Vec<ConversationId>>;
+
     /// Finds the most recently active conversation
     async fn find_last_active_conversation(&self) -> Result<Option<Conversation>>;
 

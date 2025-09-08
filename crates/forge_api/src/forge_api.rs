@@ -66,6 +66,11 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         forge_app.chat(chat).await
     }
 
+    /// Returns the list of conversations.
+    async fn list_conversations(&self) -> Result<Vec<ConversationId>> {
+        self.services.list_conversations().await
+    }
+
     async fn init_conversation<W: Into<Workflow> + Send + Sync>(
         &self,
         workflow: W,

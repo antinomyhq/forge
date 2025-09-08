@@ -93,8 +93,9 @@ pub mod tests {
 
     use crate::attachment::ForgeChatRequest;
     use crate::{
-        CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-        FileRemoverInfra, FileWriterInfra, McpClientInfra, McpServerInfra, UserInfra,
+        CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
+        FileReaderInfra, FileRemoverInfra, FileWriterInfra, McpClientInfra, McpServerInfra,
+        UserInfra,
     };
 
     #[derive(Debug)]
@@ -316,7 +317,23 @@ pub mod tests {
         }
 
         async fn exists(&self, path: &Path) -> anyhow::Result<bool> {
-            Ok(self.files.lock().unwrap().iter().any(|(p, _)| p == path))
+            let files = self.files.lock().unwrap();
+
+            // Check if the path itself exists as a file
+            if files.iter().any(|(p, _)| p == path) {
+                return Ok(true);
+            }
+
+            // Check if it's a directory (has children)
+            let is_directory = files.iter().any(|(p, _)| {
+                if let Some(parent) = p.parent() {
+                    parent == path
+                } else {
+                    false
+                }
+            });
+
+            Ok(is_directory)
         }
 
         async fn file_size(&self, path: &Path) -> anyhow::Result<u64> {
@@ -617,6 +634,46 @@ pub mod tests {
     impl FileDirectoryInfra for MockCompositeService {
         async fn create_dirs(&self, path: &Path) -> anyhow::Result<()> {
             self.file_service.create_dirs(path).await
+        }
+    }
+    #[async_trait::async_trait]
+    impl DirectoryReaderInfra for MockCompositeService {
+        async fn read_directory_files(
+            &self,
+            directory: &Path,
+            pattern: Option<&str>,
+        ) -> anyhow::Result<Vec<(PathBuf, String)>> {
+            let files = self.file_service.files.lock().unwrap();
+            let mut result = Vec::new();
+
+            for (path, bytes) in files.iter() {
+                // Check if the path is under the requested directory or is a direct child
+                let is_in_directory = path.parent() == Some(directory) || path == directory;
+
+                if is_in_directory {
+                    // Check if it matches the pattern (if provided)
+                    if let Some(pattern) = pattern {
+                        if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+                            // Use proper glob pattern matching
+                            match glob::Pattern::new(pattern) {
+                                Ok(glob_pattern) => {
+                                    if !glob_pattern.matches(file_name) {
+                                        continue;
+                                    }
+                                }
+                                Err(_) => continue, // Skip if pattern is invalid
+                            }
+                        }
+                    }
+
+                    // Convert bytes to string
+                    if let Ok(content) = String::from_utf8(bytes.to_vec()) {
+                        result.push((path.clone(), content));
+                    }
+                }
+            }
+
+            Ok(result)
         }
     }
 

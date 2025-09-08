@@ -367,8 +367,26 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .collect::<Vec<_>>())
     }
 
+    async fn on_list(&mut self) -> Result<()> {
+        let conversation_list = self.api.list_conversations().await?;
+        self.spinner.stop(None)?;
+        let conversation_id = match ForgeSelect::select("Select a model:", conversation_list)
+            .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
+            .prompt()?
+        {
+            Some(conversation_id) => conversation_id,
+            None => return Ok(()),
+        };
+        self.state.conversation_id = Some(conversation_id);
+        Ok(())
+    }
+
     async fn on_command(&mut self, command: Command) -> anyhow::Result<bool> {
         match command {
+            Command::List => {
+                self.spinner.start(Some("Listing Conversations"))?;
+                let _ = self.on_list().await;
+            }
             Command::Compact => {
                 self.spinner.start(Some("Compacting"))?;
                 self.on_compaction().await?;

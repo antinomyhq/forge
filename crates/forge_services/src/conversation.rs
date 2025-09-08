@@ -7,7 +7,8 @@ use forge_app::domain::{Agent, Conversation, ConversationId, Workflow};
 use forge_app::{ConversationService, McpService};
 
 use crate::{
-    EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
+    DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
+    FileWriterInfra,
 };
 
 /// File name where last active conversation id is stored.
@@ -27,6 +28,7 @@ where
         + FileWriterInfra
         + FileDirectoryInfra
         + FileInfoInfra
+        + DirectoryReaderInfra
         + Send
         + Sync
         + 'static,
@@ -108,6 +110,7 @@ where
         + FileWriterInfra
         + FileDirectoryInfra
         + FileInfoInfra
+        + DirectoryReaderInfra
         + Send
         + Sync
         + 'static,
@@ -180,6 +183,37 @@ where
         };
 
         self.load_conversation(&conversation_id).await
+    }
+
+    /// Loads all conversation ids from the storage layer.
+    async fn list_conversations(&self) -> anyhow::Result<Vec<ConversationId>> {
+        // Check if conversation directory exists
+        if !self.infra.exists(&self.conversation_dir).await? {
+            return Ok(Vec::new());
+        }
+
+        // Read all files in the conversation directory
+        let files = self
+            .infra
+            .read_directory_files(&self.conversation_dir, Some("*.json"))
+            .await
+            .context("Failed to read conversations directory")?;
+
+        let mut conversation_ids = Vec::new();
+
+        for (path, _content) in files {
+            if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+                // Extract conversation ID by removing .json extension
+                if let Some(id_str) = file_name.strip_suffix(".json") {
+                    // Try to parse the conversation ID - skip invalid ones
+                    if let Ok(id) = ConversationId::parse(id_str) {
+                        conversation_ids.push(id);
+                    }
+                }
+            }
+        }
+
+        Ok(conversation_ids)
     }
 }
 
@@ -373,5 +407,72 @@ mod tests {
         assert!(actual.is_some());
         let found_conversation = actual.unwrap();
         assert_eq!(found_conversation.id, fixture.id);
+    }
+    #[tokio::test]
+    async fn test_list_conversations_returns_all_conversation_ids() {
+        let fixture1 = conversation_fixture();
+        let fixture2 = conversation_fixture();
+        let service = service_fixture();
+
+        // Add conversation files
+        let conversation_json1 = serde_json::to_string_pretty(&fixture1).unwrap();
+        let conversation_json2 = serde_json::to_string_pretty(&fixture2).unwrap();
+
+        service
+            .infra
+            .add_file(service.conversation_path(&fixture1.id), conversation_json1);
+        service
+            .infra
+            .add_file(service.conversation_path(&fixture2.id), conversation_json2);
+
+        // Add the .last_active file (should be ignored)
+        service
+            .infra
+            .add_file(service.last_active_path(), fixture1.id.to_string());
+
+        let actual = service.list_conversations().await.unwrap();
+
+        assert_eq!(actual.len(), 2);
+        assert!(actual.contains(&fixture1.id));
+        assert!(actual.contains(&fixture2.id));
+    }
+
+    #[tokio::test]
+    async fn test_list_conversations_returns_empty_when_directory_does_not_exist() {
+        let service = service_fixture();
+
+        let actual = service.list_conversations().await.unwrap();
+
+        assert_eq!(actual, Vec::new());
+    }
+
+    #[tokio::test]
+    async fn test_list_conversations_skips_invalid_files() {
+        let fixture = conversation_fixture();
+        let service = service_fixture();
+
+        // Add valid conversation file
+        let conversation_json = serde_json::to_string_pretty(&fixture).unwrap();
+        service
+            .infra
+            .add_file(service.conversation_path(&fixture.id), conversation_json);
+
+        // Add invalid files that should be ignored
+        service.infra.add_file(
+            service.conversation_dir.join("invalid.txt"),
+            "not json".to_string(),
+        );
+        service.infra.add_file(
+            service.conversation_dir.join("invalid-id.json"),
+            "{}".to_string(),
+        );
+        service
+            .infra
+            .add_file(service.last_active_path(), fixture.id.to_string());
+
+        let actual = service.list_conversations().await.unwrap();
+
+        assert_eq!(actual.len(), 1);
+        assert_eq!(actual[0], fixture.id);
     }
 }

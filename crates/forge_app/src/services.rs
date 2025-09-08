@@ -152,6 +152,8 @@ pub trait ConversationService: Send + Sync {
 
     /// Finds the most recently modified conversation
     async fn find_last_active_conversation(&self) -> anyhow::Result<Option<Conversation>>;
+
+    async fn list_conversations(&self) -> anyhow::Result<Vec<ConversationId>>;
 }
 
 #[async_trait::async_trait]
@@ -446,6 +448,10 @@ impl<I: Services> ConversationService for I {
         self.conversation_service()
             .find_last_active_conversation()
             .await
+    }
+
+    async fn list_conversations(&self) -> anyhow::Result<Vec<ConversationId>> {
+        self.conversation_service().list_conversations().await
     }
 }
 #[async_trait::async_trait]
