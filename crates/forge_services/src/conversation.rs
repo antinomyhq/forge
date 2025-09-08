@@ -190,8 +190,8 @@ mod tests {
 
     use anyhow::{Result, anyhow};
     use forge_app::domain::{
-        Agent, Conversation, ConversationId, ToolCallFull, ToolDefinition, ToolName,
-        ToolOutput, Workflow,
+        Agent, Conversation, ConversationId, ToolCallFull, ToolDefinition, ToolName, ToolOutput,
+        Workflow,
     };
     use forge_app::{ConversationService, McpService};
     use pretty_assertions::assert_eq;
