@@ -420,6 +420,15 @@ impl Context {
             .map(|m| m.token_count_approx())
             .sum::<usize>()
     }
+
+    /// Checks if reasoning is enabled by user or not.
+    pub fn is_reasoning_supported(&self) -> bool {
+        self.reasoning.as_ref().is_some_and(|reasoning| {
+            reasoning.enabled.unwrap_or(false)
+                || reasoning.effort.is_some()
+                || reasoning.max_tokens.is_some_and(|token| token > 0)
+        })
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
