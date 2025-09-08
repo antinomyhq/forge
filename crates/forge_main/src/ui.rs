@@ -632,9 +632,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         .with_default(true)
                         .with_help_message("Select 'yes' to continue your previous conversation or 'no' to start fresh")
                         .prompt()?;
-
-                        self.spinner.start(Some("Initializing"))?;
-
                         if resume_last == Some(true) {
                             last_conversation
                         } else {
