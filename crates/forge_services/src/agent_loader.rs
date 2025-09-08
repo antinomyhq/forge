@@ -12,20 +12,24 @@ use crate::{
 /// A service for loading agent definitions from multiple sources:
 /// 1. Built-in agents (embedded in the application)
 /// 2. Global custom agents (from ~/.forge/agents/ directory)
-/// 3. Project-local agents (from .forge/agents/ directory in current working directory)
+/// 3. Project-local agents (from .forge/agents/ directory in current working
+///    directory)
 ///
 /// ## Agent Precedence
-/// When agents have duplicate IDs across different sources, the precedence order is:
-/// **CWD (project-local) > Global custom > Built-in**
+/// When agents have duplicate IDs across different sources, the precedence
+/// order is: **CWD (project-local) > Global custom > Built-in**
 ///
-/// This means project-local agents can override global agents, and both can override built-in agents.
+/// This means project-local agents can override global agents, and both can
+/// override built-in agents.
 ///
 /// ## Directory Resolution
 /// - **Built-in agents**: Embedded in application binary
 /// - **Global agents**: `{HOME}/.forge/agents/*.md`
-/// - **CWD agents**: `./.forge/agents/*.md` (relative to current working directory)
+/// - **CWD agents**: `./.forge/agents/*.md` (relative to current working
+///   directory)
 ///
-/// Missing directories are handled gracefully and don't prevent loading from other sources.
+/// Missing directories are handled gracefully and don't prevent loading from
+/// other sources.
 pub struct AgentLoaderService<F> {
     infra: Arc<F>,
 
@@ -45,15 +49,17 @@ impl<F> AgentLoaderService<F> {
 impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
     forge_app::AgentLoaderService for AgentLoaderService<F>
 {
-    /// Load all agent definitions from all available sources with conflict resolution.
+    /// Load all agent definitions from all available sources with conflict
+    /// resolution.
     ///
     /// This method loads agents from three sources in order:
     /// 1. Built-in agents (always available)
-    /// 2. Global custom agents (from ~/.forge/agents/ if directory exists)  
+    /// 2. Global custom agents (from ~/.forge/agents/ if directory exists)
     /// 3. Project-local agents (from ./.forge/agents/ if directory exists)
     ///
-    /// Duplicate agent IDs are resolved using last-wins strategy, giving precedence to
-    /// project-local agents over global agents, and both over built-in agents.
+    /// Duplicate agent IDs are resolved using last-wins strategy, giving
+    /// precedence to project-local agents over global agents, and both over
+    /// built-in agents.
     async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
         self.cache_or_init().await
     }
@@ -124,8 +130,9 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
     }
 }
 
-/// Implementation function for resolving agent ID conflicts by keeping the last occurrence.
-/// This implements the precedence order: CWD Custom > Global Custom > Built-in
+/// Implementation function for resolving agent ID conflicts by keeping the last
+/// occurrence. This implements the precedence order: CWD Custom > Global Custom
+/// > Built-in
 fn resolve_agent_conflicts(agents: Vec<Agent>) -> Vec<Agent> {
     use std::collections::HashMap;
 
@@ -136,7 +143,8 @@ fn resolve_agent_conflicts(agents: Vec<Agent>) -> Vec<Agent> {
         agent_map.insert(agent.id.to_string(), agent);
     }
 
-    // Convert back to vector (order is not guaranteed but doesn't matter for the service)
+    // Convert back to vector (order is not guaranteed but doesn't matter for the
+    // service)
     agent_map.into_values().collect()
 }
 
