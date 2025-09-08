@@ -168,26 +168,6 @@ impl<S: AgentService> Orchestrator<S> {
         Ok(tool_supported)
     }
 
-    fn is_reasoning_supported(&self, agent: &Agent) -> anyhow::Result<bool> {
-        let model_id = agent
-            .model
-            .as_ref()
-            .ok_or(Error::MissingModel(agent.id.clone()))?;
-
-        let model = self.models.iter().find(|model| &model.id == model_id);
-        let reasoning_supported = model
-            .and_then(|model| model.supports_reasoning)
-            .unwrap_or_default();
-
-        debug!(
-            agent_id = %agent.id,
-            model_id = %model_id,
-            reasoning_supported,
-            "Reasoning support check"
-        );
-        Ok(reasoning_supported)
-    }
-
     async fn set_system_prompt(
         &mut self,
         context: Context,
@@ -311,7 +291,6 @@ impl<S: AgentService> Orchestrator<S> {
             .clone()
             .ok_or(Error::MissingModel(agent.id.clone()))?;
         let tool_supported = self.is_tool_supported(&agent)?;
-        let reasoning_supported = self.is_reasoning_supported(&agent)?;
 
         let mut context = self.conversation.context.clone().unwrap_or_default();
 
@@ -345,12 +324,8 @@ impl<S: AgentService> Orchestrator<S> {
             context = context.max_tokens(max_tokens.value() as usize);
         }
 
-        if reasoning_supported {
-            // Add reasoning specific params to context only if reasoning is supported
-            // by underlying model
-            if let Some(reasoning) = agent.reasoning.as_ref() {
-                context = context.reasoning(reasoning.clone());
-            }
+        if let Some(reasoning) = agent.reasoning.as_ref() {
+            context = context.reasoning(reasoning.clone());
         }
 
         // Process attachments from the event if they exist
@@ -403,7 +378,7 @@ impl<S: AgentService> Orchestrator<S> {
             // Run the main chat request and compaction check in parallel
             let main_request = crate::retry::retry_with_config(
                 &self.environment.retry_config,
-                || self.execute_chat_turn(&model_id, context.clone(), tool_supported, reasoning_supported),
+                || self.execute_chat_turn(&model_id, context.clone(), tool_supported, context.is_reasoning_supported()),
                 self.sender.as_ref().map(|sender| {
                     let sender = sender.clone();
                     let agent_id = agent.id.clone();
@@ -490,7 +465,7 @@ impl<S: AgentService> Orchestrator<S> {
 
             if let Some(reasoning) = reasoning.as_ref()
                 && !is_complete
-                && reasoning_supported
+                && context.is_reasoning_supported()
             {
                 // If reasoning is present, send it as a separate message
                 self.send(ChatResponse::TaskReasoning { content: reasoning.to_string() })
