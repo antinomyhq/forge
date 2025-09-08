@@ -20,7 +20,7 @@ use crate::tool_services::{
 };
 use crate::workflow::ForgeWorkflowService;
 use crate::{
-    CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileConversationService,
+    CommandInfra, DirectoryReaderInfra, EnvironmentInfra, ForgeConversationService,
     FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
     McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
 };
@@ -37,7 +37,7 @@ type AuthService<F> = ForgeAuthService<F>;
 #[derive(Clone)]
 pub struct ForgeServices<F: HttpInfra + EnvironmentInfra + McpServerInfra + WalkerInfra> {
     chat_service: Arc<ForgeProviderService<F>>,
-    conversation_service: Arc<FileConversationService<McpService<F>, F>>,
+    conversation_service: Arc<ForgeConversationService<McpService<F>, F>>,
     template_service: Arc<ForgeTemplateService<F>>,
     attachment_service: Arc<ForgeChatRequest<F>>,
     workflow_service: Arc<ForgeWorkflowService<F>>,
@@ -87,7 +87,7 @@ impl<
         let suggestion_service = Arc::new(ForgeDiscoveryService::new(infra.clone()));
         // let conversation_service =
         // Arc::new(ForgeConversationService::new(mcp_service.clone()));
-        let conversation_service = Arc::new(FileConversationService::new(
+        let conversation_service = Arc::new(ForgeConversationService::new(
             mcp_service.clone(),
             infra.clone(),
         ));
@@ -159,7 +159,7 @@ impl<
 > Services for ForgeServices<F>
 {
     type ProviderService = ForgeProviderService<F>;
-    type ConversationService = FileConversationService<McpService<F>, F>;
+    type ConversationService = ForgeConversationService<McpService<F>, F>;
     type TemplateService = ForgeTemplateService<F>;
     type AttachmentService = ForgeChatRequest<F>;
     type EnvironmentService = ForgeEnvironmentService<F>;

@@ -1,108 +1,190 @@
-#![allow(dead_code)]
-use std::collections::HashMap;
+use std::hash::{DefaultHasher, Hash, Hasher};
+use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::{Context as AnyhowContext, Result};
+use anyhow::{Context, Result};
+use bytes::Bytes;
 use forge_app::domain::{Agent, Conversation, ConversationId, Workflow};
 use forge_app::{ConversationService, McpService};
-use tokio::sync::Mutex;
 
-/// Service for managing conversations, including creation, retrieval, and
-/// updates
-#[derive(Clone)]
-pub struct ForgeConversationService<M> {
-    conversations: Arc<Mutex<HashMap<ConversationId, Conversation>>>,
+use crate::{
+    EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
+};
+
+/// File-backed conversation service that persists conversations as JSON files
+pub struct ForgeConversationService<M, I> {
     mcp_service: Arc<M>,
+    infra: Arc<I>,
+    conversation_dir: PathBuf,
 }
 
-impl<M: McpService> ForgeConversationService<M> {
-    /// Creates a new ForgeConversationService with the provided MCP service
-    pub fn new(mcp_service: Arc<M>) -> Self {
+impl<M: McpService, I> ForgeConversationService<M, I>
+where
+    I: EnvironmentInfra
+        + FileReaderInfra
+        + FileWriterInfra
+        + FileDirectoryInfra
+        + FileInfoInfra
+        + Send
+        + Sync
+        + 'static,
+{
+    /// Creates a new FileConversationService instance
+    pub fn new(mcp_service: Arc<M>, infra: Arc<I>) -> Self {
+        let conversation_dir = infra.get_environment().conversation_path();
+        let cwd = &infra.get_environment().cwd;
+
+        // Generate workspace ID based on current working directory
+        let mut hasher = DefaultHasher::new();
+        cwd.hash(&mut hasher);
+        let workspace_id = format!("{:x}", hasher.finish());
+
         Self {
-            conversations: Arc::new(Mutex::new(HashMap::new())),
             mcp_service,
+            infra,
+            conversation_dir: conversation_dir.join(workspace_id),
         }
+    }
+
+    fn conversation_path(&self, id: &ConversationId) -> PathBuf {
+        self.conversation_dir
+            .join(format!("{}.json", id.into_string()))
+    }
+
+    /// File path where the last active conversation id was stored.
+    fn last_active_path(&self) -> PathBuf {
+        self.conversation_dir.join(".last_active")
+    }
+
+    /// Saves a conversation to disk and updates the .latest file
+    async fn save_conversation(&self, conversation: &Conversation) -> Result<()> {
+        // Ensure conversation directory exists
+        self.infra
+            .create_dirs(&self.conversation_dir)
+            .await
+            .context("Failed to create workspace conversations directory")?;
+
+        // Write conversation file
+        let json = serde_json::to_string_pretty(conversation)
+            .context("Failed to serialize conversation")?;
+
+        self.infra
+            .write(
+                &self.conversation_path(&conversation.id),
+                Bytes::from(json),
+                false,
+            )
+            .await
+            .context("Failed to write conversation file")?;
+
+        // Update the .latest file
+        self.infra
+            .write(
+                &self.last_active_path(),
+                Bytes::from(conversation.id.to_string()),
+                false,
+            )
+            .await
+            .context("Failed to write workspace .latest file")
+    }
+
+    /// Loads a conversation from disk
+    async fn load_conversation(&self, id: &ConversationId) -> Result<Option<Conversation>> {
+        let path = self.conversation_path(id);
+
+        if !self.infra.exists(&path).await? {
+            return Ok(None);
+        }
+
+        let content = self
+            .infra
+            .read_utf8(&path)
+            .await
+            .context("Failed to read conversation file")?;
+
+        serde_json::from_str(&content)
+            .map(Some)
+            .context("Failed to parse conversation file")
     }
 }
 
 #[async_trait::async_trait]
-impl<M: McpService> ConversationService for ForgeConversationService<M> {
-    async fn modify_conversation<F, T>(&self, id: &ConversationId, f: F) -> Result<T>
+impl<M: McpService, I> ConversationService for ForgeConversationService<M, I>
+where
+    I: EnvironmentInfra
+        + FileReaderInfra
+        + FileWriterInfra
+        + FileDirectoryInfra
+        + FileInfoInfra
+        + Send
+        + Sync
+        + 'static,
+{
+    /// Modifies a conversation atomically and persists the changes
+    async fn modify_conversation<F, T: Send>(&self, id: &ConversationId, f: F) -> Result<T>
     where
         F: FnOnce(&mut Conversation) -> T + Send,
     {
-        let mut conversation = self.conversations.lock().await;
-        let conversation = conversation.get_mut(id).context("Conversation not found")?;
-        Ok(f(conversation))
+        let mut conversation = self
+            .load_conversation(id)
+            .await?
+            .with_context(|| format!("Conversation {id} not found"))?;
+
+        let result = f(&mut conversation);
+        self.save_conversation(&conversation).await?;
+        Ok(result)
     }
 
+    /// Finds a conversation by ID
     async fn find_conversation(&self, id: &ConversationId) -> Result<Option<Conversation>> {
-        Ok(self.conversations.lock().await.get(id).cloned())
+        self.load_conversation(id).await
     }
 
+    /// Creates or updates a conversation
     async fn upsert_conversation(&self, conversation: Conversation) -> Result<()> {
-        self.conversations
-            .lock()
-            .await
-            .insert(conversation.id, conversation);
-        Ok(())
+        self.save_conversation(&conversation).await
     }
 
+    /// Initializes a new conversation with the given workflow and agents
     async fn init_conversation(
         &self,
         workflow: Workflow,
         agents: Vec<Agent>,
     ) -> Result<Conversation> {
         let id = ConversationId::generate();
-        let conversation = Conversation::new(
-            id,
-            workflow,
-            self.mcp_service
-                .list()
-                .await?
-                .into_values()
-                .flatten()
-                .map(|tool| tool.name)
-                .collect(),
-            agents,
-        );
-        self.conversations
-            .lock()
+        let tool_names = self
+            .mcp_service
+            .list()
             .await
-            .insert(id, conversation.clone());
+            .context("Failed to retrieve tool list from MCP service")?
+            .into_values()
+            .flatten()
+            .map(|tool| tool.name)
+            .collect();
+
+        let conversation = Conversation::new(id, workflow, tool_names, agents);
+        self.save_conversation(&conversation).await?;
         Ok(conversation)
     }
-    async fn find_last_active_conversation(&self) -> Result<Option<Conversation>> {
-        let conversations = self.conversations.lock().await;
 
-        if conversations.is_empty() {
+    async fn find_last_active_conversation(&self) -> Result<Option<Conversation>> {
+        if !self.infra.exists(&self.last_active_path()).await? {
             return Ok(None);
         }
 
-        // Find the conversation with the most recent event timestamp
-        let mut latest_conversation: Option<&Conversation> = None;
-        let mut latest_timestamp: Option<String> = None;
+        let conversation_id_str = self
+            .infra
+            .read_utf8(&self.last_active_path())
+            .await
+            .context("Failed to read workspace .latest file")?;
 
-        for conversation in conversations.values() {
-            if let Some(latest_event) = conversation.events.last() {
-                match &latest_timestamp {
-                    None => {
-                        latest_timestamp = Some(latest_event.timestamp.clone());
-                        latest_conversation = Some(conversation);
-                    }
-                    Some(current_latest) => {
-                        if latest_event.timestamp > *current_latest {
-                            latest_timestamp = Some(latest_event.timestamp.clone());
-                            latest_conversation = Some(conversation);
-                        }
-                    }
-                }
-            } else if latest_conversation.is_none() {
-                // If no events, use the first conversation found as fallback
-                latest_conversation = Some(conversation);
-            }
-        }
+        // Parse the conversation ID - if parsing fails, treat as if no latest
+        // conversation exists
+        let conversation_id = match ConversationId::parse(conversation_id_str.trim()) {
+            Ok(id) => id,
+            Err(_) => return Ok(None),
+        };
 
-        Ok(latest_conversation.cloned())
+        self.load_conversation(&conversation_id).await
     }
 }
