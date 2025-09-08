@@ -1,4 +1,4 @@
-use gh_workflow_tailcall::*;
+use gh_workflow::*;
 
 use crate::jobs::release_build_job::release_build_job;
 
