@@ -1,4 +1,3 @@
-use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -35,18 +34,7 @@ where
     /// Creates a new FileConversationService instance
     pub fn new(mcp_service: Arc<M>, infra: Arc<I>) -> Self {
         let conversation_dir = infra.get_environment().conversation_path();
-        let cwd = &infra.get_environment().cwd;
-
-        // Generate workspace ID based on current working directory
-        let mut hasher = DefaultHasher::new();
-        cwd.hash(&mut hasher);
-        let workspace_id = format!("{:x}", hasher.finish());
-
-        Self {
-            mcp_service,
-            infra,
-            conversation_dir: conversation_dir.join(workspace_id),
-        }
+        Self { mcp_service, infra, conversation_dir }
     }
 
     fn conversation_path(&self, id: &ConversationId) -> PathBuf {
