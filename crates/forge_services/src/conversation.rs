@@ -11,6 +11,10 @@ use crate::{
     EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
 };
 
+
+/// File name where last active conversation id is stored.
+const LAST_ACTIVE_CONVERSATION_FILE_NAME: &str = ".last_active";
+
 /// File-backed conversation service that persists conversations as JSON files
 pub struct ForgeConversationService<M, I> {
     mcp_service: Arc<M>,
@@ -53,7 +57,7 @@ where
 
     /// File path where the last active conversation id was stored.
     fn last_active_path(&self) -> PathBuf {
-        self.conversation_dir.join(".last_active")
+        self.conversation_dir.join(LAST_ACTIVE_CONVERSATION_FILE_NAME)
     }
 
     /// Saves a conversation to disk and updates the .latest file
@@ -176,7 +180,7 @@ where
             .infra
             .read_utf8(&self.last_active_path())
             .await
-            .context("Failed to read workspace .latest file")?;
+            .context(format!("Failed to read workspace {LAST_ACTIVE_CONVERSATION_FILE_NAME} file"))?;
 
         // Parse the conversation ID - if parsing fails, treat as if no latest
         // conversation exists
