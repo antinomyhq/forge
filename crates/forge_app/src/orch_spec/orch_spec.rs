@@ -443,7 +443,7 @@ async fn test_reasoning_should_be_in_context() {
     // Update the agent to set the reasoning.
     ctx.update_agent("forge", |agent| {
         agent.reasoning = Some(ReasoningConfig::default().effort(forge_domain::Effort::High));
-    });
+    }).unwrap();
     ctx.run().await.unwrap();
 
     let conversation = ctx.output.conversation_history.last().unwrap();
@@ -467,7 +467,7 @@ async fn test_reasoning_not_supported_when_disabled() {
                 .effort(forge_domain::Effort::High)
                 .enabled(false), // disable the reasoning explicitly
         );
-    });
+    }).unwrap();
     ctx.run().await.unwrap();
 
     let conversation = ctx.output.conversation_history.last().unwrap();
