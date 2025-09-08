@@ -201,6 +201,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.init_state(true).await?;
         self.init_conversation().await?;
         self.trace_user();
+        self.spinner.stop(None)?;
 
         // Hydrate the models cache
         self.hydrate_caches();
