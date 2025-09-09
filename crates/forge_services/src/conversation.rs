@@ -186,7 +186,7 @@ where
     }
 
     /// Loads all conversation ids from the storage layer.
-    async fn list_conversations(&self) -> anyhow::Result<Vec<ConversationId>> {
+    async fn list_conversations(&self) -> anyhow::Result<Vec<Conversation>> {
         // Check if conversation directory exists
         if !self.infra.exists(&self.conversation_dir).await? {
             return Ok(Vec::new());
@@ -199,21 +199,14 @@ where
             .await
             .context("Failed to read conversations directory")?;
 
-        let mut conversation_ids = Vec::new();
-
-        for (path, _content) in files {
-            if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                // Extract conversation ID by removing .json extension
-                if let Some(id_str) = file_name.strip_suffix(".json") {
-                    // Try to parse the conversation ID - skip invalid ones
-                    if let Ok(id) = ConversationId::parse(id_str) {
-                        conversation_ids.push(id);
-                    }
-                }
+        let mut conversations = Vec::with_capacity(files.len());
+        for (_, _content) in files {
+            if let Ok(conversation) = serde_json::from_str::<Conversation>(&_content) {
+                conversations.push(conversation);
             }
         }
 
-        Ok(conversation_ids)
+        Ok(conversations)
     }
 }
 
@@ -433,17 +426,15 @@ mod tests {
         let actual = service.list_conversations().await.unwrap();
 
         assert_eq!(actual.len(), 2);
-        assert!(actual.contains(&fixture1.id));
-        assert!(actual.contains(&fixture2.id));
+        assert!(actual.iter().any(|conv| conv.id == fixture1.id));
+        assert!(actual.iter().any(|conv| conv.id == fixture2.id));
     }
 
     #[tokio::test]
     async fn test_list_conversations_returns_empty_when_directory_does_not_exist() {
         let service = service_fixture();
-
         let actual = service.list_conversations().await.unwrap();
-
-        assert_eq!(actual, Vec::new());
+        assert!(actual.is_empty());
     }
 
     #[tokio::test]
@@ -473,6 +464,6 @@ mod tests {
         let actual = service.list_conversations().await.unwrap();
 
         assert_eq!(actual.len(), 1);
-        assert_eq!(actual[0], fixture.id);
+        assert_eq!(actual[0].id, fixture.id);
     }
 }

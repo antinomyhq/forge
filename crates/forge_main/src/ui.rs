@@ -372,13 +372,19 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.spinner.stop(None)?;
 
         if conversation_list.is_empty() {
-            self.writeln_title(TitleFormat::error("No Conversations found to list."))?;
+            self.writeln_title(TitleFormat::error("No Conversations found."))?;
             return Ok(());
-        }
+        };
 
-        let conversation_id = match ForgeSelect::select("Select a model:", conversation_list)
-            .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
-            .prompt()?
+        let conversation_id = match ForgeSelect::select(
+            "Select a conversation to resume:",
+            conversation_list
+                .iter()
+                .map(|conversation| conversation.id)
+                .collect(),
+        )
+        .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
+        .prompt()?
         {
             Some(conversation_id) => conversation_id,
             None => return Ok(()),

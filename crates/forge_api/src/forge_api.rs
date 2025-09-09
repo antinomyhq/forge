@@ -67,7 +67,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     }
 
     /// Returns the list of conversations.
-    async fn list_conversations(&self) -> Result<Vec<ConversationId>> {
+    async fn list_conversations(&self) -> Result<Vec<Conversation>> {
         self.services.list_conversations().await
     }
 
