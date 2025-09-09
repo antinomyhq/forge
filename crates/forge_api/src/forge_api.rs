@@ -70,10 +70,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         &self,
         workflow: W,
     ) -> anyhow::Result<Conversation> {
-        let agents = self.get_agents().await?;
-        self.services
-            .init_conversation(workflow.into(), agents)
-            .await
+        self.services.init_conversation(workflow.into()).await
     }
 
     async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()> {

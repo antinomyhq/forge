@@ -7,7 +7,6 @@ use async_recursion::async_recursion;
 use derive_setters::Setters;
 use forge_domain::*;
 use forge_template::Element;
-use serde_json::Value;
 use tracing::{debug, info, warn};
 
 use crate::agent::AgentService;
@@ -20,11 +19,12 @@ pub struct Orchestrator<S> {
     sender: Option<ArcSender>,
     conversation: Conversation,
     environment: Environment,
-    tool_definitions: Vec<ToolDefinition>,
+    system_tools: Vec<ToolDefinition>,
     models: Vec<Model>,
     files: Vec<String>,
     current_time: chrono::DateTime<chrono::Local>,
     custom_instructions: Vec<String>,
+    agents: Vec<Agent>,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -33,18 +33,18 @@ impl<S: AgentService> Orchestrator<S> {
         environment: Environment,
         conversation: Conversation,
         current_time: chrono::DateTime<chrono::Local>,
-        custom_instructions: Vec<String>,
     ) -> Self {
         Self {
             conversation,
             environment,
             services,
             sender: Default::default(),
-            tool_definitions: Default::default(),
+            system_tools: Default::default(),
             models: Default::default(),
             files: Default::default(),
             current_time,
-            custom_instructions,
+            custom_instructions: Default::default(),
+            agents: Default::default(),
         }
     }
 
@@ -66,7 +66,6 @@ impl<S: AgentService> Orchestrator<S> {
 
         for tool_call in tool_calls {
             let is_agent = self
-                .conversation
                 .agents
                 .iter()
                 .any(|agent| agent.id.as_str() == tool_call.name.as_str());
@@ -116,10 +115,11 @@ impl<S: AgentService> Orchestrator<S> {
     /// Get the allowed tools for an agent
     fn get_allowed_tools(&mut self, agent: &Agent) -> anyhow::Result<Vec<ToolDefinition>> {
         let mut tools = vec![];
-        if !self.tool_definitions.is_empty() {
+        // Add system tools
+        if !self.system_tools.is_empty() {
             let allowed = agent.tools.iter().flatten().collect::<HashSet<_>>();
             tools.extend(
-                self.tool_definitions
+                self.system_tools
                     .iter()
                     .filter(|tool| allowed.contains(&tool.name))
                     .cloned(),
@@ -172,7 +172,6 @@ impl<S: AgentService> Orchestrator<S> {
         &mut self,
         context: Context,
         agent: &Agent,
-        variables: &HashMap<String, Value>,
     ) -> anyhow::Result<Context> {
         Ok(if let Some(system_prompt) = &agent.system_prompt {
             let env = self.environment.clone();
@@ -202,7 +201,6 @@ impl<S: AgentService> Orchestrator<S> {
                 tool_supported,
                 files,
                 custom_rules: custom_rules.join("\n\n"),
-                variables: variables.clone(),
                 supports_parallel_tool_calls,
             };
 
@@ -219,19 +217,21 @@ impl<S: AgentService> Orchestrator<S> {
     }
 
     pub async fn chat(&mut self, event: Event) -> anyhow::Result<()> {
-        let target_agents = {
-            debug!(
-                conversation_id = %self.conversation.id.clone(),
-                event_name = %event.name,
-                event_value = %format!("{:?}", event.value),
-                "Dispatching event"
-            );
-            self.conversation.dispatch_event(event.clone())
-        };
+        debug!(
+            conversation_id = %self.conversation.id.clone(),
+            event_name = %event.name,
+            event_value = %format!("{:?}", event.value),
+            "Dispatching event"
+        );
 
         // Execute all agent initialization with the event
-        for agent_id in &target_agents {
-            self.init_agent(agent_id, &event).await?;
+        for agent in self
+            .agents
+            .clone()
+            .into_iter()
+            .filter(|agent| agent.has_subscription(&event.name))
+        {
+            self.init_agent(&agent.id, &event).await?;
         }
 
         Ok(())
@@ -278,14 +278,18 @@ impl<S: AgentService> Orchestrator<S> {
     // Create a helper method with the core functionality
     async fn init_agent(&mut self, agent_id: &AgentId, event: &Event) -> anyhow::Result<()> {
         let mut tool_failure_attempts = HashMap::new();
-        let variables = self.conversation.variables.clone();
         debug!(
             conversation_id = %self.conversation.id,
             agent = %agent_id,
             event = ?event,
             "Initializing agent"
         );
-        let agent = self.conversation.get_agent(agent_id)?.clone();
+        let agent = self
+            .agents
+            .iter()
+            .find(|agent| &agent.id == agent_id)
+            .ok_or(forge_domain::Error::AgentUndefined(agent_id.to_owned()))?
+            .clone();
         let model_id = agent
             .model
             .clone()
@@ -301,12 +305,10 @@ impl<S: AgentService> Orchestrator<S> {
         context = context.tools(self.get_allowed_tools(&agent)?);
 
         // Render the system prompts with the variables
-        context = self.set_system_prompt(context, &agent, &variables).await?;
+        context = self.set_system_prompt(context, &agent).await?;
 
         // Render user prompts
-        context = self
-            .set_user_prompt(context, &agent, &variables, event)
-            .await?;
+        context = self.set_user_prompt(context, &agent, event).await?;
 
         if let Some(temperature) = agent.temperature {
             context = context.temperature(temperature);
@@ -645,14 +647,12 @@ impl<S: AgentService> Orchestrator<S> {
         &mut self,
         mut context: Context,
         agent: &Agent,
-        variables: &HashMap<String, Value>,
         event: &Event,
     ) -> anyhow::Result<Context> {
         let content = if let Some(user_prompt) = &agent.user_prompt
             && event.value.is_some()
         {
             let event_context = EventContext::new(event.clone())
-                .variables(variables.clone())
                 .current_time(self.current_time.format("%Y-%m-%d").to_string());
             debug!(event_context = ?event_context, "Event context");
             Some(

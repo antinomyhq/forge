@@ -12,8 +12,9 @@ use crate::orch::Orchestrator;
 use crate::services::{CustomInstructionsService, TemplateService};
 use crate::tool_registry::ToolRegistry;
 use crate::{
-    AppConfigService, AttachmentService, ConversationService, EnvironmentService,
-    FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker, WorkflowService,
+    AgentLoaderService, AppConfigService, AttachmentService, ConversationService,
+    EnvironmentService, FileDiscoveryService, McpService, ProviderRegistry, ProviderService,
+    Services, Walker, WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -51,7 +52,8 @@ impl<S: Services> ForgeApp<S> {
             .expect("conversation for the request should've been created at this point.");
 
         // Get tool definitions and models
-        let tool_definitions = self.tool_registry.list().await?;
+        let system_tools = self.tool_registry.list().await?;
+        let mcp_tools = self.services.mcp_service().list().await?;
         let config = services.get_app_config().await.unwrap_or_default();
         let provider = services
             .get_provider(config)
@@ -80,6 +82,7 @@ impl<S: Services> ForgeApp<S> {
         // Register templates using workflow path or environment fallback
         let template_path = workflow
             .templates
+            .as_ref()
             .map_or(environment.templates(), |templates| {
                 PathBuf::from(templates)
             });
@@ -94,15 +97,19 @@ impl<S: Services> ForgeApp<S> {
 
         let custom_instructions = services.get_custom_instructions().await;
 
+        // Prepare agents with user configuration
+        let agents = prepare_agents(services.get_agents().await?, &workflow, &mcp_tools);
+
         // Create the orchestrator with all necessary dependencies
         let orch = Orchestrator::new(
             services.clone(),
             environment.clone(),
             conversation,
             Local::now(),
-            custom_instructions,
         )
-        .tool_definitions(tool_definitions)
+        .custom_instructions(custom_instructions)
+        .agents(agents)
+        .system_tools(system_tools)
         .models(models)
         .files(files);
 
@@ -163,8 +170,10 @@ impl<S: Services> ForgeApp<S> {
 
         // Find the main agent (first agent in the conversation)
         // In most cases, there should be a primary agent for compaction
-        let agent = conversation
-            .agents
+        let agent = self
+            .services
+            .get_agents()
+            .await?
             .first()
             .ok_or_else(|| anyhow::anyhow!("No agents found in conversation"))?
             .clone();

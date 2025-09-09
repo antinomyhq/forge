@@ -59,20 +59,15 @@ impl Runner {
         let (tx, mut rx) = tokio::sync::mpsc::channel::<anyhow::Result<ChatResponse>>(LIMIT);
         let agents = setup.agents.clone();
         let services = Arc::new(Runner::new(setup));
-        let conversation = Conversation::new(
-            ConversationId::generate(),
-            setup.workflow.clone(),
-            Default::default(),
-            agents,
-        );
+        let conversation = Conversation::new(ConversationId::generate(), setup.workflow.clone());
 
         let orch = Orchestrator::new(
             services.clone(),
             setup.env.clone(),
             conversation,
             setup.current_time,
-            vec![], // empty custom_instructions
         )
+        .agents(agents)
         .sender(tx)
         .files(setup.files.clone());
 
