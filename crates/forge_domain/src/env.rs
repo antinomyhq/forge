@@ -97,16 +97,8 @@ impl Environment {
         self.base_path.join(".config.json")
     }
 
-    pub fn workspace_path(&self) -> PathBuf {
-        use std::hash::{DefaultHasher, Hash, Hasher};
-        let mut hasher = DefaultHasher::new();
-        self.cwd.hash(&mut hasher);
-        let workspace_id = format!("{:x}", hasher.finish());
-        self.base_path.join("workspaces").join(workspace_id)
-    }
-
-    pub fn conversation_path(&self) -> PathBuf {
-        self.workspace_path().join("conversations")
+    pub fn database_path(&self) -> PathBuf {
+        self.base_path.join("forge.db")
     }
 }
 

@@ -220,3 +220,19 @@ pub trait DirectoryReaderInfra: Send + Sync {
         pattern: Option<&str>, // Optional glob pattern like "*.md"
     ) -> anyhow::Result<Vec<(PathBuf, String)>>;
 }
+
+/// Infrastructure trait for conversation storage and persistence
+#[async_trait::async_trait]
+pub trait ConversationStorageInfra: Send + Sync {
+    /// Insert a new conversation record
+    async fn save(&self, conversation: &forge_app::domain::Conversation) -> anyhow::Result<()>;
+    
+    /// Get a conversation by ID
+    async fn find_by_id(&self, conversation_id: &str) -> anyhow::Result<Option<forge_app::domain::Conversation>>;
+    
+    /// List all conversations for a workspace, ordered by updated_at DESC
+    async fn find_by_workspace_id(&self, workspace_id: &str) -> anyhow::Result<Vec<forge_app::domain::Conversation>>;
+    
+    /// Insert or update a conversation (upsert operation)
+    async fn upsert(&self, conversation: &forge_app::domain::Conversation) -> anyhow::Result<()>;
+}

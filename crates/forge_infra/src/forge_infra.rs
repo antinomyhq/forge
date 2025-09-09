@@ -46,15 +46,17 @@ pub struct ForgeInfra {
     mcp_server: ForgeMcpServer,
     walker_service: Arc<ForgeWalkerService>,
     http_service: Arc<ForgeHttpInfra>,
+    conversation_storage: Arc<crate::ConversationRepository>,
 }
 
 impl ForgeInfra {
-    pub fn new(restricted: bool, cwd: PathBuf) -> Self {
+    pub fn new(restricted: bool, cwd: PathBuf) -> anyhow::Result<Self> {
         let environment_service = Arc::new(ForgeEnvironmentInfra::new(restricted, cwd));
         let env = environment_service.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
         let http_service = Arc::new(ForgeHttpInfra::new(env.http.clone()));
-        Self {
+        let conversation_storage = Arc::new(crate::ConversationRepository::init(env.database_path())?);
+        Ok(Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
             file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),
             file_meta_service: Arc::new(ForgeFileMetaService),
@@ -73,7 +75,8 @@ impl ForgeInfra {
             mcp_server: ForgeMcpServer,
             walker_service: Arc::new(ForgeWalkerService::new()),
             http_service,
-        }
+            conversation_storage,
+        })
     }
 }
 
@@ -269,6 +272,33 @@ impl DirectoryReaderInfra for ForgeInfra {
     ) -> anyhow::Result<Vec<(PathBuf, String)>> {
         self.directory_reader_service
             .read_directory_files(directory, pattern)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl forge_services::ConversationStorageInfra for ForgeInfra {
+    async fn save(&self, conversation: &forge_app::domain::Conversation) -> anyhow::Result<()> {
+        self.conversation_storage
+            .save(conversation)
+            .await
+    }
+    
+    async fn find_by_id(&self, conversation_id: &str) -> anyhow::Result<Option<forge_app::domain::Conversation>> {
+        self.conversation_storage
+            .find_by_id(conversation_id)
+            .await
+    }
+    
+    async fn find_by_workspace_id(&self, workspace_id: &str) -> anyhow::Result<Vec<forge_app::domain::Conversation>> {
+        self.conversation_storage
+            .find_by_workspace_id(workspace_id)
+            .await
+    }
+    
+    async fn upsert(&self, conversation: &forge_app::domain::Conversation) -> anyhow::Result<()> {
+        self.conversation_storage
+            .upsert(conversation)
             .await
     }
 }

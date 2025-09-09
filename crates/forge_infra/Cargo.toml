@@ -31,6 +31,9 @@ tokio-stream.workspace = true
 reqwest-eventsource.workspace = true
 globset.workspace = true
 futures.workspace = true
+diesel = { version = "2.1", features = ["sqlite", "chrono"] }
+diesel_migrations = "2.1"
+chrono.workspace = true
 
 [dev-dependencies]
 serial_test = "3.2"

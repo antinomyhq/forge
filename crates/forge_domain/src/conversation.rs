@@ -34,6 +34,7 @@ impl ConversationId {
 #[derive(Debug, Setters, Serialize, Deserialize, Clone)]
 pub struct Conversation {
     pub id: ConversationId,
+    pub workspace_id: String,
     pub archived: bool,
     pub context: Option<Context>,
     pub variables: HashMap<String, Value>,
@@ -81,6 +82,7 @@ impl Conversation {
 
     pub fn new(
         id: ConversationId,
+        workspace_id: String,
         workflow: Workflow,
         tools: Vec<ToolName>,
         mut agents: Vec<Agent>,
@@ -163,6 +165,7 @@ impl Conversation {
 
         let mut conversation = Self {
             id,
+            workspace_id,
             archived: false,
             context: None,
             variables: Default::default(),
@@ -286,7 +289,7 @@ mod tests {
         let workflow = Workflow::new();
 
         // Act
-        let conversation = super::Conversation::new(id.clone(), workflow, vec![], vec![]);
+        let conversation = super::Conversation::new(id.clone(), "test_workspace".to_string(), workflow, vec![], vec![]);
 
         // Assert
         assert_eq!(conversation.id, id);

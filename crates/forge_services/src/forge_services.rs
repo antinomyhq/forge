@@ -20,7 +20,7 @@ use crate::tool_services::{
 };
 use crate::workflow::ForgeWorkflowService;
 use crate::{
-    CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
+    CommandInfra, ConversationStorageInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
     FileReaderInfra, FileRemoverInfra, FileWriterInfra, ForgeConversationService, McpServerInfra,
     SnapshotInfra, UserInfra, WalkerInfra,
 };
@@ -74,6 +74,7 @@ impl<
         + WalkerInfra
         + DirectoryReaderInfra
         + CommandInfra
+        + ConversationStorageInfra
         + UserInfra,
 > ForgeServices<F>
 {
@@ -150,6 +151,7 @@ impl<
         + FileInfoInfra
         + FileDirectoryInfra
         + EnvironmentInfra
+        + ConversationStorageInfra
         + DirectoryReaderInfra
         + HttpInfra
         + WalkerInfra
