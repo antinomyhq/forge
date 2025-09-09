@@ -80,6 +80,9 @@ impl Environment {
     pub fn agent_path(&self) -> PathBuf {
         self.base_path.join("agents")
     }
+    pub fn agent_cwd_path(&self) -> PathBuf {
+        self.cwd.join(".forge/agents")
+    }
     pub fn permissions_path(&self) -> PathBuf {
         self.base_path.join("permissions.yaml")
     }
@@ -92,5 +95,81 @@ impl Environment {
     }
     pub fn app_config(&self) -> PathBuf {
         self.base_path.join(".config.json")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    #[test]
+    fn test_agent_cwd_path() {
+        // Create a test environment with arbitrary values
+        let fixture = Environment {
+            os: "linux".to_string(),
+            pid: 1234,
+            cwd: PathBuf::from("/current/working/dir"),
+            home: Some(PathBuf::from("/home/user")),
+            shell: "zsh".to_string(),
+            base_path: PathBuf::from("/home/user/.forge"),
+            forge_api_url: "https://api.example.com".parse().unwrap(),
+            retry_config: RetryConfig::default(),
+            max_search_lines: 1000,
+            max_search_result_bytes: 10240,
+            fetch_truncation_limit: 50000,
+            stdout_max_prefix_length: 100,
+            stdout_max_suffix_length: 100,
+            stdout_max_line_length: 500,
+            max_read_size: 2000,
+            http: HttpConfig::default(),
+            max_file_size: 104857600,
+            tool_timeout: 300,
+        };
+
+        let actual = fixture.agent_cwd_path();
+        let expected = PathBuf::from("/current/working/dir/.forge/agents");
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_agent_cwd_path_independent_from_agent_path() {
+        // Create a test environment with different base_path and cwd
+        let fixture = Environment {
+            os: "linux".to_string(),
+            pid: 1234,
+            cwd: PathBuf::from("/different/current/dir"),
+            home: Some(PathBuf::from("/different/home")),
+            shell: "bash".to_string(),
+            base_path: PathBuf::from("/completely/different/base"),
+            forge_api_url: "https://api.example.com".parse().unwrap(),
+            retry_config: RetryConfig::default(),
+            max_search_lines: 1000,
+            max_search_result_bytes: 10240,
+            fetch_truncation_limit: 50000,
+            stdout_max_prefix_length: 100,
+            stdout_max_suffix_length: 100,
+            stdout_max_line_length: 500,
+            max_read_size: 2000,
+            http: HttpConfig::default(),
+            max_file_size: 104857600,
+            tool_timeout: 300,
+        };
+
+        let agent_path = fixture.agent_path();
+        let agent_cwd_path = fixture.agent_cwd_path();
+        let expected_agent_path = PathBuf::from("/completely/different/base/agents");
+        let expected_agent_cwd_path = PathBuf::from("/different/current/dir/.forge/agents");
+
+        // Verify that agent_path uses base_path
+        assert_eq!(agent_path, expected_agent_path);
+
+        // Verify that agent_cwd_path is independent and always relative to CWD
+        assert_eq!(agent_cwd_path, expected_agent_cwd_path);
+
+        // Verify they are different paths
+        assert_ne!(agent_path, agent_cwd_path);
     }
 }
