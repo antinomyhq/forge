@@ -65,6 +65,8 @@ pub struct AgentInput {
     pub explanation: Option<String>,
 }
 
+fn default_true() -> bool { true }
+
 /// Reads file contents from the specified absolute path. Ideal for analyzing
 /// code, configuration files, documentation, or textual data. Returns the
 /// content as a string. For files larger than 2,000 lines, the tool
@@ -83,6 +85,11 @@ pub struct FSRead {
     /// will start from this line position.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start_line: Option<i32>,
+
+    /// If true, prefixes each line with its line index (starting at 1).
+    /// Defaults to true.
+    #[serde(default = "default_true")]
+    pub line_numbered: bool,
 
     /// Optional end position in lines (inclusive). If provided, reading
     /// will end at this line position.
