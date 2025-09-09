@@ -76,6 +76,18 @@ pub struct Cli {
     /// The worktree name will be used as the branch name.
     #[arg(long)]
     pub sandbox: Option<String>,
+
+    /// Resume the previous active conversation for the current workspace.
+    ///
+    /// When enabled, loads the most recent conversation state from the
+    /// current workspace, allowing you to continue where you left off.
+    /// This includes the conversation history, context, and any ongoing
+    /// tasks or discussions.
+    ///
+    /// If no previous conversation exists for the workspace, starts a
+    /// new conversation normally.
+    #[arg(long)]
+    pub resume: Option<bool>,
 }
 
 #[derive(Subcommand, Debug, Clone)]
