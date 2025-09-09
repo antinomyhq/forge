@@ -97,8 +97,13 @@ impl<S: Services> ForgeApp<S> {
 
         let custom_instructions = services.get_custom_instructions().await;
 
-        // Prepare agents with user configuration
-        let agents = prepare_agents(services.get_agents().await?, &workflow, &mcp_tools);
+        // Prepare agents with user configuration and subscriptions
+        let agents = prepare_agents(services.get_agents().await?.clone(), &workflow, &mcp_tools);
+
+        let agent = agents
+            .into_iter()
+            .find(|agent| agent.has_subscription(&chat.event.name))
+            .ok_or(crate::Error::UnsubscribedEvent(chat.event.name.to_owned()))?;
 
         // Create the orchestrator with all necessary dependencies
         let orch = Orchestrator::new(
@@ -106,9 +111,9 @@ impl<S: Services> ForgeApp<S> {
             environment.clone(),
             conversation,
             Local::now(),
+            agent,
         )
         .custom_instructions(custom_instructions)
-        .agents(agents)
         .system_tools(system_tools)
         .models(models)
         .files(files);

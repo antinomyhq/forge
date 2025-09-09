@@ -24,7 +24,7 @@ pub struct Orchestrator<S> {
     files: Vec<String>,
     current_time: chrono::DateTime<chrono::Local>,
     custom_instructions: Vec<String>,
-    agents: Vec<Agent>,
+    agent: Agent,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -33,18 +33,19 @@ impl<S: AgentService> Orchestrator<S> {
         environment: Environment,
         conversation: Conversation,
         current_time: chrono::DateTime<chrono::Local>,
+        agent: Agent,
     ) -> Self {
         Self {
             conversation,
             environment,
             services,
+            current_time,
+            agent,
             sender: Default::default(),
             system_tools: Default::default(),
             models: Default::default(),
             files: Default::default(),
-            current_time,
             custom_instructions: Default::default(),
-            agents: Default::default(),
         }
     }
 
@@ -64,14 +65,16 @@ impl<S: AgentService> Orchestrator<S> {
         // Always process tool calls sequentially
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
 
-        for tool_call in tool_calls {
-            let is_agent = self
-                .agents
-                .iter()
-                .any(|agent| agent.id.as_str() == tool_call.name.as_str());
+        let system_tools = self
+            .system_tools
+            .iter()
+            .map(|tool| &tool.name)
+            .collect::<HashSet<_>>();
 
-            // Send the start notification
-            if !is_agent {
+        for tool_call in tool_calls {
+            // Send the start notification for system tools and not agent as a tool
+            let is_system_tool = system_tools.contains(&tool_call.name);
+            if is_system_tool {
                 self.send(ChatResponse::ToolCallStart(tool_call.clone()))
                     .await?;
             }
@@ -92,8 +95,8 @@ impl<S: AgentService> Orchestrator<S> {
                 );
             }
 
-            // Send the end notification
-            if !is_agent {
+            // Send the end notification for system tools and not agent as a tool
+            if is_system_tool {
                 self.send(ChatResponse::ToolCallEnd(tool_result.clone()))
                     .await?;
             }
@@ -225,14 +228,7 @@ impl<S: AgentService> Orchestrator<S> {
         );
 
         // Execute all agent initialization with the event
-        for agent in self
-            .agents
-            .clone()
-            .into_iter()
-            .filter(|agent| agent.has_subscription(&event.name))
-        {
-            self.init_agent(&agent.id, &event).await?;
-        }
+        self.init_agent(&event).await?;
 
         Ok(())
     }
@@ -276,20 +272,16 @@ impl<S: AgentService> Orchestrator<S> {
     }
 
     // Create a helper method with the core functionality
-    async fn init_agent(&mut self, agent_id: &AgentId, event: &Event) -> anyhow::Result<()> {
+    async fn init_agent(&mut self, event: &Event) -> anyhow::Result<()> {
+        let agent = self.agent.clone();
         let mut tool_failure_attempts = HashMap::new();
         debug!(
             conversation_id = %self.conversation.id,
-            agent = %agent_id,
+            agent = %agent.id,
             event = ?event,
             "Initializing agent"
         );
-        let agent = self
-            .agents
-            .iter()
-            .find(|agent| &agent.id == agent_id)
-            .ok_or(forge_domain::Error::AgentUndefined(agent_id.to_owned()))?
-            .clone();
+
         let model_id = agent
             .model
             .clone()
