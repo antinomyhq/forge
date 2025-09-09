@@ -4,7 +4,7 @@
 # Converts '# abc' to '$FORGE_CMD <<< abc' using ZLE widgets
 
 # Configuration: Change this variable to customize the forge command
-FORGE_CMD="cargo run"
+FORGE_CMD="forge"
 
 # Helper function for shared transformation logic
 function _forge_transform_buffer() {
