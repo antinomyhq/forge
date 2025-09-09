@@ -657,22 +657,22 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         // When configured via CLI, we should directly resume the conversation and
                         // shouldn't ask user permission.
                         if self.cli.resume {
-                            return Ok(last_conversation.id);
-                        }
-
-                        // Ask user if they want to resume the last conversation
-                        let resume_last = ForgeSelect::confirm(format!(
+                            last_conversation.id
+                        } else {
+                            // Ask user if they want to resume the last conversation
+                            let resume_last = ForgeSelect::confirm(format!(
                             "Resume last conversation ({})?", 
                             last_conversation.id
                         ))
                         .with_default(true)
                         .with_help_message("Select 'yes' to continue your previous conversation or 'no' to start fresh")
                         .prompt()?;
-                        if resume_last == Some(true) {
-                            last_conversation
-                        } else {
-                            self.spinner.start(Some("Initializing"))?;
-                            self.api.init_conversation(workflow).await?
+                            if resume_last == Some(true) {
+                                last_conversation
+                            } else {
+                                self.spinner.start(Some("Initializing"))?;
+                                self.api.init_conversation(workflow).await?
+                            }
                         }
                     } else {
                         self.api.init_conversation(workflow).await?
