@@ -365,7 +365,7 @@ impl<S: AgentService> Orchestrator<S> {
         let mut request_count = 0;
 
         // Retrieve the number of requests allowed per tick.
-        let max_requests_per_turn = self.conversation.max_requests_per_turn;
+        let max_requests_per_turn = agent.max_requests_per_turn;
 
         // Store tool calls at turn level
         let mut turn_has_tool_calls = false;
@@ -477,7 +477,7 @@ impl<S: AgentService> Orchestrator<S> {
             // Check if tool calls are within allowed limits if max_tool_failure_per_turn is
             // configured
             let mut allowed_limits_exceeded =
-                self.check_tool_call_failures(&tool_failure_attempts, &tool_calls);
+                self.check_tool_call_failures(&agent, &tool_failure_attempts, &tool_calls);
 
             // Process tool calls and update context
             let mut tool_call_records = self
@@ -486,8 +486,7 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Update the tool call attempts, if the tool call is an error
             // we increment the attempts, otherwise we remove it from the attempts map
-            if let Some(allowed_max_attempts) = self.conversation.max_tool_failure_per_turn.as_ref()
-            {
+            if let Some(allowed_max_attempts) = agent.max_tool_failure_per_turn.as_ref() {
                 tool_call_records.iter_mut().for_each(|(_, result)| {
                     if result.is_error() {
                         let current_attempts = tool_failure_attempts
@@ -566,11 +565,11 @@ impl<S: AgentService> Orchestrator<S> {
                     agent_id = %agent.id,
                     model_id = %model_id,
                     tools = %tool_failure_attempts.iter().map(|(name, count)| format!("{name}: {count}")).collect::<Vec<_>>().join(", "),
-                    max_tool_failure_per_turn = ?self.conversation.max_tool_failure_per_turn,
+                    max_tool_failure_per_turn = ?agent.max_tool_failure_per_turn,
                     "Tool execution failure limit exceeded - terminating conversation to prevent infinite retry loops."
                 );
 
-                if let Some(limit) = self.conversation.max_tool_failure_per_turn {
+                if let Some(limit) = agent.max_tool_failure_per_turn {
                     self.send(ChatResponse::Interrupt {
                         reason: InterruptionReason::MaxToolFailurePerTurnLimitReached {
                             limit: limit as u64,
@@ -630,17 +629,16 @@ impl<S: AgentService> Orchestrator<S> {
 
     fn check_tool_call_failures(
         &self,
+        agent: &Agent,
         tool_failure_attempts: &HashMap<ToolName, usize>,
         tool_calls: &[ToolCallFull],
     ) -> bool {
-        self.conversation
-            .max_tool_failure_per_turn
-            .is_some_and(|limit| {
-                tool_calls
-                    .iter()
-                    .map(|call| tool_failure_attempts.get(&call.name).unwrap_or(&0))
-                    .any(|count| *count >= limit)
-            })
+        agent.max_tool_failure_per_turn.is_some_and(|limit| {
+            tool_calls
+                .iter()
+                .map(|call| tool_failure_attempts.get(&call.name).unwrap_or(&0))
+                .any(|count| *count >= limit)
+        })
     }
 
     async fn set_user_prompt(

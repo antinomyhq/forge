@@ -177,6 +177,18 @@ pub struct Agent {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub reasoning: Option<ReasoningConfig>,
+    /// Maximum number of times a tool can fail before the orchestrator
+    /// forces the completion.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub max_tool_failure_per_turn: Option<usize>,
+
+    /// Maximum number of requests that can be made in a single turn
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub max_requests_per_turn: Option<usize>,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, Setters, JsonSchema, PartialEq)]
@@ -245,6 +257,8 @@ impl Agent {
             top_k: Default::default(),
             max_tokens: Default::default(),
             reasoning: Default::default(),
+            max_tool_failure_per_turn: Default::default(),
+            max_requests_per_turn: Default::default(),
         }
     }
 
@@ -355,6 +369,15 @@ pub fn prepare_agents(
         if let Some(tool_supported) = workflow.tool_supported {
             agent.tool_supported = Some(tool_supported);
         }
+        if agent.max_tool_failure_per_turn.is_none()
+            && let Some(max_tool_failure_per_turn) = workflow.max_tool_failure_per_turn {
+                agent.max_tool_failure_per_turn = Some(max_tool_failure_per_turn);
+            }
+
+        if agent.max_requests_per_turn.is_none()
+            && let Some(max_requests_per_turn) = workflow.max_requests_per_turn {
+                agent.max_requests_per_turn = Some(max_requests_per_turn);
+            }
 
         // Apply workflow compact configuration to agents
         if let Some(ref workflow_compact) = workflow.compact {

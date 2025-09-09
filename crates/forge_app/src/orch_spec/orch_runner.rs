@@ -79,7 +79,8 @@ impl Runner {
             Duration::from_secs(1),
             rx.recv_many(&mut chat_responses, LIMIT),
         )
-        .await?;
+        .await
+        .map_err(|_| anyhow::anyhow!("orchestrator did not produce any events"))?;
         setup.output.chat_responses.extend(chat_responses);
         setup
             .output
