@@ -370,14 +370,16 @@ pub fn prepare_agents(
             agent.tool_supported = Some(tool_supported);
         }
         if agent.max_tool_failure_per_turn.is_none()
-            && let Some(max_tool_failure_per_turn) = workflow.max_tool_failure_per_turn {
-                agent.max_tool_failure_per_turn = Some(max_tool_failure_per_turn);
-            }
+            && let Some(max_tool_failure_per_turn) = workflow.max_tool_failure_per_turn
+        {
+            agent.max_tool_failure_per_turn = Some(max_tool_failure_per_turn);
+        }
 
         if agent.max_requests_per_turn.is_none()
-            && let Some(max_requests_per_turn) = workflow.max_requests_per_turn {
-                agent.max_requests_per_turn = Some(max_requests_per_turn);
-            }
+            && let Some(max_requests_per_turn) = workflow.max_requests_per_turn
+        {
+            agent.max_requests_per_turn = Some(max_requests_per_turn);
+        }
 
         // Apply workflow compact configuration to agents
         if let Some(ref workflow_compact) = workflow.compact {
