@@ -12,7 +12,7 @@ use url::Url;
 use crate::orch_spec::orch_runner::Runner;
 
 #[derive(Setters)]
-#[setters(into)]
+#[setters(into, strip_option)]
 pub struct TestContext {
     pub event: Event,
     pub mock_tool_call_responses: Vec<(ToolCallFull, ToolResult)>,
@@ -26,6 +26,9 @@ pub struct TestContext {
     // Final output of the test is store in the context
     pub output: TestOutput,
     pub agents: Vec<Agent>,
+
+    // title for underlying conversation
+    pub title: Option<String>,
 }
 
 impl TestContext {
@@ -83,6 +86,7 @@ impl TestContext {
                     .system_prompt(Template::new("You are Muse"))
                     .tools(vec![("fs_read").into()]),
             ],
+            title: Some("Test-title".into()),
         }
     }
 

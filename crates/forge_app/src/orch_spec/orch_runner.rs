@@ -65,7 +65,7 @@ impl Runner {
             setup.workflow.clone(),
             Default::default(),
             agents,
-        );
+        ).title(setup.title.clone());
 
         let orch = Orchestrator::new(
             services.clone(),
