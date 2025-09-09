@@ -51,7 +51,7 @@ impl Content {
 
     pub fn file_content(&self) -> &str {
         match self {
-            Self::File(content) => &content,
+            Self::File(content) => content,
         }
     }
 }
