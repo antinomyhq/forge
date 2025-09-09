@@ -656,7 +656,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                         // When configured via CLI, we should directly resume the conversation and
                         // shouldn't ask user permission.
-                        if self.cli.resume == Some(true) {
+                        if self.cli.resume {
                             return Ok(last_conversation.id);
                         }
 

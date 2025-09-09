@@ -86,8 +86,8 @@ pub struct Cli {
     ///
     /// If no previous conversation exists for the workspace, starts a
     /// new conversation normally.
-    #[arg(long)]
-    pub resume: Option<bool>,
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    pub resume: bool,
 }
 
 #[derive(Subcommand, Debug, Clone)]
