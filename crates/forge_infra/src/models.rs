@@ -9,6 +9,7 @@ use crate::schema::conversations;
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct ConversationRecord {
     pub conversation_id: String,
+    pub title: Option<String>,
     pub workspace_id: String,
     pub context: String,
     pub created_at: NaiveDateTime,
@@ -19,6 +20,7 @@ pub struct ConversationRecord {
 #[diesel(table_name = conversations)]
 pub struct NewConversationRecord {
     pub conversation_id: String,
+    pub title: Option<String>,
     pub workspace_id: String,
     pub context: String,
 }
@@ -27,6 +29,7 @@ pub struct NewConversationRecord {
 #[diesel(table_name = conversations)]
 pub struct UpsertConversationRecord {
     pub conversation_id: String,
+    pub title: Option<String>,
     pub workspace_id: String,
     pub context: String,
     pub updated_at: NaiveDateTime,
@@ -39,6 +42,7 @@ impl TryFrom<&forge_domain::Conversation> for NewConversationRecord {
         let context = serde_json::to_string(conversation)?;
         let workspace_id = &conversation.workspace_id;
         Ok(NewConversationRecord {
+            title: conversation.title.clone(),
             conversation_id: conversation.id.into_string(),
             workspace_id: workspace_id.to_string(),
             context,
@@ -54,6 +58,7 @@ impl TryFrom<&forge_domain::Conversation> for UpsertConversationRecord {
         let workspace_id = &conversation.workspace_id;
 
         Ok(UpsertConversationRecord {
+            title: conversation.title.clone(),
             conversation_id: conversation.id.into_string(),
             workspace_id: workspace_id.to_string(),
             context,

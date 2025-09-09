@@ -93,6 +93,7 @@ impl ConversationStorageInfra for ConversationRepository {
             .on_conflict(conversations::conversation_id)
             .do_update()
             .set((
+                conversations::title.eq(upsert_record.title.clone()),
                 conversations::context.eq(upsert_record.context.clone()),
                 conversations::updated_at.eq(upsert_record.updated_at),
             ))
