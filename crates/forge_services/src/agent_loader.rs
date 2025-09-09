@@ -183,7 +183,6 @@ fn parse_agent_file(content: &str) -> Result<Agent> {
 
 #[cfg(test)]
 mod tests {
-    use forge_app::domain::ToolName;
     use pretty_assertions::assert_eq;
 
     use super::*;
