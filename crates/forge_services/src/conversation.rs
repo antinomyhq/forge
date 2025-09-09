@@ -1,9 +1,8 @@
-use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use forge_app::domain::{Agent, Conversation, ConversationId, Workflow};
+use forge_app::domain::{Agent, Conversation, ConversationId, Workflow, WorkspaceId};
 use forge_app::{ConversationService, McpService};
 
 use crate::{ConversationStorageInfra, EnvironmentInfra};
@@ -13,6 +12,7 @@ use crate::{ConversationStorageInfra, EnvironmentInfra};
 pub struct ForgeConversationService<M, I> {
     mcp_service: Arc<M>,
     infra: Arc<I>,
+    workspace_id: WorkspaceId,
 }
 
 impl<M: McpService, I> ForgeConversationService<M, I>
@@ -21,13 +21,11 @@ where
 {
     /// Creates a new ForgeConversationService instance
     pub fn new(mcp_service: Arc<M>, infra: Arc<I>) -> Self {
-        Self { mcp_service, infra }
-    }
-
-    fn get_workspace_id(&self) -> String {
-        let mut hasher = DefaultHasher::new();
-        self.infra.get_environment().cwd.hash(&mut hasher);
-        format!("{:x}", hasher.finish())
+        Self {
+            mcp_service,
+            workspace_id: infra.get_environment().workspace_id(),
+            infra,
+        }
     }
 }
 
@@ -56,7 +54,6 @@ where
         agents: Vec<Agent>,
     ) -> Result<Conversation> {
         let id = ConversationId::generate();
-        let workspace_id = self.get_workspace_id();
         let tool_names = self
             .mcp_service
             .list()
@@ -67,7 +64,7 @@ where
             .map(|tool| tool.name)
             .collect::<Vec<_>>();
 
-        let conversation = Conversation::new(id, workspace_id, workflow, tool_names, agents);
+        let conversation = Conversation::new(id, self.workspace_id.clone(), workflow, tool_names, agents);
         self.upsert_conversation(conversation.clone()).await?;
         Ok(conversation)
     }
@@ -87,18 +84,15 @@ where
     }
 
     async fn find_last_active_conversation(&self) -> Result<Option<Conversation>> {
-        let workspace_id = self.get_workspace_id();
-
         self.infra
-            .find_latest_by_workspace_id(&workspace_id)
+            .find_latest_by_workspace_id(&self.workspace_id)
             .await
             .context("Failed to find latest conversation")
     }
 
     async fn list_conversations(&self) -> Result<Vec<Conversation>> {
-        let workspace_id = self.get_workspace_id();
         self.infra
-            .find_by_workspace_id(&workspace_id)
+            .find_by_workspace_id(&self.workspace_id)
             .await
             .context("Failed to list conversations")
     }

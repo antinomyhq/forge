@@ -46,8 +46,7 @@ impl ConversationRepository {
 impl ConversationStorageInfra for ConversationRepository {
     async fn save(&self, conversation: &Conversation) -> Result<()> {
         let mut connection = self.get_connection()?;
-        let new_record =
-            NewConversationRecord::try_from((conversation, conversation.workspace_id.clone()))?;
+        let new_record = NewConversationRecord::try_from(conversation)?;
 
         diesel::insert_into(conversations::table)
             .values(&new_record)
@@ -87,14 +86,14 @@ impl ConversationStorageInfra for ConversationRepository {
 
     async fn upsert(&self, conversation: &Conversation) -> Result<()> {
         let mut connection = self.get_connection()?;
-        let upsert_record =
-            UpsertConversationRecord::try_from((conversation, conversation.workspace_id.clone()))?;
+        let upsert_record = UpsertConversationRecord::try_from(conversation)?;
 
         diesel::insert_into(conversations::table)
             .values(&upsert_record)
             .on_conflict(conversations::conversation_id)
             .do_update()
             .set((
+                conversations::title.eq(upsert_record.title.clone()),
                 conversations::context.eq(upsert_record.context.clone()),
                 conversations::updated_at.eq(upsert_record.updated_at),
             ))

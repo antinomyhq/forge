@@ -2,7 +2,7 @@ use forge_template::Element;
 use serde_json::to_string_pretty;
 
 use crate::context::ContextMessage;
-use crate::conversation::Conversation;
+use crate::conversation::{Conversation};
 
 pub fn render_conversation_html(conversation: &Conversation) -> String {
     let html = Element::new("html")
@@ -379,6 +379,7 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
 mod tests {
     use super::*;
     use crate::conversation::Conversation;
+    use crate::WorkspaceId;
 
     #[test]
     fn test_render_empty_conversation() {
@@ -386,7 +387,7 @@ mod tests {
         let id = crate::conversation::ConversationId::generate();
         let workflow = crate::Workflow::new();
 
-        let fixture = Conversation::new(id, workflow, Default::default(), vec![]);
+        let fixture = Conversation::new(id, WorkspaceId::new("a1b2c3d4e5f6789a"), workflow, vec![], vec![]);
         let actual = render_conversation_html(&fixture);
 
         // We're verifying that the function runs without errors

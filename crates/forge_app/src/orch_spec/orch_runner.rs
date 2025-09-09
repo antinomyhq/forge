@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use forge_domain::{
-    ChatCompletionMessage, ChatResponse, Conversation, ConversationId, ToolCallFull, ToolResult,
+    ChatCompletionMessage, ChatResponse, Conversation, ConversationId, ToolCallFull, ToolResult, WorkspaceId,
 };
 use handlebars::{Handlebars, no_escape};
 use rust_embed::Embed;
@@ -61,10 +61,11 @@ impl Runner {
         let services = Arc::new(Runner::new(setup));
         let conversation = Conversation::new(
             ConversationId::generate(),
+            WorkspaceId::new("a1b2c3d4e5f6789a"),
             setup.workflow.clone(),
             Default::default(),
             agents,
-        );
+        ).title(setup.title.clone());
 
         let orch = Orchestrator::new(
             services.clone(),
