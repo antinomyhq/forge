@@ -226,13 +226,25 @@ pub trait DirectoryReaderInfra: Send + Sync {
 pub trait ConversationStorageInfra: Send + Sync {
     /// Insert a new conversation record
     async fn save(&self, conversation: &forge_app::domain::Conversation) -> anyhow::Result<()>;
-    
+
     /// Get a conversation by ID
-    async fn find_by_id(&self, conversation_id: &str) -> anyhow::Result<Option<forge_app::domain::Conversation>>;
-    
+    async fn find_by_id(
+        &self,
+        conversation_id: &str,
+    ) -> anyhow::Result<Option<forge_app::domain::Conversation>>;
+
     /// List all conversations for a workspace, ordered by updated_at DESC
-    async fn find_by_workspace_id(&self, workspace_id: &str) -> anyhow::Result<Vec<forge_app::domain::Conversation>>;
-    
+    async fn find_by_workspace_id(
+        &self,
+        workspace_id: &str,
+    ) -> anyhow::Result<Vec<forge_app::domain::Conversation>>;
+
     /// Insert or update a conversation (upsert operation)
     async fn upsert(&self, conversation: &forge_app::domain::Conversation) -> anyhow::Result<()>;
+
+    /// Find the most recently active conversation for a workspace
+    async fn find_latest_by_workspace_id(
+        &self,
+        workspace_id: &str,
+    ) -> anyhow::Result<Option<forge_app::domain::Conversation>>;
 }

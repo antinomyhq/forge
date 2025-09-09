@@ -289,7 +289,13 @@ mod tests {
         let workflow = Workflow::new();
 
         // Act
-        let conversation = super::Conversation::new(id.clone(), "test_workspace".to_string(), workflow, vec![], vec![]);
+        let conversation = super::Conversation::new(
+            id.clone(),
+            "test_workspace".to_string(),
+            workflow,
+            vec![],
+            vec![],
+        );
 
         // Assert
         assert_eq!(conversation.id, id);

@@ -78,7 +78,7 @@ impl ConversationStorageInfra for ConversationRepository {
             .filter(conversations::workspace_id.eq(workspace_id))
             .order(conversations::updated_at.desc())
             .load(&mut connection)?;
-            
+
         Ok(records
             .into_iter()
             .filter_map(|record| Conversation::try_from(&record).ok())
@@ -100,5 +100,25 @@ impl ConversationStorageInfra for ConversationRepository {
             ))
             .execute(&mut connection)?;
         Ok(())
+    }
+
+    async fn find_latest_by_workspace_id(
+        &self,
+        workspace_id: &str,
+    ) -> Result<Option<Conversation>> {
+        let mut connection = self.get_connection()?;
+
+        let record: Option<crate::models::ConversationRecord> = conversations::table
+            .filter(conversations::workspace_id.eq(workspace_id))
+            .order(conversations::updated_at.desc())
+            .first(&mut connection)
+            .optional()?;
+
+        if let Some(record) = record {
+            let conversation = Conversation::try_from(&record)?;
+            Ok(Some(conversation))
+        } else {
+            Ok(None)
+        }
     }
 }

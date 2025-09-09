@@ -59,7 +59,9 @@ async fn main() -> Result<()> {
     if neo_ui {
         return forge_main_neo::main_neo(cwd).await;
     }
-    let mut ui = UI::init(cli, move || ForgeAPI::init(restricted, cwd.clone()).expect("Failed to initialize ForgeAPI"))?;
+    let mut ui = UI::init(cli, move || {
+        ForgeAPI::init(restricted, cwd.clone()).expect("Failed to initialize ForgeAPI")
+    })?;
     ui.run().await;
 
     Ok(())

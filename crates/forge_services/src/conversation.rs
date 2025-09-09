@@ -8,7 +8,8 @@ use forge_app::{ConversationService, McpService};
 
 use crate::{ConversationStorageInfra, EnvironmentInfra};
 
-/// Database-backed conversation service that persists conversations via storage infrastructure
+/// Database-backed conversation service that persists conversations via storage
+/// infrastructure
 pub struct ForgeConversationService<M, I> {
     mcp_service: Arc<M>,
     infra: Arc<I>,
@@ -16,18 +17,11 @@ pub struct ForgeConversationService<M, I> {
 
 impl<M: McpService, I> ForgeConversationService<M, I>
 where
-    I: EnvironmentInfra
-        + ConversationStorageInfra
-        + Send
-        + Sync
-        + 'static,
+    I: EnvironmentInfra + ConversationStorageInfra + Send + Sync + 'static,
 {
     /// Creates a new ForgeConversationService instance
     pub fn new(mcp_service: Arc<M>, infra: Arc<I>) -> Self {
-        Self {
-            mcp_service,
-            infra,
-        }
+        Self { mcp_service, infra }
     }
 
     fn get_workspace_id(&self) -> String {
@@ -40,11 +34,7 @@ where
 #[async_trait]
 impl<M: McpService, I> ConversationService for ForgeConversationService<M, I>
 where
-    I: EnvironmentInfra
-        + ConversationStorageInfra
-        + Send
-        + Sync
-        + 'static,
+    I: EnvironmentInfra + ConversationStorageInfra + Send + Sync + 'static,
 {
     async fn find_conversation(&self, id: &ConversationId) -> Result<Option<Conversation>> {
         self.infra
@@ -98,14 +88,11 @@ where
 
     async fn find_last_active_conversation(&self) -> Result<Option<Conversation>> {
         let workspace_id = self.get_workspace_id();
-        
-        let conversations = self.infra
-            .find_by_workspace_id(&workspace_id)
+
+        self.infra
+            .find_latest_by_workspace_id(&workspace_id)
             .await
-            .context("Failed to list conversations")?;
-        
-        // Return the first (most recently updated) conversation
-        Ok(conversations.into_iter().next())
+            .context("Failed to find latest conversation")
     }
 
     async fn list_conversations(&self) -> Result<Vec<Conversation>> {

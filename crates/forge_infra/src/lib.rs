@@ -1,8 +1,8 @@
 pub mod executor;
 
-pub mod schema;
-pub mod models;
 pub mod conversation_repository;
+pub mod models;
+pub mod schema;
 
 mod env;
 mod error;
@@ -20,6 +20,6 @@ mod mcp_client;
 mod mcp_server;
 mod walker;
 
+pub use conversation_repository::*;
 pub use executor::ForgeCommandExecutorService;
 pub use forge_infra::*;
-pub use conversation_repository::*;

@@ -654,7 +654,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     {
                         self.spinner.stop(None)?;
 
-                        // When configured via CLI, we should directly resume the conversation and shouldn't ask user permission.
+                        // When configured via CLI, we should directly resume the conversation and
+                        // shouldn't ask user permission.
                         if self.cli.resume == Some(true) {
                             return Ok(last_conversation.id);
                         }
