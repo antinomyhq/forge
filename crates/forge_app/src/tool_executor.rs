@@ -138,7 +138,7 @@ impl<
     async fn call_internal(&self, input: Tools) -> anyhow::Result<ToolOperation> {
         Ok(match input {
             Tools::Read(input) => {
-                let output: crate::ReadOutput = self
+                let output = self
                     .services
                     .read(
                         input.path.clone(),
@@ -157,7 +157,7 @@ impl<
                         .collect::<Vec<_>>()
                         .join("\n");
                     output.content(crate::Content::file(numbered_content))
-                }else {
+                } else {
                     output
                 };
 
