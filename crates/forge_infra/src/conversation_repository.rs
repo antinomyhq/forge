@@ -114,11 +114,6 @@ impl ConversationStorageInfra for ConversationRepository {
             .first(&mut connection)
             .optional()?;
 
-        if let Some(record) = record {
-            let conversation = Conversation::try_from(&record)?;
-            Ok(Some(conversation))
-        } else {
-            Ok(None)
-        }
+        Ok(record.and_then(|record| Conversation::try_from(&record).ok()))
     }
 }
