@@ -1,10 +1,11 @@
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::PathBuf;
 
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::{HttpConfig, RetryConfig};
+use crate::{HttpConfig, RetryConfig, WorkspaceId};
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     Some(val) => val,
@@ -95,6 +96,12 @@ impl Environment {
     }
     pub fn app_config(&self) -> PathBuf {
         self.base_path.join(".config.json")
+    }
+
+    pub fn workspace_id(&self) -> WorkspaceId {
+        let mut hasher = DefaultHasher::new();
+        self.cwd.hash(&mut hasher);
+        format!("{:x}", hasher.finish()).into()
     }
 
     pub fn database_path(&self) -> PathBuf {

@@ -32,33 +32,30 @@ pub struct UpsertConversationRecord {
     pub updated_at: NaiveDateTime,
 }
 
-impl TryFrom<(&forge_domain::Conversation, String)> for NewConversationRecord {
+impl TryFrom<&forge_domain::Conversation> for NewConversationRecord {
     type Error = anyhow::Error;
 
-    fn try_from(
-        (conversation, workspace_id): (&forge_domain::Conversation, String),
-    ) -> Result<Self, Self::Error> {
+    fn try_from(conversation: &forge_domain::Conversation) -> Result<Self, Self::Error> {
         let context = serde_json::to_string(conversation)?;
-
+        let workspace_id = &conversation.workspace_id;
         Ok(NewConversationRecord {
             conversation_id: conversation.id.into_string(),
-            workspace_id,
+            workspace_id: workspace_id.to_string(),
             context,
         })
     }
 }
 
-impl TryFrom<(&forge_domain::Conversation, String)> for UpsertConversationRecord {
+impl TryFrom<&forge_domain::Conversation> for UpsertConversationRecord {
     type Error = anyhow::Error;
 
-    fn try_from(
-        (conversation, workspace_id): (&forge_domain::Conversation, String),
-    ) -> Result<Self, Self::Error> {
-        let context = serde_json::to_string(conversation)?;
+    fn try_from(conversation: &forge_domain::Conversation) -> Result<Self, Self::Error> {
+        let context = serde_json::to_string(&conversation)?;
+        let workspace_id = &conversation.workspace_id;
 
         Ok(UpsertConversationRecord {
             conversation_id: conversation.id.into_string(),
-            workspace_id,
+            workspace_id: workspace_id.to_string(),
             context,
             updated_at: chrono::Utc::now().naive_utc(),
         })
@@ -79,7 +76,7 @@ mod tests {
     use std::collections::HashMap;
 
     use chrono::Utc;
-    use forge_domain::{Agent, AgentId, ConversationId, Event, Workflow};
+    use forge_domain::{Agent, AgentId, ConversationId, Event, Workflow, WorkspaceId};
     use pretty_assertions::assert_eq;
     use serde_json::Value;
 
@@ -161,6 +158,7 @@ mod tests {
         let id = ConversationId::generate();
         let mut conversation = forge_domain::Conversation::new(
             id,
+            WorkspaceId::new("a1b2c3d4e5f6789a"),
             Workflow::new(),
             vec![],
             vec![Agent::new(AgentId::default())],
@@ -174,7 +172,7 @@ mod tests {
 
         conversation.insert_event(Event {
             name: "user_task".to_string(),
-            data: event_data,
+            value: Some(Value::Object(event_data.into_iter().collect())),
             ..Default::default()
         });
 
@@ -185,6 +183,7 @@ mod tests {
         let id = ConversationId::generate();
         forge_domain::Conversation::new(
             id,
+            WorkspaceId::new("a1b2c3d4e5f6789a"),
             Workflow::new(),
             vec![],
             vec![Agent::new(AgentId::default())],
@@ -195,6 +194,7 @@ mod tests {
         let id = ConversationId::generate();
         let mut conversation = forge_domain::Conversation::new(
             id,
+            WorkspaceId::new("a1b2c3d4e5f6789a"),
             Workflow::new(),
             vec![],
             vec![Agent::new(AgentId::default())],
@@ -209,7 +209,7 @@ mod tests {
 
         conversation.insert_event(Event {
             name: "user_task".to_string(),
-            data: event_data,
+            value: Some(Value::Object(event_data.into_iter().collect())),
             ..Default::default()
         });
 
