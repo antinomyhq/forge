@@ -52,6 +52,7 @@ update-informer = { version = "1.2.0", default-features = false, features = [
 open.workspace = true
 humantime.workspace = true
 num-format.workspace = true
+atty = "0.2"
 
 [dev-dependencies]
 insta.workspace = true

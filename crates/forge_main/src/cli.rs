@@ -15,6 +15,7 @@ pub struct Cli {
     /// Direct prompt to process without entering interactive mode.
     ///
     /// Allows running a single command directly from the command line.
+    /// Alternatively, you can pipe content to forge: `cat prompt.txt | forge`
     #[arg(long, short = 'p')]
     pub prompt: Option<String>,
 

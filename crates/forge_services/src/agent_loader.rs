@@ -9,8 +9,27 @@ use crate::{
     DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
 };
 
-/// A service for loading agent definitions from individual files in the
-/// forge/agent directory
+/// A service for loading agent definitions from multiple sources:
+/// 1. Built-in agents (embedded in the application)
+/// 2. Global custom agents (from ~/.forge/agents/ directory)
+/// 3. Project-local agents (from .forge/agents/ directory in current working
+///    directory)
+///
+/// ## Agent Precedence
+/// When agents have duplicate IDs across different sources, the precedence
+/// order is: **CWD (project-local) > Global custom > Built-in**
+///
+/// This means project-local agents can override global agents, and both can
+/// override built-in agents.
+///
+/// ## Directory Resolution
+/// - **Built-in agents**: Embedded in application binary
+/// - **Global agents**: `{HOME}/.forge/agents/*.md`
+/// - **CWD agents**: `./.forge/agents/*.md` (relative to current working
+///   directory)
+///
+/// Missing directories are handled gracefully and don't prevent loading from
+/// other sources.
 pub struct AgentLoaderService<F> {
     infra: Arc<F>,
 
@@ -30,7 +49,17 @@ impl<F> AgentLoaderService<F> {
 impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
     forge_app::AgentLoaderService for AgentLoaderService<F>
 {
-    /// Load all agent definitions from the forge/agent directory
+    /// Load all agent definitions from all available sources with conflict
+    /// resolution.
+    ///
+    /// This method loads agents from three sources in order:
+    /// 1. Built-in agents (always available)
+    /// 2. Global custom agents (from ~/.forge/agents/ if directory exists)
+    /// 3. Project-local agents (from ./.forge/agents/ if directory exists)
+    ///
+    /// Duplicate agent IDs are resolved using last-wins strategy, giving
+    /// precedence to project-local agents over global agents, and both over
+    /// built-in agents.
     async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
         self.cache_or_init().await
     }
@@ -39,7 +68,7 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
 impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
     AgentLoaderService<F>
 {
-    /// Load all agent definitions from the forge/agent directory
+    /// Load all agent definitions with caching support
     async fn cache_or_init(&self) -> anyhow::Result<Vec<Agent>> {
         self.cache.get_or_try_init(|| self.init()).await.cloned()
     }
@@ -48,11 +77,20 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
         // Load built-in agents
         let mut agents = self.init_default().await?;
 
-        // Load custom agents
-        let custom_agents = self.init_custom().await?;
+        // Load custom agents from global directory
+        let dir = self.infra.get_environment().agent_path();
+        let custom_agents = self.init_agent_dir(&dir).await?;
         agents.extend(custom_agents);
 
-        Ok(agents)
+        // Load custom agents from CWD
+        let dir = self.infra.get_environment().agent_cwd_path();
+        let cwd_agents = self.init_agent_dir(&dir).await?;
+
+        agents.extend(cwd_agents);
+
+        // Handle agent ID conflicts by keeping the last occurrence
+        // This gives precedence order: CWD > Global Custom > Built-in
+        Ok(resolve_agent_conflicts(agents))
     }
 
     async fn init_default(&self) -> anyhow::Result<Vec<Agent>> {
@@ -69,18 +107,17 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
         )
     }
 
-    async fn init_custom(&self) -> anyhow::Result<Vec<Agent>> {
-        let agent_dir = self.infra.get_environment().agent_path();
-        if !self.infra.exists(&agent_dir).await? {
+    async fn init_agent_dir(&self, dir: &std::path::Path) -> anyhow::Result<Vec<Agent>> {
+        if !self.infra.exists(dir).await? {
             return Ok(vec![]);
         }
 
         // Use DirectoryReaderInfra to read all .md files in parallel
         let files = self
             .infra
-            .read_directory_files(&agent_dir, Some("*.md"))
+            .read_directory_files(dir, Some("*.md"))
             .await
-            .with_context(|| "Failed to read agent directory")?;
+            .with_context(|| format!("Failed to read agents from: {}", dir.display()))?;
 
         parse_agent_iter(files.into_iter().map(|(path, content)| {
             let name = path
@@ -91,6 +128,24 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
             (name, content)
         }))
     }
+}
+
+/// Implementation function for resolving agent ID conflicts by keeping the last
+/// occurrence. This implements the precedence order: CWD Custom > Global Custom
+/// > Built-in
+fn resolve_agent_conflicts(agents: Vec<Agent>) -> Vec<Agent> {
+    use std::collections::HashMap;
+
+    // Use HashMap to deduplicate by agent ID, keeping the last occurrence
+    let mut agent_map: HashMap<String, Agent> = HashMap::new();
+
+    for agent in agents {
+        agent_map.insert(agent.id.to_string(), agent);
+    }
+
+    // Convert back to vector (order is not guaranteed but doesn't matter for the
+    // service)
+    agent_map.into_values().collect()
 }
 
 fn parse_agent_iter<I, Path: AsRef<str>, Content: AsRef<str>>(
@@ -309,4 +364,86 @@ mod tests {
         assert!(tools.contains(&ToolName::new("attempt_completion")));
         assert_eq!(tools.len(), 4); // Original 3 + 1 added
     }
+}
+
+#[test]
+fn test_resolve_agent_conflicts_no_duplicates() {
+    let fixture = vec![
+        Agent::new("agent1").title("Agent 1"),
+        Agent::new("agent2").title("Agent 2"),
+        Agent::new("agent3").title("Agent 3"),
+    ];
+
+    let actual = resolve_agent_conflicts(fixture.clone());
+
+    // Should return all agents when no conflicts
+    assert_eq!(actual.len(), 3);
+
+    let ids: std::collections::HashSet<_> = actual.iter().map(|a| a.id.as_str()).collect();
+    assert!(ids.contains("agent1"));
+    assert!(ids.contains("agent2"));
+    assert!(ids.contains("agent3"));
+}
+
+#[test]
+fn test_resolve_agent_conflicts_with_duplicates() {
+    let fixture = vec![
+        Agent::new("agent1").title("Global Agent 1"),
+        Agent::new("agent2").title("Global Agent 2"),
+        Agent::new("agent1").title("CWD Agent 1 - Override"), // Duplicate ID, should override
+        Agent::new("agent3").title("CWD Agent 3"),
+    ];
+
+    let actual = resolve_agent_conflicts(fixture);
+
+    // Should have 3 agents: agent1 (CWD version), agent2 (global), agent3 (CWD)
+    assert_eq!(actual.len(), 3);
+
+    let agent1 = actual
+        .iter()
+        .find(|a| a.id.as_str() == "agent1")
+        .expect("Should have agent1");
+    let expected_title = "CWD Agent 1 - Override";
+    assert_eq!(agent1.title.as_ref().unwrap(), expected_title);
+}
+
+#[test]
+fn test_resolve_agent_conflicts_multiple_duplicates() {
+    // Test scenario: Built-in -> Global -> CWD (CWD should win)
+    let fixture = vec![
+        Agent::new("common").title("Built-in Common Agent"),
+        Agent::new("unique1").title("Built-in Unique 1"),
+        Agent::new("common").title("Global Common Agent"), // Override built-in
+        Agent::new("unique2").title("Global Unique 2"),
+        Agent::new("common").title("CWD Common Agent"), // Override global
+        Agent::new("unique3").title("CWD Unique 3"),
+    ];
+
+    let actual = resolve_agent_conflicts(fixture);
+
+    // Should have 4 agents: common (CWD version), unique1, unique2, unique3
+    assert_eq!(actual.len(), 4);
+
+    let common = actual
+        .iter()
+        .find(|a| a.id.as_str() == "common")
+        .expect("Should have common agent");
+    let expected_title = "CWD Common Agent";
+    assert_eq!(common.title.as_ref().unwrap(), expected_title);
+
+    // Verify all unique agents are present
+    let ids: std::collections::HashSet<_> = actual.iter().map(|a| a.id.as_str()).collect();
+    assert!(ids.contains("common"));
+    assert!(ids.contains("unique1"));
+    assert!(ids.contains("unique2"));
+    assert!(ids.contains("unique3"));
+}
+
+#[test]
+fn test_resolve_agent_conflicts_empty_input() {
+    let fixture: Vec<Agent> = vec![];
+
+    let actual = resolve_agent_conflicts(fixture);
+
+    assert_eq!(actual.len(), 0);
 }
