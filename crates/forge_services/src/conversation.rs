@@ -199,14 +199,14 @@ where
             .await
             .context("Failed to read conversations directory")?;
 
-        let mut conversations = Vec::with_capacity(files.len());
+        let mut conversations: Vec<std::result::Result<Conversation, serde_json::Error>> =
+            Vec::with_capacity(files.len());
+        // TODO: can be parallelized.
         for (_, _content) in files {
-            if let Ok(conversation) = serde_json::from_str::<Conversation>(&_content) {
-                conversations.push(conversation);
-            }
+            conversations.push(serde_json::from_str::<Conversation>(&_content));
         }
 
-        Ok(conversations)
+        Ok(conversations.into_iter().filter_map(Result::ok).collect())
     }
 }
 
