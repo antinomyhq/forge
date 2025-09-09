@@ -138,7 +138,7 @@ impl<
     async fn call_internal(&self, input: Tools) -> anyhow::Result<ToolOperation> {
         Ok(match input {
             Tools::Read(input) => {
-                let output = self
+                let output: crate::ReadOutput = self
                     .services
                     .read(
                         input.path.clone(),
@@ -146,6 +146,21 @@ impl<
                         input.end_line.map(|i| i as u64),
                     )
                     .await?;
+                let output = if input.line_numbered {
+                    let start_line = output.start_line as usize;
+                    let numbered_content = output
+                        .content
+                        .file_content()
+                        .lines()
+                        .enumerate()
+                        .map(|(i, line)| format!("{}: {}", start_line + i, line))
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    output.content(crate::Content::file(numbered_content))
+                }else {
+                    output
+                };
+
                 (input, output).into()
             }
             Tools::Write(input) => {

@@ -74,15 +74,8 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
             .await
             .with_context(|| format!("Failed to read file content from {}", path.display()))?;
 
-        let start_line = file_info.start_line as usize;
-        let lines: Vec<String> = content
-            .lines()
-            .enumerate()
-            .map(|(i, line)| format!("{}: {}", start_line + i, line))
-            .collect();
-
         Ok(ReadOutput {
-            content: Content::File(lines.join("\n")),
+            content: Content::File(content),
             start_line: file_info.start_line,
             end_line: file_info.end_line,
             total_lines: file_info.total_lines,
