@@ -380,13 +380,32 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             "Select a conversation to resume:",
             conversation_list
                 .iter()
-                .map(|conversation| conversation.id)
+                .map(|conversation| {
+                    conversation
+                        .title
+                        .clone()
+                        .unwrap_or(conversation.id.into_string())
+                })
                 .collect(),
         )
         .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
         .prompt()?
         {
-            Some(conversation_id) => conversation_id,
+            Some(title) => {
+                let conversation = conversation_list.iter().find(|conversation| {
+                    title
+                        == conversation
+                            .title
+                            .clone()
+                            .unwrap_or(conversation.id.into_string())
+                });
+
+                if let Some(conversation) = conversation {
+                    conversation.id
+                } else {
+                    return Ok(());
+                }
+            }
             None => return Ok(()),
         };
         self.state.conversation_id = Some(conversation_id);
@@ -662,7 +681,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                             // Ask user if they want to resume the last conversation
                             let resume_last = ForgeSelect::confirm(format!(
                                     "Resume last conversation ({})?", 
-                                    last_conversation.id
+                                    last_conversation.title.as_ref().unwrap_or(&last_conversation.id.into_string())
                                 ))
                                 .with_default(true)
                                 .with_help_message("Select 'yes' to continue your previous conversation or 'no' to start fresh")

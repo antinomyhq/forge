@@ -13,7 +13,7 @@ pub struct ConversationRecord {
     pub workspace_id: String,
     pub context: String,
     pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
+    pub updated_at: Option<NaiveDateTime>,
 }
 
 #[derive(Debug, Insertable, Serialize, Deserialize)]
@@ -32,7 +32,7 @@ pub struct UpsertConversationRecord {
     pub title: Option<String>,
     pub workspace_id: String,
     pub context: String,
-    pub updated_at: NaiveDateTime,
+    pub updated_at: Option<NaiveDateTime>,
 }
 
 impl TryFrom<&forge_domain::Conversation> for NewConversationRecord {
@@ -62,7 +62,7 @@ impl TryFrom<&forge_domain::Conversation> for UpsertConversationRecord {
             conversation_id: conversation.id.into_string(),
             workspace_id: workspace_id.to_string(),
             context,
-            updated_at: chrono::Utc::now().naive_utc(),
+            updated_at: Some(chrono::Utc::now().naive_utc()),
         })
     }
 }
@@ -91,10 +91,10 @@ mod tests {
     fn test_try_from_domain_conversation() {
         let fixture = create_test_conversation();
         let actual =
-            NewConversationRecord::try_from((&fixture, "test_workspace".to_string())).unwrap();
+            NewConversationRecord::try_from(&fixture).unwrap();
 
         assert_eq!(actual.conversation_id, fixture.id.into_string());
-        assert_eq!(actual.workspace_id, "test_workspace");
+        assert_eq!(actual.workspace_id, fixture.workspace_id.to_string());
         assert!(!actual.context.is_empty());
 
         // Verify we can deserialize back to conversation
@@ -106,10 +106,10 @@ mod tests {
     fn test_try_from_domain_conversation_upsert() {
         let fixture = create_test_conversation();
         let actual =
-            UpsertConversationRecord::try_from((&fixture, "test_workspace".to_string())).unwrap();
+            UpsertConversationRecord::try_from(&fixture).unwrap();
 
         assert_eq!(actual.conversation_id, fixture.id.into_string());
-        assert_eq!(actual.workspace_id, "test_workspace");
+        assert_eq!(actual.workspace_id, fixture.workspace_id.to_string());
         assert!(!actual.context.is_empty());
 
         // Verify we can deserialize back to conversation
@@ -119,7 +119,8 @@ mod tests {
 
         // Verify updated_at is set to recent time (within last second)
         let now = Utc::now().naive_utc();
-        let time_diff = (now - actual.updated_at).num_seconds();
+        let updated_at = actual.updated_at.expect("updated_at should be set in upsert operation");
+        let time_diff = (now - updated_at).num_seconds();
         assert!(time_diff >= 0 && time_diff <= 1);
     }
     #[test]
@@ -144,13 +145,14 @@ mod tests {
     fn test_try_from_conversation_record() {
         let fixture = create_test_conversation();
         let record =
-            NewConversationRecord::try_from((&fixture, "test_workspace".to_string())).unwrap();
+            NewConversationRecord::try_from(&fixture).unwrap();
         let record = ConversationRecord {
             conversation_id: record.conversation_id,
+            title: record.title,
             workspace_id: record.workspace_id,
             context: record.context,
             created_at: Utc::now().naive_utc(),
-            updated_at: Utc::now().naive_utc(),
+            updated_at: None,
         };
 
         let actual = forge_domain::Conversation::try_from(&record).unwrap();
@@ -176,46 +178,11 @@ mod tests {
         );
 
         conversation.insert_event(Event {
+            id: "test-event-1".to_string(),
             name: "user_task".to_string(),
             value: Some(Value::Object(event_data.into_iter().collect())),
-            ..Default::default()
-        });
-
-        conversation
-    }
-
-    fn create_conversation_without_user_task() -> forge_domain::Conversation {
-        let id = ConversationId::generate();
-        forge_domain::Conversation::new(
-            id,
-            WorkspaceId::new("a1b2c3d4e5f6789a"),
-            Workflow::new(),
-            vec![],
-            vec![Agent::new(AgentId::default())],
-        )
-    }
-
-    fn create_conversation_with_long_user_task() -> forge_domain::Conversation {
-        let id = ConversationId::generate();
-        let mut conversation = forge_domain::Conversation::new(
-            id,
-            WorkspaceId::new("a1b2c3d4e5f6789a"),
-            Workflow::new(),
-            vec![],
-            vec![Agent::new(AgentId::default())],
-        );
-
-        let long_content = "This is a very long user task content that exceeds 100 characters and should be truncated appropriately with ellipsis at the end to fit within the limit";
-        let mut event_data = HashMap::new();
-        event_data.insert(
-            "content".to_string(),
-            Value::String(long_content.to_string()),
-        );
-
-        conversation.insert_event(Event {
-            name: "user_task".to_string(),
-            value: Some(Value::Object(event_data.into_iter().collect())),
-            ..Default::default()
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            attachments: vec![],
         });
 
         conversation

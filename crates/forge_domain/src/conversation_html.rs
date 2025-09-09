@@ -379,6 +379,7 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
 mod tests {
     use super::*;
     use crate::conversation::Conversation;
+    use crate::WorkspaceId;
 
     #[test]
     fn test_render_empty_conversation() {
