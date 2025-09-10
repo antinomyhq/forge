@@ -64,6 +64,7 @@ pub struct UI<A, F: Fn() -> A> {
     spinner: SpinnerManager,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
+    interactive: bool,
 }
 
 impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
@@ -145,7 +146,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         ))
     }
 
-    pub fn init(cli: Cli, f: F) -> Result<Self> {
+    pub fn init(cli: Cli, interactive: bool, f: F) -> Result<Self> {
         // Parse CLI arguments first to get flags
         let api = Arc::new(f());
         let env = api.environment();
@@ -160,6 +161,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             spinner: SpinnerManager::new(),
             markdown: MarkdownFormat::new(),
             _guard: forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?,
+            interactive,
         })
     }
 
@@ -860,35 +862,36 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_completion(&mut self, metrics: Metrics) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Summary"))?;
 
-        let mut info = Info::default();
-
         // Show summary
-        info = info.extend(Info::from(&metrics));
+        let info = Info::default()
+            .extend(Info::from(&metrics))
+            .extend(get_usage(&self.state));
 
-        // Fetch Usage
-        info = info.extend(get_usage(&self.state));
-
-        if let Ok(Some(usage)) = self.api.user_usage().await {
-            info = info.extend(Info::from(&usage));
-        }
+        // if let Ok(Some(usage)) = self.api.user_usage().await {
+        //     info = info.extend(Info::from(&usage));
+        // }
 
         self.writeln(info)?;
 
         self.spinner.stop(None)?;
 
-        let prompt_text = "Start a new conversation?";
-        let should_start_new_chat = ForgeSelect::confirm(prompt_text)
-            // Pressing ENTER should start new
-            .with_default(true)
-            .with_help_message("ESC = No, continue current conversation")
-            .prompt()
-            // Cancel or failure should continue with the session
-            .unwrap_or(Some(false))
-            .unwrap_or(false);
+        // In non-interactive mode, don't ask user to start new conversation as we'll
+        // just exit the shell as soon as we execute the provided command.
+        if self.interactive {
+            let prompt_text = "Start a new conversation?";
+            let should_start_new_chat = ForgeSelect::confirm(prompt_text)
+                // Pressing ENTER should start new
+                .with_default(true)
+                .with_help_message("ESC = No, continue current conversation")
+                .prompt()
+                // Cancel or failure should continue with the session
+                .unwrap_or(Some(false))
+                .unwrap_or(false);
 
-        // if conversation is over
-        if should_start_new_chat {
-            self.on_new().await?;
+            // if conversation is over
+            if should_start_new_chat {
+                self.on_new().await?;
+            }
         }
 
         Ok(())

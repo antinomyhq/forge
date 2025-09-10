@@ -38,6 +38,9 @@ async fn main() -> Result<()> {
         }
     }
 
+    // Figure out if user entered into forge in interactive mode or not.
+    let interactive = cli.prompt.is_none();
+
     // Handle worktree creation if specified
     let cwd: PathBuf = match (&cli.sandbox, &cli.directory) {
         (Some(sandbox), Some(cli)) => {
@@ -59,7 +62,9 @@ async fn main() -> Result<()> {
     if neo_ui {
         return forge_main_neo::main_neo(cwd).await;
     }
-    let mut ui = UI::init(cli, move || ForgeAPI::init(restricted, cwd.clone()))?;
+    let mut ui = UI::init(cli, interactive, move || {
+        ForgeAPI::init(restricted, cwd.clone())
+    })?;
     ui.run().await;
 
     Ok(())
