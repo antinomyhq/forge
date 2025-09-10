@@ -177,7 +177,7 @@ pub struct Agent {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub reasoning: Option<ReasoningConfig>,
-    /// Maximum number of times a tool can fail before the orchestrator
+    /// Maximum number of times a tool can fail before sending the response back to the LLM
     /// forces the completion.
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
