@@ -90,11 +90,17 @@ impl Environment {
     pub fn mcp_local_config(&self) -> PathBuf {
         self.cwd.join(".mcp.json")
     }
+
     pub fn version(&self) -> String {
         VERSION.to_string()
     }
+
     pub fn app_config(&self) -> PathBuf {
         self.base_path.join(".config.json")
+    }
+
+    pub fn database_path(&self) -> PathBuf {
+        self.base_path.join(".forge.db")
     }
 }
 
