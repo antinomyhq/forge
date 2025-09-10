@@ -632,9 +632,10 @@ mod tests {
         assert!(subscriptions.contains(&"existing-event".to_string()));
         assert!(subscriptions.contains(&"cmd1".to_string()));
         assert!(subscriptions.contains(&"cmd2".to_string()));
-        // Also automatically added subscriptions for user tasks
-        assert!(subscriptions.contains(&format!("{}", AgentId::default().as_str())));
-        assert_eq!(subscriptions.len(), 4);
+        let default_id = AgentId::default().as_str().to_string();
+        assert!(subscriptions.contains(&format!("{default_id}/{}", super::EVENT_USER_TASK_INIT)));
+        assert!(subscriptions.contains(&format!("{default_id}/{}", super::EVENT_USER_TASK_UPDATE)));
+        assert_eq!(subscriptions.len(), 5);
     }
 
     #[test]
@@ -891,7 +892,7 @@ mod tests {
     }
 
     #[test]
-    fn test_subscriptions_with_starts_with_matching() {
+    fn test_subscriptions_with_exact_matching() {
         // Arrange
         let id = super::ConversationId::generate();
 
@@ -903,7 +904,7 @@ mod tests {
         let conversation = super::Conversation::new(id, workflow, vec![], agents);
 
         // Act
-        let actual = conversation.subscriptions("event_with_suffix");
+        let actual = conversation.subscriptions("event");
 
         // Assert - Should match agent1 because "event_with_suffix" starts with "event"
         assert_eq!(actual.len(), 1);
@@ -911,12 +912,12 @@ mod tests {
     }
 
     #[test]
-    fn test_subscriptions_starts_with_multiple_matches() {
+    fn test_subscriptions_exact_multiple_matches() {
         // Arrange
         let id = super::ConversationId::generate();
 
-        let agent1 = Agent::new("agent1").subscribe(vec!["user".to_string()]);
-        let agent2 = Agent::new("agent2").subscribe(vec!["user_task".to_string()]);
+        let agent1 = Agent::new("agent1").subscribe(vec!["user_task_init".to_string()]);
+        let agent2 = Agent::new("agent2").subscribe(vec!["user_task_init".to_string()]);
         let agent3 = Agent::new("agent3").subscribe(vec!["other".to_string()]);
 
         let agents = vec![agent1, agent2, agent3];
@@ -926,8 +927,8 @@ mod tests {
         // Act
         let actual = conversation.subscriptions("user_task_init");
 
-        // Assert - Should match both agent1 and agent2 because "user_task_init" starts
-        // with both "user" and "user_task"
+        // Assert - Both agent1 and agent2 subscribe to the exact same event
+        // "user_task_init"
         assert_eq!(actual.len(), 2);
         assert_eq!(actual[0].id, AgentId::new("agent1"));
         assert_eq!(actual[1].id, AgentId::new("agent2"));
@@ -975,35 +976,34 @@ mod tests {
     }
 
     #[test]
-    fn test_subscriptions_starts_with_empty_subscription() {
+    fn test_subscriptions_exact_empty_subscription() {
         // Arrange
         let id = super::ConversationId::generate();
 
         let agent1 = Agent::new("agent1").subscribe(vec!["".to_string()]);
-        let agent2 = Agent::new("agent2").subscribe(vec!["event".to_string()]);
+        let agent2 = Agent::new("agent2").subscribe(vec![super::EVENT_USER_TASK_INIT.to_string()]);
 
         let agents = vec![agent1, agent2];
         let workflow = Workflow::new();
         let conversation = super::Conversation::new(id, workflow, vec![], agents);
 
         // Act
-        let actual = conversation.subscriptions("any_event");
+        let actual = conversation.subscriptions(super::EVENT_USER_TASK_INIT);
 
-        // Assert - Should match both agents: agent1 because any string starts with
-        // empty string, and agent2 because "any_event" starts with "event" is
-        // false, so only agent1 should match
+        // Assert - agent2 should match "user_task_init", agent1 with empty subscription
+        // should not
         assert_eq!(actual.len(), 1);
-        assert_eq!(actual[0].id, AgentId::new("agent1"));
+        assert_eq!(actual[0].id, AgentId::new("agent2"));
     }
 
     #[test]
-    fn test_subscriptions_starts_with_hierarchical_events() {
+    fn test_subscriptions_exact_hierarchical_events() {
         // Arrange
         let id = super::ConversationId::generate();
 
-        let agent1 = Agent::new("agent1").subscribe(vec!["system".to_string()]);
-        let agent2 = Agent::new("agent2").subscribe(vec!["system/user".to_string()]);
-        let agent3 = Agent::new("agent3").subscribe(vec!["system/user/task".to_string()]);
+        let agent1 = Agent::new("agent1").subscribe(vec!["system/user/task/complete".to_string()]);
+        let agent2 = Agent::new("agent2").subscribe(vec!["system/user/task/complete".to_string()]);
+        let agent3 = Agent::new("agent3").subscribe(vec!["system/user/task/complete".to_string()]);
 
         let agents = vec![agent1, agent2, agent3];
         let workflow = Workflow::new();
@@ -1012,7 +1012,7 @@ mod tests {
         // Act
         let actual = conversation.subscriptions("system/user/task/complete");
 
-        // Assert - Should match all three agents due to hierarchical prefix matching
+        // Assert - All three agents subscribe to the exact same event
         assert_eq!(actual.len(), 3);
         assert_eq!(actual[0].id, AgentId::new("agent1"));
         assert_eq!(actual[1].id, AgentId::new("agent2"));
@@ -1020,7 +1020,7 @@ mod tests {
     }
 
     #[test]
-    fn test_subscriptions_starts_with_case_sensitive() {
+    fn test_subscriptions_exact_case_sensitive() {
         // Arrange
         let id = super::ConversationId::generate();
 
@@ -1032,7 +1032,7 @@ mod tests {
         let conversation = super::Conversation::new(id, workflow, vec![], agents);
 
         // Act
-        let actual = conversation.subscriptions("event_test");
+        let actual = conversation.subscriptions("event");
 
         // Assert - Should only match agent2 because starts_with is case-sensitive
         assert_eq!(actual.len(), 1);
