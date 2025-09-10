@@ -91,7 +91,7 @@ pub struct FSRead {
     /// If true, prefixes each line with its line index (starting at 1).
     /// Defaults to true.
     #[serde(default = "default_true")]
-    pub line_numbered: bool,
+    pub show_line_numbers: bool,
 
     /// Optional end position in lines (inclusive). If provided, reading
     /// will end at this line position.

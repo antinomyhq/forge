@@ -146,7 +146,7 @@ impl<
                         input.end_line.map(|i| i as u64),
                     )
                     .await?;
-                let output = if input.line_numbered {
+                let output = if input.show_line_numbers {
                     let start_line = output.start_line as usize;
                     let numbered_content = output
                         .content

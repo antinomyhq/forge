@@ -587,7 +587,7 @@ mod tests {
                 path: "/home/user/test.txt".to_string(),
                 start_line: None,
                 end_line: None,
-                line_numbered: true,
+                show_line_numbers: true,
                 explanation: Some("Test explanation".to_string()),
             },
             output: ReadOutput {
@@ -617,7 +617,7 @@ mod tests {
                 path: "/home/user/test.txt".to_string(),
                 start_line: None,
                 end_line: None,
-                line_numbered: true,
+                show_line_numbers: true,
                 explanation: Some("Test explanation".to_string()),
             },
             output: ReadOutput {
@@ -647,7 +647,7 @@ mod tests {
                 path: "/home/user/test.txt".to_string(),
                 start_line: Some(2),
                 end_line: Some(3),
-                line_numbered: true,
+                show_line_numbers: true,
                 explanation: Some("Test explanation".to_string()),
             },
             output: ReadOutput {
@@ -677,7 +677,7 @@ mod tests {
                 path: "/home/user/large_file.txt".to_string(),
                 start_line: None,
                 end_line: None,
-                line_numbered: true,
+                show_line_numbers: true,
                 explanation: Some("Test explanation".to_string()),
             },
             output: ReadOutput {
