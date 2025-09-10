@@ -80,6 +80,7 @@ impl TestContext {
             agent: Agent::new(AgentId::new("forge"))
                 .model("closed-ai/some-cool-model")
                 .system_prompt(Template::new("You are Forge"))
+                .tool_supported(true)
                 .tools(vec![("fs_read").into(), ("fs_write").into()]),
             tools: vec![
                 ToolDefinition::new("fs_read"),
