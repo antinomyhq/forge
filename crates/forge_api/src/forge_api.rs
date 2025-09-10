@@ -66,14 +66,8 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         forge_app.chat(chat).await
     }
 
-    async fn init_conversation<W: Into<Workflow> + Send + Sync>(
-        &self,
-        workflow: W,
-    ) -> anyhow::Result<Conversation> {
-        let agents = self.get_agents().await?;
-        self.services
-            .init_conversation(workflow.into(), agents)
-            .await
+    async fn init_conversation(&self) -> anyhow::Result<Conversation> {
+        self.services.init_conversation().await
     }
 
     async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()> {

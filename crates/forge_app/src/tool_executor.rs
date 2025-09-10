@@ -146,6 +146,21 @@ impl<
                         input.end_line.map(|i| i as u64),
                     )
                     .await?;
+                let output = if input.show_line_numbers {
+                    let start_line = output.start_line as usize;
+                    let numbered_content = output
+                        .content
+                        .file_content()
+                        .lines()
+                        .enumerate()
+                        .map(|(i, line)| format!("{}: {}", start_line + i, line))
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    output.content(crate::Content::file(numbered_content))
+                } else {
+                    output
+                };
+
                 (input, output).into()
             }
             Tools::Write(input) => {

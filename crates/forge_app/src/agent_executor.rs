@@ -10,7 +10,7 @@ use futures::StreamExt;
 use tokio::sync::RwLock;
 
 use crate::error::Error;
-use crate::{AgentLoaderService, ConversationService, Services, WorkflowService};
+use crate::{AgentLoaderService, ConversationService, Services};
 
 #[derive(Clone)]
 pub struct AgentExecutor<S> {
@@ -52,11 +52,7 @@ impl<S: Services> AgentExecutor<S> {
         .await?;
 
         // Create a new conversation for agent execution
-        let workflow = self.services.read_merged(None).await?;
-        let agents = self.services.get_agents().await?;
-        let conversation =
-            ConversationService::init_conversation(self.services.as_ref(), workflow, agents)
-                .await?;
+        let conversation = ConversationService::init_conversation(self.services.as_ref()).await?;
 
         // Execute the request through the ForgeApp
         let app = crate::ForgeApp::new(self.services.clone());
