@@ -79,7 +79,6 @@ impl TryFrom<&ConversationRecord> for forge_domain::Conversation {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
-    use std::sync::Arc;
 
     use chrono::Utc;
     use forge_domain::{Agent, AgentId, ConversationId, Event, Workflow, WorkspaceId};
@@ -87,8 +86,6 @@ mod tests {
     use serde_json::Value;
 
     use super::*;
-    use crate::db_pool::DatabasePool;
-    use crate::ConversationRepository;
 
     #[test]
     fn test_try_from_domain_conversation() {
