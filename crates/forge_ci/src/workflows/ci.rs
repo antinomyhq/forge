@@ -1,54 +1,77 @@
-use gh_workflow_tailcall::*;
+use gh_workflow::generate::Generate;
+use gh_workflow::toolchain::Component;
+use gh_workflow::*;
 
 use crate::jobs::{self, ReleaseBuilderJob};
 
 /// Generate the main CI workflow
 pub fn generate_ci_workflow() {
-    let workflow = StandardWorkflow::default()
-        .test_runner(TestRunner::Cargo)
-        .auto_fix(true)
-        .to_ci_workflow()
-        .concurrency(Concurrency {
-            group: "${{ github.workflow }}-${{ github.ref }}".to_string(),
-            cancel_in_progress: None,
-            limit: None,
-        })
-        .add_env(("OPENROUTER_API_KEY", "${{secrets.OPENROUTER_API_KEY}}"));
+    // Create a basic build job for CI
+    let build_job = Job::new("Build and Test")
+        .permissions(Permissions::default().contents(Level::Read))
+        .add_step(Step::checkout())
+        .add_step(Step::toolchain().add_stable())
+        .add_step(Step::new("Cargo Test").run("cargo test --all-features --workspace"));
 
-    // Get the jobs
-    let build_job = workflow.jobs.clone().unwrap().get("build").unwrap().clone();
-    let draft_release_job = jobs::create_draft_release_job(&build_job);
+    // Create a basic lint job for CI
+    let lint_job = Job::new("Lint")
+        .permissions(Permissions::default().contents(Level::Read))
+        .add_step(Step::checkout())
+        .add_step(
+            Step::toolchain()
+                .add_nightly()
+                .add_component(Component::Clippy)
+                .add_component(Component::Rustfmt),
+        )
+        .add_step(Step::new("Cargo Fmt").run("cargo +nightly fmt --all --check"))
+        .add_step(
+            Step::new("Cargo Clippy").run("cargo +nightly clippy --all-features --workspace"),
+        );
 
-    // Add jobs to the workflow
-    workflow
-        .add_job("draft_release", draft_release_job.clone())
-        .add_job(
-            "build_release",
-            ReleaseBuilderJob::new("${{ needs.draft_release.outputs.crate_release_name }}")
-                .release_id("${{ needs.draft_release.outputs.crate_release_id }}")
-                .into_job()
-                .add_needs(draft_release_job.clone())
-                .cond(Expression::new(
-                    [
-                        "github.event_name == 'push'",
-                        "github.ref == 'refs/heads/main'",
-                    ]
-                    .join(" && "),
-                )),
-        )
-        .add_job(
-            "build_release_pr",
-            ReleaseBuilderJob::new("${{ needs.draft_release.outputs.crate_release_name }}")
-                .into_job()
-                .add_needs(draft_release_job)
-                .cond(Expression::new(
-                    [
-                        "github.event_name == 'pull_request'",
-                        "contains(github.event.pull_request.labels.*.name, 'ci: build all targets')",
-                    ]
-                    .join(" && "),
-                )),
-        )
-        .generate()
-        .unwrap();
+    let draft_release_job = jobs::create_draft_release_job("build");
+    let events = Event::default()
+        .push(Push::default().add_branch("main").add_tag("v*"))
+        .pull_request(
+            PullRequest::default()
+                .add_type(PullRequestType::Opened)
+                .add_type(PullRequestType::Synchronize)
+                .add_type(PullRequestType::Reopened)
+                .add_branch("main"),
+        );
+    let build_release_pr_job =
+        ReleaseBuilderJob::new("${{ needs.draft_release.outputs.crate_release_name }}")
+            .into_job()
+            .add_needs("draft_release")
+            .cond(Expression::new(
+                [
+                    "github.event_name == 'pull_request'",
+                    "contains(github.event.pull_request.labels.*.name, 'ci: build all targets')",
+                ]
+                .join(" && "),
+            ));
+    let build_release_job =
+        ReleaseBuilderJob::new("${{ needs.draft_release.outputs.crate_release_name }}")
+            .release_id("${{ needs.draft_release.outputs.crate_release_id }}")
+            .into_job()
+            .add_needs("draft_release")
+            .cond(Expression::new(
+                [
+                    "github.event_name == 'push'",
+                    "github.ref == 'refs/heads/main'",
+                ]
+                .join(" && "),
+            ));
+    let workflow = Workflow::default()
+        .name("ci")
+        .add_env(RustFlags::deny("warnings"))
+        .on(events)
+        .concurrency(Concurrency::default().group("${{ github.workflow }}-${{ github.ref }}"))
+        .add_env(("OPENROUTER_API_KEY", "${{secrets.OPENROUTER_API_KEY}}"))
+        .add_job("build", build_job)
+        .add_job("lint", lint_job)
+        .add_job("draft_release", draft_release_job)
+        .add_job("build_release", build_release_job)
+        .add_job("build_release_pr", build_release_pr_job);
+
+    Generate::new(workflow).name("ci.yml").generate().unwrap();
 }

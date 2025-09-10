@@ -359,6 +359,7 @@ pub mod tests {
             command: String,
             working_dir: PathBuf,
             _silent: bool,
+            _env_vars: Option<Vec<String>>,
         ) -> anyhow::Result<CommandOutput> {
             // For test purposes, we'll create outputs that match what the shell tests
             // expect Check for common command patterns
@@ -476,6 +477,7 @@ pub mod tests {
             &self,
             _: &str,
             _: PathBuf,
+            _env_vars: Option<Vec<String>>,
         ) -> anyhow::Result<std::process::ExitStatus> {
             unimplemented!()
         }

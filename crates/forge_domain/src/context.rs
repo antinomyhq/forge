@@ -420,6 +420,19 @@ impl Context {
             .map(|m| m.token_count_approx())
             .sum::<usize>()
     }
+
+    /// Checks if reasoning is enabled by user or not.
+    pub fn is_reasoning_supported(&self) -> bool {
+        self.reasoning.as_ref().is_some_and(|reasoning| {
+            // When enabled parameter is defined then return it's value directly.
+            if reasoning.enabled.is_some() {
+                return reasoning.enabled.unwrap_or_default();
+            }
+
+            // If not defined (None), check other parameters
+            reasoning.effort.is_some() || reasoning.max_tokens.is_some_and(|token| token > 0)
+        })
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -720,5 +733,93 @@ mod tests {
             .add_message(ContextMessage::user("I'm looking for a restaurant.", None))
             .usage(usage);
         assert_eq!(fixture.token_count(), TokenCount::Approx(18));
+    }
+
+    #[test]
+    fn test_context_is_reasoning_supported_when_enabled() {
+        let fixture = Context::default()
+            .reasoning(crate::agent::ReasoningConfig { enabled: Some(true), ..Default::default() });
+
+        let actual = fixture.is_reasoning_supported();
+        let expected = true;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_is_reasoning_supported_when_effort_set() {
+        let fixture = Context::default().reasoning(crate::agent::ReasoningConfig {
+            effort: Some(crate::agent::Effort::High),
+            ..Default::default()
+        });
+
+        let actual = fixture.is_reasoning_supported();
+        let expected = true;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_is_reasoning_supported_when_max_tokens_positive() {
+        let fixture = Context::default().reasoning(crate::agent::ReasoningConfig {
+            max_tokens: Some(1024),
+            ..Default::default()
+        });
+
+        let actual = fixture.is_reasoning_supported();
+        let expected = true;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_is_reasoning_not_supported_when_max_tokens_zero() {
+        let fixture = Context::default()
+            .reasoning(crate::agent::ReasoningConfig { max_tokens: Some(0), ..Default::default() });
+
+        let actual = fixture.is_reasoning_supported();
+        let expected = false;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_is_reasoning_not_supported_when_disabled() {
+        let fixture = Context::default().reasoning(crate::agent::ReasoningConfig {
+            enabled: Some(false),
+            ..Default::default()
+        });
+
+        let actual = fixture.is_reasoning_supported();
+        let expected = false;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_is_reasoning_not_supported_when_no_config() {
+        let fixture = Context::default();
+
+        let actual = fixture.is_reasoning_supported();
+        let expected = false;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_is_reasoning_not_supported_when_explicitly_disabled() {
+        let fixture = Context::default().reasoning(crate::agent::ReasoningConfig {
+            enabled: Some(false),
+            effort: Some(crate::agent::Effort::High), // Should be ignored when explicitly disabled
+            ..Default::default()
+        });
+
+        let actual = fixture.is_reasoning_supported();
+        let expected = false;
+
+        assert_eq!(
+            actual, expected,
+            "Should not be supported when explicitly disabled, even with effort set"
+        );
     }
 }

@@ -1,6 +1,6 @@
 use forge_domain::{
-    ChatCompletionMessage, ChatResponse, Content, FinishReason, Role, ToolCallArguments,
-    ToolCallFull, ToolOutput, ToolResult,
+    ChatCompletionMessage, ChatResponse, Content, FinishReason, ReasoningConfig, Role,
+    ToolCallArguments, ToolCallFull, ToolOutput, ToolResult,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -429,4 +429,46 @@ async fn test_mixed_agent_and_non_agent_tool_calls() {
         tool_call_end_names.contains(&"attempt_completion"),
         "Should have ToolCallEnd for attempt_completion"
     );
+}
+
+#[tokio::test]
+async fn test_reasoning_should_be_in_context() {
+    let reasoning_content = "Thinking .....";
+    let mut ctx =
+        TestContext::init_forge_task("Solve a complex problem").mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant(Content::full(reasoning_content))
+                .finish_reason(FinishReason::Stop),
+        ]);
+
+    // Update the agent to set the reasoning.
+    ctx.agent = ctx
+        .agent
+        .reasoning(ReasoningConfig::default().effort(forge_domain::Effort::High));
+    ctx.run().await.unwrap();
+
+    let conversation = ctx.output.conversation_history.last().unwrap();
+    let context = conversation.context.as_ref().unwrap();
+    assert!(context.is_reasoning_supported());
+}
+
+#[tokio::test]
+async fn test_reasoning_not_supported_when_disabled() {
+    let reasoning_content = "Thinking .....";
+    let mut ctx =
+        TestContext::init_forge_task("Solve a complex problem").mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant(Content::full(reasoning_content))
+                .finish_reason(FinishReason::Stop),
+        ]);
+
+    // Update the agent to set the reasoning.
+    ctx.agent = ctx.agent.reasoning(
+        ReasoningConfig::default()
+            .effort(forge_domain::Effort::High)
+            .enabled(false), // disable the reasoning explicitly
+    );
+    ctx.run().await.unwrap();
+
+    let conversation = ctx.output.conversation_history.last().unwrap();
+    let context = conversation.context.as_ref().unwrap();
+    assert!(!context.is_reasoning_supported());
 }

@@ -12,6 +12,15 @@ use reqwest::header::HeaderMap;
 use reqwest_eventsource::EventSource;
 use url::Url;
 
+/// Infrastructure trait for accessing environment configuration and system
+/// variables.
+///
+/// This trait provides access to the application environment which includes
+/// configuration for both global and project-local agent directories. The
+/// Environment exposes:
+/// - Global agent directory via `agent_path()` (typically ~/.forge/agents)
+/// - Project-local agent directory via `agent_cwd_path()` (typically
+///   .forge/agents)
 pub trait EnvironmentInfra: Send + Sync {
     fn get_environment(&self) -> Environment;
     fn get_env_var(&self, key: &str) -> Option<String>;
@@ -114,6 +123,7 @@ pub trait CommandInfra: Send + Sync {
         command: String,
         working_dir: PathBuf,
         silent: bool,
+        env_vars: Option<Vec<String>>,
     ) -> anyhow::Result<CommandOutput>;
 
     /// execute the shell command on present stdio.
@@ -121,6 +131,7 @@ pub trait CommandInfra: Send + Sync {
         &self,
         command: &str,
         working_dir: PathBuf,
+        env_vars: Option<Vec<String>>,
     ) -> anyhow::Result<std::process::ExitStatus>;
 }
 

@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
-gh-workflow-tailcall.workspace = true
+gh-workflow.workspace = true
 indexmap.workspace = true
 derive_setters.workspace = true
 
