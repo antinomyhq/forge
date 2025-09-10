@@ -102,7 +102,11 @@ impl<S: Services> ForgeApp<S> {
 
         let agent = agents
             .into_iter()
-            .map(|agent| agent.apply_workflow_config(&workflow).extend_mcp_tools(&mcp_tools))
+            .map(|agent| {
+                agent
+                    .apply_workflow_config(&workflow)
+                    .extend_mcp_tools(&mcp_tools)
+            })
             .find(|agent| agent.has_subscription(&chat.event.name))
             .ok_or(crate::Error::UnsubscribedEvent(chat.event.name.to_owned()))?;
 
