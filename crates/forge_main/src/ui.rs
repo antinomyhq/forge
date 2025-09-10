@@ -90,6 +90,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_new(&mut self) -> Result<()> {
         self.api = Arc::new((self.new_api)());
         self.init_state(false).await?;
+        self.init_conversation(true).await?;
         self.cli.conversation = None;
         banner::display()?;
         self.trace_user();
@@ -109,7 +110,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .cloned()
             .ok_or(anyhow::anyhow!("Undefined agent: {agent_id}"))?;
 
-        let conversation_id = self.init_conversation().await?;
+        let conversation_id = self.init_conversation(false).await?;
         if let Some(mut conversation) = self.api.conversation(&conversation_id).await? {
             conversation.set_variable("operating_agent".into(), Value::from(agent.id.as_str()));
             self.api.upsert_conversation(conversation).await?;
@@ -199,7 +200,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         banner::display()?;
 
         self.init_state(true).await?;
-        self.init_conversation().await?;
+        self.init_conversation(false).await?;
         self.trace_user();
 
         // Hydrate the models cache
@@ -552,7 +553,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(false)
     }
     async fn on_compaction(&mut self) -> Result<(), anyhow::Error> {
-        let conversation_id = self.init_conversation().await?;
+        let conversation_id = self.init_conversation(false).await?;
         let compaction_result = self.api.compact_conversation(&conversation_id).await?;
         let token_reduction = compaction_result.token_reduction_percentage();
         let message_reduction = compaction_result.message_reduction_percentage();
@@ -615,7 +616,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .await?;
 
         // Get the conversation to update
-        let conversation_id = self.init_conversation().await?;
+        let conversation_id = self.init_conversation(false).await?;
 
         if let Some(mut conversation) = self.api.conversation(&conversation_id).await? {
             // Update the model in the conversation
@@ -636,7 +637,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     // Handle dispatching events from the CLI
     async fn handle_dispatch(&mut self, json: String) -> Result<()> {
         // Initialize the conversation
-        let conversation_id = self.init_conversation().await?;
+        let conversation_id = self.init_conversation(false).await?;
 
         // Parse the JSON to determine the event name and value
         let event: PartialEvent = serde_json::from_str(&json)?;
@@ -647,7 +648,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.on_chat(chat).await
     }
 
-    async fn init_conversation(&mut self) -> Result<ConversationId> {
+    async fn init_conversation(&mut self, force_new: bool) -> Result<ConversationId> {
         match self.state.conversation_id {
             Some(ref id) => Ok(*id),
             None => {
@@ -670,6 +671,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     // Check if there's a last active conversation to potentially resume
                     let conversation = if let Some(last_conversation) =
                         self.api.find_last_active_conversation().await?
+                        && !force_new
                     {
                         self.spinner.stop(None)?;
 
@@ -773,7 +775,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn on_message(&mut self, content: Option<String>) -> Result<()> {
-        let conversation_id = self.init_conversation().await?;
+        let conversation_id = self.init_conversation(false).await?;
 
         // Create a ChatRequest with the appropriate event type
         let event = if self.state.is_first {
@@ -981,7 +983,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn on_custom_event(&mut self, event: Event) -> Result<()> {
-        let conversation_id = self.init_conversation().await?;
+        let conversation_id = self.init_conversation(false).await?;
         let chat = ChatRequest::new(event, conversation_id);
         self.on_chat(chat).await
     }
