@@ -9,6 +9,10 @@ use uuid::Uuid;
 
 use crate::{Agent, AgentId, Context, Error, Event, Metrics, ModelId, Result, ToolName, Workflow};
 
+// Event type constants
+pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
+pub const EVENT_USER_TASK_UPDATE: &str = "user_task_update";
+
 #[derive(Debug, Default, Display, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(transparent)]
 pub struct ConversationId(Uuid);
@@ -158,7 +162,8 @@ impl Conversation {
             }
 
             let id = agent.id.clone();
-            agent.add_subscription(format!("{id}"));
+            agent.add_subscription(format!("{id}/{EVENT_USER_TASK_INIT}"));
+            agent.add_subscription(format!("{id}/{EVENT_USER_TASK_UPDATE}"));
         }
 
         let mut conversation = Self {
@@ -187,7 +192,7 @@ impl Conversation {
                 a.subscribe.as_ref().is_some_and(|subscription| {
                     subscription
                         .iter()
-                        .any(|subscription| event_name.starts_with(subscription))
+                        .any(|subscription| event_name.eq(subscription))
                 })
             })
             .cloned()
