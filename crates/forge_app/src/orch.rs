@@ -177,7 +177,7 @@ impl<S: AgentService> Orchestrator<S> {
         Ok(tool_supported)
     }
 
-    async fn set_system_prompt(&mut self, context: Context) -> anyhow::Result<Context> {
+    async fn set_system_prompt(&self, context: Context) -> anyhow::Result<Context> {
         let agent = &self.agent;
         Ok(if let Some(system_prompt) = &agent.system_prompt {
             let env = self.environment.clone();
@@ -627,7 +627,7 @@ impl<S: AgentService> Orchestrator<S> {
         })
     }
 
-    async fn set_user_prompt(&mut self, mut context: Context) -> anyhow::Result<Context> {
+    async fn set_user_prompt(&self, mut context: Context) -> anyhow::Result<Context> {
         let agent = &self.agent;
         let event = &self.event;
         let content = if let Some(user_prompt) = &agent.user_prompt
