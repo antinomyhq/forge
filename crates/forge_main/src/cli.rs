@@ -81,9 +81,7 @@ pub struct Cli {
 impl Cli {
     /// Check if Forge is entered in interactive mode or not.
     pub fn is_interactive(&self) -> bool {
-        self.prompt.is_none() || 
-        self.subcommands.is_none() || 
-        self.event.is_none()
+        self.prompt.is_none() || self.subcommands.is_none() || self.event.is_none()
     }
 }
 
