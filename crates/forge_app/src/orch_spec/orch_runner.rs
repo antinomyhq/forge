@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use forge_domain::{
     ChatCompletionMessage, ChatResponse, Conversation, ConversationId, ToolCallFull, ToolResult,
-    prepare_agent,
 };
 use handlebars::{Handlebars, no_escape};
 use rust_embed::Embed;
@@ -78,7 +77,7 @@ impl Runner {
             setup.env.clone(),
             conversation,
             setup.current_time,
-            prepare_agent(agent, &setup.workflow, &Default::default()),
+            agent.apply_workflow_config(&setup.workflow),
             event,
         )
         .tool_definitions(system_tools)
