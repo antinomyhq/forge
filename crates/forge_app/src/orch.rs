@@ -238,6 +238,7 @@ impl<S: AgentService> Orchestrator<S> {
             .services
             .chat_agent(model_id, transformers.transform(context))
             .await?;
+
         response.into_full(!tool_supported).await
     }
     /// Checks if compaction is needed and performs it if necessary
@@ -260,6 +261,7 @@ impl<S: AgentService> Orchestrator<S> {
     // Create a helper method with the core functionality
     pub async fn run(&mut self) -> anyhow::Result<()> {
         let event = self.event.clone();
+
         debug!(
             conversation_id = %self.conversation.id.clone(),
             event_name = %event.name,

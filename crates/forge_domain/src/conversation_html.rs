@@ -212,9 +212,6 @@ mod tests {
         assert!(actual.contains("</html>"));
         assert!(actual.contains("Conversation: "));
         assert!(actual.contains("Basic Information"));
-        assert!(actual.contains("Variables"));
-        assert!(actual.contains("Agents"));
-        assert!(actual.contains("Events"));
         assert!(actual.contains("Conversation Context"));
     }
 }

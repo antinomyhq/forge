@@ -4,34 +4,30 @@ use tokio::sync::Mutex;
 use tokio::sync::mpsc::Receiver;
 use tokio::task::JoinHandle;
 
-struct State<T> {
-    results: Vec<T>,
-    rx: Receiver<T>,
-}
-
 pub struct Collector<T> {
-    state: Arc<Mutex<State<T>>>,
+    accumulated: Arc<Mutex<Vec<T>>>,
     #[allow(unused)]
     handle: Arc<JoinHandle<()>>,
 }
 
-impl<T: Send + Sync + 'static> Collector<T> {
-    pub fn new(rx: Receiver<T>, limit: usize) -> Self {
-        let state = Arc::new(Mutex::new(State { results: Default::default(), rx }));
-        let update_state = state.clone();
+impl<T: Send + 'static> Collector<T> {
+    pub fn new(mut rx: Receiver<T>, _limit: usize) -> Self {
+        let accumulated = Arc::new(Mutex::new(Vec::new()));
+        let accumulator_ref = accumulated.clone();
+
         let handle = Arc::new(tokio::spawn(async move {
-            let mut state = update_state.lock().await;
-            let mut buffer = Vec::new();
-            state.rx.recv_many(&mut buffer, limit).await;
-            state.results.extend(buffer);
+            while let Some(item) = rx.recv().await {
+                let mut acc = accumulator_ref.lock().await;
+                acc.push(item);
+                // Lock is released here, minimizing contention
+            }
         }));
 
-        Self { state, handle }
+        Self { accumulated, handle }
     }
 
     pub async fn get_results(&self) -> Vec<T> {
-        let mut state = self.state.lock().await;
-
-        std::mem::take(&mut state.results)
+        let mut acc = self.accumulated.lock().await;
+        std::mem::take(&mut *acc)
     }
 }
