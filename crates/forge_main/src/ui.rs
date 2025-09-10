@@ -612,7 +612,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     self.api.upsert_conversation(conversation).await?;
                     conversation_id
                 } else {
-                    let conversation = self.api.init_conversation(workflow).await?;
+                    let conversation = self.api.init_conversation().await?;
                     self.state.conversation_id = Some(conversation.id);
 
                     conversation.id

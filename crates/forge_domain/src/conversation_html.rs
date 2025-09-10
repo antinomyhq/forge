@@ -202,9 +202,8 @@ mod tests {
     fn test_render_empty_conversation() {
         // Create a new empty conversation
         let id = crate::conversation::ConversationId::generate();
-        let workflow = crate::Workflow::new();
 
-        let fixture = Conversation::new(id, workflow);
+        let fixture = Conversation::new(id);
         let actual = render_conversation_html(&fixture);
 
         // We're verifying that the function runs without errors

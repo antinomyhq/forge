@@ -60,7 +60,7 @@ impl Runner {
         let collector = Collector::new(rx, LIMIT);
 
         let services = Arc::new(Runner::new(setup));
-        let conversation = Conversation::new(ConversationId::generate(), setup.workflow.clone());
+        let conversation = Conversation::new(ConversationId::generate());
         let agent = setup.agent.clone();
 
         let orch = Orchestrator::new(

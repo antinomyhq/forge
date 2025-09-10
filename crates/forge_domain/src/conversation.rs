@@ -3,7 +3,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{Context, Error, Metrics, Result, Workflow};
+use crate::{Context, Error, Metrics, Result};
 
 #[derive(Debug, Default, Display, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(transparent)]
@@ -42,7 +42,7 @@ impl Conversation {
         self
     }
 
-    pub fn new(id: ConversationId, _workflow: Workflow) -> Self {
+    pub fn new(id: ConversationId) -> Self {
         let mut metrics = Metrics::new();
         metrics.start();
 
