@@ -6,7 +6,9 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId, Event, InterruptionReason, Model, ModelId, ToolName, Workflow, API, EVENT_USER_TASK_INIT, EVENT_USER_TASK_UPDATE
+    API, AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId,
+    EVENT_USER_TASK_INIT, EVENT_USER_TASK_UPDATE, Event, InterruptionReason, Model, ModelId,
+    ToolName, Workflow,
 };
 use forge_display::MarkdownFormat;
 use forge_domain::{
