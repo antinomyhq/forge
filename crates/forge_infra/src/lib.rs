@@ -4,6 +4,7 @@ pub mod conversation_repository;
 pub mod models;
 pub mod schema;
 
+mod db_pool;
 mod env;
 mod error;
 mod forge_infra;

@@ -79,6 +79,7 @@ impl TryFrom<&ConversationRecord> for forge_domain::Conversation {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::sync::Arc;
 
     use chrono::Utc;
     use forge_domain::{Agent, AgentId, ConversationId, Event, Workflow, WorkspaceId};
@@ -86,6 +87,8 @@ mod tests {
     use serde_json::Value;
 
     use super::*;
+    use crate::db_pool::DatabasePool;
+    use crate::ConversationRepository;
 
     #[test]
     fn test_try_from_domain_conversation() {
@@ -102,6 +105,7 @@ mod tests {
             serde_json::from_str(&actual.context).unwrap();
         assert_eq!(deserialized.id, fixture.id);
     }
+    
     #[test]
     fn test_try_from_domain_conversation_upsert() {
         let fixture = create_test_conversation();
@@ -122,23 +126,6 @@ mod tests {
         let updated_at = actual.updated_at.expect("updated_at should be set in upsert operation");
         let time_diff = (now - updated_at).num_seconds();
         assert!(time_diff >= 0 && time_diff <= 1);
-    }
-    #[test]
-    fn test_conversation_repository_init() {
-        use tempfile::TempDir;
-
-        let temp_dir = TempDir::new().unwrap();
-        let db_path = temp_dir.path().join("test.db");
-
-        // Should create and initialize in one step
-        let repo = super::super::ConversationRepository::init(db_path.clone()).unwrap();
-
-        // Database file should exist
-        assert!(db_path.exists());
-
-        // Should be able to get a connection after initialization
-        let connection_result = repo.get_connection();
-        assert!(connection_result.is_ok());
     }
 
     #[test]

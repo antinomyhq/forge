@@ -14,6 +14,7 @@ use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
 use reqwest_eventsource::EventSource;
 
+use crate::db_pool::{DatabasePool, PoolConfig};
 use crate::env::ForgeEnvironmentInfra;
 use crate::executor::ForgeCommandExecutorService;
 use crate::fs_create_dirs::ForgeCreateDirsService;
@@ -55,8 +56,9 @@ impl ForgeInfra {
         let env = environment_service.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
         let http_service = Arc::new(ForgeHttpInfra::new(env.http.clone()));
+        let db_pool = Arc::new(DatabasePool::try_from(PoolConfig::new(env.database_path()))?);
         let conversation_storage =
-            Arc::new(crate::ConversationRepository::init(env.database_path())?);
+            Arc::new(crate::ConversationRepository::new(db_pool));
         Ok(Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
             file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),
