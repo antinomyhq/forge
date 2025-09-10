@@ -64,7 +64,6 @@ pub struct UI<A, F: Fn() -> A> {
     spinner: SpinnerManager,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
-    interactive: bool,
 }
 
 impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
@@ -146,7 +145,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         ))
     }
 
-    pub fn init(cli: Cli, interactive: bool, f: F) -> Result<Self> {
+    pub fn init(cli: Cli, f: F) -> Result<Self> {
         // Parse CLI arguments first to get flags
         let api = Arc::new(f());
         let env = api.environment();
@@ -161,7 +160,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             spinner: SpinnerManager::new(),
             markdown: MarkdownFormat::new(),
             _guard: forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?,
-            interactive,
         })
     }
 
@@ -643,7 +641,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
         let mut base_workflow = Workflow::default();
         base_workflow.merge(workflow.clone());
-        if first && self.interactive {
+        if first && self.cli.is_interactive() {
             // only call on_update if this is the first initialization
             on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
         }
@@ -877,7 +875,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // In non-interactive mode, don't ask user to start new conversation as we'll
         // just exit the shell as soon as we execute the provided command.
-        if self.interactive {
+        if self.cli.is_interactive() {
             let prompt_text = "Start a new conversation?";
             let should_start_new_chat = ForgeSelect::confirm(prompt_text)
                 // Pressing ENTER should start new
