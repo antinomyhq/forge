@@ -78,7 +78,6 @@ pub struct Cli {
     pub sandbox: Option<String>,
 }
 
-
 impl Cli {
     /// Check if Forge is entered in interactive mode or not.
     pub fn is_interactive(&self) -> bool {
