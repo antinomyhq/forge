@@ -11,7 +11,6 @@ use tokio::sync::Mutex;
 pub use super::orch_setup::TestContext;
 use crate::AgentService;
 use crate::orch::Orchestrator;
-use crate::orch_spec::collector::Collector;
 
 #[derive(Embed)]
 #[folder = "../../templates/"]
@@ -56,10 +55,16 @@ impl Runner {
 
     pub async fn run(setup: &mut TestContext) -> anyhow::Result<()> {
         const LIMIT: usize = 1024;
-        let (tx, rx) = tokio::sync::mpsc::channel::<anyhow::Result<ChatResponse>>(LIMIT);
-        let collector = Collector::new();
-        let collector_ref = collector.clone();
-        let handle = tokio::spawn(async move { collector_ref.init(rx).await });
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<anyhow::Result<ChatResponse>>(LIMIT);
+        let handle = tokio::spawn(async move {
+            let mut responses = Vec::new();
+
+            while let Some(item) = rx.recv().await {
+                responses.push(item);
+            }
+
+            responses
+        });
 
         let services = Arc::new(Runner::new(setup));
         let conversation = Conversation::new(ConversationId::generate());
@@ -83,8 +88,8 @@ impl Runner {
 
         let result = orch.run().await;
         drop(orch);
-        let _ = handle.await;
-        let chat_responses = collector.get_results().await;
+
+        let chat_responses = handle.await?;
 
         setup.output.chat_responses.extend(chat_responses);
         setup
