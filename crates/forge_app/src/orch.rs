@@ -61,10 +61,10 @@ impl<S: AgentService> Orchestrator<S> {
     #[async_recursion]
     async fn execute_tool_calls<'a>(
         &self,
-        agent: &Agent,
         tool_calls: &[ToolCallFull],
         tool_context: &ToolCallContext,
     ) -> anyhow::Result<Vec<(ToolCallFull, ToolResult)>> {
+        let agent = &self.agent;
         // Always process tool calls sequentially
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
 
@@ -119,7 +119,8 @@ impl<S: AgentService> Orchestrator<S> {
     }
 
     /// Get the allowed tools for an agent
-    fn get_allowed_tools(&mut self, agent: &Agent) -> anyhow::Result<Vec<ToolDefinition>> {
+    fn get_allowed_tools(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+        let agent = &self.agent;
         let mut tools = vec![];
         // Add system tools
         if !self.system_tools.is_empty() {
@@ -136,7 +137,8 @@ impl<S: AgentService> Orchestrator<S> {
     }
 
     /// Checks if parallel tool calls is supported by agent
-    fn is_parallel_tool_call_supported(&self, agent: &Agent) -> bool {
+    fn is_parallel_tool_call_supported(&self) -> bool {
+        let agent = &self.agent;
         agent
             .model
             .as_ref()
@@ -146,7 +148,8 @@ impl<S: AgentService> Orchestrator<S> {
     }
 
     // Returns if agent supports tool or not.
-    fn is_tool_supported(&self, agent: &Agent) -> anyhow::Result<bool> {
+    fn is_tool_supported(&self) -> anyhow::Result<bool> {
+        let agent = &self.agent;
         let model_id = agent
             .model
             .as_ref()
@@ -174,21 +177,18 @@ impl<S: AgentService> Orchestrator<S> {
         Ok(tool_supported)
     }
 
-    async fn set_system_prompt(
-        &mut self,
-        context: Context,
-        agent: &Agent,
-    ) -> anyhow::Result<Context> {
+    async fn set_system_prompt(&mut self, context: Context) -> anyhow::Result<Context> {
+        let agent = &self.agent;
         Ok(if let Some(system_prompt) = &agent.system_prompt {
             let env = self.environment.clone();
             let mut files = self.files.clone();
             files.sort();
 
-            let tool_supported = self.is_tool_supported(agent)?;
-            let supports_parallel_tool_calls = self.is_parallel_tool_call_supported(agent);
+            let tool_supported = self.is_tool_supported()?;
+            let supports_parallel_tool_calls = self.is_parallel_tool_call_supported();
             let tool_information = match tool_supported {
                 true => None,
-                false => Some(ToolUsagePrompt::from(&self.get_allowed_tools(agent)?).to_string()),
+                false => Some(ToolUsagePrompt::from(&self.get_allowed_tools()?).to_string()),
             };
 
             let mut custom_rules = Vec::new();
@@ -226,9 +226,9 @@ impl<S: AgentService> Orchestrator<S> {
         &self,
         model_id: &ModelId,
         context: Context,
-        tool_supported: bool,
         reasoning_supported: bool,
     ) -> anyhow::Result<ChatCompletionMessageFull> {
+        let tool_supported = self.is_tool_supported()?;
         let mut transformers = TransformToolCalls::new()
             .when(|_| !tool_supported)
             .pipe(ImageHandling::new())
@@ -241,11 +241,8 @@ impl<S: AgentService> Orchestrator<S> {
         response.into_full(!tool_supported).await
     }
     /// Checks if compaction is needed and performs it if necessary
-    async fn check_and_compact(
-        &self,
-        agent: &Agent,
-        context: &Context,
-    ) -> anyhow::Result<Option<Context>> {
+    async fn check_and_compact(&self, context: &Context) -> anyhow::Result<Option<Context>> {
+        let agent = &self.agent;
         // Estimate token count for compaction decision
         let token_count = context.token_count();
         if agent.should_compact(context, *token_count) {
@@ -269,20 +266,20 @@ impl<S: AgentService> Orchestrator<S> {
             event_value = %format!("{:?}", event.value),
             "Dispatching event"
         );
-        let agent = self.agent.clone();
         let mut tool_failure_attempts = HashMap::new();
         debug!(
             conversation_id = %self.conversation.id,
-            agent = %agent.id,
+            agent = %self.agent.id,
             event = ?event,
             "Initializing agent"
         );
 
-        let model_id = agent
+        let model_id = self
+            .agent
             .model
             .clone()
-            .ok_or(Error::MissingModel(agent.id.clone()))?;
-        let tool_supported = self.is_tool_supported(&agent)?;
+            .ok_or(Error::MissingModel(self.agent.id.clone()))?;
+        let tool_supported = self.is_tool_supported()?;
 
         let mut context = self.conversation.context.clone().unwrap_or_default();
 
@@ -290,13 +287,16 @@ impl<S: AgentService> Orchestrator<S> {
         context = context.conversation_id(self.conversation.id);
 
         // Reset all the available tools
-        context = context.tools(self.get_allowed_tools(&agent)?);
+        context = context.tools(self.get_allowed_tools()?);
 
         // Render the system prompts with the variables
-        context = self.set_system_prompt(context, &agent).await?;
+        context = self.set_system_prompt(context).await?;
 
         // Render user prompts
-        context = self.set_user_prompt(context, &agent, &event).await?;
+        context = self.set_user_prompt(context).await?;
+
+        // Create agent reference for the rest of the method
+        let agent = &self.agent;
 
         if let Some(temperature) = agent.temperature {
             context = context.temperature(temperature);
@@ -368,7 +368,7 @@ impl<S: AgentService> Orchestrator<S> {
             // Run the main chat request and compaction check in parallel
             let main_request = crate::retry::retry_with_config(
                 &self.environment.retry_config,
-                || self.execute_chat_turn(&model_id, context.clone(), tool_supported, context.is_reasoning_supported()),
+                || self.execute_chat_turn(&model_id, context.clone(), context.is_reasoning_supported()),
                 self.sender.as_ref().map(|sender| {
                     let sender = sender.clone();
                     let agent_id = agent.id.clone();
@@ -398,7 +398,7 @@ impl<S: AgentService> Orchestrator<S> {
                     finish_reason,
                 },
                 compaction_result,
-            ) = tokio::try_join!(main_request, self.check_and_compact(&agent, &context))?;
+            ) = tokio::try_join!(main_request, self.check_and_compact(&context))?;
 
             // Apply compaction result if it completed successfully
             match compaction_result {
@@ -465,12 +465,10 @@ impl<S: AgentService> Orchestrator<S> {
             // Check if tool calls are within allowed limits if max_tool_failure_per_turn is
             // configured
             let mut allowed_limits_exceeded =
-                self.check_tool_call_failures(&agent, &tool_failure_attempts, &tool_calls);
+                self.check_tool_call_failures(&tool_failure_attempts, &tool_calls);
 
             // Process tool calls and update context
-            let mut tool_call_records = self
-                .execute_tool_calls(&agent, &tool_calls, &tool_context)
-                .await?;
+            let mut tool_call_records = self.execute_tool_calls(&tool_calls, &tool_context).await?;
 
             // Update the tool call attempts, if the tool call is an error
             // we increment the attempts, otherwise we remove it from the attempts map
@@ -617,10 +615,10 @@ impl<S: AgentService> Orchestrator<S> {
 
     fn check_tool_call_failures(
         &self,
-        agent: &Agent,
         tool_failure_attempts: &HashMap<ToolName, usize>,
         tool_calls: &[ToolCallFull],
     ) -> bool {
+        let agent = &self.agent;
         agent.max_tool_failure_per_turn.is_some_and(|limit| {
             tool_calls
                 .iter()
@@ -629,12 +627,9 @@ impl<S: AgentService> Orchestrator<S> {
         })
     }
 
-    async fn set_user_prompt(
-        &mut self,
-        mut context: Context,
-        agent: &Agent,
-        event: &Event,
-    ) -> anyhow::Result<Context> {
+    async fn set_user_prompt(&mut self, mut context: Context) -> anyhow::Result<Context> {
+        let agent = &self.agent;
+        let event = &self.event;
         let content = if let Some(user_prompt) = &agent.user_prompt
             && event.value.is_some()
         {
