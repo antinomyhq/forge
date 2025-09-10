@@ -2,30 +2,32 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context as AnyhowContext, Result};
-use forge_app::domain::{Agent, Conversation, ConversationId, Workflow};
-use forge_app::{ConversationService, McpService};
+use forge_app::ConversationService;
+use forge_app::domain::{Conversation, ConversationId};
 use tokio::sync::Mutex;
 
 /// Service for managing conversations, including creation, retrieval, and
 /// updates
 #[derive(Clone)]
-pub struct ForgeConversationService<M> {
+pub struct ForgeConversationService {
     conversations: Arc<Mutex<HashMap<ConversationId, Conversation>>>,
-    mcp_service: Arc<M>,
 }
 
-impl<M: McpService> ForgeConversationService<M> {
+impl Default for ForgeConversationService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ForgeConversationService {
     /// Creates a new ForgeConversationService with the provided MCP service
-    pub fn new(mcp_service: Arc<M>) -> Self {
-        Self {
-            conversations: Arc::new(Mutex::new(HashMap::new())),
-            mcp_service,
-        }
+    pub fn new() -> Self {
+        Self { conversations: Arc::new(Mutex::new(HashMap::new())) }
     }
 }
 
 #[async_trait::async_trait]
-impl<M: McpService> ConversationService for ForgeConversationService<M> {
+impl ConversationService for ForgeConversationService {
     async fn modify_conversation<F, T>(&self, id: &ConversationId, f: F) -> Result<T>
     where
         F: FnOnce(&mut Conversation) -> T + Send,
@@ -47,24 +49,11 @@ impl<M: McpService> ConversationService for ForgeConversationService<M> {
         Ok(())
     }
 
-    async fn init_conversation(
-        &self,
-        workflow: Workflow,
-        agents: Vec<Agent>,
-    ) -> Result<Conversation> {
+    async fn init_conversation(&self) -> Result<Conversation> {
         let id = ConversationId::generate();
-        let conversation = Conversation::new(
-            id,
-            workflow,
-            self.mcp_service
-                .list()
-                .await?
-                .into_values()
-                .flatten()
-                .map(|tool| tool.name)
-                .collect(),
-            agents,
-        );
+
+        let conversation = Conversation::new(id);
+
         self.conversations
             .lock()
             .await

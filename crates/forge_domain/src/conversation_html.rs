@@ -25,196 +25,14 @@ pub fn render_conversation_html(conversation: &Conversation) -> String {
                 .append(
                     Element::new("div.section")
                         .append(Element::new("h2").text("Basic Information"))
-                        .append(Element::new("p").text(format!("ID: {}", conversation.id)))
-                        .append(
-                            Element::new("p").text(format!("Archived: {}", conversation.archived)),
-                        ),
+                        .append(Element::new("p").text(format!("ID: {}", conversation.id))),
                 )
                 // Variables Section
-                .append(create_variables_section(conversation))
                 // Agent States Section
-                .append(create_conversation_context_section(conversation))
-                // Agents Section
-                .append(create_agents_section(conversation))
-                // All Subscriptions Section
-                .append(create_all_subscriptions_section(conversation))
-                // Events Section
-                .append(create_events_section(conversation)),
+                .append(create_conversation_context_section(conversation)),
         );
 
     html.render()
-}
-
-fn create_variables_section(conversation: &Conversation) -> Element {
-    let table = Element::new("table").append(
-        Element::new("tr")
-            .append(Element::new("th").text("Key"))
-            .append(Element::new("th").text("Value")),
-    );
-
-    let table_with_rows = conversation
-        .variables
-        .iter()
-        .fold(table, |table, (key, value)| {
-            table.append(
-                Element::new("tr")
-                    .append(Element::new("td").text(key))
-                    .append(Element::new("td").append(Element::new("pre").text(value.to_string()))),
-            )
-        });
-
-    Element::new("div.section")
-        .append(Element::new("h2").text("Variables"))
-        .append(table_with_rows)
-}
-
-fn create_agents_section(conversation: &Conversation) -> Element {
-    let section = Element::new("div.section").append(Element::new("h2").text("Agents"));
-
-    conversation.agents.iter().fold(section, |section, agent| {
-        let agent_header = Element::new("div.agent-header")
-            .append(Element::new("h3").text(&agent.id))
-            .append(
-                agent
-                    .model
-                    .as_ref()
-                    .map(|model| Element::new("span").text(format!("Model: {model}"))),
-            );
-
-        let mut agent_div = Element::new("div.agent").append(agent_header);
-
-        // Add custom rules if available
-        if let Some(custom_rules) = &agent.custom_rules {
-            agent_div = agent_div.append(
-                Element::new("div")
-                    .append(Element::new("strong").text("Custom Rules"))
-                    .append(Element::new("pre").text(custom_rules)),
-            );
-        }
-
-        // Add description if available
-        if let Some(description) = &agent.description {
-            agent_div = agent_div.append(
-                Element::new("div")
-                    .append(Element::new("strong").text("Description"))
-                    .append(Element::new("p").text(description)),
-            );
-        }
-
-        // Add subscriptions if available
-        if let Some(subscriptions) = &agent.subscribe
-            && !subscriptions.is_empty()
-        {
-            let subscriptions_list = subscriptions.iter().fold(Element::new("ul"), |ul, sub| {
-                ul.append(Element::new("li").text(sub))
-            });
-
-            agent_div = agent_div.append(
-                Element::new("div")
-                    .append(Element::new("strong").text("Subscriptions"))
-                    .append(subscriptions_list),
-            );
-        }
-
-        // Add temperature if available
-        if let Some(temperature) = &agent.temperature {
-            agent_div =
-                agent_div.append(Element::new("p").text(format!("Temperature: {temperature}")));
-        }
-
-        // Add max turns if available
-        if let Some(max_turns) = agent.max_turns {
-            agent_div = agent_div.append(Element::new("p").text(format!("Max Turns: {max_turns}")));
-        }
-
-        // Add max walker depth if available
-        if let Some(max_walker_depth) = agent.max_walker_depth {
-            agent_div = agent_div
-                .append(Element::new("p").text(format!("Max Walker Depth: {max_walker_depth}")));
-        }
-
-        section.append(agent_div)
-    })
-}
-
-fn create_all_subscriptions_section(conversation: &Conversation) -> Element {
-    let section = Element::new("div.section").append(Element::new("h2").text("All Subscriptions"));
-
-    // Check if any agents have subscriptions
-    let has_subscriptions = conversation.agents.iter().any(|agent| {
-        agent
-            .subscribe
-            .as_ref()
-            .is_some_and(|subs| !subs.is_empty())
-    });
-
-    if !has_subscriptions {
-        return section.append(Element::new("p").text("No subscriptions found."));
-    }
-
-    // Create a table with agents and their subscriptions using iterators
-    let table = Element::new("table")
-        .append(
-            Element::new("tr")
-                .append(Element::new("th").text("Agent"))
-                .append(Element::new("th").text("Subscribed Events"))
-                .append(Element::new("th").text("Count")),
-        )
-        .append(
-            conversation
-                .agents
-                .iter()
-                .filter(|agent| {
-                    agent
-                        .subscribe
-                        .as_ref()
-                        .is_some_and(|subs| !subs.is_empty())
-                })
-                .map(|agent| {
-                    let subscriptions = agent.subscribe.as_ref().unwrap();
-                    let events_list = subscriptions.join(", ");
-                    let count = subscriptions.len();
-
-                    Element::new("tr")
-                        .append(
-                            Element::new("td")
-                                .append(Element::new("strong").text(agent.id.as_str())),
-                        )
-                        .append(Element::new("td").text(events_list))
-                        .append(Element::new("td").text(count.to_string()))
-                }),
-        );
-
-    section.append(table)
-}
-
-fn create_events_section(conversation: &Conversation) -> Element {
-    let section = Element::new("div.section").append(Element::new("h2").text("Events"));
-
-    conversation
-        .events
-        .iter()
-        .filter(|e| e.value.is_some())
-        .fold(section, |section, event| {
-            let event_div = Element::new("div.event")
-                .append(
-                    Element::new("div.event-header")
-                        .append(Element::new("h3").text(&event.name))
-                        .append(Element::new("span").text(format!("ID: {}", event.id))),
-                )
-                .append(
-                    Element::new("div")
-                        .append(Element::new("strong").text("Value"))
-                        .append(Element::new("pre").text(event.value.clone().unwrap_or_default())),
-                )
-                .append(
-                    Element::new("div")
-                        .append(Element::new("strong").text("Timestamp"))
-                        .append(Element::new("pre").text(event.timestamp.to_string())),
-                );
-
-            section.append(event_div)
-        })
 }
 
 fn create_conversation_context_section(conversation: &Conversation) -> Element {
@@ -384,9 +202,8 @@ mod tests {
     fn test_render_empty_conversation() {
         // Create a new empty conversation
         let id = crate::conversation::ConversationId::generate();
-        let workflow = crate::Workflow::new();
 
-        let fixture = Conversation::new(id, workflow, Default::default(), vec![]);
+        let fixture = Conversation::new(id);
         let actual = render_conversation_html(&fixture);
 
         // We're verifying that the function runs without errors
@@ -395,9 +212,6 @@ mod tests {
         assert!(actual.contains("</html>"));
         assert!(actual.contains("Conversation: "));
         assert!(actual.contains("Basic Information"));
-        assert!(actual.contains("Variables"));
-        assert!(actual.contains("Agents"));
-        assert!(actual.contains("Events"));
         assert!(actual.contains("Conversation Context"));
     }
 }

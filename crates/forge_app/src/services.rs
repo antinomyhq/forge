@@ -138,11 +138,7 @@ pub trait ConversationService: Send + Sync {
 
     async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()>;
 
-    async fn init_conversation(
-        &self,
-        workflow: Workflow,
-        agent: Vec<Agent>,
-    ) -> anyhow::Result<Conversation>;
+    async fn init_conversation(&self) -> anyhow::Result<Conversation>;
 
     /// This is useful when you want to perform several operations on a
     /// conversation atomically.
@@ -422,14 +418,8 @@ impl<I: Services> ConversationService for I {
             .await
     }
 
-    async fn init_conversation(
-        &self,
-        workflow: Workflow,
-        agents: Vec<Agent>,
-    ) -> anyhow::Result<Conversation> {
-        self.conversation_service()
-            .init_conversation(workflow, agents)
-            .await
+    async fn init_conversation(&self) -> anyhow::Result<Conversation> {
+        self.conversation_service().init_conversation().await
     }
 
     async fn modify_conversation<F, T>(&self, id: &ConversationId, f: F) -> anyhow::Result<T>

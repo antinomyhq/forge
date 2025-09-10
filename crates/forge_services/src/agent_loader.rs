@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::domain::{Agent, Template, ToolsDiscriminants};
+use forge_app::domain::{Agent, Template};
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
 
@@ -178,27 +178,11 @@ fn parse_agent_file(content: &str) -> Result<Agent> {
         .context("Empty system prompt content")?
         .system_prompt(Template::new(result.content));
 
-    // Add attempt completion tool by default if not already present
-    Ok(add_attempt_completion_tool(agent))
-}
-
-/// Adds the attempt completion tool to the agent's tools list by default
-fn add_attempt_completion_tool(mut agent: Agent) -> Agent {
-    let completion_tool = ToolsDiscriminants::AttemptCompletion.name();
-
-    if let Some(tools) = agent.tools.as_mut() {
-        // If agent supports tool calling and doesn't have it already
-        if !tools.contains(&completion_tool) && !tools.is_empty() {
-            tools.push(completion_tool);
-        }
-    }
-
-    agent
+    Ok(agent)
 }
 
 #[cfg(test)]
 mod tests {
-    use forge_app::domain::ToolName;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -276,174 +260,86 @@ mod tests {
             assert!(agent.system_prompt.is_some());
         }
     }
+
     #[test]
-    fn test_add_attempt_completion_tool_with_no_tools() {
-        let fixture = Agent::new("test-add-completion-no-tools")
-            .title("Test Agent - No Tools")
-            .description("Agent without any tools field for testing add_attempt_completion_tool")
-            .system_prompt(Template::new("Agent fixture for testing add_attempt_completion_tool function with no tools field."));
+    fn test_resolve_agent_conflicts_no_duplicates() {
+        let fixture = vec![
+            Agent::new("agent1").title("Agent 1"),
+            Agent::new("agent2").title("Agent 2"),
+            Agent::new("agent3").title("Agent 3"),
+        ];
 
-        let actual = add_attempt_completion_tool(fixture.clone());
-        let expected = fixture; // Should remain unchanged
+        let actual = resolve_agent_conflicts(fixture.clone());
 
-        // Compare relevant fields since Agent doesn't implement PartialEq
-        assert_eq!(actual.id, expected.id);
-        assert_eq!(actual.tools, expected.tools);
-        assert!(actual.tools.is_none());
+        // Should return all agents when no conflicts
+        assert_eq!(actual.len(), 3);
+
+        let ids: std::collections::HashSet<_> = actual.iter().map(|a| a.id.as_str()).collect();
+        assert!(ids.contains("agent1"));
+        assert!(ids.contains("agent2"));
+        assert!(ids.contains("agent3"));
     }
 
     #[test]
-    fn test_add_attempt_completion_tool_with_empty_tools() {
-        let fixture = Agent::new("test-add-completion-empty-tools")
-            .title("Test Agent - Empty Tools")
-            .description("Agent with empty tools list for testing add_attempt_completion_tool")
-            .tools(Vec::<ToolName>::new())
-            .system_prompt(Template::new("Agent fixture for testing add_attempt_completion_tool function with empty tools list."));
+    fn test_resolve_agent_conflicts_with_duplicates() {
+        let fixture = vec![
+            Agent::new("agent1").title("Global Agent 1"),
+            Agent::new("agent2").title("Global Agent 2"),
+            Agent::new("agent1").title("CWD Agent 1 - Override"), // Duplicate ID, should override
+            Agent::new("agent3").title("CWD Agent 3"),
+        ];
 
-        let actual = add_attempt_completion_tool(fixture.clone());
-        let expected = fixture; // Should remain unchanged
+        let actual = resolve_agent_conflicts(fixture);
 
-        // Compare relevant fields since Agent doesn't implement PartialEq
-        assert_eq!(actual.id, expected.id);
-        assert_eq!(actual.tools, expected.tools);
-        assert_eq!(actual.tools.as_ref().unwrap(), &Vec::<ToolName>::new());
+        // Should have 3 agents: agent1 (CWD version), agent2 (global), agent3 (CWD)
+        assert_eq!(actual.len(), 3);
+
+        let agent1 = actual
+            .iter()
+            .find(|a| a.id.as_str() == "agent1")
+            .expect("Should have agent1");
+        let expected_title = "CWD Agent 1 - Override";
+        assert_eq!(agent1.title.as_ref().unwrap(), expected_title);
     }
 
     #[test]
-    fn test_add_attempt_completion_tool_already_has_completion() {
-        let fixture = Agent::new("test-add-completion-has-completion")
-            .title("Test Agent - Has Completion")
-            .description("Agent that already has attempt_completion for testing add_attempt_completion_tool")
-            .tools(vec![
-                ToolName::new("fs_read"),
-                ToolName::new("attempt_completion"),
-                ToolName::new("shell")
-            ])
-            .system_prompt(Template::new("Agent fixture for testing add_attempt_completion_tool function when attempt_completion already exists."));
+    fn test_resolve_agent_conflicts_multiple_duplicates() {
+        // Test scenario: Built-in -> Global -> CWD (CWD should win)
+        let fixture = vec![
+            Agent::new("common").title("Built-in Common Agent"),
+            Agent::new("unique1").title("Built-in Unique 1"),
+            Agent::new("common").title("Global Common Agent"), // Override built-in
+            Agent::new("unique2").title("Global Unique 2"),
+            Agent::new("common").title("CWD Common Agent"), // Override global
+            Agent::new("unique3").title("CWD Unique 3"),
+        ];
 
-        let actual = add_attempt_completion_tool(fixture.clone());
-        let expected = fixture; // Should remain unchanged
+        let actual = resolve_agent_conflicts(fixture);
 
-        // Compare relevant fields since Agent doesn't implement PartialEq
-        assert_eq!(actual.id, expected.id);
-        assert_eq!(actual.tools, expected.tools);
-        let tools = actual.tools.as_ref().unwrap();
-        assert!(tools.contains(&ToolName::new("attempt_completion")));
-        // Should not duplicate the tool
-        assert_eq!(
-            tools
-                .iter()
-                .filter(|&tool| *tool == ToolName::new("attempt_completion"))
-                .count(),
-            1
-        );
+        // Should have 4 agents: common (CWD version), unique1, unique2, unique3
+        assert_eq!(actual.len(), 4);
+
+        let common = actual
+            .iter()
+            .find(|a| a.id.as_str() == "common")
+            .expect("Should have common agent");
+        let expected_title = "CWD Common Agent";
+        assert_eq!(common.title.as_ref().unwrap(), expected_title);
+
+        // Verify all unique agents are present
+        let ids: std::collections::HashSet<_> = actual.iter().map(|a| a.id.as_str()).collect();
+        assert!(ids.contains("common"));
+        assert!(ids.contains("unique1"));
+        assert!(ids.contains("unique2"));
+        assert!(ids.contains("unique3"));
     }
 
     #[test]
-    fn test_add_attempt_completion_tool_should_add_completion() {
-        let fixture = Agent::new("test-add-completion-needs-completion")
-            .title("Test Agent - Needs Completion")
-            .description("Agent with tools but missing attempt_completion for testing add_attempt_completion_tool")
-            .tools(vec![
-                ToolName::new("fs_read"),
-                ToolName::new("fs_write"),
-                ToolName::new("shell")
-            ])
-            .system_prompt(Template::new("Agent fixture for testing add_attempt_completion_tool function when attempt_completion needs to be added."));
+    fn test_resolve_agent_conflicts_empty_input() {
+        let fixture: Vec<Agent> = vec![];
 
-        let actual = add_attempt_completion_tool(fixture.clone());
+        let actual = resolve_agent_conflicts(fixture);
 
-        // Create expected result manually
-        let mut expected_tools = fixture.tools.as_ref().unwrap().clone();
-        expected_tools.push(ToolName::new("attempt_completion"));
-
-        // Compare relevant fields
-        assert_eq!(actual.id, fixture.id);
-        assert_eq!(actual.tools.as_ref().unwrap(), &expected_tools);
-        let tools = actual.tools.as_ref().unwrap();
-        assert!(tools.contains(&ToolName::new("attempt_completion")));
-        assert_eq!(tools.len(), 4); // Original 3 + 1 added
+        assert_eq!(actual.len(), 0);
     }
-}
-
-#[test]
-fn test_resolve_agent_conflicts_no_duplicates() {
-    let fixture = vec![
-        Agent::new("agent1").title("Agent 1"),
-        Agent::new("agent2").title("Agent 2"),
-        Agent::new("agent3").title("Agent 3"),
-    ];
-
-    let actual = resolve_agent_conflicts(fixture.clone());
-
-    // Should return all agents when no conflicts
-    assert_eq!(actual.len(), 3);
-
-    let ids: std::collections::HashSet<_> = actual.iter().map(|a| a.id.as_str()).collect();
-    assert!(ids.contains("agent1"));
-    assert!(ids.contains("agent2"));
-    assert!(ids.contains("agent3"));
-}
-
-#[test]
-fn test_resolve_agent_conflicts_with_duplicates() {
-    let fixture = vec![
-        Agent::new("agent1").title("Global Agent 1"),
-        Agent::new("agent2").title("Global Agent 2"),
-        Agent::new("agent1").title("CWD Agent 1 - Override"), // Duplicate ID, should override
-        Agent::new("agent3").title("CWD Agent 3"),
-    ];
-
-    let actual = resolve_agent_conflicts(fixture);
-
-    // Should have 3 agents: agent1 (CWD version), agent2 (global), agent3 (CWD)
-    assert_eq!(actual.len(), 3);
-
-    let agent1 = actual
-        .iter()
-        .find(|a| a.id.as_str() == "agent1")
-        .expect("Should have agent1");
-    let expected_title = "CWD Agent 1 - Override";
-    assert_eq!(agent1.title.as_ref().unwrap(), expected_title);
-}
-
-#[test]
-fn test_resolve_agent_conflicts_multiple_duplicates() {
-    // Test scenario: Built-in -> Global -> CWD (CWD should win)
-    let fixture = vec![
-        Agent::new("common").title("Built-in Common Agent"),
-        Agent::new("unique1").title("Built-in Unique 1"),
-        Agent::new("common").title("Global Common Agent"), // Override built-in
-        Agent::new("unique2").title("Global Unique 2"),
-        Agent::new("common").title("CWD Common Agent"), // Override global
-        Agent::new("unique3").title("CWD Unique 3"),
-    ];
-
-    let actual = resolve_agent_conflicts(fixture);
-
-    // Should have 4 agents: common (CWD version), unique1, unique2, unique3
-    assert_eq!(actual.len(), 4);
-
-    let common = actual
-        .iter()
-        .find(|a| a.id.as_str() == "common")
-        .expect("Should have common agent");
-    let expected_title = "CWD Common Agent";
-    assert_eq!(common.title.as_ref().unwrap(), expected_title);
-
-    // Verify all unique agents are present
-    let ids: std::collections::HashSet<_> = actual.iter().map(|a| a.id.as_str()).collect();
-    assert!(ids.contains("common"));
-    assert!(ids.contains("unique1"));
-    assert!(ids.contains("unique2"));
-    assert!(ids.contains("unique3"));
-}
-
-#[test]
-fn test_resolve_agent_conflicts_empty_input() {
-    let fixture: Vec<Agent> = vec![];
-
-    let actual = resolve_agent_conflicts(fixture);
-
-    assert_eq!(actual.len(), 0);
 }
