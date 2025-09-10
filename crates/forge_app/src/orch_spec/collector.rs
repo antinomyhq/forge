@@ -1,9 +1,8 @@
 use std::sync::Arc;
 
-use tokio::{
-    sync::{Mutex, mpsc::Receiver},
-    task::JoinHandle,
-};
+use tokio::sync::Mutex;
+use tokio::sync::mpsc::Receiver;
+use tokio::task::JoinHandle;
 
 struct State<T> {
     results: Vec<T>,
