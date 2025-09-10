@@ -332,116 +332,113 @@ impl From<Agent> for ToolDefinition {
 }
 
 /// Helper to prepare agents with workflow settings
-pub fn prepare_agents(
-    mut agents: Vec<Agent>,
+pub fn prepare_agent(
+    mut agent: Agent,
     workflow: &Workflow,
     mcp_tools: &HashMap<String, Vec<ToolDefinition>>,
-) -> Vec<Agent> {
-    for agent in agents.iter_mut() {
-        if let Some(custom_rules) = workflow.custom_rules.clone() {
-            if let Some(existing_rules) = &agent.custom_rules {
-                agent.custom_rules = Some(existing_rules.clone() + "\n\n" + &custom_rules);
-            } else {
-                agent.custom_rules = Some(custom_rules);
-            }
-        }
-
-        if let Some(max_walker_depth) = workflow.max_walker_depth {
-            agent.max_walker_depth = Some(max_walker_depth);
-        }
-
-        if let Some(temperature) = workflow.temperature {
-            agent.temperature = Some(temperature);
-        }
-
-        if let Some(top_p) = workflow.top_p {
-            agent.top_p = Some(top_p);
-        }
-
-        if let Some(top_k) = workflow.top_k {
-            agent.top_k = Some(top_k);
-        }
-
-        if let Some(max_tokens) = workflow.max_tokens {
-            agent.max_tokens = Some(max_tokens);
-        }
-
-        if let Some(tool_supported) = workflow.tool_supported {
-            agent.tool_supported = Some(tool_supported);
-        }
-        if agent.max_tool_failure_per_turn.is_none()
-            && let Some(max_tool_failure_per_turn) = workflow.max_tool_failure_per_turn
-        {
-            agent.max_tool_failure_per_turn = Some(max_tool_failure_per_turn);
-        }
-
-        if agent.max_requests_per_turn.is_none()
-            && let Some(max_requests_per_turn) = workflow.max_requests_per_turn
-        {
-            agent.max_requests_per_turn = Some(max_requests_per_turn);
-        }
-
-        // Apply workflow compact configuration to agents
-        if let Some(ref workflow_compact) = workflow.compact {
-            if let Some(ref mut agent_compact) = agent.compact {
-                // If agent already has compact config, merge workflow config into agent config
-                // Agent settings take priority over workflow settings
-                let mut merged_compact = workflow_compact.clone();
-                merged_compact.merge(agent_compact.clone());
-                *agent_compact = merged_compact;
-            } else {
-                // If agent doesn't have compact config, use workflow's compact config
-                agent.compact = Some(workflow_compact.clone());
-            }
-        }
-
-        // Subscribe the main agent to all commands
-        if agent.id == AgentId::default() {
-            let commands = workflow
-                .commands
-                .iter()
-                .map(|c| c.name.clone())
-                .collect::<Vec<_>>();
-            if let Some(ref mut subscriptions) = agent.subscribe {
-                subscriptions.extend(commands);
-            } else {
-                agent.subscribe = Some(commands);
-            }
-        }
-
-        // Insert all the MCP tool names
-        if !mcp_tools.is_empty() {
-            if let Some(ref mut tools) = agent.tools {
-                tools.extend(mcp_tools.values().flatten().map(|tool| tool.name.clone()));
-            } else {
-                agent.tools = Some(
-                    mcp_tools
-                        .values()
-                        .flatten()
-                        .map(|tool| tool.name.clone())
-                        .collect::<Vec<_>>(),
-                );
-            }
-        }
-
-        // Add base subscription
-        let id = agent.id.clone();
-        agent.add_subscription(format!("{id}"));
-
-        // Set model for agent
-        if let Some(ref model) = workflow.model {
-            if agent.model.is_none() {
-                agent.model = Some(model.clone());
-            }
-            if let Some(ref mut compact) = agent.compact
-                && compact.model.is_none()
-            {
-                compact.model = Some(model.clone());
-            }
+) -> Agent {
+    if let Some(custom_rules) = workflow.custom_rules.clone() {
+        if let Some(existing_rules) = &agent.custom_rules {
+            agent.custom_rules = Some(existing_rules.clone() + "\n\n" + &custom_rules);
+        } else {
+            agent.custom_rules = Some(custom_rules);
         }
     }
 
-    agents
+    if let Some(max_walker_depth) = workflow.max_walker_depth {
+        agent.max_walker_depth = Some(max_walker_depth);
+    }
+
+    if let Some(temperature) = workflow.temperature {
+        agent.temperature = Some(temperature);
+    }
+
+    if let Some(top_p) = workflow.top_p {
+        agent.top_p = Some(top_p);
+    }
+
+    if let Some(top_k) = workflow.top_k {
+        agent.top_k = Some(top_k);
+    }
+
+    if let Some(max_tokens) = workflow.max_tokens {
+        agent.max_tokens = Some(max_tokens);
+    }
+
+    if let Some(tool_supported) = workflow.tool_supported {
+        agent.tool_supported = Some(tool_supported);
+    }
+    if agent.max_tool_failure_per_turn.is_none()
+        && let Some(max_tool_failure_per_turn) = workflow.max_tool_failure_per_turn
+    {
+        agent.max_tool_failure_per_turn = Some(max_tool_failure_per_turn);
+    }
+
+    if agent.max_requests_per_turn.is_none()
+        && let Some(max_requests_per_turn) = workflow.max_requests_per_turn
+    {
+        agent.max_requests_per_turn = Some(max_requests_per_turn);
+    }
+
+    // Apply workflow compact configuration to agents
+    if let Some(ref workflow_compact) = workflow.compact {
+        if let Some(ref mut agent_compact) = agent.compact {
+            // If agent already has compact config, merge workflow config into agent config
+            // Agent settings take priority over workflow settings
+            let mut merged_compact = workflow_compact.clone();
+            merged_compact.merge(agent_compact.clone());
+            *agent_compact = merged_compact;
+        } else {
+            // If agent doesn't have compact config, use workflow's compact config
+            agent.compact = Some(workflow_compact.clone());
+        }
+    }
+
+    // Subscribe the main agent to all commands
+    if agent.id == AgentId::default() {
+        let commands = workflow
+            .commands
+            .iter()
+            .map(|c| c.name.clone())
+            .collect::<Vec<_>>();
+        if let Some(ref mut subscriptions) = agent.subscribe {
+            subscriptions.extend(commands);
+        } else {
+            agent.subscribe = Some(commands);
+        }
+    }
+
+    // Insert all the MCP tool names
+    if !mcp_tools.is_empty() {
+        if let Some(ref mut tools) = agent.tools {
+            tools.extend(mcp_tools.values().flatten().map(|tool| tool.name.clone()));
+        } else {
+            agent.tools = Some(
+                mcp_tools
+                    .values()
+                    .flatten()
+                    .map(|tool| tool.name.clone())
+                    .collect::<Vec<_>>(),
+            );
+        }
+    }
+
+    // Add base subscription
+    let id = agent.id.clone();
+    agent.add_subscription(format!("{id}"));
+
+    // Set model for agent
+    if let Some(ref model) = workflow.model {
+        if agent.model.is_none() {
+            agent.model = Some(model.clone());
+        }
+        if let Some(ref mut compact) = agent.compact
+            && compact.model.is_none()
+        {
+            compact.model = Some(model.clone());
+        }
+    }
+    agent
 }
 
 // The Transform enum has been removed

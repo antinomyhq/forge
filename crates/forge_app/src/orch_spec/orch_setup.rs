@@ -78,7 +78,6 @@ impl TestContext {
                 stdout_max_line_length: 200, // 5 MB
             },
             agent: Agent::new(AgentId::new("forge"))
-                .model("closed-ai/some-cool-model")
                 .system_prompt(Template::new("You are Forge"))
                 .tool_supported(true)
                 .tools(vec![("fs_read").into(), ("fs_write").into()]),

@@ -98,10 +98,11 @@ impl<S: Services> ForgeApp<S> {
         let custom_instructions = services.get_custom_instructions().await;
 
         // Prepare agents with user configuration and subscriptions
-        let agents = prepare_agents(services.get_agents().await?.clone(), &workflow, &mcp_tools);
+        let agents = services.get_agents().await?;
 
         let agent = agents
             .into_iter()
+            .map(|agent| prepare_agent(agent, &workflow, &mcp_tools))
             .find(|agent| agent.has_subscription(&chat.event.name))
             .ok_or(crate::Error::UnsubscribedEvent(chat.event.name.to_owned()))?;
 
