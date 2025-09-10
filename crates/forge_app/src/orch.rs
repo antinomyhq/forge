@@ -19,7 +19,7 @@ pub struct Orchestrator<S> {
     sender: Option<ArcSender>,
     conversation: Conversation,
     environment: Environment,
-    system_tools: Vec<ToolDefinition>,
+    tool_definitions: Vec<ToolDefinition>,
     models: Vec<Model>,
     files: Vec<String>,
     current_time: chrono::DateTime<chrono::Local>,
@@ -45,7 +45,7 @@ impl<S: AgentService> Orchestrator<S> {
             agent,
             event,
             sender: Default::default(),
-            system_tools: Default::default(),
+            tool_definitions: Default::default(),
             models: Default::default(),
             files: Default::default(),
             custom_instructions: Default::default(),
@@ -69,7 +69,7 @@ impl<S: AgentService> Orchestrator<S> {
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
 
         let mut system_tools = self
-            .system_tools
+            .tool_definitions
             .iter()
             .map(|tool| &tool.name)
             .collect::<HashSet<_>>();
@@ -126,11 +126,11 @@ impl<S: AgentService> Orchestrator<S> {
         let mut tools = vec![ToolsDiscriminants::AttemptCompletion.definition()];
 
         // Add system tools
-        if !self.system_tools.is_empty() {
+        if !self.tool_definitions.is_empty() {
             let allowed = agent.tools.iter().flatten().collect::<HashSet<_>>();
             if !allowed.is_empty() {
                 tools.extend(
-                    self.system_tools
+                    self.tool_definitions
                         .iter()
                         .filter(|tool| allowed.contains(&tool.name))
                         .cloned(),

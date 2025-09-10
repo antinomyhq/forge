@@ -81,7 +81,7 @@ impl Runner {
             prepare_agent(agent, &setup.workflow, &Default::default()),
             event,
         )
-        .system_tools(system_tools)
+        .tool_definitions(system_tools)
         .sender(tx)
         .files(setup.files.clone());
 

@@ -106,6 +106,10 @@ impl<S: Services> ForgeApp<S> {
             .find(|agent| agent.has_subscription(&chat.event.name))
             .ok_or(crate::Error::UnsubscribedEvent(chat.event.name.to_owned()))?;
 
+        let mut tool_definitions = Vec::new();
+        tool_definitions.extend(system_tools);
+        tool_definitions.extend(mcp_tools.values().flatten().cloned());
+
         // Create the orchestrator with all necessary dependencies
         let orch = Orchestrator::new(
             services.clone(),
@@ -116,7 +120,7 @@ impl<S: Services> ForgeApp<S> {
             chat.event,
         )
         .custom_instructions(custom_instructions)
-        .system_tools(system_tools)
+        .tool_definitions(tool_definitions)
         .models(models)
         .files(files);
 
