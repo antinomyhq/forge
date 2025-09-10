@@ -63,10 +63,10 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeTemplateService<F> {
 
 /// Compiles a template based on the filename and content.
 ///
-/// If the filename ends with ".hbs", it compiles the content as a Handlebars
+/// If the filename ends with ".md", it compiles the content as a Handlebars
 /// template. Otherwise, it creates a raw string template.
 fn compile_template(name: &str, content: &str) -> anyhow::Result<handlebars::template::Template> {
-    if name.ends_with(".hbs") {
+    if name.ends_with(".md") {
         handlebars::Template::compile(content).map_err(Into::into)
     } else {
         let mut template = handlebars::template::Template::new();
@@ -178,7 +178,7 @@ mod tests {
 
         // Actual: Render the partial-system-info template
         let actual = service
-            .render_template("{{> forge-partial-system-info.hbs }}", &data)
+            .render_template("{{> forge-partial-system-info.md }}", &data)
             .await
             .unwrap();
 
@@ -189,7 +189,7 @@ mod tests {
     #[test]
     fn test_compile_template_hbs_file() {
         // Fixture: Create a handlebars template content and test data
-        let name = "test.hbs";
+        let name = "test.md";
         let content = "Hello {{name}}!";
         let test_data = json!({"name": "World"});
 
@@ -225,7 +225,7 @@ mod tests {
     #[test]
     fn test_compile_template_invalid_hbs() {
         // Fixture: Create invalid handlebars content
-        let name = "invalid.hbs";
+        let name = "invalid.md";
         let content = "{{#if unclosed";
 
         // Actual: Try to compile the invalid template
@@ -241,7 +241,7 @@ mod tests {
     #[test]
     fn test_compile_template_empty_content() {
         // Fixture: Create empty content for both file types
-        let hbs_name = "empty.hbs";
+        let hbs_name = "empty.md";
         let raw_name = "empty.txt";
         let content = "";
         let test_data = json!({});
@@ -266,7 +266,7 @@ mod tests {
     fn test_compile_template_case_sensitivity() {
         // Fixture: Create templates with different case extensions
         let uppercase_name = "test.HBS";
-        let lowercase_name = "test.hbs";
+        let lowercase_name = "test.md";
         let content = "Hello {{name}}!";
         let test_data = json!({"name": "World"});
 
@@ -281,7 +281,7 @@ mod tests {
         let uppercase_actual = hb.render("uppercase", &test_data).unwrap();
         let lowercase_actual = hb.render("lowercase", &test_data).unwrap();
 
-        // Expected: Only lowercase .hbs should process handlebars syntax
+        // Expected: Only lowercase .md should process handlebars syntax
         assert_eq!(uppercase_actual, "Hello {{name}}!"); // Raw string, no substitution
         assert_eq!(lowercase_actual, "Hello World!"); // Handlebars processed
     }

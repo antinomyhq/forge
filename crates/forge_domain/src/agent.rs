@@ -39,6 +39,7 @@ impl AgentId {
 
     pub const FORGE: AgentId = AgentId(Cow::Borrowed("forge"));
     pub const MUSE: AgentId = AgentId(Cow::Borrowed("muse"));
+    pub const SAGE: AgentId = AgentId(Cow::Borrowed("sage"));
 }
 
 impl Default for AgentId {

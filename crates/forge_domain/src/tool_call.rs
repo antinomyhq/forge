@@ -10,6 +10,12 @@ use crate::{Error, Result, ToolCallArguments, ToolName};
 #[serde(transparent)]
 pub struct ToolCallId(pub(crate) String);
 
+impl From<&str> for ToolCallId {
+    fn from(value: &str) -> Self {
+        ToolCallId(value.to_string())
+    }
+}
+
 impl ToolCallId {
     pub fn new(value: impl ToString) -> Self {
         ToolCallId(value.to_string())
@@ -190,7 +196,7 @@ mod tests {
         let input = [
             ToolCallPart {
                 call_id: Some(ToolCallId("call_1".to_string())),
-                name: Some(ToolName::new("forge_tool_fs_read")),
+                name: Some(ToolName::new("read")),
                 arguments_part: "{\"path\": \"crates/forge_services/src/fixtures/".to_string(),
             },
             ToolCallPart {
@@ -200,7 +206,7 @@ mod tests {
             },
             ToolCallPart {
                 call_id: Some(ToolCallId("call_2".to_string())),
-                name: Some(ToolName::new("forge_tool_fs_read")),
+                name: Some(ToolName::new("read")),
                 arguments_part: "{\"path\": \"docs/".to_string(),
             },
             ToolCallPart {
@@ -211,7 +217,7 @@ mod tests {
             },
             ToolCallPart {
                 call_id: Some(ToolCallId("call_3".to_string())),
-                name: Some(ToolName::new("forge_tool_fs_read")),
+                name: Some(ToolName::new("read")),
                 arguments_part: "{\"path\": \"crates/forge_services/src/service/".to_string(),
             },
             ToolCallPart {
@@ -225,19 +231,19 @@ mod tests {
 
         let expected = vec![
             ToolCallFull {
-                name: ToolName::new("forge_tool_fs_read"),
+                name: ToolName::new("read"),
                 call_id: Some(ToolCallId("call_1".to_string())),
                 arguments: ToolCallArguments::from_json(
                     r#"{"path": "crates/forge_services/src/fixtures/mascot.md"}"#,
                 ),
             },
             ToolCallFull {
-                name: ToolName::new("forge_tool_fs_read"),
+                name: ToolName::new("read"),
                 call_id: Some(ToolCallId("call_2".to_string())),
                 arguments: ToolCallArguments::from_json(r#"{"path": "docs/onboarding.md"}"#),
             },
             ToolCallFull {
-                name: ToolName::new("forge_tool_fs_read"),
+                name: ToolName::new("read"),
                 call_id: Some(ToolCallId("call_3".to_string())),
                 arguments: ToolCallArguments::from_json(
                     r#"{"path": "crates/forge_services/src/service/service.md"}"#,
@@ -252,14 +258,14 @@ mod tests {
     fn test_single_tool_call() {
         let input = [ToolCallPart {
             call_id: Some(ToolCallId("call_1".to_string())),
-            name: Some(ToolName::new("forge_tool_fs_read")),
+            name: Some(ToolName::new("read")),
             arguments_part: "{\"path\": \"docs/onboarding.md\"}".to_string(),
         }];
 
         let actual = ToolCallFull::try_from_parts(&input).unwrap();
         let expected = vec![ToolCallFull {
             call_id: Some(ToolCallId("call_1".to_string())),
-            name: ToolName::new("forge_tool_fs_read"),
+            name: ToolName::new("read"),
             arguments: ToolCallArguments::from_json(r#"{"path": "docs/onboarding.md"}"#),
         }];
 
@@ -297,7 +303,7 @@ mod tests {
         let message = include_str!("./fixtures/tool_call_01.md");
         let tool_call = ToolCallFull::try_from_xml(message).unwrap();
         let actual = tool_call.first().unwrap().name.to_string();
-        let expected = "forge_tool_attempt_completion";
+        let expected = "attempt_completion";
         assert_eq!(actual, expected);
     }
 
@@ -315,7 +321,7 @@ mod tests {
         let input = [
             ToolCallPart {
                 call_id: Some(ToolCallId("0".to_string())),
-                name: Some(ToolName::new("forge_tool_fs_read")),
+                name: Some(ToolName::new("read")),
                 arguments_part: "".to_string(),
             },
             ToolCallPart {
@@ -333,7 +339,7 @@ mod tests {
         let actual = ToolCallFull::try_from_parts(&input).unwrap();
 
         let expected = vec![ToolCallFull {
-            name: ToolName::new("forge_tool_fs_read"),
+            name: ToolName::new("read"),
             call_id: Some(ToolCallId("0".to_string())),
             arguments: ToolCallArguments::from_json(r#"{"path": "/test/file.md"}"#),
         }];

@@ -1,8 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use forge_app::dto::{AppConfig, InitAuth};
+use forge_app::dto::{AppConfig, InitAuth, ToolsOverview};
 use forge_app::{User, UserUsage};
+use forge_domain::AgentId;
 use forge_stream::MpscStream;
 
 use crate::*;
@@ -15,10 +16,12 @@ pub trait API: Sync + Send {
 
     /// Provides information about the tools available in the current
     /// environment
-    async fn tools(&self) -> anyhow::Result<Vec<ToolDefinition>>;
+    async fn tools(&self) -> anyhow::Result<ToolsOverview>;
 
     /// Provides a list of models available in the current environment
     async fn models(&self) -> Result<Vec<Model>>;
+    /// Provides a list of agents available in the current environment
+    async fn get_agents(&self) -> Result<Vec<Agent>>;
 
     /// Executes a chat request and returns a stream of responses
     async fn chat(&self, chat: ChatRequest) -> Result<MpscStream<Result<ChatResponse>>>;
@@ -97,7 +100,13 @@ pub trait API: Sync + Send {
     async fn login(&self, auth: &InitAuth) -> Result<()>;
     async fn logout(&self) -> anyhow::Result<()>;
     async fn provider(&self) -> anyhow::Result<Provider>;
-    async fn app_config(&self) -> anyhow::Result<AppConfig>;
+    async fn app_config(&self) -> Option<AppConfig>;
     async fn user_info(&self) -> anyhow::Result<Option<User>>;
     async fn user_usage(&self) -> anyhow::Result<Option<UserUsage>>;
+
+    /// Gets the currently operating agent
+    async fn get_operating_agent(&self) -> Option<AgentId>;
+
+    /// Sets the operating agent
+    async fn set_operating_agent(&self, agent_id: AgentId) -> anyhow::Result<()>;
 }

@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::Context;
-use forge_display::TitleFormat;
-use forge_domain::{ToolCallContext, ToolCallFull, ToolOutput, Tools};
+use forge_domain::{TitleFormat, ToolCallContext, ToolCallFull, ToolOutput, Tools};
 
 use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
@@ -43,7 +41,7 @@ impl<
     async fn check_tool_permission(
         &self,
         tool_input: &Tools,
-        context: &mut ToolCallContext<'_>,
+        context: &ToolCallContext,
     ) -> anyhow::Result<bool> {
         let cwd = self.services.get_environment().cwd;
         let operation = tool_input.to_policy_operation(cwd.clone());
@@ -53,7 +51,7 @@ impl<
             // Send custom policy message to the user when a policy file was created
             if let Some(policy_path) = decision.path {
                 context
-                    .send_text(
+                    .send_title(
                         TitleFormat::debug("Permissions Update")
                             .sub_title(format_display_path(policy_path.as_path(), &cwd)),
                     )
@@ -137,13 +135,9 @@ impl<
         Ok(path)
     }
 
-    async fn call_internal(
-        &self,
-        input: Tools,
-        context: &mut ToolCallContext<'_>,
-    ) -> anyhow::Result<ToolOperation> {
+    async fn call_internal(&self, input: Tools) -> anyhow::Result<ToolOperation> {
         Ok(match input {
-            Tools::ForgeToolFsRead(input) => {
+            Tools::Read(input) => {
                 let output = self
                     .services
                     .read(
@@ -154,7 +148,7 @@ impl<
                     .await?;
                 (input, output).into()
             }
-            Tools::ForgeToolFsCreate(input) => {
+            Tools::Write(input) => {
                 let output = self
                     .services
                     .create(
@@ -166,7 +160,7 @@ impl<
                     .await?;
                 (input, output).into()
             }
-            Tools::ForgeToolFsSearch(input) => {
+            Tools::Search(input) => {
                 let output = self
                     .services
                     .search(
@@ -177,11 +171,11 @@ impl<
                     .await?;
                 (input, output).into()
             }
-            Tools::ForgeToolFsRemove(input) => {
+            Tools::Remove(input) => {
                 let output = self.services.remove(input.path.clone()).await?;
                 (input, output).into()
             }
-            Tools::ForgeToolFsPatch(input) => {
+            Tools::Patch(input) => {
                 let output = self
                     .services
                     .patch(
@@ -193,22 +187,27 @@ impl<
                     .await?;
                 (input, output).into()
             }
-            Tools::ForgeToolFsUndo(input) => {
+            Tools::Undo(input) => {
                 let output = self.services.undo(input.path.clone()).await?;
                 (input, output).into()
             }
-            Tools::ForgeToolProcessShell(input) => {
+            Tools::Shell(input) => {
                 let output = self
                     .services
-                    .execute(input.command.clone(), input.cwd.clone(), input.keep_ansi)
+                    .execute(
+                        input.command.clone(),
+                        input.cwd.clone(),
+                        input.keep_ansi,
+                        input.env.clone(),
+                    )
                     .await?;
                 output.into()
             }
-            Tools::ForgeToolNetFetch(input) => {
+            Tools::Fetch(input) => {
                 let output = self.services.fetch(input.url.clone(), input.raw).await?;
                 (input, output).into()
             }
-            Tools::ForgeToolFollowup(input) => {
+            Tools::Followup(input) => {
                 let output = self
                     .services
                     .follow_up(
@@ -227,50 +226,8 @@ impl<
                     .await?;
                 output.into()
             }
-            Tools::ForgeToolAttemptCompletion(_input) => {
-                crate::operation::ToolOperation::AttemptCompletion
-            }
-            Tools::ForgeToolTaskListAppend(input) => {
-                let before = context.tasks.clone();
-                context.tasks.append(&input.task);
-                ToolOperation::TaskListAppend {
-                    _input: input,
-                    before,
-                    after: context.tasks.clone(),
-                }
-            }
-            Tools::ForgeToolTaskListAppendMultiple(input) => {
-                let before = context.tasks.clone();
-                context.tasks.append_multiple(input.tasks.clone());
-                ToolOperation::TaskListAppendMultiple {
-                    _input: input,
-                    before,
-                    after: context.tasks.clone(),
-                }
-            }
-            Tools::ForgeToolTaskListUpdate(input) => {
-                let before = context.tasks.clone();
-                context
-                    .tasks
-                    .update_status(input.task_id, input.status.clone())
-                    .context("Task not found")?;
-                ToolOperation::TaskListUpdate {
-                    _input: input,
-                    before,
-                    after: context.tasks.clone(),
-                }
-            }
-            Tools::ForgeToolTaskListList(input) => {
-                let before = context.tasks.clone();
-                // No operation needed, just return the current state
-                ToolOperation::TaskListList { _input: input, before, after: context.tasks.clone() }
-            }
-            Tools::ForgeToolTaskListClear(input) => {
-                let before = context.tasks.clone();
-                context.tasks.clear();
-                ToolOperation::TaskListClear { _input: input, before, after: context.tasks.clone() }
-            }
-            Tools::ForgeToolPlanCreate(input) => {
+            Tools::AttemptCompletion(_input) => crate::operation::ToolOperation::AttemptCompletion,
+            Tools::Plan(input) => {
                 let output = self
                     .services
                     .create_plan(
@@ -287,7 +244,7 @@ impl<
     pub async fn execute(
         &self,
         input: ToolCallFull,
-        context: &mut ToolCallContext<'_>,
+        context: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
         let tool_name = input.name.clone();
         let tool_input: Tools = Tools::try_from(input)?;
@@ -310,7 +267,7 @@ impl<
         //     ));
         // }
 
-        let execution_result = self.call_internal(tool_input.clone(), context).await;
+        let execution_result = self.call_internal(tool_input.clone()).await;
 
         if let Err(ref error) = execution_result {
             tracing::error!(error = ?error, "Tool execution failed");
@@ -325,6 +282,8 @@ impl<
 
         let truncation_path = self.dump_operation(&operation).await?;
 
-        Ok(operation.into_tool_output(tool_name, truncation_path, &env, context.metrics))
+        context.with_metrics(|metrics| {
+            operation.into_tool_output(tool_name, truncation_path, &env, metrics)
+        })
     }
 }

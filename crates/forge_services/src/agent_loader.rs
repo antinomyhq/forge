@@ -1,29 +1,47 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::domain::{Agent, Template};
+use forge_app::domain::{Agent, Template, ToolsDiscriminants};
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
-use tokio::sync::Mutex;
 
 use crate::{
     DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
 };
 
-/// A service for loading agent definitions from individual files in the
-/// forge/agent directory
+/// A service for loading agent definitions from multiple sources:
+/// 1. Built-in agents (embedded in the application)
+/// 2. Global custom agents (from ~/.forge/agents/ directory)
+/// 3. Project-local agents (from .forge/agents/ directory in current working
+///    directory)
+///
+/// ## Agent Precedence
+/// When agents have duplicate IDs across different sources, the precedence
+/// order is: **CWD (project-local) > Global custom > Built-in**
+///
+/// This means project-local agents can override global agents, and both can
+/// override built-in agents.
+///
+/// ## Directory Resolution
+/// - **Built-in agents**: Embedded in application binary
+/// - **Global agents**: `{HOME}/.forge/agents/*.md`
+/// - **CWD agents**: `./.forge/agents/*.md` (relative to current working
+///   directory)
+///
+/// Missing directories are handled gracefully and don't prevent loading from
+/// other sources.
 pub struct AgentLoaderService<F> {
     infra: Arc<F>,
 
     // Cache is used to maintain the loaded agents
     // for this service instance.
     // So that they could live till user starts a new session.
-    cache: Arc<Mutex<Option<Vec<Agent>>>>,
+    cache: tokio::sync::OnceCell<Vec<Agent>>,
 }
 
 impl<F> AgentLoaderService<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        Self { infra, cache: Arc::new(Default::default()) }
+        Self { infra, cache: Default::default() }
     }
 }
 
@@ -31,45 +49,121 @@ impl<F> AgentLoaderService<F> {
 impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
     forge_app::AgentLoaderService for AgentLoaderService<F>
 {
-    /// Load all agent definitions from the forge/agent directory
-    async fn load_agents(&self) -> anyhow::Result<Vec<Agent>> {
-        self.load_agents().await
+    /// Load all agent definitions from all available sources with conflict
+    /// resolution.
+    ///
+    /// This method loads agents from three sources in order:
+    /// 1. Built-in agents (always available)
+    /// 2. Global custom agents (from ~/.forge/agents/ if directory exists)
+    /// 3. Project-local agents (from ./.forge/agents/ if directory exists)
+    ///
+    /// Duplicate agent IDs are resolved using last-wins strategy, giving
+    /// precedence to project-local agents over global agents, and both over
+    /// built-in agents.
+    async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
+        self.cache_or_init().await
     }
 }
 
 impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
     AgentLoaderService<F>
 {
-    /// Load all agent definitions from the forge/agent directory
-    async fn load_agents(&self) -> anyhow::Result<Vec<Agent>> {
-        if let Some(agents) = self.cache.lock().await.as_ref() {
-            return Ok(agents.clone());
-        }
-        let agent_dir = self.infra.get_environment().agent_path();
-        if !self.infra.exists(&agent_dir).await? {
+    /// Load all agent definitions with caching support
+    async fn cache_or_init(&self) -> anyhow::Result<Vec<Agent>> {
+        self.cache.get_or_try_init(|| self.init()).await.cloned()
+    }
+
+    async fn init(&self) -> anyhow::Result<Vec<Agent>> {
+        // Load built-in agents
+        let mut agents = self.init_default().await?;
+
+        // Load custom agents from global directory
+        let dir = self.infra.get_environment().agent_path();
+        let custom_agents = self.init_agent_dir(&dir).await?;
+        agents.extend(custom_agents);
+
+        // Load custom agents from CWD
+        let dir = self.infra.get_environment().agent_cwd_path();
+        let cwd_agents = self.init_agent_dir(&dir).await?;
+
+        agents.extend(cwd_agents);
+
+        // Handle agent ID conflicts by keeping the last occurrence
+        // This gives precedence order: CWD > Global Custom > Built-in
+        Ok(resolve_agent_conflicts(agents))
+    }
+
+    async fn init_default(&self) -> anyhow::Result<Vec<Agent>> {
+        parse_agent_iter(
+            [
+                ("forge", include_str!("agents/forge.md")),
+                ("muse", include_str!("agents/muse.md")),
+                ("prime", include_str!("agents/prime.md")),
+                ("parker", include_str!("agents/parker.md")),
+                ("sage", include_str!("agents/sage.md")),
+            ]
+            .into_iter()
+            .map(|(name, content)| (name.to_string(), content.to_string())),
+        )
+    }
+
+    async fn init_agent_dir(&self, dir: &std::path::Path) -> anyhow::Result<Vec<Agent>> {
+        if !self.infra.exists(dir).await? {
             return Ok(vec![]);
         }
-
-        let mut agents = vec![];
 
         // Use DirectoryReaderInfra to read all .md files in parallel
         let files = self
             .infra
-            .read_directory_files(&agent_dir, Some("*.md"))
+            .read_directory_files(dir, Some("*.md"))
             .await
-            .with_context(|| "Failed to read agent directory")?;
+            .with_context(|| format!("Failed to read agents from: {}", dir.display()))?;
 
-        for (path, content) in files {
-            agents.push(
-                parse_agent_file(&content)
-                    .with_context(|| format!("Failed to parse agent: {}", path.display()))?,
-            )
-        }
-
-        *self.cache.lock().await = Some(agents.clone());
-
-        Ok(agents)
+        parse_agent_iter(files.into_iter().map(|(path, content)| {
+            let name = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("unknown")
+                .to_string();
+            (name, content)
+        }))
     }
+}
+
+/// Implementation function for resolving agent ID conflicts by keeping the last
+/// occurrence. This implements the precedence order: CWD Custom > Global Custom
+/// > Built-in
+fn resolve_agent_conflicts(agents: Vec<Agent>) -> Vec<Agent> {
+    use std::collections::HashMap;
+
+    // Use HashMap to deduplicate by agent ID, keeping the last occurrence
+    let mut agent_map: HashMap<String, Agent> = HashMap::new();
+
+    for agent in agents {
+        agent_map.insert(agent.id.to_string(), agent);
+    }
+
+    // Convert back to vector (order is not guaranteed but doesn't matter for the
+    // service)
+    agent_map.into_values().collect()
+}
+
+fn parse_agent_iter<I, Path: AsRef<str>, Content: AsRef<str>>(
+    contents: I,
+) -> anyhow::Result<Vec<Agent>>
+where
+    I: Iterator<Item = (Path, Content)>,
+{
+    let mut agents = vec![];
+
+    for (name, content) in contents {
+        agents.push(
+            parse_agent_file(content.as_ref())
+                .with_context(|| format!("Failed to parse agent: {}", name.as_ref()))?,
+        );
+    }
+
+    Ok(agents)
 }
 
 /// Parse raw content into an Agent with YAML frontmatter
@@ -84,11 +178,27 @@ fn parse_agent_file(content: &str) -> Result<Agent> {
         .context("Empty system prompt content")?
         .system_prompt(Template::new(result.content));
 
-    Ok(agent)
+    // Add attempt completion tool by default if not already present
+    Ok(add_attempt_completion_tool(agent))
+}
+
+/// Adds the attempt completion tool to the agent's tools list by default
+fn add_attempt_completion_tool(mut agent: Agent) -> Agent {
+    let completion_tool = ToolsDiscriminants::AttemptCompletion.name();
+
+    if let Some(tools) = agent.tools.as_mut() {
+        // If agent supports tool calling and doesn't have it already
+        if !tools.contains(&completion_tool) && !tools.is_empty() {
+            tools.push(completion_tool);
+        }
+    }
+
+    agent
 }
 
 #[cfg(test)]
 mod tests {
+    use forge_app::domain::ToolName;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -143,4 +253,197 @@ mod tests {
         let result = parse_agent_file(content);
         assert!(result.is_err());
     }
+
+    #[tokio::test]
+    async fn test_parse_builtin_agents() {
+        // Test that all built-in agents parse correctly
+        let builtin_agents = [
+            ("forge", include_str!("agents/forge.md")),
+            ("muse", include_str!("agents/muse.md")),
+            ("prime", include_str!("agents/prime.md")),
+            ("parker", include_str!("agents/parker.md")),
+            ("sage", include_str!("agents/sage.md")),
+        ];
+
+        for (name, content) in builtin_agents {
+            let agent = parse_agent_file(content)
+                .with_context(|| format!("Failed to parse built-in agent: {}", name))
+                .unwrap();
+
+            assert_eq!(agent.id.as_str(), name);
+            assert!(agent.title.is_some());
+            assert!(agent.description.is_some());
+            assert!(agent.system_prompt.is_some());
+        }
+    }
+    #[test]
+    fn test_add_attempt_completion_tool_with_no_tools() {
+        let fixture = Agent::new("test-add-completion-no-tools")
+            .title("Test Agent - No Tools")
+            .description("Agent without any tools field for testing add_attempt_completion_tool")
+            .system_prompt(Template::new("Agent fixture for testing add_attempt_completion_tool function with no tools field."));
+
+        let actual = add_attempt_completion_tool(fixture.clone());
+        let expected = fixture; // Should remain unchanged
+
+        // Compare relevant fields since Agent doesn't implement PartialEq
+        assert_eq!(actual.id, expected.id);
+        assert_eq!(actual.tools, expected.tools);
+        assert!(actual.tools.is_none());
+    }
+
+    #[test]
+    fn test_add_attempt_completion_tool_with_empty_tools() {
+        let fixture = Agent::new("test-add-completion-empty-tools")
+            .title("Test Agent - Empty Tools")
+            .description("Agent with empty tools list for testing add_attempt_completion_tool")
+            .tools(Vec::<ToolName>::new())
+            .system_prompt(Template::new("Agent fixture for testing add_attempt_completion_tool function with empty tools list."));
+
+        let actual = add_attempt_completion_tool(fixture.clone());
+        let expected = fixture; // Should remain unchanged
+
+        // Compare relevant fields since Agent doesn't implement PartialEq
+        assert_eq!(actual.id, expected.id);
+        assert_eq!(actual.tools, expected.tools);
+        assert_eq!(actual.tools.as_ref().unwrap(), &Vec::<ToolName>::new());
+    }
+
+    #[test]
+    fn test_add_attempt_completion_tool_already_has_completion() {
+        let fixture = Agent::new("test-add-completion-has-completion")
+            .title("Test Agent - Has Completion")
+            .description("Agent that already has attempt_completion for testing add_attempt_completion_tool")
+            .tools(vec![
+                ToolName::new("fs_read"),
+                ToolName::new("attempt_completion"),
+                ToolName::new("shell")
+            ])
+            .system_prompt(Template::new("Agent fixture for testing add_attempt_completion_tool function when attempt_completion already exists."));
+
+        let actual = add_attempt_completion_tool(fixture.clone());
+        let expected = fixture; // Should remain unchanged
+
+        // Compare relevant fields since Agent doesn't implement PartialEq
+        assert_eq!(actual.id, expected.id);
+        assert_eq!(actual.tools, expected.tools);
+        let tools = actual.tools.as_ref().unwrap();
+        assert!(tools.contains(&ToolName::new("attempt_completion")));
+        // Should not duplicate the tool
+        assert_eq!(
+            tools
+                .iter()
+                .filter(|&tool| *tool == ToolName::new("attempt_completion"))
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn test_add_attempt_completion_tool_should_add_completion() {
+        let fixture = Agent::new("test-add-completion-needs-completion")
+            .title("Test Agent - Needs Completion")
+            .description("Agent with tools but missing attempt_completion for testing add_attempt_completion_tool")
+            .tools(vec![
+                ToolName::new("fs_read"),
+                ToolName::new("fs_write"),
+                ToolName::new("shell")
+            ])
+            .system_prompt(Template::new("Agent fixture for testing add_attempt_completion_tool function when attempt_completion needs to be added."));
+
+        let actual = add_attempt_completion_tool(fixture.clone());
+
+        // Create expected result manually
+        let mut expected_tools = fixture.tools.as_ref().unwrap().clone();
+        expected_tools.push(ToolName::new("attempt_completion"));
+
+        // Compare relevant fields
+        assert_eq!(actual.id, fixture.id);
+        assert_eq!(actual.tools.as_ref().unwrap(), &expected_tools);
+        let tools = actual.tools.as_ref().unwrap();
+        assert!(tools.contains(&ToolName::new("attempt_completion")));
+        assert_eq!(tools.len(), 4); // Original 3 + 1 added
+    }
+}
+
+#[test]
+fn test_resolve_agent_conflicts_no_duplicates() {
+    let fixture = vec![
+        Agent::new("agent1").title("Agent 1"),
+        Agent::new("agent2").title("Agent 2"),
+        Agent::new("agent3").title("Agent 3"),
+    ];
+
+    let actual = resolve_agent_conflicts(fixture.clone());
+
+    // Should return all agents when no conflicts
+    assert_eq!(actual.len(), 3);
+
+    let ids: std::collections::HashSet<_> = actual.iter().map(|a| a.id.as_str()).collect();
+    assert!(ids.contains("agent1"));
+    assert!(ids.contains("agent2"));
+    assert!(ids.contains("agent3"));
+}
+
+#[test]
+fn test_resolve_agent_conflicts_with_duplicates() {
+    let fixture = vec![
+        Agent::new("agent1").title("Global Agent 1"),
+        Agent::new("agent2").title("Global Agent 2"),
+        Agent::new("agent1").title("CWD Agent 1 - Override"), // Duplicate ID, should override
+        Agent::new("agent3").title("CWD Agent 3"),
+    ];
+
+    let actual = resolve_agent_conflicts(fixture);
+
+    // Should have 3 agents: agent1 (CWD version), agent2 (global), agent3 (CWD)
+    assert_eq!(actual.len(), 3);
+
+    let agent1 = actual
+        .iter()
+        .find(|a| a.id.as_str() == "agent1")
+        .expect("Should have agent1");
+    let expected_title = "CWD Agent 1 - Override";
+    assert_eq!(agent1.title.as_ref().unwrap(), expected_title);
+}
+
+#[test]
+fn test_resolve_agent_conflicts_multiple_duplicates() {
+    // Test scenario: Built-in -> Global -> CWD (CWD should win)
+    let fixture = vec![
+        Agent::new("common").title("Built-in Common Agent"),
+        Agent::new("unique1").title("Built-in Unique 1"),
+        Agent::new("common").title("Global Common Agent"), // Override built-in
+        Agent::new("unique2").title("Global Unique 2"),
+        Agent::new("common").title("CWD Common Agent"), // Override global
+        Agent::new("unique3").title("CWD Unique 3"),
+    ];
+
+    let actual = resolve_agent_conflicts(fixture);
+
+    // Should have 4 agents: common (CWD version), unique1, unique2, unique3
+    assert_eq!(actual.len(), 4);
+
+    let common = actual
+        .iter()
+        .find(|a| a.id.as_str() == "common")
+        .expect("Should have common agent");
+    let expected_title = "CWD Common Agent";
+    assert_eq!(common.title.as_ref().unwrap(), expected_title);
+
+    // Verify all unique agents are present
+    let ids: std::collections::HashSet<_> = actual.iter().map(|a| a.id.as_str()).collect();
+    assert!(ids.contains("common"));
+    assert!(ids.contains("unique1"));
+    assert!(ids.contains("unique2"));
+    assert!(ids.contains("unique3"));
+}
+
+#[test]
+fn test_resolve_agent_conflicts_empty_input() {
+    let fixture: Vec<Agent> = vec![];
+
+    let actual = resolve_agent_conflicts(fixture);
+
+    assert_eq!(actual.len(), 0);
 }

@@ -65,6 +65,14 @@ impl<S: AgentService> Compactor<S> {
 
         let sequence_messages = &context.messages[start..=end].to_vec();
 
+        // Extract user messages from the sequence to pass as feedback
+        let feedback: Vec<String> = sequence_messages
+            .iter()
+            .filter(|msg| msg.has_role(forge_domain::Role::User))
+            .filter_map(|msg| msg.content().map(|content| content.to_string()))
+            .collect();
+
+        // Generate summary for the compaction sequence
         let summary = self
             .generate_summary_for_sequence(compact, sequence_messages)
             .await?;
@@ -80,8 +88,8 @@ impl<S: AgentService> Compactor<S> {
         let summary = self
             .services
             .render(
-                "{{> forge-partial-summary-frame.hbs}}",
-                &serde_json::json!({ "summary": summary }),
+                "{{> forge-partial-summary-frame.md}}",
+                &serde_json::json!({"summary": summary, "feedback": feedback}),
             )
             .await?;
 
@@ -115,7 +123,7 @@ impl<S: AgentService> Compactor<S> {
                 compact
                     .prompt
                     .as_deref()
-                    .unwrap_or("{{> forge-system-prompt-context-summarizer.hbs}}"),
+                    .unwrap_or("{{> forge-system-prompt-context-summarizer.md}}"),
                 &ctx,
             )
             .await?;

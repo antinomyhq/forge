@@ -24,6 +24,7 @@ pub struct ForgeMcpService<M, I, C> {
 struct ToolHolder<T> {
     definition: ToolDefinition,
     executable: T,
+    server_name: String,
 }
 
 impl<M: McpConfigManager, I: McpServerInfra, C> ForgeMcpService<M, I, C>
@@ -68,7 +69,11 @@ where
 
             tool_map.insert(
                 generated_name,
-                ToolHolder { definition: tool, executable: server },
+                ToolHolder {
+                    definition: tool,
+                    executable: server,
+                    server_name: server_name.to_string(),
+                },
             );
         }
 
@@ -111,15 +116,20 @@ where
         .map(|_| ())
     }
 
-    async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+    async fn list(&self) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>> {
         self.init_mcp().await?;
-        Ok(self
-            .tools
-            .read()
-            .await
-            .values()
-            .map(|tool| tool.definition.clone())
-            .collect())
+
+        let tools = self.tools.read().await;
+        let mut grouped_tools = std::collections::HashMap::new();
+
+        for tool in tools.values() {
+            grouped_tools
+                .entry(tool.server_name.clone())
+                .or_insert_with(Vec::new)
+                .push(tool.definition.clone());
+        }
+
+        Ok(grouped_tools)
     }
     async fn clear_tools(&self) {
         self.tools.write().await.clear()
@@ -140,7 +150,7 @@ where
     C: McpClientInfra + Clone,
     C: From<<I as McpServerInfra>::Client>,
 {
-    async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+    async fn list(&self) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>> {
         self.list().await
     }
 

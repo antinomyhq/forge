@@ -16,6 +16,7 @@ pub mod vec {
 
     use super::Key;
 
+    #[allow(unused)]
     pub fn unify_by_key<T: Merge + Key>(base: &mut Vec<T>, other: Vec<T>)
     where
         T::Id: Clone + std::hash::Hash + Eq,
@@ -43,12 +44,13 @@ pub fn option<A>(base: &mut Option<A>, other: Option<A>) {
         *base = other;
     }
 }
-
+#[allow(unused)]
 pub trait Key {
     type Id: Eq;
     fn key(&self) -> &Self::Id;
 }
 
+#[allow(unused)]
 pub fn hashmap<K: Eq + Hash, V>(base: &mut HashMap<K, V>, other: HashMap<K, V>) {
     for (key, value) in other {
         base.insert(key, value);

@@ -179,9 +179,11 @@ impl CommandInfra for ForgeInfra {
         &self,
         command: String,
         working_dir: PathBuf,
+        silent: bool,
+        env_vars: Option<Vec<String>>,
     ) -> anyhow::Result<CommandOutput> {
         self.command_executor_service
-            .execute_command(command, working_dir)
+            .execute_command(command, working_dir, silent, env_vars)
             .await
     }
 
@@ -189,9 +191,10 @@ impl CommandInfra for ForgeInfra {
         &self,
         command: &str,
         working_dir: PathBuf,
+        env_vars: Option<Vec<String>>,
     ) -> anyhow::Result<ExitStatus> {
         self.command_executor_service
-            .execute_command_raw(command, working_dir)
+            .execute_command_raw(command, working_dir, env_vars)
             .await
     }
 }

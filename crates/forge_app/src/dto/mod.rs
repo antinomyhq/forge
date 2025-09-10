@@ -5,3 +5,6 @@ mod app_config;
 pub mod openai;
 
 pub use app_config::*;
+mod tools_overview;
+
+pub use tools_overview::*;

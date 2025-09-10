@@ -1,6 +1,7 @@
 use forge_domain::{DefaultTransformation, Provider, Transformer};
 
 use super::drop_tool_call::DropToolCalls;
+use super::make_cerebras_compat::MakeCerebrasCompat;
 use super::make_openai_compat::MakeOpenAiCompat;
 use super::set_cache::SetCache;
 use super::tool_choice::SetToolChoice;
@@ -32,7 +33,9 @@ impl Transformer for ProviderPipeline<'_> {
 
         let open_ai_compat = MakeOpenAiCompat.when(move |_| !supports_open_router_params(provider));
 
-        let mut combined = or_transformers.pipe(open_ai_compat);
+        let cerebras_compat = MakeCerebrasCompat.when(move |_| provider.is_cerebras());
+
+        let mut combined = or_transformers.pipe(open_ai_compat).pipe(cerebras_compat);
         combined.transform(request)
     }
 }

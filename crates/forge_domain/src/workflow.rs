@@ -1,15 +1,12 @@
-use std::collections::HashMap;
-
 use derive_setters::Setters;
 use lazy_static::lazy_static;
 use merge::Merge;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 use crate::temperature::Temperature;
 use crate::update::Update;
-use crate::{Agent, AgentId, Compact, MaxTokens, ModelId, TopK, TopP};
+use crate::{Compact, MaxTokens, ModelId, TopK, TopP};
 
 /// Configuration for a workflow that contains all settings
 /// required to initialize a workflow.
@@ -21,16 +18,6 @@ pub struct Workflow {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub templates: Option<String>,
-
-    /// Agents that are part of this workflow
-    #[merge(strategy = crate::merge::vec::unify_by_key)]
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub agents: Vec<Agent>,
-
-    /// Variables that can be used in templates
-    #[merge(strategy = crate::merge::hashmap)]
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub variables: HashMap<String, Value>,
 
     /// configurations that can be used to update forge
     #[merge(strategy = crate::merge::option)]
@@ -173,8 +160,6 @@ impl Workflow {
     /// scratch.
     pub fn new() -> Self {
         Self {
-            agents: Vec::new(),
-            variables: HashMap::new(),
             commands: Vec::new(),
             model: None,
             max_walker_depth: None,
@@ -190,15 +175,6 @@ impl Workflow {
             max_requests_per_turn: None,
             compact: None,
         }
-    }
-
-    fn find_agent(&self, id: &AgentId) -> Option<&Agent> {
-        self.agents.iter().find(|a| a.id == *id)
-    }
-
-    pub fn get_agent(&self, id: &AgentId) -> crate::Result<&Agent> {
-        self.find_agent(id)
-            .ok_or_else(|| crate::Error::AgentUndefined(id.clone()))
     }
 }
 
@@ -216,8 +192,6 @@ mod tests {
         let actual = Workflow::new();
 
         // Assert
-        assert!(actual.agents.is_empty());
-        assert!(actual.variables.is_empty());
         assert!(actual.commands.is_empty());
         assert_eq!(actual.model, None);
         assert_eq!(actual.max_walker_depth, None);

@@ -19,7 +19,6 @@ mod truncation;
 mod user;
 mod utils;
 mod walker;
-mod workflow_manager;
 
 pub use agent::*;
 pub use app::*;

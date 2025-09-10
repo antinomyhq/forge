@@ -1,7 +1,0 @@
----
-source: crates/forge_app/src/fmt/fmt_task.rs
-expression: actual
----
-◼ ~~**Complete feature A**~~
-◼ ~~**Write tests**~~
-◼ ~~**Update documentation**~~
