@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::{Context as AnyhowContext, Result};
 use forge_app::ConversationService;
-use forge_app::domain::{Conversation, ConversationId};
+use forge_app::domain::{Conversation, ConversationId, WorkspaceId};
 use tokio::sync::Mutex;
 
 /// Service for managing conversations, including creation, retrieval, and
@@ -52,7 +52,8 @@ impl ConversationService for ForgeConversationService {
     async fn init_conversation(&self) -> Result<Conversation> {
         let id = ConversationId::generate();
 
-        let conversation = Conversation::new(id);
+        let workspace_id = WorkspaceId::new("default");
+        let conversation = Conversation::new(id, workspace_id);
 
         self.conversations
             .lock()

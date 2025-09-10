@@ -984,6 +984,7 @@ version = "2.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "229850a212cd9b84d4f0290ad9d294afc0ae70fccaa8949dbe8b43ffafa1e20c"
 dependencies = [
+ "chrono",
  "diesel_derives",
  "libsqlite3-sys",
  "r2d2",
@@ -1536,6 +1537,7 @@ dependencies = [
  "async-trait",
  "backon",
  "bytes",
+ "chrono",
  "diesel",
  "diesel_migrations",
  "dirs",

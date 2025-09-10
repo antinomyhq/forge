@@ -1,4 +1,4 @@
 mod pool;
-mod schema;
-
+pub mod schema;
+pub mod repository;
 pub use pool::*;

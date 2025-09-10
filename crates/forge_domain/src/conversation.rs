@@ -27,10 +27,28 @@ impl ConversationId {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WorkspaceId(String);
+
+impl WorkspaceId {
+    pub fn new<S: Into<String>>(id: S) -> Self {
+        Self(id.into())
+    }
+}
+
+impl std::ops::Deref for WorkspaceId {
+    type Target = String;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 #[derive(Debug, Setters, Serialize, Deserialize, Clone)]
 #[setters(into, strip_option)]
 pub struct Conversation {
     pub id: ConversationId,
+    pub workspace_id: WorkspaceId,
+    pub title: Option<String>,
     pub context: Option<Context>,
     pub metrics: Metrics,
 }
@@ -42,11 +60,11 @@ impl Conversation {
         self
     }
 
-    pub fn new(id: ConversationId) -> Self {
+    pub fn new(id: ConversationId, workspace_id: WorkspaceId) -> Self {
         let mut metrics = Metrics::new();
         metrics.start();
 
-        Self { id, context: None, metrics }
+        Self { id, workspace_id, context: None, metrics, title: None }
     }
 
     /// Generates an HTML representation of the conversation

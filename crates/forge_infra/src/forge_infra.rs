@@ -3,17 +3,17 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_domain::{CommandOutput, Environment, McpServerConfig};
+use forge_domain::{CommandOutput, Conversation, Environment, McpServerConfig, WorkspaceId, ConversationId};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
-    CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
-    FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra,
-    UserInfra, WalkerInfra,
+    CommandInfra, ConversationRepositoryInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra
 };
 use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
 use reqwest_eventsource::EventSource;
 
+use crate::database::repository::conversation::ConversationRepository;
+use crate::database::{DatabasePool, PoolConfig};
 use crate::env::ForgeEnvironmentInfra;
 use crate::executor::ForgeCommandExecutorService;
 use crate::fs_create_dirs::ForgeCreateDirsService;
@@ -46,6 +46,7 @@ pub struct ForgeInfra {
     mcp_server: ForgeMcpServer,
     walker_service: Arc<ForgeWalkerService>,
     http_service: Arc<ForgeHttpInfra>,
+    conversation_repository: Arc<ConversationRepository>,
 }
 
 impl ForgeInfra {
@@ -54,6 +55,8 @@ impl ForgeInfra {
         let env = environment_service.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
         let http_service = Arc::new(ForgeHttpInfra::new(env.http.clone()));
+        let db_pool = Arc::new(DatabasePool::try_from(PoolConfig::new(env.database_path())).unwrap());
+        let conversation_repository = Arc::new(ConversationRepository::new(db_pool));
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
             file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),
@@ -73,6 +76,7 @@ impl ForgeInfra {
             mcp_server: ForgeMcpServer,
             walker_service: Arc::new(ForgeWalkerService::new()),
             http_service,
+            conversation_repository,
         }
     }
 }
@@ -270,5 +274,20 @@ impl DirectoryReaderInfra for ForgeInfra {
         self.directory_reader_service
             .read_directory_files(directory, pattern)
             .await
+    }
+}
+
+#[async_trait::async_trait]
+impl ConversationRepositoryInfra for ForgeInfra {
+    async fn upsert(&self, conversation: Conversation) -> anyhow::Result<()> {
+        self.conversation_repository.upsert(conversation).await
+    }
+
+    async fn find_by_id(&self, conversation_id: &ConversationId) -> anyhow::Result<Option<Conversation>> {
+        self.conversation_repository.find_by_id(conversation_id).await
+    }
+
+    async fn find_by_workspace_id(&self, workspace_id: &WorkspaceId, limit: Option<usize>) -> anyhow::Result<Option<Vec<Conversation>>> {
+        self.conversation_repository.find_by_workspace_id(workspace_id, limit).await
     }
 }
