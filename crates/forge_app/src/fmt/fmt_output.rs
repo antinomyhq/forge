@@ -103,6 +103,7 @@ mod tests {
                 path: "/home/user/test.txt".to_string(),
                 start_line: None,
                 end_line: None,
+                show_line_numbers: true,
                 explanation: Some("Test explanation".to_string()),
             },
             output: ReadOutput {
@@ -127,6 +128,7 @@ mod tests {
                 path: "/home/user/test.txt".to_string(),
                 start_line: Some(2),
                 end_line: Some(4),
+                show_line_numbers: true,
                 explanation: Some("Test explanation".to_string()),
             },
             output: ReadOutput {

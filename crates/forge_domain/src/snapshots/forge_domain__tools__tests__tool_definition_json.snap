@@ -4,10 +4,10 @@ expression: tools
 ---
 {
   "name": "read",
-  "description": "Reads file contents from the specified absolute path. Ideal for analyzing\n code, configuration files, documentation, or textual data. Returns the\n content as a string. For files larger than 2,000 lines, the tool\n automatically returns only the first 2,000 lines. You should always rely\n on this default behavior and avoid specifying custom ranges unless\n absolutely necessary. If needed, specify a range with the start_line and\n end_line parameters, ensuring the total range does not exceed 2,000 lines.\n Specifying a range exceeding this limit will result in an error. Binary\n files are automatically detected and rejected.",
+  "description": "Reads file contents from the specified absolute path. Ideal for analyzing\n code, configuration files, documentation, or textual data. Returns the\n content as a string with line number prefixes by default. For files larger\n than 2,000 lines, the tool automatically returns only the first 2,000 lines.\n You should always rely on this default behavior and avoid specifying custom\n ranges unless absolutely necessary. If needed, specify a range with the\n start_line and end_line parameters, ensuring the total range does not exceed\n 2,000 lines. Specifying a range exceeding this limit will result in an\n error. Binary files are automatically detected and rejected.",
   "input_schema": {
     "title": "FSRead",
-    "description": "Reads file contents from the specified absolute path. Ideal for analyzing code, configuration files, documentation, or textual data. Returns the content as a string. For files larger than 2,000 lines, the tool automatically returns only the first 2,000 lines. You should always rely on this default behavior and avoid specifying custom ranges unless absolutely necessary. If needed, specify a range with the start_line and end_line parameters, ensuring the total range does not exceed 2,000 lines. Specifying a range exceeding this limit will result in an error. Binary files are automatically detected and rejected.",
+    "description": "Reads file contents from the specified absolute path. Ideal for analyzing code, configuration files, documentation, or textual data. Returns the content as a string with line number prefixes by default. For files larger than 2,000 lines, the tool automatically returns only the first 2,000 lines. You should always rely on this default behavior and avoid specifying custom ranges unless absolutely necessary. If needed, specify a range with the start_line and end_line parameters, ensuring the total range does not exceed 2,000 lines. Specifying a range exceeding this limit will result in an error. Binary files are automatically detected and rejected.",
     "type": "object",
     "required": [
       "path"
@@ -28,6 +28,11 @@ expression: tools
       "path": {
         "description": "The path of the file to read, always provide absolute paths.",
         "type": "string"
+      },
+      "show_line_numbers": {
+        "description": "If true, prefixes each line with its line index (starting at 1). Defaults to true.",
+        "default": true,
+        "type": "boolean"
       },
       "start_line": {
         "description": "Optional start position in lines (1-based). If provided, reading will start from this line position.",
