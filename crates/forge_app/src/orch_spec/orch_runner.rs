@@ -1,6 +1,5 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
-use std::time::Duration;
 
 use forge_domain::{
     ChatCompletionMessage, ChatResponse, Conversation, ConversationId, ToolCallFull, ToolResult,
@@ -12,6 +11,7 @@ use tokio::sync::Mutex;
 pub use super::orch_setup::TestContext;
 use crate::AgentService;
 use crate::orch::Orchestrator;
+use crate::orch_spec::collector::Collector;
 
 #[derive(Embed)]
 #[folder = "../../templates/"]
@@ -56,7 +56,9 @@ impl Runner {
 
     pub async fn run(setup: &mut TestContext) -> anyhow::Result<()> {
         const LIMIT: usize = 1024;
-        let (tx, mut rx) = tokio::sync::mpsc::channel::<anyhow::Result<ChatResponse>>(LIMIT);
+        let (tx, rx) = tokio::sync::mpsc::channel::<anyhow::Result<ChatResponse>>(LIMIT);
+        let collector = Collector::new(rx, LIMIT);
+
         let services = Arc::new(Runner::new(setup));
         let conversation = Conversation::new(ConversationId::generate(), setup.workflow.clone());
         let agent = setup.agent.clone();
@@ -73,14 +75,9 @@ impl Runner {
 
         let (mut orch, runner) = (orch, services);
         let event = setup.event.clone();
-        let mut chat_responses = Vec::new();
         let result = orch.chat(event).await;
-        tokio::time::timeout(
-            Duration::from_secs(1),
-            rx.recv_many(&mut chat_responses, LIMIT),
-        )
-        .await
-        .map_err(|_| anyhow::anyhow!("orchestrator did not produce any events"))?;
+        let chat_responses = collector.get_results().await;
+
         setup.output.chat_responses.extend(chat_responses);
         setup
             .output
