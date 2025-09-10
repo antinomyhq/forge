@@ -13,7 +13,7 @@ use crate::temperature::Temperature;
 use crate::template::Template;
 use crate::{
     Context, Error, EventContext, MaxTokens, ModelId, Result, SystemContext, ToolDefinition,
-    ToolName, ToolsDiscriminants, TopK, TopP, Workflow,
+    ToolName, TopK, TopP, Workflow,
 };
 
 // Unique identifier for an agent
@@ -427,17 +427,6 @@ pub fn prepare_agents(
         // Add base subscription
         let id = agent.id.clone();
         agent.add_subscription(format!("{id}"));
-
-        // Add attempt-completion tool
-
-        let completion_tool = ToolsDiscriminants::AttemptCompletion.name();
-
-        if let Some(tools) = agent.tools.as_mut() {
-            // If agent supports tool calling and doesn't have it already
-            if !tools.contains(&completion_tool) && !tools.is_empty() {
-                tools.push(completion_tool);
-            }
-        }
 
         // Set model for agent
         if let Some(ref model) = workflow.model {

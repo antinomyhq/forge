@@ -57,12 +57,15 @@ impl Runner {
     pub async fn run(setup: &mut TestContext) -> anyhow::Result<()> {
         const LIMIT: usize = 1024;
         let (tx, rx) = tokio::sync::mpsc::channel::<anyhow::Result<ChatResponse>>(LIMIT);
-        let collector = Collector::new(rx, LIMIT);
+        let collector = Collector::new();
+        let collector_ref = collector.clone();
+        let handle = tokio::spawn(async move { collector_ref.init(rx).await });
 
         let services = Arc::new(Runner::new(setup));
         let conversation = Conversation::new(ConversationId::generate());
         let agent = setup.agent.clone();
         let event = setup.event.clone();
+        let system_tools = setup.tools.clone();
 
         let orch = Orchestrator::new(
             services.clone(),
@@ -72,12 +75,15 @@ impl Runner {
             agent,
             event,
         )
+        .system_tools(system_tools)
         .sender(tx)
         .files(setup.files.clone());
 
         let (mut orch, runner) = (orch, services);
 
         let result = orch.run().await;
+        drop(orch);
+        let _ = handle.await;
         let chat_responses = collector.get_results().await;
 
         setup.output.chat_responses.extend(chat_responses);

@@ -68,11 +68,13 @@ impl<S: AgentService> Orchestrator<S> {
         // Always process tool calls sequentially
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
 
-        let system_tools = self
+        let mut system_tools = self
             .system_tools
             .iter()
             .map(|tool| &tool.name)
             .collect::<HashSet<_>>();
+        let attempt_completion = ToolsDiscriminants::AttemptCompletion.name();
+        system_tools.insert(&attempt_completion);
 
         for tool_call in tool_calls {
             // Send the start notification for system tools and not agent as a tool
@@ -121,16 +123,19 @@ impl<S: AgentService> Orchestrator<S> {
     /// Get the allowed tools for an agent
     fn get_allowed_tools(&self) -> anyhow::Result<Vec<ToolDefinition>> {
         let agent = &self.agent;
-        let mut tools = vec![];
+        let mut tools = vec![ToolsDiscriminants::AttemptCompletion.definition()];
+
         // Add system tools
         if !self.system_tools.is_empty() {
             let allowed = agent.tools.iter().flatten().collect::<HashSet<_>>();
-            tools.extend(
-                self.system_tools
-                    .iter()
-                    .filter(|tool| allowed.contains(&tool.name))
-                    .cloned(),
-            );
+            if !allowed.is_empty() {
+                tools.extend(
+                    self.system_tools
+                        .iter()
+                        .filter(|tool| allowed.contains(&tool.name))
+                        .cloned(),
+                );
+            }
         }
 
         Ok(tools)

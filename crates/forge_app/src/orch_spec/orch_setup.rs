@@ -5,7 +5,8 @@ use chrono::{DateTime, Local};
 use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, ChatCompletionMessage, ChatResponse, ContextMessage, Conversation, Environment,
-    Event, HttpConfig, ModelId, RetryConfig, Role, Template, ToolCallFull, ToolResult, Workflow,
+    Event, HttpConfig, ModelId, RetryConfig, Role, Template, ToolCallFull, ToolDefinition,
+    ToolResult, Workflow,
 };
 use url::Url;
 
@@ -26,6 +27,7 @@ pub struct TestContext {
     // Final output of the test is store in the context
     pub output: TestOutput,
     pub agent: Agent,
+    pub tools: Vec<ToolDefinition>,
 }
 
 impl TestContext {
@@ -79,6 +81,10 @@ impl TestContext {
                 .model("closed-ai/some-cool-model")
                 .system_prompt(Template::new("You are Forge"))
                 .tools(vec![("fs_read").into(), ("fs_write").into()]),
+            tools: vec![
+                ToolDefinition::new("fs_read"),
+                ToolDefinition::new("fs_write"),
+            ],
         }
     }
 
