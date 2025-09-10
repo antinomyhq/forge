@@ -62,6 +62,7 @@ impl Runner {
         let services = Arc::new(Runner::new(setup));
         let conversation = Conversation::new(ConversationId::generate());
         let agent = setup.agent.clone();
+        let event = setup.event.clone();
 
         let orch = Orchestrator::new(
             services.clone(),
@@ -69,13 +70,14 @@ impl Runner {
             conversation,
             setup.current_time,
             agent,
+            event,
         )
         .sender(tx)
         .files(setup.files.clone());
 
         let (mut orch, runner) = (orch, services);
-        let event = setup.event.clone();
-        let result = orch.chat(event).await;
+
+        let result = orch.run().await;
         let chat_responses = collector.get_results().await;
 
         setup.output.chat_responses.extend(chat_responses);

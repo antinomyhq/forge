@@ -25,6 +25,7 @@ pub struct Orchestrator<S> {
     current_time: chrono::DateTime<chrono::Local>,
     custom_instructions: Vec<String>,
     agent: Agent,
+    event: Event,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -34,6 +35,7 @@ impl<S: AgentService> Orchestrator<S> {
         conversation: Conversation,
         current_time: chrono::DateTime<chrono::Local>,
         agent: Agent,
+        event: Event,
     ) -> Self {
         Self {
             conversation,
@@ -41,6 +43,7 @@ impl<S: AgentService> Orchestrator<S> {
             services,
             current_time,
             agent,
+            event,
             sender: Default::default(),
             system_tools: Default::default(),
             models: Default::default(),
@@ -219,20 +222,6 @@ impl<S: AgentService> Orchestrator<S> {
         })
     }
 
-    pub async fn chat(&mut self, event: Event) -> anyhow::Result<()> {
-        debug!(
-            conversation_id = %self.conversation.id.clone(),
-            event_name = %event.name,
-            event_value = %format!("{:?}", event.value),
-            "Dispatching event"
-        );
-
-        // Execute all agent initialization with the event
-        self.init_agent(&event).await?;
-
-        Ok(())
-    }
-
     async fn execute_chat_turn(
         &self,
         model_id: &ModelId,
@@ -272,7 +261,14 @@ impl<S: AgentService> Orchestrator<S> {
     }
 
     // Create a helper method with the core functionality
-    async fn init_agent(&mut self, event: &Event) -> anyhow::Result<()> {
+    pub async fn run(&mut self) -> anyhow::Result<()> {
+        let event = self.event.clone();
+        debug!(
+            conversation_id = %self.conversation.id.clone(),
+            event_name = %event.name,
+            event_value = %format!("{:?}", event.value),
+            "Dispatching event"
+        );
         let agent = self.agent.clone();
         let mut tool_failure_attempts = HashMap::new();
         debug!(
@@ -300,7 +296,7 @@ impl<S: AgentService> Orchestrator<S> {
         context = self.set_system_prompt(context, &agent).await?;
 
         // Render user prompts
-        context = self.set_user_prompt(context, &agent, event).await?;
+        context = self.set_user_prompt(context, &agent, &event).await?;
 
         if let Some(temperature) = agent.temperature {
             context = context.temperature(temperature);

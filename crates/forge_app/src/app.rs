@@ -112,6 +112,7 @@ impl<S: Services> ForgeApp<S> {
             conversation,
             Local::now(),
             agent,
+            chat.event,
         )
         .custom_instructions(custom_instructions)
         .system_tools(system_tools)
@@ -124,7 +125,7 @@ impl<S: Services> ForgeApp<S> {
                 async move {
                     // Execute dispatch and always save conversation afterwards
                     let mut orch = orch.sender(tx.clone());
-                    let dispatch_result = orch.chat(chat.event).await;
+                    let dispatch_result = orch.run().await;
 
                     // Always save conversation using get_conversation()
                     let conversation = orch.get_conversation().clone();
