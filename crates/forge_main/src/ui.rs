@@ -643,7 +643,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
         let mut base_workflow = Workflow::default();
         base_workflow.merge(workflow.clone());
-        if first {
+        if first && self.interactive {
             // only call on_update if this is the first initialization
             on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
         }
