@@ -11,18 +11,16 @@ use tokio::sync::Mutex;
 #[derive(Clone)]
 pub struct ForgeConversationService {
     conversations: Arc<Mutex<HashMap<ConversationId, Conversation>>>,
-}
-
-impl Default for ForgeConversationService {
-    fn default() -> Self {
-        Self::new()
-    }
+    workspace_id: WorkspaceId,
 }
 
 impl ForgeConversationService {
     /// Creates a new ForgeConversationService with the provided MCP service
-    pub fn new() -> Self {
-        Self { conversations: Arc::new(Mutex::new(HashMap::new())) }
+    pub fn new(workspace_id: WorkspaceId) -> Self {
+        Self {
+            conversations: Arc::new(Mutex::new(HashMap::new())),
+            workspace_id,
+        }
     }
 }
 
@@ -51,9 +49,7 @@ impl ConversationService for ForgeConversationService {
 
     async fn init_conversation(&self) -> Result<Conversation> {
         let id = ConversationId::generate();
-
-        let workspace_id = WorkspaceId::new("default");
-        let conversation = Conversation::new(id, workspace_id);
+        let conversation = Conversation::new(id, self.workspace_id.clone());
 
         self.conversations
             .lock()

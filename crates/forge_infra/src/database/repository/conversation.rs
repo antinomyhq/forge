@@ -2,7 +2,6 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use diesel::prelude::*;
-use diesel::insert_into;
 use forge_domain::{Context, Conversation, ConversationId, WorkspaceId};
 use forge_services::ConversationRepositoryInfra;
 
@@ -25,11 +24,11 @@ impl TryFrom<&Conversation> for ConversationRecord {
     type Error = anyhow::Error;
 
     fn try_from(conversation: &Conversation) -> anyhow::Result<Self> {
-        let context = serde_json::to_string(&ctx).ok();
+        let context = serde_json::to_string(&conversation).ok();
         let now = chrono::Utc::now().naive_utc();
         Ok(Self {
             conversation_id: conversation.id.into_string(),
-            title: conversation.title,
+            title: conversation.title.clone(),
             workspace_id: conversation.workspace_id.deref().clone(),
             context,
             created_at: now,
@@ -78,6 +77,7 @@ impl ConversationRepositoryInfra for ConversationRepository {
                 conversations::updated_at.eq(chrono::Utc::now().naive_utc()),
             ))
             .execute(&mut connection)?;
+        Ok(())
     }
 
     async fn find_by_id(

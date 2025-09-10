@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use forge_domain::{
-    ChatCompletionMessage, ChatResponse, Conversation, ConversationId, ToolCallFull, ToolResult,
+    ChatCompletionMessage, ChatResponse, Conversation, ConversationId, ToolCallFull, ToolResult, WorkspaceId,
 };
 use handlebars::{Handlebars, no_escape};
 use rust_embed::Embed;
@@ -67,7 +67,7 @@ impl Runner {
         });
 
         let services = Arc::new(Runner::new(setup));
-        let conversation = Conversation::new(ConversationId::generate());
+        let conversation = Conversation::new(ConversationId::generate(), WorkspaceId::new("test"));
         let agent = setup.agent.clone();
         let event = setup.event.clone();
         let system_tools = setup.tools.clone();

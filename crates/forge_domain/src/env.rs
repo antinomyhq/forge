@@ -1,10 +1,10 @@
-use std::path::PathBuf;
+use std::{hash::{DefaultHasher, Hash, Hasher}, path::PathBuf};
 
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::{HttpConfig, RetryConfig};
+use crate::{HttpConfig, RetryConfig, WorkspaceId};
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     Some(val) => val,
@@ -101,6 +101,12 @@ impl Environment {
 
     pub fn database_path(&self) -> PathBuf {
         self.base_path.join(".forge.db")
+    }
+
+    pub fn workspace_id(&self) -> WorkspaceId {
+        let mut hasher = DefaultHasher::default();
+        self.cwd.hash(&mut hasher);
+        WorkspaceId::new(format!("{}", hasher.finish()))
     }
 }
 
