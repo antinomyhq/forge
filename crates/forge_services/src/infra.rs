@@ -224,17 +224,17 @@ pub trait DirectoryReaderInfra: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait ConversationRepository: Send + Sync {
-    async fn upsert(&self, conversation: Conversation) -> anyhow::Result<()>;
-    async fn find_by_id(
+    async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()>;
+    async fn get_conversation(
         &self,
         conversation_id: &ConversationId,
     ) -> anyhow::Result<Option<Conversation>>;
-    async fn find_by_workspace_id(
+    async fn get_all_conversations(
         &self,
         workspace_id: &WorkspaceId,
         limit: Option<usize>,
     ) -> anyhow::Result<Option<Vec<Conversation>>>;
-    async fn find_last_active_conversation_by_workspace_id(
+    async fn get_last_conversation(
         &self,
         workspace_id: &WorkspaceId,
     ) -> anyhow::Result<Option<Conversation>>;

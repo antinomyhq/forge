@@ -30,20 +30,20 @@ impl<S: ConversationRepository> ConversationService for ForgeConversationService
     {
         let mut conversation = self
             .conversation_repository
-            .find_by_id(id)
+            .get_conversation(id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Conversation not found: {}", id))?;
         let out = f(&mut conversation);
-        let _ = self.conversation_repository.upsert(conversation).await?;
+        let _ = self.conversation_repository.upsert_conversation(conversation).await?;
         Ok(out)
     }
 
     async fn find_conversation(&self, id: &ConversationId) -> Result<Option<Conversation>> {
-        self.conversation_repository.find_by_id(id).await
+        self.conversation_repository.get_conversation(id).await
     }
 
     async fn upsert_conversation(&self, conversation: Conversation) -> Result<()> {
-        let _ = self.conversation_repository.upsert(conversation).await?;
+        let _ = self.conversation_repository.upsert_conversation(conversation).await?;
         Ok(())
     }
 
@@ -52,7 +52,7 @@ impl<S: ConversationRepository> ConversationService for ForgeConversationService
         let conversation = Conversation::new(id, self.workspace_id.clone());
         let _ = self
             .conversation_repository
-            .upsert(conversation.clone())
+            .upsert_conversation(conversation.clone())
             .await?;
         Ok(conversation)
     }
@@ -63,13 +63,13 @@ impl<S: ConversationRepository> ConversationService for ForgeConversationService
         limit: Option<usize>,
     ) -> Result<Option<Vec<Conversation>>> {
         self.conversation_repository
-            .find_by_workspace_id(workspace_id, limit)
+            .get_all_conversations(workspace_id, limit)
             .await
     }
 
     async fn last_conversation(&self, workspace_id: &WorkspaceId) -> Result<Option<Conversation>> {
         self.conversation_repository
-            .find_last_active_conversation_by_workspace_id(workspace_id)
+            .get_last_conversation(workspace_id)
             .await
     }
 }

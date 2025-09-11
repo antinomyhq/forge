@@ -284,35 +284,35 @@ impl DirectoryReaderInfra for ForgeInfra {
 
 #[async_trait::async_trait]
 impl ConversationRepository for ForgeInfra {
-    async fn upsert(&self, conversation: Conversation) -> anyhow::Result<()> {
-        self.conversation_repository.upsert(conversation).await
+    async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()> {
+        self.conversation_repository.upsert_conversation(conversation).await
     }
 
-    async fn find_by_id(
+    async fn get_conversation(
         &self,
         conversation_id: &ConversationId,
     ) -> anyhow::Result<Option<Conversation>> {
         self.conversation_repository
-            .find_by_id(conversation_id)
+            .get_conversation(conversation_id)
             .await
     }
 
-    async fn find_by_workspace_id(
+    async fn get_all_conversations(
         &self,
         workspace_id: &WorkspaceId,
         limit: Option<usize>,
     ) -> anyhow::Result<Option<Vec<Conversation>>> {
         self.conversation_repository
-            .find_by_workspace_id(workspace_id, limit)
+            .get_all_conversations(workspace_id, limit)
             .await
     }
 
-    async fn find_last_active_conversation_by_workspace_id(
+    async fn get_last_conversation(
         &self,
         workspace_id: &WorkspaceId,
     ) -> anyhow::Result<Option<Conversation>> {
         self.conversation_repository
-            .find_last_active_conversation_by_workspace_id(workspace_id)
+            .get_last_conversation(workspace_id)
             .await
     }
 }
