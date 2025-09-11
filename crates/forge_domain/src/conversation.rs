@@ -73,20 +73,14 @@ impl MetaData {
 }
 
 impl Conversation {
-    pub fn reset_metric(&mut self) -> &mut Self {
-        self.metrics = Metrics::new();
-        self.metrics.start();
-        self
-    }
-
     pub fn new(id: ConversationId, workspace_id: WorkspaceId) -> Self {
-        let mut metrics = Metrics::new();
-        metrics.start();
+        let created_at = Utc::now();
+        let metrics = Metrics::new().with_time(created_at.clone());
         Self {
             id,
             workspace_id,
             metrics,
-            metadata: MetaData::new(Utc::now()),
+            metadata: MetaData::new(created_at),
             title: None,
             context: None,
         }
