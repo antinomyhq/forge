@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-derive_more.workspace = true
+
 html-escape = "0.2.13"
 
 [dev-dependencies]

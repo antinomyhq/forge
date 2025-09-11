@@ -120,17 +120,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-lock"
-version = "3.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5fd03604047cee9b6ce9de9f70c6cd540a0520c813cbd49bae61f33ab80ed1dc"
-dependencies = [
- "event-listener",
- "event-listener-strategy",
- "pin-project-lite",
-]
-
-[[package]]
 name = "async-recursion"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -437,15 +426,6 @@ checksum = "ba5a308b75df32fe02788e748662718f03fde005016435c444eea572398219fd"
 dependencies = [
  "bytes",
  "memchr",
-]
-
-[[package]]
-name = "concurrent-queue"
-version = "2.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973"
-dependencies = [
- "crossbeam-utils",
 ]
 
 [[package]]
@@ -897,12 +877,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dissimilar"
-version = "1.0.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8975ffdaa0ef3661bfe02dbdcc06c9f829dfafe6a3c474de366a8d5e44276921"
-
-[[package]]
 name = "document-features"
 version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1017,27 +991,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "event-listener"
-version = "5.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e13b66accf52311f30a0db42147dadea9850cb48cd070028831ae5f5d4b856ab"
-dependencies = [
- "concurrent-queue",
- "parking",
- "pin-project-lite",
-]
-
-[[package]]
-name = "event-listener-strategy"
-version = "0.5.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8be9f3dfaaffdae2972880079a491a1a8bb7cbed0b8dd7a347f668b4150a3b93"
-dependencies = [
- "event-listener",
- "pin-project-lite",
-]
-
-[[package]]
 name = "eventsource-stream"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1110,23 +1063,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "bytes",
  "forge_app",
  "forge_domain",
  "forge_infra",
  "forge_services",
- "forge_snaps",
  "forge_stream",
- "forge_walker",
- "futures",
- "insta",
- "merge 0.2.0",
- "serde",
- "serde_json",
- "serde_yml",
- "tempfile",
  "tokio",
- "tracing",
 ]
 
 [[package]]
@@ -1143,7 +1085,6 @@ dependencies = [
  "convert_case 0.8.0",
  "derive_more",
  "derive_setters",
- "eserde",
  "forge_display",
  "forge_domain",
  "forge_stream",
@@ -1160,9 +1101,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "serde_yml",
  "strum 0.27.2",
- "strum_macros 0.27.2",
  "tempfile",
  "thiserror 2.0.16",
  "tokio",
@@ -1178,7 +1117,6 @@ dependencies = [
  "derive_setters",
  "gh-workflow",
  "indexmap",
- "pretty_assertions",
  "serde",
  "serde_json",
 ]
@@ -1187,8 +1125,6 @@ dependencies = [
 name = "forge_display"
 version = "0.1.0"
 dependencies = [
- "chrono",
- "colored",
  "console 0.16.0",
  "derive_setters",
  "insta",
@@ -1247,7 +1183,6 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.16",
  "tokio",
- "tracing",
 ]
 
 [[package]]
@@ -1269,18 +1204,15 @@ dependencies = [
  "futures",
  "globset",
  "inquire",
- "lazy_static",
  "pretty_assertions",
  "reqwest 0.12.23",
  "reqwest-eventsource",
  "rmcp",
- "serde",
  "serde_json",
  "serial_test",
  "tempfile",
  "thiserror 2.0.16",
  "tokio",
- "tokio-stream",
  "tracing",
 ]
 
@@ -1300,9 +1232,7 @@ name = "forge_main"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "async-trait",
  "atty",
- "base64 0.22.1",
  "chrono",
  "clap",
  "colored",
@@ -1313,7 +1243,6 @@ dependencies = [
  "forge_display",
  "forge_domain",
  "forge_fs",
- "forge_snaps",
  "forge_spinner",
  "forge_tracker",
  "forge_walker",
@@ -1330,15 +1259,12 @@ dependencies = [
  "reedline",
  "serde",
  "serde_json",
- "serde_yml",
  "strum 0.27.2",
  "strum_macros 0.27.2",
  "tempfile",
  "tokio",
  "tokio-stream",
  "tracing",
- "tracing-appender",
- "tracing-subscriber",
  "update-informer",
 ]
 
@@ -1352,16 +1278,10 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "chrono",
- "console 0.16.0",
- "derive_builder",
- "derive_more",
  "derive_setters",
- "dissimilar",
  "forge_app",
  "forge_fs",
  "forge_snaps",
- "forge_tool_macros",
- "forge_walker",
  "futures",
  "glob",
  "gray_matter",
@@ -1373,22 +1293,17 @@ dependencies = [
  "lazy_static",
  "merge 0.2.0",
  "mockito",
- "moka2",
- "nom 8.0.0",
  "pretty_assertions",
  "regex",
  "reqwest 0.12.23",
  "reqwest-eventsource",
- "rmcp",
  "rust-embed",
- "schemars",
  "serde",
  "serde_json",
  "serde_yml",
  "strip-ansi-escapes",
  "strum 0.27.2",
  "strum_macros 0.27.2",
- "syn 2.0.106",
  "tempfile",
  "thiserror 2.0.16",
  "tokio",
@@ -1405,7 +1320,6 @@ dependencies = [
  "tree-sitter-scala",
  "tree-sitter-typescript",
  "url",
- "uuid",
 ]
 
 [[package]]
@@ -1413,14 +1327,10 @@ name = "forge_snaps"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "base64 0.22.1",
  "chrono",
  "fnv_rs",
  "forge_fs",
- "forge_walker",
- "futures",
  "serde",
- "serde_json",
  "tempfile",
  "tokio",
  "uuid",
@@ -1449,7 +1359,6 @@ dependencies = [
 name = "forge_template"
 version = "0.1.0"
 dependencies = [
- "derive_more",
  "html-escape",
  "pretty_assertions",
 ]
@@ -1481,7 +1390,6 @@ dependencies = [
  "reqwest 0.12.23",
  "serde",
  "serde_json",
- "strum 0.27.2",
  "sysinfo 0.36.1",
  "tokio",
  "tracing",
@@ -2850,29 +2758,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "moka2"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7bc3c7fe956c9cabb0ae780604a882ba12aa9861070ec76ffbc39504862053be"
-dependencies = [
- "async-lock",
- "crossbeam-channel",
- "crossbeam-epoch",
- "crossbeam-utils",
- "event-listener",
- "futures-util",
- "parking_lot",
- "portable-atomic",
- "quanta",
- "rustc_version",
- "smallvec",
- "tagptr",
- "thiserror 1.0.69",
- "triomphe",
- "uuid",
-]
-
-[[package]]
 name = "new_debug_unreachable"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3045,12 +2930,6 @@ name = "option-ext"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
-
-[[package]]
-name = "parking"
-version = "2.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f38d5652c16fde515bb1ecef450ab0f6a219d619a7274976324d5e377f7dceba"
 
 [[package]]
 name = "parking_lot"
@@ -3304,21 +3183,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "quanta"
-version = "0.12.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3ab5a9d756f0d97bdc89019bd2e4ea098cf9cde50ee7564dde6b81ccc8f06c7"
-dependencies = [
- "crossbeam-utils",
- "libc",
- "once_cell",
- "raw-cpuid",
- "wasi 0.11.1+wasi-snapshot-preview1",
- "web-sys",
- "winapi",
-]
-
-[[package]]
 name = "quinn"
 version = "0.11.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3430,15 +3294,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "99d9a13982dcf210057a8a78572b2217b667c3beacbf3a0d8b454f6f82837d38"
 dependencies = [
  "getrandom 0.3.3",
-]
-
-[[package]]
-name = "raw-cpuid"
-version = "11.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "498cd0dc59d73224351ee52a95fee0f1a617a2eae0e7d9d720cc622c73a54186"
-dependencies = [
- "bitflags 2.9.4",
 ]
 
 [[package]]
@@ -4844,12 +4699,6 @@ dependencies = [
  "cc",
  "tree-sitter-language",
 ]
-
-[[package]]
-name = "triomphe"
-version = "0.1.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "859eb650cfee7434994602c3a68b25d77ad9e68c8a6cd491616ef86661382eb3"
 
 [[package]]
 name = "try-lock"
