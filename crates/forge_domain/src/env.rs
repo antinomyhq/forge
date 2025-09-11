@@ -57,10 +57,6 @@ pub struct Environment {
 }
 
 impl Environment {
-    pub fn db_path(&self) -> PathBuf {
-        self.base_path.clone()
-    }
-
     pub fn log_path(&self) -> PathBuf {
         self.base_path.join("logs")
     }
