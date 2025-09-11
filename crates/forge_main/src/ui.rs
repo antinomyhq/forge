@@ -420,10 +420,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .iter()
                 .map(|c| {
                     let title = c.title.clone().unwrap_or_else(|| c.id.to_string());
-                    let date = c
-                        .metadata
-                        .updated_at
-                        .unwrap_or(c.metadata.created_at);
+                    let date = c.metadata.updated_at.unwrap_or(c.metadata.created_at);
                     let formatted_date = date.format("%Y-%m-%d %H:%M").to_string();
                     format!("{:<60} {}", title, formatted_date)
                 })
