@@ -153,8 +153,8 @@ impl ConversationRepositoryInfra for ConversationRepository {
 
 #[cfg(test)]
 mod tests {
-    use pretty_assertions::assert_eq;
     use forge_domain::ContextMessage;
+    use pretty_assertions::assert_eq;
 
     use super::*;
     use crate::database::DatabasePool;
@@ -410,7 +410,10 @@ mod tests {
         let actual = ConversationRecord::try_from(&fixture)?;
 
         assert_eq!(actual.conversation_id, fixture.id.into_string());
-        assert_eq!(actual.title, Some("Conversation with Empty Context".to_string()));
+        assert_eq!(
+            actual.title,
+            Some("Conversation with Empty Context".to_string())
+        );
         assert_eq!(actual.workspace_id, "workspace-456");
         assert!(actual.context.is_none()); // Empty context should be filtered out
         Ok(())
