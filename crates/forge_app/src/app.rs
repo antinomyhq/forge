@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -51,9 +52,6 @@ impl<S: Services> ForgeApp<S> {
             .unwrap_or_default()
             .expect("conversation for the request should've been created at this point.");
 
-        // Get tool definitions and models
-        let system_tools = self.tool_registry.list().await?;
-        let mcp_tools = self.services.mcp_service().list().await?;
         let config = services.get_app_config().await.unwrap_or_default();
         let provider = services
             .get_provider(config)
@@ -100,6 +98,7 @@ impl<S: Services> ForgeApp<S> {
         // Prepare agents with user configuration and subscriptions
         let agents = services.get_agents().await?;
 
+        let mcp_tools = self.services.mcp_service().list().await?;
         let agent = agents
             .into_iter()
             .map(|agent| {
@@ -110,9 +109,21 @@ impl<S: Services> ForgeApp<S> {
             .find(|agent| agent.has_subscription(&chat.event.name))
             .ok_or(crate::Error::UnsubscribedEvent(chat.event.name.to_owned()))?;
 
-        let mut tool_definitions = Vec::new();
-        tool_definitions.extend(system_tools);
-        tool_definitions.extend(mcp_tools.values().flatten().cloned());
+        // Get system and mcp tool definitions
+        let tool_definitions = self.tool_registry.list().await?;
+        let uniq_tool_definitions = tool_definitions
+            .iter()
+            .map(|tool| (&tool.name, tool))
+            .collect::<HashMap<_, _>>();
+
+        let tool_definitions = agent
+            .tools
+            .iter()
+            .flatten()
+            .flat_map(|tool| uniq_tool_definitions.get(tool))
+            .cloned()
+            .cloned()
+            .collect::<Vec<_>>();
 
         // Create the orchestrator with all necessary dependencies
         let orch = Orchestrator::new(

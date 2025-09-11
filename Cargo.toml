@@ -20,7 +20,6 @@ colored = "3.0.0"
 console = "0.16.0"
 inquire = "0.7.5"
 convert_case = "0.8.0"
-derive_builder = "0.20.2"
 derive_more = { version = "2.0.1", features = ["full"] }
 derive_setters = "0.1.6"
 dirs = "6.0.0"
@@ -42,7 +41,6 @@ insta = { version = "1.42.0", features = ["json"] }
 lazy_static = "1.4.0"
 machineid-rs = "1.2.4"
 mockito = "1.6.1"
-moka2 = "0.13"
 nom = "8.0.0"
 nu-ansi-term = "0.50.1"
 posthog-rs = { git = "https://github.com/PostHog/posthog-rs.git", rev = "a006a81419031e4889d9c3882d7458d2efa588a8" }
@@ -107,7 +105,6 @@ rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", rev = "3a9791
     "transport-sse-server",
 ] }
 open = "5.3.2"
-ansi-to-tui = "7.0.0"
 nucleo = "0.5.0"
 humantime = "2.2.0"
 gray_matter = "0.3.2"

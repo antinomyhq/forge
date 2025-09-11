@@ -123,23 +123,14 @@ impl<S: AgentService> Orchestrator<S> {
 
     /// Get the allowed tools for an agent
     fn get_allowed_tools(&self) -> anyhow::Result<Vec<ToolDefinition>> {
-        let agent = &self.agent;
-        let mut tools = vec![ToolsDiscriminants::AttemptCompletion.definition()];
-
-        // Add system tools
-        if !self.tool_definitions.is_empty() {
-            let allowed = agent.tools.iter().flatten().collect::<HashSet<_>>();
-            if !allowed.is_empty() {
-                tools.extend(
-                    self.tool_definitions
-                        .iter()
-                        .filter(|tool| allowed.contains(&tool.name))
-                        .cloned(),
-                );
-            }
-        }
-
-        Ok(tools)
+        Ok(self
+            .tool_definitions
+            .iter()
+            .cloned()
+            .chain(std::iter::once(
+                ToolsDiscriminants::AttemptCompletion.definition(),
+            ))
+            .collect::<Vec<_>>())
     }
 
     /// Checks if parallel tool calls is supported by agent

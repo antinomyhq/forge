@@ -28,4 +28,3 @@ lazy_static.workspace = true
 
 [dev-dependencies]
 lazy_static.workspace = true
-strum.workspace = true
