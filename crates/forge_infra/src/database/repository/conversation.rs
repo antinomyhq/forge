@@ -28,6 +28,7 @@ impl TryFrom<&Conversation> for ConversationRecord {
         let context = conversation
             .context
             .as_ref()
+            .filter(|ctx| !ctx.messages.is_empty())
             .and_then(|ctx| serde_json::to_string(ctx).ok());
         let updated_at = context.as_ref().map(|_| chrono::Local::now().naive_local());
         Ok(Self {
