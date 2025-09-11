@@ -28,7 +28,11 @@ impl<S: ConversationRepositoryInfra> ConversationService for ForgeConversationSe
         F: FnOnce(&mut Conversation) -> T + Send,
         T: Send,
     {
-        let mut conversation = self.conversation_repository.find_by_id(id).await?.unwrap(); // TODO: fix this unwrap.
+        let mut conversation = self
+            .conversation_repository
+            .find_by_id(id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Conversation not found: {}", id))?;
         let out = f(&mut conversation);
         let _ = self.conversation_repository.upsert(conversation).await?;
         Ok(out)
