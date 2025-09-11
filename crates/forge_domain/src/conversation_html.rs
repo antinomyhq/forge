@@ -15,7 +15,7 @@ pub fn render_conversation_html(conversation: &Conversation) -> String {
                         .attr("name", "viewport")
                         .attr("content", "width=device-width, initial-scale=1.0"),
                 )
-                .append(Element::new("title").text(format!("Conversation: {}", conversation.id)))
+                .append(Element::new("title").text(format!("Conversation: {}", conversation.title.clone().unwrap_or(conversation.id.to_string()))))
                 .append(Element::new("style").text(include_str!("conversation_style.css"))),
         )
         .append(
