@@ -6,8 +6,9 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
-    InterruptionReason, Model, ModelId, ToolName, Workflow,
+    API, AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId,
+    EVENT_USER_TASK_INIT, EVENT_USER_TASK_UPDATE, Event, InterruptionReason, Model, ModelId,
+    ToolName, Workflow,
 };
 use forge_display::MarkdownFormat;
 use forge_domain::{
@@ -30,10 +31,6 @@ use crate::state::UIState;
 use crate::title_display::TitleDisplayExt;
 use crate::update::on_update;
 use crate::{TRACKER, banner, tracker};
-
-// Event type constants moved to UI layer
-pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
-pub const EVENT_USER_TASK_UPDATE: &str = "user_task_update";
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, Default)]
 pub struct PartialEvent {
