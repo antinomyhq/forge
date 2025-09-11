@@ -278,7 +278,7 @@ impl<S: AgentService> Orchestrator<S> {
                 return Ok(conversation_title);
             }
         }
-        return Ok(None);
+        Ok(None)
     }
 
     // Create a helper method with the core functionality
@@ -430,7 +430,8 @@ impl<S: AgentService> Orchestrator<S> {
                 self.check_and_generate_title(&context, &model_id)
             )?;
 
-            // If conversation_title is generated then update the conversation with it's title.
+            // If conversation_title is generated then update the conversation with it's
+            // title.
             if let Some(title) = conversation_title {
                 debug!(conversation_id = %self.conversation.id, title, "Title generated for conversation");
                 self.conversation.title = Some(title);
