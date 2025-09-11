@@ -3,6 +3,7 @@ use std::fmt::Display;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use chrono::{DateTime, Local};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
@@ -412,8 +413,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .iter()
             .map(|c| {
                 let title = c.title.clone().unwrap_or_else(|| c.id.to_string());
+                // Convert from UTC to local.
                 let date = c.metadata.updated_at.unwrap_or(c.metadata.created_at);
-                let formatted_date = date.format("%Y-%m-%d %H:%M").to_string();
+                let local_date: DateTime<Local> = date.with_timezone(&Local);
+                let formatted_date = local_date.format("%Y-%m-%d %H:%M").to_string();
                 format!("{title:<60} {formatted_date}")
             })
             .collect();
