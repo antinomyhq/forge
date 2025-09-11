@@ -122,21 +122,22 @@ impl<S: AgentService> Orchestrator<S> {
 
     /// Get the allowed tools for an agent
     fn get_allowed_tools(&self) -> anyhow::Result<Vec<ToolDefinition>> {
-        let agent = &self.agent;
-        let mut tools = vec![ToolsDiscriminants::AttemptCompletion.definition()];
+        let definitions = self
+            .tool_definitions
+            .iter()
+            .map(|tool| (&tool.name, tool))
+            .collect::<HashMap<_, _>>();
 
-        // Add system tools
-        if !self.tool_definitions.is_empty() {
-            let allowed = agent.tools.iter().flatten().collect::<HashSet<_>>();
-            if !allowed.is_empty() {
-                tools.extend(
-                    self.tool_definitions
-                        .iter()
-                        .filter(|tool| allowed.contains(&tool.name))
-                        .cloned(),
-                );
-            }
-        }
+        let tools = self
+            .agent
+            .tools
+            .iter()
+            .flatten()
+            .flat_map(|tool| definitions.get(tool))
+            .cloned()
+            .cloned()
+            .chain(std::iter::once(ToolsDiscriminants::AttemptCompletion.definition()))
+            .collect::<Vec<_>>();
 
         Ok(tools)
     }
