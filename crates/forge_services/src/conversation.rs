@@ -32,7 +32,7 @@ impl<S: ConversationRepositoryInfra> ConversationService for ForgeConversationSe
         let out = f(&mut conversation);
         let _ = self
             .conversation_repository
-            .upsert(conversation.clone())
+            .upsert(conversation)
             .await?;
         Ok(out)
     }
