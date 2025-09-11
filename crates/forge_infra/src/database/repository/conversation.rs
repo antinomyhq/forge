@@ -145,3 +145,240 @@ impl ConversationRepositoryInfra for ConversationRepository {
         Ok(conversation)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+    use crate::database::DatabasePool;
+
+    fn repository() -> anyhow::Result<ConversationRepository> {
+        let pool = Arc::new(DatabasePool::in_memory()?);
+        Ok(ConversationRepository::new(pool))
+    }
+
+    #[tokio::test]
+    async fn test_upsert_and_find_by_id() -> anyhow::Result<()> {
+        let fixture = Conversation::new(
+            ConversationId::generate(),
+            WorkspaceId::new("workspace-456".to_string()),
+        )
+        .title(Some("Test Conversation".to_string()));
+        let repo = repository()?;
+
+        repo.upsert(fixture.clone()).await?;
+
+        let actual = repo.find_by_id(&fixture.id).await?;
+        assert!(actual.is_some());
+        let retrieved = actual.unwrap();
+        assert_eq!(retrieved.id, fixture.id);
+        assert_eq!(retrieved.title, fixture.title);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_find_by_id_non_existing() -> anyhow::Result<()> {
+        let repo = repository()?;
+        let non_existing_id = ConversationId::generate();
+
+        let actual = repo.find_by_id(&non_existing_id).await?;
+
+        assert!(actual.is_none());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_upsert_updates_existing_conversation() -> anyhow::Result<()> {
+        let mut fixture = Conversation::new(
+            ConversationId::generate(),
+            WorkspaceId::new("workspace-456".to_string()),
+        )
+        .title(Some("Test Conversation".to_string()));
+        let repo = repository()?;
+
+        // Insert initial conversation
+        repo.upsert(fixture.clone()).await?;
+
+        // Update the conversation
+        fixture = fixture.title(Some("Updated Title".to_string()));
+        repo.upsert(fixture.clone()).await?;
+
+        let actual = repo.find_by_id(&fixture.id).await?;
+        assert!(actual.is_some());
+        assert_eq!(actual.unwrap().title, Some("Updated Title".to_string()));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_find_by_workspace_id_with_conversations() -> anyhow::Result<()> {
+        let conversation1 = Conversation::new(
+            ConversationId::generate(),
+            WorkspaceId::new("workspace-456".to_string()),
+        )
+        .title(Some("Test Conversation".to_string()));
+        let conversation2 = Conversation::new(
+            ConversationId::generate(),
+            WorkspaceId::new("workspace-456".to_string()),
+        )
+        .title(Some("Second Conversation".to_string()));
+        let repo = repository()?;
+
+        repo.upsert(conversation1.clone()).await?;
+        repo.upsert(conversation2.clone()).await?;
+
+        let actual = repo
+            .find_by_workspace_id(&WorkspaceId::new("workspace-456".to_string()), None)
+            .await?;
+
+        assert!(actual.is_some());
+        let conversations = actual.unwrap();
+        assert_eq!(conversations.len(), 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_find_by_workspace_id_with_limit() -> anyhow::Result<()> {
+        let conversation1 = Conversation::new(
+            ConversationId::generate(),
+            WorkspaceId::new("workspace-456".to_string()),
+        )
+        .title(Some("Test Conversation".to_string()));
+        let conversation2 = Conversation::new(
+            ConversationId::generate(),
+            WorkspaceId::new("workspace-456".to_string()),
+        );
+        let repo = repository()?;
+
+        repo.upsert(conversation1).await?;
+        repo.upsert(conversation2).await?;
+
+        let actual = repo
+            .find_by_workspace_id(&WorkspaceId::new("workspace-456".to_string()), Some(1))
+            .await?;
+
+        assert!(actual.is_some());
+        assert_eq!(actual.unwrap().len(), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_find_by_workspace_id_no_conversations() -> anyhow::Result<()> {
+        let repo = repository()?;
+
+        let actual = repo
+            .find_by_workspace_id(
+                &WorkspaceId::new("non-existing-workspace".to_string()),
+                None,
+            )
+            .await?;
+
+        assert!(actual.is_none());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_find_last_active_conversation_with_context() -> anyhow::Result<()> {
+        let conversation_with_context = Conversation::new(
+            ConversationId::generate(),
+            WorkspaceId::new("workspace-456".to_string()),
+        )
+        .title(Some("Conversation with Context".to_string()))
+        .context(Some(Context::default()));
+        let conversation_without_context = Conversation::new(
+            ConversationId::generate(),
+            WorkspaceId::new("workspace-456".to_string()),
+        )
+        .title(Some("Test Conversation".to_string()));
+        let repo = repository()?;
+
+        repo.upsert(conversation_without_context).await?;
+        repo.upsert(conversation_with_context.clone()).await?;
+
+        let actual = repo
+            .find_last_active_conversation_by_workspace_id(&WorkspaceId::new(
+                "workspace-456".to_string(),
+            ))
+            .await?;
+
+        assert!(actual.is_some());
+        assert_eq!(actual.unwrap().id, conversation_with_context.id);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_find_last_active_conversation_no_context() -> anyhow::Result<()> {
+        let conversation_without_context = Conversation::new(
+            ConversationId::generate(),
+            WorkspaceId::new("workspace-456".to_string()),
+        )
+        .title(Some("Test Conversation".to_string()));
+        let repo = repository()?;
+
+        repo.upsert(conversation_without_context).await?;
+
+        let actual = repo
+            .find_last_active_conversation_by_workspace_id(&WorkspaceId::new(
+                "workspace-456".to_string(),
+            ))
+            .await?;
+
+        assert!(actual.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn test_conversation_record_from_conversation() -> anyhow::Result<()> {
+        let fixture = Conversation::new(
+            ConversationId::generate(),
+            WorkspaceId::new("workspace-456".to_string()),
+        )
+        .title(Some("Test Conversation".to_string()));
+
+        let actual = ConversationRecord::try_from(&fixture)?;
+
+        assert_eq!(actual.conversation_id, fixture.id.into_string());
+        assert_eq!(actual.title, Some("Test Conversation".to_string()));
+        assert_eq!(actual.workspace_id, "workspace-456");
+        assert_eq!(actual.context, None);
+        Ok(())
+    }
+
+    #[test]
+    fn test_conversation_record_from_conversation_with_context() -> anyhow::Result<()> {
+        let fixture = Conversation::new(
+            ConversationId::generate(),
+            WorkspaceId::new("workspace-456".to_string()),
+        )
+        .title(Some("Conversation with Context".to_string()))
+        .context(Some(Context::default()));
+
+        let actual = ConversationRecord::try_from(&fixture)?;
+
+        assert_eq!(actual.conversation_id, fixture.id.into_string());
+        assert_eq!(actual.title, Some("Conversation with Context".to_string()));
+        assert_eq!(actual.workspace_id, "workspace-456");
+        assert!(actual.context.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn test_conversation_from_conversation_record() -> anyhow::Result<()> {
+        let test_id = ConversationId::generate();
+        let fixture = ConversationRecord {
+            conversation_id: test_id.into_string(),
+            title: Some("Test Conversation".to_string()),
+            workspace_id: "workspace-456".to_string(),
+            context: None,
+            created_at: chrono::Utc::now().naive_utc(),
+            updated_at: None,
+        };
+
+        let actual = Conversation::try_from(fixture)?;
+
+        assert_eq!(actual.id, test_id);
+        assert_eq!(actual.title, Some("Test Conversation".to_string()));
+        assert_eq!(actual.context, None);
+        Ok(())
+    }
+}
