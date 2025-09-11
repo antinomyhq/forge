@@ -6,6 +6,7 @@ use anyhow::Result;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use diesel::sqlite::SqliteConnection;
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
+use tracing::{debug, warn};
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("src/database/migrations");
 
@@ -40,6 +41,8 @@ pub struct DatabasePool {
 impl DatabasePool {
     #[cfg(test)]
     pub fn in_memory() -> Result<Self> {
+        debug!("Creating in-memory database pool");
+        
         let manager = ConnectionManager::<SqliteConnection>::new(":memory:");
 
         let pool = Pool::builder()
@@ -63,7 +66,10 @@ impl DatabasePool {
     pub fn get_connection(&self) -> Result<PooledSqliteConnection> {
         self.pool
             .get()
-            .map_err(|e| anyhow::anyhow!("Failed to get connection from pool: {}", e))
+            .map_err(|e| {
+                warn!(error = %e, "Failed to get connection from pool");
+                anyhow::anyhow!("Failed to get connection from pool: {}", e)
+            })
     }
 }
 
@@ -71,6 +77,8 @@ impl TryFrom<PoolConfig> for DatabasePool {
     type Error = anyhow::Error;
 
     fn try_from(config: PoolConfig) -> Result<Self> {
+        debug!(database_path = %config.database_path.display(), "Creating database pool");
+        
         // Ensure the parent directory exists
         if let Some(parent) = config.database_path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -93,7 +101,10 @@ impl TryFrom<PoolConfig> for DatabasePool {
 
         let pool = builder
             .build(manager)
-            .map_err(|e| anyhow::anyhow!("Failed to create connection pool: {}", e))?;
+            .map_err(|e| {
+                warn!(error = %e, "Failed to create connection pool");
+                anyhow::anyhow!("Failed to create connection pool: {}", e)
+            })?;
 
         // Run migrations on a connection from the pool
         let mut connection = pool
@@ -102,8 +113,12 @@ impl TryFrom<PoolConfig> for DatabasePool {
 
         connection
             .run_pending_migrations(MIGRATIONS)
-            .map_err(|e| anyhow::anyhow!("Failed to run database migrations: {}", e))?;
+            .map_err(|e| {
+                warn!(error = %e, "Failed to run database migrations");
+                anyhow::anyhow!("Failed to run database migrations: {}", e)
+            })?;
 
+        debug!(database_path = %config.database_path.display(), "created connection pool");
         Ok(Self { pool })
     }
 }
