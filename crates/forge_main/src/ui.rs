@@ -633,7 +633,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
         let mut base_workflow = Workflow::default();
         base_workflow.merge(workflow.clone());
-        if first {
+        if first && self.cli.is_interactive() {
             // only call on_update if this is the first initialization
             on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
         }
@@ -852,35 +852,36 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_completion(&mut self, metrics: Metrics) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Summary"))?;
 
-        let mut info = Info::default();
-
         // Show summary
-        info = info.extend(Info::from(&metrics));
+        let info = Info::default()
+            .extend(Info::from(&metrics))
+            .extend(get_usage(&self.state));
 
-        // Fetch Usage
-        info = info.extend(get_usage(&self.state));
-
-        if let Ok(Some(usage)) = self.api.user_usage().await {
-            info = info.extend(Info::from(&usage));
-        }
+        // if let Ok(Some(usage)) = self.api.user_usage().await {
+        //     info = info.extend(Info::from(&usage));
+        // }
 
         self.writeln(info)?;
 
         self.spinner.stop(None)?;
 
-        let prompt_text = "Start a new conversation?";
-        let should_start_new_chat = ForgeSelect::confirm(prompt_text)
-            // Pressing ENTER should start new
-            .with_default(true)
-            .with_help_message("ESC = No, continue current conversation")
-            .prompt()
-            // Cancel or failure should continue with the session
-            .unwrap_or(Some(false))
-            .unwrap_or(false);
+        // In non-interactive mode, don't ask user to start new conversation as we'll
+        // just exit the shell as soon as we execute the provided command.
+        if self.cli.is_interactive() {
+            let prompt_text = "Start a new conversation?";
+            let should_start_new_chat = ForgeSelect::confirm(prompt_text)
+                // Pressing ENTER should start new
+                .with_default(true)
+                .with_help_message("ESC = No, continue current conversation")
+                .prompt()
+                // Cancel or failure should continue with the session
+                .unwrap_or(Some(false))
+                .unwrap_or(false);
 
-        // if conversation is over
-        if should_start_new_chat {
-            self.on_new().await?;
+            // if conversation is over
+            if should_start_new_chat {
+                self.on_new().await?;
+            }
         }
 
         Ok(())
