@@ -132,7 +132,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         workspace_id: &WorkspaceId,
     ) -> anyhow::Result<Option<Conversation>> {
         self.services
-            .find_last_active_conversation(workspace_id)
+            .last_conversation(workspace_id)
             .await
     }
 

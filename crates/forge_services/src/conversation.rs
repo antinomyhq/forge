@@ -67,7 +67,7 @@ impl<S: ConversationRepositoryInfra> ConversationService for ForgeConversationSe
             .await
     }
 
-    async fn find_last_active_conversation(
+    async fn last_conversation(
         &self,
         workspace_id: &WorkspaceId,
     ) -> Result<Option<Conversation>> {
