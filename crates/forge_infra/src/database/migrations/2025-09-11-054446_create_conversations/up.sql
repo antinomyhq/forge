@@ -8,6 +8,8 @@ CREATE TABLE conversations (
     updated_at TIMESTAMP
 );
 
--- Create indexes for better query performance
-CREATE INDEX idx_conversations_workspace_id ON conversations(workspace_id);
-CREATE INDEX idx_conversations_created_at ON conversations(created_at);
+CREATE INDEX idx_conversations_workspace_created ON conversations(workspace_id, created_at DESC);
+
+CREATE INDEX idx_conversations_active_workspace_updated 
+ON conversations(workspace_id, updated_at DESC) 
+WHERE context IS NOT NULL;
