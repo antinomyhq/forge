@@ -51,7 +51,9 @@ impl TryFrom<ConversationRecord> for Conversation {
             .context
             .and_then(|ctx| serde_json::from_str::<Context>(&ctx).ok())
             .unwrap_or_default();
-        Ok(Conversation::new(id, workspace_id).context(context))
+        let mut conversation = Conversation::new(id, workspace_id).context(context);
+        conversation.title = record.title;
+        Ok(conversation)
     }
 }
 
@@ -76,7 +78,6 @@ impl ConversationRepositoryInfra for ConversationRepository {
             .do_update()
             .set((
                 conversations::title.eq(&record.title),
-                conversations::workspace_id.eq(&record.workspace_id),
                 conversations::context.eq(&record.context),
                 conversations::updated_at.eq(chrono::Utc::now().naive_utc()),
             ))
