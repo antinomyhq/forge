@@ -34,7 +34,10 @@ impl<S: ConversationRepository> ConversationService for ForgeConversationService
             .await?
             .ok_or_else(|| anyhow::anyhow!("Conversation not found: {}", id))?;
         let out = f(&mut conversation);
-        let _ = self.conversation_repository.upsert_conversation(conversation).await?;
+        let _ = self
+            .conversation_repository
+            .upsert_conversation(conversation)
+            .await?;
         Ok(out)
     }
 
@@ -43,7 +46,10 @@ impl<S: ConversationRepository> ConversationService for ForgeConversationService
     }
 
     async fn upsert_conversation(&self, conversation: Conversation) -> Result<()> {
-        let _ = self.conversation_repository.upsert_conversation(conversation).await?;
+        let _ = self
+            .conversation_repository
+            .upsert_conversation(conversation)
+            .await?;
         Ok(())
     }
 
@@ -57,10 +63,7 @@ impl<S: ConversationRepository> ConversationService for ForgeConversationService
         Ok(conversation)
     }
 
-    async fn get_conversations(
-        &self,
-        limit: Option<usize>,
-    ) -> Result<Option<Vec<Conversation>>> {
+    async fn get_conversations(&self, limit: Option<usize>) -> Result<Option<Vec<Conversation>>> {
         self.conversation_repository
             .get_all_conversations(&self.workspace_id, limit)
             .await

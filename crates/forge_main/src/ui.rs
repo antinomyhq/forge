@@ -423,9 +423,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         if let Some(selected_title) =
             ForgeSelect::select("Select the conversation to resume", titles.clone())
-                .with_help_message(
-                    "Type a name or use arrow keys to navigate and Enter to select",
-                )
+                .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
                 .prompt()?
             && let Some(position) = titles.iter().position(|title| title == &selected_title)
         {

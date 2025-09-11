@@ -43,7 +43,10 @@ impl<S: AS> TitleGenerator<S> {
         user_prompt: &str,
         model_id: &ModelId,
     ) -> anyhow::Result<Option<String>> {
-        let template = self.services.render("{{> forge-system-prompt-title-generation.md }}", &()).await?;
+        let template = self
+            .services
+            .render("{{> forge-system-prompt-title-generation.md }}", &())
+            .await?;
         let ctx = Context::default()
             .add_message(ContextMessage::system(template))
             .add_message(ContextMessage::user(

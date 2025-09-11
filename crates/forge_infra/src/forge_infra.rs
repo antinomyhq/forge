@@ -285,7 +285,9 @@ impl DirectoryReaderInfra for ForgeInfra {
 #[async_trait::async_trait]
 impl ConversationRepository for ForgeInfra {
     async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()> {
-        self.conversation_repository.upsert_conversation(conversation).await
+        self.conversation_repository
+            .upsert_conversation(conversation)
+            .await
     }
 
     async fn get_conversation(
