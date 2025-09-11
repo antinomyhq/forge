@@ -255,32 +255,6 @@ impl<S: AgentService> Orchestrator<S> {
         }
     }
 
-    async fn check_and_generate_title(
-        &self,
-        context: &Context,
-        model_id: &ModelId,
-    ) -> anyhow::Result<Option<String>> {
-        if self.conversation.title.is_some() {
-            return Ok(None);
-        }
-
-        let first_user_message = context
-            .messages
-            .iter()
-            .find(|message| message.has_role(Role::User));
-
-        if let Some(ContextMessage::Text(text_msg)) = first_user_message {
-            let title_generator = TitleGenerator::new(self.services.clone());
-            if let Ok(conversation_title) = title_generator
-                .generate(text_msg.content.as_str(), model_id)
-                .await
-            {
-                return Ok(conversation_title);
-            }
-        }
-        Ok(None)
-    }
-
     // Create a helper method with the core functionality
     pub async fn run(&mut self) -> anyhow::Result<()> {
         let event = self.event.clone();
@@ -382,6 +356,7 @@ impl<S: AgentService> Orchestrator<S> {
 
         // Store tool calls at turn level
         let mut turn_has_tool_calls = false;
+        let title_generator = TitleGenerator::new(self.services.clone());
 
         let tool_context =
             ToolCallContext::new(self.conversation.metrics.clone()).sender(self.sender.clone());
@@ -410,8 +385,15 @@ impl<S: AgentService> Orchestrator<S> {
                 }),
             );
 
-            // Prepare compaction task that runs in parallel
+            // Generate title only if conversation doesn't have any title.
+            use futures::future::{Either, ready};
+            let title_generator_future: Either<_, _> = if self.conversation.title.is_none() {
+                Either::Left(title_generator.generate(&context, &model_id))
+            } else {
+                Either::Right(ready(Ok::<Option<String>, anyhow::Error>(None)))
+            };
 
+            // Prepare compaction task that runs in parallel
             // Execute both operations in parallel
             let (
                 ChatCompletionMessageFull {
@@ -427,7 +409,7 @@ impl<S: AgentService> Orchestrator<S> {
             ) = tokio::try_join!(
                 main_request,
                 self.check_and_compact(&context),
-                self.check_and_generate_title(&context, &model_id)
+                title_generator_future
             )?;
 
             // If conversation_title is generated then update the conversation with it's

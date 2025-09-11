@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use forge_domain::{
-    ChatCompletionMessageFull, Context, ContextMessage, ModelId, ResultStreamExt,
+    ChatCompletionMessageFull, Context, ContextMessage, ModelId, ResultStreamExt, Role,
     extract_tag_content,
 };
 
@@ -18,8 +18,28 @@ impl<S: AS> TitleGenerator<S> {
         Self { services }
     }
 
-    /// Generate the appropriate title for given user prompt.
     pub async fn generate(
+        &self,
+        context: &Context,
+        model_id: &ModelId,
+    ) -> anyhow::Result<Option<String>> {
+        let first_user_message = context
+            .messages
+            .iter()
+            .find(|message| message.has_role(Role::User));
+        if let Some(ContextMessage::Text(text_msg)) = first_user_message {
+            if let Ok(conversation_title) = self
+                .generate_internal(text_msg.content.as_str(), model_id)
+                .await
+            {
+                return Ok(conversation_title);
+            }
+        }
+        Ok(None)
+    }
+
+    /// Generate the appropriate title for given user prompt.
+    async fn generate_internal(
         &self,
         user_prompt: &str,
         model_id: &ModelId,
