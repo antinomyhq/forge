@@ -127,7 +127,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
             .unwrap_or_default())
     }
 
-    async fn find_last_active_conversation(
+    async fn last_conversation(
         &self,
         workspace_id: &WorkspaceId,
     ) -> anyhow::Result<Option<Conversation>> {

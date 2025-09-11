@@ -259,7 +259,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         if let Some(workspace_id) = &self.state.workspace_id {
             self.spinner
                 .start(Some("Loading last active conversation"))?;
-            if let Some(conversation) = self.api.find_last_active_conversation(workspace_id).await?
+            if let Some(conversation) = self.api.last_conversation(workspace_id).await?
             {
                 self.state.conversation_id = Some(conversation.id);
                 self.writeln_title(TitleFormat::info(format!(

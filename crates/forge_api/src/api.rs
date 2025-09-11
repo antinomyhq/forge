@@ -71,10 +71,7 @@ pub trait API: Sync + Send {
     ) -> Result<Vec<Conversation>>;
 
     /// Finds the last active conversation for the current workspace
-    async fn find_last_active_conversation(
-        &self,
-        workspace_id: &WorkspaceId,
-    ) -> Result<Option<Conversation>>;
+    async fn last_conversation(&self, workspace_id: &WorkspaceId) -> Result<Option<Conversation>>;
 
     /// Compacts the context of the main agent for the given conversation and
     /// persists it. Returns metrics about the compaction (original vs.
