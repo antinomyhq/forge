@@ -3,6 +3,7 @@ mod agent_executor;
 mod app;
 mod authenticator;
 mod compact;
+mod title_generator;
 pub mod dto;
 mod error;
 mod fmt;

@@ -11,6 +11,7 @@ use tracing::{debug, info, warn};
 
 use crate::agent::AgentService;
 use crate::compact::Compactor;
+use crate::title_generator::TitleGenerator;
 
 #[derive(Clone, Setters)]
 #[setters(into, strip_option)]
@@ -263,6 +264,32 @@ impl<S: AgentService> Orchestrator<S> {
         }
     }
 
+    async fn check_and_generate_title(
+        &self,
+        context: &Context,
+        model_id: &ModelId,
+    ) -> anyhow::Result<Option<String>> {
+        if self.conversation.title.is_some() {
+            return Ok(None);
+        }
+
+        let first_user_message = context
+            .messages
+            .iter()
+            .find(|message| message.has_role(Role::User));
+
+        if let Some(ContextMessage::Text(text_msg)) = first_user_message {
+            let title_generator = TitleGenerator::new(self.services.clone());
+            if let Ok(conversation_title) = title_generator
+                .generate(text_msg.content.as_str(), model_id)
+                .await
+            {
+                return Ok(conversation_title);
+            }
+        }
+        return Ok(None);
+    }
+
     // Create a helper method with the core functionality
     pub async fn run(&mut self) -> anyhow::Result<()> {
         let event = self.event.clone();
@@ -405,7 +432,18 @@ impl<S: AgentService> Orchestrator<S> {
                     finish_reason,
                 },
                 compaction_result,
-            ) = tokio::try_join!(main_request, self.check_and_compact(&context))?;
+                conversation_title,
+            ) = tokio::try_join!(
+                main_request,
+                self.check_and_compact(&context),
+                self.check_and_generate_title(&context, &model_id)
+            )?;
+
+            // If conversation_title is generated then update the conversation with it's title.
+            if let Some(title) = conversation_title {
+                debug!(conversation_id = %self.conversation.id, title, "Title generated for conversation");
+                self.conversation.title = Some(title);
+            }
 
             // Apply compaction result if it completed successfully
             match compaction_result {
