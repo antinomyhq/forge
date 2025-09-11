@@ -57,7 +57,7 @@ impl<S: ConversationRepositoryInfra> ConversationService for ForgeConversationSe
         Ok(conversation)
     }
 
-    async fn find_conversations_by_workspace(
+    async fn find_conversations(
         &self,
         workspace_id: &WorkspaceId,
         limit: Option<usize>,
@@ -67,7 +67,7 @@ impl<S: ConversationRepositoryInfra> ConversationService for ForgeConversationSe
             .await
     }
 
-    async fn find_last_active_conversation_by_workspace(
+    async fn find_last_active_conversation(
         &self,
         workspace_id: &WorkspaceId,
     ) -> Result<Option<Conversation>> {

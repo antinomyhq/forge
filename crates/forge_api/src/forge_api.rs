@@ -122,7 +122,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     ) -> anyhow::Result<Vec<Conversation>> {
         Ok(self
             .services
-            .find_conversations_by_workspace(workspace_id, limit)
+            .find_conversations(workspace_id, limit)
             .await?
             .unwrap_or_default())
     }
@@ -132,7 +132,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         workspace_id: &WorkspaceId,
     ) -> anyhow::Result<Option<Conversation>> {
         self.services
-            .find_last_active_conversation_by_workspace(workspace_id)
+            .find_last_active_conversation(workspace_id)
             .await
     }
 
