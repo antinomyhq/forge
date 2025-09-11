@@ -1,10 +1,11 @@
 #![allow(dead_code)]
+use std::path::PathBuf;
+use std::time::Duration;
+
 use anyhow::Result;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use diesel::sqlite::SqliteConnection;
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
-use std::path::PathBuf;
-use std::time::Duration;
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("src/database/migrations");
 
@@ -40,7 +41,7 @@ impl DatabasePool {
     #[cfg(test)]
     pub fn in_memory() -> Result<Self> {
         let manager = ConnectionManager::<SqliteConnection>::new(":memory:");
-        
+
         let pool = Pool::builder()
             .max_size(1) // Single connection for in-memory testing
             .connection_timeout(Duration::from_secs(30))

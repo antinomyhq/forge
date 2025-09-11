@@ -3,10 +3,14 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_domain::{CommandOutput, Conversation, Environment, McpServerConfig, WorkspaceId, ConversationId};
+use forge_domain::{
+    CommandOutput, Conversation, ConversationId, Environment, McpServerConfig, WorkspaceId,
+};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
-    CommandInfra, ConversationRepositoryInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra
+    CommandInfra, ConversationRepositoryInfra, DirectoryReaderInfra, EnvironmentInfra,
+    FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
+    HttpInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
 };
 use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
@@ -55,7 +59,8 @@ impl ForgeInfra {
         let env = environment_service.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
         let http_service = Arc::new(ForgeHttpInfra::new(env.http.clone()));
-        let db_pool = Arc::new(DatabasePool::try_from(PoolConfig::new(env.database_path())).unwrap());
+        let db_pool =
+            Arc::new(DatabasePool::try_from(PoolConfig::new(env.database_path())).unwrap());
         let conversation_repository = Arc::new(ConversationRepository::new(db_pool));
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
@@ -283,11 +288,31 @@ impl ConversationRepositoryInfra for ForgeInfra {
         self.conversation_repository.upsert(conversation).await
     }
 
-    async fn find_by_id(&self, conversation_id: &ConversationId) -> anyhow::Result<Option<Conversation>> {
-        self.conversation_repository.find_by_id(conversation_id).await
+    async fn find_by_id(
+        &self,
+        conversation_id: &ConversationId,
+    ) -> anyhow::Result<Option<Conversation>> {
+        self.conversation_repository
+            .find_by_id(conversation_id)
+            .await
     }
 
-    async fn find_by_workspace_id(&self, workspace_id: &WorkspaceId, limit: Option<usize>) -> anyhow::Result<Option<Vec<Conversation>>> {
-        self.conversation_repository.find_by_workspace_id(workspace_id, limit).await
+    async fn find_by_workspace_id(
+        &self,
+        workspace_id: &WorkspaceId,
+        limit: Option<usize>,
+    ) -> anyhow::Result<Option<Vec<Conversation>>> {
+        self.conversation_repository
+            .find_by_workspace_id(workspace_id, limit)
+            .await
+    }
+
+    async fn find_last_active_conversation_by_workspace_id(
+        &self,
+        workspace_id: &WorkspaceId,
+    ) -> anyhow::Result<Option<Conversation>> {
+        self.conversation_repository
+            .find_last_active_conversation_by_workspace_id(workspace_id)
+            .await
     }
 }

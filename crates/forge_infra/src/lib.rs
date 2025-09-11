@@ -1,5 +1,6 @@
 pub mod executor;
 
+mod database;
 mod env;
 mod error;
 mod forge_infra;
@@ -15,7 +16,6 @@ mod inquire;
 mod mcp_client;
 mod mcp_server;
 mod walker;
-mod database;
 
 pub use executor::ForgeCommandExecutorService;
 pub use forge_infra::*;

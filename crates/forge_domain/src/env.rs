@@ -1,4 +1,5 @@
-use std::{hash::{DefaultHasher, Hash, Hasher}, path::PathBuf};
+use std::hash::{DefaultHasher, Hash, Hasher};
+use std::path::PathBuf;
 
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};

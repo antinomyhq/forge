@@ -5,7 +5,8 @@ use diesel::prelude::*;
 use forge_domain::{Context, Conversation, ConversationId, WorkspaceId};
 use forge_services::ConversationRepositoryInfra;
 
-use crate::database::{DatabasePool, schema::conversations};
+use crate::database::DatabasePool;
+use crate::database::schema::conversations;
 
 // Database model for conversations table
 #[derive(Debug, Queryable, Selectable, Insertable, AsChangeset)]
@@ -121,7 +122,24 @@ impl ConversationRepositoryInfra for ConversationRepository {
 
         let conversations: Result<Vec<Conversation>, _> =
             records.into_iter().map(Conversation::try_from).collect();
-
         Ok(Some(conversations?))
+    }
+
+    async fn find_last_active_conversation_by_workspace_id(
+        &self,
+        workspace_id: &WorkspaceId,
+    ) -> anyhow::Result<Option<Conversation>> {
+        let mut connection = self.0.get_connection()?;
+        let record: Option<ConversationRecord> = conversations::table
+            .filter(conversations::workspace_id.eq(workspace_id.deref()))
+            .filter(conversations::context.is_not_null())
+            .order(conversations::updated_at.desc())
+            .first(&mut connection)
+            .optional()?;
+        let conversation = match record {
+            Some(record) => Some(Conversation::try_from(record)?),
+            None => None,
+        };
+        Ok(conversation)
     }
 }

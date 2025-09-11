@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_app::domain::{
-    CommandOutput, Conversation, ConversationId, Environment, McpServerConfig, ToolDefinition, ToolName, ToolOutput, WorkspaceId
+    CommandOutput, Conversation, ConversationId, Environment, McpServerConfig, ToolDefinition,
+    ToolName, ToolOutput, WorkspaceId,
 };
 use forge_app::{WalkedFile, Walker};
 use forge_snaps::Snapshot;
@@ -224,6 +225,17 @@ pub trait DirectoryReaderInfra: Send + Sync {
 #[async_trait::async_trait]
 pub trait ConversationRepositoryInfra: Send + Sync {
     async fn upsert(&self, conversation: Conversation) -> anyhow::Result<()>;
-    async fn find_by_id(&self, conversation_id: &ConversationId) -> anyhow::Result<Option<Conversation>>;
-    async fn find_by_workspace_id(&self, workspace_id: &WorkspaceId, limit: Option<usize>) -> anyhow::Result<Option<Vec<Conversation>>>;
+    async fn find_by_id(
+        &self,
+        conversation_id: &ConversationId,
+    ) -> anyhow::Result<Option<Conversation>>;
+    async fn find_by_workspace_id(
+        &self,
+        workspace_id: &WorkspaceId,
+        limit: Option<usize>,
+    ) -> anyhow::Result<Option<Vec<Conversation>>>;
+    async fn find_last_active_conversation_by_workspace_id(
+        &self,
+        workspace_id: &WorkspaceId,
+    ) -> anyhow::Result<Option<Conversation>>;
 }
