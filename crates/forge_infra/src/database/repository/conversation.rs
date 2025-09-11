@@ -29,7 +29,7 @@ impl TryFrom<&Conversation> for ConversationRecord {
             .context
             .as_ref()
             .and_then(|ctx| serde_json::to_string(ctx).ok());
-        let updated_at = context.as_ref().map(|_| chrono::Utc::now().naive_utc());
+        let updated_at = context.as_ref().map(|_| chrono::Local::now().naive_local());
         Ok(Self {
             conversation_id: conversation.id.into_string(),
             title: conversation.title.clone(),
@@ -81,7 +81,7 @@ impl ConversationRepositoryInfra for ConversationRepository {
             .set((
                 conversations::title.eq(&record.title),
                 conversations::context.eq(&record.context),
-                conversations::updated_at.eq(chrono::Utc::now().naive_utc()),
+                conversations::updated_at.eq(chrono::Local::now().naive_local()),
             ))
             .execute(&mut connection)?;
         Ok(())
@@ -374,7 +374,7 @@ mod tests {
             title: Some("Test Conversation".to_string()),
             workspace_id: "workspace-456".to_string(),
             context: None,
-            created_at: chrono::Utc::now().naive_utc(),
+            created_at: chrono::Local::now().naive_local(),
             updated_at: None,
         };
 

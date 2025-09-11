@@ -1,4 +1,4 @@
-use chrono::{NaiveDateTime, Utc};
+use chrono::{Local, NaiveDateTime};
 use derive_more::derive::Display;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
@@ -69,7 +69,7 @@ pub struct MetaData {
 impl Default for MetaData {
     fn default() -> Self {
         Self {
-            created_at: Utc::now().naive_utc(),
+            created_at: Local::now().naive_local(),
             updated_at: None,
         }
     }

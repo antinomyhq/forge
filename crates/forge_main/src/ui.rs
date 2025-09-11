@@ -418,7 +418,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
             let titles: Vec<String> = conversations
                 .iter()
-                .map(|c| c.title.clone().unwrap_or_else(|| c.id.to_string()))
+                .map(|c| {
+                    let title = c.title.clone().unwrap_or_else(|| c.id.to_string());
+                    let date = c
+                        .metadata
+                        .updated_at
+                        .clone()
+                        .unwrap_or_else(|| c.metadata.created_at);
+                    let formatted_date = date.format("%Y-%m-%d %H:%M").to_string();
+                    format!("{:<60} {}", title, formatted_date)
+                })
                 .collect();
 
             if let Some(selected_title) =
