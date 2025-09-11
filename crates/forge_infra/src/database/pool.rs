@@ -42,7 +42,7 @@ impl DatabasePool {
     #[cfg(test)]
     pub fn in_memory() -> Result<Self> {
         debug!("Creating in-memory database pool");
-        
+
         let manager = ConnectionManager::<SqliteConnection>::new(":memory:");
 
         let pool = Pool::builder()
@@ -64,12 +64,10 @@ impl DatabasePool {
     }
 
     pub fn get_connection(&self) -> Result<PooledSqliteConnection> {
-        self.pool
-            .get()
-            .map_err(|e| {
-                warn!(error = %e, "Failed to get connection from pool");
-                anyhow::anyhow!("Failed to get connection from pool: {}", e)
-            })
+        self.pool.get().map_err(|e| {
+            warn!(error = %e, "Failed to get connection from pool");
+            anyhow::anyhow!("Failed to get connection from pool: {}", e)
+        })
     }
 }
 
@@ -78,7 +76,7 @@ impl TryFrom<PoolConfig> for DatabasePool {
 
     fn try_from(config: PoolConfig) -> Result<Self> {
         debug!(database_path = %config.database_path.display(), "Creating database pool");
-        
+
         // Ensure the parent directory exists
         if let Some(parent) = config.database_path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -99,24 +97,20 @@ impl TryFrom<PoolConfig> for DatabasePool {
             builder = builder.idle_timeout(Some(idle_timeout));
         }
 
-        let pool = builder
-            .build(manager)
-            .map_err(|e| {
-                warn!(error = %e, "Failed to create connection pool");
-                anyhow::anyhow!("Failed to create connection pool: {}", e)
-            })?;
+        let pool = builder.build(manager).map_err(|e| {
+            warn!(error = %e, "Failed to create connection pool");
+            anyhow::anyhow!("Failed to create connection pool: {}", e)
+        })?;
 
         // Run migrations on a connection from the pool
         let mut connection = pool
             .get()
             .map_err(|e| anyhow::anyhow!("Failed to get connection for migrations: {}", e))?;
 
-        connection
-            .run_pending_migrations(MIGRATIONS)
-            .map_err(|e| {
-                warn!(error = %e, "Failed to run database migrations");
-                anyhow::anyhow!("Failed to run database migrations: {}", e)
-            })?;
+        connection.run_pending_migrations(MIGRATIONS).map_err(|e| {
+            warn!(error = %e, "Failed to run database migrations");
+            anyhow::anyhow!("Failed to run database migrations: {}", e)
+        })?;
 
         debug!(database_path = %config.database_path.display(), "created connection pool");
         Ok(Self { pool })

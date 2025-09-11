@@ -27,14 +27,13 @@ impl<S: AS> TitleGenerator<S> {
             .messages
             .iter()
             .find(|message| message.has_role(Role::User));
-        if let Some(ContextMessage::Text(text_msg)) = first_user_message {
-            if let Ok(conversation_title) = self
+        if let Some(ContextMessage::Text(text_msg)) = first_user_message
+            && let Ok(conversation_title) = self
                 .generate_internal(text_msg.content.as_str(), model_id)
                 .await
             {
                 return Ok(conversation_title);
             }
-        }
         Ok(None)
     }
 
