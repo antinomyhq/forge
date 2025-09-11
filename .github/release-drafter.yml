@@ -103,10 +103,3 @@ autolabeler:
       - /perf/i
     files:
       - "/benches/"
-
-  - label: "ratatui"
-    title:
-      - /ratatui/i
-      - /tui/i
-    files:
-      - "**/forge_main_neo/**"
