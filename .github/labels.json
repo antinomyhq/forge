@@ -226,12 +226,6 @@
     "aliases": ["ci:test-jit"]
   },
   {
-    "name": "ratatui",
-    "color": "FF6D00",
-    "description": "Related to ratatui terminal user interface library",
-    "aliases": ["ratatui"]
-  },
-  {
     "name": "onlydust-wave",
     "color": "FF6D00",
     "description": "Related to OnlyDust Wave Hackathon"

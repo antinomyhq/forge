@@ -23,7 +23,6 @@ serde_yml.workspace = true
 merge.workspace = true
 
 forge_fs.workspace = true
-forge_main_neo.workspace = true
 tokio.workspace = true
 tokio-stream.workspace = true
 colored.workspace = true
