@@ -21,7 +21,7 @@ use crate::tool_services::{
 };
 use crate::workflow::ForgeWorkflowService;
 use crate::{
-    CommandInfra, ConversationRepositoryInfra, DirectoryReaderInfra, EnvironmentInfra,
+    CommandInfra, ConversationRepository, DirectoryReaderInfra, EnvironmentInfra,
     FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
     McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
 };
@@ -75,7 +75,7 @@ impl<
         + DirectoryReaderInfra
         + CommandInfra
         + UserInfra
-        + ConversationRepositoryInfra,
+        + ConversationRepository,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -152,7 +152,7 @@ impl<
         + DirectoryReaderInfra
         + HttpInfra
         + WalkerInfra
-        + ConversationRepositoryInfra
+        + ConversationRepository
         + Clone,
 > Services for ForgeServices<F>
 {

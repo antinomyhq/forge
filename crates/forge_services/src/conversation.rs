@@ -4,7 +4,7 @@ use anyhow::Result;
 use forge_app::ConversationService;
 use forge_app::domain::{Conversation, ConversationId, WorkspaceId};
 
-use crate::ConversationRepositoryInfra;
+use crate::ConversationRepository;
 
 /// Service for managing conversations, including creation, retrieval, and
 /// updates
@@ -14,7 +14,7 @@ pub struct ForgeConversationService<S> {
     workspace_id: WorkspaceId,
 }
 
-impl<S: ConversationRepositoryInfra> ForgeConversationService<S> {
+impl<S: ConversationRepository> ForgeConversationService<S> {
     /// Creates a new ForgeConversationService with the provided MCP service
     pub fn new(workspace_id: WorkspaceId, repo: Arc<S>) -> Self {
         Self { conversation_repository: repo, workspace_id }
@@ -22,7 +22,7 @@ impl<S: ConversationRepositoryInfra> ForgeConversationService<S> {
 }
 
 #[async_trait::async_trait]
-impl<S: ConversationRepositoryInfra> ConversationService for ForgeConversationService<S> {
+impl<S: ConversationRepository> ConversationService for ForgeConversationService<S> {
     async fn modify_conversation<F, T>(&self, id: &ConversationId, f: F) -> Result<T>
     where
         F: FnOnce(&mut Conversation) -> T + Send,
@@ -67,10 +67,7 @@ impl<S: ConversationRepositoryInfra> ConversationService for ForgeConversationSe
             .await
     }
 
-    async fn last_conversation(
-        &self,
-        workspace_id: &WorkspaceId,
-    ) -> Result<Option<Conversation>> {
+    async fn last_conversation(&self, workspace_id: &WorkspaceId) -> Result<Option<Conversation>> {
         self.conversation_repository
             .find_last_active_conversation_by_workspace_id(workspace_id)
             .await

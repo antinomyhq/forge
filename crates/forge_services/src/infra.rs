@@ -223,7 +223,7 @@ pub trait DirectoryReaderInfra: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait ConversationRepositoryInfra: Send + Sync {
+pub trait ConversationRepository: Send + Sync {
     async fn upsert(&self, conversation: Conversation) -> anyhow::Result<()>;
     async fn find_by_id(
         &self,

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use diesel::prelude::*;
 use forge_domain::{Context, Conversation, ConversationId, MetaData, WorkspaceId};
-use forge_services::ConversationRepositoryInfra;
+use forge_services::ConversationRepository;
 
 use crate::database::DatabasePool;
 use crate::database::schema::conversations;
@@ -70,7 +70,7 @@ impl ConversationRepository {
 }
 
 #[async_trait::async_trait]
-impl ConversationRepositoryInfra for ConversationRepository {
+impl ConversationRepository for ConversationRepository {
     async fn upsert(&self, conversation: Conversation) -> anyhow::Result<()> {
         let mut connection = self.0.get_connection()?;
 

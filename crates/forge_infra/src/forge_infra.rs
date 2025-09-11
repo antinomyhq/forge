@@ -8,7 +8,7 @@ use forge_domain::{
 };
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
-    CommandInfra, ConversationRepositoryInfra, DirectoryReaderInfra, EnvironmentInfra,
+    CommandInfra, ConversationRepository, DirectoryReaderInfra, EnvironmentInfra,
     FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
     HttpInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
 };
@@ -283,7 +283,7 @@ impl DirectoryReaderInfra for ForgeInfra {
 }
 
 #[async_trait::async_trait]
-impl ConversationRepositoryInfra for ForgeInfra {
+impl ConversationRepository for ForgeInfra {
     async fn upsert(&self, conversation: Conversation) -> anyhow::Result<()> {
         self.conversation_repository.upsert(conversation).await
     }
