@@ -1,3 +1,4 @@
+use chrono::{NaiveDateTime, Utc};
 use derive_more::derive::Display;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
@@ -55,6 +56,23 @@ pub struct Conversation {
     pub title: Option<String>,
     pub context: Option<Context>,
     pub metrics: Metrics,
+    pub metadata: MetaData,
+}
+
+#[derive(Debug, Setters, Serialize, Deserialize, Clone)]
+#[setters(into)]
+pub struct MetaData {
+    pub created_at: NaiveDateTime,
+    pub updated_at: Option<NaiveDateTime>,
+}
+
+impl Default for MetaData {
+    fn default() -> Self {
+        Self {
+            created_at: Utc::now().naive_utc(),
+            updated_at: None,
+        }
+    }
 }
 
 impl Conversation {
@@ -68,7 +86,14 @@ impl Conversation {
         let mut metrics = Metrics::new();
         metrics.start();
 
-        Self { id, workspace_id, context: None, metrics, title: None }
+        Self { 
+            id, 
+            workspace_id, 
+            metrics, 
+            metadata: MetaData::default(),
+            title: None,
+            context: None,
+        }
     }
 
     /// Generates an HTML representation of the conversation

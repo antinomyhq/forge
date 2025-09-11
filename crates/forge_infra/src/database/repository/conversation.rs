@@ -2,7 +2,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use diesel::prelude::*;
-use forge_domain::{Context, Conversation, ConversationId, WorkspaceId};
+use forge_domain::{Context, Conversation, ConversationId, MetaData, WorkspaceId};
 use forge_services::ConversationRepositoryInfra;
 
 use crate::database::DatabasePool;
@@ -29,14 +29,13 @@ impl TryFrom<&Conversation> for ConversationRecord {
             .context
             .as_ref()
             .and_then(|ctx| serde_json::to_string(ctx).ok());
-        let now = chrono::Utc::now().naive_utc();
-        let updated_at = context.as_ref().map(|_| now);
+        let updated_at = context.as_ref().map(|_| chrono::Utc::now().naive_utc());
         Ok(Self {
             conversation_id: conversation.id.into_string(),
             title: conversation.title.clone(),
             workspace_id: conversation.workspace_id.deref().clone(),
             context,
-            created_at: now,
+            created_at: conversation.metadata.created_at,
             updated_at,
         })
     }
@@ -52,7 +51,12 @@ impl TryFrom<ConversationRecord> for Conversation {
             .and_then(|ctx| serde_json::from_str::<Context>(&ctx).ok());
         Ok(Conversation::new(id, workspace_id)
             .context(context)
-            .title(record.title))
+            .title(record.title)
+            .metadata(
+                MetaData::default()
+                    .created_at(record.created_at)
+                    .updated_at(record.updated_at),
+            ))
     }
 }
 
