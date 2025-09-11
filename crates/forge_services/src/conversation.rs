@@ -30,10 +30,7 @@ impl<S: ConversationRepositoryInfra> ConversationService for ForgeConversationSe
     {
         let mut conversation = self.conversation_repository.find_by_id(id).await?.unwrap(); // TODO: fix this unwrap.
         let out = f(&mut conversation);
-        let _ = self
-            .conversation_repository
-            .upsert(conversation)
-            .await?;
+        let _ = self.conversation_repository.upsert(conversation).await?;
         Ok(out)
     }
 
