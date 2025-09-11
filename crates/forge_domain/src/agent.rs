@@ -12,8 +12,8 @@ use crate::merge::Key;
 use crate::temperature::Temperature;
 use crate::template::Template;
 use crate::{
-    Context, Error, EventContext, MaxTokens, ModelId, Result, SystemContext, ToolDefinition,
-    ToolName, TopK, TopP, Workflow, EVENT_USER_TASK_INIT, EVENT_USER_TASK_UPDATE,
+    Context, EVENT_USER_TASK_INIT, EVENT_USER_TASK_UPDATE, Error, EventContext, MaxTokens, ModelId,
+    Result, SystemContext, ToolDefinition, ToolName, TopK, TopP, Workflow,
 };
 
 // Unique identifier for an agent
