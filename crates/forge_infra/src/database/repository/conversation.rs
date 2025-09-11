@@ -25,22 +25,25 @@ impl TryFrom<&Conversation> for ConversationRecord {
     type Error = anyhow::Error;
 
     fn try_from(conversation: &Conversation) -> anyhow::Result<Self> {
-        let context = serde_json::to_string(&conversation).ok();
+        let context = conversation
+            .context
+            .as_ref()
+            .and_then(|ctx| serde_json::to_string(ctx).ok());
         let now = chrono::Utc::now().naive_utc();
+        let updated_at = context.as_ref().map(|_| now);
         Ok(Self {
             conversation_id: conversation.id.into_string(),
             title: conversation.title.clone(),
             workspace_id: conversation.workspace_id.deref().clone(),
             context,
             created_at: now,
-            updated_at: None,
+            updated_at,
         })
     }
 }
 
 impl TryFrom<ConversationRecord> for Conversation {
     type Error = anyhow::Error;
-
     fn try_from(record: ConversationRecord) -> anyhow::Result<Self> {
         let id = ConversationId::parse(record.conversation_id)?;
         let workspace_id = WorkspaceId::new(record.workspace_id);
