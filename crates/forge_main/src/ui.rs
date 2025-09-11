@@ -391,9 +391,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         )
                         .prompt()?
                     && let Some(position) = titles.iter().position(|title| title == &selected_title)
-                    {
-                        self.state.conversation_id = Some(conversations[position].id);
-                    }
+                {
+                    self.state.conversation_id = Some(conversations[position].id);
+                }
             }
             Command::Compact => {
                 self.spinner.start(Some("Compacting"))?;
