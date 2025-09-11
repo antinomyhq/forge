@@ -144,7 +144,8 @@ pub trait ConversationService: Send + Sync {
     /// conversation atomically.
     async fn modify_conversation<F, T>(&self, id: &ConversationId, f: F) -> anyhow::Result<T>
     where
-        F: FnOnce(&mut Conversation) -> T + Send;
+        F: FnOnce(&mut Conversation) -> T + Send,
+        T: Send;
 }
 
 #[async_trait::async_trait]
@@ -425,6 +426,7 @@ impl<I: Services> ConversationService for I {
     async fn modify_conversation<F, T>(&self, id: &ConversationId, f: F) -> anyhow::Result<T>
     where
         F: FnOnce(&mut Conversation) -> T + Send,
+        T: Send,
     {
         self.conversation_service().modify_conversation(id, f).await
     }
