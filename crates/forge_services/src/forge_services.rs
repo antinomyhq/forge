@@ -21,7 +21,9 @@ use crate::tool_services::{
 };
 use crate::workflow::ForgeWorkflowService;
 use crate::{
-    CommandInfra, ConversationRepositoryInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra
+    CommandInfra, ConversationRepositoryInfra, DirectoryReaderInfra, EnvironmentInfra,
+    FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
+    McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
 };
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client>;
@@ -84,7 +86,8 @@ impl<
         let attachment_service = Arc::new(ForgeChatRequest::new(infra.clone()));
         let workflow_service = Arc::new(ForgeWorkflowService::new(infra.clone()));
         let suggestion_service = Arc::new(ForgeDiscoveryService::new(infra.clone()));
-        let conversation_service = Arc::new(ForgeConversationService::new(workspace_id, infra.clone()));
+        let conversation_service =
+            Arc::new(ForgeConversationService::new(workspace_id, infra.clone()));
         let config_service = Arc::new(ForgeConfigService::new(infra.clone()));
         let auth_service = Arc::new(ForgeAuthService::new(infra.clone()));
         let chat_service = Arc::new(ForgeProviderService::<F>::new(infra.clone()));
