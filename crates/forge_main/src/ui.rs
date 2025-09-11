@@ -264,7 +264,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.state.conversation_id = Some(conversation.id);
                 self.writeln_title(TitleFormat::info(format!(
                     "Resumed conversation: {}",
-                    conversation.title.as_deref().unwrap_or("Untitled")
+                    conversation.title.clone().unwrap_or(conversation.id.to_string())
                 )))?;
             } else {
                 self.writeln_title(TitleFormat::error("No active conversation found to resume"))?;
