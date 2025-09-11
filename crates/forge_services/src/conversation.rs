@@ -57,7 +57,7 @@ impl<S: ConversationRepository> ConversationService for ForgeConversationService
         Ok(conversation)
     }
 
-    async fn find_conversations(
+    async fn get_conversations(
         &self,
         workspace_id: &WorkspaceId,
         limit: Option<usize>,

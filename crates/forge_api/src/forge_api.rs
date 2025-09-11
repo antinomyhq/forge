@@ -122,7 +122,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     ) -> anyhow::Result<Vec<Conversation>> {
         Ok(self
             .services
-            .find_conversations(workspace_id, limit)
+            .get_conversations(workspace_id, limit)
             .await?
             .unwrap_or_default())
     }

@@ -162,7 +162,7 @@ pub trait ConversationService: Send + Sync {
         T: Send;
 
     /// Find conversations by workspace ID with optional limit
-    async fn find_conversations(
+    async fn get_conversations(
         &self,
         workspace_id: &WorkspaceId,
         limit: Option<usize>,
@@ -458,13 +458,13 @@ impl<I: Services> ConversationService for I {
         self.conversation_service().modify_conversation(id, f).await
     }
 
-    async fn find_conversations(
+    async fn get_conversations(
         &self,
         workspace_id: &WorkspaceId,
         limit: Option<usize>,
     ) -> anyhow::Result<Option<Vec<Conversation>>> {
         self.conversation_service()
-            .find_conversations(workspace_id, limit)
+            .get_conversations(workspace_id, limit)
             .await
     }
 
