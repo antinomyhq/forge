@@ -71,7 +71,6 @@ impl ConversationRepositoryInfra for ConversationRepository {
         let mut connection = self.0.get_connection()?;
 
         let record = ConversationRecord::try_from(&conversation)?;
-
         diesel::insert_into(conversations::table)
             .values(&record)
             .on_conflict(conversations::conversation_id)
