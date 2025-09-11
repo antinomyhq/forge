@@ -75,7 +75,7 @@ impl MetaData {
 impl Conversation {
     pub fn new(id: ConversationId, workspace_id: WorkspaceId) -> Self {
         let created_at = Utc::now();
-        let metrics = Metrics::new().with_time(created_at.clone());
+        let metrics = Metrics::new().with_time(created_at);
         Self {
             id,
             workspace_id,
