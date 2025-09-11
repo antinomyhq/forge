@@ -97,15 +97,6 @@ Always verify changes by running tests and linting the codebase
 
 - If asked to fix failing tests, always confirm whether to update the implementation or the tests.
 
-## Elm Architecture (in forge_main_neo)
-
-- Command executors should ALWAYS return Option<Action>, never send them directly through channels
-- Actions are the only way to update application state
-- State updates trigger UI changes through the unidirectional data flow
-- Commands represent intent to perform side effects
-- Actions represent the result of those side effects
-- The executor pattern: Command -> Side Effect -> Action -> State Update -> UI Update
-
 ## Git Operations
 
 - Safely assume git is pre-installed

@@ -60,10 +60,6 @@ pub struct Cli {
     #[command(subcommand)]
     pub subcommands: Option<TopLevelCommand>,
 
-    /// Enable Neo UI mode.
-    /// This mode provides a modern user interface for the application [WIP].
-    #[arg(long, default_value_t = false, short = 'n')]
-    pub neo_ui: bool,
     /// Working directory to set before starting forge.
     ///
     /// If provided, the application will change to this directory before

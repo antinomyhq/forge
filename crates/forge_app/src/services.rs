@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use bytes::Bytes;
+use derive_setters::Setters;
 use forge_domain::{
     Agent, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
     Environment, File, McpConfig, Model, ModelId, PatchOperation, Provider, ResultStream, Scope,
@@ -29,7 +30,8 @@ pub struct PatchOutput {
     pub after: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Setters)]
+#[setters(into)]
 pub struct ReadOutput {
     pub content: Content,
     pub start_line: u64,
@@ -40,6 +42,18 @@ pub struct ReadOutput {
 #[derive(Debug)]
 pub enum Content {
     File(String),
+}
+
+impl Content {
+    pub fn file<S: Into<String>>(content: S) -> Self {
+        Self::File(content.into())
+    }
+
+    pub fn file_content(&self) -> &str {
+        match self {
+            Self::File(content) => content,
+        }
+    }
 }
 
 #[derive(Debug)]
