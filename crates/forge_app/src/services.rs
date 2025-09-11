@@ -161,13 +161,13 @@ pub trait ConversationService: Send + Sync {
         F: FnOnce(&mut Conversation) -> T + Send,
         T: Send;
 
-    /// Find conversations by workspace ID with optional limit
+    /// Find conversations with optional limit
     async fn get_conversations(
         &self,
         limit: Option<usize>,
     ) -> anyhow::Result<Option<Vec<Conversation>>>;
 
-    /// Find the last active conversation for a workspace
+    /// Find the last active conversation
     async fn last_conversation(&self) -> anyhow::Result<Option<Conversation>>;
 }
 
