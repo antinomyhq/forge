@@ -467,16 +467,60 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Process tool calls and update context
             let mut tool_call_records = self.execute_tool_calls(&tool_calls, &tool_context).await?;
-
-            // Update the tool call attempts, if the tool call is an error
-            // we increment the attempts, otherwise we remove it from the attempts map
+            // Update the tool call attempts, using bulk-based counting per tool type per
+            // turn rather than incrementing for each individual failed tool
+            // call
             if let Some(allowed_max_attempts) = agent.max_tool_failure_per_turn.as_ref() {
+                // Identify which tool types had failures and which had only successes
+                let mut tool_types_with_failures = HashSet::new();
+                let mut tool_types_with_only_successes = HashSet::new();
+
+                // Group tool call results by tool name to determine status per type
+                let mut tool_type_status: HashMap<ToolName, (bool, bool)> = HashMap::new(); // (has_failure, has_success)
+
+                for (_, result) in &tool_call_records {
+                    let entry = tool_type_status
+                        .entry(result.name.clone())
+                        .or_insert((false, false));
+                    if result.is_error() {
+                        entry.0 = true; // has_failure
+                    } else {
+                        entry.1 = true; // has_success
+                    }
+                }
+
+                // Categorize tool types based on their status
+                for (tool_name, (has_failure, has_success)) in tool_type_status {
+                    if has_failure {
+                        tool_types_with_failures.insert(tool_name);
+                    } else if has_success {
+                        // Only pure successes (no failures) qualify for counter reset
+                        tool_types_with_only_successes.insert(tool_name);
+                    }
+                }
+
+                // Increment failure counter once per tool type that had failures in this bulk
+                // and store the updated counts for retry message generation
+                let mut updated_failure_counts: HashMap<ToolName, usize> = HashMap::new();
+                for tool_name in &tool_types_with_failures {
+                    let current_attempts = tool_failure_attempts
+                        .entry(tool_name.clone())
+                        .and_modify(|count| *count += 1)
+                        .or_insert(1);
+                    updated_failure_counts.insert(tool_name.clone(), *current_attempts);
+                }
+
+                // Only reset counters for tool types that had ONLY successes (no failures)
+                for tool_name in &tool_types_with_only_successes {
+                    tool_failure_attempts.remove(tool_name);
+                }
+
+                // Add retry messages to individual failed tool call results
                 tool_call_records.iter_mut().for_each(|(_, result)| {
                     if result.is_error() {
-                        let current_attempts = tool_failure_attempts
-                            .entry(result.name.clone())
-                            .and_modify(|count| *count += 1)
-                            .or_insert(1);
+                        let current_attempts = updated_failure_counts
+                            .get(&result.name)
+                            .unwrap_or(&1);
                         let attempts_left = allowed_max_attempts.saturating_sub(*current_attempts);
 
                         // Add attempt information to the error message so the agent can reflect on it.
@@ -485,8 +529,6 @@ impl<S: AgentService> Orchestrator<S> {
                         ));
 
                         result.output.combine_mut(ToolOutput::text(message));
-                    } else {
-                        tool_failure_attempts.remove(&result.name);
                     }
                 });
             }

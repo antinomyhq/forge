@@ -90,6 +90,10 @@ impl TestContext {
     pub async fn run(&mut self) -> anyhow::Result<()> {
         Runner::run(self).await
     }
+    pub fn with_max_tool_failure_limit(mut self, limit: usize) -> Self {
+        self.agent = self.agent.max_tool_failure_per_turn(limit);
+        self
+    }
 }
 
 // The final output produced after running the orchestrator to completion
