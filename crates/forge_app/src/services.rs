@@ -167,6 +167,12 @@ pub trait ConversationService: Send + Sync {
         workspace_id: &WorkspaceId,
         limit: Option<usize>,
     ) -> anyhow::Result<Option<Vec<Conversation>>>;
+
+    /// Find the last active conversation for a workspace
+    async fn find_last_active_conversation_by_workspace(
+        &self,
+        workspace_id: &WorkspaceId,
+    ) -> anyhow::Result<Option<Conversation>>;
 }
 
 #[async_trait::async_trait]
@@ -459,6 +465,15 @@ impl<I: Services> ConversationService for I {
     ) -> anyhow::Result<Option<Vec<Conversation>>> {
         self.conversation_service()
             .find_conversations_by_workspace(workspace_id, limit)
+            .await
+    }
+
+    async fn find_last_active_conversation_by_workspace(
+        &self,
+        workspace_id: &WorkspaceId,
+    ) -> anyhow::Result<Option<Conversation>> {
+        self.conversation_service()
+            .find_last_active_conversation_by_workspace(workspace_id)
             .await
     }
 }

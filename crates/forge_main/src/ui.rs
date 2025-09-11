@@ -201,6 +201,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.init_state(true).await?;
         self.trace_user();
 
+        // Handle --resume flag to automatically load last active conversation
+        if self.cli.resume {
+            self.handle_resume().await?;
+        }
+
         // Hydrate the models cache
         self.hydrate_caches();
 
@@ -247,6 +252,30 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         tokio::spawn(async move { api.tools().await });
         let api = self.api.clone();
         tokio::spawn(async move { api.get_agents().await });
+    }
+
+    /// Handle the --resume flag to automatically load last active conversation
+    async fn handle_resume(&mut self) -> Result<()> {
+        if let Some(workspace_id) = &self.state.workspace_id {
+            self.spinner
+                .start(Some("Loading last active conversation"))?;
+            if let Some(conversation) = self.api.find_last_active_conversation(workspace_id).await?
+            {
+                self.state.conversation_id = Some(conversation.id);
+                self.writeln_title(TitleFormat::info(format!(
+                    "Resumed conversation: {}",
+                    conversation.title.as_deref().unwrap_or("Untitled")
+                )))?;
+            } else {
+                self.writeln_title(TitleFormat::error("No active conversation found to resume"))?;
+            }
+            self.spinner.stop(None)?;
+        } else {
+            self.writeln_title(TitleFormat::error(
+                "No workspace available to resume conversation",
+            ))?;
+        }
+        Ok(())
     }
 
     async fn handle_subcommands(&mut self, subcommand: TopLevelCommand) -> anyhow::Result<()> {
@@ -371,31 +400,41 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_command(&mut self, command: Command) -> anyhow::Result<bool> {
         match command {
             Command::List => {
-                self.spinner.start(Some("Loading Conversations"))?;
-                let conversations = self.api.list_conversations(Some(MAX_CONVERSATIONS_TO_SHOW)).await?;
-                self.spinner.stop(None)?;
+                if let Some(workspace_id) = &self.state.workspace_id {
+                    self.spinner.start(Some("Loading Conversations"))?;
+                    let conversations = self
+                        .api
+                        .list_conversations(workspace_id, Some(MAX_CONVERSATIONS_TO_SHOW))
+                        .await?;
+                    self.spinner.stop(None)?;
 
-                if conversations.is_empty() {
+                    if conversations.is_empty() {
+                        self.writeln_title(TitleFormat::error(
+                            "No conversations found in this workspace.",
+                        ))?;
+                        return Ok(true);
+                    }
+
+                    let titles: Vec<String> = conversations
+                        .iter()
+                        .map(|c| c.title.clone().unwrap_or_else(|| c.id.to_string()))
+                        .collect();
+
+                    if let Some(selected_title) =
+                        ForgeSelect::select("Select the conversation to resume", titles.clone())
+                            .with_help_message(
+                                "Type a name or use arrow keys to navigate and Enter to select",
+                            )
+                            .prompt()?
+                        && let Some(position) =
+                            titles.iter().position(|title| title == &selected_title)
+                    {
+                        self.state.conversation_id = Some(conversations[position].id);
+                    }
+                } else {
                     self.writeln_title(TitleFormat::error(
-                        "No conversations found in this workspace.",
+                        "No workspace available to list conversations",
                     ))?;
-                    return Ok(true);
-                }
-
-                let titles: Vec<String> = conversations
-                    .iter()
-                    .map(|c| c.title.clone().unwrap_or_else(|| c.id.to_string()))
-                    .collect();
-
-                if let Some(selected_title) =
-                    ForgeSelect::select("Select the conversation to resume", titles.clone())
-                        .with_help_message(
-                            "Type a name or use arrow keys to navigate and Enter to select",
-                        )
-                        .prompt()?
-                    && let Some(position) = titles.iter().position(|title| title == &selected_title)
-                {
-                    self.state.conversation_id = Some(conversations[position].id);
                 }
             }
             Command::Compact => {

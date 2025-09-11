@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 
 use derive_setters::Setters;
-use forge_api::{AgentId, ConversationId, Environment, ModelId, Provider, Usage, Workflow};
+use forge_api::{
+    AgentId, ConversationId, Environment, ModelId, Provider, Usage, Workflow, WorkspaceId,
+};
 
 use crate::prompt::ForgePrompt;
 
@@ -11,6 +13,7 @@ use crate::prompt::ForgePrompt;
 #[setters(strip_option)]
 pub struct UIState {
     pub cwd: PathBuf,
+    pub workspace_id: Option<WorkspaceId>,
     pub conversation_id: Option<ConversationId>,
     pub usage: Usage,
     pub operating_agent: AgentId,
@@ -21,8 +24,10 @@ pub struct UIState {
 
 impl UIState {
     pub fn new(env: Environment, workflow: Workflow, operating_agent: AgentId) -> Self {
+        let workspace_id = Some(env.workspace_id());
         Self {
             cwd: env.cwd,
+            workspace_id,
             conversation_id: Default::default(),
             usage: Default::default(),
             is_first: true,
