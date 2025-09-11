@@ -64,7 +64,7 @@ pub trait API: Sync + Send {
     async fn conversation(&self, conversation_id: &ConversationId) -> Result<Option<Conversation>>;
 
     /// Lists all conversations for the active workspace
-    async fn list_conversations(&self) -> Result<Vec<Conversation>>;
+    async fn list_conversations(&self, limit: Option<usize>) -> Result<Vec<Conversation>>;
 
     /// Compacts the context of the main agent for the given conversation and
     /// persists it. Returns metrics about the compaction (original vs.
