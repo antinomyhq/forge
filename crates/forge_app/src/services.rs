@@ -5,7 +5,7 @@ use derive_setters::Setters;
 use forge_domain::{
     Agent, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
     Environment, File, McpConfig, Model, ModelId, PatchOperation, Provider, ResultStream, Scope,
-    ToolCallFull, ToolDefinition, ToolOutput, Workflow, WorkspaceId,
+    ToolCallFull, ToolDefinition, ToolOutput, Workflow,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -164,15 +164,11 @@ pub trait ConversationService: Send + Sync {
     /// Find conversations by workspace ID with optional limit
     async fn get_conversations(
         &self,
-        workspace_id: &WorkspaceId,
         limit: Option<usize>,
     ) -> anyhow::Result<Option<Vec<Conversation>>>;
 
     /// Find the last active conversation for a workspace
-    async fn last_conversation(
-        &self,
-        workspace_id: &WorkspaceId,
-    ) -> anyhow::Result<Option<Conversation>>;
+    async fn last_conversation(&self) -> anyhow::Result<Option<Conversation>>;
 }
 
 #[async_trait::async_trait]
@@ -460,21 +456,13 @@ impl<I: Services> ConversationService for I {
 
     async fn get_conversations(
         &self,
-        workspace_id: &WorkspaceId,
         limit: Option<usize>,
     ) -> anyhow::Result<Option<Vec<Conversation>>> {
-        self.conversation_service()
-            .get_conversations(workspace_id, limit)
-            .await
+        self.conversation_service().get_conversations(limit).await
     }
 
-    async fn last_conversation(
-        &self,
-        workspace_id: &WorkspaceId,
-    ) -> anyhow::Result<Option<Conversation>> {
-        self.conversation_service()
-            .last_conversation(workspace_id)
-            .await
+    async fn last_conversation(&self) -> anyhow::Result<Option<Conversation>> {
+        self.conversation_service().last_conversation().await
     }
 }
 #[async_trait::async_trait]

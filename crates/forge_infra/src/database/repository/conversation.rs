@@ -1,6 +1,7 @@
 use std::ops::Deref;
 use std::sync::Arc;
 
+use chrono::{NaiveDateTime, Utc};
 use diesel::prelude::*;
 use forge_domain::{Context, Conversation, ConversationId, MetaData, WorkspaceId};
 use forge_services::ConversationRepository;
@@ -17,8 +18,8 @@ pub struct ConversationRecord {
     pub title: Option<String>,
     pub workspace_id: String,
     pub context: Option<String>,
-    pub created_at: chrono::NaiveDateTime,
-    pub updated_at: Option<chrono::NaiveDateTime>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: Option<NaiveDateTime>,
 }
 
 impl TryFrom<&Conversation> for ConversationRecord {
@@ -30,13 +31,14 @@ impl TryFrom<&Conversation> for ConversationRecord {
             .as_ref()
             .filter(|ctx| !ctx.messages.is_empty())
             .and_then(|ctx| serde_json::to_string(ctx).ok());
-        let updated_at = context.as_ref().map(|_| chrono::Local::now().naive_local());
+        let updated_at = context.as_ref().map(|_| Utc::now().naive_utc());
+
         Ok(Self {
             conversation_id: conversation.id.into_string(),
             title: conversation.title.clone(),
             workspace_id: conversation.workspace_id.deref().clone(),
             context,
-            created_at: conversation.metadata.created_at,
+            created_at: conversation.metadata.created_at.naive_utc(),
             updated_at,
         })
     }
@@ -54,24 +56,23 @@ impl TryFrom<ConversationRecord> for Conversation {
             .context(context)
             .title(record.title)
             .metadata(
-                MetaData::default()
-                    .created_at(record.created_at)
-                    .updated_at(record.updated_at),
+                MetaData::new(record.created_at.and_utc())
+                    .updated_at(record.updated_at.map(|updated_at| updated_at.and_utc())),
             ))
     }
 }
 
-pub struct ConversationRepository(Arc<DatabasePool>);
+pub struct ConversationRepositoryImpl(Arc<DatabasePool>);
 
-impl ConversationRepository {
+impl ConversationRepositoryImpl {
     pub fn new(pool: Arc<DatabasePool>) -> Self {
         Self(pool)
     }
 }
 
 #[async_trait::async_trait]
-impl ConversationRepository for ConversationRepository {
-    async fn upsert(&self, conversation: Conversation) -> anyhow::Result<()> {
+impl ConversationRepository for ConversationRepositoryImpl {
+    async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()> {
         let mut connection = self.0.get_connection()?;
 
         let record = ConversationRecord::try_from(&conversation)?;
@@ -82,13 +83,13 @@ impl ConversationRepository for ConversationRepository {
             .set((
                 conversations::title.eq(&record.title),
                 conversations::context.eq(&record.context),
-                conversations::updated_at.eq(chrono::Local::now().naive_local()),
+                conversations::updated_at.eq(record.updated_at),
             ))
             .execute(&mut connection)?;
         Ok(())
     }
 
-    async fn find_by_id(
+    async fn get_conversation(
         &self,
         conversation_id: &ConversationId,
     ) -> anyhow::Result<Option<Conversation>> {
@@ -105,7 +106,7 @@ impl ConversationRepository for ConversationRepository {
         }
     }
 
-    async fn find_by_workspace_id(
+    async fn get_all_conversations(
         &self,
         workspace_id: &WorkspaceId,
         limit: Option<usize>,
@@ -132,7 +133,7 @@ impl ConversationRepository for ConversationRepository {
         Ok(Some(conversations?))
     }
 
-    async fn find_last_active_conversation_by_workspace_id(
+    async fn get_last_conversation(
         &self,
         workspace_id: &WorkspaceId,
     ) -> anyhow::Result<Option<Conversation>> {
@@ -159,9 +160,9 @@ mod tests {
     use super::*;
     use crate::database::DatabasePool;
 
-    fn repository() -> anyhow::Result<ConversationRepository> {
+    fn repository() -> anyhow::Result<ConversationRepositoryImpl> {
         let pool = Arc::new(DatabasePool::in_memory()?);
-        Ok(ConversationRepository::new(pool))
+        Ok(ConversationRepositoryImpl::new(pool))
     }
 
     #[tokio::test]
@@ -173,9 +174,9 @@ mod tests {
         .title(Some("Test Conversation".to_string()));
         let repo = repository()?;
 
-        repo.upsert(fixture.clone()).await?;
+        repo.upsert_conversation(fixture.clone()).await?;
 
-        let actual = repo.find_by_id(&fixture.id).await?;
+        let actual = repo.get_conversation(&fixture.id).await?;
         assert!(actual.is_some());
         let retrieved = actual.unwrap();
         assert_eq!(retrieved.id, fixture.id);
@@ -188,7 +189,7 @@ mod tests {
         let repo = repository()?;
         let non_existing_id = ConversationId::generate();
 
-        let actual = repo.find_by_id(&non_existing_id).await?;
+        let actual = repo.get_conversation(&non_existing_id).await?;
 
         assert!(actual.is_none());
         Ok(())
@@ -204,13 +205,13 @@ mod tests {
         let repo = repository()?;
 
         // Insert initial conversation
-        repo.upsert(fixture.clone()).await?;
+        repo.upsert_conversation(fixture.clone()).await?;
 
         // Update the conversation
         fixture = fixture.title(Some("Updated Title".to_string()));
-        repo.upsert(fixture.clone()).await?;
+        repo.upsert_conversation(fixture.clone()).await?;
 
-        let actual = repo.find_by_id(&fixture.id).await?;
+        let actual = repo.get_conversation(&fixture.id).await?;
         assert!(actual.is_some());
         assert_eq!(actual.unwrap().title, Some("Updated Title".to_string()));
         Ok(())
@@ -230,11 +231,11 @@ mod tests {
         .title(Some("Second Conversation".to_string()));
         let repo = repository()?;
 
-        repo.upsert(conversation1.clone()).await?;
-        repo.upsert(conversation2.clone()).await?;
+        repo.upsert_conversation(conversation1.clone()).await?;
+        repo.upsert_conversation(conversation2.clone()).await?;
 
         let actual = repo
-            .find_by_workspace_id(&WorkspaceId::new("workspace-456".to_string()), None)
+            .get_all_conversations(&WorkspaceId::new("workspace-456".to_string()), None)
             .await?;
 
         assert!(actual.is_some());
@@ -256,11 +257,11 @@ mod tests {
         );
         let repo = repository()?;
 
-        repo.upsert(conversation1).await?;
-        repo.upsert(conversation2).await?;
+        repo.upsert_conversation(conversation1).await?;
+        repo.upsert_conversation(conversation2).await?;
 
         let actual = repo
-            .find_by_workspace_id(&WorkspaceId::new("workspace-456".to_string()), Some(1))
+            .get_all_conversations(&WorkspaceId::new("workspace-456".to_string()), Some(1))
             .await?;
 
         assert!(actual.is_some());
@@ -273,7 +274,7 @@ mod tests {
         let repo = repository()?;
 
         let actual = repo
-            .find_by_workspace_id(
+            .get_all_conversations(
                 &WorkspaceId::new("non-existing-workspace".to_string()),
                 None,
             )
@@ -299,13 +300,13 @@ mod tests {
         .title(Some("Test Conversation".to_string()));
         let repo = repository()?;
 
-        repo.upsert(conversation_without_context).await?;
-        repo.upsert(conversation_with_context.clone()).await?;
+        repo.upsert_conversation(conversation_without_context)
+            .await?;
+        repo.upsert_conversation(conversation_with_context.clone())
+            .await?;
 
         let actual = repo
-            .find_last_active_conversation_by_workspace_id(&WorkspaceId::new(
-                "workspace-456".to_string(),
-            ))
+            .get_last_conversation(&WorkspaceId::new("workspace-456".to_string()))
             .await?;
 
         assert!(actual.is_some());
@@ -322,12 +323,11 @@ mod tests {
         .title(Some("Test Conversation".to_string()));
         let repo = repository()?;
 
-        repo.upsert(conversation_without_context).await?;
+        repo.upsert_conversation(conversation_without_context)
+            .await?;
 
         let actual = repo
-            .find_last_active_conversation_by_workspace_id(&WorkspaceId::new(
-                "workspace-456".to_string(),
-            ))
+            .get_last_conversation(&WorkspaceId::new("workspace-456".to_string()))
             .await?;
 
         assert!(actual.is_none());
@@ -349,13 +349,13 @@ mod tests {
         .title(Some("Test Conversation".to_string()));
         let repo = repository()?;
 
-        repo.upsert(conversation_without_context).await?;
-        repo.upsert(conversation_with_empty_context).await?;
+        repo.upsert_conversation(conversation_without_context)
+            .await?;
+        repo.upsert_conversation(conversation_with_empty_context)
+            .await?;
 
         let actual = repo
-            .find_last_active_conversation_by_workspace_id(&WorkspaceId::new(
-                "workspace-456".to_string(),
-            ))
+            .get_last_conversation(&WorkspaceId::new("workspace-456".to_string()))
             .await?;
 
         assert!(actual.is_none()); // Should not find conversations with empty contexts
@@ -427,7 +427,7 @@ mod tests {
             title: Some("Test Conversation".to_string()),
             workspace_id: "workspace-456".to_string(),
             context: None,
-            created_at: chrono::Local::now().naive_local(),
+            created_at: Utc::now().naive_utc(),
             updated_at: None,
         };
 

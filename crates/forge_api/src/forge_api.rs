@@ -115,25 +115,16 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         self.services.find_conversation(conversation_id).await
     }
 
-    async fn list_conversations(
-        &self,
-        workspace_id: &WorkspaceId,
-        limit: Option<usize>,
-    ) -> anyhow::Result<Vec<Conversation>> {
+    async fn list_conversations(&self, limit: Option<usize>) -> anyhow::Result<Vec<Conversation>> {
         Ok(self
             .services
-            .get_conversations(workspace_id, limit)
+            .get_conversations(limit)
             .await?
             .unwrap_or_default())
     }
 
-    async fn last_conversation(
-        &self,
-        workspace_id: &WorkspaceId,
-    ) -> anyhow::Result<Option<Conversation>> {
-        self.services
-            .last_conversation(workspace_id)
-            .await
+    async fn last_conversation(&self) -> anyhow::Result<Option<Conversation>> {
+        self.services.last_conversation().await
     }
 
     async fn execute_shell_command(

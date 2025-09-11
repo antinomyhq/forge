@@ -16,7 +16,7 @@ use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
 use reqwest_eventsource::EventSource;
 
-use crate::database::repository::conversation::ConversationRepository;
+use crate::database::repository::conversation::ConversationRepositoryImpl;
 use crate::database::{DatabasePool, PoolConfig};
 use crate::env::ForgeEnvironmentInfra;
 use crate::executor::ForgeCommandExecutorService;
@@ -50,7 +50,7 @@ pub struct ForgeInfra {
     mcp_server: ForgeMcpServer,
     walker_service: Arc<ForgeWalkerService>,
     http_service: Arc<ForgeHttpInfra>,
-    conversation_repository: Arc<ConversationRepository>,
+    conversation_repository: Arc<ConversationRepositoryImpl>,
 }
 
 impl ForgeInfra {
@@ -61,7 +61,7 @@ impl ForgeInfra {
         let http_service = Arc::new(ForgeHttpInfra::new(env.http.clone()));
         let db_pool =
             Arc::new(DatabasePool::try_from(PoolConfig::new(env.database_path())).unwrap());
-        let conversation_repository = Arc::new(ConversationRepository::new(db_pool));
+        let conversation_repository = Arc::new(ConversationRepositoryImpl::new(db_pool));
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
             file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),

@@ -59,17 +59,16 @@ impl<S: ConversationRepository> ConversationService for ForgeConversationService
 
     async fn get_conversations(
         &self,
-        workspace_id: &WorkspaceId,
         limit: Option<usize>,
     ) -> Result<Option<Vec<Conversation>>> {
         self.conversation_repository
-            .get_all_conversations(workspace_id, limit)
+            .get_all_conversations(&self.workspace_id, limit)
             .await
     }
 
-    async fn last_conversation(&self, workspace_id: &WorkspaceId) -> Result<Option<Conversation>> {
+    async fn last_conversation(&self) -> Result<Option<Conversation>> {
         self.conversation_repository
-            .get_last_conversation(workspace_id)
+            .get_last_conversation(&self.workspace_id)
             .await
     }
 }

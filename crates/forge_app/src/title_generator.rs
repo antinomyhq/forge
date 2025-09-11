@@ -43,9 +43,9 @@ impl<S: AS> TitleGenerator<S> {
         user_prompt: &str,
         model_id: &ModelId,
     ) -> anyhow::Result<Option<String>> {
-        let system_prompt = include_str!("../../forge_services/src/agents/title-generator.md");
+        let template = self.services.render("{{> forge-system-prompt-title-generation.md }}", &()).await?;
         let ctx = Context::default()
-            .add_message(ContextMessage::system(system_prompt))
+            .add_message(ContextMessage::system(template))
             .add_message(ContextMessage::user(
                 user_prompt.to_string(),
                 Some(model_id.clone()),

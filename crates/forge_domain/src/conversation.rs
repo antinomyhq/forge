@@ -1,4 +1,4 @@
-use chrono::{Local, NaiveDateTime};
+use chrono::{DateTime, Utc};
 use derive_more::derive::Display;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
@@ -62,13 +62,13 @@ pub struct Conversation {
 #[derive(Debug, Setters, Serialize, Deserialize, Clone)]
 #[setters(into)]
 pub struct MetaData {
-    pub created_at: NaiveDateTime,
-    pub updated_at: Option<NaiveDateTime>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: Option<DateTime<Utc>>,
 }
 
-impl Default for MetaData {
-    fn default() -> Self {
-        Self { created_at: Local::now().naive_local(), updated_at: None }
+impl MetaData {
+    pub fn new(created_at: DateTime<Utc>) -> Self {
+        Self { created_at, updated_at: None }
     }
 }
 
@@ -82,12 +82,11 @@ impl Conversation {
     pub fn new(id: ConversationId, workspace_id: WorkspaceId) -> Self {
         let mut metrics = Metrics::new();
         metrics.start();
-
         Self {
             id,
             workspace_id,
             metrics,
-            metadata: MetaData::default(),
+            metadata: MetaData::new(Utc::now()),
             title: None,
             context: None,
         }
