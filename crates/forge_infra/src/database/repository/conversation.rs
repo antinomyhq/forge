@@ -154,6 +154,7 @@ impl ConversationRepositoryInfra for ConversationRepository {
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
+    use forge_domain::ContextMessage;
 
     use super::*;
     use crate::database::DatabasePool;
@@ -284,12 +285,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_last_active_conversation_with_context() -> anyhow::Result<()> {
+        let context = Context::default().messages(vec![ContextMessage::user("Hello", None)]);
         let conversation_with_context = Conversation::new(
             ConversationId::generate(),
             WorkspaceId::new("workspace-456".to_string()),
         )
         .title(Some("Conversation with Context".to_string()))
-        .context(Some(Context::default()));
+        .context(Some(context));
         let conversation_without_context = Conversation::new(
             ConversationId::generate(),
             WorkspaceId::new("workspace-456".to_string()),
@@ -332,6 +334,34 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_find_last_active_conversation_ignores_empty_context() -> anyhow::Result<()> {
+        let conversation_with_empty_context = Conversation::new(
+            ConversationId::generate(),
+            WorkspaceId::new("workspace-456".to_string()),
+        )
+        .title(Some("Conversation with Empty Context".to_string()))
+        .context(Some(Context::default()));
+        let conversation_without_context = Conversation::new(
+            ConversationId::generate(),
+            WorkspaceId::new("workspace-456".to_string()),
+        )
+        .title(Some("Test Conversation".to_string()));
+        let repo = repository()?;
+
+        repo.upsert(conversation_without_context).await?;
+        repo.upsert(conversation_with_empty_context).await?;
+
+        let actual = repo
+            .find_last_active_conversation_by_workspace_id(&WorkspaceId::new(
+                "workspace-456".to_string(),
+            ))
+            .await?;
+
+        assert!(actual.is_none()); // Should not find conversations with empty contexts
+        Ok(())
+    }
+
     #[test]
     fn test_conversation_record_from_conversation() -> anyhow::Result<()> {
         let fixture = Conversation::new(
@@ -351,12 +381,13 @@ mod tests {
 
     #[test]
     fn test_conversation_record_from_conversation_with_context() -> anyhow::Result<()> {
+        let context = Context::default().messages(vec![ContextMessage::user("Hello", None)]);
         let fixture = Conversation::new(
             ConversationId::generate(),
             WorkspaceId::new("workspace-456".to_string()),
         )
         .title(Some("Conversation with Context".to_string()))
-        .context(Some(Context::default()));
+        .context(Some(context));
 
         let actual = ConversationRecord::try_from(&fixture)?;
 
@@ -364,6 +395,24 @@ mod tests {
         assert_eq!(actual.title, Some("Conversation with Context".to_string()));
         assert_eq!(actual.workspace_id, "workspace-456");
         assert!(actual.context.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn test_conversation_record_from_conversation_with_empty_context() -> anyhow::Result<()> {
+        let fixture = Conversation::new(
+            ConversationId::generate(),
+            WorkspaceId::new("workspace-456".to_string()),
+        )
+        .title(Some("Conversation with Empty Context".to_string()))
+        .context(Some(Context::default()));
+
+        let actual = ConversationRecord::try_from(&fixture)?;
+
+        assert_eq!(actual.conversation_id, fixture.id.into_string());
+        assert_eq!(actual.title, Some("Conversation with Empty Context".to_string()));
+        assert_eq!(actual.workspace_id, "workspace-456");
+        assert!(actual.context.is_none()); // Empty context should be filtered out
         Ok(())
     }
 
