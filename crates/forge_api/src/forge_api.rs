@@ -115,6 +115,21 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         self.services.find_conversation(conversation_id).await
     }
 
+    async fn list_conversations(&self) -> anyhow::Result<Vec<Conversation>> {
+        // Get workspace ID from the environment
+        let environment = self.services.get_environment();
+        let workspace_id = environment.workspace_id();
+        // Use the conversation service to get conversations for workspace
+        match self
+            .services
+            .find_conversations_by_workspace(&workspace_id, None)
+            .await?
+        {
+            Some(conversations) => Ok(conversations),
+            None => Ok(vec![]),
+        }
+    }
+
     async fn execute_shell_command(
         &self,
         command: &str,

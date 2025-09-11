@@ -55,4 +55,14 @@ impl<S: ConversationRepositoryInfra> ConversationService for ForgeConversationSe
             .await?;
         Ok(conversation)
     }
+
+    async fn find_conversations_by_workspace(
+        &self,
+        workspace_id: &WorkspaceId,
+        limit: Option<usize>,
+    ) -> Result<Option<Vec<Conversation>>> {
+        self.conversation_repository
+            .find_by_workspace_id(workspace_id, limit)
+            .await
+    }
 }

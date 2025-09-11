@@ -5,7 +5,7 @@ use derive_setters::Setters;
 use forge_domain::{
     Agent, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
     Environment, File, McpConfig, Model, ModelId, PatchOperation, Provider, ResultStream, Scope,
-    ToolCallFull, ToolDefinition, ToolOutput, Workflow,
+    ToolCallFull, ToolDefinition, ToolOutput, Workflow, WorkspaceId,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -160,6 +160,13 @@ pub trait ConversationService: Send + Sync {
     where
         F: FnOnce(&mut Conversation) -> T + Send,
         T: Send;
+
+    /// Find conversations by workspace ID with optional limit
+    async fn find_conversations_by_workspace(
+        &self,
+        workspace_id: &WorkspaceId,
+        limit: Option<usize>,
+    ) -> anyhow::Result<Option<Vec<Conversation>>>;
 }
 
 #[async_trait::async_trait]
@@ -443,6 +450,16 @@ impl<I: Services> ConversationService for I {
         T: Send,
     {
         self.conversation_service().modify_conversation(id, f).await
+    }
+
+    async fn find_conversations_by_workspace(
+        &self,
+        workspace_id: &WorkspaceId,
+        limit: Option<usize>,
+    ) -> anyhow::Result<Option<Vec<Conversation>>> {
+        self.conversation_service()
+            .find_conversations_by_workspace(workspace_id, limit)
+            .await
     }
 }
 #[async_trait::async_trait]

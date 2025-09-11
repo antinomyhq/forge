@@ -367,6 +367,34 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn on_command(&mut self, command: Command) -> anyhow::Result<bool> {
         match command {
+            Command::List => {
+                self.spinner.start(Some("Loading Conversations"))?;
+                let conversations = self.api.list_conversations().await?;
+                self.spinner.stop(None)?;
+
+                if conversations.is_empty() {
+                    self.writeln_title(TitleFormat::error(
+                        "No conversations found in this workspace.",
+                    ))?;
+                    return Ok(true);
+                }
+
+                let titles: Vec<String> = conversations
+                    .iter()
+                    .map(|c| c.title.clone().unwrap_or_else(|| c.id.to_string()))
+                    .collect();
+
+                if let Some(selected_title) =
+                    ForgeSelect::select("Select the conversation to resume", titles.clone())
+                        .with_help_message(
+                            "Type a name or use arrow keys to navigate and Enter to select",
+                        )
+                        .prompt()?
+                    && let Some(position) = titles.iter().position(|title| title == &selected_title)
+                    {
+                        self.state.conversation_id = Some(conversations[position].id);
+                    }
+            }
             Command::Compact => {
                 self.spinner.start(Some("Compacting"))?;
                 self.on_compaction().await?;
