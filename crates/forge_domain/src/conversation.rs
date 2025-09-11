@@ -68,10 +68,7 @@ pub struct MetaData {
 
 impl Default for MetaData {
     fn default() -> Self {
-        Self {
-            created_at: Local::now().naive_local(),
-            updated_at: None,
-        }
+        Self { created_at: Local::now().naive_local(), updated_at: None }
     }
 }
 
@@ -86,10 +83,10 @@ impl Conversation {
         let mut metrics = Metrics::new();
         metrics.start();
 
-        Self { 
-            id, 
-            workspace_id, 
-            metrics, 
+        Self {
+            id,
+            workspace_id,
+            metrics,
             metadata: MetaData::default(),
             title: None,
             context: None,

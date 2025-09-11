@@ -423,8 +423,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     let date = c
                         .metadata
                         .updated_at
-                        .clone()
-                        .unwrap_or_else(|| c.metadata.created_at);
+                        .unwrap_or(c.metadata.created_at);
                     let formatted_date = date.format("%Y-%m-%d %H:%M").to_string();
                     format!("{:<60} {}", title, formatted_date)
                 })
