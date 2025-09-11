@@ -48,7 +48,7 @@ impl std::ops::Deref for WorkspaceId {
 }
 
 #[derive(Debug, Setters, Serialize, Deserialize, Clone)]
-#[setters(into, strip_option)]
+#[setters(into)]
 pub struct Conversation {
     pub id: ConversationId,
     pub workspace_id: WorkspaceId,

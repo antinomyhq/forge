@@ -49,11 +49,10 @@ impl TryFrom<ConversationRecord> for Conversation {
         let workspace_id = WorkspaceId::new(record.workspace_id);
         let context = record
             .context
-            .and_then(|ctx| serde_json::from_str::<Context>(&ctx).ok())
-            .unwrap_or_default();
-        let mut conversation = Conversation::new(id, workspace_id).context(context);
-        conversation.title = record.title;
-        Ok(conversation)
+            .and_then(|ctx| serde_json::from_str::<Context>(&ctx).ok());
+        Ok(Conversation::new(id, workspace_id)
+            .context(context)
+            .title(record.title))
     }
 }
 
