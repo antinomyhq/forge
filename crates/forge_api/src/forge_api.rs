@@ -120,15 +120,11 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         workspace_id: &WorkspaceId,
         limit: Option<usize>,
     ) -> anyhow::Result<Vec<Conversation>> {
-        // Use the conversation service to get conversations for workspace
-        match self
+        Ok(self
             .services
             .find_conversations_by_workspace(workspace_id, limit)
             .await?
-        {
-            Some(conversations) => Ok(conversations),
-            None => Ok(vec![]),
-        }
+            .unwrap_or_default())
     }
 
     async fn find_last_active_conversation(
