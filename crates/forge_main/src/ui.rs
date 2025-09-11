@@ -400,45 +400,49 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .collect::<Vec<_>>())
     }
 
+    async fn on_list(&mut self) -> anyhow::Result<()> {
+        if let Some(workspace_id) = &self.state.workspace_id {
+            self.spinner.start(Some("Loading Conversations"))?;
+            let conversations = self
+                .api
+                .list_conversations(workspace_id, Some(MAX_CONVERSATIONS_TO_SHOW))
+                .await?;
+            self.spinner.stop(None)?;
+
+            if conversations.is_empty() {
+                self.writeln_title(TitleFormat::error(
+                    "No conversations found in this workspace.",
+                ))?;
+                return Ok(());
+            }
+
+            let titles: Vec<String> = conversations
+                .iter()
+                .map(|c| c.title.clone().unwrap_or_else(|| c.id.to_string()))
+                .collect();
+
+            if let Some(selected_title) =
+                ForgeSelect::select("Select the conversation to resume", titles.clone())
+                    .with_help_message(
+                        "Type a name or use arrow keys to navigate and Enter to select",
+                    )
+                    .prompt()?
+                && let Some(position) = titles.iter().position(|title| title == &selected_title)
+            {
+                self.state.conversation_id = Some(conversations[position].id);
+            }
+        } else {
+            self.writeln_title(TitleFormat::error(
+                "No workspace available to list conversations",
+            ))?;
+        }
+        Ok(())
+    }
+
     async fn on_command(&mut self, command: Command) -> anyhow::Result<bool> {
         match command {
             Command::List => {
-                if let Some(workspace_id) = &self.state.workspace_id {
-                    self.spinner.start(Some("Loading Conversations"))?;
-                    let conversations = self
-                        .api
-                        .list_conversations(workspace_id, Some(MAX_CONVERSATIONS_TO_SHOW))
-                        .await?;
-                    self.spinner.stop(None)?;
-
-                    if conversations.is_empty() {
-                        self.writeln_title(TitleFormat::error(
-                            "No conversations found in this workspace.",
-                        ))?;
-                        return Ok(true);
-                    }
-
-                    let titles: Vec<String> = conversations
-                        .iter()
-                        .map(|c| c.title.clone().unwrap_or_else(|| c.id.to_string()))
-                        .collect();
-
-                    if let Some(selected_title) =
-                        ForgeSelect::select("Select the conversation to resume", titles.clone())
-                            .with_help_message(
-                                "Type a name or use arrow keys to navigate and Enter to select",
-                            )
-                            .prompt()?
-                        && let Some(position) =
-                            titles.iter().position(|title| title == &selected_title)
-                    {
-                        self.state.conversation_id = Some(conversations[position].id);
-                    }
-                } else {
-                    self.writeln_title(TitleFormat::error(
-                        "No workspace available to list conversations",
-                    ))?;
-                }
+                self.on_list().await?;
             }
             Command::Compact => {
                 self.spinner.start(Some("Compacting"))?;
