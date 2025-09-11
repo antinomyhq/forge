@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use bytes::Bytes;
+use derive_setters::Setters;
 use forge_domain::{
     Agent, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
     Environment, File, McpConfig, Model, ModelId, PatchOperation, Provider, ResultStream, Scope,
@@ -29,7 +30,8 @@ pub struct PatchOutput {
     pub after: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Setters)]
+#[setters(into)]
 pub struct ReadOutput {
     pub content: Content,
     pub start_line: u64,
@@ -40,6 +42,18 @@ pub struct ReadOutput {
 #[derive(Debug)]
 pub enum Content {
     File(String),
+}
+
+impl Content {
+    pub fn file<S: Into<String>>(content: S) -> Self {
+        Self::File(content.into())
+    }
+
+    pub fn file_content(&self) -> &str {
+        match self {
+            Self::File(content) => content,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -138,11 +152,7 @@ pub trait ConversationService: Send + Sync {
 
     async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()>;
 
-    async fn init_conversation(
-        &self,
-        workflow: Workflow,
-        agent: Vec<Agent>,
-    ) -> anyhow::Result<Conversation>;
+    async fn init_conversation(&self) -> anyhow::Result<Conversation>;
 
     /// This is useful when you want to perform several operations on a
     /// conversation atomically.
@@ -422,14 +432,8 @@ impl<I: Services> ConversationService for I {
             .await
     }
 
-    async fn init_conversation(
-        &self,
-        workflow: Workflow,
-        agents: Vec<Agent>,
-    ) -> anyhow::Result<Conversation> {
-        self.conversation_service()
-            .init_conversation(workflow, agents)
-            .await
+    async fn init_conversation(&self) -> anyhow::Result<Conversation> {
+        self.conversation_service().init_conversation().await
     }
 
     async fn modify_conversation<F, T>(&self, id: &ConversationId, f: F) -> anyhow::Result<T>

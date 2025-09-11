@@ -43,11 +43,8 @@ impl<T: API + 'static> Executor<T> {
                 .await?
                 .ok_or_else(|| anyhow::anyhow!("Conversation not found: {}", conv_id))?
         } else {
-            // Initialize a default workflow for conversation creation
-            let workflow = self.api.read_merged(None).await?;
-
             // Initialize new conversation
-            let new_conversation = self.api.init_conversation(workflow).await?;
+            let new_conversation = self.api.init_conversation().await?;
 
             // Send action to update conversation state
             tx.send(Ok(Action::ConversationInitialized(new_conversation.id)))
