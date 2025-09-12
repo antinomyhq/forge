@@ -84,9 +84,9 @@ pub struct Cli {
 impl Cli {
     pub fn is_interactive(&self) -> bool {
         self.prompt.is_none()
-            || self.event.is_none()
-            || self.command.is_none()
-            || self.subcommands.is_none()
+            && self.event.is_none()
+            && self.command.is_none()
+            && self.subcommands.is_none()
     }
 }
 
