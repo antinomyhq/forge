@@ -204,6 +204,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Handle direct prompt if provided
         let prompt = self.cli.prompt.clone();
         if let Some(prompt) = prompt {
+            self.spinner.start(None)?;
             self.on_message(Some(prompt)).await?;
             return Ok(());
         }
