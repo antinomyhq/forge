@@ -559,6 +559,9 @@ mod tests {
 
         // The list command should be included
         let contains_list = commands.iter().any(|cmd| cmd.name == "/conversations");
-        assert!(contains_list, "Conversations command should be in default commands");
+        assert!(
+            contains_list,
+            "Conversations command should be in default commands"
+        );
     }
 }
