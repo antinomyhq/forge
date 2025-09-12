@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use forge_domain::{TitleFormat, ToolCallContext, ToolCallFull, ToolOutput, Tools};
+use forge_domain::{LineNumbers, TitleFormat, ToolCallContext, ToolCallFull, ToolOutput, Tools};
 
 use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
@@ -147,15 +147,10 @@ impl<
                     )
                     .await?;
                 let output = if input.show_line_numbers {
-                    let start_line = output.start_line as usize;
                     let numbered_content = output
                         .content
                         .file_content()
-                        .lines()
-                        .enumerate()
-                        .map(|(i, line)| format!("{}: {}", start_line + i, line))
-                        .collect::<Vec<_>>()
-                        .join("\n");
+                        .numbered_from(output.start_line as usize);
                     output.content(crate::Content::file(numbered_content))
                 } else {
                     output
