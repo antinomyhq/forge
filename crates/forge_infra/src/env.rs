@@ -639,36 +639,39 @@ mod tests {
     #[serial]
     fn test_unified_parse_env_functionality() {
         // Test that the unified parse_env works for different types
-        
+
         // Test boolean parsing with custom logic
         unsafe {
             env::set_var("TEST_BOOL_TRUE", "yes");
             env::set_var("TEST_BOOL_FALSE", "no");
         }
-        
+
         assert_eq!(parse_env::<bool>("TEST_BOOL_TRUE"), Some(true));
         assert_eq!(parse_env::<bool>("TEST_BOOL_FALSE"), Some(false));
-        
+
         // Test numeric parsing
         unsafe {
             env::set_var("TEST_U64", "123");
             env::set_var("TEST_F64", "45.67");
         }
-        
+
         assert_eq!(parse_env::<u64>("TEST_U64"), Some(123));
         assert_eq!(parse_env::<f64>("TEST_F64"), Some(45.67));
-        
+
         // Test string parsing
         unsafe {
             env::set_var("TEST_STRING", "hello world");
         }
-        
-        assert_eq!(parse_env::<String>("TEST_STRING"), Some("hello world".to_string()));
-        
+
+        assert_eq!(
+            parse_env::<String>("TEST_STRING"),
+            Some("hello world".to_string())
+        );
+
         // Test missing env var
         assert_eq!(parse_env::<bool>("NONEXISTENT_VAR"), None);
         assert_eq!(parse_env::<u64>("NONEXISTENT_VAR"), None);
-        
+
         // Clean up
         unsafe {
             env::remove_var("TEST_BOOL_TRUE");
