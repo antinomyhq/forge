@@ -5,6 +5,13 @@ use crate::context::ContextMessage;
 use crate::conversation::Conversation;
 
 pub fn render_conversation_html(conversation: &Conversation) -> String {
+    let c_title = format!(
+        "Title: {}",
+        conversation
+            .title
+            .clone()
+            .unwrap_or(conversation.id.to_string())
+    );
     let html = Element::new("html")
         .attr("lang", "en")
         .append(
@@ -15,12 +22,13 @@ pub fn render_conversation_html(conversation: &Conversation) -> String {
                         .attr("name", "viewport")
                         .attr("content", "width=device-width, initial-scale=1.0"),
                 )
-                .append(Element::new("title").text(format!("Conversation: {}", conversation.id)))
+                .append(Element::new("title").text(&c_title))
                 .append(Element::new("style").text(include_str!("conversation_style.css"))),
         )
         .append(
             Element::new("body")
                 .append(Element::new("h1").text("Conversation"))
+                .append(Element::new("h2").text(&c_title))
                 // Basic Information Section
                 .append(
                     Element::new("div.section")
@@ -210,7 +218,7 @@ mod tests {
         // and returns a non-empty string for an empty conversation
         assert!(actual.contains("<html"));
         assert!(actual.contains("</html>"));
-        assert!(actual.contains("Conversation: "));
+        assert!(actual.contains("Title: "));
         assert!(actual.contains("Basic Information"));
         assert!(actual.contains("Conversation Context"));
     }
