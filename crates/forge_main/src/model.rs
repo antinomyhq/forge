@@ -188,7 +188,7 @@ impl ForgeCommandManager {
             "/login" => Ok(Command::Login),
             "/logout" => Ok(Command::Logout),
             "/retry" => Ok(Command::Retry),
-            "/conversations" => Ok(Command::Conversations),
+            "/conversations" | "/list" => Ok(Command::Conversations),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -540,7 +540,7 @@ mod tests {
         let cmd_manager = ForgeCommandManager::default();
 
         // Execute
-        let result = cmd_manager.parse("/list").unwrap();
+        let result = cmd_manager.parse("/conversations").unwrap();
 
         // Verify
         match result {
@@ -558,7 +558,7 @@ mod tests {
         let commands = manager.list();
 
         // The list command should be included
-        let contains_list = commands.iter().any(|cmd| cmd.name == "/list");
-        assert!(contains_list, "List command should be in default commands");
+        let contains_list = commands.iter().any(|cmd| cmd.name == "/conversations");
+        assert!(contains_list, "Conversations command should be in default commands");
     }
 }
