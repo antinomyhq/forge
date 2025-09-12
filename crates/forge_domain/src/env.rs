@@ -55,6 +55,9 @@ pub struct Environment {
     /// Maximum execution time in seconds for a single tool call.
     /// Controls how long a tool can run before being terminated.
     pub tool_timeout: u64,
+    /// Whether to automatically open HTML dump files in the browser.
+    /// Controlled by FORGE_DUMP_AUTO_OPEN environment variable.
+    pub auto_open_dump: bool,
 }
 
 impl Environment {
@@ -149,6 +152,7 @@ mod tests {
             http: HttpConfig::default(),
             max_file_size: 104857600,
             tool_timeout: 300,
+            auto_open_dump: false,
         };
 
         let actual = fixture.agent_cwd_path();
@@ -179,6 +183,7 @@ mod tests {
             http: HttpConfig::default(),
             max_file_size: 104857600,
             tool_timeout: 300,
+            auto_open_dump: false,
         };
 
         let agent_path = fixture.agent_path();

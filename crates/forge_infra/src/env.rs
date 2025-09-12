@@ -68,6 +68,7 @@ impl ForgeEnvironmentInfra {
             stdout_max_prefix_length: 200,
             stdout_max_suffix_length: 200,
             tool_timeout: parse_env::<u64>("FORGE_TOOL_TIMEOUT").unwrap_or(300),
+            auto_open_dump: parse_bool_env("FORGE_DUMP_AUTO_OPEN").unwrap_or(false),
             stdout_max_line_length: parse_env::<usize>("FORGE_STDOUT_MAX_LINE_LENGTH")
                 .unwrap_or(2000),
             http: resolve_http_config(),
@@ -114,6 +115,15 @@ fn parse_env<T: FromStr>(name: &str) -> Option<T> {
         .as_ref()
         .ok()
         .and_then(|var| T::from_str(var).ok())
+}
+
+/// Parse boolean environment variable with support for multiple truthy values
+/// Supports: "true", "1", "yes" (case-insensitive) as true; everything else as
+/// false
+fn parse_bool_env(name: &str) -> Option<bool> {
+    std::env::var(name)
+        .ok()
+        .map(|val| matches!(val.to_lowercase().as_str(), "true" | "1" | "yes"))
 }
 
 /// Resolves retry configuration from environment variables or returns defaults
@@ -466,6 +476,94 @@ mod tests {
 
         unsafe {
             env::remove_var("FORGE_MAX_SEARCH_RESULT_BYTES");
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_auto_open_dump_env_var() {
+        let cwd = tempdir().unwrap().path().to_path_buf();
+        let infra = ForgeEnvironmentInfra::new(false, cwd);
+
+        // Test default value when env var is not set
+        {
+            unsafe {
+                env::remove_var("FORGE_DUMP_AUTO_OPEN");
+            }
+            let env = infra.get_environment();
+            assert_eq!(env.auto_open_dump, false);
+        }
+
+        // Test enabled with "true"
+        {
+            unsafe {
+                env::set_var("FORGE_DUMP_AUTO_OPEN", "true");
+            }
+            let env = infra.get_environment();
+            assert_eq!(env.auto_open_dump, true);
+            unsafe {
+                env::remove_var("FORGE_DUMP_AUTO_OPEN");
+            }
+        }
+
+        // Test enabled with "1"
+        {
+            unsafe {
+                env::set_var("FORGE_DUMP_AUTO_OPEN", "1");
+            }
+            let env = infra.get_environment();
+            assert_eq!(env.auto_open_dump, true);
+            unsafe {
+                env::remove_var("FORGE_DUMP_AUTO_OPEN");
+            }
+        }
+
+        // Test case insensitive "TRUE"
+        {
+            unsafe {
+                env::set_var("FORGE_DUMP_AUTO_OPEN", "TRUE");
+            }
+            let env = infra.get_environment();
+            assert_eq!(env.auto_open_dump, true);
+            unsafe {
+                env::remove_var("FORGE_DUMP_AUTO_OPEN");
+            }
+        }
+
+        // Test disabled with "false"
+        {
+            unsafe {
+                env::set_var("FORGE_DUMP_AUTO_OPEN", "false");
+            }
+            let env = infra.get_environment();
+            assert_eq!(env.auto_open_dump, false);
+            unsafe {
+                env::remove_var("FORGE_DUMP_AUTO_OPEN");
+            }
+        }
+
+        // Test disabled with "0"
+        {
+            unsafe {
+                env::set_var("FORGE_DUMP_AUTO_OPEN", "0");
+            }
+            let env = infra.get_environment();
+            assert_eq!(env.auto_open_dump, false);
+            unsafe {
+                env::remove_var("FORGE_DUMP_AUTO_OPEN");
+            }
+        }
+
+        // Test fallback to default for invalid value
+        {
+            unsafe {
+                env::set_var("FORGE_DUMP_AUTO_OPEN", "invalid");
+            }
+            let env = infra.get_environment();
+            assert_eq!(env.auto_open_dump, false);
+            unsafe {
+                env::remove_var("FORGE_DUMP_AUTO_OPEN");
+            }
         }
     }
 
