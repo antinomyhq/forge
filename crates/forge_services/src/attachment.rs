@@ -56,8 +56,16 @@ impl<F: FileReaderInfra + EnvironmentInfra> ForgeChatRequest<F> {
                     .range_read_utf8(&path, start_line, end_line)
                     .await?;
 
+                let start_line = file_info.start_line as usize;
+                let numbered_file_content = file_content
+                    .lines()
+                    .enumerate()
+                    .map(|(idx, line)| format!("{}: {}", idx + start_line, line))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+
                 AttachmentContent::FileContent {
-                    content: file_content,
+                    content: numbered_file_content,
                     start_line: file_info.start_line,
                     end_line: file_info.end_line,
                     total_lines: file_info.total_lines,
