@@ -79,15 +79,13 @@ impl<
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
-        let workspace_id = infra.get_environment().workspace_id();
         let mcp_manager = Arc::new(ForgeMcpManager::new(infra.clone()));
         let mcp_service = Arc::new(ForgeMcpService::new(mcp_manager.clone(), infra.clone()));
         let template_service = Arc::new(ForgeTemplateService::new(infra.clone()));
         let attachment_service = Arc::new(ForgeChatRequest::new(infra.clone()));
         let workflow_service = Arc::new(ForgeWorkflowService::new(infra.clone()));
         let suggestion_service = Arc::new(ForgeDiscoveryService::new(infra.clone()));
-        let conversation_service =
-            Arc::new(ForgeConversationService::new(workspace_id, infra.clone()));
+        let conversation_service = Arc::new(ForgeConversationService::new(infra.clone()));
         let config_service = Arc::new(ForgeConfigService::new(infra.clone()));
         let auth_service = Arc::new(ForgeAuthService::new(infra.clone()));
         let chat_service = Arc::new(ForgeProviderService::<F>::new(infra.clone()));

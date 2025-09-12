@@ -32,27 +32,11 @@ impl ConversationId {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct WorkspaceId(String);
-
-impl WorkspaceId {
-    pub fn new<S: Into<String>>(id: S) -> Self {
-        Self(id.into())
-    }
-}
-
-impl std::ops::Deref for WorkspaceId {
-    type Target = String;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
 #[derive(Debug, Setters, Serialize, Deserialize, Clone)]
 #[setters(into)]
 pub struct Conversation {
     pub id: ConversationId,
-    pub workspace_id: WorkspaceId,
+
     pub title: Option<String>,
     pub context: Option<Context>,
     pub metrics: Metrics,
@@ -73,12 +57,11 @@ impl MetaData {
 }
 
 impl Conversation {
-    pub fn new(id: ConversationId, workspace_id: WorkspaceId) -> Self {
+    pub fn new(id: ConversationId) -> Self {
         let created_at = Utc::now();
         let metrics = Metrics::new().with_time(created_at);
         Self {
             id,
-            workspace_id,
             metrics,
             metadata: MetaData::new(created_at),
             title: None,

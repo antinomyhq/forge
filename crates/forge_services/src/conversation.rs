@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use forge_app::ConversationService;
-use forge_app::domain::{Conversation, ConversationId, WorkspaceId};
+use forge_app::domain::{Conversation, ConversationId};
 
 use crate::ConversationRepository;
 
@@ -11,13 +11,12 @@ use crate::ConversationRepository;
 #[derive(Clone)]
 pub struct ForgeConversationService<S> {
     conversation_repository: Arc<S>,
-    workspace_id: WorkspaceId,
 }
 
 impl<S: ConversationRepository> ForgeConversationService<S> {
-    /// Creates a new ForgeConversationService with the provided MCP service
-    pub fn new(workspace_id: WorkspaceId, repo: Arc<S>) -> Self {
-        Self { conversation_repository: repo, workspace_id }
+    /// Creates a new ForgeConversationService with the provided repository
+    pub fn new(repo: Arc<S>) -> Self {
+        Self { conversation_repository: repo }
     }
 }
 
@@ -55,7 +54,7 @@ impl<S: ConversationRepository> ConversationService for ForgeConversationService
 
     async fn init_conversation(&self) -> Result<Conversation> {
         let id = ConversationId::generate();
-        let conversation = Conversation::new(id, self.workspace_id.clone());
+        let conversation = Conversation::new(id);
         let _ = self
             .conversation_repository
             .upsert_conversation(conversation.clone())
@@ -65,13 +64,11 @@ impl<S: ConversationRepository> ConversationService for ForgeConversationService
 
     async fn get_conversations(&self, limit: Option<usize>) -> Result<Option<Vec<Conversation>>> {
         self.conversation_repository
-            .get_all_conversations(&self.workspace_id, limit)
+            .get_all_conversations(limit)
             .await
     }
 
     async fn last_conversation(&self) -> Result<Option<Conversation>> {
-        self.conversation_repository
-            .get_last_conversation(&self.workspace_id)
-            .await
+        self.conversation_repository.get_last_conversation().await
     }
 }

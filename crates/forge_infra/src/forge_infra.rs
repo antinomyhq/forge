@@ -3,9 +3,7 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_domain::{
-    CommandOutput, Conversation, ConversationId, Environment, McpServerConfig, WorkspaceId,
-};
+use forge_domain::{CommandOutput, Conversation, ConversationId, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
     CommandInfra, ConversationRepository, DirectoryReaderInfra, EnvironmentInfra,
@@ -62,7 +60,7 @@ impl ForgeInfra {
         let db_pool =
             Arc::new(DatabasePool::try_from(PoolConfig::new(env.database_path())).unwrap());
         let conversation_repository =
-            Arc::new(ConversationRepositoryImpl::new(db_pool, env.clone()));
+            Arc::new(ConversationRepositoryImpl::new(db_pool, env.workspace_id()));
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
             file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),
@@ -302,20 +300,14 @@ impl ConversationRepository for ForgeInfra {
 
     async fn get_all_conversations(
         &self,
-        workspace_id: &WorkspaceId,
         limit: Option<usize>,
     ) -> anyhow::Result<Option<Vec<Conversation>>> {
         self.conversation_repository
-            .get_all_conversations(workspace_id, limit)
+            .get_all_conversations(limit)
             .await
     }
 
-    async fn get_last_conversation(
-        &self,
-        workspace_id: &WorkspaceId,
-    ) -> anyhow::Result<Option<Conversation>> {
-        self.conversation_repository
-            .get_last_conversation(workspace_id)
-            .await
+    async fn get_last_conversation(&self) -> anyhow::Result<Option<Conversation>> {
+        self.conversation_repository.get_last_conversation().await
     }
 }

@@ -1,11 +1,12 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::PathBuf;
 
+use derive_more::Display;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::{HttpConfig, RetryConfig, WorkspaceId};
+use crate::{HttpConfig, RetryConfig};
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     Some(val) => val,
@@ -103,7 +104,16 @@ impl Environment {
     pub fn workspace_id(&self) -> WorkspaceId {
         let mut hasher = DefaultHasher::default();
         self.cwd.hash(&mut hasher);
-        WorkspaceId::new(format!("{}", hasher.finish()))
+
+        WorkspaceId(hasher.finish())
+    }
+}
+
+#[derive(Clone, Copy, Display)]
+pub struct WorkspaceId(u64);
+impl WorkspaceId {
+    pub fn new(id: u64) -> Self {
+        WorkspaceId(id)
     }
 }
 

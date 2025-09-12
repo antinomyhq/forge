@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use forge_domain::{
     ChatCompletionMessage, ChatResponse, Conversation, ConversationId, ToolCallFull, ToolResult,
-    WorkspaceId,
 };
 use handlebars::{Handlebars, no_escape};
 use rust_embed::Embed;
@@ -69,8 +68,7 @@ impl Runner {
 
         let services = Arc::new(Runner::new(setup));
         // setup the conversation
-        let conversation = Conversation::new(ConversationId::generate(), WorkspaceId::new("test"))
-            .title(setup.title.clone());
+        let conversation = Conversation::new(ConversationId::generate()).title(setup.title.clone());
 
         let agent = setup.agent.clone();
         let event = setup.event.clone();

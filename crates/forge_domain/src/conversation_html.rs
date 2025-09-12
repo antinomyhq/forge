@@ -209,8 +209,7 @@ mod tests {
         // Create a new empty conversation
         let id = crate::conversation::ConversationId::generate();
 
-        let workspace_id = crate::conversation::WorkspaceId::new("test-workspace");
-        let fixture = Conversation::new(id, workspace_id);
+        let fixture = Conversation::new(id);
         let actual = render_conversation_html(&fixture);
 
         // We're verifying that the function runs without errors

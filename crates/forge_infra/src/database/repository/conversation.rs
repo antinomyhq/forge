@@ -1,9 +1,8 @@
-use std::ops::Deref;
 use std::sync::Arc;
 
 use chrono::{NaiveDateTime, Utc};
 use diesel::prelude::*;
-use forge_domain::{Context, Conversation, ConversationId, Environment, MetaData, WorkspaceId};
+use forge_domain::{Context, Conversation, ConversationId, MetaData, WorkspaceId};
 use forge_services::ConversationRepository;
 
 use crate::database::DatabasePool;
@@ -16,16 +15,15 @@ use crate::database::schema::conversations;
 struct ConversationRecord {
     conversation_id: String,
     title: Option<String>,
+    // FIXME: use u64
     workspace_id: String,
     context: Option<String>,
     created_at: NaiveDateTime,
     updated_at: Option<NaiveDateTime>,
 }
 
-impl TryFrom<&Conversation> for ConversationRecord {
-    type Error = anyhow::Error;
-
-    fn try_from(conversation: &Conversation) -> anyhow::Result<Self> {
+impl ConversationRecord {
+    fn new(conversation: Conversation, workspace_id: WorkspaceId) -> Self {
         let context = conversation
             .context
             .as_ref()
@@ -33,14 +31,14 @@ impl TryFrom<&Conversation> for ConversationRecord {
             .and_then(|ctx| serde_json::to_string(ctx).ok());
         let updated_at = context.as_ref().map(|_| Utc::now().naive_utc());
 
-        Ok(Self {
+        Self {
             conversation_id: conversation.id.into_string(),
             title: conversation.title.clone(),
-            workspace_id: conversation.workspace_id.deref().clone(),
             context,
             created_at: conversation.metadata.created_at.naive_utc(),
             updated_at,
-        })
+            workspace_id: workspace_id.to_string(),
+        }
     }
 }
 
@@ -48,11 +46,10 @@ impl TryFrom<ConversationRecord> for Conversation {
     type Error = anyhow::Error;
     fn try_from(record: ConversationRecord) -> anyhow::Result<Self> {
         let id = ConversationId::parse(record.conversation_id)?;
-        let workspace_id = WorkspaceId::new(record.workspace_id);
         let context = record
             .context
             .and_then(|ctx| serde_json::from_str::<Context>(&ctx).ok());
-        Ok(Conversation::new(id, workspace_id)
+        Ok(Conversation::new(id)
             .context(context)
             .title(record.title)
             .metadata(
@@ -64,12 +61,12 @@ impl TryFrom<ConversationRecord> for Conversation {
 
 pub struct ConversationRepositoryImpl {
     pool: Arc<DatabasePool>,
-    env: Environment,
+    wid: WorkspaceId,
 }
 
 impl ConversationRepositoryImpl {
-    pub fn new(pool: Arc<DatabasePool>, env: Environment) -> Self {
-        Self { pool, env }
+    pub fn new(pool: Arc<DatabasePool>, workspace_id: WorkspaceId) -> Self {
+        Self { pool, wid: workspace_id }
     }
 }
 
@@ -78,8 +75,8 @@ impl ConversationRepository for ConversationRepositoryImpl {
     async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()> {
         let mut connection = self.pool.get_connection()?;
 
-        let mut record = ConversationRecord::try_from(&conversation)?;
-        record.workspace_id = self.env.workspace_id().to_string();
+        let wid = self.wid;
+        let record = ConversationRecord::new(conversation, wid);
         diesel::insert_into(conversations::table)
             .values(&record)
             .on_conflict(conversations::conversation_id)
@@ -112,13 +109,11 @@ impl ConversationRepository for ConversationRepositoryImpl {
 
     async fn get_all_conversations(
         &self,
-        workspace_id: &WorkspaceId,
         limit: Option<usize>,
     ) -> anyhow::Result<Option<Vec<Conversation>>> {
         let mut connection = self.pool.get_connection()?;
 
         let mut query = conversations::table
-            .filter(conversations::workspace_id.eq(workspace_id.deref()))
             .order(conversations::created_at.desc())
             .into_boxed();
 
@@ -137,13 +132,9 @@ impl ConversationRepository for ConversationRepositoryImpl {
         Ok(Some(conversations?))
     }
 
-    async fn get_last_conversation(
-        &self,
-        workspace_id: &WorkspaceId,
-    ) -> anyhow::Result<Option<Conversation>> {
+    async fn get_last_conversation(&self) -> anyhow::Result<Option<Conversation>> {
         let mut connection = self.pool.get_connection()?;
         let record: Option<ConversationRecord> = conversations::table
-            .filter(conversations::workspace_id.eq(workspace_id.deref()))
             .filter(conversations::context.is_not_null())
             .order(conversations::updated_at.desc())
             .first(&mut connection)
@@ -160,43 +151,19 @@ impl ConversationRepository for ConversationRepositoryImpl {
 mod tests {
     use forge_domain::ContextMessage;
     use pretty_assertions::assert_eq;
-    use reqwest::Url;
 
     use super::*;
     use crate::database::DatabasePool;
 
     fn repository() -> anyhow::Result<ConversationRepositoryImpl> {
         let pool = Arc::new(DatabasePool::in_memory()?);
-        let env = Environment {
-            os: Default::default(),
-            pid: Default::default(),
-            cwd: Default::default(),
-            home: Default::default(),
-            shell: Default::default(),
-            base_path: Default::default(),
-            forge_api_url: Url::parse("http://api.forgecode.dev")?,
-            retry_config: Default::default(),
-            max_search_lines: Default::default(),
-            max_search_result_bytes: Default::default(),
-            fetch_truncation_limit: Default::default(),
-            stdout_max_prefix_length: Default::default(),
-            stdout_max_suffix_length: Default::default(),
-            stdout_max_line_length: Default::default(),
-            max_read_size: Default::default(),
-            http: Default::default(),
-            max_file_size: Default::default(),
-            tool_timeout: Default::default(),
-        };
-        Ok(ConversationRepositoryImpl::new(pool, env))
+        Ok(ConversationRepositoryImpl::new(pool, WorkspaceId::new(0)))
     }
 
     #[tokio::test]
     async fn test_upsert_and_find_by_id() -> anyhow::Result<()> {
-        let fixture = Conversation::new(
-            ConversationId::generate(),
-            WorkspaceId::new("workspace-456".to_string()),
-        )
-        .title(Some("Test Conversation".to_string()));
+        let fixture = Conversation::new(ConversationId::generate())
+            .title(Some("Test Conversation".to_string()));
         let repo = repository()?;
 
         repo.upsert_conversation(fixture.clone()).await?;
@@ -222,11 +189,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_upsert_updates_existing_conversation() -> anyhow::Result<()> {
-        let mut fixture = Conversation::new(
-            ConversationId::generate(),
-            WorkspaceId::new("workspace-456".to_string()),
-        )
-        .title(Some("Test Conversation".to_string()));
+        let mut fixture = Conversation::new(ConversationId::generate())
+            .title(Some("Test Conversation".to_string()));
         let repo = repository()?;
 
         // Insert initial conversation
@@ -243,25 +207,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_find_by_workspace_id_with_conversations() -> anyhow::Result<()> {
-        let conversation1 = Conversation::new(
-            ConversationId::generate(),
-            WorkspaceId::new("workspace-456".to_string()),
-        )
-        .title(Some("Test Conversation".to_string()));
-        let conversation2 = Conversation::new(
-            ConversationId::generate(),
-            WorkspaceId::new("workspace-456".to_string()),
-        )
-        .title(Some("Second Conversation".to_string()));
+    async fn test_find_all_conversations() -> anyhow::Result<()> {
+        let conversation1 = Conversation::new(ConversationId::generate())
+            .title(Some("Test Conversation".to_string()));
+        let conversation2 = Conversation::new(ConversationId::generate())
+            .title(Some("Second Conversation".to_string()));
         let repo = repository()?;
 
         repo.upsert_conversation(conversation1.clone()).await?;
         repo.upsert_conversation(conversation2.clone()).await?;
 
-        let actual = repo
-            .get_all_conversations(&WorkspaceId::new("workspace-456".to_string()), None)
-            .await?;
+        let actual = repo.get_all_conversations(None).await?;
 
         assert!(actual.is_some());
         let conversations = actual.unwrap();
@@ -270,24 +226,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_find_by_workspace_id_with_limit() -> anyhow::Result<()> {
-        let conversation1 = Conversation::new(
-            ConversationId::generate(),
-            WorkspaceId::new("workspace-456".to_string()),
-        )
-        .title(Some("Test Conversation".to_string()));
-        let conversation2 = Conversation::new(
-            ConversationId::generate(),
-            WorkspaceId::new("workspace-456".to_string()),
-        );
+    async fn test_find_all_conversations_with_limit() -> anyhow::Result<()> {
+        let conversation1 = Conversation::new(ConversationId::generate())
+            .title(Some("Test Conversation".to_string()));
+        let conversation2 = Conversation::new(ConversationId::generate());
         let repo = repository()?;
 
         repo.upsert_conversation(conversation1).await?;
         repo.upsert_conversation(conversation2).await?;
 
-        let actual = repo
-            .get_all_conversations(&WorkspaceId::new("workspace-456".to_string()), Some(1))
-            .await?;
+        let actual = repo.get_all_conversations(Some(1)).await?;
 
         assert!(actual.is_some());
         assert_eq!(actual.unwrap().len(), 1);
@@ -295,15 +243,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_find_by_workspace_id_no_conversations() -> anyhow::Result<()> {
+    async fn test_find_all_conversations_empty() -> anyhow::Result<()> {
         let repo = repository()?;
 
-        let actual = repo
-            .get_all_conversations(
-                &WorkspaceId::new("non-existing-workspace".to_string()),
-                None,
-            )
-            .await?;
+        let actual = repo.get_all_conversations(None).await?;
 
         assert!(actual.is_none());
         Ok(())
@@ -312,17 +255,11 @@ mod tests {
     #[tokio::test]
     async fn test_find_last_active_conversation_with_context() -> anyhow::Result<()> {
         let context = Context::default().messages(vec![ContextMessage::user("Hello", None)]);
-        let conversation_with_context = Conversation::new(
-            ConversationId::generate(),
-            WorkspaceId::new("workspace-456".to_string()),
-        )
-        .title(Some("Conversation with Context".to_string()))
-        .context(Some(context));
-        let conversation_without_context = Conversation::new(
-            ConversationId::generate(),
-            WorkspaceId::new("workspace-456".to_string()),
-        )
-        .title(Some("Test Conversation".to_string()));
+        let conversation_with_context = Conversation::new(ConversationId::generate())
+            .title(Some("Conversation with Context".to_string()))
+            .context(Some(context));
+        let conversation_without_context = Conversation::new(ConversationId::generate())
+            .title(Some("Test Conversation".to_string()));
         let repo = repository()?;
 
         repo.upsert_conversation(conversation_without_context)
@@ -330,9 +267,7 @@ mod tests {
         repo.upsert_conversation(conversation_with_context.clone())
             .await?;
 
-        let actual = repo
-            .get_last_conversation(&WorkspaceId::new("workspace-456".to_string()))
-            .await?;
+        let actual = repo.get_last_conversation().await?;
 
         assert!(actual.is_some());
         assert_eq!(actual.unwrap().id, conversation_with_context.id);
@@ -341,19 +276,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_last_active_conversation_no_context() -> anyhow::Result<()> {
-        let conversation_without_context = Conversation::new(
-            ConversationId::generate(),
-            WorkspaceId::new("workspace-456".to_string()),
-        )
-        .title(Some("Test Conversation".to_string()));
+        let conversation_without_context = Conversation::new(ConversationId::generate())
+            .title(Some("Test Conversation".to_string()));
         let repo = repository()?;
 
         repo.upsert_conversation(conversation_without_context)
             .await?;
 
-        let actual = repo
-            .get_last_conversation(&WorkspaceId::new("workspace-456".to_string()))
-            .await?;
+        let actual = repo.get_last_conversation().await?;
 
         assert!(actual.is_none());
         Ok(())
@@ -361,17 +291,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_last_active_conversation_ignores_empty_context() -> anyhow::Result<()> {
-        let conversation_with_empty_context = Conversation::new(
-            ConversationId::generate(),
-            WorkspaceId::new("workspace-456".to_string()),
-        )
-        .title(Some("Conversation with Empty Context".to_string()))
-        .context(Some(Context::default()));
-        let conversation_without_context = Conversation::new(
-            ConversationId::generate(),
-            WorkspaceId::new("workspace-456".to_string()),
-        )
-        .title(Some("Test Conversation".to_string()));
+        let conversation_with_empty_context = Conversation::new(ConversationId::generate())
+            .title(Some("Conversation with Empty Context".to_string()))
+            .context(Some(Context::default()));
+        let conversation_without_context = Conversation::new(ConversationId::generate())
+            .title(Some("Test Conversation".to_string()));
         let repo = repository()?;
 
         repo.upsert_conversation(conversation_without_context)
@@ -379,9 +303,7 @@ mod tests {
         repo.upsert_conversation(conversation_with_empty_context)
             .await?;
 
-        let actual = repo
-            .get_last_conversation(&WorkspaceId::new("workspace-456".to_string()))
-            .await?;
+        let actual = repo.get_last_conversation().await?;
 
         assert!(actual.is_none()); // Should not find conversations with empty contexts
         Ok(())
@@ -389,57 +311,49 @@ mod tests {
 
     #[test]
     fn test_conversation_record_from_conversation() -> anyhow::Result<()> {
-        let fixture = Conversation::new(
-            ConversationId::generate(),
-            WorkspaceId::new("workspace-456".to_string()),
-        )
-        .title(Some("Test Conversation".to_string()));
+        let fixture = Conversation::new(ConversationId::generate())
+            .title(Some("Test Conversation".to_string()));
 
-        let actual = ConversationRecord::try_from(&fixture)?;
+        let actual = ConversationRecord::new(fixture.clone(), WorkspaceId::new(0));
 
         assert_eq!(actual.conversation_id, fixture.id.into_string());
         assert_eq!(actual.title, Some("Test Conversation".to_string()));
-        assert_eq!(actual.workspace_id, "workspace-456");
-        assert_eq!(actual.context, None);
+
+        assert_eq!(actual.context, None);gst
+        
         Ok(())
     }
 
     #[test]
     fn test_conversation_record_from_conversation_with_context() -> anyhow::Result<()> {
         let context = Context::default().messages(vec![ContextMessage::user("Hello", None)]);
-        let fixture = Conversation::new(
-            ConversationId::generate(),
-            WorkspaceId::new("workspace-456".to_string()),
-        )
-        .title(Some("Conversation with Context".to_string()))
-        .context(Some(context));
+        let fixture = Conversation::new(ConversationId::generate())
+            .title(Some("Conversation with Context".to_string()))
+            .context(Some(context));
 
-        let actual = ConversationRecord::try_from(&fixture)?;
+        let actual = ConversationRecord::new(fixture.clone(), WorkspaceId::new(0));
 
         assert_eq!(actual.conversation_id, fixture.id.into_string());
         assert_eq!(actual.title, Some("Conversation with Context".to_string()));
-        assert_eq!(actual.workspace_id, "workspace-456");
+
         assert!(actual.context.is_some());
         Ok(())
     }
 
     #[test]
     fn test_conversation_record_from_conversation_with_empty_context() -> anyhow::Result<()> {
-        let fixture = Conversation::new(
-            ConversationId::generate(),
-            WorkspaceId::new("workspace-456".to_string()),
-        )
-        .title(Some("Conversation with Empty Context".to_string()))
-        .context(Some(Context::default()));
+        let fixture = Conversation::new(ConversationId::generate())
+            .title(Some("Conversation with Empty Context".to_string()))
+            .context(Some(Context::default()));
 
-        let actual = ConversationRecord::try_from(&fixture)?;
+        let actual = ConversationRecord::new(fixture.clone(), WorkspaceId::new(0));
 
         assert_eq!(actual.conversation_id, fixture.id.into_string());
         assert_eq!(
             actual.title,
             Some("Conversation with Empty Context".to_string())
         );
-        assert_eq!(actual.workspace_id, "workspace-456");
+
         assert!(actual.context.is_none()); // Empty context should be filtered out
         Ok(())
     }
@@ -450,10 +364,10 @@ mod tests {
         let fixture = ConversationRecord {
             conversation_id: test_id.into_string(),
             title: Some("Test Conversation".to_string()),
-            workspace_id: "workspace-456".to_string(),
             context: None,
             created_at: Utc::now().naive_utc(),
             updated_at: None,
+            workspace_id: "test_workspace".to_string(),
         };
 
         let actual = Conversation::try_from(fixture)?;

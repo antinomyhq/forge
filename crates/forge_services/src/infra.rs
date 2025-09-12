@@ -4,7 +4,7 @@ use anyhow::Result;
 use bytes::Bytes;
 use forge_app::domain::{
     CommandOutput, Conversation, ConversationId, Environment, McpServerConfig, ToolDefinition,
-    ToolName, ToolOutput, WorkspaceId,
+    ToolName, ToolOutput,
 };
 use forge_app::{WalkedFile, Walker};
 use forge_snaps::Snapshot;
@@ -231,11 +231,7 @@ pub trait ConversationRepository: Send + Sync {
     ) -> anyhow::Result<Option<Conversation>>;
     async fn get_all_conversations(
         &self,
-        workspace_id: &WorkspaceId,
         limit: Option<usize>,
     ) -> anyhow::Result<Option<Vec<Conversation>>>;
-    async fn get_last_conversation(
-        &self,
-        workspace_id: &WorkspaceId,
-    ) -> anyhow::Result<Option<Conversation>>;
+    async fn get_last_conversation(&self) -> anyhow::Result<Option<Conversation>>;
 }
