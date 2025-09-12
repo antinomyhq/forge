@@ -15,8 +15,7 @@ use crate::database::schema::conversations;
 struct ConversationRecord {
     conversation_id: String,
     title: Option<String>,
-    // FIXME: use u64
-    workspace_id: String,
+    workspace_id: i64,
     context: Option<String>,
     created_at: NaiveDateTime,
     updated_at: Option<NaiveDateTime>,
@@ -37,7 +36,7 @@ impl ConversationRecord {
             context,
             created_at: conversation.metadata.created_at.naive_utc(),
             updated_at,
-            workspace_id: workspace_id.to_string(),
+            workspace_id: workspace_id.id() as i64,
         }
     }
 }
@@ -366,7 +365,7 @@ mod tests {
             context: None,
             created_at: Utc::now().naive_utc(),
             updated_at: None,
-            workspace_id: "test_workspace".to_string(),
+            workspace_id: 0,
         };
 
         let actual = Conversation::try_from(fixture)?;

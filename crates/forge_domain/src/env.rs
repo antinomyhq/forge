@@ -115,6 +115,10 @@ impl WorkspaceId {
     pub fn new(id: u64) -> Self {
         WorkspaceId(id)
     }
+
+    pub fn id(&self) -> u64 {
+        self.0
+    }
 }
 
 #[cfg(test)]
