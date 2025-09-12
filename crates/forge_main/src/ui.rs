@@ -185,7 +185,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         // Display the banner in dimmed colors since we're in interactive mode
-        banner::display()?;
+        if self.cli.is_interactive() {
+            banner::display()?;
+        }
 
         self.init_state(true).await?;
         self.trace_user();
