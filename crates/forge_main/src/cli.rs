@@ -82,6 +82,7 @@ pub struct Cli {
 }
 
 impl Cli {
+    /// Checks if user is in is_interactive
     pub fn is_interactive(&self) -> bool {
         self.prompt.is_none()
             && self.event.is_none()
