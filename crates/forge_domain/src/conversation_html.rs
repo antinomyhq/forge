@@ -218,7 +218,7 @@ mod tests {
         // and returns a non-empty string for an empty conversation
         assert!(actual.contains("<html"));
         assert!(actual.contains("</html>"));
-        assert!(actual.contains("Conversation: "));
+        assert!(actual.contains("Title: "));
         assert!(actual.contains("Basic Information"));
         assert!(actual.contains("Conversation Context"));
     }
