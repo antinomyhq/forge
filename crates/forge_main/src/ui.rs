@@ -184,6 +184,18 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return self.handle_subcommands(mcp).await;
         }
 
+        // Display the banner in dimmed colors since we're in interactive mode
+        banner::display()?;
+
+        self.init_state(true).await?;
+        self.trace_user();
+        self.hydrate_caches();
+
+        // Handle --resume flag to automatically load last active conversation
+        if self.cli.resume {
+            self.handle_resume().await?;
+        }
+
         // Check for dispatch flag first
         if let Some(dispatch_json) = self.cli.event.clone() {
             return self.handle_dispatch(dispatch_json).await;
@@ -195,20 +207,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             self.on_message(Some(prompt)).await?;
             return Ok(());
         }
-
-        // Display the banner in dimmed colors since we're in interactive mode
-        banner::display()?;
-
-        self.init_state(true).await?;
-        self.trace_user();
-
-        // Handle --resume flag to automatically load last active conversation
-        if self.cli.resume {
-            self.handle_resume().await?;
-        }
-
-        // Hydrate the models cache
-        self.hydrate_caches();
 
         // Get initial input from file or prompt
         let mut command = match &self.cli.command {
