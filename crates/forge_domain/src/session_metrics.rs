@@ -42,8 +42,9 @@ impl Metrics {
     }
 
     /// Starts tracking session metrics
-    pub fn start(&mut self) {
-        self.started_at = Some(Utc::now());
+    pub fn with_time(mut self, started_at: DateTime<Utc>) -> Self {
+        self.started_at = Some(started_at);
+        self
     }
 
     pub fn record_file_operation(&mut self, path: String, lines_added: u64, lines_removed: u64) {

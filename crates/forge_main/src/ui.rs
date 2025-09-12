@@ -3,6 +3,7 @@ use std::fmt::Display;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use chrono::{DateTime, Local};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
@@ -31,6 +32,9 @@ use crate::state::UIState;
 use crate::title_display::TitleDisplayExt;
 use crate::update::on_update;
 use crate::{TRACKER, banner, tracker};
+
+// Configuration constants
+const MAX_CONVERSATIONS_TO_SHOW: usize = 20;
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, Default)]
 pub struct PartialEvent {
@@ -180,6 +184,18 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return self.handle_subcommands(mcp).await;
         }
 
+        // Display the banner in dimmed colors since we're in interactive mode
+        banner::display()?;
+
+        self.init_state(true).await?;
+        self.trace_user();
+        self.hydrate_caches();
+
+        // Handle --resume flag to automatically load last active conversation
+        if self.cli.resume {
+            self.handle_resume().await?;
+        }
+
         // Check for dispatch flag first
         if let Some(dispatch_json) = self.cli.event.clone() {
             return self.handle_dispatch(dispatch_json).await;
@@ -188,18 +204,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Handle direct prompt if provided
         let prompt = self.cli.prompt.clone();
         if let Some(prompt) = prompt {
+            self.spinner.start(None)?;
             self.on_message(Some(prompt)).await?;
             return Ok(());
         }
-
-        // Display the banner in dimmed colors since we're in interactive mode
-        banner::display()?;
-
-        self.init_state(true).await?;
-        self.trace_user();
-
-        // Hydrate the models cache
-        self.hydrate_caches();
 
         // Get initial input from file or prompt
         let mut command = match &self.cli.command {
@@ -244,6 +252,26 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         tokio::spawn(async move { api.tools().await });
         let api = self.api.clone();
         tokio::spawn(async move { api.get_agents().await });
+    }
+
+    /// Handle the --resume flag to automatically load last active conversation
+    async fn handle_resume(&mut self) -> Result<()> {
+        self.spinner
+            .start(Some("Loading last active conversation"))?;
+        if let Some(conversation) = self.api.last_conversation().await? {
+            self.state.conversation_id = Some(conversation.id);
+            self.writeln_title(TitleFormat::info(format!(
+                "Resumed conversation: '{}'",
+                conversation
+                    .title
+                    .clone()
+                    .unwrap_or(conversation.id.to_string())
+            )))?;
+        } else {
+            self.writeln_title(TitleFormat::error("No active conversation found to resume"))?;
+        }
+        self.spinner.stop(None)?;
+        Ok(())
     }
 
     async fn handle_subcommands(&mut self, subcommand: TopLevelCommand) -> anyhow::Result<()> {
@@ -365,8 +393,49 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .collect::<Vec<_>>())
     }
 
+    async fn list_conversations(&mut self) -> anyhow::Result<()> {
+        self.spinner.start(Some("Loading Conversations"))?;
+        let conversations = self
+            .api
+            .list_conversations(Some(MAX_CONVERSATIONS_TO_SHOW))
+            .await?;
+        self.spinner.stop(None)?;
+
+        if conversations.is_empty() {
+            self.writeln_title(TitleFormat::error(
+                "No conversations found in this workspace.",
+            ))?;
+            return Ok(());
+        }
+
+        let titles: Vec<String> = conversations
+            .iter()
+            .map(|c| {
+                let title = c.title.clone().unwrap_or_else(|| c.id.to_string());
+                // Convert from UTC to local.
+                let date = c.metadata.updated_at.unwrap_or(c.metadata.created_at);
+                let local_date: DateTime<Local> = date.with_timezone(&Local);
+                let formatted_date = local_date.format("%Y-%m-%d %H:%M").to_string();
+                format!("{title:<60} {formatted_date}")
+            })
+            .collect();
+
+        if let Some(selected_title) =
+            ForgeSelect::select("Select the conversation to resume", titles.clone())
+                .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
+                .prompt()?
+            && let Some(position) = titles.iter().position(|title| title == &selected_title)
+        {
+            self.state.conversation_id = Some(conversations[position].id);
+        }
+        Ok(())
+    }
+
     async fn on_command(&mut self, command: Command) -> anyhow::Result<bool> {
         match command {
+            Command::Conversations => {
+                self.list_conversations().await?;
+            }
             Command::Compact => {
                 self.spinner.start(Some("Compacting"))?;
                 self.on_compaction().await?;

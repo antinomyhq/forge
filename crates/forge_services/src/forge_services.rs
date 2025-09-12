@@ -21,9 +21,9 @@ use crate::tool_services::{
 };
 use crate::workflow::ForgeWorkflowService;
 use crate::{
-    CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
-    FileReaderInfra, FileRemoverInfra, FileWriterInfra, McpServerInfra, SnapshotInfra, UserInfra,
-    WalkerInfra,
+    CommandInfra, ConversationRepository, DirectoryReaderInfra, EnvironmentInfra,
+    FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
+    McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
 };
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client>;
@@ -38,7 +38,7 @@ type AuthService<F> = ForgeAuthService<F>;
 #[derive(Clone)]
 pub struct ForgeServices<F: HttpInfra + EnvironmentInfra + McpServerInfra + WalkerInfra> {
     chat_service: Arc<ForgeProviderService<F>>,
-    conversation_service: Arc<ForgeConversationService>,
+    conversation_service: Arc<ForgeConversationService<F>>,
     template_service: Arc<ForgeTemplateService<F>>,
     attachment_service: Arc<ForgeChatRequest<F>>,
     workflow_service: Arc<ForgeWorkflowService<F>>,
@@ -74,7 +74,8 @@ impl<
         + WalkerInfra
         + DirectoryReaderInfra
         + CommandInfra
-        + UserInfra,
+        + UserInfra
+        + ConversationRepository,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -84,7 +85,7 @@ impl<
         let attachment_service = Arc::new(ForgeChatRequest::new(infra.clone()));
         let workflow_service = Arc::new(ForgeWorkflowService::new(infra.clone()));
         let suggestion_service = Arc::new(ForgeDiscoveryService::new(infra.clone()));
-        let conversation_service = Arc::new(ForgeConversationService::new());
+        let conversation_service = Arc::new(ForgeConversationService::new(infra.clone()));
         let config_service = Arc::new(ForgeConfigService::new(infra.clone()));
         let auth_service = Arc::new(ForgeAuthService::new(infra.clone()));
         let chat_service = Arc::new(ForgeProviderService::<F>::new(infra.clone()));
@@ -149,11 +150,12 @@ impl<
         + DirectoryReaderInfra
         + HttpInfra
         + WalkerInfra
+        + ConversationRepository
         + Clone,
 > Services for ForgeServices<F>
 {
     type ProviderService = ForgeProviderService<F>;
-    type ConversationService = ForgeConversationService;
+    type ConversationService = ForgeConversationService<F>;
     type TemplateService = ForgeTemplateService<F>;
     type AttachmentService = ForgeChatRequest<F>;
     type EnvironmentService = ForgeEnvironmentService<F>;
