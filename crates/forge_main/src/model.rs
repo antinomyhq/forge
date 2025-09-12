@@ -188,6 +188,7 @@ impl ForgeCommandManager {
             "/login" => Ok(Command::Login),
             "/logout" => Ok(Command::Logout),
             "/retry" => Ok(Command::Retry),
+            "/conversations" | "/list" => Ok(Command::Conversations),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -296,6 +297,9 @@ pub enum Command {
     /// Retry without modifying model context
     #[strum(props(usage = "Retry the last command"))]
     Retry,
+    /// List all conversations for the active workspace
+    #[strum(props(usage = "List all conversations for the active workspace"))]
+    Conversations,
 }
 
 impl Command {
@@ -321,6 +325,7 @@ impl Command {
             Command::Login => "/login",
             Command::Logout => "/logout",
             Command::Retry => "/retry",
+            Command::Conversations => "/conversations",
         }
     }
 
@@ -527,6 +532,36 @@ mod tests {
         assert!(
             !contains_shell,
             "Shell command should not be in default commands"
+        );
+    }
+    #[test]
+    fn test_parse_list_command() {
+        // Setup
+        let cmd_manager = ForgeCommandManager::default();
+
+        // Execute
+        let result = cmd_manager.parse("/conversations").unwrap();
+
+        // Verify
+        match result {
+            Command::Conversations => {
+                // Command parsed correctly
+            }
+            _ => panic!("Expected List command, got {result:?}"),
+        }
+    }
+
+    #[test]
+    fn test_list_command_in_default_commands() {
+        // Setup
+        let manager = ForgeCommandManager::default();
+        let commands = manager.list();
+
+        // The list command should be included
+        let contains_list = commands.iter().any(|cmd| cmd.name == "/conversations");
+        assert!(
+            contains_list,
+            "Conversations command should be in default commands"
         );
     }
 }

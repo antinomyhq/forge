@@ -214,6 +214,13 @@ switch the model using `/model` command in the Forge CLI.
 ZAI_API_KEY=<your_zai_api_key>
 ```
 
+If you have a coding plan subscription, instead of setting `ZAI_API_KEY`, set `ZAI_CODING_API_KEY` and Forge will use your coding plan instead of standard API pricing:
+
+```bash
+# .env
+ZAI_CODING_API_KEY=<your_zai_coding_api_key>
+```
+
 switch the model using `/model` command in the Forge CLI.
 
 </details>

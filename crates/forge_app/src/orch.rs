@@ -11,6 +11,7 @@ use tracing::{debug, info, warn};
 
 use crate::agent::AgentService;
 use crate::compact::Compactor;
+use crate::title_generator::TitleGenerator;
 
 #[derive(Clone, Setters)]
 #[setters(into, strip_option)]
@@ -355,6 +356,7 @@ impl<S: AgentService> Orchestrator<S> {
 
         // Store tool calls at turn level
         let mut turn_has_tool_calls = false;
+        let title_generator = TitleGenerator::new(self.services.clone());
 
         let tool_context =
             ToolCallContext::new(self.conversation.metrics.clone()).sender(self.sender.clone());
@@ -383,8 +385,15 @@ impl<S: AgentService> Orchestrator<S> {
                 }),
             );
 
-            // Prepare compaction task that runs in parallel
+            // Generate title only if conversation doesn't have any title.
+            use futures::future::{Either, ready};
+            let title_generator_future: Either<_, _> = if self.conversation.title.is_none() {
+                Either::Left(title_generator.generate(&context, &model_id))
+            } else {
+                Either::Right(ready(Ok::<Option<String>, anyhow::Error>(None)))
+            };
 
+            // Prepare compaction task that runs in parallel
             // Execute both operations in parallel
             let (
                 ChatCompletionMessageFull {
@@ -396,7 +405,19 @@ impl<S: AgentService> Orchestrator<S> {
                     finish_reason,
                 },
                 compaction_result,
-            ) = tokio::try_join!(main_request, self.check_and_compact(&context))?;
+                conversation_title,
+            ) = tokio::try_join!(
+                main_request,
+                self.check_and_compact(&context),
+                title_generator_future
+            )?;
+
+            // If conversation_title is generated then update the conversation with it's
+            // title.
+            if let Some(title) = conversation_title {
+                debug!(conversation_id = %self.conversation.id, title, "Title generated for conversation");
+                self.conversation.title = Some(title);
+            }
 
             // Apply compaction result if it completed successfully
             match compaction_result {

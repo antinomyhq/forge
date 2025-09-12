@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_app::domain::{
-    CommandOutput, Environment, McpServerConfig, ToolDefinition, ToolName, ToolOutput,
+    CommandOutput, Conversation, ConversationId, Environment, McpServerConfig, ToolDefinition,
+    ToolName, ToolOutput,
 };
 use forge_app::{WalkedFile, Walker};
 use forge_snaps::Snapshot;
@@ -219,4 +220,18 @@ pub trait DirectoryReaderInfra: Send + Sync {
         directory: &Path,
         pattern: Option<&str>, // Optional glob pattern like "*.md"
     ) -> anyhow::Result<Vec<(PathBuf, String)>>;
+}
+
+#[async_trait::async_trait]
+pub trait ConversationRepository: Send + Sync {
+    async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()>;
+    async fn get_conversation(
+        &self,
+        conversation_id: &ConversationId,
+    ) -> anyhow::Result<Option<Conversation>>;
+    async fn get_all_conversations(
+        &self,
+        limit: Option<usize>,
+    ) -> anyhow::Result<Option<Vec<Conversation>>>;
+    async fn get_last_conversation(&self) -> anyhow::Result<Option<Conversation>>;
 }
