@@ -112,7 +112,9 @@ impl ConversationRepository for ConversationRepositoryImpl {
     ) -> anyhow::Result<Option<Vec<Conversation>>> {
         let mut connection = self.pool.get_connection()?;
 
+        let workspace_id = self.wid.id() as i64;
         let mut query = conversations::table
+            .filter(conversations::workspace_id.eq(&workspace_id))
             .order(conversations::created_at.desc())
             .into_boxed();
 
@@ -133,7 +135,9 @@ impl ConversationRepository for ConversationRepositoryImpl {
 
     async fn get_last_conversation(&self) -> anyhow::Result<Option<Conversation>> {
         let mut connection = self.pool.get_connection()?;
+        let workspace_id = self.wid.id() as i64;
         let record: Option<ConversationRecord> = conversations::table
+            .filter(conversations::workspace_id.eq(&workspace_id))
             .filter(conversations::context.is_not_null())
             .order(conversations::updated_at.desc())
             .first(&mut connection)
