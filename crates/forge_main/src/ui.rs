@@ -65,6 +65,7 @@ pub struct UI<A, F: Fn() -> A> {
     spinner: SpinnerManager,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
+    models_cache: Option<Vec<Model>>,
 }
 
 impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
@@ -79,12 +80,25 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.spinner.write_ln(title.display())
     }
 
-    /// Retrieve available models
+    /// Retrieve available models with caching
     async fn get_models(&mut self) -> Result<Vec<Model>> {
+        if let Some(ref cached_models) = self.models_cache {
+            return Ok(cached_models.clone());
+        }
+
         self.spinner.start(Some("Loading"))?;
         let models = self.api.models().await?;
         self.spinner.stop(None)?;
+
+        // Cache the models
+        self.models_cache = Some(models.clone());
         Ok(models)
+    }
+
+    /// Check if a model is available in the provider's model list
+    async fn is_model_available(&mut self, model_id: &ModelId) -> Result<bool> {
+        let available_models = self.get_models().await?;
+        Ok(available_models.iter().any(|model| &model.id == model_id))
     }
 
     // Handle creating a new conversation
@@ -161,6 +175,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             spinner: SpinnerManager::new(),
             markdown: MarkdownFormat::new(),
             _guard: forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?,
+            models_cache: None,
         })
     }
 
@@ -693,7 +708,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn init_state(&mut self, first: bool) -> Result<Workflow> {
         let provider = self.init_provider().await?;
         let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
-        if workflow.model.is_none() {
+        let model_available = match workflow.model.as_ref() {
+            Some(m) => self.is_model_available(m).await.unwrap_or(false),
+            None => false,
+        };
+
+        if !model_available {
             workflow.model = Some(
                 self.select_model()
                     .await?
