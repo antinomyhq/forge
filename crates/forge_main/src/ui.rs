@@ -87,12 +87,20 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(models)
     }
 
+    /// Displays banner only if user is in interactive mode.
+    fn display_banner(&self) -> Result<()> {
+        if self.cli.is_interactive() {
+            banner::display()?;
+        }
+        Ok(())
+    }
+
     // Handle creating a new conversation
     async fn on_new(&mut self) -> Result<()> {
         self.api = Arc::new((self.new_api)());
         self.init_state(false).await?;
         self.cli.conversation = None;
-        banner::display()?;
+        self.display_banner()?;
         self.trace_user();
         self.hydrate_caches();
         Ok(())
@@ -241,9 +249,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return self.handle_subcommands(mcp).await;
         }
 
-        // Display the banner in dimmed colors since we're in interactive mode
-        banner::display()?;
-
+        // // Display the banner in dimmed colors since we're in interactive mode
+        self.display_banner()?;
         self.init_state(true).await?;
         self.trace_user();
         self.hydrate_caches();
