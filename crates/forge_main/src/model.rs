@@ -188,7 +188,7 @@ impl ForgeCommandManager {
             "/login" => Ok(Command::Login),
             "/logout" => Ok(Command::Logout),
             "/retry" => Ok(Command::Retry),
-            "/list" => Ok(Command::List),
+            "/conversations" => Ok(Command::Conversations),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -299,7 +299,7 @@ pub enum Command {
     Retry,
     /// List all conversations for the active workspace
     #[strum(props(usage = "List all conversations for the active workspace"))]
-    List,
+    Conversations,
 }
 
 impl Command {
@@ -325,7 +325,7 @@ impl Command {
             Command::Login => "/login",
             Command::Logout => "/logout",
             Command::Retry => "/retry",
-            Command::List => "/list",
+            Command::Conversations => "/conversations",
         }
     }
 
@@ -544,7 +544,7 @@ mod tests {
 
         // Verify
         match result {
-            Command::List => {
+            Command::Conversations => {
                 // Command parsed correctly
             }
             _ => panic!("Expected List command, got {result:?}"),

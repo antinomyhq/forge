@@ -392,7 +392,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .collect::<Vec<_>>())
     }
 
-    async fn on_list(&mut self) -> anyhow::Result<()> {
+    async fn list_conversations(&mut self) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Conversations"))?;
         let conversations = self
             .api
@@ -432,8 +432,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn on_command(&mut self, command: Command) -> anyhow::Result<bool> {
         match command {
-            Command::List => {
-                self.on_list().await?;
+            Command::Conversations => {
+                self.list_conversations().await?;
             }
             Command::Compact => {
                 self.spinner.start(Some("Compacting"))?;
