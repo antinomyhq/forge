@@ -87,7 +87,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(models)
     }
 
-    /// Displays banner only if it's interactive mode.
+    /// Displays banner only if user is in interactive mode.
     fn display_banner(&self) -> Result<()> {
         if self.cli.is_interactive() {
             banner::display()?;
