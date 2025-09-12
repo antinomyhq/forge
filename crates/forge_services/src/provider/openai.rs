@@ -71,7 +71,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
     }
 
     async fn inner_models(&self) -> Result<Vec<forge_app::domain::Model>> {
-        let url = join_url(self.provider.to_base_url().as_str(), "models")?;
+        let url = self.provider.model_url();
         debug!(url = %url, "Fetching models");
         match self.fetch_models(url.as_str()).await {
             Err(error) => {
