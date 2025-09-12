@@ -35,6 +35,26 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         headers
     }
 
+    /// Creates headers including Session-Id for zai and zai_coding providers
+    fn get_headers_with_request(&self, request: &Request) -> Vec<(String, String)> {
+        let mut headers = self.get_headers();
+        // Add Session-Id header for zai and zai_coding providers
+        if (self.provider.is_zai() || self.provider.is_zai_coding()) && request.session_id.is_some()
+        {
+            headers.push((
+                "Session-Id".to_string(),
+                request.session_id.clone().unwrap(),
+            ));
+            debug!(
+                provider = %self.provider.to_base_url(),
+                session_id = %request.session_id.as_ref().unwrap(),
+                "Added Session-Id header for zai provider"
+            );
+        }
+
+        headers
+    }
+
     async fn inner_chat(
         &self,
         model: &ModelId,
@@ -45,7 +65,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         request = pipeline.transform(request);
 
         let url = join_url(self.provider.to_base_url().as_str(), "chat/completions")?;
-        let headers = create_headers(self.get_headers());
+        let headers = create_headers(self.get_headers_with_request(&request));
 
         info!(
             url = %url,
@@ -315,6 +335,148 @@ mod tests {
         let message = ChatCompletionMessage::try_from(message.clone());
 
         assert!(message.is_err());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_headers_with_request_zai_provider() -> anyhow::Result<()> {
+        let provider = Provider::zai("test-key");
+        let http_client = Arc::new(MockHttpClient::new());
+        let openai_provider = OpenAIProvider::new(provider, http_client);
+
+        // Create a request with session_id
+        let mut request = Request::default();
+        request.session_id = Some("test-conversation-id".to_string());
+
+        let headers = openai_provider.get_headers_with_request(&request);
+
+        // Should have Authorization and Session-Id headers
+        assert_eq!(headers.len(), 2);
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
+        );
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "Session-Id" && v == "test-conversation-id")
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_headers_with_request_zai_coding_provider() -> anyhow::Result<()> {
+        let provider = Provider::zai_coding("test-key");
+        let http_client = Arc::new(MockHttpClient::new());
+        let openai_provider = OpenAIProvider::new(provider, http_client);
+
+        // Create a request with session_id
+        let mut request = Request::default();
+        request.session_id = Some("test-conversation-id".to_string());
+
+        let headers = openai_provider.get_headers_with_request(&request);
+
+        // Should have Authorization and Session-Id headers
+        assert_eq!(headers.len(), 2);
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
+        );
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "Session-Id" && v == "test-conversation-id")
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_headers_with_request_openai_provider() -> anyhow::Result<()> {
+        let provider = Provider::openai("test-key");
+        let http_client = Arc::new(MockHttpClient::new());
+        let openai_provider = OpenAIProvider::new(provider, http_client);
+
+        // Create a request with session_id
+        let mut request = Request::default();
+        request.session_id = Some("test-conversation-id".to_string());
+
+        let headers = openai_provider.get_headers_with_request(&request);
+
+        // Should only have Authorization header (no Session-Id for non-zai providers)
+        assert_eq!(headers.len(), 1);
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
+        );
+        assert!(!headers.iter().any(|(k, _)| k == "Session-Id"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_headers_with_request_zai_provider_no_session_id() -> anyhow::Result<()> {
+        let provider = Provider::zai("test-key");
+        let http_client = Arc::new(MockHttpClient::new());
+        let openai_provider = OpenAIProvider::new(provider, http_client);
+
+        // Create a request without session_id
+        let request = Request::default();
+
+        let headers = openai_provider.get_headers_with_request(&request);
+
+        // Should only have Authorization header (no Session-Id when session_id is None)
+        assert_eq!(headers.len(), 1);
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
+        );
+        assert!(!headers.iter().any(|(k, _)| k == "Session-Id"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_headers_with_request_anthropic_provider() -> anyhow::Result<()> {
+        let provider = Provider::anthropic("test-key");
+        let http_client = Arc::new(MockHttpClient::new());
+        let openai_provider = OpenAIProvider::new(provider, http_client);
+
+        // Create a request with session_id
+        let mut request = Request::default();
+        request.session_id = Some("test-conversation-id".to_string());
+
+        let headers = openai_provider.get_headers_with_request(&request);
+
+        // Should only have Authorization header (no Session-Id for Anthropic providers)
+        assert_eq!(headers.len(), 1);
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
+        );
+        assert!(!headers.iter().any(|(k, _)| k == "Session-Id"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_headers_fallback() -> anyhow::Result<()> {
+        let provider = Provider::zai("test-key");
+        let http_client = Arc::new(MockHttpClient::new());
+        let openai_provider = OpenAIProvider::new(provider, http_client);
+
+        let headers = openai_provider.get_headers();
+
+        // Should only have Authorization header (fallback method doesn't add
+        // Session-Id)
+        assert_eq!(headers.len(), 1);
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
+        );
+        assert!(!headers.iter().any(|(k, _)| k == "Session-Id"));
         Ok(())
     }
 }
