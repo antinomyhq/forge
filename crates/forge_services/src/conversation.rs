@@ -1,63 +1,74 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
-use anyhow::{Context as AnyhowContext, Result};
+use anyhow::Result;
 use forge_app::ConversationService;
 use forge_app::domain::{Conversation, ConversationId};
-use tokio::sync::Mutex;
+
+use crate::ConversationRepository;
 
 /// Service for managing conversations, including creation, retrieval, and
 /// updates
 #[derive(Clone)]
-pub struct ForgeConversationService {
-    conversations: Arc<Mutex<HashMap<ConversationId, Conversation>>>,
+pub struct ForgeConversationService<S> {
+    conversation_repository: Arc<S>,
 }
 
-impl Default for ForgeConversationService {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl ForgeConversationService {
-    /// Creates a new ForgeConversationService with the provided MCP service
-    pub fn new() -> Self {
-        Self { conversations: Arc::new(Mutex::new(HashMap::new())) }
+impl<S: ConversationRepository> ForgeConversationService<S> {
+    /// Creates a new ForgeConversationService with the provided repository
+    pub fn new(repo: Arc<S>) -> Self {
+        Self { conversation_repository: repo }
     }
 }
 
 #[async_trait::async_trait]
-impl ConversationService for ForgeConversationService {
+impl<S: ConversationRepository> ConversationService for ForgeConversationService<S> {
     async fn modify_conversation<F, T>(&self, id: &ConversationId, f: F) -> Result<T>
     where
         F: FnOnce(&mut Conversation) -> T + Send,
+        T: Send,
     {
-        let mut conversation = self.conversations.lock().await;
-        let conversation = conversation.get_mut(id).context("Conversation not found")?;
-        Ok(f(conversation))
+        let mut conversation = self
+            .conversation_repository
+            .get_conversation(id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Conversation not found: {}", id))?;
+        let out = f(&mut conversation);
+        let _ = self
+            .conversation_repository
+            .upsert_conversation(conversation)
+            .await?;
+        Ok(out)
     }
 
     async fn find_conversation(&self, id: &ConversationId) -> Result<Option<Conversation>> {
-        Ok(self.conversations.lock().await.get(id).cloned())
+        self.conversation_repository.get_conversation(id).await
     }
 
     async fn upsert_conversation(&self, conversation: Conversation) -> Result<()> {
-        self.conversations
-            .lock()
-            .await
-            .insert(conversation.id, conversation);
+        let _ = self
+            .conversation_repository
+            .upsert_conversation(conversation)
+            .await?;
         Ok(())
     }
 
     async fn init_conversation(&self) -> Result<Conversation> {
         let id = ConversationId::generate();
-
         let conversation = Conversation::new(id);
-
-        self.conversations
-            .lock()
-            .await
-            .insert(id, conversation.clone());
+        let _ = self
+            .conversation_repository
+            .upsert_conversation(conversation.clone())
+            .await?;
         Ok(conversation)
+    }
+
+    async fn get_conversations(&self, limit: Option<usize>) -> Result<Option<Vec<Conversation>>> {
+        self.conversation_repository
+            .get_all_conversations(limit)
+            .await
+    }
+
+    async fn last_conversation(&self) -> Result<Option<Conversation>> {
+        self.conversation_repository.get_last_conversation().await
     }
 }

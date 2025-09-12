@@ -23,6 +23,7 @@ pub struct TestContext {
     pub files: Vec<String>,
     pub env: Environment,
     pub current_time: DateTime<Local>,
+    pub title: Option<String>,
 
     // Final output of the test is store in the context
     pub output: TestOutput,
@@ -77,6 +78,7 @@ impl TestContext {
                 max_search_result_bytes: 200,
                 stdout_max_line_length: 200, // 5 MB
             },
+            title: Some("test-conversation".into()),
             agent: Agent::new(AgentId::new("forge"))
                 .system_prompt(Template::new("You are Forge"))
                 .tools(vec![("fs_read").into(), ("fs_write").into()]),

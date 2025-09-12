@@ -405,6 +405,7 @@ pub fn format_reset_time(seconds: u64) -> String {
 mod tests {
     use std::path::PathBuf;
 
+    use chrono::Utc;
     use forge_api::Environment;
     use pretty_assertions::assert_eq;
 
@@ -581,8 +582,7 @@ mod tests {
     fn test_metrics_info_display() {
         use forge_api::Metrics;
 
-        let mut fixture = Metrics::new();
-        fixture.start();
+        let mut fixture = Metrics::new().with_time(Utc::now());
         fixture.record_file_operation("src/main.rs".to_string(), 12, 3);
         fixture.record_file_operation("src/agent/mod.rs".to_string(), 8, 2);
         fixture.record_file_operation("tests/integration/test_agent.rs".to_string(), 5, 0);

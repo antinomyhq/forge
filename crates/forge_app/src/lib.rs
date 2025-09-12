@@ -13,6 +13,7 @@ mod orch;
 mod orch_spec;
 mod retry;
 mod services;
+mod title_generator;
 mod tool_executor;
 mod tool_registry;
 mod truncation;

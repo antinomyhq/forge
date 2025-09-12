@@ -67,7 +67,9 @@ impl Runner {
         });
 
         let services = Arc::new(Runner::new(setup));
-        let conversation = Conversation::new(ConversationId::generate());
+        // setup the conversation
+        let conversation = Conversation::new(ConversationId::generate()).title(setup.title.clone());
+
         let agent = setup.agent.clone();
         let event = setup.event.clone();
         let system_tools = setup.tools.clone();
