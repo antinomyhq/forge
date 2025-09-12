@@ -319,8 +319,7 @@ mod tests {
         assert_eq!(actual.conversation_id, fixture.id.into_string());
         assert_eq!(actual.title, Some("Test Conversation".to_string()));
 
-        assert_eq!(actual.context, None);gst
-        
+        assert_eq!(actual.context, None);
         Ok(())
     }
 
