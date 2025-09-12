@@ -855,7 +855,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let info = Info::default()
             .extend(Info::from(&metrics))
             .extend(get_usage(&self.state));
-        
+
         // if let Ok(Some(usage)) = self.api.user_usage().await {
         //     info = info.extend(Info::from(&usage));
         // }
