@@ -921,17 +921,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_completion(&mut self, metrics: Metrics) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Summary"))?;
 
-        let mut info = Info::default();
+        let info = Info::default()
+            .extend(Info::from(&metrics))
+            .extend(get_usage(&self.state));
 
-        // Show summary
-        info = info.extend(Info::from(&metrics));
-
-        // Fetch Usage
-        info = info.extend(get_usage(&self.state));
-
-        if let Ok(Some(usage)) = self.api.user_usage().await {
-            info = info.extend(Info::from(&usage));
-        }
+        // if let Ok(Some(usage)) = self.api.user_usage().await {
+        //     info = info.extend(Info::from(&usage));
+        // }
 
         self.writeln(info)?;
 
