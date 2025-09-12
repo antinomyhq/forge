@@ -7,3 +7,5 @@ mod tool_choice;
 mod when_model;
 
 pub use pipeline::ProviderPipeline;
+
+mod qwen3_defaults;

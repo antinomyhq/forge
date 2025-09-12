@@ -3,6 +3,7 @@ use forge_domain::{DefaultTransformation, Provider, Transformer};
 use super::drop_tool_call::DropToolCalls;
 use super::make_cerebras_compat::MakeCerebrasCompat;
 use super::make_openai_compat::MakeOpenAiCompat;
+use super::qwen3_defaults::Qwen3DefaultParameters;
 use super::set_cache::SetCache;
 use super::tool_choice::SetToolChoice;
 use super::when_model::when_model;
@@ -26,9 +27,10 @@ impl Transformer for ProviderPipeline<'_> {
         // ref: https://openrouter.ai/docs/features/prompt-caching
         let provider = self.0;
         let or_transformers = DefaultTransformation::<Request>::new()
+            .pipe(Qwen3DefaultParameters::new().when(when_model("qwen")))
             .pipe(DropToolCalls.when(when_model("mistral")))
             .pipe(SetToolChoice::new(ToolChoice::Auto).when(when_model("gemini")))
-            .pipe(SetCache.when(when_model("gemini|anthropic")))
+            .pipe(SetCache.when(when_model("gemini|anthropic|qwen")))
             .when(move |_| supports_open_router_params(provider));
 
         let open_ai_compat = MakeOpenAiCompat.when(move |_| !supports_open_router_params(provider));
@@ -47,6 +49,8 @@ fn supports_open_router_params(provider: &Provider) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use forge_domain::ModelId;
+
     use super::*;
 
     #[test]
@@ -62,5 +66,52 @@ mod tests {
         )));
         assert!(!supports_open_router_params(&Provider::xai("xai")));
         assert!(!supports_open_router_params(&Provider::anthropic("claude")));
+    }
+
+    #[test]
+    fn test_qwen3_defaults_applied_through_pipeline() {
+        // Fixture: Qwen model request with open router provider
+        let fixture = Request::default().model(ModelId::new("qwen/qwen3-235b-a22b"));
+        let provider = Provider::open_router("open-router");
+
+        // Execute
+        let mut pipeline = ProviderPipeline::new(&provider);
+        let actual = pipeline.transform(fixture);
+
+        // Expected: Qwen3 defaults applied through pipeline
+        assert_eq!(actual.temperature, Some(0.7));
+        assert_eq!(actual.repetition_penalty, Some(1.05));
+    }
+
+    #[test]
+    fn test_qwen3_defaults_not_applied_for_non_qwen_models() {
+        // Fixture: Non-Qwen model request with open router provider
+        let fixture = Request::default().model(ModelId::new("anthropic/claude-3"));
+        let provider = Provider::open_router("open-router");
+
+        // Execute
+        let mut pipeline = ProviderPipeline::new(&provider);
+        let actual = pipeline.transform(fixture);
+
+        // Expected: No Qwen3 defaults applied
+        assert_eq!(actual.temperature, None);
+        assert_eq!(actual.repetition_penalty, None);
+    }
+
+    #[test]
+    fn test_qwen3_defaults_respect_existing_values() {
+        // Fixture: Qwen model request with existing temperature
+        let fixture = Request::default()
+            .model(ModelId::new("qwen/qwen3-235b-a22b"))
+            .temperature(0.5);
+        let provider = Provider::open_router("open-router");
+
+        // Execute
+        let mut pipeline = ProviderPipeline::new(&provider);
+        let actual = pipeline.transform(fixture);
+
+        // Expected: Existing temperature preserved, only repetition_penalty added
+        assert_eq!(actual.temperature, Some(0.5)); // Preserved
+        assert_eq!(actual.repetition_penalty, Some(1.05)); // Applied
     }
 }
