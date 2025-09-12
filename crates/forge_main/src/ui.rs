@@ -149,7 +149,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Set the active profile
         self.api.set_active_profile(profile_name.clone()).await?;
-        self.writeln_title(TitleFormat::action(format!("Selected profile: {profile_name}")))?;
+        self.writeln_title(TitleFormat::action(format!(
+            "Selected profile: {profile_name}"
+        )))?;
 
         if let Some(model) = &selected_profile.model {
             self.api
