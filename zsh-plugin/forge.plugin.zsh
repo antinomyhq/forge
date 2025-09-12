@@ -3,29 +3,39 @@
 # Forge ZSH Plugin - ZLE Widget Version
 # Converts '# abc' to '$FORGE_CMD <<< abc' using ZLE widgets
 
-# Configuration: Change this variable to customize the forge command
+# Configuration: Change these variables to customize the forge command and special characters
 FORGE_CMD="forge"
+FORGE_RESUME_CONV="??"
+FORGE_NEW_CONV="?"
 
 # Helper function for shared transformation logic
 function _forge_transform_buffer() {
-    # Check if the line starts with '# '
-    if [[ "$BUFFER" =~ '^# (.*)$' ]]; then
-        # Save the original command to history
-        local original_command="$BUFFER"
-        print -s "$original_command"
-        
-        # Extract the text after '# '
-        local input_text="${match[1]}"
-        
-        # Transform to $FORGE_CMD command
-        BUFFER="$FORGE_CMD <<< $(printf %q "$input_text")"
-        
-        # Move cursor to end
-        CURSOR=${#BUFFER}
-        
-        return 0  # Successfully transformed
+    local forge_cmd=""
+    local input_text=""
+    
+    # Check if the line starts with resume character (default: '?? ')
+    if [[ "$BUFFER" =~ "^${FORGE_RESUME_CONV} (.*)$" ]]; then
+        forge_cmd="$FORGE_CMD --resume"
+        input_text="${match[1]}"
+    # Check if the line starts with new conversation character (default: '? ')
+    elif [[ "$BUFFER" =~ "^${FORGE_NEW_CONV} (.*)$" ]]; then
+        forge_cmd="$FORGE_CMD"
+        input_text="${match[1]}"
+    else
+        return 1  # No transformation needed
     fi
-    return 1  # No transformation needed
+    
+    # Save the original command to history
+    local original_command="$BUFFER"
+    print -s "$original_command"
+    
+    # Transform to forge command
+    BUFFER="$forge_cmd <<< $(printf %q "$input_text")"
+    
+    # Move cursor to end
+    CURSOR=${#BUFFER}
+    
+    return 0  # Successfully transformed
 }
 
 
@@ -54,4 +64,3 @@ zle -N forge-accept-line
 # Bind Enter to our custom accept-line that transforms # commands
 bindkey '^M' forge-accept-line
 bindkey '^J' forge-accept-line
-

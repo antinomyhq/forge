@@ -1,5 +1,7 @@
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::PathBuf;
 
+use derive_more::Display;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -56,10 +58,6 @@ pub struct Environment {
 }
 
 impl Environment {
-    pub fn db_path(&self) -> PathBuf {
-        self.base_path.clone()
-    }
-
     pub fn log_path(&self) -> PathBuf {
         self.base_path.join("logs")
     }
@@ -90,11 +88,36 @@ impl Environment {
     pub fn mcp_local_config(&self) -> PathBuf {
         self.cwd.join(".mcp.json")
     }
+
     pub fn version(&self) -> String {
         VERSION.to_string()
     }
+
     pub fn app_config(&self) -> PathBuf {
         self.base_path.join(".config.json")
+    }
+
+    pub fn database_path(&self) -> PathBuf {
+        self.base_path.join(".forge.db")
+    }
+
+    pub fn workspace_id(&self) -> WorkspaceId {
+        let mut hasher = DefaultHasher::default();
+        self.cwd.hash(&mut hasher);
+
+        WorkspaceId(hasher.finish())
+    }
+}
+
+#[derive(Clone, Copy, Display)]
+pub struct WorkspaceId(u64);
+impl WorkspaceId {
+    pub fn new(id: u64) -> Self {
+        WorkspaceId(id)
+    }
+
+    pub fn id(&self) -> u64 {
+        self.0
     }
 }
 

@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use derive_more::derive::Display;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
@@ -32,25 +33,40 @@ impl ConversationId {
 }
 
 #[derive(Debug, Setters, Serialize, Deserialize, Clone)]
-#[setters(into, strip_option)]
+#[setters(into)]
 pub struct Conversation {
     pub id: ConversationId,
+
+    pub title: Option<String>,
     pub context: Option<Context>,
     pub metrics: Metrics,
+    pub metadata: MetaData,
+}
+
+#[derive(Debug, Setters, Serialize, Deserialize, Clone)]
+#[setters(into)]
+pub struct MetaData {
+    pub created_at: DateTime<Utc>,
+    pub updated_at: Option<DateTime<Utc>>,
+}
+
+impl MetaData {
+    pub fn new(created_at: DateTime<Utc>) -> Self {
+        Self { created_at, updated_at: None }
+    }
 }
 
 impl Conversation {
-    pub fn reset_metric(&mut self) -> &mut Self {
-        self.metrics = Metrics::new();
-        self.metrics.start();
-        self
-    }
-
     pub fn new(id: ConversationId) -> Self {
-        let mut metrics = Metrics::new();
-        metrics.start();
-
-        Self { id, context: None, metrics }
+        let created_at = Utc::now();
+        let metrics = Metrics::new().with_time(created_at);
+        Self {
+            id,
+            metrics,
+            metadata: MetaData::new(created_at),
+            title: None,
+            context: None,
+        }
     }
 
     /// Generates an HTML representation of the conversation

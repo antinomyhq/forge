@@ -13,7 +13,7 @@ pub fn display() -> io::Result<()> {
     let labels = [
         ("Version:", VERSION),
         ("New conversation:", "/new"),
-        ("Get started:", "/info, /usage, /help"),
+        ("Get started:", "/info, /usage, /help, /conversations"),
         ("Switch model:", "/model"),
         ("Switch agent:", "/forge or /muse or /agent"),
         ("Update:", "/update"),

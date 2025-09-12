@@ -56,6 +56,13 @@ pub struct Cli {
     #[arg(long)]
     pub conversation: Option<PathBuf>,
 
+    /// Reload the last active conversation for the current workspace.
+    ///
+    /// When enabled, automatically loads and resumes the most recently active
+    /// conversation instead of starting a new one.
+    #[arg(long, default_value_t = false)]
+    pub resume: bool,
+
     /// Top-level subcommands
     #[command(subcommand)]
     pub subcommands: Option<TopLevelCommand>,
