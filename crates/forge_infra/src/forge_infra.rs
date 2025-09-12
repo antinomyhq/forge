@@ -61,7 +61,7 @@ impl ForgeInfra {
         let http_service = Arc::new(ForgeHttpInfra::new(env.http.clone()));
         let db_pool =
             Arc::new(DatabasePool::try_from(PoolConfig::new(env.database_path())).unwrap());
-        let conversation_repository = Arc::new(ConversationRepositoryImpl::new(db_pool));
+        let conversation_repository = Arc::new(ConversationRepositoryImpl::new(db_pool, env.clone()));
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
             file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),

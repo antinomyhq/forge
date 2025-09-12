@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use chrono::{NaiveDateTime, Utc};
 use diesel::prelude::*;
-use forge_domain::{Context, Conversation, ConversationId, MetaData, WorkspaceId};
+use forge_domain::{Context, Conversation, ConversationId, Environment, MetaData, WorkspaceId};
 use forge_services::ConversationRepository;
 
 use crate::database::DatabasePool;
@@ -13,13 +13,13 @@ use crate::database::schema::conversations;
 #[derive(Debug, Queryable, Selectable, Insertable, AsChangeset)]
 #[diesel(table_name = conversations)]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
-pub struct ConversationRecord {
-    pub conversation_id: String,
-    pub title: Option<String>,
-    pub workspace_id: String,
-    pub context: Option<String>,
-    pub created_at: NaiveDateTime,
-    pub updated_at: Option<NaiveDateTime>,
+struct ConversationRecord {
+    conversation_id: String,
+    title: Option<String>,
+    workspace_id: String,
+    context: Option<String>,
+    created_at: NaiveDateTime,
+    updated_at: Option<NaiveDateTime>,
 }
 
 impl TryFrom<&Conversation> for ConversationRecord {
@@ -62,20 +62,24 @@ impl TryFrom<ConversationRecord> for Conversation {
     }
 }
 
-pub struct ConversationRepositoryImpl(Arc<DatabasePool>);
+pub struct ConversationRepositoryImpl {
+    pool: Arc<DatabasePool>,
+    env: Environment,
+}
 
 impl ConversationRepositoryImpl {
-    pub fn new(pool: Arc<DatabasePool>) -> Self {
-        Self(pool)
+    pub fn new(pool: Arc<DatabasePool>, env: Environment) -> Self {
+        Self { pool, env }
     }
 }
 
 #[async_trait::async_trait]
 impl ConversationRepository for ConversationRepositoryImpl {
     async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()> {
-        let mut connection = self.0.get_connection()?;
+        let mut connection = self.pool.get_connection()?;
 
-        let record = ConversationRecord::try_from(&conversation)?;
+        let mut record = ConversationRecord::try_from(&conversation)?;
+        record.workspace_id = self.env.workspace_id().to_string();
         diesel::insert_into(conversations::table)
             .values(&record)
             .on_conflict(conversations::conversation_id)
@@ -93,7 +97,7 @@ impl ConversationRepository for ConversationRepositoryImpl {
         &self,
         conversation_id: &ConversationId,
     ) -> anyhow::Result<Option<Conversation>> {
-        let mut connection = self.0.get_connection()?;
+        let mut connection = self.pool.get_connection()?;
 
         let record: Option<ConversationRecord> = conversations::table
             .filter(conversations::conversation_id.eq(conversation_id.into_string()))
@@ -111,7 +115,7 @@ impl ConversationRepository for ConversationRepositoryImpl {
         workspace_id: &WorkspaceId,
         limit: Option<usize>,
     ) -> anyhow::Result<Option<Vec<Conversation>>> {
-        let mut connection = self.0.get_connection()?;
+        let mut connection = self.pool.get_connection()?;
 
         let mut query = conversations::table
             .filter(conversations::workspace_id.eq(workspace_id.deref()))
@@ -137,7 +141,7 @@ impl ConversationRepository for ConversationRepositoryImpl {
         &self,
         workspace_id: &WorkspaceId,
     ) -> anyhow::Result<Option<Conversation>> {
-        let mut connection = self.0.get_connection()?;
+        let mut connection = self.pool.get_connection()?;
         let record: Option<ConversationRecord> = conversations::table
             .filter(conversations::workspace_id.eq(workspace_id.deref()))
             .filter(conversations::context.is_not_null())
@@ -156,13 +160,34 @@ impl ConversationRepository for ConversationRepositoryImpl {
 mod tests {
     use forge_domain::ContextMessage;
     use pretty_assertions::assert_eq;
+    use reqwest::Url;
 
     use super::*;
     use crate::database::DatabasePool;
 
     fn repository() -> anyhow::Result<ConversationRepositoryImpl> {
         let pool = Arc::new(DatabasePool::in_memory()?);
-        Ok(ConversationRepositoryImpl::new(pool))
+        let env = Environment {
+            os: Default::default(),
+            pid: Default::default(),
+            cwd: Default::default(),
+            home: Default::default(),
+            shell: Default::default(),
+            base_path: Default::default(),
+            forge_api_url: Url::parse("http://api.forgecode.dev")?,
+            retry_config: Default::default(),
+            max_search_lines: Default::default(),
+            max_search_result_bytes: Default::default(),
+            fetch_truncation_limit: Default::default(),
+            stdout_max_prefix_length: Default::default(),
+            stdout_max_suffix_length: Default::default(),
+            stdout_max_line_length: Default::default(),
+            max_read_size: Default::default(),
+            http: Default::default(),
+            max_file_size: Default::default(),
+            tool_timeout: Default::default(),
+        };
+        Ok(ConversationRepositoryImpl::new(pool, env))
     }
 
     #[tokio::test]
