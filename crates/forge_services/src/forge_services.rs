@@ -13,6 +13,7 @@ use crate::env::ForgeEnvironmentService;
 use crate::infra::HttpInfra;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::policy::ForgePolicyService;
+use crate::profile::ForgeProfileService;
 use crate::provider::{ForgeProviderRegistry, ForgeProviderService};
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{
@@ -28,6 +29,7 @@ use crate::{
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client>;
 type AuthService<F> = ForgeAuthService<F>;
+type ProfileService<F> = ForgeProfileService<F>;
 
 /// ForgeApp is the main application container that implements the App trait.
 /// It provides access to all core services required by the application.
@@ -62,6 +64,7 @@ pub struct ForgeServices<F: HttpInfra + EnvironmentInfra + McpServerInfra + Walk
     provider_service: Arc<ForgeProviderRegistry<F>>,
     agent_loader_service: Arc<ForgeAgentLoaderService<F>>,
     policy_service: ForgePolicyService<F>,
+    profile_service: Arc<ProfileService<F>>,
 }
 
 impl<
@@ -99,12 +102,13 @@ impl<
         let shell_service = Arc::new(ForgeShell::new(infra.clone()));
         let fetch_service = Arc::new(ForgeFetch::new());
         let followup_service = Arc::new(ForgeFollowup::new(infra.clone()));
-        let provider_service = Arc::new(ForgeProviderRegistry::new(infra.clone()));
         let env_service = Arc::new(ForgeEnvironmentService::new(infra.clone()));
         let custom_instructions_service =
             Arc::new(ForgeCustomInstructionsService::new(infra.clone()));
         let agent_loader_service = Arc::new(ForgeAgentLoaderService::new(infra.clone()));
         let policy_service = ForgePolicyService::new(infra.clone());
+        let profile_service = Arc::new(ForgeProfileService::new(infra.clone()));
+        let provider_service = Arc::new(ForgeProviderRegistry::new(infra.clone()));
 
         Self {
             conversation_service,
@@ -132,6 +136,7 @@ impl<
             provider_service,
             agent_loader_service,
             policy_service,
+            profile_service,
         }
     }
 }
@@ -179,6 +184,7 @@ impl<
     type ProviderRegistry = ForgeProviderRegistry<F>;
     type AgentLoaderService = ForgeAgentLoaderService<F>;
     type PolicyService = ForgePolicyService<F>;
+    type ProfileService = ProfileService<F>;
 
     fn provider_service(&self) -> &Self::ProviderService {
         &self.chat_service
@@ -276,5 +282,9 @@ impl<
 
     fn policy_service(&self) -> &Self::PolicyService {
         &self.policy_service
+    }
+
+    fn profile_service(&self) -> &Self::ProfileService {
+        &self.profile_service
     }
 }

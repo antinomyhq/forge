@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use forge_app::ProviderRegistry;
 use forge_app::domain::{Provider, ProviderUrl};
-use forge_app::dto::AppConfig;
+use forge_app::dto::Profile;
 use tokio::sync::RwLock;
 
 use crate::EnvironmentInfra;
@@ -33,27 +33,32 @@ impl<F: EnvironmentInfra> ForgeProviderRegistry<F> {
         }
         None
     }
-    fn get_provider(&self, _forge_config: AppConfig) -> Option<Provider> {
-        // if let Some(forge_key) = &forge_config.key_info {
-        //     let provider = Provider::forge(forge_key.api_key.as_str());
-        //     return Some(override_url(provider, self.provider_url()));
-        // }
+
+    fn resolve_provider(&self, profile: &Profile) -> Option<Provider> {
+        // Use the provided profile's provider if it's valid
+        if profile.provider.key().is_some() {
+            return Some(profile.provider.clone());
+        }
+
+        // Fallback to environment variables
         resolve_env_provider(self.provider_url(), self.infra.as_ref())
     }
 }
 
 #[async_trait::async_trait]
 impl<F: EnvironmentInfra> ProviderRegistry for ForgeProviderRegistry<F> {
-    async fn get_provider(&self, config: AppConfig) -> anyhow::Result<Provider> {
+    async fn get_provider(&self, profile: &Profile) -> anyhow::Result<Provider> {
         if let Some(provider) = self.cache.read().await.as_ref() {
             return Ok(provider.clone());
         }
 
-        let provider = self
-            .get_provider(config)
-            .context("No valid provider configuration found. Please set one of the following environment variables: OPENROUTER_API_KEY, REQUESTY_API_KEY, XAI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY. For more details, visit: https://forgecode.dev/docs/custom-providers/")?;
+        let provider = self.resolve_provider(profile).context("No valid provider configuration found. Please configure a profile in your `profiles.yaml` file or set one of the following environment variables: OPENROUTER_API_KEY, REQUESTY_API_KEY, XAI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY.")?;
         self.cache.write().await.replace(provider.clone());
         Ok(provider)
+    }
+
+    async fn clear_provider_cache(&self) {
+        *self.cache.write().await = None;
     }
 }
 

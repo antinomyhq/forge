@@ -2,11 +2,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::dto::{AppConfig, InitAuth, ToolsOverview};
+use forge_app::dto::{AppConfig, InitAuth, Profile, ToolsOverview};
 use forge_app::{
     AgentLoaderService, AppConfigService, AuthService, ConversationService, EnvironmentService,
-    FileDiscoveryService, ForgeApp, McpConfigManager, ProviderRegistry, ProviderService, Services,
-    User, UserUsage, Walker, WorkflowService,
+    FileDiscoveryService, ForgeApp, McpConfigManager, ProfileService, ProviderRegistry,
+    ProviderService, Services, User, UserUsage, Walker, WorkflowService,
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
@@ -173,9 +173,12 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         forge_app.logout().await
     }
     async fn provider(&self) -> anyhow::Result<Provider> {
-        self.services
-            .get_provider(self.services.get_app_config().await.unwrap_or_default())
-            .await
+        let profile = self
+            .services
+            .get_active_profile()
+            .await?
+            .unwrap_or_else(|| Profile::new("Default"));
+        self.services.get_provider(&profile).await
     }
 
     async fn app_config(&self) -> Option<AppConfig> {
@@ -198,6 +201,25 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
             return Ok(Some(user_usage));
         }
         Ok(None)
+    }
+    async fn list_profiles(&self) -> anyhow::Result<Vec<Profile>> {
+        self.services.profile_service().list_profiles().await
+    }
+
+    async fn get_active_profile(&self) -> anyhow::Result<Option<Profile>> {
+        self.services.profile_service().get_active_profile().await
+    }
+
+    async fn set_active_profile(&self, profile_name: String) -> anyhow::Result<()> {
+        self.services
+            .profile_service()
+            .set_active_profile(profile_name.into())
+            .await?;
+
+        // Clear model and provider cache
+        self.services.clear_provider_cache().await;
+        self.services.clear_model_cache().await;
+        Ok(())
     }
 
     async fn get_operating_agent(&self) -> Option<AgentId> {

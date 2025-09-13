@@ -95,4 +95,11 @@ impl<I: EnvironmentInfra + HttpInfra> ProviderService for ForgeProviderService<I
 
         Ok(models)
     }
+
+    async fn clear_model_cache(&self) {
+        let mut client_guard = self.cached_client.lock().await;
+        *client_guard = None;
+        let mut models_guard = self.cached_models.lock().await;
+        *models_guard = None;
+    }
 }
