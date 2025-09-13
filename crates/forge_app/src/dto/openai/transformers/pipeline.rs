@@ -42,7 +42,10 @@ impl Transformer for ProviderPipeline<'_> {
 
 /// function checks if provider supports open-router parameters.
 fn supports_open_router_params(provider: &Provider) -> bool {
-    provider.is_open_router() || provider.is_forge()
+    provider.is_open_router()
+        || provider.is_forge()
+        || provider.is_zai()
+        || provider.is_zai_coding()
 }
 
 #[cfg(test)]

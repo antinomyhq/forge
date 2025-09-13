@@ -812,7 +812,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                                 .sub_title(path.to_string()),
                         )?;
 
-                        open::that(path.as_str()).ok();
+                        if self.api.environment().auto_open_dump {
+                            open::that(path.as_str()).ok();
+                        }
 
                         return Ok(());
                     }
@@ -827,7 +829,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                             .sub_title(path.to_string()),
                     )?;
 
-                    open::that(path.as_str()).ok();
+                    if self.api.environment().auto_open_dump {
+                        open::that(path.as_str()).ok();
+                    }
                 };
             } else {
                 return Err(anyhow::anyhow!("Could not create dump"))

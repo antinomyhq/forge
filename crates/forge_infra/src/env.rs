@@ -68,6 +68,7 @@ impl ForgeEnvironmentInfra {
             stdout_max_prefix_length: 200,
             stdout_max_suffix_length: 200,
             tool_timeout: parse_env::<u64>("FORGE_TOOL_TIMEOUT").unwrap_or(300),
+            auto_open_dump: parse_env::<bool>("FORGE_DUMP_AUTO_OPEN").unwrap_or(false),
             stdout_max_line_length: parse_env::<usize>("FORGE_STDOUT_MAX_LINE_LENGTH")
                 .unwrap_or(2000),
             http: resolve_http_config(),
@@ -109,11 +110,49 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
     }
 }
 
-fn parse_env<T: FromStr>(name: &str) -> Option<T> {
+/// Trait for parsing environment variable values with custom logic for
+/// different types
+trait FromEnvStr: Sized {
+    fn from_env_str(s: &str) -> Option<Self>;
+}
+
+/// Custom implementation for bool with support for multiple truthy values
+/// Supports: "true", "1", "yes" (case-insensitive) as true; everything else as
+/// false
+impl FromEnvStr for bool {
+    fn from_env_str(s: &str) -> Option<Self> {
+        Some(matches!(s.to_lowercase().as_str(), "true" | "1" | "yes"))
+    }
+}
+
+// Macro to implement FromEnvStr for types that already implement FromStr
+macro_rules! impl_from_env_str_via_from_str {
+    ($($t:ty),* $(,)?) => {
+        $(
+            impl FromEnvStr for $t {
+                fn from_env_str(s: &str) -> Option<Self> {
+                    <$t as FromStr>::from_str(s).ok()
+                }
+            }
+        )*
+    };
+}
+
+// Implement FromEnvStr for commonly used types
+impl_from_env_str_via_from_str! {
+    u8, u16, u32, u64, u128, usize,
+    i8, i16, i32, i64, i128, isize,
+    f32, f64,
+    String,
+    forge_domain::TlsBackend,
+    forge_domain::TlsVersion,
+}
+
+/// Parse environment variable using custom FromEnvStr trait
+fn parse_env<T: FromEnvStr>(name: &str) -> Option<T> {
     std::env::var(name)
-        .as_ref()
         .ok()
-        .and_then(|var| T::from_str(var).ok())
+        .and_then(|val| T::from_env_str(&val))
 }
 
 /// Resolves retry configuration from environment variables or returns defaults
@@ -471,6 +510,94 @@ mod tests {
 
     #[test]
     #[serial]
+    fn test_auto_open_dump_env_var() {
+        let cwd = tempdir().unwrap().path().to_path_buf();
+        let infra = ForgeEnvironmentInfra::new(false, cwd);
+
+        // Test default value when env var is not set
+        {
+            unsafe {
+                env::remove_var("FORGE_DUMP_AUTO_OPEN");
+            }
+            let env = infra.get_environment();
+            assert_eq!(env.auto_open_dump, false);
+        }
+
+        // Test enabled with "true"
+        {
+            unsafe {
+                env::set_var("FORGE_DUMP_AUTO_OPEN", "true");
+            }
+            let env = infra.get_environment();
+            assert_eq!(env.auto_open_dump, true);
+            unsafe {
+                env::remove_var("FORGE_DUMP_AUTO_OPEN");
+            }
+        }
+
+        // Test enabled with "1"
+        {
+            unsafe {
+                env::set_var("FORGE_DUMP_AUTO_OPEN", "1");
+            }
+            let env = infra.get_environment();
+            assert_eq!(env.auto_open_dump, true);
+            unsafe {
+                env::remove_var("FORGE_DUMP_AUTO_OPEN");
+            }
+        }
+
+        // Test case insensitive "TRUE"
+        {
+            unsafe {
+                env::set_var("FORGE_DUMP_AUTO_OPEN", "TRUE");
+            }
+            let env = infra.get_environment();
+            assert_eq!(env.auto_open_dump, true);
+            unsafe {
+                env::remove_var("FORGE_DUMP_AUTO_OPEN");
+            }
+        }
+
+        // Test disabled with "false"
+        {
+            unsafe {
+                env::set_var("FORGE_DUMP_AUTO_OPEN", "false");
+            }
+            let env = infra.get_environment();
+            assert_eq!(env.auto_open_dump, false);
+            unsafe {
+                env::remove_var("FORGE_DUMP_AUTO_OPEN");
+            }
+        }
+
+        // Test disabled with "0"
+        {
+            unsafe {
+                env::set_var("FORGE_DUMP_AUTO_OPEN", "0");
+            }
+            let env = infra.get_environment();
+            assert_eq!(env.auto_open_dump, false);
+            unsafe {
+                env::remove_var("FORGE_DUMP_AUTO_OPEN");
+            }
+        }
+
+        // Test fallback to default for invalid value
+        {
+            unsafe {
+                env::set_var("FORGE_DUMP_AUTO_OPEN", "invalid");
+            }
+            let env = infra.get_environment();
+            assert_eq!(env.auto_open_dump, false);
+            unsafe {
+                env::remove_var("FORGE_DUMP_AUTO_OPEN");
+            }
+        }
+    }
+
+    #[test]
+    #[serial]
     fn test_tool_timeout_env_var() {
         let cwd = tempdir().unwrap().path().to_path_buf();
         let infra = ForgeEnvironmentInfra::new(false, cwd);
@@ -506,6 +633,52 @@ mod tests {
             unsafe {
                 env::remove_var("TOOL_TIMEOUT_SECONDS");
             }
+        }
+    }
+    #[test]
+    #[serial]
+    fn test_unified_parse_env_functionality() {
+        // Test that the unified parse_env works for different types
+
+        // Test boolean parsing with custom logic
+        unsafe {
+            env::set_var("TEST_BOOL_TRUE", "yes");
+            env::set_var("TEST_BOOL_FALSE", "no");
+        }
+
+        assert_eq!(parse_env::<bool>("TEST_BOOL_TRUE"), Some(true));
+        assert_eq!(parse_env::<bool>("TEST_BOOL_FALSE"), Some(false));
+
+        // Test numeric parsing
+        unsafe {
+            env::set_var("TEST_U64", "123");
+            env::set_var("TEST_F64", "45.67");
+        }
+
+        assert_eq!(parse_env::<u64>("TEST_U64"), Some(123));
+        assert_eq!(parse_env::<f64>("TEST_F64"), Some(45.67));
+
+        // Test string parsing
+        unsafe {
+            env::set_var("TEST_STRING", "hello world");
+        }
+
+        assert_eq!(
+            parse_env::<String>("TEST_STRING"),
+            Some("hello world".to_string())
+        );
+
+        // Test missing env var
+        assert_eq!(parse_env::<bool>("NONEXISTENT_VAR"), None);
+        assert_eq!(parse_env::<u64>("NONEXISTENT_VAR"), None);
+
+        // Clean up
+        unsafe {
+            env::remove_var("TEST_BOOL_TRUE");
+            env::remove_var("TEST_BOOL_FALSE");
+            env::remove_var("TEST_U64");
+            env::remove_var("TEST_F64");
+            env::remove_var("TEST_STRING");
         }
     }
 }
