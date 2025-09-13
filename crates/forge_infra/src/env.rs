@@ -50,6 +50,10 @@ impl ForgeEnvironmentInfra {
         let default_max_bytes: f64 = 10.0 * 1024.0;
         let max_bytes =
             parse_env::<f64>("FORGE_MAX_SEARCH_RESULT_BYTES").unwrap_or(default_max_bytes);
+        
+        // Parse custom history file path from environment variable
+        let custom_history_path = parse_env::<String>("FORGE_HISTORY_FILE")
+            .map(|path_str| PathBuf::from(path_str));
 
         Environment {
             os: std::env::consts::OS.to_string(),
@@ -74,6 +78,7 @@ impl ForgeEnvironmentInfra {
             http: resolve_http_config(),
             max_file_size: 256 << 10, // 256 KiB
             forge_api_url,
+            custom_history_path,
         }
     }
 

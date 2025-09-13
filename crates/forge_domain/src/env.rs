@@ -58,6 +58,9 @@ pub struct Environment {
     /// Whether to automatically open HTML dump files in the browser.
     /// Controlled by FORGE_DUMP_AUTO_OPEN environment variable.
     pub auto_open_dump: bool,
+    /// Custom history file path from FORGE_HISTORY_FILE environment variable.
+    /// If None, uses the default history path.
+    pub custom_history_path: Option<PathBuf>,
 }
 
 impl Environment {
@@ -66,7 +69,9 @@ impl Environment {
     }
 
     pub fn history_path(&self) -> PathBuf {
-        self.base_path.join(".forge_history")
+        self.custom_history_path
+            .clone()
+            .unwrap_or(self.base_path.join(".forge_history"))
     }
     pub fn snapshot_path(&self) -> PathBuf {
         self.base_path.join("snapshots")
@@ -153,6 +158,7 @@ mod tests {
             max_file_size: 104857600,
             tool_timeout: 300,
             auto_open_dump: false,
+            custom_history_path: None,
         };
 
         let actual = fixture.agent_cwd_path();
@@ -184,6 +190,7 @@ mod tests {
             max_file_size: 104857600,
             tool_timeout: 300,
             auto_open_dump: false,
+            custom_history_path: None,
         };
 
         let agent_path = fixture.agent_path();
