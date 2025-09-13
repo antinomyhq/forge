@@ -20,11 +20,11 @@ impl ConversationSelector {
         }
 
         // Select conversations that have some title
-        let conversations = conversations.iter().filter(|c| c.title.is_some());
+        let conversation_iter = conversations.iter().filter(|c| c.title.is_some());
 
         // First, calculate all formatted dates to find the maximum length
         let now = Utc::now();
-        let formatted_dates = conversations.clone().map(|c| {
+        let dates = conversation_iter.clone().map(|c| {
             let date = c.metadata.updated_at.unwrap_or(c.metadata.created_at);
             let duration = now.signed_duration_since(date);
             let duration =
@@ -35,10 +35,9 @@ impl ConversationSelector {
                 let duration = humantime::format_duration(duration);
                 format!("{} ago", duration)
             }
-            .dimmed()
         });
 
-        let formatted_titles = conversations.clone().map(|c| {
+        let titles = conversation_iter.clone().map(|c| {
             c.title
                 .as_ref()
                 .map(|title| {
@@ -50,10 +49,9 @@ impl ConversationSelector {
                     }
                 })
                 .unwrap_or_else(|| format!("<unknown> [{}]", c.id).to_string())
-                .bold()
         });
 
-        let max_title_length: usize = titles.iter().map(|s| s.len()).max().unwrap_or(0);
+        let max_title_length: usize = titles.clone().map(|s| s.len()).max().unwrap_or(0);
 
         struct ConversationItem((String, Conversation));
         impl Display for ConversationItem {
@@ -62,10 +60,10 @@ impl ConversationSelector {
             }
         }
 
-        let conversations = formatted_dates
-            .zip(formatted_titles)
-            .map(|(date, title)| format!("{title:<max_title_length$} {date}"))
-            .zip(conversations.cloned())
+        let conversations = dates
+            .zip(titles)
+            .map(|(date, title)| format!("{:<max_title_length$} {}", title.bold(), date.dimmed()))
+            .zip(conversation_iter.cloned())
             .map(ConversationItem)
             .collect::<Vec<_>>();
 
