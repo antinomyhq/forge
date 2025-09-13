@@ -29,7 +29,7 @@ impl<S: AS> TitleGenerator<S> {
             .render("{{> forge-system-prompt-title-generation.md }}", &())
             .await?;
 
-        let prompt = format!("<user_prompt>{}</user_prompt>", self.user_prompt);
+        let prompt = format!("<user_prompt>{}</user_prompt>", self.user_prompt.as_str().unwrap_or_default());
         let ctx = Context::default()
             .temperature(1.0f32)
             .conversation_id(ConversationId::generate())
