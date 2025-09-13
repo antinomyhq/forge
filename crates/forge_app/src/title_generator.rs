@@ -5,7 +5,6 @@ use forge_domain::{
     ResultStreamExt, extract_tag_content,
 };
 use serde_json::Value;
-use tracing::debug;
 
 use crate::agent::AgentService as AS;
 
@@ -42,7 +41,7 @@ impl<S: AS> TitleGenerator<S> {
             ));
 
         let stream = self.services.chat_agent(&self.model_id, ctx).await?;
-        let ChatCompletionMessageFull { content, reasoning, .. } = stream.into_full(false).await?;
+        let ChatCompletionMessageFull { content,  .. } = stream.into_full(false).await?;
         if let Some(extracted) = extract_tag_content(&content, "title") {
             return Ok(Some(extracted.to_string()));
         }
