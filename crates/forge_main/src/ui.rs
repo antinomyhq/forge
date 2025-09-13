@@ -937,10 +937,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.should_continue().await?;
             }
             ChatResponse::TaskReasoning { content } => {
-                if !content.trim().is_empty() {
-                    let rendered_content = self.markdown.render(&content);
-                    self.writeln(rendered_content.dimmed())?;
-                }
+                self.spinner.write(content.dimmed().to_string())?;
             }
             ChatResponse::TaskComplete => {
                 if let Some(conversation_id) = self.state.conversation_id.as_ref() {

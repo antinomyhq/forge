@@ -1,28 +1,43 @@
+mod console_writer;
+
+use std::io;
 use std::time::Instant;
 
 use anyhow::Result;
 use colored::Colorize;
+use console_writer::ConsoleWriter;
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::seq::IndexedRandom;
 use tokio::task::JoinHandle;
 
 /// Manages spinner functionality for the UI
-#[derive(Default)]
 pub struct SpinnerManager {
     spinner: Option<ProgressBar>,
     start_time: Option<Instant>,
     message: Option<String>,
     tracker: Option<JoinHandle<()>>,
+    console_writer: ConsoleWriter<io::Stdout>,
+}
+
+impl Default for SpinnerManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SpinnerManager {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            spinner: None,
+            start_time: None,
+            message: None,
+            tracker: None,
+            console_writer: ConsoleWriter::stdout(),
+        }
     }
 
-    /// Start the spinner with a message
     pub fn start(&mut self, message: Option<&str>) -> Result<()> {
-        self.stop(None)?;
+        self.stop_internal(None, true)?;
 
         let words = [
             "Thinking",
@@ -109,17 +124,23 @@ impl SpinnerManager {
 
     /// Stop the active spinner if any
     pub fn stop(&mut self, message: Option<String>) -> Result<()> {
+        self.stop_internal(message, true)
+    }
+
+    /// Stop the active spinner if any and prints the provided content.
+    fn stop_internal(&mut self, message: Option<String>, new_line: bool) -> Result<()> {
         if let Some(spinner) = self.spinner.take() {
             // Always finish the spinner first
             spinner.finish_and_clear();
+        }
 
-            // Then print the message if provided
-            if let Some(msg) = message {
-                println!("{msg}");
+        // Then print the message if provided
+        if let Some(msg) = message {
+            if new_line {
+                self.console_writer.writeln(msg)?;
+            } else {
+                self.console_writer.write(msg)?;
             }
-        } else if let Some(message) = message {
-            // If there's no spinner but we have a message, just print it
-            println!("{message}");
         }
 
         // Tracker task will be dropped here.
@@ -140,6 +161,17 @@ impl SpinnerManager {
             self.start(prev_message.as_deref())?
         }
 
+        Ok(())
+    }
+
+    // Writes the console without new line.
+    pub fn write(&mut self, message: impl ToString) -> Result<()> {
+        let is_running = self.spinner.is_some();
+        let prev_message = self.message.clone();
+        self.stop_internal(Some(message.to_string()), false)?;
+        if is_running {
+            self.message = prev_message;
+        }
         Ok(())
     }
 }

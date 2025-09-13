@@ -159,7 +159,7 @@ impl<S: AgentService> Compactor<S> {
         + std::marker::Unpin
         + ResultStreamExt<anyhow::Error>,
     ) -> anyhow::Result<String> {
-        let ChatCompletionMessageFull { content, .. } = stream.into_full(false).await?;
+        let ChatCompletionMessageFull { content, .. } = stream.into_full(false, None).await?;
         if let Some(extracted) = extract_tag_content(
             &content,
             compact
