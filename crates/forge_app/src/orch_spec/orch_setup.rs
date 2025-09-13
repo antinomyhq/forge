@@ -6,7 +6,7 @@ use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, ChatCompletionMessage, ChatResponse, ContextMessage, Conversation, Environment,
     Event, HttpConfig, ModelId, RetryConfig, Role, Template, ToolCallFull, ToolDefinition,
-    ToolResult, Workflow,
+    ToolResult, ToolsDiscriminants, Workflow,
 };
 use url::Url;
 
@@ -82,10 +82,15 @@ impl TestContext {
             title: Some("test-conversation".into()),
             agent: Agent::new(AgentId::new("forge"))
                 .system_prompt(Template::new("You are Forge"))
-                .tools(vec![("fs_read").into(), ("fs_write").into()]),
+                .tools(vec![
+                    ("fs_read").into(),
+                    ("fs_write").into(),
+                    ToolsDiscriminants::AttemptCompletion.name(),
+                ]),
             tools: vec![
                 ToolDefinition::new("fs_read"),
                 ToolDefinition::new("fs_write"),
+                ToolsDiscriminants::AttemptCompletion.definition(),
             ],
         }
     }

@@ -69,13 +69,11 @@ impl<S: AgentService> Orchestrator<S> {
         // Always process tool calls sequentially
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
 
-        let mut system_tools = self
+        let system_tools = self
             .tool_definitions
             .iter()
             .map(|tool| &tool.name)
             .collect::<HashSet<_>>();
-        let attempt_completion = ToolsDiscriminants::AttemptCompletion.name();
-        system_tools.insert(&attempt_completion);
 
         for tool_call in tool_calls {
             // Send the start notification for system tools and not agent as a tool
@@ -119,18 +117,6 @@ impl<S: AgentService> Orchestrator<S> {
             sender.send(Ok(message)).await?
         }
         Ok(())
-    }
-
-    /// Get the allowed tools for an agent
-    fn get_allowed_tools(&self) -> anyhow::Result<Vec<ToolDefinition>> {
-        Ok(self
-            .tool_definitions
-            .iter()
-            .cloned()
-            .chain(std::iter::once(
-                ToolsDiscriminants::AttemptCompletion.definition(),
-            ))
-            .collect::<Vec<_>>())
     }
 
     /// Checks if parallel tool calls is supported by agent
@@ -185,7 +171,7 @@ impl<S: AgentService> Orchestrator<S> {
             let supports_parallel_tool_calls = self.is_parallel_tool_call_supported();
             let tool_information = match tool_supported {
                 true => None,
-                false => Some(ToolUsagePrompt::from(&self.get_allowed_tools()?).to_string()),
+                false => Some(ToolUsagePrompt::from(&self.tool_definitions).to_string()),
             };
 
             let mut custom_rules = Vec::new();
@@ -286,7 +272,7 @@ impl<S: AgentService> Orchestrator<S> {
         context = context.conversation_id(self.conversation.id);
 
         // Reset all the available tools
-        context = context.tools(self.get_allowed_tools()?);
+        context = context.tools(self.tool_definitions.clone());
 
         // Render the system prompts with the variables
         context = self.set_system_prompt(context).await?;
