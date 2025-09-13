@@ -136,7 +136,11 @@ impl ForgeHttpInfra {
 
         let status = response.status();
         if !status.is_success() {
-            return Err(anyhow::anyhow!("HTTP request failed"))
+            let error_body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unable to read response body".to_string());
+            return Err(anyhow::anyhow!(error_body))
                 .with_context(|| format_http_context(Some(status), method, url));
         }
 
