@@ -411,28 +411,11 @@ mod tests {
 
     // Helper to create minimal test environment
     fn create_env(os: &str, home: Option<&str>) -> Environment {
-        Environment {
-            os: os.to_string(),
-            home: home.map(PathBuf::from),
-            // Minimal required fields with defaults
-            pid: 1,
-            cwd: PathBuf::from("/"),
-            shell: "bash".to_string(),
-            base_path: PathBuf::from("/tmp"),
-            forge_api_url: "http://localhost".parse().unwrap(),
-            retry_config: Default::default(),
-            max_search_lines: 100,
-            max_search_result_bytes: 100, // 0.25 MB
-            fetch_truncation_limit: 1000,
-            stdout_max_prefix_length: 10,
-            stdout_max_suffix_length: 10,
-            stdout_max_line_length: 2000,
-            max_read_size: 100,
-            tool_timeout: 300,
-            http: Default::default(),
-            max_file_size: 1000,
-            auto_open_dump: false,
-        }
+        Environment::builder()
+            .os(os.to_string())
+            .home(home.map(PathBuf::from))
+            .build()
+            .unwrap()
     }
 
     #[test]

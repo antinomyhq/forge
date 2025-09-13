@@ -202,32 +202,30 @@ mod tests {
 
     fn test_env() -> Environment {
         let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
-        Environment {
-            os: "test".to_string(),
-            pid: 12345,
-            cwd: PathBuf::from("/test"),
-            home: Some(PathBuf::from("/home/test")),
-            shell: if cfg!(target_os = "windows") {
-                "cmd"
-            } else {
-                "bash"
-            }
-            .to_string(),
-            base_path: PathBuf::from("/base"),
-            retry_config: Default::default(),
-            fetch_truncation_limit: 0,
-            stdout_max_prefix_length: 0,
-            max_search_lines: 0,
-            max_search_result_bytes: max_bytes.ceil() as usize, // 0.25 MB
-            max_read_size: 0,
-            stdout_max_suffix_length: 0,
-            stdout_max_line_length: 2000,
-            http: Default::default(),
-            tool_timeout: 300,
-            max_file_size: 10_000_000,
-            forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
-            auto_open_dump: false,
-        }
+        Environment::builder()
+            .os("test".to_string())
+            .cwd(PathBuf::from("/test"))
+            .home(Some(PathBuf::from("/home/test")))
+            .shell(
+                if cfg!(target_os = "windows") {
+                    "cmd"
+                } else {
+                    "bash"
+                }
+                .to_string(),
+            )
+            .base_path(PathBuf::from("/base"))
+            .fetch_truncation_limit(0usize)
+            .stdout_max_prefix_length(0usize)
+            .max_search_lines(0usize)
+            .max_search_result_bytes(max_bytes.ceil() as usize) // 0.25 MB
+            .max_read_size(0u64)
+            .stdout_max_suffix_length(0usize)
+            .stdout_max_line_length(2000usize)
+            .max_file_size(10_000_000u64)
+            .forge_api_url(Url::parse("http://forgecode.dev/api").unwrap())
+            .build()
+            .unwrap()
     }
 
     #[tokio::test]

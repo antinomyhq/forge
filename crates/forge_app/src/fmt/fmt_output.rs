@@ -66,14 +66,12 @@ mod tests {
 
     fn fixture_environment() -> Environment {
         let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
-        Environment {
-            os: "linux".to_string(),
-            pid: 12345,
-            cwd: PathBuf::from("/home/user/project"),
-            home: Some(PathBuf::from("/home/user")),
-            shell: "/bin/bash".to_string(),
-            base_path: PathBuf::from("/home/user/project"),
-            retry_config: forge_domain::RetryConfig {
+        Environment::builder()
+            .cwd(PathBuf::from("/home/user/project"))
+            .home(Some(PathBuf::from("/home/user")))
+            .shell("/bin/bash".to_string())
+            .base_path(PathBuf::from("/home/user/project"))
+            .retry_config(forge_domain::RetryConfig {
                 initial_backoff_ms: 1000,
                 min_delay_ms: 500,
                 backoff_factor: 2,
@@ -81,20 +79,19 @@ mod tests {
                 retry_status_codes: vec![429, 500, 502, 503, 504],
                 max_delay: None,
                 suppress_retry_errors: false,
-            },
-            max_search_lines: 25,
-            max_search_result_bytes: max_bytes.ceil() as usize,
-            fetch_truncation_limit: 55,
-            max_read_size: 10,
-            stdout_max_prefix_length: 10,
-            stdout_max_suffix_length: 10,
-            tool_timeout: 300,
-            stdout_max_line_length: 2000,
-            http: Default::default(),
-            max_file_size: 0,
-            forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
-            auto_open_dump: false,
-        }
+            })
+            .max_search_lines(25usize)
+            .max_search_result_bytes(max_bytes.ceil() as usize)
+            .fetch_truncation_limit(55usize)
+            .max_read_size(10u64)
+            .stdout_max_prefix_length(10usize)
+            .stdout_max_suffix_length(10usize)
+            .tool_timeout(300u64)
+            .stdout_max_line_length(2000usize)
+            .max_file_size(0u64)
+            .forge_api_url(Url::parse("http://forgecode.dev/api").unwrap())
+            .build()
+            .unwrap()
     }
 
     #[test]

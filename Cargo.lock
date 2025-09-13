@@ -1198,6 +1198,7 @@ dependencies = [
  "chrono",
  "convert_case 0.8.0",
  "derive-getters",
+ "derive_builder",
  "derive_more",
  "derive_setters",
  "eserde",

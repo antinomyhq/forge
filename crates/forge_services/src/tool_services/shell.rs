@@ -113,27 +113,26 @@ mod tests {
 
     impl EnvironmentInfra for MockCommandInfra {
         fn get_environment(&self) -> Environment {
-            Environment {
-                os: "test".to_string(),
-                pid: 12345,
-                cwd: PathBuf::from("/test"),
-                home: Some(PathBuf::from("/home/test")),
-                shell: "bash".to_string(),
-                base_path: PathBuf::from("/base"),
-                retry_config: Default::default(),
-                fetch_truncation_limit: 0,
-                stdout_max_prefix_length: 0,
-                max_search_lines: 0,
-                max_search_result_bytes: 256000,
-                max_read_size: 0,
-                stdout_max_suffix_length: 0,
-                stdout_max_line_length: 2000,
-                http: Default::default(),
-                tool_timeout: 300,
-                max_file_size: 10_000_000,
-                forge_api_url: reqwest::Url::parse("http://forgecode.dev/api").unwrap(),
-                auto_open_dump: false,
-            }
+            Environment::builder()
+                .os("test".to_string())
+                .pid(12345u32)
+                .cwd(PathBuf::from("/test"))
+                .home(Some(PathBuf::from("/home/test")))
+                .shell("bash".to_string())
+                .base_path(PathBuf::from("/base"))
+                .fetch_truncation_limit(0usize)
+                .stdout_max_prefix_length(0usize)
+                .max_search_lines(0usize)
+                .max_search_result_bytes(256000usize)
+                .max_read_size(0u64)
+                .stdout_max_suffix_length(0usize)
+                .stdout_max_line_length(2000usize)
+                .tool_timeout(300u64)
+                .max_file_size(10_000_000u64)
+                .forge_api_url(reqwest::Url::parse("http://forgecode.dev/api").unwrap())
+                .auto_open_dump(false)
+                .build()
+                .unwrap()
         }
 
         fn get_env_var(&self, _key: &str) -> Option<String> {
