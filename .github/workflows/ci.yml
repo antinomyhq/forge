@@ -93,9 +93,6 @@ jobs:
     if: 'github.event_name == ''pull_request'' && contains(github.event.pull_request.labels.*.name, ''ci: build all targets'')'
     name: Draft Release for PR
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
     steps:
     - name: Checkout Code
       uses: actions/checkout@v5
