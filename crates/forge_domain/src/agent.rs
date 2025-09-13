@@ -779,11 +779,11 @@ mod tests {
             ToolDefinition::new("tool1").description("Tool 1"),
             ToolDefinition::new("tool3").description("Tool 3"),
         ];
-        
+
         // Sort both vectors by tool name for deterministic comparison
         actual.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
         expected.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
-        
+
         assert_eq!(actual, expected);
     }
 
@@ -805,11 +805,11 @@ mod tests {
             ToolDefinition::new("tool1").description("Tool 1"),
             ToolDefinition::new("tool2").description("Tool 2"),
         ];
-        
+
         // Sort both vectors by tool name for deterministic comparison
         actual.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
         expected.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
-        
+
         assert_eq!(actual, expected);
     }
 
