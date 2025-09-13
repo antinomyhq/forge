@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -110,20 +109,8 @@ impl<S: Services> ForgeApp<S> {
             .ok_or(crate::Error::UnsubscribedEvent(chat.event.name.to_owned()))?;
 
         // Get system and mcp tool definitions
-        let tool_definitions = self.tool_registry.list().await?;
-        let uniq_tool_definitions = tool_definitions
-            .iter()
-            .map(|tool| (&tool.name, tool))
-            .collect::<HashMap<_, _>>();
-
-        let tool_definitions = agent
-            .tools
-            .iter()
-            .flatten()
-            .flat_map(|tool| uniq_tool_definitions.get(tool))
-            .cloned()
-            .cloned()
-            .collect::<Vec<_>>();
+        let all_tool_definitions = self.tool_registry.list().await?;
+        let tool_definitions = agent.resolve_tool_definitions(&all_tool_definitions);
 
         // Create the orchestrator with all necessary dependencies
         let orch = Orchestrator::new(

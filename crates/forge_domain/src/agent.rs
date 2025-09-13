@@ -296,6 +296,33 @@ impl Agent {
                 .any(|subscription| event_name.as_ref().eq(subscription))
         })
     }
+    /// Filters and deduplicates tool definitions based on agent's tools
+    /// configuration. Returns only the tool definitions that are specified
+    /// in the agent's tools list. Maintains deduplication to avoid
+    /// duplicate tool definitions.
+    pub fn resolve_tool_definitions(
+        &self,
+        tool_definitions: &[ToolDefinition],
+    ) -> Vec<ToolDefinition> {
+        use std::collections::{HashMap, HashSet};
+
+        // Create a map for efficient tool definition lookup by name
+        let tool_definitions_map: HashMap<_, _> = tool_definitions
+            .iter()
+            .map(|tool| (&tool.name, tool))
+            .collect();
+
+        // Deduplicate agent tools before processing
+        let unique_agent_tools: HashSet<_> = self.tools.iter().flatten().collect();
+
+        // Filter and collect tool definitions based on agent's tool list
+        unique_agent_tools
+            .iter()
+            .flat_map(|tool| tool_definitions_map.get(*tool))
+            .cloned()
+            .cloned()
+            .collect()
+    }
 
     pub fn extend_mcp_tools(self, mcp_tools: &HashMap<String, Vec<ToolDefinition>>) -> Self {
         let mut agent = self;
@@ -722,6 +749,95 @@ mod tests {
         let actual = fixture.subscribe.as_ref().unwrap();
         let expected = vec!["test-event".to_string()];
         assert_eq!(actual, &expected);
+    }
+    #[test]
+    fn test_filter_tool_definitions_with_no_tools() {
+        let fixture = Agent::new("test-agent"); // No tools configured
+        let tool_definitions = vec![
+            ToolDefinition::new("tool1").description("Tool 1"),
+            ToolDefinition::new("tool2").description("Tool 2"),
+        ];
+
+        let actual = fixture.resolve_tool_definitions(&tool_definitions);
+        let expected: Vec<ToolDefinition> = vec![];
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_filter_tool_definitions_with_matching_tools() {
+        let fixture =
+            Agent::new("test-agent").tools(vec![ToolName::new("tool1"), ToolName::new("tool3")]);
+        let tool_definitions = vec![
+            ToolDefinition::new("tool1").description("Tool 1"),
+            ToolDefinition::new("tool2").description("Tool 2"),
+            ToolDefinition::new("tool3").description("Tool 3"),
+            ToolDefinition::new("tool4").description("Tool 4"),
+        ];
+
+        let mut actual = fixture.resolve_tool_definitions(&tool_definitions);
+        let mut expected = vec![
+            ToolDefinition::new("tool1").description("Tool 1"),
+            ToolDefinition::new("tool3").description("Tool 3"),
+        ];
+
+        // Sort both vectors by tool name for deterministic comparison
+        actual.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+        expected.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_filter_tool_definitions_with_duplicate_agent_tools() {
+        let fixture = Agent::new("test-agent").tools(vec![
+            ToolName::new("tool1"),
+            ToolName::new("tool1"), // Duplicate - should be deduplicated
+            ToolName::new("tool2"),
+        ]);
+        let tool_definitions = vec![
+            ToolDefinition::new("tool1").description("Tool 1"),
+            ToolDefinition::new("tool2").description("Tool 2"),
+            ToolDefinition::new("tool3").description("Tool 3"),
+        ];
+
+        let mut actual = fixture.resolve_tool_definitions(&tool_definitions);
+        let mut expected = vec![
+            ToolDefinition::new("tool1").description("Tool 1"),
+            ToolDefinition::new("tool2").description("Tool 2"),
+        ];
+
+        // Sort both vectors by tool name for deterministic comparison
+        actual.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+        expected.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_filter_tool_definitions_with_no_matching_tools() {
+        let fixture = Agent::new("test-agent").tools(vec![
+            ToolName::new("nonexistent1"),
+            ToolName::new("nonexistent2"),
+        ]);
+        let tool_definitions = vec![
+            ToolDefinition::new("tool1").description("Tool 1"),
+            ToolDefinition::new("tool2").description("Tool 2"),
+        ];
+
+        let actual = fixture.resolve_tool_definitions(&tool_definitions);
+        let expected: Vec<ToolDefinition> = vec![];
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_filter_tool_definitions_with_empty_definitions() {
+        let fixture =
+            Agent::new("test-agent").tools(vec![ToolName::new("tool1"), ToolName::new("tool2")]);
+        let tool_definitions: Vec<ToolDefinition> = vec![];
+
+        let actual = fixture.resolve_tool_definitions(&tool_definitions);
+        let expected: Vec<ToolDefinition> = vec![];
+        assert_eq!(actual, expected);
     }
 
     #[test]
