@@ -81,6 +81,16 @@ pub struct Cli {
     pub sandbox: Option<String>,
 }
 
+impl Cli {
+    /// Checks if user is in is_interactive
+    pub fn is_interactive(&self) -> bool {
+        self.prompt.is_none()
+            && self.event.is_none()
+            && self.command.is_none()
+            && self.subcommands.is_none()
+    }
+}
+
 #[derive(Subcommand, Debug, Clone)]
 pub enum TopLevelCommand {
     Mcp(McpCommandGroup),

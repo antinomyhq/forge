@@ -77,6 +77,7 @@ impl TestContext {
                 max_file_size: 1024 * 1024 * 5,
                 max_search_result_bytes: 200,
                 stdout_max_line_length: 200, // 5 MB
+                auto_open_dump: false,
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(AgentId::new("forge"))

@@ -214,6 +214,13 @@ switch the model using `/model` command in the Forge CLI.
 ZAI_API_KEY=<your_zai_api_key>
 ```
 
+If you have a coding plan subscription, instead of setting `ZAI_API_KEY`, set `ZAI_CODING_API_KEY` and Forge will use your coding plan instead of standard API pricing:
+
+```bash
+# .env
+ZAI_CODING_API_KEY=<your_zai_coding_api_key>
+```
+
 switch the model using `/model` command in the Forge CLI.
 
 </details>
@@ -406,6 +413,7 @@ Configuring the tool calls settings:
 ```bash
 # .env
 FORGE_TOOL_TIMEOUT=300         # Maximum execution time in seconds for a tool before it is terminated to prevent hanging the session. (default: 300)
+FORGE_DUMP_AUTO_OPEN=false     # Automatically open dump files in browser (default: false)
 ```
 
 </details>

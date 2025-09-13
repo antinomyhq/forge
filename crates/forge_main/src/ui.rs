@@ -87,12 +87,20 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(models)
     }
 
+    /// Displays banner only if user is in interactive mode.
+    fn display_banner(&self) -> Result<()> {
+        if self.cli.is_interactive() {
+            banner::display()?;
+        }
+        Ok(())
+    }
+
     // Handle creating a new conversation
     async fn on_new(&mut self) -> Result<()> {
         self.api = Arc::new((self.new_api)());
         self.init_state(false).await?;
         self.cli.conversation = None;
-        banner::display()?;
+        self.display_banner()?;
         self.trace_user();
         self.hydrate_caches();
         Ok(())
@@ -184,9 +192,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return self.handle_subcommands(mcp).await;
         }
 
-        // Display the banner in dimmed colors since we're in interactive mode
-        banner::display()?;
-
+        // // Display the banner in dimmed colors since we're in interactive mode
+        self.display_banner()?;
         self.init_state(true).await?;
         self.trace_user();
         self.hydrate_caches();
@@ -805,7 +812,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                                 .sub_title(path.to_string()),
                         )?;
 
-                        open::that(path.as_str()).ok();
+                        if self.api.environment().auto_open_dump {
+                            open::that(path.as_str()).ok();
+                        }
 
                         return Ok(());
                     }
@@ -820,7 +829,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                             .sub_title(path.to_string()),
                     )?;
 
-                    open::that(path.as_str()).ok();
+                    if self.api.environment().auto_open_dump {
+                        open::that(path.as_str()).ok();
+                    }
                 };
             } else {
                 return Err(anyhow::anyhow!("Could not create dump"))
@@ -921,17 +932,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_completion(&mut self, metrics: Metrics) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Summary"))?;
 
-        let mut info = Info::default();
+        let info = Info::default()
+            .extend(Info::from(&metrics))
+            .extend(get_usage(&self.state));
 
-        // Show summary
-        info = info.extend(Info::from(&metrics));
-
-        // Fetch Usage
-        info = info.extend(get_usage(&self.state));
-
-        if let Ok(Some(usage)) = self.api.user_usage().await {
-            info = info.extend(Info::from(&usage));
-        }
+        // if let Ok(Some(usage)) = self.api.user_usage().await {
+        //     info = info.extend(Info::from(&usage));
+        // }
 
         self.writeln(info)?;
 
