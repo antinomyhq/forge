@@ -339,6 +339,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_detailed_error_message_included() -> anyhow::Result<()> {
+        let mut fixture = MockServer::new().await;
+        let detailed_error = create_error_response(
+            "Authentication failed: API key is invalid or expired. Please check your API key.",
+            401,
+        );
+        let mock = fixture.mock_models(detailed_error, 401).await;
+
+        let provider = create_provider(&fixture.url())?;
+        let actual = provider.models().await;
+
+        mock.assert_async().await;
+        assert!(actual.is_err());
+        insta::assert_snapshot!(normalize_ports(format!("{:#?}", actual.unwrap_err())));
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_get_headers_with_request_zai_provider() -> anyhow::Result<()> {
         let provider = Provider::zai("test-key");
         let http_client = Arc::new(MockHttpClient::new());

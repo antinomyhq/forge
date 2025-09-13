@@ -426,6 +426,7 @@ System-level environment variables (usually set automatically):
 ```bash
 # .env
 FORGE_MAX_SEARCH_RESULT_BYTES=101024   # Maximum bytes for search results (default: 101024 - 10 KB)
+FORGE_HISTORY_FILE=/path/to/history    # Custom path for Forge history file (default: uses system default location)
 SHELL=/bin/zsh                         # Shell to use for command execution (Unix/Linux/macOS)
 COMSPEC=cmd.exe                        # Command processor to use (Windows)
 ```
