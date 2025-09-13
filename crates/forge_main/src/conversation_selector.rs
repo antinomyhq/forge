@@ -53,7 +53,7 @@ impl ConversationSelector {
                 .bold()
         });
 
-        let max_title_length: usize = formatted_titles.clone().map(|s| s.len()).max().unwrap_or(0);
+        let max_title_length: usize = titles.iter().map(|s| s.len()).max().unwrap_or(0);
 
         struct ConversationItem((String, Conversation));
         impl Display for ConversationItem {
