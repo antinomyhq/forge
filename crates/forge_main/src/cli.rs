@@ -15,6 +15,7 @@ pub struct Cli {
     /// Direct prompt to process without entering interactive mode.
     ///
     /// Allows running a single command directly from the command line.
+    /// Alternatively, you can pipe content to forge: `cat prompt.txt | forge`
     #[arg(long, short = 'p')]
     pub prompt: Option<String>,
 
@@ -55,24 +56,46 @@ pub struct Cli {
     #[arg(long)]
     pub conversation: Option<PathBuf>,
 
+    /// Reload the last active conversation for the current workspace.
+    ///
+    /// When enabled, automatically loads and resumes the most recently active
+    /// conversation instead of starting a new one.
+    #[arg(long, default_value_t = false)]
+    pub resume: bool,
+
     /// Top-level subcommands
     #[command(subcommand)]
     pub subcommands: Option<TopLevelCommand>,
 
-    /// Enable Neo UI mode.
-    /// This mode provides a modern user interface for the application [WIP].
-    #[arg(long, default_value_t = false, short = 'n')]
-    pub neo_ui: bool,
     /// Working directory to set before starting forge.
     ///
     /// If provided, the application will change to this directory before
     /// starting. This allows running forge from a different directory.
     pub directory: Option<PathBuf>,
+    /// Create a new sandbox env and start forge in that directory.
+    ///
+    /// When specified, creates a new git worktree in the parent folder
+    /// (if it doesn't already exist) and then starts forge in that directory.
+    /// The worktree name will be used as the branch name.
+    #[arg(long)]
+    pub sandbox: Option<String>,
+}
+
+impl Cli {
+    /// Checks if user is in is_interactive
+    pub fn is_interactive(&self) -> bool {
+        self.prompt.is_none()
+            && self.event.is_none()
+            && self.command.is_none()
+            && self.subcommands.is_none()
+    }
 }
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum TopLevelCommand {
     Mcp(McpCommandGroup),
+    /// Print information about the environment
+    Info,
 }
 
 /// Group of MCP-related commands

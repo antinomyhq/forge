@@ -3,13 +3,25 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_app::domain::{
-    CommandOutput, Environment, McpServerConfig, ToolDefinition, ToolName, ToolOutput,
+    CommandOutput, Conversation, ConversationId, Environment, McpServerConfig, ToolDefinition,
+    ToolName, ToolOutput,
 };
 use forge_app::{WalkedFile, Walker};
 use forge_snaps::Snapshot;
 use reqwest::Response;
 use reqwest::header::HeaderMap;
+use reqwest_eventsource::EventSource;
+use url::Url;
 
+/// Infrastructure trait for accessing environment configuration and system
+/// variables.
+///
+/// This trait provides access to the application environment which includes
+/// configuration for both global and project-local agent directories. The
+/// Environment exposes:
+/// - Global agent directory via `agent_path()` (typically ~/.forge/agents)
+/// - Project-local agent directory via `agent_cwd_path()` (typically
+///   .forge/agents)
 pub trait EnvironmentInfra: Send + Sync {
     fn get_environment(&self) -> Environment;
     fn get_env_var(&self, key: &str) -> Option<String>;
@@ -111,6 +123,8 @@ pub trait CommandInfra: Send + Sync {
         &self,
         command: String,
         working_dir: PathBuf,
+        silent: bool,
+        env_vars: Option<Vec<String>>,
     ) -> anyhow::Result<CommandOutput>;
 
     /// execute the shell command on present stdio.
@@ -118,6 +132,7 @@ pub trait CommandInfra: Send + Sync {
         &self,
         command: &str,
         working_dir: PathBuf,
+        env_vars: Option<Vec<String>>,
     ) -> anyhow::Result<std::process::ExitStatus>;
 }
 
@@ -129,19 +144,31 @@ pub trait UserInfra: Send + Sync {
 
     /// Prompts the user to select a single option from a list
     /// Returns None if the user interrupts the selection
-    async fn select_one(
+    async fn select_one<T: std::fmt::Display + Send + 'static>(
         &self,
         message: &str,
-        options: Vec<String>,
-    ) -> anyhow::Result<Option<String>>;
+        options: Vec<T>,
+    ) -> anyhow::Result<Option<T>>;
+
+    /// Prompts the user to select a single option from an enum that implements
+    /// IntoEnumIterator Returns None if the user interrupts the selection
+    async fn select_one_enum<T>(&self, message: &str) -> anyhow::Result<Option<T>>
+    where
+        T: std::fmt::Display + Send + 'static + strum::IntoEnumIterator + std::str::FromStr,
+        <T as std::str::FromStr>::Err: std::fmt::Debug,
+    {
+        let options: Vec<T> = T::iter().collect();
+        let selected = self.select_one(message, options).await?;
+        Ok(selected)
+    }
 
     /// Prompts the user to select multiple options from a list
     /// Returns None if the user interrupts the selection
-    async fn select_many(
+    async fn select_many<T: std::fmt::Display + Clone + Send + 'static>(
         &self,
         message: &str,
-        options: Vec<String>,
-    ) -> anyhow::Result<Option<Vec<String>>>;
+        options: Vec<T>,
+    ) -> anyhow::Result<Option<Vec<T>>>;
 }
 
 #[async_trait::async_trait]
@@ -167,10 +194,44 @@ pub trait WalkerInfra: Send + Sync {
     async fn walk(&self, config: Walker) -> anyhow::Result<Vec<WalkedFile>>;
 }
 
-// TODO: rename me, add Infra suffix
+/// HTTP service trait for making HTTP requests
 #[async_trait::async_trait]
 pub trait HttpInfra: Send + Sync + 'static {
-    async fn get(&self, url: &str, headers: Option<HeaderMap>) -> anyhow::Result<Response>;
-    async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response>;
-    async fn delete(&self, url: &str) -> anyhow::Result<Response>;
+    async fn get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response>;
+    async fn post(&self, url: &Url, body: bytes::Bytes) -> anyhow::Result<Response>;
+    async fn delete(&self, url: &Url) -> anyhow::Result<Response>;
+
+    /// Posts JSON data and returns a server-sent events stream
+    async fn eventsource(
+        &self,
+        url: &Url,
+        headers: Option<HeaderMap>,
+        body: Bytes,
+    ) -> anyhow::Result<EventSource>;
+}
+/// Service for reading multiple files from a directory asynchronously
+#[async_trait::async_trait]
+pub trait DirectoryReaderInfra: Send + Sync {
+    /// Reads all files in a directory that match the given filter pattern
+    /// Returns a vector of tuples containing (file_path, file_content)
+    /// Files are read asynchronously/in parallel for better performance
+    async fn read_directory_files(
+        &self,
+        directory: &Path,
+        pattern: Option<&str>, // Optional glob pattern like "*.md"
+    ) -> anyhow::Result<Vec<(PathBuf, String)>>;
+}
+
+#[async_trait::async_trait]
+pub trait ConversationRepository: Send + Sync {
+    async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()>;
+    async fn get_conversation(
+        &self,
+        conversation_id: &ConversationId,
+    ) -> anyhow::Result<Option<Conversation>>;
+    async fn get_all_conversations(
+        &self,
+        limit: Option<usize>,
+    ) -> anyhow::Result<Option<Vec<Conversation>>>;
+    async fn get_last_conversation(&self) -> anyhow::Result<Option<Conversation>>;
 }

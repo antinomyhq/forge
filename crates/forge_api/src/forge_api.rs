@@ -2,10 +2,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use forge_app::dto::{AppConfig, InitAuth, ToolsOverview};
 use forge_app::{
-    AppConfig, AppConfigService, AuthService, ConversationService, EnvironmentService,
-    FileDiscoveryService, ForgeApp, InitAuth, McpConfigManager, ProviderRegistry, ProviderService,
-    Services, User, Walker, WorkflowService,
+    AgentLoaderService, AppConfigService, AuthService, ConversationService, EnvironmentService,
+    FileDiscoveryService, ForgeApp, McpConfigManager, ProviderRegistry, ProviderService, Services,
+    User, UserUsage, Walker, WorkflowService,
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
@@ -41,7 +42,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         self.services.collect_files(config).await
     }
 
-    async fn tools(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+    async fn tools(&self) -> anyhow::Result<ToolsOverview> {
         let forge_app = ForgeApp::new(self.services.clone());
         forge_app.list_tools().await
     }
@@ -51,6 +52,9 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
             .services
             .models(self.provider().await.context("User is not logged in")?)
             .await?)
+    }
+    async fn get_agents(&self) -> Result<Vec<Agent>> {
+        Ok(self.services.get_agents().await?)
     }
 
     async fn chat(
@@ -62,15 +66,12 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         forge_app.chat(chat).await
     }
 
-    async fn init_conversation<W: Into<Workflow> + Send + Sync>(
-        &self,
-        workflow: W,
-    ) -> anyhow::Result<Conversation> {
-        self.services.create_conversation(workflow.into()).await
+    async fn init_conversation(&self) -> anyhow::Result<Conversation> {
+        self.services.init_conversation().await
     }
 
     async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()> {
-        self.services.upsert(conversation).await
+        self.services.upsert_conversation(conversation).await
     }
 
     async fn compact_conversation(
@@ -86,15 +87,18 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     }
 
     async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        self.services.read_workflow(path).await
+        let app = ForgeApp::new(self.services.clone());
+        app.read_workflow(path).await
     }
 
     async fn read_merged(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        self.services.read_merged(path).await
+        let app = ForgeApp::new(self.services.clone());
+        app.read_workflow_merged(path).await
     }
 
     async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> anyhow::Result<()> {
-        self.services.write_workflow(path, workflow).await
+        let app = ForgeApp::new(self.services.clone());
+        app.write_workflow(path, workflow).await
     }
 
     async fn update_workflow<T>(&self, path: Option<&Path>, f: T) -> anyhow::Result<Workflow>
@@ -108,7 +112,19 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         &self,
         conversation_id: &ConversationId,
     ) -> anyhow::Result<Option<Conversation>> {
-        self.services.find(conversation_id).await
+        self.services.find_conversation(conversation_id).await
+    }
+
+    async fn list_conversations(&self, limit: Option<usize>) -> anyhow::Result<Vec<Conversation>> {
+        Ok(self
+            .services
+            .get_conversations(limit)
+            .await?
+            .unwrap_or_default())
+    }
+
+    async fn last_conversation(&self) -> anyhow::Result<Option<Conversation>> {
+        self.services.last_conversation().await
     }
 
     async fn execute_shell_command(
@@ -117,7 +133,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         working_dir: PathBuf,
     ) -> anyhow::Result<CommandOutput> {
         self.infra
-            .execute_command(command.to_string(), working_dir)
+            .execute_command(command.to_string(), working_dir, false, None)
             .await
     }
     async fn read_mcp_config(&self) -> Result<McpConfig> {
@@ -139,7 +155,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         command: &str,
     ) -> anyhow::Result<std::process::ExitStatus> {
         let cwd = self.environment().cwd;
-        self.infra.execute_command_raw(command, cwd).await
+        self.infra.execute_command_raw(command, cwd, None).await
     }
 
     async fn init_login(&self) -> Result<InitAuth> {
@@ -158,11 +174,12 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     }
     async fn provider(&self) -> anyhow::Result<Provider> {
         self.services
-            .get_provider(self.services.read_app_config().await.unwrap_or_default())
+            .get_provider(self.services.get_app_config().await.unwrap_or_default())
             .await
     }
-    async fn app_config(&self) -> anyhow::Result<AppConfig> {
-        self.services.read_app_config().await
+
+    async fn app_config(&self) -> Option<AppConfig> {
+        self.services.get_app_config().await
     }
 
     async fn user_info(&self) -> Result<Option<User>> {
@@ -172,5 +189,27 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
             return Ok(Some(user_info));
         }
         Ok(None)
+    }
+
+    async fn user_usage(&self) -> Result<Option<UserUsage>> {
+        let provider = self.provider().await?;
+        if let Some(api_key) = provider.key() {
+            let user_usage = self.services.user_usage(api_key).await?;
+            return Ok(Some(user_usage));
+        }
+        Ok(None)
+    }
+
+    async fn get_operating_agent(&self) -> Option<AgentId> {
+        self.services
+            .get_app_config()
+            .await
+            .and_then(|config| config.operating_agent)
+    }
+
+    async fn set_operating_agent(&self, agent_id: AgentId) -> anyhow::Result<()> {
+        let mut config = self.services.get_app_config().await.unwrap_or_default();
+        config.operating_agent = Some(agent_id);
+        self.services.set_app_config(&config).await
     }
 }

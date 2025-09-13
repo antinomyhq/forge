@@ -24,4 +24,7 @@ pub enum Error {
 
     #[error("Authentication still in progress")]
     AuthInProgress,
+
+    #[error("No agent has subscribed to the event: {0}")]
+    UnsubscribedEvent(String),
 }

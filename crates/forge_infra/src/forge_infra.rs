@@ -3,25 +3,29 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_domain::{CommandOutput, Environment, McpServerConfig};
+use forge_domain::{CommandOutput, Conversation, ConversationId, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
-    CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra,
-    WalkerInfra,
+    CommandInfra, ConversationRepository, DirectoryReaderInfra, EnvironmentInfra,
+    FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
+    HttpInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
 };
-use reqwest::Response;
 use reqwest::header::HeaderMap;
+use reqwest::{Response, Url};
+use reqwest_eventsource::EventSource;
 
+use crate::database::repository::conversation::ConversationRepositoryImpl;
+use crate::database::{DatabasePool, PoolConfig};
 use crate::env::ForgeEnvironmentInfra;
 use crate::executor::ForgeCommandExecutorService;
 use crate::fs_create_dirs::ForgeCreateDirsService;
 use crate::fs_meta::ForgeFileMetaService;
 use crate::fs_read::ForgeFileReadService;
+use crate::fs_read_dir::ForgeDirectoryReaderService;
 use crate::fs_remove::ForgeFileRemoveService;
 use crate::fs_snap::ForgeFileSnapshotService;
 use crate::fs_write::ForgeFileWriteService;
-use crate::http::ForgeHttpService;
+use crate::http::ForgeHttpInfra;
 use crate::inquire::ForgeInquire;
 use crate::mcp_client::ForgeMcpClient;
 use crate::mcp_server::ForgeMcpServer;
@@ -29,6 +33,8 @@ use crate::walker::ForgeWalkerService;
 
 #[derive(Clone)]
 pub struct ForgeInfra {
+    // TODO: Drop the "Service" suffix. Use names like ForgeFileReader, ForgeFileWriter,
+    // ForgeHttpClient etc.
     file_read_service: Arc<ForgeFileReadService>,
     file_write_service: Arc<ForgeFileWriteService<ForgeFileSnapshotService>>,
     environment_service: Arc<ForgeEnvironmentInfra>,
@@ -36,11 +42,13 @@ pub struct ForgeInfra {
     file_meta_service: Arc<ForgeFileMetaService>,
     file_remove_service: Arc<ForgeFileRemoveService<ForgeFileSnapshotService>>,
     create_dirs_service: Arc<ForgeCreateDirsService>,
+    directory_reader_service: Arc<ForgeDirectoryReaderService>,
     command_executor_service: Arc<ForgeCommandExecutorService>,
     inquire_service: Arc<ForgeInquire>,
     mcp_server: ForgeMcpServer,
     walker_service: Arc<ForgeWalkerService>,
-    http_service: Arc<ForgeHttpService>,
+    http_service: Arc<ForgeHttpInfra>,
+    conversation_repository: Arc<ConversationRepositoryImpl>,
 }
 
 impl ForgeInfra {
@@ -48,7 +56,11 @@ impl ForgeInfra {
         let environment_service = Arc::new(ForgeEnvironmentInfra::new(restricted, cwd));
         let env = environment_service.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
-        let http_service = Arc::new(ForgeHttpService::new());
+        let http_service = Arc::new(ForgeHttpInfra::new(env.http.clone()));
+        let db_pool =
+            Arc::new(DatabasePool::try_from(PoolConfig::new(env.database_path())).unwrap());
+        let conversation_repository =
+            Arc::new(ConversationRepositoryImpl::new(db_pool, env.workspace_id()));
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
             file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),
@@ -59,6 +71,7 @@ impl ForgeInfra {
             environment_service,
             file_snapshot_service,
             create_dirs_service: Arc::new(ForgeCreateDirsService),
+            directory_reader_service: Arc::new(ForgeDirectoryReaderService),
             command_executor_service: Arc::new(ForgeCommandExecutorService::new(
                 restricted,
                 env.clone(),
@@ -67,6 +80,7 @@ impl ForgeInfra {
             mcp_server: ForgeMcpServer,
             walker_service: Arc::new(ForgeWalkerService::new()),
             http_service,
+            conversation_repository,
         }
     }
 }
@@ -173,9 +187,11 @@ impl CommandInfra for ForgeInfra {
         &self,
         command: String,
         working_dir: PathBuf,
+        silent: bool,
+        env_vars: Option<Vec<String>>,
     ) -> anyhow::Result<CommandOutput> {
         self.command_executor_service
-            .execute_command(command, working_dir)
+            .execute_command(command, working_dir, silent, env_vars)
             .await
     }
 
@@ -183,9 +199,10 @@ impl CommandInfra for ForgeInfra {
         &self,
         command: &str,
         working_dir: PathBuf,
+        env_vars: Option<Vec<String>>,
     ) -> anyhow::Result<ExitStatus> {
         self.command_executor_service
-            .execute_command_raw(command, working_dir)
+            .execute_command_raw(command, working_dir, env_vars)
             .await
     }
 }
@@ -196,19 +213,19 @@ impl UserInfra for ForgeInfra {
         self.inquire_service.prompt_question(question).await
     }
 
-    async fn select_one(
+    async fn select_one<T: std::fmt::Display + Send + 'static>(
         &self,
         message: &str,
-        options: Vec<String>,
-    ) -> anyhow::Result<Option<String>> {
+        options: Vec<T>,
+    ) -> anyhow::Result<Option<T>> {
         self.inquire_service.select_one(message, options).await
     }
 
-    async fn select_many(
+    async fn select_many<T: std::fmt::Display + Clone + Send + 'static>(
         &self,
         message: &str,
-        options: Vec<String>,
-    ) -> anyhow::Result<Option<Vec<String>>> {
+        options: Vec<T>,
+    ) -> anyhow::Result<Option<Vec<T>>> {
         self.inquire_service.select_many(message, options).await
     }
 }
@@ -231,15 +248,66 @@ impl WalkerInfra for ForgeInfra {
 
 #[async_trait::async_trait]
 impl HttpInfra for ForgeInfra {
-    async fn get(&self, url: &str, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
+    async fn get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
         self.http_service.get(url, headers).await
     }
 
-    async fn post(&self, url: &str, body: Bytes) -> anyhow::Result<Response> {
+    async fn post(&self, url: &Url, body: Bytes) -> anyhow::Result<Response> {
         self.http_service.post(url, body).await
     }
 
-    async fn delete(&self, url: &str) -> anyhow::Result<Response> {
+    async fn delete(&self, url: &Url) -> anyhow::Result<Response> {
         self.http_service.delete(url).await
+    }
+    async fn eventsource(
+        &self,
+        url: &Url,
+        headers: Option<HeaderMap>,
+        body: Bytes,
+    ) -> anyhow::Result<EventSource> {
+        self.http_service.eventsource(url, headers, body).await
+    }
+}
+#[async_trait::async_trait]
+impl DirectoryReaderInfra for ForgeInfra {
+    async fn read_directory_files(
+        &self,
+        directory: &Path,
+        pattern: Option<&str>,
+    ) -> anyhow::Result<Vec<(PathBuf, String)>> {
+        self.directory_reader_service
+            .read_directory_files(directory, pattern)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl ConversationRepository for ForgeInfra {
+    async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()> {
+        self.conversation_repository
+            .upsert_conversation(conversation)
+            .await
+    }
+
+    async fn get_conversation(
+        &self,
+        conversation_id: &ConversationId,
+    ) -> anyhow::Result<Option<Conversation>> {
+        self.conversation_repository
+            .get_conversation(conversation_id)
+            .await
+    }
+
+    async fn get_all_conversations(
+        &self,
+        limit: Option<usize>,
+    ) -> anyhow::Result<Option<Vec<Conversation>>> {
+        self.conversation_repository
+            .get_all_conversations(limit)
+            .await
+    }
+
+    async fn get_last_conversation(&self) -> anyhow::Result<Option<Conversation>> {
+        self.conversation_repository.get_last_conversation().await
     }
 }

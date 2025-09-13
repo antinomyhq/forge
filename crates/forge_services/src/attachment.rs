@@ -1,9 +1,7 @@
-use std::collections::HashSet;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use forge_app::AttachmentService;
-use forge_app::domain::{Attachment, AttachmentContent, Image};
+use forge_app::domain::{Attachment, AttachmentContent, FileTag, Image, LineNumbers};
 
 use crate::range::resolve_range;
 use crate::{EnvironmentInfra, FileReaderInfra};
@@ -18,22 +16,15 @@ impl<F: FileReaderInfra + EnvironmentInfra> ForgeChatRequest<F> {
         Self { infra }
     }
 
-    async fn prepare_attachments<T: AsRef<Path>>(
-        &self,
-        paths: HashSet<T>,
-    ) -> anyhow::Result<Vec<Attachment>> {
-        futures::future::join_all(
-            paths
-                .into_iter()
-                .map(|v| v.as_ref().to_path_buf())
-                .map(|v| self.populate_attachments(v)),
-        )
-        .await
-        .into_iter()
-        .collect::<anyhow::Result<Vec<_>>>()
+    async fn prepare_attachments(&self, paths: Vec<FileTag>) -> anyhow::Result<Vec<Attachment>> {
+        futures::future::join_all(paths.into_iter().map(|v| self.populate_attachments(v)))
+            .await
+            .into_iter()
+            .collect::<anyhow::Result<Vec<_>>>()
     }
 
-    async fn populate_attachments(&self, mut path: PathBuf) -> anyhow::Result<Attachment> {
+    async fn populate_attachments(&self, tag: FileTag) -> anyhow::Result<Attachment> {
+        let mut path = tag.as_ref().to_path_buf();
         let extension = path.extension().map(|v| v.to_string_lossy().to_string());
 
         if !path.is_absolute() {
@@ -55,7 +46,10 @@ impl<F: FileReaderInfra + EnvironmentInfra> ForgeChatRequest<F> {
             }
             None => {
                 let env = self.infra.get_environment();
-                let (start_line, end_line) = resolve_range(None, None, env.max_read_size);
+
+                let start = tag.loc.as_ref().and_then(|loc| loc.start);
+                let end = tag.loc.as_ref().and_then(|loc| loc.end);
+                let (start_line, end_line) = resolve_range(start, end, env.max_read_size);
 
                 let (file_content, file_info) = self
                     .infra
@@ -63,7 +57,7 @@ impl<F: FileReaderInfra + EnvironmentInfra> ForgeChatRequest<F> {
                     .await?;
 
                 AttachmentContent::FileContent {
-                    content: file_content,
+                    content: file_content.numbered_from(file_info.start_line as usize),
                     start_line: file_info.start_line,
                     end_line: file_info.end_line,
                     total_lines: file_info.total_lines,
@@ -94,15 +88,13 @@ pub mod tests {
     use forge_app::domain::{
         AttachmentContent, CommandOutput, Environment, ToolDefinition, ToolName, ToolOutput,
     };
-    use forge_snaps::Snapshot;
     use serde_json::Value;
     use url::Url;
 
     use crate::attachment::ForgeChatRequest;
     use crate::{
         CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-        FileRemoverInfra, FileWriterInfra, McpClientInfra, McpServerInfra, SnapshotInfra,
-        UserInfra,
+        FileRemoverInfra, FileWriterInfra, McpClientInfra, McpServerInfra, UserInfra,
     };
 
     #[derive(Debug)]
@@ -111,6 +103,7 @@ pub mod tests {
     #[async_trait::async_trait]
     impl EnvironmentInfra for MockEnvironmentInfra {
         fn get_environment(&self) -> Environment {
+            let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
             Environment {
                 os: "test".to_string(),
                 pid: 12345,
@@ -120,13 +113,17 @@ pub mod tests {
                 base_path: PathBuf::from("/base"),
                 retry_config: Default::default(),
                 max_search_lines: 25,
+                max_search_result_bytes: max_bytes.ceil() as usize, // 0.25 MB
                 fetch_truncation_limit: 0,
                 stdout_max_prefix_length: 0,
                 stdout_max_suffix_length: 0,
+                stdout_max_line_length: 2000,
                 max_read_size: 2000,
+                tool_timeout: 300,
                 http: Default::default(),
                 max_file_size: 10_000_000,
                 forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
+                auto_open_dump: false,
             }
         }
 
@@ -202,18 +199,42 @@ pub mod tests {
         async fn range_read_utf8(
             &self,
             path: &Path,
-            _start_line: u64,
-            _end_line: u64,
+            start_line: u64,
+            end_line: u64,
         ) -> anyhow::Result<(String, forge_fs::FileInfo)> {
-            // For tests, we'll just read the entire file and return it
-            let content = self.read_utf8(path).await?;
-            let lines: Vec<&str> = content.lines().collect();
-            let total_lines = lines.len() as u64;
+            // Read the full content first
+            let full_content = self.read_utf8(path).await?;
+            let all_lines: Vec<&str> = full_content.lines().collect();
 
-            // Return the entire content for simplicity in tests
+            // Apply range filtering based on parameters
+            let start_idx = start_line.saturating_sub(1) as usize;
+            let end_idx = if end_line > 0 {
+                std::cmp::min(end_line as usize, all_lines.len())
+            } else {
+                all_lines.len()
+            };
+
+            let filtered_lines = if start_idx < all_lines.len() {
+                &all_lines[start_idx..end_idx]
+            } else {
+                &[]
+            };
+
+            let filtered_content = filtered_lines.join("\n");
+            let actual_start = if filtered_lines.is_empty() {
+                0
+            } else {
+                start_line
+            };
+            let actual_end = if filtered_lines.is_empty() {
+                0
+            } else {
+                start_idx as u64 + filtered_lines.len() as u64
+            };
+
             Ok((
-                content,
-                forge_fs::FileInfo::new(1, total_lines, total_lines),
+                filtered_content,
+                forge_fs::FileInfo::new(actual_start, actual_end, all_lines.len() as u64),
             ))
         }
     }
@@ -272,20 +293,6 @@ pub mod tests {
             self.write(&path, content.to_string().into(), false).await?;
 
             Ok(path)
-        }
-    }
-
-    #[derive(Debug)]
-    pub struct MockSnapService;
-
-    #[async_trait::async_trait]
-    impl SnapshotInfra for MockSnapService {
-        async fn create_snapshot(&self, _: &Path) -> anyhow::Result<Snapshot> {
-            unimplemented!()
-        }
-
-        async fn undo_snapshot(&self, _: &Path) -> anyhow::Result<()> {
-            unimplemented!()
         }
     }
 
@@ -352,6 +359,8 @@ pub mod tests {
             &self,
             command: String,
             working_dir: PathBuf,
+            _silent: bool,
+            _env_vars: Option<Vec<String>>,
         ) -> anyhow::Result<CommandOutput> {
             // For test purposes, we'll create outputs that match what the shell tests
             // expect Check for common command patterns
@@ -469,6 +478,7 @@ pub mod tests {
             &self,
             _: &str,
             _: PathBuf,
+            _env_vars: Option<Vec<String>>,
         ) -> anyhow::Result<std::process::ExitStatus> {
             unimplemented!()
         }
@@ -483,24 +493,24 @@ pub mod tests {
         }
 
         /// Prompts the user to select a single option from a list
-        async fn select_one(
+        async fn select_one<T: std::fmt::Display + Send + 'static>(
             &self,
             _: &str,
-            options: Vec<String>,
-        ) -> anyhow::Result<Option<String>> {
+            options: Vec<T>,
+        ) -> anyhow::Result<Option<T>> {
             // For testing, we can just return the first option
             if options.is_empty() {
                 return Err(anyhow::anyhow!("No options provided"));
             }
-            Ok(Some(options[0].clone()))
+            Ok(Some(options.into_iter().next().unwrap()))
         }
 
         /// Prompts the user to select multiple options from a list
-        async fn select_many(
+        async fn select_many<T: std::fmt::Display + Clone + Send + 'static>(
             &self,
             _: &str,
-            options: Vec<String>,
-        ) -> anyhow::Result<Option<Vec<String>>> {
+            options: Vec<T>,
+        ) -> anyhow::Result<Option<Vec<T>>> {
             // For testing, we can just return all options
             if options.is_empty() {
                 return Err(anyhow::anyhow!("No options provided"));
@@ -778,6 +788,258 @@ pub mod tests {
         assert!(
             file_content.unwrap().contains("Line 1"),
             "Should contain file content"
+        );
+    }
+
+    // Range functionality tests
+    #[tokio::test]
+    async fn test_range_functionality_single_line() {
+        let infra = Arc::new(MockCompositeService::new());
+
+        // Add a multi-line test file
+        infra.add_file(
+            PathBuf::from("/test/multiline.txt"),
+            "Line 1\nLine 2\nLine 3\nLine 4\nLine 5".to_string(),
+        );
+
+        let chat_request = ForgeChatRequest::new(infra.clone());
+
+        // Test reading line 2 only
+        let url = "@[/test/multiline.txt:2:2]";
+        let attachments = chat_request.attachments(&url).await.unwrap();
+
+        assert_eq!(attachments.len(), 1);
+        assert_eq!(
+            attachments[0].content,
+            AttachmentContent::FileContent {
+                content: "2: Line 2".to_string(),
+                start_line: 2,
+                end_line: 2,
+                total_lines: 5,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_range_functionality_multiple_lines() {
+        let infra = Arc::new(MockCompositeService::new());
+
+        // Add a multi-line test file
+        infra.add_file(
+            PathBuf::from("/test/range_test.txt"),
+            "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6".to_string(),
+        );
+
+        let chat_request = ForgeChatRequest::new(infra.clone());
+
+        // Test reading lines 2-4
+        let url = "@[/test/range_test.txt:2:4]";
+        let attachments = chat_request.attachments(&url).await.unwrap();
+
+        assert_eq!(attachments.len(), 1);
+        assert_eq!(attachments.len(), 1);
+        assert_eq!(
+            attachments[0].content,
+            AttachmentContent::FileContent {
+                content: "2: Line 2\n3: Line 3\n4: Line 4".to_string(),
+                start_line: 2,
+                end_line: 4,
+                total_lines: 6,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_range_functionality_from_start() {
+        let infra = Arc::new(MockCompositeService::new());
+
+        infra.add_file(
+            PathBuf::from("/test/start_range.txt"),
+            "First\nSecond\nThird\nFourth".to_string(),
+        );
+
+        let chat_request = ForgeChatRequest::new(infra.clone());
+
+        // Test reading from start to line 2
+        let url = "@[/test/start_range.txt:1:2]";
+        let attachments = chat_request.attachments(&url).await.unwrap();
+        assert_eq!(
+            attachments[0].content,
+            AttachmentContent::FileContent {
+                content: "1: First\n2: Second".to_string(),
+                start_line: 1,
+                end_line: 2,
+                total_lines: 4,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_range_functionality_to_end() {
+        let infra = Arc::new(MockCompositeService::new());
+
+        infra.add_file(
+            PathBuf::from("/test/end_range.txt"),
+            "Alpha\nBeta\nGamma\nDelta\nEpsilon".to_string(),
+        );
+
+        let chat_request = ForgeChatRequest::new(infra.clone());
+
+        // Test reading from line 3 to end
+        let url = "@[/test/end_range.txt:3:5]";
+        let attachments = chat_request.attachments(&url).await.unwrap();
+        assert_eq!(
+            attachments[0].content,
+            AttachmentContent::FileContent {
+                content: "3: Gamma\n4: Delta\n5: Epsilon".to_string(),
+                start_line: 3,
+                end_line: 5,
+                total_lines: 5,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_range_functionality_edge_cases() {
+        let infra = Arc::new(MockCompositeService::new());
+
+        infra.add_file(
+            PathBuf::from("/test/edge_case.txt"),
+            "Only line".to_string(),
+        );
+
+        let chat_request = ForgeChatRequest::new(infra.clone());
+
+        // Test reading beyond file length
+        let url = "@[/test/edge_case.txt:1:10]";
+        let attachments = chat_request.attachments(&url).await.unwrap();
+        assert_eq!(
+            attachments[0].content,
+            AttachmentContent::FileContent {
+                content: "1: Only line".to_string(),
+                start_line: 1,
+                end_line: 1,
+                total_lines: 1,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_range_functionality_combined_with_multiple_files() {
+        let infra = Arc::new(MockCompositeService::new());
+
+        infra.add_file(PathBuf::from("/test/file_a.txt"), "A1\nA2\nA3".to_string());
+        infra.add_file(
+            PathBuf::from("/test/file_b.txt"),
+            "B1\nB2\nB3\nB4".to_string(),
+        );
+
+        let chat_request = ForgeChatRequest::new(infra.clone());
+
+        // Test multiple files with different ranges
+        let url = "Check @[/test/file_a.txt:1:2] and @[/test/file_b.txt:3:4]";
+        let attachments = chat_request.attachments(&url).await.unwrap();
+
+        assert_eq!(attachments.len(), 2);
+        assert_eq!(
+            attachments[0].content,
+            AttachmentContent::FileContent {
+                content: "1: A1\n2: A2".to_string(),
+                start_line: 1,
+                end_line: 2,
+                total_lines: 3,
+            }
+        );
+        assert_eq!(
+            attachments[1].content,
+            AttachmentContent::FileContent {
+                content: "3: B3\n4: B4".to_string(),
+                start_line: 3,
+                end_line: 4,
+                total_lines: 4,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_range_functionality_preserves_metadata() {
+        let infra = Arc::new(MockCompositeService::new());
+
+        infra.add_file(
+            PathBuf::from("/test/metadata_test.txt"),
+            "Meta1\nMeta2\nMeta3\nMeta4\nMeta5\nMeta6\nMeta7".to_string(),
+        );
+
+        let chat_request = ForgeChatRequest::new(infra.clone());
+
+        // Test that metadata is preserved correctly with ranges
+        let url = "@[/test/metadata_test.txt:3:5]";
+        let attachments = chat_request.attachments(&url).await.unwrap();
+
+        assert_eq!(attachments.len(), 1);
+        assert_eq!(attachments[0].path, "/test/metadata_test.txt");
+        assert_eq!(
+            attachments[0].content,
+            AttachmentContent::FileContent {
+                content: "3: Meta3\n4: Meta4\n5: Meta5".to_string(),
+                start_line: 3,
+                end_line: 5,
+                total_lines: 7,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_range_functionality_vs_full_file() {
+        let infra = Arc::new(MockCompositeService::new());
+
+        infra.add_file(
+            PathBuf::from("/test/comparison.txt"),
+            "Full1\nFull2\nFull3\nFull4\nFull5".to_string(),
+        );
+
+        let chat_request = ForgeChatRequest::new(infra.clone());
+
+        // Test full file vs ranged file to ensure they're different
+        let url_full = "@[/test/comparison.txt]";
+        let url_range = "@[/test/comparison.txt:2:4]";
+        let url_range_start = "@[/test/comparison.txt:2]";
+
+        let attachments_full = chat_request.attachments(&url_full).await.unwrap();
+        let attachments_range = chat_request.attachments(&url_range).await.unwrap();
+        let attachments_range_start = chat_request.attachments(&url_range_start).await.unwrap();
+
+        assert_eq!(attachments_full.len(), 1);
+        assert_eq!(
+            attachments_full[0].content,
+            AttachmentContent::FileContent {
+                content: "1: Full1\n2: Full2\n3: Full3\n4: Full4\n5: Full5".to_string(),
+                start_line: 1,
+                end_line: 5,
+                total_lines: 5,
+            }
+        );
+
+        assert_eq!(attachments_range.len(), 1);
+        assert_eq!(
+            attachments_range[0].content,
+            AttachmentContent::FileContent {
+                content: "2: Full2\n3: Full3\n4: Full4".to_string(),
+                start_line: 2,
+                end_line: 4,
+                total_lines: 5,
+            }
+        );
+
+        assert_eq!(attachments_range_start.len(), 1);
+        assert_eq!(
+            attachments_range_start[0].content,
+            AttachmentContent::FileContent {
+                content: "2: Full2\n3: Full3\n4: Full4\n5: Full5".to_string(),
+                start_line: 2,
+                end_line: 5,
+                total_lines: 5,
+            }
         );
     }
 }

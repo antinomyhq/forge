@@ -1,15 +1,14 @@
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use forge_api::Environment;
-use forge_display::TitleFormat;
+use forge_domain::TitleFormat;
 use tokio::fs;
-use tokio::sync::Mutex;
-use tokio::task::block_in_place;
 
 use crate::editor::{ForgeEditor, ReadResult};
 use crate::model::{Command, ForgeCommandManager};
 use crate::prompt::ForgePrompt;
+use crate::title_display::TitleDisplayExt;
 use crate::tracker;
 
 /// Console implementation for handling user input via command line.
@@ -39,8 +38,9 @@ impl Console {
         let engine = Mutex::new(ForgeEditor::new(self.env.clone(), self.command.clone()));
 
         loop {
-            let user_input =
-                block_in_place(|| async { engine.lock().await.prompt(&prompt) }).await?;
+            let mut forge_editor = engine.lock().unwrap();
+            let user_input = forge_editor.prompt(&prompt)?;
+            drop(forge_editor);
             match user_input {
                 ReadResult::Continue => continue,
                 ReadResult::Exit => return Ok(Command::Exit),
@@ -51,7 +51,7 @@ impl Console {
                         Ok(command) => return Ok(command),
                         Err(error) => {
                             tracing::error!(error = ?error);
-                            eprintln!("{}", TitleFormat::error(error.to_string()));
+                            eprintln!("{}", TitleFormat::error(error.to_string()).display());
                         }
                     }
                 }

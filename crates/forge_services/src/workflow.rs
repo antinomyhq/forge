@@ -80,11 +80,8 @@ impl<F: FileWriterInfra + FileReaderInfra> ForgeWorkflowService<F> {
 
     // Serializes the workflow to a YAML string.
     fn serialize_workflow(&self, workflow: &Workflow) -> anyhow::Result<String> {
-        let lsp = if cfg!(debug_assertions) {
-            "./forge.schema.json"
-        } else {
-            "https://raw.githubusercontent.com/antinomyhq/forge/refs/heads/main/forge.schema.json"
-        };
+        let lsp =
+            "https://raw.githubusercontent.com/antinomyhq/forge/refs/heads/main/forge.schema.json";
         let contents = serde_yml::to_string(workflow)?;
         Ok(format!("# yaml-language-server: $schema={lsp}\n{contents}"))
     }

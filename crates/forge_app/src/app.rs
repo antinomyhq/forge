@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -7,13 +7,14 @@ use forge_domain::*;
 use forge_stream::MpscStream;
 
 use crate::authenticator::Authenticator;
+use crate::dto::{InitAuth, ToolsOverview};
 use crate::orch::Orchestrator;
-use crate::services::TemplateService;
+use crate::services::{CustomInstructionsService, TemplateService};
 use crate::tool_registry::ToolRegistry;
 use crate::{
-    AppConfigService, AttachmentService, ConversationService, EnvironmentService,
-    FileDiscoveryService, InitAuth, ProviderRegistry, ProviderService, Services, Walker,
-    WorkflowService,
+    AgentLoaderService, AppConfigService, AttachmentService, ConversationService,
+    EnvironmentService, FileDiscoveryService, McpService, ProviderRegistry, ProviderService,
+    Services, Walker, WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -45,14 +46,12 @@ impl<S: Services> ForgeApp<S> {
 
         // Get the conversation for the chat request
         let conversation = services
-            .find(&chat.conversation_id)
+            .find_conversation(&chat.conversation_id)
             .await
             .unwrap_or_default()
             .expect("conversation for the request should've been created at this point.");
 
-        // Get tool definitions and models
-        let tool_definitions = self.tool_registry.list().await?;
-        let config = services.read_app_config().await.unwrap_or_default();
+        let config = services.get_app_config().await.unwrap_or_default();
         let provider = services
             .get_provider(config)
             .await
@@ -60,7 +59,7 @@ impl<S: Services> ForgeApp<S> {
         let models = services.models(provider).await?;
 
         // Discover files using the discovery service
-        let workflow = services.read_merged(None).await.unwrap_or_default();
+        let workflow = self.services.read_merged(None).await.unwrap_or_default();
         let max_depth = workflow.max_walker_depth;
         let environment = services.get_environment();
 
@@ -80,6 +79,7 @@ impl<S: Services> ForgeApp<S> {
         // Register templates using workflow path or environment fallback
         let template_path = workflow
             .templates
+            .as_ref()
             .map_or(environment.templates(), |templates| {
                 PathBuf::from(templates)
             });
@@ -92,13 +92,36 @@ impl<S: Services> ForgeApp<S> {
             chat.event = chat.event.attachments(attachments);
         }
 
+        let custom_instructions = services.get_custom_instructions().await;
+
+        // Prepare agents with user configuration and subscriptions
+        let agents = services.get_agents().await?;
+
+        let mcp_tools = self.services.mcp_service().list().await?;
+        let agent = agents
+            .into_iter()
+            .map(|agent| {
+                agent
+                    .apply_workflow_config(&workflow)
+                    .extend_mcp_tools(&mcp_tools)
+            })
+            .find(|agent| agent.has_subscription(&chat.event.name))
+            .ok_or(crate::Error::UnsubscribedEvent(chat.event.name.to_owned()))?;
+
+        // Get system and mcp tool definitions
+        let all_tool_definitions = self.tool_registry.list().await?;
+        let tool_definitions = agent.resolve_tool_definitions(&all_tool_definitions);
+
         // Create the orchestrator with all necessary dependencies
         let orch = Orchestrator::new(
             services.clone(),
             environment.clone(),
             conversation,
             Local::now(),
+            agent,
+            chat.event,
         )
+        .custom_instructions(custom_instructions)
         .tool_definitions(tool_definitions)
         .models(models)
         .files(files);
@@ -107,15 +130,13 @@ impl<S: Services> ForgeApp<S> {
         let stream = MpscStream::spawn(
             |tx: tokio::sync::mpsc::Sender<Result<ChatResponse, anyhow::Error>>| {
                 async move {
-                    let tx = Arc::new(tx);
-
                     // Execute dispatch and always save conversation afterwards
                     let mut orch = orch.sender(tx.clone());
-                    let dispatch_result = orch.chat(chat.event).await;
+                    let dispatch_result = orch.run().await;
 
                     // Always save conversation using get_conversation()
                     let conversation = orch.get_conversation().clone();
-                    let save_result = services.upsert(conversation).await;
+                    let save_result = services.upsert_conversation(conversation).await;
 
                     // Send any error to the stream (prioritize dispatch error over save error)
                     #[allow(clippy::collapsible_if)]
@@ -143,7 +164,7 @@ impl<S: Services> ForgeApp<S> {
         // Get the conversation
         let mut conversation = self
             .services
-            .find(conversation_id)
+            .find_conversation(conversation_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Conversation not found: {}", conversation_id))?;
 
@@ -158,12 +179,14 @@ impl<S: Services> ForgeApp<S> {
 
         // Calculate original metrics
         let original_messages = context.messages.len();
-        let original_tokens = context.token_count();
+        let original_tokens_approx = context.token_count_approx();
 
         // Find the main agent (first agent in the conversation)
         // In most cases, there should be a primary agent for compaction
-        let agent = conversation
-            .agents
+        let agent = self
+            .services
+            .get_agents()
+            .await?
             .first()
             .ok_or_else(|| anyhow::anyhow!("No agents found in conversation"))?
             .clone();
@@ -175,25 +198,25 @@ impl<S: Services> ForgeApp<S> {
 
         // Calculate compacted metrics
         let compacted_messages = compacted_context.messages.len();
-        let compacted_tokens = compacted_context.token_count();
+        let compacted_tokens_approx = compacted_context.token_count_approx();
 
         // Update the conversation with the compacted context
         conversation.context = Some(compacted_context);
 
         // Save the updated conversation
-        self.services.upsert(conversation).await?;
+        self.services.upsert_conversation(conversation).await?;
 
         // Return the compaction metrics
         Ok(CompactionResult::new(
-            *original_tokens,
-            *compacted_tokens,
+            original_tokens_approx,
+            compacted_tokens_approx,
             original_messages,
             compacted_messages,
         ))
     }
 
-    pub async fn list_tools(&self) -> Result<Vec<ToolDefinition>> {
-        self.tool_registry.list().await
+    pub async fn list_tools(&self) -> Result<ToolsOverview> {
+        self.tool_registry.tools_overview().await
     }
     pub async fn login(&self, init_auth: &InitAuth) -> Result<()> {
         self.authenticator.login(init_auth).await
@@ -203,5 +226,15 @@ impl<S: Services> ForgeApp<S> {
     }
     pub async fn logout(&self) -> Result<()> {
         self.authenticator.logout().await
+    }
+    pub async fn read_workflow(&self, path: Option<&Path>) -> Result<Workflow> {
+        self.services.read_workflow(path).await
+    }
+
+    pub async fn read_workflow_merged(&self, path: Option<&Path>) -> Result<Workflow> {
+        self.services.read_merged(path).await
+    }
+    pub async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> Result<()> {
+        self.services.write_workflow(path, workflow).await
     }
 }

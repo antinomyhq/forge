@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_app::{AppConfig, AppConfigService};
+use forge_app::AppConfigService;
+use forge_app::dto::AppConfig;
 
 use crate::{EnvironmentInfra, FileReaderInfra, FileWriterInfra};
 
@@ -34,11 +35,11 @@ impl<I: FileReaderInfra + FileWriterInfra + EnvironmentInfra> ForgeConfigService
 impl<I: FileReaderInfra + FileWriterInfra + EnvironmentInfra> AppConfigService
     for ForgeConfigService<I>
 {
-    async fn read_app_config(&self) -> anyhow::Result<AppConfig> {
-        self.read().await
+    async fn get_app_config(&self) -> Option<AppConfig> {
+        self.read().await.ok()
     }
 
-    async fn write_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
+    async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
         self.write(config).await
     }
 }

@@ -1,0 +1,13 @@
+[package]
+name = "forge_json_repair"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+regex = { workspace = true }
+serde.workspace = true
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }

@@ -1,0 +1,9 @@
+{
+  "id": "mixed-model",
+  "name": "Mixed Pricing Model",
+  "pricing": {
+    "prompt": "0.001",
+    "completion": 0.002,
+    "image": null
+  }
+}

@@ -1,27 +1,47 @@
-use forge_api::ToolDefinition;
+use std::collections::HashSet;
 
-/// Formats the list of tools for display in the shell UI, showing only the tool
-/// name as a blue bold heading with numbering for each tool.
-pub fn format_tools(tools: &[ToolDefinition]) -> String {
-    let mut output = String::new();
+use convert_case::{Case, Casing};
+use forge_api::{ToolName, ToolsOverview};
 
-    // Calculate the number of digits in the total count
-    let max_digits = tools.len().to_string().len();
+use crate::info::Info;
 
-    for (i, tool) in tools.iter().enumerate() {
-        // Add numbered tool name with consistent padding
-        output.push_str(&format!(
-            "{:>width$}. {}",
-            i + 1,
-            tool.name,
-            width = max_digits
-        ));
+/// Formats the tools overview for display using the Info component,
+/// organized by categories with availability checkboxes.
+pub fn format_tools(agent_tools: &[ToolName], overview: &ToolsOverview) -> Info {
+    let mut info = Info::new();
+    let agent_tools = agent_tools.iter().collect::<HashSet<_>>();
+    let checkbox = |tool_name: &ToolName| -> &str {
+        if agent_tools.contains(&tool_name) {
+            "[✓]"
+        } else {
+            "[ ]"
+        }
+    };
 
-        // Add newline between tools
-        if i < tools.len() - 1 {
-            output.push('\n');
+    // System tools section
+    info = info.add_title("SYSTEM");
+    for tool in &overview.system {
+        info = info.add_key(format!("{} {}", checkbox(&tool.name), tool.name));
+    }
+
+    // Agents section
+    info = info.add_title("AGENTS");
+    for tool in &overview.agents {
+        info = info.add_key(format!("{} {}", checkbox(&tool.name), tool.name));
+    }
+
+    // MCP tools section
+    if !overview.mcp.is_empty() {
+        for (server_name, tools) in &overview.mcp {
+            let title = server_name.to_case(Case::UpperSnake);
+            info = info.add_title(title);
+
+            for tool in tools {
+                // MCP tools are always available if they're in the list
+                info = info.add_key(format!("[✓] {}", tool.name.as_str()));
+            }
         }
     }
 
-    output
+    info
 }

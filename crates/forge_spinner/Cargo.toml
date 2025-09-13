@@ -7,5 +7,5 @@ edition = "2024"
 anyhow.workspace = true
 colored.workspace = true
 tokio.workspace = true
-indicatif = "0.17.11"
-rand = "0.8.5"
+indicatif = "0.18.0"
+rand = "0.9.2"

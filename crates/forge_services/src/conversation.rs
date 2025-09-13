@@ -1,62 +1,74 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
-use anyhow::{Context as AnyhowContext, Result};
-use forge_app::domain::{Conversation, ConversationId, Workflow};
-use forge_app::{ConversationService, McpService};
-use tokio::sync::Mutex;
+use anyhow::Result;
+use forge_app::ConversationService;
+use forge_app::domain::{Conversation, ConversationId};
+
+use crate::ConversationRepository;
 
 /// Service for managing conversations, including creation, retrieval, and
 /// updates
 #[derive(Clone)]
-pub struct ForgeConversationService<M> {
-    workflows: Arc<Mutex<HashMap<ConversationId, Conversation>>>,
-    mcp_service: Arc<M>,
+pub struct ForgeConversationService<S> {
+    conversation_repository: Arc<S>,
 }
 
-impl<M: McpService> ForgeConversationService<M> {
-    /// Creates a new ForgeConversationService with the provided MCP service
-    pub fn new(mcp_service: Arc<M>) -> Self {
-        Self { workflows: Arc::new(Mutex::new(HashMap::new())), mcp_service }
+impl<S: ConversationRepository> ForgeConversationService<S> {
+    /// Creates a new ForgeConversationService with the provided repository
+    pub fn new(repo: Arc<S>) -> Self {
+        Self { conversation_repository: repo }
     }
 }
 
 #[async_trait::async_trait]
-impl<M: McpService> ConversationService for ForgeConversationService<M> {
-    async fn update<F, T>(&self, id: &ConversationId, f: F) -> Result<T>
+impl<S: ConversationRepository> ConversationService for ForgeConversationService<S> {
+    async fn modify_conversation<F, T>(&self, id: &ConversationId, f: F) -> Result<T>
     where
         F: FnOnce(&mut Conversation) -> T + Send,
+        T: Send,
     {
-        let mut workflows = self.workflows.lock().await;
-        let conversation = workflows.get_mut(id).context("Conversation not found")?;
-        Ok(f(conversation))
+        let mut conversation = self
+            .conversation_repository
+            .get_conversation(id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Conversation not found: {}", id))?;
+        let out = f(&mut conversation);
+        let _ = self
+            .conversation_repository
+            .upsert_conversation(conversation)
+            .await?;
+        Ok(out)
     }
 
-    async fn find(&self, id: &ConversationId) -> Result<Option<Conversation>> {
-        Ok(self.workflows.lock().await.get(id).cloned())
+    async fn find_conversation(&self, id: &ConversationId) -> Result<Option<Conversation>> {
+        self.conversation_repository.get_conversation(id).await
     }
 
-    async fn upsert(&self, conversation: Conversation) -> Result<()> {
-        self.workflows
-            .lock()
-            .await
-            .insert(conversation.id, conversation);
+    async fn upsert_conversation(&self, conversation: Conversation) -> Result<()> {
+        let _ = self
+            .conversation_repository
+            .upsert_conversation(conversation)
+            .await?;
         Ok(())
     }
 
-    async fn create_conversation(&self, workflow: Workflow) -> Result<Conversation> {
+    async fn init_conversation(&self) -> Result<Conversation> {
         let id = ConversationId::generate();
-        let conversation = Conversation::new(
-            id,
-            workflow,
-            self.mcp_service
-                .list()
-                .await?
-                .into_iter()
-                .map(|a| a.name)
-                .collect(),
-        );
-        self.workflows.lock().await.insert(id, conversation.clone());
+        let conversation = Conversation::new(id);
+        let _ = self
+            .conversation_repository
+            .upsert_conversation(conversation.clone())
+            .await?;
         Ok(conversation)
+    }
+
+    async fn get_conversations(&self, limit: Option<usize>) -> Result<Option<Vec<Conversation>>> {
+        self.conversation_repository
+            .get_all_conversations(limit)
+            .await
+    }
+
+    async fn last_conversation(&self) -> Result<Option<Conversation>> {
+        self.conversation_repository.get_last_conversation().await
     }
 }

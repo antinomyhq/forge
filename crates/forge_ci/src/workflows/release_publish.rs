@@ -1,5 +1,5 @@
-use gh_workflow_tailcall::generate::Generate;
-use gh_workflow_tailcall::*;
+use gh_workflow::generate::Generate;
+use gh_workflow::*;
 
 use crate::jobs::{ReleaseBuilderJob, release_homebrew_job, release_npm_job};
 
@@ -7,8 +7,8 @@ use crate::jobs::{ReleaseBuilderJob, release_homebrew_job, release_npm_job};
 pub fn release_publish() {
     let release_build_job = ReleaseBuilderJob::new("${{ github.event.release.tag_name }}")
         .release_id("${{ github.event.release.id }}");
-    let npm_release_job = release_npm_job().add_needs(release_build_job.clone());
-    let homebrew_release_job = release_homebrew_job().add_needs(release_build_job.clone());
+    let npm_release_job = release_npm_job().add_needs("build_release");
+    let homebrew_release_job = release_homebrew_job().add_needs("build_release");
 
     let npm_workflow = Workflow::default()
         .name("Multi Channel Release")
@@ -21,7 +21,7 @@ pub fn release_publish() {
                 .contents(Level::Write)
                 .pull_requests(Level::Write),
         )
-        .add_job("build_release", release_build_job)
+        .add_job("build_release", release_build_job.into_job())
         .add_job("npm_release", npm_release_job)
         .add_job("homebrew_release", homebrew_release_job);
 

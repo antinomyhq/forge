@@ -168,6 +168,7 @@ impl ForgeCommandManager {
             "/compact" => Ok(Command::Compact),
             "/new" => Ok(Command::New),
             "/info" => Ok(Command::Info),
+            "/usage" => Ok(Command::Usage),
             "/exit" => Ok(Command::Exit),
             "/update" => Ok(Command::Update),
             "/dump" => {
@@ -179,12 +180,15 @@ impl ForgeCommandManager {
             }
             "/act" | "/forge" => Ok(Command::Forge),
             "/plan" | "/muse" => Ok(Command::Muse),
+            "/sage" => Ok(Command::Sage),
             "/help" => Ok(Command::Help),
             "/model" => Ok(Command::Model),
             "/tools" => Ok(Command::Tools),
             "/agent" => Ok(Command::Agent),
             "/login" => Ok(Command::Login),
             "/logout" => Ok(Command::Logout),
+            "/retry" => Ok(Command::Retry),
+            "/conversations" | "/list" => Ok(Command::Conversations),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -231,6 +235,9 @@ pub enum Command {
     /// This can be triggered with the '/info' command.
     #[strum(props(usage = "Display system information"))]
     Info,
+    /// Display usage information (tokens & requests).
+    #[strum(props(usage = "Shows usage information (tokens & requests)"))]
+    Usage,
     /// Exit the application without any further action.
     #[strum(props(usage = "Exit the application"))]
     Exit,
@@ -245,6 +252,12 @@ pub enum Command {
     /// This can be triggered with the '/must' command.
     #[strum(props(usage = "Enable planning mode without code changes"))]
     Muse,
+    /// Switch to "sage" agent.
+    /// This can be triggered with the '/sage' command.
+    #[strum(props(
+        usage = "Enable research mode for systematic codebase exploration and analysis"
+    ))]
+    Sage,
     /// Switch to "help" mode.
     /// This can be triggered with the '/help' command.
     #[strum(props(usage = "Enable help mode for tool questions"))]
@@ -280,6 +293,13 @@ pub enum Command {
     /// Logs out of the current session.
     #[strum(props(usage = "Logout of the current session"))]
     Logout,
+
+    /// Retry without modifying model context
+    #[strum(props(usage = "Retry the last command"))]
+    Retry,
+    /// List all conversations for the active workspace
+    #[strum(props(usage = "List all conversations for the active workspace"))]
+    Conversations,
 }
 
 impl Command {
@@ -290,9 +310,11 @@ impl Command {
             Command::Message(_) => "/message",
             Command::Update => "/update",
             Command::Info => "/info",
+            Command::Usage => "/usage",
             Command::Exit => "/exit",
             Command::Forge => "/forge",
             Command::Muse => "/muse",
+            Command::Sage => "/sage",
             Command::Help => "/help",
             Command::Dump(_) => "/dump",
             Command::Model => "/model",
@@ -302,6 +324,8 @@ impl Command {
             Command::Agent => "/agent",
             Command::Login => "/login",
             Command::Logout => "/logout",
+            Command::Retry => "/retry",
+            Command::Conversations => "/conversations",
         }
     }
 
@@ -508,6 +532,36 @@ mod tests {
         assert!(
             !contains_shell,
             "Shell command should not be in default commands"
+        );
+    }
+    #[test]
+    fn test_parse_list_command() {
+        // Setup
+        let cmd_manager = ForgeCommandManager::default();
+
+        // Execute
+        let result = cmd_manager.parse("/conversations").unwrap();
+
+        // Verify
+        match result {
+            Command::Conversations => {
+                // Command parsed correctly
+            }
+            _ => panic!("Expected List command, got {result:?}"),
+        }
+    }
+
+    #[test]
+    fn test_list_command_in_default_commands() {
+        // Setup
+        let manager = ForgeCommandManager::default();
+        let commands = manager.list();
+
+        // The list command should be included
+        let contains_list = commands.iter().any(|cmd| cmd.name == "/conversations");
+        assert!(
+            contains_list,
+            "Conversations command should be in default commands"
         );
     }
 }

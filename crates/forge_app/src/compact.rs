@@ -65,6 +65,14 @@ impl<S: AgentService> Compactor<S> {
 
         let sequence_messages = &context.messages[start..=end].to_vec();
 
+        // Extract user messages from the sequence to pass as feedback
+        let feedback: Vec<String> = sequence_messages
+            .iter()
+            .filter(|msg| msg.has_role(forge_domain::Role::User))
+            .filter_map(|msg| msg.content().map(|content| content.to_string()))
+            .collect();
+
+        // Generate summary for the compaction sequence
         let summary = self
             .generate_summary_for_sequence(compact, sequence_messages)
             .await?;
@@ -80,8 +88,8 @@ impl<S: AgentService> Compactor<S> {
         let summary = self
             .services
             .render(
-                "{{> forge-partial-summary-frame.hbs}}",
-                &serde_json::json!({ "summary": summary }),
+                "{{> forge-partial-summary-frame.md}}",
+                &serde_json::json!({"summary": summary, "feedback": feedback}),
             )
             .await?;
 
@@ -104,8 +112,8 @@ impl<S: AgentService> Compactor<S> {
             .fold(Context::default(), |ctx, msg| ctx.add_message(msg.clone()));
 
         let summary_tag = compact.summary_tag.as_ref().cloned().unwrap_or_default();
+        let context = sequence_context.to_text();
         let ctx = serde_json::json!({
-            "context": sequence_context.to_text(),
             "summary_tag": summary_tag
         });
 
@@ -115,19 +123,29 @@ impl<S: AgentService> Compactor<S> {
                 compact
                     .prompt
                     .as_deref()
-                    .unwrap_or("{{> forge-system-prompt-context-summarizer.hbs}}"),
+                    .unwrap_or("{{> forge-system-prompt-context-summarizer.md}}"),
                 &ctx,
             )
             .await?;
 
+        // Use compact.model if specified, otherwise fall back to the agent's model
+        let model = compact
+            .model
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No model specified for compaction"))?;
+
         let mut context = Context::default()
-            .add_message(ContextMessage::user(prompt, compact.model.clone().into()));
+            .add_message(ContextMessage::system(prompt))
+            .add_message(ContextMessage::user(
+                format!("<context>{context}</context"),
+                Some(model.clone()),
+            ));
 
         if let Some(max_token) = compact.max_tokens {
             context = context.max_tokens(max_token);
         }
 
-        let response = self.services.chat_agent(&compact.model, context).await?;
+        let response = self.services.chat_agent(model, context).await?;
 
         self.collect_completion_stream_content(compact, response)
             .await

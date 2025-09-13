@@ -15,6 +15,13 @@ impl Image {
         Self::new_base64(base64_encoded, mime_type)
     }
 
+    // Returns the base64 image without the prefix.
+    pub fn data(&self) -> &str {
+        self.url
+            .strip_prefix(&format!("data:{};base64,", self.mime_type))
+            .unwrap_or(&self.url)
+    }
+
     pub fn new_base64(base64_encoded: String, mime_type: impl ToString) -> Self {
         let mime_type = mime_type.to_string();
         let content = format!("data:{mime_type};base64,{base64_encoded}");

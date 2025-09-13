@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
-use forge_display::TitleFormat;
-use forge_domain::{ToolCallContext, ToolCallFull, ToolName, ToolOutput};
+use forge_domain::{TitleFormat, ToolCallContext, ToolCallFull, ToolName, ToolOutput};
 
 use crate::McpService;
 
@@ -17,10 +16,10 @@ impl<S: McpService> McpExecutor<S> {
     pub async fn execute(
         &self,
         input: ToolCallFull,
-        context: &mut ToolCallContext,
+        context: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
         context
-            .send_text(TitleFormat::info("MCP").sub_title(input.name.as_str()))
+            .send_title(TitleFormat::info("MCP").sub_title(input.name.as_str()))
             .await?;
 
         self.services.call(input).await
@@ -28,6 +27,8 @@ impl<S: McpService> McpExecutor<S> {
 
     pub async fn contains_tool(&self, tool_name: &ToolName) -> anyhow::Result<bool> {
         let mcp_tools = self.services.list().await?;
-        Ok(mcp_tools.iter().any(|tool| tool.name == *tool_name))
+        Ok(mcp_tools
+            .values()
+            .any(|tools| tools.iter().any(|tool| tool.name == *tool_name)))
     }
 }

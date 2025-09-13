@@ -1,7 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use forge_app::{AppConfig, InitAuth, User};
+use forge_app::dto::{AppConfig, InitAuth, ToolsOverview};
+use forge_app::{User, UserUsage};
+use forge_domain::AgentId;
 use forge_stream::MpscStream;
 
 use crate::*;
@@ -14,10 +16,12 @@ pub trait API: Sync + Send {
 
     /// Provides information about the tools available in the current
     /// environment
-    async fn tools(&self) -> anyhow::Result<Vec<ToolDefinition>>;
+    async fn tools(&self) -> anyhow::Result<ToolsOverview>;
 
     /// Provides a list of models available in the current environment
     async fn models(&self) -> Result<Vec<Model>>;
+    /// Provides a list of agents available in the current environment
+    async fn get_agents(&self) -> Result<Vec<Agent>>;
 
     /// Executes a chat request and returns a stream of responses
     async fn chat(&self, chat: ChatRequest) -> Result<MpscStream<Result<ChatResponse>>>;
@@ -26,10 +30,7 @@ pub trait API: Sync + Send {
     fn environment(&self) -> Environment;
 
     /// Creates a new conversation with the given workflow configuration
-    async fn init_conversation<W: Into<Workflow> + Send + Sync>(
-        &self,
-        config: W,
-    ) -> Result<Conversation>;
+    async fn init_conversation(&self) -> Result<Conversation>;
 
     /// Adds a new conversation to the conversation store
     async fn upsert_conversation(&self, conversation: Conversation) -> Result<()>;
@@ -61,6 +62,12 @@ pub trait API: Sync + Send {
 
     /// Returns the conversation with the given ID
     async fn conversation(&self, conversation_id: &ConversationId) -> Result<Option<Conversation>>;
+
+    /// Lists all conversations for the active workspace
+    async fn list_conversations(&self, limit: Option<usize>) -> Result<Vec<Conversation>>;
+
+    /// Finds the last active conversation for the current workspace
+    async fn last_conversation(&self) -> Result<Option<Conversation>>;
 
     /// Compacts the context of the main agent for the given conversation and
     /// persists it. Returns metrics about the compaction (original vs.
@@ -96,6 +103,13 @@ pub trait API: Sync + Send {
     async fn login(&self, auth: &InitAuth) -> Result<()>;
     async fn logout(&self) -> anyhow::Result<()>;
     async fn provider(&self) -> anyhow::Result<Provider>;
-    async fn app_config(&self) -> anyhow::Result<AppConfig>;
+    async fn app_config(&self) -> Option<AppConfig>;
     async fn user_info(&self) -> anyhow::Result<Option<User>>;
+    async fn user_usage(&self) -> anyhow::Result<Option<UserUsage>>;
+
+    /// Gets the currently operating agent
+    async fn get_operating_agent(&self) -> Option<AgentId>;
+
+    /// Sets the operating agent
+    async fn set_operating_agent(&self, agent_id: AgentId) -> anyhow::Result<()>;
 }

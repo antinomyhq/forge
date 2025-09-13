@@ -1,15 +1,15 @@
 use std::sync::Arc;
 
-use anyhow::Context;
-use forge_domain::{TaskList, ToolCallContext, ToolCallFull, ToolOutput, Tools};
+use forge_domain::{LineNumbers, TitleFormat, ToolCallContext, ToolCallFull, ToolOutput, Tools};
 
-use crate::error::Error;
 use crate::fmt::content::FormatContent;
-use crate::operation::Operation;
+use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::ShellService;
+use crate::utils::format_display_path;
 use crate::{
     ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
     FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService,
+    PlanCreateService, PolicyService,
 };
 
 pub struct ToolExecutor<S> {
@@ -27,16 +27,117 @@ impl<
         + ShellService
         + FollowUpService
         + ConversationService
-        + EnvironmentService,
+        + EnvironmentService
+        + PlanCreateService
+        + PolicyService,
 > ToolExecutor<S>
 {
     pub fn new(services: Arc<S>) -> Self {
         Self { services }
     }
 
-    async fn call_internal(&self, input: Tools, tasks: &mut TaskList) -> anyhow::Result<Operation> {
+    /// Check if a tool operation is allowed based on the workflow policies
+    #[allow(unused)]
+    async fn check_tool_permission(
+        &self,
+        tool_input: &Tools,
+        context: &ToolCallContext,
+    ) -> anyhow::Result<bool> {
+        let cwd = self.services.get_environment().cwd;
+        let operation = tool_input.to_policy_operation(cwd.clone());
+        if let Some(operation) = operation {
+            let decision = self.services.check_operation_permission(&operation).await?;
+
+            // Send custom policy message to the user when a policy file was created
+            if let Some(policy_path) = decision.path {
+                context
+                    .send_title(
+                        TitleFormat::debug("Permissions Update")
+                            .sub_title(format_display_path(policy_path.as_path(), &cwd)),
+                    )
+                    .await?;
+            }
+            if !decision.allowed {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    async fn dump_operation(&self, operation: &ToolOperation) -> anyhow::Result<TempContentFiles> {
+        match operation {
+            ToolOperation::NetFetch { input: _, output } => {
+                let original_length = output.content.len();
+                let is_truncated =
+                    original_length > self.services.get_environment().fetch_truncation_limit;
+                let mut files = TempContentFiles::default();
+
+                if is_truncated {
+                    files = files.stdout(
+                        self.create_temp_file("forge_fetch_", ".txt", &output.content)
+                            .await?,
+                    );
+                }
+
+                Ok(files)
+            }
+            ToolOperation::Shell { output } => {
+                let env = self.services.get_environment();
+                let stdout_lines = output.output.stdout.lines().count();
+                let stderr_lines = output.output.stderr.lines().count();
+                let stdout_truncated =
+                    stdout_lines > env.stdout_max_prefix_length + env.stdout_max_suffix_length;
+                let stderr_truncated =
+                    stderr_lines > env.stdout_max_prefix_length + env.stdout_max_suffix_length;
+
+                let mut files = TempContentFiles::default();
+
+                if stdout_truncated {
+                    files = files.stdout(
+                        self.create_temp_file("forge_shell_stdout_", ".txt", &output.output.stdout)
+                            .await?,
+                    );
+                }
+                if stderr_truncated {
+                    files = files.stderr(
+                        self.create_temp_file("forge_shell_stderr_", ".txt", &output.output.stderr)
+                            .await?,
+                    );
+                }
+
+                Ok(files)
+            }
+            _ => Ok(TempContentFiles::default()),
+        }
+    }
+
+    async fn create_temp_file(
+        &self,
+        prefix: &str,
+        ext: &str,
+        content: &str,
+    ) -> anyhow::Result<std::path::PathBuf> {
+        let path = tempfile::Builder::new()
+            .disable_cleanup(true)
+            .prefix(prefix)
+            .suffix(ext)
+            .tempfile()?
+            .into_temp_path()
+            .to_path_buf();
+        self.services
+            .create(
+                path.to_string_lossy().to_string(),
+                content.to_string(),
+                true,
+                false,
+            )
+            .await?;
+        Ok(path)
+    }
+
+    async fn call_internal(&self, input: Tools) -> anyhow::Result<ToolOperation> {
         Ok(match input {
-            Tools::ForgeToolFsRead(input) => {
+            Tools::Read(input) => {
                 let output = self
                     .services
                     .read(
@@ -45,9 +146,19 @@ impl<
                         input.end_line.map(|i| i as u64),
                     )
                     .await?;
+                let output = if input.show_line_numbers {
+                    let numbered_content = output
+                        .content
+                        .file_content()
+                        .numbered_from(output.start_line as usize);
+                    output.content(crate::Content::file(numbered_content))
+                } else {
+                    output
+                };
+
                 (input, output).into()
             }
-            Tools::ForgeToolFsCreate(input) => {
+            Tools::Write(input) => {
                 let output = self
                     .services
                     .create(
@@ -59,7 +170,7 @@ impl<
                     .await?;
                 (input, output).into()
             }
-            Tools::ForgeToolFsSearch(input) => {
+            Tools::Search(input) => {
                 let output = self
                     .services
                     .search(
@@ -70,11 +181,11 @@ impl<
                     .await?;
                 (input, output).into()
             }
-            Tools::ForgeToolFsRemove(input) => {
-                let _output = self.services.remove(input.path.clone()).await?;
-                input.into()
+            Tools::Remove(input) => {
+                let output = self.services.remove(input.path.clone()).await?;
+                (input, output).into()
             }
-            Tools::ForgeToolFsPatch(input) => {
+            Tools::Patch(input) => {
                 let output = self
                     .services
                     .patch(
@@ -86,22 +197,27 @@ impl<
                     .await?;
                 (input, output).into()
             }
-            Tools::ForgeToolFsUndo(input) => {
+            Tools::Undo(input) => {
                 let output = self.services.undo(input.path.clone()).await?;
                 (input, output).into()
             }
-            Tools::ForgeToolProcessShell(input) => {
+            Tools::Shell(input) => {
                 let output = self
                     .services
-                    .execute(input.command.clone(), input.cwd.clone(), input.keep_ansi)
+                    .execute(
+                        input.command.clone(),
+                        input.cwd.clone(),
+                        input.keep_ansi,
+                        input.env.clone(),
+                    )
                     .await?;
                 output.into()
             }
-            Tools::ForgeToolNetFetch(input) => {
+            Tools::Fetch(input) => {
                 let output = self.services.fetch(input.url.clone(), input.raw).await?;
                 (input, output).into()
             }
-            Tools::ForgeToolFollowup(input) => {
+            Tools::Followup(input) => {
                 let output = self
                     .services
                     .follow_up(
@@ -120,35 +236,17 @@ impl<
                     .await?;
                 output.into()
             }
-            Tools::ForgeToolAttemptCompletion(_input) => {
-                crate::operation::Operation::AttemptCompletion
-            }
-            Tools::ForgeToolTaskListAppend(input) => {
-                let before = tasks.clone();
-                tasks.append(&input.task);
-                Operation::TaskListAppend { _input: input, before, after: tasks.clone() }
-            }
-            Tools::ForgeToolTaskListAppendMultiple(input) => {
-                let before = tasks.clone();
-                tasks.append_multiple(input.tasks.clone());
-                Operation::TaskListAppendMultiple { _input: input, before, after: tasks.clone() }
-            }
-            Tools::ForgeToolTaskListUpdate(input) => {
-                let before = tasks.clone();
-                tasks
-                    .update_status(input.task_id, input.status.clone())
-                    .context("Task not found")?;
-                Operation::TaskListUpdate { _input: input, before, after: tasks.clone() }
-            }
-            Tools::ForgeToolTaskListList(input) => {
-                let before = tasks.clone();
-                // No operation needed, just return the current state
-                Operation::TaskListList { _input: input, before, after: tasks.clone() }
-            }
-            Tools::ForgeToolTaskListClear(input) => {
-                let before = tasks.clone();
-                tasks.clear();
-                Operation::TaskListClear { _input: input, before, after: tasks.clone() }
+            Tools::AttemptCompletion(_input) => crate::operation::ToolOperation::AttemptCompletion,
+            Tools::Plan(input) => {
+                let output = self
+                    .services
+                    .create_plan(
+                        input.plan_name.clone(),
+                        input.version.clone(),
+                        input.content.clone(),
+                    )
+                    .await?;
+                (input, output).into()
             }
         })
     }
@@ -156,35 +254,46 @@ impl<
     pub async fn execute(
         &self,
         input: ToolCallFull,
-        context: &mut ToolCallContext,
+        context: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
         let tool_name = input.name.clone();
-        let tool_input = Tools::try_from(input).map_err(Error::CallArgument)?;
+        let tool_input: Tools = Tools::try_from(input)?;
         let env = self.services.get_environment();
         if let Some(content) = tool_input.to_content(&env) {
             context.send(content).await?;
         }
 
-        // Send tool call information
+        // Check permissions before executing the tool
+        // if self.check_tool_permission(&tool_input, context).await? {
+        //     // Send formatted output message for policy denial
 
-        let execution_result = self
-            .call_internal(tool_input.clone(), &mut context.tasks)
-            .await;
+        //     context
+        //         .send(ContentFormat::from(TitleFormat::error("Permission Denied")))
+        //         .await?;
+
+        //     return Ok(ToolOutput::text(
+        //         Element::new("permission_denied")
+        //             .cdata("User has denied the permission to execute this tool"),
+        //     ));
+        // }
+
+        let execution_result = self.call_internal(tool_input.clone()).await;
+
         if let Err(ref error) = execution_result {
             tracing::error!(error = ?error, "Tool execution failed");
         }
 
-        let execution_result = execution_result?;
+        let operation = execution_result?;
 
         // Send formatted output message
-        if let Some(output) = execution_result.to_content(&env) {
+        if let Some(output) = operation.to_content(&env) {
             context.send(output).await?;
         }
 
-        let truncation_path = execution_result
-            .to_create_temp(self.services.as_ref())
-            .await?;
+        let truncation_path = self.dump_operation(&operation).await?;
 
-        Ok(execution_result.into_tool_output(tool_name, truncation_path, &env))
+        context.with_metrics(|metrics| {
+            operation.into_tool_output(tool_name, truncation_path, &env, metrics)
+        })
     }
 }

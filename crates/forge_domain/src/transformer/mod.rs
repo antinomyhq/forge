@@ -75,11 +75,13 @@ where
 // Re-export specific transformers
 mod drop_reasoning_details;
 mod image_handling;
+mod reasoning_normalizer;
 mod set_model;
 mod transform_tool_calls;
 
 pub use drop_reasoning_details::DropReasoningDetails;
 pub use image_handling::ImageHandling;
+pub use reasoning_normalizer::ReasoningNormalizer;
 pub use set_model::SetModel;
 pub use transform_tool_calls::TransformToolCalls;
 
@@ -111,7 +113,7 @@ mod tests {
         let tool_call = ToolCallFull {
             name: ToolName::new("test_tool"),
             call_id: Some(ToolCallId::new("call_123")),
-            arguments: serde_json::json!({"param": "value"}),
+            arguments: serde_json::json!({"param": "value"}).into(),
         };
 
         Context::default()

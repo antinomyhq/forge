@@ -29,6 +29,10 @@ pub struct RetryConfig {
     /// Maximum delay between retries in seconds
     #[merge(strategy = crate::merge::std::overwrite)]
     pub max_delay: Option<u64>,
+
+    /// Whether to suppress retry error logging and events
+    #[merge(strategy = crate::merge::std::overwrite)]
+    pub suppress_retry_errors: bool,
 }
 
 impl Default for RetryConfig {
@@ -38,8 +42,9 @@ impl Default for RetryConfig {
             min_delay_ms: 1000,
             backoff_factor: 2,
             max_retry_attempts: 8,
-            retry_status_codes: vec![429, 500, 502, 503, 504],
+            retry_status_codes: vec![429, 500, 502, 503, 504, 408],
             max_delay: None,
+            suppress_retry_errors: false,
         }
     }
 }
@@ -64,7 +69,11 @@ mod tests {
         assert_eq!(config.min_delay_ms, 1000);
         assert_eq!(config.backoff_factor, 2);
         assert_eq!(config.max_retry_attempts, 8);
-        assert_eq!(config.retry_status_codes, vec![429, 500, 502, 503, 504]);
+        assert_eq!(
+            config.retry_status_codes,
+            vec![429, 500, 502, 503, 504, 408]
+        );
+        assert_eq!(config.suppress_retry_errors, false);
     }
 
     #[test]
@@ -75,7 +84,8 @@ mod tests {
             .min_delay_ms(500u64)
             .backoff_factor(3u64)
             .max_retry_attempts(5usize)
-            .retry_status_codes(vec![429, 503]);
+            .retry_status_codes(vec![429, 503])
+            .suppress_retry_errors(true);
 
         // Expected: Should have custom values
         assert_eq!(config.initial_backoff_ms, 100);
@@ -83,5 +93,6 @@ mod tests {
         assert_eq!(config.backoff_factor, 3);
         assert_eq!(config.max_retry_attempts, 5);
         assert_eq!(config.retry_status_codes, vec![429, 503]);
+        assert_eq!(config.suppress_retry_errors, true);
     }
 }

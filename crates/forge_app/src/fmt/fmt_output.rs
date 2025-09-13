@@ -1,18 +1,18 @@
 use forge_display::{DiffFormat, GrepFormat};
-use forge_domain::Environment;
+use forge_domain::{ChatResponseContent, Environment, TitleFormat};
 
-use crate::fmt::content::{ContentFormat, FormatContent};
-use crate::operation::Operation;
-use crate::utils::format_match;
+use crate::fmt::content::FormatContent;
+use crate::operation::ToolOperation;
+use crate::utils::{format_display_path, format_match};
 
-impl FormatContent for Operation {
-    fn to_content(&self, env: &Environment) -> Option<ContentFormat> {
+impl FormatContent for ToolOperation {
+    fn to_content(&self, env: &Environment) -> Option<ChatResponseContent> {
         match self {
-            Operation::FsRead { input: _, output: _ } => None,
-            Operation::FsCreate { input: _, output: _ } => None,
-            Operation::FsRemove { input: _ } => None,
-            Operation::FsSearch { input: _, output } => output.as_ref().map(|result| {
-                ContentFormat::PlainText(
+            ToolOperation::FsRead { input: _, output: _ } => None,
+            ToolOperation::FsCreate { input: _, output: _ } => None,
+            ToolOperation::FsRemove { input: _, output: _ } => None,
+            ToolOperation::FsSearch { input: _, output } => output.as_ref().map(|result| {
+                ChatResponseContent::PlainText(
                     GrepFormat::new(
                         result
                             .matches
@@ -23,23 +23,23 @@ impl FormatContent for Operation {
                     .format(),
                 )
             }),
-            Operation::FsPatch { input: _, output } => Some(ContentFormat::PlainText(
+            ToolOperation::FsPatch { input: _, output } => Some(ChatResponseContent::PlainText(
                 DiffFormat::format(&output.before, &output.after)
                     .diff()
                     .to_string(),
             )),
-            Operation::FsUndo { input: _, output: _ } => None,
-            Operation::NetFetch { input: _, output: _ } => None,
-            Operation::Shell { output: _ } => None,
-            Operation::FollowUp { output: _ } => None,
-            Operation::AttemptCompletion => None,
-            Operation::TaskListAppend { _input: _, before, after }
-            | Operation::TaskListAppendMultiple { _input: _, before, after }
-            | Operation::TaskListUpdate { _input: _, before, after }
-            | Operation::TaskListList { _input: _, before, after }
-            | Operation::TaskListClear { _input: _, before, after } => Some(
-                ContentFormat::Markdown(crate::fmt::fmt_task::to_markdown(before, after)),
-            ),
+            ToolOperation::FsUndo { input: _, output: _ } => None,
+            ToolOperation::NetFetch { input: _, output: _ } => None,
+            ToolOperation::Shell { output: _ } => None,
+            ToolOperation::FollowUp { output: _ } => None,
+            ToolOperation::AttemptCompletion => None,
+            ToolOperation::PlanCreate { input: _, output } => Some({
+                let title = TitleFormat::debug(format!(
+                    "Create {}",
+                    format_display_path(&output.path, &env.cwd)
+                ));
+                title.into()
+            }),
         }
     }
 }
@@ -49,47 +49,23 @@ mod tests {
     use std::path::PathBuf;
 
     use console::strip_ansi_codes;
-    use forge_domain::{Environment, PatchOperation};
+    use forge_domain::{ChatResponseContent, Environment, PatchOperation, TitleFormat};
     use insta::assert_snapshot;
     use pretty_assertions::assert_eq;
     use url::Url;
 
     use super::FormatContent;
-    use crate::fmt::content::ContentFormat;
-    use crate::operation::Operation;
+    // ContentFormat is now ChatResponseContent
+    use crate::operation::ToolOperation;
     use crate::{
-        Content, FsCreateOutput, FsUndoOutput, HttpResponse, Match, MatchResult, PatchOutput,
-        ReadOutput, ResponseContext, SearchResult, ShellOutput,
+        Content, FsCreateOutput, FsRemoveOutput, FsUndoOutput, HttpResponse, Match, MatchResult,
+        PatchOutput, ReadOutput, ResponseContext, SearchResult, ShellOutput,
     };
 
-    impl std::fmt::Display for ContentFormat {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            match self {
-                ContentFormat::Title(title) => write!(f, "{title}"),
-                ContentFormat::PlainText(text) => write!(f, "{text}"),
-                ContentFormat::Markdown(text) => write!(f, "{text}"),
-            }
-        }
-    }
-
-    impl ContentFormat {
-        pub fn contains(&self, needle: &str) -> bool {
-            self.to_string().contains(needle)
-        }
-
-        pub fn as_str(&self) -> &str {
-            match self {
-                ContentFormat::PlainText(text) | ContentFormat::Markdown(text) => text,
-                ContentFormat::Title(_) => {
-                    // For titles, we can't return a reference to the formatted string
-                    // since it's computed on demand. Tests should use to_string() instead.
-                    panic!("as_str() not supported for Title format, use to_string() instead")
-                }
-            }
-        }
-    }
+    // ContentFormat methods are now implemented in ChatResponseContent
 
     fn fixture_environment() -> Environment {
+        let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
         Environment {
             os: "linux".to_string(),
             pid: 12345,
@@ -104,25 +80,31 @@ mod tests {
                 max_retry_attempts: 3,
                 retry_status_codes: vec![429, 500, 502, 503, 504],
                 max_delay: None,
+                suppress_retry_errors: false,
             },
             max_search_lines: 25,
+            max_search_result_bytes: max_bytes.ceil() as usize,
             fetch_truncation_limit: 55,
             max_read_size: 10,
             stdout_max_prefix_length: 10,
             stdout_max_suffix_length: 10,
+            tool_timeout: 300,
+            stdout_max_line_length: 2000,
             http: Default::default(),
             max_file_size: 0,
             forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
+            auto_open_dump: false,
         }
     }
 
     #[test]
     fn test_fs_read_single_line() {
-        let fixture = Operation::FsRead {
+        let fixture = ToolOperation::FsRead {
             input: forge_domain::FSRead {
                 path: "/home/user/test.txt".to_string(),
                 start_line: None,
                 end_line: None,
+                show_line_numbers: true,
                 explanation: Some("Test explanation".to_string()),
             },
             output: ReadOutput {
@@ -142,11 +124,12 @@ mod tests {
 
     #[test]
     fn test_fs_read_multiple_lines() {
-        let fixture = Operation::FsRead {
+        let fixture = ToolOperation::FsRead {
             input: forge_domain::FSRead {
                 path: "/home/user/test.txt".to_string(),
                 start_line: Some(2),
                 end_line: Some(4),
+                show_line_numbers: true,
                 explanation: Some("Test explanation".to_string()),
             },
             output: ReadOutput {
@@ -166,7 +149,7 @@ mod tests {
 
     #[test]
     fn test_fs_create_new_file() {
-        let fixture = Operation::FsCreate {
+        let fixture = ToolOperation::FsCreate {
             input: forge_domain::FSWrite {
                 path: "/home/user/project/new_file.txt".to_string(),
                 content: "New file content".to_string(),
@@ -189,7 +172,7 @@ mod tests {
 
     #[test]
     fn test_fs_create_overwrite() {
-        let fixture = Operation::FsCreate {
+        let fixture = ToolOperation::FsCreate {
             input: forge_domain::FSWrite {
                 path: "/home/user/project/existing_file.txt".to_string(),
                 content: "new content".to_string(),
@@ -212,7 +195,7 @@ mod tests {
 
     #[test]
     fn test_fs_create_with_warning() {
-        let fixture = Operation::FsCreate {
+        let fixture = ToolOperation::FsCreate {
             input: forge_domain::FSWrite {
                 path: "/home/user/project/file.txt".to_string(),
                 content: "File content".to_string(),
@@ -235,11 +218,12 @@ mod tests {
 
     #[test]
     fn test_fs_remove() {
-        let fixture = Operation::FsRemove {
+        let fixture = ToolOperation::FsRemove {
             input: forge_domain::FSRemove {
                 path: "/home/user/project/file.txt".to_string(),
                 explanation: Some("Remove file".to_string()),
             },
+            output: FsRemoveOutput { content: "".to_string() },
         };
         let env = fixture_environment();
 
@@ -251,7 +235,7 @@ mod tests {
 
     #[test]
     fn test_fs_search_with_matches() {
-        let fixture = Operation::FsSearch {
+        let fixture = ToolOperation::FsSearch {
             input: forge_domain::FSSearch {
                 path: "/home/user/project".to_string(),
                 regex: Some("Hello".to_string()),
@@ -294,7 +278,7 @@ mod tests {
 
     #[test]
     fn test_fs_search_no_matches() {
-        let fixture = Operation::FsSearch {
+        let fixture = ToolOperation::FsSearch {
             input: forge_domain::FSSearch {
                 path: "/home/user/project".to_string(),
                 regex: Some("nonexistent".to_string()),
@@ -322,7 +306,7 @@ mod tests {
 
     #[test]
     fn test_fs_search_none() {
-        let fixture = Operation::FsSearch {
+        let fixture = ToolOperation::FsSearch {
             input: forge_domain::FSSearch {
                 path: "/home/user/project".to_string(),
                 regex: Some("search".to_string()),
@@ -343,7 +327,7 @@ mod tests {
 
     #[test]
     fn test_fs_patch_success() {
-        let fixture = Operation::FsPatch {
+        let fixture = ToolOperation::FsPatch {
             input: forge_domain::FSPatch {
                 path: "/home/user/project/test.txt".to_string(),
                 search: Some("Hello world".to_string()),
@@ -365,7 +349,7 @@ mod tests {
 
     #[test]
     fn test_fs_patch_with_warning() {
-        let fixture = Operation::FsPatch {
+        let fixture = ToolOperation::FsPatch {
             input: forge_domain::FSPatch {
                 path: "/home/user/project/large_file.txt".to_string(),
                 search: Some("line2".to_string()),
@@ -392,7 +376,7 @@ mod tests {
 
     #[test]
     fn test_fs_undo() {
-        let fixture = Operation::FsUndo {
+        let fixture = ToolOperation::FsUndo {
             input: forge_domain::FSUndo {
                 path: "/home/user/project/test.txt".to_string(),
                 explanation: Some("Undo changes".to_string()),
@@ -412,7 +396,7 @@ mod tests {
 
     #[test]
     fn test_net_fetch_success() {
-        let fixture = Operation::NetFetch {
+        let fixture = ToolOperation::NetFetch {
             input: forge_domain::NetFetch {
                 url: "https://example.com".to_string(),
                 raw: Some(false),
@@ -435,7 +419,7 @@ mod tests {
 
     #[test]
     fn test_net_fetch_error() {
-        let fixture = Operation::NetFetch {
+        let fixture = ToolOperation::NetFetch {
             input: forge_domain::NetFetch {
                 url: "https://example.com/notfound".to_string(),
                 raw: Some(true),
@@ -458,7 +442,7 @@ mod tests {
 
     #[test]
     fn test_shell_success() {
-        let fixture = Operation::Shell {
+        let fixture = ToolOperation::Shell {
             output: ShellOutput {
                 output: forge_domain::CommandOutput {
                     command: "ls -la".to_string(),
@@ -479,7 +463,7 @@ mod tests {
 
     #[test]
     fn test_shell_success_with_stderr() {
-        let fixture = Operation::Shell {
+        let fixture = ToolOperation::Shell {
             output: ShellOutput {
                 output: forge_domain::CommandOutput {
                     command: "command_with_warnings".to_string(),
@@ -500,7 +484,7 @@ mod tests {
 
     #[test]
     fn test_shell_failure() {
-        let fixture = Operation::Shell {
+        let fixture = ToolOperation::Shell {
             output: ShellOutput {
                 output: forge_domain::CommandOutput {
                     command: "failing_command".to_string(),
@@ -521,8 +505,9 @@ mod tests {
 
     #[test]
     fn test_follow_up_with_response() {
-        let fixture =
-            Operation::FollowUp { output: Some("Yes, continue with the operation".to_string()) };
+        let fixture = ToolOperation::FollowUp {
+            output: Some("Yes, continue with the operation".to_string()),
+        };
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
@@ -533,7 +518,7 @@ mod tests {
 
     #[test]
     fn test_follow_up_no_response() {
-        let fixture = Operation::FollowUp { output: None };
+        let fixture = ToolOperation::FollowUp { output: None };
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
@@ -544,11 +529,37 @@ mod tests {
 
     #[test]
     fn test_attempt_completion() {
-        let fixture = Operation::AttemptCompletion;
+        let fixture = ToolOperation::AttemptCompletion;
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
         let expected = None;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_plan_create() {
+        let fixture = ToolOperation::PlanCreate {
+            input: forge_domain::PlanCreate {
+                plan_name: "test-plan".to_string(),
+                version: "v1".to_string(),
+                content:
+                    "# Test Plan\n\n## Task 1\n- Do something\n\n## Task 2\n- Do something else"
+                        .to_string(),
+                explanation: Some("Create test plan".to_string()),
+            },
+            output: crate::PlanCreateOutput {
+                path: PathBuf::from("plans/2024-08-11-test-plan-v1.md"),
+                before: None,
+            },
+        };
+        let env = fixture_environment();
+
+        let actual = fixture.to_content(&env);
+        let expected = Some(ChatResponseContent::Title(TitleFormat::debug(
+            "Create plans/2024-08-11-test-plan-v1.md",
+        )));
 
         assert_eq!(actual, expected);
     }

@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::collections::HashMap;
 
 use derive_more::derive::Display;
 use derive_setters::Setters;
@@ -11,14 +12,21 @@ use crate::merge::Key;
 use crate::temperature::Temperature;
 use crate::template::Template;
 use crate::{
-    Context, Error, EventContext, MaxTokens, ModelId, Result, SystemContext, ToolDefinition,
-    ToolName, TopK, TopP,
+    Context, EVENT_USER_TASK_INIT, EVENT_USER_TASK_UPDATE, Error, EventContext, MaxTokens, ModelId,
+    Result, SystemContext, ToolDefinition, ToolName, TopK, TopP, Workflow,
 };
 
 // Unique identifier for an agent
 #[derive(Debug, Display, Eq, PartialEq, Hash, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(transparent)]
 pub struct AgentId(Cow<'static, str>);
+
+impl From<&str> for AgentId {
+    fn from(value: &str) -> Self {
+        AgentId(Cow::Owned(value.to_string()))
+    }
+}
+
 impl AgentId {
     // Creates a new agent ID from a string-like value
     pub fn new(id: impl ToString) -> Self {
@@ -32,6 +40,7 @@ impl AgentId {
 
     pub const FORGE: AgentId = AgentId(Cow::Borrowed("forge"));
     pub const MUSE: AgentId = AgentId(Cow::Borrowed("muse"));
+    pub const SAGE: AgentId = AgentId(Cow::Borrowed("sage"));
 }
 
 impl Default for AgentId {
@@ -78,18 +87,18 @@ pub struct Agent {
     #[merge(strategy = crate::merge::option)]
     pub user_prompt: Option<Template<EventContext>>,
 
-    /// Tools that the agent can use    
+    /// Tools that the agent can use
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[merge(strategy = merge_opt_vec)]
     pub tools: Option<Vec<ToolName>>,
 
     // The transforms feature has been removed
-    /// Used to specify the events the agent is interested in    
+    /// Used to specify the events the agent is interested in
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[merge(strategy = merge_opt_vec)]
     pub subscribe: Option<Vec<String>>,
 
-    /// Maximum number of turns the agent can take    
+    /// Maximum number of turns the agent can take
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub max_turns: Option<u64>,
@@ -168,10 +177,23 @@ pub struct Agent {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub reasoning: Option<ReasoningConfig>,
+    /// Maximum number of times a tool can fail before sending the response back
+    /// to the LLM forces the completion.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub max_tool_failure_per_turn: Option<usize>,
+
+    /// Maximum number of requests that can be made in a single turn
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub max_requests_per_turn: Option<usize>,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, Setters, JsonSchema, PartialEq)]
 #[setters(strip_option)]
+#[merge(strategy = merge::option::overwrite_none)]
 pub struct ReasoningConfig {
     /// Controls the effort level of the agent's reasoning
     /// supported by openrouter and forge provider
@@ -235,6 +257,8 @@ impl Agent {
             top_k: Default::default(),
             max_tokens: Default::default(),
             reasoning: Default::default(),
+            max_tool_failure_per_turn: Default::default(),
+            max_requests_per_turn: Default::default(),
         }
     }
 
@@ -262,6 +286,154 @@ impl Agent {
         if !subscribe_list.contains(&event_string) {
             subscribe_list.push(event_string);
         }
+    }
+
+    /// Checks if the agent has subscribed to the event_name
+    pub fn has_subscription(&self, event_name: impl AsRef<str>) -> bool {
+        self.subscribe.as_ref().is_some_and(|subscription| {
+            subscription
+                .iter()
+                .any(|subscription| event_name.as_ref().eq(subscription))
+        })
+    }
+    /// Filters and deduplicates tool definitions based on agent's tools
+    /// configuration. Returns only the tool definitions that are specified
+    /// in the agent's tools list. Maintains deduplication to avoid
+    /// duplicate tool definitions.
+    pub fn resolve_tool_definitions(
+        &self,
+        tool_definitions: &[ToolDefinition],
+    ) -> Vec<ToolDefinition> {
+        use std::collections::{HashMap, HashSet};
+
+        // Create a map for efficient tool definition lookup by name
+        let tool_definitions_map: HashMap<_, _> = tool_definitions
+            .iter()
+            .map(|tool| (&tool.name, tool))
+            .collect();
+
+        // Deduplicate agent tools before processing
+        let unique_agent_tools: HashSet<_> = self.tools.iter().flatten().collect();
+
+        // Filter and collect tool definitions based on agent's tool list
+        unique_agent_tools
+            .iter()
+            .flat_map(|tool| tool_definitions_map.get(*tool))
+            .cloned()
+            .cloned()
+            .collect()
+    }
+
+    pub fn extend_mcp_tools(self, mcp_tools: &HashMap<String, Vec<ToolDefinition>>) -> Self {
+        let mut agent = self;
+        // Insert all the MCP tool names
+        if !mcp_tools.is_empty() {
+            if let Some(ref mut tools) = agent.tools {
+                tools.extend(mcp_tools.values().flatten().map(|tool| tool.name.clone()));
+            } else {
+                agent.tools = Some(
+                    mcp_tools
+                        .values()
+                        .flatten()
+                        .map(|tool| tool.name.clone())
+                        .collect::<Vec<_>>(),
+                );
+            }
+        }
+        agent
+    }
+
+    /// Helper to prepare agents with workflow settings
+    pub fn apply_workflow_config(self, workflow: &Workflow) -> Agent {
+        let mut agent = self;
+        if let Some(custom_rules) = workflow.custom_rules.clone() {
+            if let Some(existing_rules) = &agent.custom_rules {
+                agent.custom_rules = Some(existing_rules.clone() + "\n\n" + &custom_rules);
+            } else {
+                agent.custom_rules = Some(custom_rules);
+            }
+        }
+
+        if let Some(max_walker_depth) = workflow.max_walker_depth {
+            agent.max_walker_depth = Some(max_walker_depth);
+        }
+
+        if let Some(temperature) = workflow.temperature {
+            agent.temperature = Some(temperature);
+        }
+
+        if let Some(top_p) = workflow.top_p {
+            agent.top_p = Some(top_p);
+        }
+
+        if let Some(top_k) = workflow.top_k {
+            agent.top_k = Some(top_k);
+        }
+
+        if let Some(max_tokens) = workflow.max_tokens {
+            agent.max_tokens = Some(max_tokens);
+        }
+
+        if let Some(tool_supported) = workflow.tool_supported {
+            agent.tool_supported = Some(tool_supported);
+        }
+        if agent.max_tool_failure_per_turn.is_none()
+            && let Some(max_tool_failure_per_turn) = workflow.max_tool_failure_per_turn
+        {
+            agent.max_tool_failure_per_turn = Some(max_tool_failure_per_turn);
+        }
+
+        if agent.max_requests_per_turn.is_none()
+            && let Some(max_requests_per_turn) = workflow.max_requests_per_turn
+        {
+            agent.max_requests_per_turn = Some(max_requests_per_turn);
+        }
+
+        // Apply workflow compact configuration to agents
+        if let Some(ref workflow_compact) = workflow.compact {
+            if let Some(ref mut agent_compact) = agent.compact {
+                // If agent already has compact config, merge workflow config into agent config
+                // Agent settings take priority over workflow settings
+                let mut merged_compact = workflow_compact.clone();
+                merged_compact.merge(agent_compact.clone());
+                *agent_compact = merged_compact;
+            } else {
+                // If agent doesn't have compact config, use workflow's compact config
+                agent.compact = Some(workflow_compact.clone());
+            }
+        }
+
+        // Subscribe the main agent to all commands
+        if agent.id == AgentId::default() {
+            let commands = workflow
+                .commands
+                .iter()
+                .map(|c| c.name.clone())
+                .collect::<Vec<_>>();
+            if let Some(ref mut subscriptions) = agent.subscribe {
+                subscriptions.extend(commands);
+            } else {
+                agent.subscribe = Some(commands);
+            }
+        }
+
+        // Add base subscription
+        let id = agent.id.clone();
+        agent.add_subscription(format!("{id}/{EVENT_USER_TASK_INIT}"));
+        agent.add_subscription(format!("{id}/{EVENT_USER_TASK_UPDATE}"));
+
+        // Set model for agent
+        if let Some(ref model) = workflow.model {
+            if agent.model.is_none() {
+                agent.model = Some(model.clone());
+            }
+            if let Some(ref mut compact) = agent.compact
+                && compact.model.is_none()
+            {
+                compact.model = Some(model.clone());
+            }
+        }
+        agent
     }
 }
 
@@ -306,12 +478,6 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-
-    impl Into<AgentId> for &str {
-        fn into(self) -> AgentId {
-            AgentId::new(self)
-        }
-    }
 
     #[test]
     fn test_merge_model() {
@@ -583,6 +749,95 @@ mod tests {
         let actual = fixture.subscribe.as_ref().unwrap();
         let expected = vec!["test-event".to_string()];
         assert_eq!(actual, &expected);
+    }
+    #[test]
+    fn test_filter_tool_definitions_with_no_tools() {
+        let fixture = Agent::new("test-agent"); // No tools configured
+        let tool_definitions = vec![
+            ToolDefinition::new("tool1").description("Tool 1"),
+            ToolDefinition::new("tool2").description("Tool 2"),
+        ];
+
+        let actual = fixture.resolve_tool_definitions(&tool_definitions);
+        let expected: Vec<ToolDefinition> = vec![];
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_filter_tool_definitions_with_matching_tools() {
+        let fixture =
+            Agent::new("test-agent").tools(vec![ToolName::new("tool1"), ToolName::new("tool3")]);
+        let tool_definitions = vec![
+            ToolDefinition::new("tool1").description("Tool 1"),
+            ToolDefinition::new("tool2").description("Tool 2"),
+            ToolDefinition::new("tool3").description("Tool 3"),
+            ToolDefinition::new("tool4").description("Tool 4"),
+        ];
+
+        let mut actual = fixture.resolve_tool_definitions(&tool_definitions);
+        let mut expected = vec![
+            ToolDefinition::new("tool1").description("Tool 1"),
+            ToolDefinition::new("tool3").description("Tool 3"),
+        ];
+
+        // Sort both vectors by tool name for deterministic comparison
+        actual.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+        expected.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_filter_tool_definitions_with_duplicate_agent_tools() {
+        let fixture = Agent::new("test-agent").tools(vec![
+            ToolName::new("tool1"),
+            ToolName::new("tool1"), // Duplicate - should be deduplicated
+            ToolName::new("tool2"),
+        ]);
+        let tool_definitions = vec![
+            ToolDefinition::new("tool1").description("Tool 1"),
+            ToolDefinition::new("tool2").description("Tool 2"),
+            ToolDefinition::new("tool3").description("Tool 3"),
+        ];
+
+        let mut actual = fixture.resolve_tool_definitions(&tool_definitions);
+        let mut expected = vec![
+            ToolDefinition::new("tool1").description("Tool 1"),
+            ToolDefinition::new("tool2").description("Tool 2"),
+        ];
+
+        // Sort both vectors by tool name for deterministic comparison
+        actual.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+        expected.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_filter_tool_definitions_with_no_matching_tools() {
+        let fixture = Agent::new("test-agent").tools(vec![
+            ToolName::new("nonexistent1"),
+            ToolName::new("nonexistent2"),
+        ]);
+        let tool_definitions = vec![
+            ToolDefinition::new("tool1").description("Tool 1"),
+            ToolDefinition::new("tool2").description("Tool 2"),
+        ];
+
+        let actual = fixture.resolve_tool_definitions(&tool_definitions);
+        let expected: Vec<ToolDefinition> = vec![];
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_filter_tool_definitions_with_empty_definitions() {
+        let fixture =
+            Agent::new("test-agent").tools(vec![ToolName::new("tool1"), ToolName::new("tool2")]);
+        let tool_definitions: Vec<ToolDefinition> = vec![];
+
+        let actual = fixture.resolve_tool_definitions(&tool_definitions);
+        let expected: Vec<ToolDefinition> = vec![];
+        assert_eq!(actual, expected);
     }
 
     #[test]
