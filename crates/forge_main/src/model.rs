@@ -1,11 +1,19 @@
 use std::sync::{Arc, Mutex};
 
 use forge_api::{Model, Workflow};
+use forge_domain::Agent;
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumProperty};
 
 use crate::info::Info;
 use crate::ui::PartialEvent;
+
+/// Result of agent command registration
+#[derive(Debug, Clone)]
+pub struct AgentCommandRegistrationResult {
+    pub registered_count: usize,
+    pub skipped_conflicts: Vec<String>,
+}
 
 fn humanize_context_length(length: u64) -> String {
     if length >= 1_000_000 {
@@ -61,11 +69,52 @@ impl Default for ForgeCommandManager {
 }
 
 impl ForgeCommandManager {
+    /// Sanitizes agent ID to create a valid command name
+    /// Replaces spaces and special characters with hyphens
+    fn sanitize_agent_id(agent_id: &str) -> String {
+        agent_id
+            .to_lowercase()
+            .chars()
+            .map(|c| if c.is_alphanumeric() { c } else { '-' })
+            .collect::<String>()
+            .split('-')
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<&str>>()
+            .join("-")
+    }
+
+    /// Checks if a command name conflicts with built-in commands
+    fn is_reserved_command(name: &str) -> bool {
+        matches!(
+            name,
+            "/agent"
+                | "/forge"
+                | "/muse"
+                | "/sage"
+                | "/help"
+                | "/compact"
+                | "/new"
+                | "/info"
+                | "/usage"
+                | "/exit"
+                | "/update"
+                | "/dump"
+                | "/model"
+                | "/tools"
+                | "/login"
+                | "/logout"
+                | "/retry"
+                | "/conversations"
+                | "/list"
+        )
+    }
+
     fn default_commands() -> Vec<ForgeCommand> {
         Command::iter()
             .filter(|command| !matches!(command, Command::Message(_)))
             .filter(|command| !matches!(command, Command::Custom(_)))
             .filter(|command| !matches!(command, Command::Shell(_)))
+            .filter(|command| !matches!(command, Command::AgentSwitch(_)))
             .map(|command| ForgeCommand {
                 name: command.name().to_string(),
                 description: command.usage().to_string(),
@@ -90,6 +139,47 @@ impl ForgeCommandManager {
         }));
 
         *guard = commands;
+    }
+
+    /// Registers agent commands to the manager.
+    /// Returns information about the registration process.
+    pub fn register_agent_commands(&self, agents: Vec<Agent>) -> AgentCommandRegistrationResult {
+        let mut guard = self.commands.lock().unwrap();
+        let mut result =
+            AgentCommandRegistrationResult { registered_count: 0, skipped_conflicts: Vec::new() };
+
+        // Remove existing agent commands (commands starting with "/agent-")
+        guard.retain(|cmd| !cmd.name.starts_with("/agent-"));
+
+        // Add new agent commands
+        for agent in agents {
+            let agent_id_str = agent.id.as_str();
+            let sanitized_id = Self::sanitize_agent_id(agent_id_str);
+            let command_name = format!("/agent-{}", sanitized_id);
+
+            // Skip if it would conflict with reserved commands
+            if Self::is_reserved_command(&command_name) {
+                result.skipped_conflicts.push(command_name);
+                continue;
+            }
+
+            let default_title = agent_id_str.to_string();
+            let title = agent.title.as_ref().unwrap_or(&default_title);
+            let description = format!("🤖 Switch to {} agent", title);
+
+            guard.push(ForgeCommand {
+                name: command_name,
+                description,
+                value: Some(agent_id_str.to_string()),
+            });
+
+            result.registered_count += 1;
+        }
+
+        // Sort commands for consistent completion behavior
+        guard.sort_by(|a, b| a.name.cmp(&b.name));
+
+        result
     }
 
     /// Finds a command by name.
@@ -193,6 +283,18 @@ impl ForgeCommandManager {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
                 if let Some(command) = parts.first() {
+                    // Check if it's an agent command pattern (/agent-*)
+                    if command.starts_with("/agent-") {
+                        if let Some(found_command) = self.find(command) {
+                            // Extract the agent ID from the command value
+                            if let Some(agent_id) = &found_command.value {
+                                return Ok(Command::AgentSwitch(agent_id.clone()));
+                            }
+                        }
+                        return Err(anyhow::anyhow!("{} is not a valid agent command", command));
+                    }
+
+                    // Handle custom workflow commands
                     if let Some(command) = self.find(command) {
                         let value = self.extract_command_value(&command, &parts[1..]);
 
@@ -281,9 +383,7 @@ pub enum Command {
     Shell(String),
 
     /// Allows user to switch the operating agent.
-    #[strum(props(
-        usage = "Switch between different AI agents. Use this command to change which agent handles your requests and see available options."
-    ))]
+    #[strum(props(usage = "Switch to an agent interactively"))]
     Agent,
 
     /// Log into the default provider.
@@ -300,6 +400,10 @@ pub enum Command {
     /// List all conversations for the active workspace
     #[strum(props(usage = "List all conversations for the active workspace"))]
     Conversations,
+
+    /// Switch directly to a specific agent by ID
+    #[strum(props(usage = "Switch directly to a specific agent"))]
+    AgentSwitch(String),
 }
 
 impl Command {
@@ -326,6 +430,7 @@ impl Command {
             Command::Logout => "/logout",
             Command::Retry => "/retry",
             Command::Conversations => "/conversations",
+            Command::AgentSwitch(agent_id) => agent_id,
         }
     }
 
@@ -562,6 +667,127 @@ mod tests {
         assert!(
             contains_list,
             "Conversations command should be in default commands"
+        );
+    }
+
+    #[test]
+    fn test_sanitize_agent_id_basic() {
+        // Test basic sanitization
+        let fixture = "test-agent";
+        let actual = ForgeCommandManager::sanitize_agent_id(fixture);
+        let expected = "test-agent";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_sanitize_agent_id_with_spaces() {
+        // Test space replacement
+        let fixture = "test agent name";
+        let actual = ForgeCommandManager::sanitize_agent_id(fixture);
+        let expected = "test-agent-name";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_sanitize_agent_id_with_special_chars() {
+        // Test special character replacement
+        let fixture = "test@agent#name!";
+        let actual = ForgeCommandManager::sanitize_agent_id(fixture);
+        let expected = "test-agent-name";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_sanitize_agent_id_uppercase() {
+        // Test uppercase conversion
+        let fixture = "TestAgent";
+        let actual = ForgeCommandManager::sanitize_agent_id(fixture);
+        let expected = "testagent";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_is_reserved_command() {
+        // Test reserved commands
+        assert!(ForgeCommandManager::is_reserved_command("/agent"));
+        assert!(ForgeCommandManager::is_reserved_command("/forge"));
+        assert!(ForgeCommandManager::is_reserved_command("/muse"));
+        assert!(!ForgeCommandManager::is_reserved_command("/agent-custom"));
+        assert!(!ForgeCommandManager::is_reserved_command("/custom"));
+    }
+
+    #[test]
+    fn test_register_agent_commands() {
+        use forge_domain::Agent;
+
+        // Setup
+        let fixture = ForgeCommandManager::default();
+        let agents = vec![
+            Agent::new("test-agent").title("Test Agent".to_string()),
+            Agent::new("another").title("Another Agent".to_string()),
+        ];
+
+        // Execute
+        let result = fixture.register_agent_commands(agents);
+
+        // Verify result
+        assert_eq!(result.registered_count, 2);
+        assert_eq!(result.skipped_conflicts.len(), 0);
+
+        // Verify
+        let commands = fixture.list();
+        let agent_commands: Vec<_> = commands
+            .iter()
+            .filter(|cmd| cmd.name.starts_with("/agent-"))
+            .collect();
+
+        assert_eq!(agent_commands.len(), 2);
+        assert!(
+            agent_commands
+                .iter()
+                .any(|cmd| cmd.name == "/agent-test-agent")
+        );
+        assert!(
+            agent_commands
+                .iter()
+                .any(|cmd| cmd.name == "/agent-another")
+        );
+    }
+
+    #[test]
+    fn test_parse_agent_switch_command() {
+        use forge_domain::Agent;
+
+        // Setup
+        let fixture = ForgeCommandManager::default();
+        let agents = vec![Agent::new("test-agent").title("Test Agent".to_string())];
+        let _result = fixture.register_agent_commands(agents);
+
+        // Execute
+        let actual = fixture.parse("/agent-test-agent").unwrap();
+
+        // Verify
+        match actual {
+            Command::AgentSwitch(agent_id) => assert_eq!(agent_id, "test-agent"),
+            _ => panic!("Expected AgentSwitch command, got {actual:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_invalid_agent_command() {
+        // Setup
+        let fixture = ForgeCommandManager::default();
+
+        // Execute
+        let result = fixture.parse("/agent-nonexistent");
+
+        // Verify
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("not a valid agent command")
         );
     }
 }

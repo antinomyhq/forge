@@ -572,6 +572,20 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.spinner.start(None)?;
                 self.on_message(None).await?;
             }
+            Command::AgentSwitch(agent_id) => {
+                // Validate that the agent exists by checking against loaded agents
+                let agents = self.api.get_agents().await?;
+                let agent_exists = agents.iter().any(|agent| agent.id.as_str() == agent_id);
+
+                if agent_exists {
+                    self.on_agent_change(AgentId::new(agent_id)).await?;
+                } else {
+                    return Err(anyhow::anyhow!(
+                        "Agent '{}' not found or unavailable",
+                        agent_id
+                    ));
+                }
+            }
         }
 
         Ok(false)
@@ -718,6 +732,28 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .await?;
 
         self.command.register_all(&base_workflow);
+
+        // Register agent commands
+        match self.api.get_agents().await {
+            Ok(agents) => {
+                let result = self.command.register_agent_commands(agents);
+
+                // Show warning for any skipped agents due to conflicts
+                for skipped_command in result.skipped_conflicts {
+                    self.writeln_title(TitleFormat::error(format!(
+                        "Skipped agent command '{}' due to name conflict with built-in command",
+                        skipped_command
+                    )))?;
+                }
+            }
+            Err(e) => {
+                self.writeln_title(TitleFormat::error(format!(
+                    "Failed to load agents for command registration: {}",
+                    e
+                )))?;
+            }
+        }
+
         let agent = self.api.get_operating_agent().await.unwrap_or_default();
         self.state = UIState::new(self.api.environment(), base_workflow, agent).provider(provider);
 
