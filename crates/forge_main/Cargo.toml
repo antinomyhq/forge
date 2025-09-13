@@ -50,7 +50,6 @@ open.workspace = true
 humantime.workspace = true
 num-format.workspace = true
 atty = "0.2"
-chrono-humanize.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

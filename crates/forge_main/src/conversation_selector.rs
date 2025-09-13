@@ -2,7 +2,6 @@ use std::fmt::Display;
 
 use anyhow::Result;
 use chrono::Utc;
-use chrono_humanize::{Accuracy, HumanTime, Tense};
 use colored::Colorize;
 use forge_api::{Conversation, ConversationId};
 
@@ -28,9 +27,15 @@ impl ConversationSelector {
         let formatted_dates = conversations.clone().map(|c| {
             let date = c.metadata.updated_at.unwrap_or(c.metadata.created_at);
             let duration = now.signed_duration_since(date);
-            let duration = chrono::Duration::minutes(duration.num_minutes());
-            let date = HumanTime::from(duration).to_text_en(Accuracy::Rough, Tense::Past);
-            date.to_string().dimmed()
+            let duration =
+                std::time::Duration::from_secs((duration.num_minutes() * 60).max(0) as u64);
+            if duration.is_zero() {
+                "now".to_string()
+            } else {
+                let duration = humantime::format_duration(duration);
+                format!("{} ago", duration)
+            }
+            .dimmed()
         });
 
         let formatted_titles = conversations.clone().map(|c| {
@@ -47,9 +52,6 @@ impl ConversationSelector {
                 .unwrap_or_else(|| format!("<unknown> [{}]", c.id).to_string())
                 .bold()
         });
-
-        // let max_date_length = formatted_dates.clone().map(|s|
-        // s.len()).max().unwrap_or(0);
 
         let max_title_length: usize = formatted_titles.clone().map(|s| s.len()).max().unwrap_or(0);
 

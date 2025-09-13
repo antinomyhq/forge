@@ -31,7 +31,7 @@ impl<S: AS> TitleGenerator<S> {
 
         let prompt = format!("<user_prompt>{}</user_prompt>", self.user_prompt);
         let ctx = Context::default()
-            .temperature(2.0f32)
+            .temperature(1.0f32)
             .conversation_id(ConversationId::generate())
             .reasoning(ReasoningConfig::default().enabled(false))
             .add_message(ContextMessage::system(template))

@@ -357,15 +357,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "chrono-humanize"
-version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "799627e6b4d27827a814e837b9d8a504832086081806d45b1afa34dc982b023b"
-dependencies = [
- "chrono",
-]
-
-[[package]]
 name = "clap"
 version = "4.5.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1300,7 +1291,6 @@ dependencies = [
  "anyhow",
  "atty",
  "chrono",
- "chrono-humanize",
  "clap",
  "colored",
  "console 0.16.1",
