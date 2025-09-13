@@ -141,16 +141,12 @@ impl ForgeCommandManager {
         *guard = commands;
     }
 
-
-
     /// Registers agent commands to the manager.
     /// Returns information about the registration process.
     pub fn register_agent_commands(&self, agents: Vec<Agent>) -> AgentCommandRegistrationResult {
         let mut guard = self.commands.lock().unwrap();
-        let mut result = AgentCommandRegistrationResult {
-            registered_count: 0,
-            skipped_conflicts: Vec::new(),
-        };
+        let mut result =
+            AgentCommandRegistrationResult { registered_count: 0, skipped_conflicts: Vec::new() };
 
         // Remove existing agent commands (commands starting with "/agent-")
         guard.retain(|cmd| !cmd.name.starts_with("/agent-"));
@@ -733,7 +729,7 @@ mod tests {
 
         // Execute
         let result = fixture.register_agent_commands(agents);
-        
+
         // Verify result
         assert_eq!(result.registered_count, 2);
         assert_eq!(result.skipped_conflicts.len(), 0);

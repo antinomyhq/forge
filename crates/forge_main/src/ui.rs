@@ -737,18 +737,18 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         match self.api.get_agents().await {
             Ok(agents) => {
                 let result = self.command.register_agent_commands(agents);
-                
+
                 // Show warning for any skipped agents due to conflicts
                 for skipped_command in result.skipped_conflicts {
-                    self.writeln_title(TitleFormat::error(&format!(
-                        "Skipped agent command '{}' due to name conflict with built-in command", 
+                    self.writeln_title(TitleFormat::error(format!(
+                        "Skipped agent command '{}' due to name conflict with built-in command",
                         skipped_command
                     )))?;
                 }
             }
             Err(e) => {
-                self.writeln_title(TitleFormat::error(&format!(
-                    "Failed to load agents for command registration: {}", 
+                self.writeln_title(TitleFormat::error(format!(
+                    "Failed to load agents for command registration: {}",
                     e
                 )))?;
             }
