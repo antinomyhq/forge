@@ -52,8 +52,7 @@ impl ForgeEnvironmentInfra {
             parse_env::<f64>("FORGE_MAX_SEARCH_RESULT_BYTES").unwrap_or(default_max_bytes);
 
         // Parse custom history file path from environment variable
-        let custom_history_path =
-            parse_env::<String>("FORGE_HISTORY_FILE").map(PathBuf::from);
+        let custom_history_path = parse_env::<String>("FORGE_HISTORY_FILE").map(PathBuf::from);
 
         Environment {
             os: std::env::consts::OS.to_string(),
