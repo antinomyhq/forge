@@ -48,17 +48,15 @@ impl TestContext {
                 .tool_supported(true),
             templates: Default::default(),
             files: Default::default(),
-            env: Environment {
-                os: "MacOS".to_string(),
-                pid: 1234,
-                cwd: PathBuf::from("/Users/tushar"),
-                home: Some(PathBuf::from("/Users/tushar")),
-                shell: "bash".to_string(),
-                base_path: PathBuf::from("/Users/tushar/projects"),
-                forge_api_url: Url::parse("http://localhost:8000").unwrap(),
-
-                // No retry policy by default
-                retry_config: RetryConfig {
+            env: Environment::test()
+                .os("MacOS".to_string())
+                .pid(1234u32)
+                .cwd(PathBuf::from("/Users/tushar"))
+                .home(Some(PathBuf::from("/Users/tushar")))
+                .shell("bash".to_string())
+                .base_path(PathBuf::from("/Users/tushar/projects"))
+                .forge_api_url(Url::parse("http://localhost:8000").unwrap())
+                .retry_config(RetryConfig {
                     initial_backoff_ms: 0,
                     min_delay_ms: 0,
                     backoff_factor: 0,
@@ -66,19 +64,20 @@ impl TestContext {
                     retry_status_codes: Default::default(),
                     max_delay: Default::default(),
                     suppress_retry_errors: Default::default(),
-                },
-                tool_timeout: 300,
-                max_search_lines: 1000,
-                fetch_truncation_limit: 1024,
-                stdout_max_prefix_length: 256,
-                stdout_max_suffix_length: 256,
-                max_read_size: 4096,
-                http: HttpConfig::default(),
-                max_file_size: 1024 * 1024 * 5,
-                max_search_result_bytes: 200,
-                stdout_max_line_length: 200, // 5 MB
-                auto_open_dump: false,
-            },
+                })
+                .tool_timeout(300u64)
+                .max_search_lines(1000usize)
+                .fetch_truncation_limit(1024usize)
+                .stdout_max_prefix_length(256usize)
+                .stdout_max_suffix_length(256usize)
+                .max_read_size(4096u64)
+                .http(HttpConfig::default())
+                .max_file_size(1024 * 1024 * 5)
+                .max_search_result_bytes(200usize)
+                .stdout_max_line_length(200usize)
+                .auto_open_dump(false)
+                .build()
+                .unwrap(),
             title: Some("test-conversation".into()),
             agent: Agent::new(AgentId::new("forge"))
                 .system_prompt(Template::new("You are Forge"))

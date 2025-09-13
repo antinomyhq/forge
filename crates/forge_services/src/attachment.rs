@@ -104,27 +104,26 @@ pub mod tests {
     impl EnvironmentInfra for MockEnvironmentInfra {
         fn get_environment(&self) -> Environment {
             let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
-            Environment {
-                os: "test".to_string(),
-                pid: 12345,
-                cwd: PathBuf::from("/test"),
-                home: Some(PathBuf::from("/home/test")),
-                shell: "bash".to_string(),
-                base_path: PathBuf::from("/base"),
-                retry_config: Default::default(),
-                max_search_lines: 25,
-                max_search_result_bytes: max_bytes.ceil() as usize, // 0.25 MB
-                fetch_truncation_limit: 0,
-                stdout_max_prefix_length: 0,
-                stdout_max_suffix_length: 0,
-                stdout_max_line_length: 2000,
-                max_read_size: 2000,
-                tool_timeout: 300,
-                http: Default::default(),
-                max_file_size: 10_000_000,
-                forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
-                auto_open_dump: false,
-            }
+            Environment::builder()
+                .os("test".to_string())
+                .pid(12345u32)
+                .cwd(PathBuf::from("/test"))
+                .home(Some(PathBuf::from("/home/test")))
+                .shell("bash".to_string())
+                .base_path(PathBuf::from("/base"))
+                .max_search_lines(25usize)
+                .max_search_result_bytes(max_bytes.ceil() as usize) // 0.25 MB
+                .fetch_truncation_limit(0usize)
+                .stdout_max_prefix_length(0usize)
+                .stdout_max_suffix_length(0usize)
+                .stdout_max_line_length(2000usize)
+                .max_read_size(2000u64)
+                .tool_timeout(300u64)
+                .max_file_size(10_000_000u64)
+                .forge_api_url(Url::parse("http://forgecode.dev/api").unwrap())
+                .auto_open_dump(false)
+                .build()
+                .unwrap()
         }
 
         fn get_env_var(&self, _key: &str) -> Option<String> {
