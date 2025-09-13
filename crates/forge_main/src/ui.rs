@@ -3,7 +3,6 @@ use std::fmt::Display;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use chrono::{DateTime, Local};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
@@ -24,6 +23,7 @@ use serde_json::Value;
 use tokio_stream::StreamExt;
 
 use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
+use crate::conversation_selector::ConversationSelector;
 use crate::info::{Info, get_usage};
 use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
@@ -415,25 +415,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
-        let titles: Vec<String> = conversations
-            .iter()
-            .map(|c| {
-                let title = c.title.clone().unwrap_or_else(|| c.id.to_string());
-                // Convert from UTC to local.
-                let date = c.metadata.updated_at.unwrap_or(c.metadata.created_at);
-                let local_date: DateTime<Local> = date.with_timezone(&Local);
-                let formatted_date = local_date.format("%Y-%m-%d %H:%M").to_string();
-                format!("{title:<60} {formatted_date}")
-            })
-            .collect();
-
-        if let Some(selected_title) =
-            ForgeSelect::select("Select the conversation to resume", titles.clone())
-                .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
-                .prompt()?
-            && let Some(position) = titles.iter().position(|title| title == &selected_title)
+        if let Some(selected_conversation_id) =
+            ConversationSelector::select_conversation(&conversations)?
         {
-            self.state.conversation_id = Some(conversations[position].id);
+            self.state.conversation_id = Some(ConversationId::parse(selected_conversation_id)?);
         }
         Ok(())
     }
