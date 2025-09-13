@@ -1,6 +1,10 @@
+use std::fmt::Display;
+
 use anyhow::Result;
-use chrono::{DateTime, Local};
-use forge_api::Conversation;
+use chrono::Utc;
+use chrono_humanize::{Accuracy, HumanTime, Tense};
+use colored::Colorize;
+use forge_api::{Conversation, ConversationId};
 
 use crate::select::ForgeSelect;
 
@@ -11,30 +15,64 @@ impl ConversationSelector {
     /// Select a conversation from the provided list
     ///
     /// Returns the selected conversation ID, or None if no selection was made
-    pub fn select_conversation(conversations: &[Conversation]) -> Result<Option<String>> {
+    pub fn select_conversation(conversations: &[Conversation]) -> Result<Option<ConversationId>> {
         if conversations.is_empty() {
             return Ok(None);
         }
 
-        let titles: Vec<String> = conversations
-            .iter()
-            .map(|c| {
-                let title = c.title.clone().unwrap_or_else(|| c.id.to_string());
-                // Convert from UTC to local.
-                let date = c.metadata.updated_at.unwrap_or(c.metadata.created_at);
-                let local_date: DateTime<Local> = date.with_timezone(&Local);
-                let formatted_date = local_date.format("%Y-%m-%d %H:%M").to_string();
-                format!("{title:<60} {formatted_date}")
-            })
-            .collect();
+        // Select conversations that have some title
+        let conversations = conversations.iter().filter(|c| c.title.is_some());
 
-        if let Some(selected_title) =
-            ForgeSelect::select("Select the conversation to resume:", titles.clone())
+        // First, calculate all formatted dates to find the maximum length
+        let now = Utc::now();
+        let formatted_dates = conversations.clone().map(|c| {
+            let date = c.metadata.updated_at.unwrap_or(c.metadata.created_at);
+            let duration = now.signed_duration_since(date);
+            let duration = chrono::Duration::minutes(duration.num_minutes());
+            let date = HumanTime::from(duration).to_text_en(Accuracy::Rough, Tense::Past);
+            date.to_string().dimmed()
+        });
+
+        let formatted_titles = conversations.clone().map(|c| {
+            c.title
+                .as_ref()
+                .map(|title| {
+                    const MAX_TITLE: usize = 57;
+                    if title.len() > MAX_TITLE {
+                        format!("{}...", title.chars().take(MAX_TITLE).collect::<String>())
+                    } else {
+                        title.to_owned()
+                    }
+                })
+                .unwrap_or_else(|| format!("<unknown> [{}]", c.id).to_string())
+                .bold()
+        });
+
+        // let max_date_length = formatted_dates.clone().map(|s|
+        // s.len()).max().unwrap_or(0);
+
+        let max_title_length: usize = formatted_titles.clone().map(|s| s.len()).max().unwrap_or(0);
+
+        struct ConversationItem((String, Conversation));
+        impl Display for ConversationItem {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                self.0.0.fmt(f)
+            }
+        }
+
+        let conversations = formatted_dates
+            .zip(formatted_titles)
+            .map(|(date, title)| format!("{title:<max_title_length$} {date}"))
+            .zip(conversations.cloned())
+            .map(ConversationItem)
+            .collect::<Vec<_>>();
+
+        if let Some(selected) =
+            ForgeSelect::select("Select the conversation to resume:", conversations)
                 .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
                 .prompt()?
-            && let Some(position) = titles.iter().position(|title| title == &selected_title)
         {
-            Ok(Some(conversations[position].id.to_string()))
+            Ok(Some(selected.0.1.id))
         } else {
             Ok(None)
         }

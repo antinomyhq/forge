@@ -34,8 +34,6 @@ reedline.workspace = true
 nu-ansi-term.workspace = true
 nucleo.workspace = true
 tracing.workspace = true
-
-
 chrono.workspace = true
 serde_json.workspace = true
 serde.workspace = true
@@ -52,6 +50,7 @@ open.workspace = true
 humantime.workspace = true
 num-format.workspace = true
 atty = "0.2"
+chrono-humanize.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

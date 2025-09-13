@@ -415,10 +415,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
-        if let Some(selected_conversation_id) =
-            ConversationSelector::select_conversation(&conversations)?
-        {
-            self.state.conversation_id = Some(ConversationId::parse(selected_conversation_id)?);
+        if let Some(id) = ConversationSelector::select_conversation(&conversations)? {
+            self.state.conversation_id = Some(id);
         }
         Ok(())
     }
