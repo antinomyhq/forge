@@ -23,7 +23,7 @@ pub fn generate_stale_workflow() {
             "stale",
             Job::new("Stale Issues")
                 .add_step(
-                    Step::new("Mark Stale Issues").uses("actions", "stale", "v9")
+                    Step::new("Mark Stale Issues").uses("actions", "stale", "v10")
                         .with(Input::from(indexmap! {
                             "stale-issue-label".to_string() => json!("state: inactive"),
                             "stale-pr-label".to_string() => json!("state: inactive"),
