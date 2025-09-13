@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::domain::{Agent, Template};
+use forge_app::domain::{Agent, Template, ToolsDiscriminants};
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
 
@@ -157,10 +157,11 @@ where
     let mut agents = vec![];
 
     for (name, content) in contents {
-        agents.push(
-            parse_agent_file(content.as_ref())
-                .with_context(|| format!("Failed to parse agent: {}", name.as_ref()))?,
-        );
+        let agent = parse_agent_file(content.as_ref())
+            .with_context(|| format!("Failed to parse agent: {}", name.as_ref()))?;
+
+        // Ensure the agent has the AttemptCompletion tool after parsing
+        agents.push(ensure_attempt_completion_tool(agent));
     }
 
     Ok(agents)
@@ -179,6 +180,20 @@ fn parse_agent_file(content: &str) -> Result<Agent> {
         .system_prompt(Template::new(result.content));
 
     Ok(agent)
+}
+
+/// Ensures that the agent has the AttemptCompletion tool available
+fn ensure_attempt_completion_tool(mut agent: Agent) -> Agent {
+    let attempt_completion_name = ToolsDiscriminants::AttemptCompletion.name();
+    let mut tools = agent.tools.unwrap_or_default();
+
+    // Add AttemptCompletion if it's not already present
+    if !tools.contains(&attempt_completion_name) {
+        tools.push(attempt_completion_name);
+    }
+
+    agent.tools = Some(tools);
+    agent
 }
 
 #[cfg(test)]
@@ -341,5 +356,60 @@ mod tests {
         let actual = resolve_agent_conflicts(fixture);
 
         assert_eq!(actual.len(), 0);
+    }
+
+    #[test]
+    fn test_ensure_attempt_completion_tool_adds_when_missing() {
+        use forge_app::domain::ToolName;
+
+        let fixture = Agent::new("test-agent")
+            .title("Test Agent")
+            .tools(vec![ToolName::new("read"), ToolName::new("write")]);
+
+        let actual = ensure_attempt_completion_tool(fixture);
+
+        let tools = actual.tools.unwrap();
+        let attempt_completion_name = ToolsDiscriminants::AttemptCompletion.name();
+
+        assert!(tools.contains(&attempt_completion_name));
+        assert!(tools.contains(&ToolName::new("read")));
+        assert!(tools.contains(&ToolName::new("write")));
+        assert_eq!(tools.len(), 3);
+    }
+
+    #[test]
+    fn test_ensure_attempt_completion_tool_does_not_duplicate() {
+        use forge_app::domain::ToolName;
+
+        let attempt_completion_name = ToolsDiscriminants::AttemptCompletion.name();
+        let fixture = Agent::new("test-agent")
+            .title("Test Agent")
+            .tools(vec![ToolName::new("read"), attempt_completion_name.clone()]);
+
+        let actual = ensure_attempt_completion_tool(fixture);
+
+        let tools = actual.tools.unwrap();
+
+        // Should not duplicate attempt_completion
+        let attempt_completion_count = tools
+            .iter()
+            .filter(|tool| *tool == &attempt_completion_name)
+            .count();
+        assert_eq!(attempt_completion_count, 1);
+        assert_eq!(tools.len(), 2);
+    }
+
+    #[test]
+    fn test_ensure_attempt_completion_tool_handles_empty_tools() {
+        let fixture = Agent::new("test-agent").title("Test Agent");
+        assert!(fixture.tools.is_none());
+
+        let actual = ensure_attempt_completion_tool(fixture);
+
+        let tools = actual.tools.unwrap();
+        let attempt_completion_name = ToolsDiscriminants::AttemptCompletion.name();
+
+        assert!(tools.contains(&attempt_completion_name));
+        assert_eq!(tools.len(), 1);
     }
 }
