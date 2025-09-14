@@ -384,10 +384,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             crate::cli::ShellType::Zsh => {
                 println!("{}", include_str!("../../../shell-plugin/forge.plugin.zsh"))
             }
-            crate::cli::ShellType::Bash => println!(
-                "{}",
-                include_str!("../../../shell-plugin/forge.plugin.bash")
-            ),
         }
         Ok(())
     }

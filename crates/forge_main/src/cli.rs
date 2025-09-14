@@ -125,7 +125,6 @@ pub struct TerminalArgs {
 #[derive(clap::ValueEnum, Debug, Clone, Copy)]
 pub enum ShellType {
     Zsh,
-    Bash,
 }
 
 /// Group of MCP-related commands
