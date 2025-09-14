@@ -96,6 +96,21 @@ pub enum TopLevelCommand {
     Mcp(McpCommandGroup),
     /// Print information about the environment
     Info,
+    /// Generate shell prompt completion scripts
+    Term(TerminalArgs),
+}
+
+#[derive(clap::Args, Debug, Clone)]
+pub struct TerminalArgs {
+    /// Generate shell prompt completion script
+    #[arg(short, long)]
+    pub generate_prompt: ShellType,
+}
+
+#[derive(clap::ValueEnum, Debug, Clone, Copy)]
+pub enum ShellType {
+    Zsh,
+    Bash,
 }
 
 /// Group of MCP-related commands

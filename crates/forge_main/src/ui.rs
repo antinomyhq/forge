@@ -363,6 +363,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_info().await?;
                 return Ok(());
             }
+            TopLevelCommand::Term(terminal_args) => {
+                self.on_terminal(terminal_args).await?;
+                return Ok(());
+            }
         }
         Ok(())
     }
@@ -386,6 +390,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.writeln(info)?;
         self.spinner.stop(None)?;
 
+        Ok(())
+    }
+
+    async fn on_terminal(&mut self, terminal_args: crate::cli::TerminalArgs) -> anyhow::Result<()> {
+        match terminal_args.generate_prompt {
+            crate::cli::ShellType::Zsh => println!("{}", include_str!("../../../shell-plugin/forge.plugin.zsh")),
+            crate::cli::ShellType::Bash => println!("{}", include_str!("../../../shell-plugin/forge.plugin.bash")),
+        }
         Ok(())
     }
 
