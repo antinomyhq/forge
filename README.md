@@ -419,6 +419,20 @@ FORGE_DUMP_AUTO_OPEN=false     # Automatically open dump files in browser (defau
 </details>
 
 <details>
+<summary><strong>ZSH Plugin Configuration</strong></summary>
+
+Configure the ZSH plugin behavior:
+
+```bash
+# .env
+FORGE_CMD=forge                    # Command to use for forge operations (default: "forge")
+```
+
+The `FORGE_CMD` environment variable allows you to customize the command used by the ZSH plugin when transforming `#` prefixed commands. If not set, it defaults to `"forge"`.
+
+</details>
+
+<details>
 <summary><strong>System Configuration</strong></summary>
 
 System-level environment variables (usually set automatically):
