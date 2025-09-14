@@ -145,7 +145,7 @@ pub struct McpAddArgs {
     pub command_or_url: String,
 
     /// Additional arguments to pass to the server
-    #[arg(short = 'a', long = "args")]
+    #[arg(last = true)]
     pub args: Vec<String>,
 }
 
