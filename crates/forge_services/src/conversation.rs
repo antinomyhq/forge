@@ -52,16 +52,6 @@ impl<S: ConversationRepository> ConversationService for ForgeConversationService
         Ok(())
     }
 
-    async fn init_conversation(&self) -> Result<Conversation> {
-        let id = ConversationId::generate();
-        let conversation = Conversation::new(id);
-        let _ = self
-            .conversation_repository
-            .upsert_conversation(conversation.clone())
-            .await?;
-        Ok(conversation)
-    }
-
     async fn get_conversations(&self, limit: Option<usize>) -> Result<Option<Vec<Conversation>>> {
         self.conversation_repository
             .get_all_conversations(limit)

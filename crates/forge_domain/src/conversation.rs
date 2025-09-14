@@ -69,6 +69,11 @@ impl Conversation {
         }
     }
 
+
+    pub fn generate() -> Self {
+        Self::new(ConversationId::generate())
+    }
+
     /// Generates an HTML representation of the conversation
     ///
     /// This method uses Handlebars to render the conversation as HTML
