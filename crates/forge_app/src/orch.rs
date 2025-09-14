@@ -1,6 +1,6 @@
 // Tests for this module can be found in: tests/orch_*.rs
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use async_recursion::async_recursion;
@@ -351,6 +351,7 @@ impl<S: AgentService> Orchestrator<S> {
             self.services.update(self.conversation.clone()).await?;
 
             // Run the main chat request and compaction check in parallel
+            let retry_message = Arc::new(Mutex::new(None::<String>));
             let main_request = crate::retry::retry_with_config(
                 &self.environment.retry_config,
                 || self.execute_chat_turn(&model_id, context.clone(), context.is_reasoning_supported()),
@@ -358,11 +359,19 @@ impl<S: AgentService> Orchestrator<S> {
                     let sender = sender.clone();
                     let agent_id = agent.id.clone();
                     let model_id = model_id.clone();
+                    let retry_message = retry_message.clone();
                     move |error: &anyhow::Error, duration: Duration| {
                         let root_cause = error.root_cause();
                         tracing::error!(agent_id = %agent_id, error = ?root_cause, model=%model_id, "Retry Attempt");
+                        let cause: Cause = error.into();
+                        let feedback_message = format!(
+                            "Tool call parsing failed: {:?}. Please ensure the tool calls are properly formatted", cause
+                        );
+                        if let Ok(mut message) = retry_message.lock() {
+                            *message = Some(feedback_message);
+                        }
                         let retry_event = ChatResponse::RetryAttempt {
-                            cause: error.into(),
+                            cause,
                             duration,
                         };
                         let _ = sender.try_send(Ok(retry_event));
@@ -412,6 +421,17 @@ impl<S: AgentService> Orchestrator<S> {
             if let Some(title) = conversation_title {
                 debug!(conversation_id = %self.conversation.id, title, "Title generated for conversation");
                 self.conversation.title = Some(title);
+            }
+
+            // Add any retry messages to the context
+            if let Ok(message) = retry_message.lock() {
+                let message = message.clone();
+                if let Some(message) = message {
+                    context.messages.push(ContextMessage::user(
+                        message.clone(),
+                        Some(model_id.clone()),
+                    ));
+                }
             }
 
             // Apply compaction result if it completed successfully
