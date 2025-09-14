@@ -369,7 +369,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn on_info(&mut self) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Info"))?;
-        let mut info = Info::from(&self.state).extend(Info::from(&self.api.environment()));
+        let mut info = Info::from(&self.api.environment()).extend(Info::from(&self.state));
+
+        // Add conversation information if available
+        if let Some(conversation_id) = &self.state.conversation_id
+            && let Ok(Some(conversation)) = self.api.conversation(conversation_id).await
+        {
+            info = info.extend(Info::from(&conversation));
+        }
 
         // Add user information if available
         if let Some(config) = self.api.app_config().await

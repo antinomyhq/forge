@@ -3,7 +3,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use colored::Colorize;
-use forge_api::{Environment, LoginInfo, Metrics, Usage, UserUsage};
+use forge_api::{Conversation, Environment, LoginInfo, Metrics, Usage, UserUsage};
 use forge_tracker::VERSION;
 use num_format::{Locale, ToFormattedString};
 
@@ -61,13 +61,7 @@ impl From<&Environment> for Info {
             None => "(not in a git repository)".to_string(),
         };
 
-        let mut info = Info::new()
-            .add_title("ENVIRONMENT")
-            .add_key_value("Version", VERSION)
-            .add_key_value("Working Directory", format_path_for_display(env, &env.cwd))
-            .add_key_value("Shell", &env.shell)
-            .add_key_value("Git Branch", branch_info)
-            .add_title("PATHS");
+        let mut info = Info::new().add_title("PATHS");
 
         // Only show logs path if the directory exists
         let log_path = env.log_path();
@@ -87,7 +81,12 @@ impl From<&Environment> for Info {
             .add_key_value(
                 "Policies",
                 format_path_for_display(env, &env.permissions_path()),
-            );
+            )
+            .add_title("ENVIRONMENT")
+            .add_key_value("Version", VERSION)
+            .add_key_value("Working Directory", format_path_for_display(env, &env.cwd))
+            .add_key_value("Shell", &env.shell)
+            .add_key_value("Git Branch", branch_info);
 
         info
     }
@@ -401,6 +400,57 @@ pub fn format_reset_time(seconds: u64) -> String {
     humantime::format_duration(Duration::from_secs(seconds)).to_string()
 }
 
+impl From<&Conversation> for Info {
+    fn from(conversation: &Conversation) -> Self {
+        let mut info = Info::new().add_title("CONVERSATION");
+
+        info = info.add_key_value("ID", conversation.id.to_string());
+
+        if let Some(title) = &conversation.title {
+            info = info.add_key_value("Title", title);
+        } else {
+            info = info.add_key_value("Title", "(untitled)");
+        }
+
+        // Add conversation metrics
+        let metrics = &conversation.metrics;
+
+        // Duration
+        let duration = match metrics.duration() {
+            Some(d) => humantime::format_duration(Duration::from_secs(d.as_secs())).to_string(),
+            None => "0s".to_string(),
+        };
+        info = info.add_key_value("Duration", duration);
+
+        // Files changed count
+        let files_changed_count = metrics.files_changed.len();
+        if files_changed_count > 0 {
+            info = info.add_key_value("Files Changed", files_changed_count.to_string());
+
+            // Total lines added/removed
+            let total_added: u64 = metrics
+                .files_changed
+                .values()
+                .map(|fm| fm.lines_added)
+                .sum();
+            let total_removed: u64 = metrics
+                .files_changed
+                .values()
+                .map(|fm| fm.lines_removed)
+                .sum();
+
+            if total_added > 0 || total_removed > 0 {
+                info =
+                    info.add_key_value("Lines Changed", format!("+{total_added} -{total_removed}"));
+            }
+        } else {
+            info = info.add_key_value("Files Changed", "0");
+        }
+
+        info
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -601,5 +651,65 @@ mod tests {
         assert!(expected_display.contains("−2 +8"));
         assert!(expected_display.contains("test_agent.rs"));
         assert!(expected_display.contains("−0 +5"));
+    }
+
+    #[test]
+    fn test_conversation_info_display() {
+        use chrono::Utc;
+        use forge_api::ConversationId;
+
+        use super::{Conversation, Metrics};
+
+        let conversation_id = ConversationId::generate();
+        let mut metrics = Metrics::new().with_time(Utc::now());
+        metrics.record_file_operation("src/main.rs".to_string(), 5, 2);
+        metrics.record_file_operation("tests/test.rs".to_string(), 3, 1);
+
+        let fixture = Conversation {
+            id: conversation_id,
+            title: Some("Test Conversation".to_string()),
+            context: None,
+            metrics,
+            metadata: forge_domain::MetaData::new(Utc::now()),
+        };
+
+        let actual = super::Info::from(&fixture);
+        let expected_display = actual.to_string();
+
+        // Verify it contains the conversation section
+        assert!(expected_display.contains("CONVERSATION"));
+        assert!(expected_display.contains("Test Conversation"));
+        assert!(expected_display.contains("Files Changed"));
+        assert!(expected_display.contains("2"));
+        assert!(expected_display.contains("+8"));
+        assert!(expected_display.contains("-3"));
+    }
+
+    #[test]
+    fn test_conversation_info_display_untitled() {
+        use chrono::Utc;
+        use forge_api::ConversationId;
+
+        use super::{Conversation, Metrics};
+
+        let conversation_id = ConversationId::generate();
+        let metrics = Metrics::new().with_time(Utc::now());
+
+        let fixture = Conversation {
+            id: conversation_id,
+            title: None,
+            context: None,
+            metrics,
+            metadata: forge_domain::MetaData::new(Utc::now()),
+        };
+
+        let actual = super::Info::from(&fixture);
+        let expected_display = actual.to_string();
+
+        // Verify it contains the conversation section with untitled
+        assert!(expected_display.contains("CONVERSATION"));
+        assert!(expected_display.contains("(untitled)"));
+        assert!(expected_display.contains("Files Changed"));
+        assert!(expected_display.contains("0"));
     }
 }
