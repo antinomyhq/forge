@@ -31,7 +31,7 @@ impl<S: ConversationRepository> ConversationService for ForgeConversationService
             .conversation_repository
             .get_conversation(id)
             .await?
-            .ok_or_else(|| anyhow::anyhow!("Conversation not found: {}", id))?;
+            .ok_or_else(|| forge_app::domain::Error::ConversationNotFound(*id))?;
         let out = f(&mut conversation);
         let _ = self
             .conversation_repository
