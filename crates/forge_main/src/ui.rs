@@ -182,7 +182,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Ok(_) => {}
             Err(error) => {
                 tracing::error!(error = ?error);
-                eprintln!("{}", TitleFormat::error(format!("{error:?}")).display());
+                let _ = self.writeln_title(TitleFormat::error(format!("{error:?}")));
             }
         }
     }
@@ -238,7 +238,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                             tracker::error(&error);
                             tracing::error!(error = ?error);
                             self.spinner.stop(None)?;
-                            eprintln!("{}", TitleFormat::error(format!("{error:?}")).display());
+                            self.writeln_title(TitleFormat::error(format!("{error:?}")))?;
                         },
                     }
                 }
