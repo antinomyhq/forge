@@ -272,16 +272,41 @@ model: claude-3.7-sonnet
 
 ```bash
 # .env
-PROJECT_ID=<your_project_id>
-LOCATION=<your_location>
-OPENAI_API_KEY=<vertex_ai_key>
-OPENAI_URL=https://${LOCATION}-aiplatform.googleapis.com/v1beta1/projects/${PROJECT_ID}/locations/${LOCATION}/endpoints/openapi
+VERTEX_AI_PROJECT_ID=<your_project_id>
+VERTEX_AI_LOCATION=<your_location>
+VERTEX_AI_AUTH_TOKEN=<your_auth_token>
 ```
 
 ```yaml
 # forge.yaml
-model: publishers/anthropic/models/claude-3-7-sonnet
+model: claude-sonnet-4@20250514
 ```
+
+### Setup Instructions
+
+1. **Install Google Cloud CLI** and authenticate:
+   ```bash
+   gcloud auth login
+   gcloud config set project YOUR_PROJECT_ID
+   ```
+
+2. **Get your authentication token**:
+   ```bash
+   gcloud auth print-access-token
+   ```
+   Use this token as `VERTEX_AI_AUTH_TOKEN`.
+
+3. **Find your project ID and location**:
+   - Project ID: Available in Google Cloud Console or via `gcloud config get-value project`
+   - Location: Your Google Cloud region (e.g., `us-central1`, `europe-west1`)
+
+### Available Models
+
+Forge loads Vertex AI models from a static configuration file, including:
+- Claude models: `claude-sonnet-4@20250514`
+- Gemini models: `gemini-2.5-pro`, `gemini-2.0-flash`
+
+Use the `/model` command in Forge CLI to see all available models.
 
 </details>
 

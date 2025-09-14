@@ -51,7 +51,7 @@ impl<F: EnvironmentInfra> ProviderRegistry for ForgeProviderRegistry<F> {
 
         let provider = self
             .get_provider(config)
-            .context("No valid provider configuration found. Please set one of the following environment variables: OPENROUTER_API_KEY, REQUESTY_API_KEY, XAI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY. For more details, visit: https://forgecode.dev/docs/custom-providers/")?;
+            .context("No valid provider configuration found. Please set one of the following environment variables: OPENROUTER_API_KEY, REQUESTY_API_KEY, XAI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, or VERTEX_AI_AUTH_TOKEN (with VERTEX_AI_PROJECT_ID and VERTEX_AI_LOCATION). For more details, visit: https://forgecode.dev/docs/custom-providers/")?;
         self.cache.write().await.replace(provider.clone());
         Ok(provider)
     }
@@ -61,6 +61,16 @@ fn resolve_env_provider<F: EnvironmentInfra>(
     url: Option<ProviderUrl>,
     env: &F,
 ) -> Option<Provider> {
+    // Check for Vertex AI first since it requires multiple environment variables
+    if let Some(token) = env.get_env_var("VERTEX_AI_AUTH_TOKEN") {
+        let project_id = env.get_env_var("VERTEX_AI_PROJECT_ID").unwrap_or_default();
+        let location = env.get_env_var("VERTEX_AI_LOCATION").unwrap_or_default();
+        if !project_id.is_empty() && !token.is_empty() {
+            let provider = Provider::vertex_ai(&token, &project_id, &location);
+            return Some(override_url(provider, url.clone()));
+        }
+    }
+
     let keys: [ProviderSearch; 8] = [
         // ("FORGE_KEY", Box::new(Provider::forge)),
         ("OPENROUTER_API_KEY", Box::new(Provider::open_router)),

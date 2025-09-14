@@ -91,18 +91,25 @@ impl<H: HttpClientService> OpenAIProvider<H> {
     }
 
     async fn inner_models(&self) -> Result<Vec<forge_app::domain::Model>> {
-        let url = self.provider.model_url();
-        debug!(url = %url, "Fetching models");
-        match self.fetch_models(url.as_str()).await {
-            Err(error) => {
-                tracing::error!(error = ?error, "Failed to fetch models");
-                anyhow::bail!(error)
-            }
-            Ok(response) => {
-                let data: ListModelResponse = serde_json::from_str(&response)
-                    .with_context(|| format_http_context(None, "GET", &url))
-                    .with_context(|| "Failed to deserialize models response")?;
-                Ok(data.data.into_iter().map(Into::into).collect())
+        // For Vertex AI, load models from static JSON file using VertexProvider logic
+        if self.provider.is_vertex_ai() {
+            debug!("Loading Vertex AI models from static JSON file");
+            self.load_vertex_models().await
+        } else {
+            // For other OpenAI-compatible providers, use the standard approach
+            let url = self.provider.model_url();
+            debug!(url = %url, "Fetching models");
+            match self.fetch_models(url.as_str()).await {
+                Err(error) => {
+                    tracing::error!(error = ?error, "Failed to fetch models");
+                    anyhow::bail!(error)
+                }
+                Ok(response) => {
+                    let data: ListModelResponse = serde_json::from_str(&response)
+                        .with_context(|| format_http_context(None, "GET", &url))
+                        .with_context(|| "Failed to deserialize models response")?;
+                    Ok(data.data.into_iter().map(Into::into).collect())
+                }
             }
         }
     }
@@ -135,6 +142,54 @@ impl<H: HttpClientService> OpenAIProvider<H> {
                 .with_context(|| ctx_message)
                 .with_context(|| "Failed to fetch the models")
         }
+    }
+
+    /// Load Vertex AI models from static JSON file
+    /// This method replicates the logic from VertexProvider to ensure
+    /// Vertex AI models are properly loaded when using the OpenAI provider
+    async fn load_vertex_models(&self) -> Result<Vec<forge_app::domain::Model>> {
+        use std::env;
+
+        use tokio::fs;
+
+        // Try multiple possible locations for vertex.json
+        let possible_paths = vec![
+            "vertex.json".to_string(),
+            format!("{}/vertex.json", env::current_dir().unwrap().display()),
+            format!("{}/vertex.json", env!("CARGO_MANIFEST_DIR")),
+        ];
+
+        let mut last_error = None;
+
+        for file_path in possible_paths {
+            debug!("Trying to load Vertex AI models from: {}", file_path);
+
+            match fs::read_to_string(&file_path).await {
+                Ok(content) => {
+                    let models: Vec<forge_app::domain::Model> = serde_json::from_str(&content)
+                        .context("Failed to parse vertex.json file")?;
+
+                    info!(
+                        "Loaded {} Vertex AI models from {}",
+                        models.len(),
+                        file_path
+                    );
+                    return Ok(models);
+                }
+                Err(e) => {
+                    let error_msg = format!("Failed to read {}: {}", file_path, e);
+                    debug!("{}", error_msg);
+                    last_error = Some(error_msg);
+                    continue;
+                }
+            }
+        }
+
+        // If we get here, all paths failed
+        Err(anyhow::anyhow!(
+            "Failed to read vertex.json file from any location. Last error: {}",
+            last_error.unwrap_or_else(|| "No error information".to_string())
+        ))
     }
 }
 

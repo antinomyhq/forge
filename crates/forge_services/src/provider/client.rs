@@ -58,6 +58,11 @@ impl ClientBuilder {
                 provider.to_base_url().to_string(),
                 "2023-06-01".to_string(),
             )),
+
+            Provider::VertexAI { .. } => {
+                // Vertex AI is OpenAI-compatible, so we use the OpenAI provider
+                InnerClient::OpenAICompat(OpenAIProvider::new(provider.clone(), http.clone()))
+            }
         };
 
         Ok(Client {
