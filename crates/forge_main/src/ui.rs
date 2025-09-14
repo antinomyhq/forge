@@ -395,8 +395,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn on_terminal(&mut self, terminal_args: crate::cli::TerminalArgs) -> anyhow::Result<()> {
         match terminal_args.generate_prompt {
-            crate::cli::ShellType::Zsh => println!("{}", include_str!("../../../shell-plugin/forge.plugin.zsh")),
-            crate::cli::ShellType::Bash => println!("{}", include_str!("../../../shell-plugin/forge.plugin.bash")),
+            crate::cli::ShellType::Zsh => {
+                println!("{}", include_str!("../../../shell-plugin/forge.plugin.zsh"))
+            }
+            crate::cli::ShellType::Bash => println!(
+                "{}",
+                include_str!("../../../shell-plugin/forge.plugin.bash")
+            ),
         }
         Ok(())
     }
