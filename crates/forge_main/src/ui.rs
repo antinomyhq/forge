@@ -963,19 +963,22 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         self.spinner.stop(None)?;
 
-        let prompt_text = "Start a new conversation?";
-        let should_start_new_chat = ForgeSelect::confirm(prompt_text)
-            // Pressing ENTER should start new
-            .with_default(true)
-            .with_help_message("ESC = No, continue current conversation")
-            .prompt()
-            // Cancel or failure should continue with the session
-            .unwrap_or(Some(false))
-            .unwrap_or(false);
+        // Only prompt for new conversation if in interactive mode
+        if self.cli.is_interactive() {
+            let prompt_text = "Start a new conversation?";
+            let should_start_new_chat = ForgeSelect::confirm(prompt_text)
+                // Pressing ENTER should start new
+                .with_default(true)
+                .with_help_message("ESC = No, continue current conversation")
+                .prompt()
+                // Cancel or failure should continue with the session
+                .unwrap_or(Some(false))
+                .unwrap_or(false);
 
-        // if conversation is over
-        if should_start_new_chat {
-            self.on_new().await?;
+            // if conversation is over
+            if should_start_new_chat {
+                self.on_new().await?;
+            }
         }
 
         Ok(())
