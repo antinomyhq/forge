@@ -342,7 +342,6 @@ impl<S: AgentService> Orchestrator<S> {
 
         // Store tool calls at turn level
         let mut turn_has_tool_calls = false;
-        let title_generator = TitleGenerator::new(self.services.clone());
 
         let tool_context =
             ToolCallContext::new(self.conversation.metrics.clone()).sender(self.sender.clone());
@@ -371,10 +370,20 @@ impl<S: AgentService> Orchestrator<S> {
                 }),
             );
 
-            // Generate title only if conversation doesn't have any title.
+            // Generate title only if conversation doesn't have any title and event.value
+            // exists
             use futures::future::{Either, ready};
-            let title_generator_future: Either<_, _> = if self.conversation.title.is_none() {
-                Either::Left(title_generator.generate(&context, &model_id))
+            let title_generator_future: Either<_, _> = if let Some(ref prompt) = self.event.value {
+                if self.conversation.title.is_none() {
+                    let title_generator = TitleGenerator::new(
+                        self.services.clone(),
+                        prompt.to_owned(),
+                        model_id.clone(),
+                    );
+                    Either::Left(async move { title_generator.generate().await })
+                } else {
+                    Either::Right(ready(Ok::<Option<String>, anyhow::Error>(None)))
+                }
             } else {
                 Either::Right(ready(Ok::<Option<String>, anyhow::Error>(None)))
             };

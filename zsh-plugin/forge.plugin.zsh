@@ -4,7 +4,7 @@
 # Converts '# abc' to '$FORGE_CMD <<< abc' using ZLE widgets
 
 # Configuration: Change these variables to customize the forge command and special characters
-FORGE_CMD="forge"
+FORGE_CMD="${FORGE_CMD:-forge}"
 FORGE_RESUME_CONV="#\?\?"
 FORGE_NEW_CONV="#\?"
 

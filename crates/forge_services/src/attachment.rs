@@ -124,6 +124,7 @@ pub mod tests {
                 max_file_size: 10_000_000,
                 forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
                 auto_open_dump: false,
+                custom_history_path: None,
             }
         }
 
