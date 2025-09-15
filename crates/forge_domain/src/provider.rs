@@ -5,14 +5,12 @@ use url::Url;
 pub enum ProviderUrl {
     OpenAI(String),
     Anthropic(String),
-    VertexAI(String),
 }
 impl ProviderUrl {
     pub fn into_string(self) -> String {
         match self {
             ProviderUrl::OpenAI(url) => url,
             ProviderUrl::Anthropic(url) => url,
-            ProviderUrl::VertexAI(url) => url,
         }
     }
 }
@@ -20,20 +18,8 @@ impl ProviderUrl {
 /// Providers that can be used.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Provider {
-    OpenAI {
-        url: Url,
-        key: Option<String>,
-    },
-    Anthropic {
-        url: Url,
-        key: String,
-    },
-    VertexAI {
-        url: Url,
-        key: String,
-        project_id: String,
-        location: String,
-    },
+    OpenAI { url: Url, key: Option<String> },
+    Anthropic { url: Url, key: String },
 }
 
 impl Provider {
@@ -41,7 +27,6 @@ impl Provider {
         match url {
             ProviderUrl::OpenAI(url) => self.open_ai_url(url),
             ProviderUrl::Anthropic(url) => self.anthropic_url(url),
-            ProviderUrl::VertexAI(url) => self.vertex_ai_url(url),
         }
     }
     /// Sets the OpenAI URL if the provider is an OpenAI compatible provider
@@ -55,7 +40,6 @@ impl Provider {
                 }
             }
             Provider::Anthropic { .. } => {}
-            Provider::VertexAI { .. } => {}
         }
     }
 
@@ -70,22 +54,6 @@ impl Provider {
                 }
             }
             Provider::OpenAI { .. } => {}
-            Provider::VertexAI { .. } => {}
-        }
-    }
-
-    /// Sets the Vertex AI URL if the provider is Vertex AI
-    fn vertex_ai_url(&mut self, url: String) {
-        match self {
-            Provider::VertexAI { url: set_url, .. } => {
-                if url.ends_with("/") {
-                    *set_url = Url::parse(&url).unwrap();
-                } else {
-                    *set_url = Url::parse(&format!("{url}/")).unwrap();
-                }
-            }
-            Provider::OpenAI { .. } => {}
-            Provider::Anthropic { .. } => {}
         }
     }
 
@@ -163,19 +131,13 @@ impl Provider {
                 location, project_id, location
             )
         };
-        Provider::VertexAI {
-            url: Url::parse(&base_url).unwrap(),
-            key: key.into(),
-            project_id: project_id.into(),
-            location: location.into(),
-        }
+        Provider::OpenAI { url: Url::parse(&base_url).unwrap(), key: Some(key.into()) }
     }
 
     pub fn key(&self) -> Option<&str> {
         match self {
             Provider::OpenAI { key, .. } => key.as_deref(),
             Provider::Anthropic { key, .. } => Some(key),
-            Provider::VertexAI { key, .. } => Some(key),
         }
     }
 }
@@ -196,7 +158,6 @@ impl Provider {
         match self {
             Provider::OpenAI { url, .. } => url.clone(),
             Provider::Anthropic { url, .. } => url.clone(),
-            Provider::VertexAI { url, .. } => url.clone(),
         }
     }
 
@@ -211,7 +172,6 @@ impl Provider {
                 }
             }
             Provider::Anthropic { url, .. } => url.join("models").unwrap(),
-            Provider::VertexAI { url, .. } => url.join("models").unwrap(),
         }
     }
 
@@ -219,7 +179,6 @@ impl Provider {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::FORGE_URL),
             Provider::Anthropic { .. } => false,
-            Provider::VertexAI { .. } => false,
         }
     }
 
@@ -227,7 +186,6 @@ impl Provider {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::OPEN_ROUTER_URL),
             Provider::Anthropic { .. } => false,
-            Provider::VertexAI { .. } => false,
         }
     }
 
@@ -235,7 +193,6 @@ impl Provider {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::REQUESTY_URL),
             Provider::Anthropic { .. } => false,
-            Provider::VertexAI { .. } => false,
         }
     }
 
@@ -243,7 +200,6 @@ impl Provider {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::ZAI_URL),
             Provider::Anthropic { .. } => false,
-            Provider::VertexAI { .. } => false,
         }
     }
 
@@ -251,7 +207,6 @@ impl Provider {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::ZAI_CODING_URL),
             Provider::Anthropic { .. } => false,
-            Provider::VertexAI { .. } => false,
         }
     }
 
@@ -259,7 +214,6 @@ impl Provider {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::CEREBRAS_URL),
             Provider::Anthropic { .. } => false,
-            Provider::VertexAI { .. } => false,
         }
     }
 
@@ -267,7 +221,6 @@ impl Provider {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::XAI_URL),
             Provider::Anthropic { .. } => false,
-            Provider::VertexAI { .. } => false,
         }
     }
 
@@ -275,7 +228,6 @@ impl Provider {
         match self {
             Provider::OpenAI { url, .. } => url.as_str().starts_with(Self::OPENAI_URL),
             Provider::Anthropic { .. } => false,
-            Provider::VertexAI { .. } => false,
         }
     }
 
@@ -283,14 +235,14 @@ impl Provider {
         match self {
             Provider::OpenAI { .. } => false,
             Provider::Anthropic { url, .. } => url.as_str().starts_with(Self::ANTHROPIC_URL),
-            Provider::VertexAI { .. } => false,
         }
     }
 
     pub fn is_vertex_ai(&self) -> bool {
         match self {
-            Provider::VertexAI { .. } => true,
-            Provider::OpenAI { .. } => false,
+            Provider::OpenAI { url, key: _ } => url
+                .as_str()
+                .contains("aiplatform.googleapis.com/v1/projects/"),
             Provider::Anthropic { .. } => false,
         }
     }
