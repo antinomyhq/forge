@@ -45,12 +45,7 @@ impl Console {
                 ReadResult::Empty => continue,
                 ReadResult::Success(text) => {
                     tracker::prompt(text.clone());
-                    match self.command.parse(&text) {
-                        Ok(command) => return Ok(command),
-                        Err(error) => {
-                            return Err(error);
-                        }
-                    }
+                    return self.command.parse(&text);
                 }
             }
         }
