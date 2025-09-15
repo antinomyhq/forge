@@ -7,7 +7,7 @@ use forge_domain::{
 
 use crate::tool_registry::ToolRegistry;
 use crate::{
-    AppConfigService, ConversationService, ProviderRegistry, ProviderService, Services,
+    ConversationService, ProfileService, ProviderRegistry, ProviderService, Services,
     TemplateService,
 };
 
@@ -49,8 +49,8 @@ impl<T: Services> AgentService for T {
         id: &ModelId,
         context: Context,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        let config = self.get_app_config().await.unwrap_or_default();
-        let provider = self.get_provider(config).await?;
+        let profile = self.get_active_profile().await?.unwrap();
+        let provider = self.get_provider(&profile).await?;
         self.chat(id, context, provider).await
     }
 

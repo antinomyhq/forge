@@ -5,16 +5,17 @@ use anyhow::{Context, Result};
 use chrono::Local;
 use forge_domain::*;
 use forge_stream::MpscStream;
+use merge::Merge;
 
 use crate::authenticator::Authenticator;
-use crate::dto::{InitAuth, ToolsOverview};
+use crate::dto::{InitAuth, Profile, ToolsOverview};
 use crate::orch::Orchestrator;
 use crate::services::{CustomInstructionsService, TemplateService};
 use crate::tool_registry::ToolRegistry;
 use crate::{
-    AgentLoaderService, AppConfigService, AttachmentService, ConversationService,
-    EnvironmentService, FileDiscoveryService, McpService, ProviderRegistry, ProviderService,
-    Services, Walker, WorkflowService,
+    AgentLoaderService, AttachmentService, ConversationService, EnvironmentService,
+    FileDiscoveryService, McpService, ProfileService, ProviderRegistry, ProviderService, Services,
+    Walker, WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -51,15 +52,22 @@ impl<S: Services> ForgeApp<S> {
             .unwrap_or_default()
             .expect("conversation for the request should've been created at this point.");
 
-        let config = services.get_app_config().await.unwrap_or_default();
+        let profile = services
+            .get_active_profile()
+            .await?
+            .unwrap_or_else(|| Profile::new("default"));
         let provider = services
-            .get_provider(config)
+            .get_provider(&profile)
             .await
             .context("Failed to get provider")?;
         let models = services.models(provider).await?;
 
         // Discover files using the discovery service
-        let workflow = self.services.read_merged(None).await.unwrap_or_default();
+        // workflow.merge(profile.to_workflow()?);
+        let mut workflow = Workflow::default();
+        workflow.merge(profile.to_workflow()?);
+        workflow.merge(self.services.read_merged(None).await.unwrap_or_default());
+
         let max_depth = workflow.max_walker_depth;
         let environment = services.get_environment();
 
