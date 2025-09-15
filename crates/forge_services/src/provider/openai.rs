@@ -145,7 +145,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
 
     /// Load Vertex AI models from static JSON file
     async fn load_vertex_models(&self) -> Result<Vec<forge_app::domain::Model>> {
-        let models = include_str!("../../../../vertex.json");
+        let models = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../vertex.json"));
 
         let models: Vec<forge_app::domain::Model> = serde_json::from_str(models)?;
 
