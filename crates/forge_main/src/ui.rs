@@ -182,7 +182,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Ok(_) => {}
             Err(error) => {
                 tracing::error!(error = ?error);
-                eprintln!("{}", TitleFormat::error(format!("{error:?}")).display());
+                let _ = self.writeln_title(TitleFormat::error(format!("{error:?}")));
             }
         }
     }
@@ -192,16 +192,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return self.handle_subcommands(mcp).await;
         }
 
+        // Handle --generate-conversation-id flag
+        if self.cli.generate_conversation_id {
+            return self.handle_generate_conversation_id().await;
+        }
+
         // // Display the banner in dimmed colors since we're in interactive mode
         self.display_banner()?;
         self.init_state(true).await?;
         self.trace_user();
         self.hydrate_caches();
-
-        // Handle --resume flag to automatically load last active conversation
-        if self.cli.resume {
-            self.handle_resume().await?;
-        }
 
         // Check for dispatch flag first
         if let Some(dispatch_json) = self.cli.event.clone() {
@@ -238,7 +238,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                             tracker::error(&error);
                             tracing::error!(error = ?error);
                             self.spinner.stop(None)?;
-                            eprintln!("{}", TitleFormat::error(format!("{error:?}")).display());
+                            self.writeln_title(TitleFormat::error(format!("{error:?}")))?;
                         },
                     }
                 }
@@ -261,23 +261,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         tokio::spawn(async move { api.get_agents().await });
     }
 
-    /// Handle the --resume flag to automatically load last active conversation
-    async fn handle_resume(&mut self) -> Result<()> {
-        self.spinner
-            .start(Some("Loading last active conversation"))?;
-        if let Some(conversation) = self.api.last_conversation().await? {
-            self.state.conversation_id = Some(conversation.id);
-            self.writeln_title(TitleFormat::info(format!(
-                "Resumed conversation: '{}'",
-                conversation
-                    .title
-                    .clone()
-                    .unwrap_or(conversation.id.to_string())
-            )))?;
-        } else {
-            self.writeln_title(TitleFormat::error("No active conversation found to resume"))?;
-        }
-        self.spinner.stop(None)?;
+    async fn handle_generate_conversation_id(&mut self) -> Result<()> {
+        let conversation_id = forge_domain::ConversationId::generate();
+        println!("{}", conversation_id.into_string());
         Ok(())
     }
 
@@ -363,6 +349,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_info().await?;
                 return Ok(());
             }
+            TopLevelCommand::Term(terminal_args) => {
+                self.on_terminal(terminal_args).await?;
+                return Ok(());
+            }
         }
         Ok(())
     }
@@ -386,6 +376,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.writeln(info)?;
         self.spinner.stop(None)?;
 
+        Ok(())
+    }
+
+    async fn on_terminal(&mut self, terminal_args: crate::cli::TerminalArgs) -> anyhow::Result<()> {
+        match terminal_args.generate_prompt {
+            crate::cli::ShellType::Zsh => {
+                println!("{}", include_str!("../../../shell-plugin/forge.plugin.zsh"))
+            }
+        }
         Ok(())
     }
 
@@ -677,16 +676,26 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                             .context("Failed to parse Conversation")?;
 
                     let conversation_id = conversation.id;
-                    self.state.conversation_id = Some(conversation_id);
 
                     self.api.upsert_conversation(conversation).await?;
                     conversation_id
+                } else if let Some(conversation_id) = self.cli.resume {
+                    // Use the explicitly provided conversation ID
+                    // Check if conversation with this ID already exists
+                    if self.api.conversation(&conversation_id).await?.is_none() {
+                        // Conversation doesn't exist, create a new one with this ID
+                        let conversation = Conversation::new(conversation_id);
+                        self.api.upsert_conversation(conversation).await?;
+                    }
+                    conversation_id
                 } else {
-                    let conversation = self.api.init_conversation().await?;
-                    self.state.conversation_id = Some(conversation.id);
+                    let conversation = Conversation::generate();
+                    self.api.upsert_conversation(conversation.clone()).await?;
 
                     conversation.id
                 };
+
+                self.state.conversation_id = Some(id);
 
                 Ok(id)
             }

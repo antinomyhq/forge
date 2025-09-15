@@ -29,9 +29,6 @@ pub trait API: Sync + Send {
     /// Returns the current environment
     fn environment(&self) -> Environment;
 
-    /// Creates a new conversation with the given workflow configuration
-    async fn init_conversation(&self) -> Result<Conversation>;
-
     /// Adds a new conversation to the conversation store
     async fn upsert_conversation(&self, conversation: Conversation) -> Result<()>;
 

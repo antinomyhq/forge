@@ -350,6 +350,7 @@ model: deepseek-r1-distill-llama-70b
 To use Amazon Bedrock models with Forge, you'll need to first set up the [Bedrock Access Gateway](https://github.com/aws-samples/bedrock-access-gateway):
 
 1. **Set up Bedrock Access Gateway**:
+
    - Follow the deployment steps in the [Bedrock Access Gateway repo](https://github.com/aws-samples/bedrock-access-gateway)
    - Create your own API key in Secrets Manager
    - Deploy the CloudFormation stack
@@ -452,10 +453,10 @@ Configure the ZSH plugin behavior:
 
 ```bash
 # .env
-FORGE_CMD=forge                    # Command to use for forge operations (default: "forge")
+FORGE_BIN=forge                    # Command to use for forge operations (default: "forge")
 ```
 
-The `FORGE_CMD` environment variable allows you to customize the command used by the ZSH plugin when transforming `#` prefixed commands. If not set, it defaults to `"forge"`.
+The `FORGE_BIN` environment variable allows you to customize the command used by the ZSH plugin when transforming `#` prefixed commands. If not set, it defaults to `"forge"`.
 
 </details>
 
@@ -499,9 +500,9 @@ Define custom commands as shortcuts for repetitive prompts:
 ```yaml
 # forge.yaml
 commands:
-  - name: 'refactor'
-    description: 'Refactor selected code'
-    prompt: 'Please refactor this code to improve readability and performance'
+  - name: "refactor"
+    description: "Refactor selected code"
+    prompt: "Please refactor this code to improve readability and performance"
 ```
 
 </details>
@@ -513,7 +514,7 @@ Specify the default AI model to use for all agents in the workflow.
 
 ```yaml
 # forge.yaml
-model: 'claude-3.7-sonnet'
+model: "claude-3.7-sonnet"
 ```
 
 </details>
@@ -605,16 +606,16 @@ Or manually create a `.mcp.json` file with the following structure:
 
 ```json
 {
-	"mcpServers": {
-		"server_name": {
-			"command": "command_to_execute",
-			"args": ["arg1", "arg2"],
-			"env": { "ENV_VAR": "value" }
-		},
-		"another_server": {
-			"url": "http://localhost:3000/events"
-		}
-	}
+  "mcpServers": {
+    "server_name": {
+      "command": "command_to_execute",
+      "args": ["arg1", "arg2"],
+      "env": { "ENV_VAR": "value" }
+    },
+    "another_server": {
+      "url": "http://localhost:3000/events"
+    }
+  }
 }
 ```
 
