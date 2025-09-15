@@ -120,7 +120,7 @@ impl Provider {
     }
 
     pub fn vertex_ai(key: &str, project_id: &str, location: &str) -> Provider {
-        let base_url = if location == "global" {
+        let url = if location == "global" {
             format!(
                 "https://aiplatform.googleapis.com/v1/projects/{}/locations/{}/endpoints/openapi/",
                 project_id, location
@@ -131,7 +131,7 @@ impl Provider {
                 location, project_id, location
             )
         };
-        Provider::OpenAI { url: Url::parse(&base_url).unwrap(), key: Some(key.into()) }
+        Provider::OpenAI { url: Url::parse(&url).unwrap(), key: Some(key.into()) }
     }
 
     pub fn key(&self) -> Option<&str> {
