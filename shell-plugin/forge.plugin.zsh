@@ -1,15 +1,16 @@
 #!/usr/bin/env zsh
 
 # Forge ZSH Plugin - ZLE Widget Version
-# Converts '# abc' to '$FORGE_CMD <<< abc' using ZLE widgets
+# Converts '# abc' to '$_FORGE_CMD <<< abc' using ZLE widgets
 
 # Configuration: Change these variables to customize the forge command and special characters
-FORGE_CMD="${FORGE_CMD:-forge}"
-FORGE_OLD_CONVERSATION_PATTERN="#\?\?"
-FORGE_NEW_CONVERSATION_PATTERN="#\?"
+# Using typeset to keep variables local to plugin scope and prevent public exposure
+typeset -h _FORGE_CMD="target/debug/forge"
+typeset -h _FORGE_OLD_CONVERSATION_PATTERN="#\?\?"
+typeset -h _FORGE_NEW_CONVERSATION_PATTERN="#\?"
 
-# Store conversation ID in a temporary variable
-FORGE_CONVERSATION_ID=""
+# Store conversation ID in a temporary variable (local to plugin)
+typeset -h _FORGE_CONVERSATION_ID=""
 
 # Helper function for shared transformation logic
 function _forge_transform_buffer() {
@@ -17,20 +18,20 @@ function _forge_transform_buffer() {
     local input_text=""
     
     # Check if the line starts with resume character (default: '?? ')
-    if [[ "$BUFFER" =~ "^${FORGE_OLD_CONVERSATION_PATTERN} (.*)$" ]]; then
+    if [[ "$BUFFER" =~ "^${_FORGE_OLD_CONVERSATION_PATTERN} (.*)$" ]]; then
         # Use existing conversation ID with --resume
-        if [[ -n "$FORGE_CONVERSATION_ID" ]]; then
-            forge_cmd="$FORGE_CMD --resume $FORGE_CONVERSATION_ID"
+        if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
+            forge_cmd="$_FORGE_CMD --resume $_FORGE_CONVERSATION_ID"
             input_text="${match[1]}"
         else
-            echo "No conversation ID found. Start a new conversation with '?'"
+            echo "No conversation ID found. Start a new conversation with '#?'"
             return 1
         fi
     # Check if the line starts with new conversation character (default: '? ')
-    elif [[ "$BUFFER" =~ "^${FORGE_NEW_CONVERSATION_PATTERN} (.*)$" ]]; then
+    elif [[ "$BUFFER" =~ "^${_FORGE_NEW_CONVERSATION_PATTERN} (.*)$" ]]; then
         # Generate new conversation ID first
-        FORGE_CONVERSATION_ID=$($FORGE_CMD --generate-conversation-id)
-        forge_cmd="$FORGE_CMD --resume $FORGE_CONVERSATION_ID"
+        _FORGE_CONVERSATION_ID=$($_FORGE_CMD --generate-conversation-id)
+        forge_cmd="$_FORGE_CMD --resume $_FORGE_CONVERSATION_ID"
         input_text="${match[1]}"
     else
         return 1  # No transformation needed
