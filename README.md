@@ -21,6 +21,8 @@
 - [Command-Line Options](#command-line-options)
 - [Advanced Configuration](#advanced-configuration)
   - [Provider Configuration](#provider-configuration)
+  - [Setup Instructions](#setup-instructions)
+  - [Available Models](#available-models)
   - [forge.yaml Configuration Options](#forgeyaml-configuration-options)
   - [Environment Variables](#environment-variables)
   - [MCP Configuration](#mcp-configuration)
@@ -272,8 +274,8 @@ model: claude-3.7-sonnet
 
 ```bash
 # .env
-VERTEX_AI_PROJECT_ID=<your_project_id>
-VERTEX_AI_LOCATION=<your_location>
+PROJECT_ID=<your_project_id>
+LOCATION=<your_location>
 VERTEX_AI_AUTH_TOKEN=<your_auth_token>
 ```
 
