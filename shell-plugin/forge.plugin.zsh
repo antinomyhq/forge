@@ -2,11 +2,12 @@
 
 # Forge ZSH Plugin - ZLE Widget Version
 # Converts '# abc' to '$_FORGE_CMD <<< abc' using ZLE widgets
+# Now with @ tab completion support
 
 # Configuration: Change these variables to customize the forge command and special characters
 # Using typeset to keep variables local to plugin scope and prevent public exposure
 typeset -h _FORGE_CMD="target/debug/forge"
-typeset -h _FORGE_OLD_CONVERSATION_PATTERN="#\?\?"
+typeset -h _FORGE_OLD_CONVERSATION_PATTERN="#\!"
 typeset -h _FORGE_NEW_CONVERSATION_PATTERN="#\?"
 
 # Store conversation ID in a temporary variable (local to plugin)
@@ -50,6 +51,44 @@ function _forge_transform_buffer() {
     return 0  # Successfully transformed
 }
 
+# ZLE widget for @ tab completion - opens fd | fzf
+function forge-at-completion() {
+    local current_word="${LBUFFER##* }"
+    
+    # Check if the current word starts with @
+    if [[ "$current_word" =~ ^@.*$ ]]; then
+        # Extract the part after @ for filtering
+        local filter_text="${current_word#@}"
+        
+        # Use fd to find files and fzf for interactive selection
+        local selected
+        if [[ -n "$filter_text" ]]; then
+            # If there's text after @, use it as initial filter
+            selected=$(fd --type f --hidden --exclude .git | fzf --query "$filter_text" --height 40% --reverse)
+        else
+            # If just @ was typed, show all files
+            selected=$(fd --type f --hidden --exclude .git | fzf --height 40% --reverse)
+        fi
+        
+        # If a file was selected, replace the @ text with the selected file path
+        if [[ -n "$selected" ]]; then
+            selected="@[${selected}]"
+            # Remove the @ and any text after it from LBUFFER
+            LBUFFER="${LBUFFER%$current_word}"
+            # Add the selected file path
+            BUFFER="${LBUFFER}${selected}${RBUFFER}"
+            # Move cursor to end of inserted text
+            CURSOR=$((${#LBUFFER} + ${#selected}))
+        fi
+        
+        # Reset the prompt
+        zle reset-prompt
+        return 0
+    fi
+    
+    # If not @ completion, fall back to default completion
+    zle expand-or-complete
+}
 
 # ZLE widget for Enter key that checks for # prefix
 function forge-accept-line() {
@@ -72,7 +111,11 @@ function forge-accept-line() {
 
 # Register ZLE widgets
 zle -N forge-accept-line
+zle -N forge-at-completion
 
 # Bind Enter to our custom accept-line that transforms # commands
 bindkey '^M' forge-accept-line
 bindkey '^J' forge-accept-line
+
+# Bind Tab to our custom @ completion widget
+bindkey '^I' forge-at-completion
