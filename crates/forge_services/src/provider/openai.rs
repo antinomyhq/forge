@@ -6,6 +6,7 @@ use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream, Transformer,
 };
 use forge_app::dto::openai::{ListModelResponse, ProviderPipeline, Request, Response};
+use lazy_static::lazy_static;
 use reqwest::header::AUTHORIZATION;
 use tracing::{debug, info};
 
@@ -94,7 +95,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         // For Vertex AI, load models from static JSON file using VertexProvider logic
         if self.provider.is_vertex_ai() {
             debug!("Loading Vertex AI models from static JSON file");
-            self.load_vertex_models().await
+            Ok(self.inner_vertex_models())
         } else {
             let url = self.provider.model_url();
             debug!(url = %url, "Fetching models");
@@ -144,12 +145,15 @@ impl<H: HttpClientService> OpenAIProvider<H> {
     }
 
     /// Load Vertex AI models from static JSON file
-    async fn load_vertex_models(&self) -> Result<Vec<forge_app::domain::Model>> {
-        let models = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../vertex.json"));
-
-        let models: Vec<forge_app::domain::Model> = serde_json::from_str(models)?;
-
-        Ok(models)
+    fn inner_vertex_models(&self) -> Vec<forge_app::domain::Model> {
+        lazy_static! {
+            static ref VERTEX_MODELS: Vec<forge_app::domain::Model> = {
+                let models =
+                    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../vertex.json"));
+                serde_json::from_str(models).unwrap()
+            };
+        }
+        VERTEX_MODELS.clone()
     }
 }
 

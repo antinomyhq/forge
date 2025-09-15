@@ -57,10 +57,17 @@ impl<F: EnvironmentInfra> ProviderRegistry for ForgeProviderRegistry<F> {
     }
 }
 
-fn resolve_vertex_env_provider<F: EnvironmentInfra>(key: &str, env: &F) -> Option<Provider> {
-    let project_id = env.get_env_var("PROJECT_ID")?;
-    let location = env.get_env_var("LOCATION")?;
-    Some(Provider::vertex_ai(key, &project_id, &location))
+fn resolve_vertex_env_provider<F: EnvironmentInfra>(
+    key: &str,
+    env: &F,
+) -> anyhow::Result<Provider> {
+    let project_id = env.get_env_var("PROJECT_ID").ok_or(anyhow::anyhow!(
+        "PROJECT_ID is missing. Please set the PROJECT_ID environment variable."
+    ))?;
+    let location = env.get_env_var("LOCATION").ok_or(anyhow::anyhow!(
+        "LOCATION is missing. Please set the LOCATION environment variable."
+    ))?;
+    Provider::vertex_ai(key, &project_id, &location)
 }
 
 fn resolve_env_provider<F: EnvironmentInfra>(
@@ -89,7 +96,7 @@ fn resolve_env_provider<F: EnvironmentInfra>(
         .or_else(|| {
             // Check for Vertex AI last since it requires multiple environment variables
             env.get_env_var("VERTEX_AI_AUTH_TOKEN")
-                .and_then(|key| resolve_vertex_env_provider(&key, env))
+                .and_then(|key| resolve_vertex_env_provider(&key, env).ok())
         })
 }
 

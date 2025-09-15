@@ -119,7 +119,7 @@ impl Provider {
         }
     }
 
-    pub fn vertex_ai(key: &str, project_id: &str, location: &str) -> Provider {
+    pub fn vertex_ai(key: &str, project_id: &str, location: &str) -> anyhow::Result<Provider> {
         let url = if location == "global" {
             format!(
                 "https://aiplatform.googleapis.com/v1/projects/{}/locations/{}/endpoints/openapi/",
@@ -131,7 +131,7 @@ impl Provider {
                 location, project_id, location
             )
         };
-        Provider::OpenAI { url: Url::parse(&url).unwrap(), key: Some(key.into()) }
+        Ok(Provider::OpenAI { url: Url::parse(&url)?, key: Some(key.into()) })
     }
 
     pub fn key(&self) -> Option<&str> {
@@ -420,7 +420,7 @@ mod tests {
 
     #[test]
     fn test_vertex_ai_global_location() {
-        let fixture = Provider::vertex_ai("test_token", "forge-452914", "global");
+        let fixture = Provider::vertex_ai("test_token", "forge-452914", "global").unwrap();
         let actual = fixture.to_base_url();
         let expected = Url::parse("https://aiplatform.googleapis.com/v1/projects/forge-452914/locations/global/endpoints/openapi/").unwrap();
         assert_eq!(actual, expected);
@@ -428,7 +428,7 @@ mod tests {
 
     #[test]
     fn test_vertex_ai_regular_location() {
-        let fixture = Provider::vertex_ai("test_token", "test_project", "us-central1");
+        let fixture = Provider::vertex_ai("test_token", "test_project", "us-central1").unwrap();
         let actual = fixture.to_base_url();
         let expected = Url::parse("https://us-central1-aiplatform.googleapis.com/v1/projects/test_project/locations/us-central1/endpoints/openapi/").unwrap();
         assert_eq!(actual, expected);
