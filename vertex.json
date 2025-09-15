@@ -144,42 +144,6 @@
     "supports_reasoning": true
   },
   {
-    "id": "google/gemini-2.0-flash-lite-001",
-    "name": "Gemini 2.0 Flash Lite 001",
-    "description": "Google's lightweight fast model for high-volume tasks",
-    "context_length": 1048576,
-    "tools_supported": true,
-    "supports_parallel_tool_calls": true,
-    "supports_reasoning": true
-  },
-  {
-    "id": "google/gemini-2.0-flash-thinking-exp-1219",
-    "name": "Gemini 2.0 Flash Thinking Exp 1219",
-    "description": "Google's experimental thinking model",
-    "context_length": 32767,
-    "tools_supported": true,
-    "supports_parallel_tool_calls": true,
-    "supports_reasoning": true
-  },
-  {
-    "id": "google/gemini-2.0-flash-exp",
-    "name": "Gemini 2.0 Flash Exp",
-    "description": "Google's experimental Flash model",
-    "context_length": 1048576,
-    "tools_supported": true,
-    "supports_parallel_tool_calls": true,
-    "supports_reasoning": true
-  },
-  {
-    "id": "google/gemini-2.5-pro-exp-03-25",
-    "name": "Gemini 2.5 Pro Exp 03-25",
-    "description": "Google's experimental Pro model",
-    "context_length": 1048576,
-    "tools_supported": true,
-    "supports_parallel_tool_calls": true,
-    "supports_reasoning": true
-  },
-  {
     "id": "google/gemini-2.5-pro",
     "name": "Gemini 2.5 Pro",
     "description": "Google's most capable multimodal model",
@@ -193,78 +157,6 @@
     "name": "Gemini 2.5 Flash",
     "description": "Google's fast and capable model with thinking support",
     "context_length": 1048576,
-    "tools_supported": true,
-    "supports_parallel_tool_calls": true,
-    "supports_reasoning": true
-  },
-  {
-    "id": "google/gemini-2.5-flash-lite-preview-06-17",
-    "name": "Gemini 2.5 Flash Lite Preview 06-17",
-    "description": "Google's preview lightweight model - may not be available in all regions",
-    "context_length": 1000000,
-    "tools_supported": true,
-    "supports_parallel_tool_calls": true,
-    "supports_reasoning": true
-  },
-  {
-    "id": "google/gemini-2.0-flash-thinking-exp-01-21",
-    "name": "Gemini 2.0 Flash Thinking Exp 01-21",
-    "description": "Google's experimental thinking model with extended context",
-    "context_length": 1048576,
-    "tools_supported": true,
-    "supports_parallel_tool_calls": true,
-    "supports_reasoning": true
-  },
-  {
-    "id": "google/gemini-exp-1206",
-    "name": "Gemini Exp 1206",
-    "description": "Google's experimental model with massive context",
-    "context_length": 2097152,
-    "tools_supported": true,
-    "supports_parallel_tool_calls": true,
-    "supports_reasoning": true
-  },
-  {
-    "id": "google/gemini-1.5-flash-002",
-    "name": "Gemini 1.5 Flash 002",
-    "description": "Google's fast and efficient model with tiered pricing",
-    "context_length": 1048576,
-    "tools_supported": true,
-    "supports_parallel_tool_calls": true,
-    "supports_reasoning": true
-  },
-  {
-    "id": "google/gemini-1.5-flash-exp-0827",
-    "name": "Gemini 1.5 Flash Exp 0827",
-    "description": "Google's experimental Flash model",
-    "context_length": 1048576,
-    "tools_supported": true,
-    "supports_parallel_tool_calls": true,
-    "supports_reasoning": true
-  },
-  {
-    "id": "google/gemini-1.5-flash-8b-exp-0827",
-    "name": "Gemini 1.5 Flash 8B Exp 0827",
-    "description": "Google's experimental 8B parameter Flash model",
-    "context_length": 1048576,
-    "tools_supported": true,
-    "supports_parallel_tool_calls": true,
-    "supports_reasoning": true
-  },
-  {
-    "id": "google/gemini-1.5-pro-002",
-    "name": "Gemini 1.5 Pro 002",
-    "description": "Google's capable Pro model with extended context",
-    "context_length": 2097152,
-    "tools_supported": true,
-    "supports_parallel_tool_calls": true,
-    "supports_reasoning": true
-  },
-  {
-    "id": "google/gemini-1.5-pro-exp-0827",
-    "name": "Gemini 1.5 Pro Exp 0827",
-    "description": "Google's experimental Pro model with massive context",
-    "context_length": 2097152,
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
     "supports_reasoning": true
