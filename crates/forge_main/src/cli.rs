@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand, ValueEnum};
 use forge_domain::ConversationId;
 
-
 #[derive(Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
 pub struct Cli {

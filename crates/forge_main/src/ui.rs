@@ -682,7 +682,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 } else if let Some(conversation_id) = self.cli.resume {
                     // Use the explicitly provided conversation ID
                     // Check if conversation with this ID already exists
-                    if !self.api.conversation(&conversation_id).await?.is_some() {
+                    if self.api.conversation(&conversation_id).await?.is_none() {
                         // Conversation doesn't exist, create a new one with this ID
                         let conversation = Conversation::new(conversation_id);
                         self.api.upsert_conversation(conversation).await?;
