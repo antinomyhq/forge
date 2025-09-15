@@ -57,20 +57,16 @@ impl<F: EnvironmentInfra> ProviderRegistry for ForgeProviderRegistry<F> {
     }
 }
 
+fn resolve_vertex_env_provider<F: EnvironmentInfra>(key: &str, env: &F) -> Option<Provider> {
+    let project_id = env.get_env_var("PROJECT_ID")?;
+    let location = env.get_env_var("LOCATION")?;
+    Some(Provider::vertex_ai(key, &project_id, &location))
+}
+
 fn resolve_env_provider<F: EnvironmentInfra>(
     url: Option<ProviderUrl>,
     env: &F,
 ) -> Option<Provider> {
-    // Check for Vertex AI first since it requires multiple environment variables
-    if let Some(token) = env.get_env_var("VERTEX_AI_AUTH_TOKEN") {
-        let project_id = env.get_env_var("PROJECT_ID").unwrap_or_default();
-        let location = env.get_env_var("LOCATION").unwrap_or_default();
-        if !project_id.is_empty() && !token.is_empty() {
-            let provider = Provider::vertex_ai(&token, &project_id, &location);
-            return Some(override_url(provider, url.clone()));
-        }
-    }
-
     let keys: [ProviderSearch; 8] = [
         // ("FORGE_KEY", Box::new(Provider::forge)),
         ("OPENROUTER_API_KEY", Box::new(Provider::open_router)),
@@ -83,12 +79,18 @@ fn resolve_env_provider<F: EnvironmentInfra>(
         ("ZAI_CODING_API_KEY", Box::new(Provider::zai_coding)),
     ];
 
-    keys.into_iter().find_map(|(key, fun)| {
-        env.get_env_var(key).map(|key| {
-            let provider = fun(&key);
-            override_url(provider, url.clone())
+    keys.into_iter()
+        .find_map(|(key, fun)| {
+            env.get_env_var(key).map(|key| {
+                let provider = fun(&key);
+                override_url(provider, url.clone())
+            })
         })
-    })
+        .or_else(|| {
+            // Check for Vertex AI last since it requires multiple environment variables
+            env.get_env_var("VERTEX_AI_AUTH_TOKEN")
+                .and_then(|key| resolve_vertex_env_provider(&key, env))
+        })
 }
 
 fn override_url(mut provider: Provider, url: Option<ProviderUrl>) -> Provider {
