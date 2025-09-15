@@ -281,7 +281,7 @@ VERTEX_AI_AUTH_TOKEN=<your_auth_token>
 
 ```yaml
 # forge.yaml
-model: claude-sonnet-4@20250514
+model: google/gemini-2.5-pro
 ```
 
 ### Setup Instructions
