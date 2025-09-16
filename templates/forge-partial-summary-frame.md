@@ -8,7 +8,9 @@ Use the following summary as the authoritative reference for all coding suggesti
 
 ## Feedback
 
-{{#each feedback}}-{{this}}
+{{#each feedback}}**Feedback {{@index}}:**
+{{this}}
+
 {{/each}}
 {{/if}}
 
