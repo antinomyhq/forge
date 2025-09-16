@@ -216,6 +216,14 @@ impl ToolErrorTracker {
         self.adjust(&failed, &succeeded)
     }
 
+    pub fn failed(&mut self, tool_name: &ToolName) -> &mut Self {
+        self.adjust(&[&tool_name], &[])
+    }
+
+    pub fn succeed(&mut self, tool_name: &ToolName) -> &mut Self {
+        self.adjust(&[], &[&tool_name])
+    }
+
     fn adjust(&mut self, failed: &[&ToolName], succeeded: &[&ToolName]) -> &mut Self {
         // Handle failures first
         let uniq_failed = failed.iter().collect::<HashSet<&&ToolName>>();

@@ -336,7 +336,6 @@ impl<S: AgentService> Orchestrator<S> {
         let mut is_complete = false;
         let mut has_attempted_completion = false;
 
-        let mut empty_tool_call_count = 0;
         let mut request_count = 0;
 
         // Retrieve the number of requests allowed per tick.
@@ -504,44 +503,36 @@ impl<S: AgentService> Orchestrator<S> {
 
             context = context.append_message(content.clone(), reasoning_details, tool_call_records);
 
-            if !(turn_has_tool_calls || has_tool_calls) {
-                // No tools were called in the previous turn nor were they called in this step;
-                // Means that this is conversation.
+            match (turn_has_tool_calls, has_tool_calls) {
+                (false, false) => {
+                    // No tools were called in the previous turn nor were they called in this step;
+                    // Means that this is conversation.
 
-                self.send(ChatResponse::TaskMessage {
-                    content: ChatResponseContent::Markdown(
-                        remove_tag_with_prefix(&content, "forge_")
-                            .as_str()
-                            .to_string(),
-                    ),
-                })
-                .await?;
-                is_complete = true
-            } else if turn_has_tool_calls && !has_tool_calls {
-                // Since no tool calls are present, which doesn't mean task is complete so
-                // re-prompt the agent to ensure the task complete.
-                let content = self
-                    .services
-                    .render(
-                        "{{> forge-partial-tool-required.md}}",
-                        &serde_json::json!({
-                            "tool_supported": tool_supported
-                        }),
-                    )
+                    self.send(ChatResponse::TaskMessage {
+                        content: ChatResponseContent::Markdown(
+                            remove_tag_with_prefix(&content, "forge_")
+                                .as_str()
+                                .to_string(),
+                        ),
+                    })
                     .await?;
-                context =
-                    context.add_message(ContextMessage::user(content, model_id.clone().into()));
-
-                warn!(
-                    agent_id = %agent.id,
-                    model_id = %model_id,
-                    empty_tool_call_count,
-                    "Agent is unable to follow instructions"
-                );
-
-                empty_tool_call_count += 1;
-            } else {
-                empty_tool_call_count = 0;
+                    is_complete = true;
+                    self.error_tracker
+                        .succeed(&ToolsDiscriminants::AttemptCompletion.name());
+                }
+                (true, false) => {
+                    // Since no tool calls are present, which doesn't mean task is complete so
+                    // re-prompt the agent to ensure the task complete.
+                    let content = self.attempt_completion_prompt(tool_supported).await?;
+                    let message = ContextMessage::user(content, model_id.clone().into());
+                    context = context.add_message(message);
+                    self.error_tracker
+                        .failed(&ToolsDiscriminants::AttemptCompletion.name());
+                }
+                _ => {
+                    self.error_tracker
+                        .failed(&ToolsDiscriminants::AttemptCompletion.name());
+                }
             }
 
             if self.error_tracker.limit_reached() {
@@ -599,6 +590,13 @@ impl<S: AgentService> Orchestrator<S> {
         }
 
         Ok(())
+    }
+
+    async fn attempt_completion_prompt(&self, tool_supported: bool) -> anyhow::Result<String> {
+        let ctx = serde_json::json!({"tool_supported": tool_supported});
+        self.services
+            .render("{{> forge-partial-tool-required.md}}", &ctx)
+            .await
     }
 
     async fn set_user_prompt(&self, mut context: Context) -> anyhow::Result<Context> {
