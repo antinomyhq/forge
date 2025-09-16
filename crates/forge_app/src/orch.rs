@@ -1,5 +1,5 @@
 // Tests for this module can be found in: tests/orch_*.rs
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -27,6 +27,7 @@ pub struct Orchestrator<S> {
     custom_instructions: Vec<String>,
     agent: Agent,
     event: Event,
+    tool_error_tracker: ToolErrorTracker,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -50,6 +51,7 @@ impl<S: AgentService> Orchestrator<S> {
             models: Default::default(),
             files: Default::default(),
             custom_instructions: Default::default(),
+            tool_error_tracker: ToolErrorTracker::new(3), // Will be updated in run method
         }
     }
 
@@ -251,7 +253,11 @@ impl<S: AgentService> Orchestrator<S> {
             event_value = %format!("{:?}", event.value),
             "Dispatching event"
         );
-        let mut tool_failure_attempts = HashMap::new();
+
+        // Initialize ToolErrorTracker with the agent's max_tool_failure_per_turn limit
+        let max_tool_failure_limit = self.agent.max_tool_failure_per_turn.unwrap_or(3) as u32;
+        self.tool_error_tracker = ToolErrorTracker::new(max_tool_failure_limit);
+
         debug!(
             conversation_id = %self.conversation.id,
             agent = %self.agent.id,
@@ -478,22 +484,22 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Check if tool calls are within allowed limits if max_tool_failure_per_turn is
             // configured
-            let mut allowed_limits_exceeded =
-                self.check_tool_call_failures(&tool_failure_attempts, &tool_calls);
+            let mut allowed_limits_exceeded = self.check_tool_call_failures(&tool_calls);
 
             // Process tool calls and update context
             let mut tool_call_records = self.execute_tool_calls(&tool_calls, &tool_context).await?;
 
-            // Update the tool call attempts, if the tool call is an error
-            // we increment the attempts, otherwise we remove it from the attempts map
+            // Update the tool call attempts using ToolErrorTracker
             if let Some(allowed_max_attempts) = agent.max_tool_failure_per_turn.as_ref() {
+                let mut failed_tools = Vec::new();
+                let mut succeeded_tools = Vec::new();
+
                 tool_call_records.iter_mut().for_each(|(_, result)| {
                     if result.is_error() {
-                        let current_attempts = tool_failure_attempts
-                            .entry(result.name.clone())
-                            .and_modify(|count| *count += 1)
-                            .or_insert(1);
-                        let attempts_left = allowed_max_attempts.saturating_sub(*current_attempts);
+                        failed_tools.push(&result.name);
+
+                        // Get attempts remaining from ToolErrorTracker for message generation
+                        let attempts_left = self.tool_error_tracker.get_attempts_remaining(&result.name);
 
                         // Add attempt information to the error message so the agent can reflect on it.
                         let message = Element::new("retry").text(format!(
@@ -502,9 +508,13 @@ impl<S: AgentService> Orchestrator<S> {
 
                         result.output.combine_mut(ToolOutput::text(message));
                     } else {
-                        tool_failure_attempts.remove(&result.name);
+                        succeeded_tools.push(&result.name);
                     }
                 });
+
+                // Update the ToolErrorTracker with failed and succeeded tools
+                self.tool_error_tracker
+                    .adjust(&failed_tools, &succeeded_tools);
             }
 
             context = context.append_message(content.clone(), reasoning_details, tool_call_records);
@@ -564,7 +574,7 @@ impl<S: AgentService> Orchestrator<S> {
                 warn!(
                     agent_id = %agent.id,
                     model_id = %model_id,
-                    tools = %tool_failure_attempts.iter().map(|(name, count)| format!("{name}: {count}")).collect::<Vec<_>>().join(", "),
+                    tools = %self.tool_error_tracker.get_counts().iter().map(|(name, count)| format!("{name}: {count}")).collect::<Vec<_>>().join(", "),
                     max_tool_failure_per_turn = ?agent.max_tool_failure_per_turn,
                     "Tool execution failure limit exceeded - terminating conversation to prevent infinite retry loops."
                 );
@@ -627,17 +637,17 @@ impl<S: AgentService> Orchestrator<S> {
         Ok(())
     }
 
-    fn check_tool_call_failures(
-        &self,
-        tool_failure_attempts: &HashMap<ToolName, usize>,
-        tool_calls: &[ToolCallFull],
-    ) -> bool {
+    fn check_tool_call_failures(&self, tool_calls: &[ToolCallFull]) -> bool {
         let agent = &self.agent;
-        agent.max_tool_failure_per_turn.is_some_and(|limit| {
-            tool_calls
+        if agent.max_tool_failure_per_turn.is_none() {
+            return false;
+        }
+
+        let maxed_out_tools = self.tool_error_tracker.maxed_out_tools();
+        tool_calls.iter().any(|call| {
+            maxed_out_tools
                 .iter()
-                .map(|call| tool_failure_attempts.get(&call.name).unwrap_or(&0))
-                .any(|count| *count >= limit)
+                .any(|tool_name| **tool_name == call.name)
         })
     }
 

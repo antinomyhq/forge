@@ -225,6 +225,19 @@ impl ToolErrorTracker {
             .map(|data| data.0)
             .collect::<Vec<_>>()
     }
+
+    pub fn get_counts(&self) -> &HashMap<ToolName, u32> {
+        &self.counts
+    }
+
+    pub fn get_attempt_count(&self, tool_name: &ToolName) -> u32 {
+        self.counts.get(tool_name).unwrap_or(&0).clone()
+    }
+
+    pub fn get_attempts_remaining(&self, tool_name: &ToolName) -> u32 {
+        let current_attempts = self.get_attempt_count(tool_name);
+        self.limit.saturating_sub(current_attempts)
+    }
 }
 
 #[cfg(test)]
