@@ -223,7 +223,7 @@ impl ToolErrorTracker {
             if let Some(count) = self.errors.get_mut(tool) {
                 *count += 1;
             } else {
-                self.errors.insert(tool.to_owned().to_owned().to_owned(), 1);
+                self.errors.insert((**tool).to_owned(), 1);
             }
         }
 
