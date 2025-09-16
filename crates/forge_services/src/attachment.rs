@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use forge_app::AttachmentService;
-use forge_app::domain::{Attachment, AttachmentContent, FileTag, Image};
+use forge_app::domain::{Attachment, AttachmentContent, FileTag, Image, LineNumbers};
 
 use crate::range::resolve_range;
 use crate::{EnvironmentInfra, FileReaderInfra};
@@ -57,7 +57,7 @@ impl<F: FileReaderInfra + EnvironmentInfra> ForgeChatRequest<F> {
                     .await?;
 
                 AttachmentContent::FileContent {
-                    content: file_content,
+                    content: file_content.numbered_from(file_info.start_line as usize),
                     start_line: file_info.start_line,
                     end_line: file_info.end_line,
                     total_lines: file_info.total_lines,
@@ -123,6 +123,8 @@ pub mod tests {
                 http: Default::default(),
                 max_file_size: 10_000_000,
                 forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
+                auto_open_dump: false,
+                custom_history_path: None,
             }
         }
 
@@ -811,7 +813,7 @@ pub mod tests {
         assert_eq!(
             attachments[0].content,
             AttachmentContent::FileContent {
-                content: "Line 2".to_string(),
+                content: "2: Line 2".to_string(),
                 start_line: 2,
                 end_line: 2,
                 total_lines: 5,
@@ -840,7 +842,7 @@ pub mod tests {
         assert_eq!(
             attachments[0].content,
             AttachmentContent::FileContent {
-                content: "Line 2\nLine 3\nLine 4".to_string(),
+                content: "2: Line 2\n3: Line 3\n4: Line 4".to_string(),
                 start_line: 2,
                 end_line: 4,
                 total_lines: 6,
@@ -865,7 +867,7 @@ pub mod tests {
         assert_eq!(
             attachments[0].content,
             AttachmentContent::FileContent {
-                content: "First\nSecond".to_string(),
+                content: "1: First\n2: Second".to_string(),
                 start_line: 1,
                 end_line: 2,
                 total_lines: 4,
@@ -890,7 +892,7 @@ pub mod tests {
         assert_eq!(
             attachments[0].content,
             AttachmentContent::FileContent {
-                content: "Gamma\nDelta\nEpsilon".to_string(),
+                content: "3: Gamma\n4: Delta\n5: Epsilon".to_string(),
                 start_line: 3,
                 end_line: 5,
                 total_lines: 5,
@@ -915,7 +917,7 @@ pub mod tests {
         assert_eq!(
             attachments[0].content,
             AttachmentContent::FileContent {
-                content: "Only line".to_string(),
+                content: "1: Only line".to_string(),
                 start_line: 1,
                 end_line: 1,
                 total_lines: 1,
@@ -943,7 +945,7 @@ pub mod tests {
         assert_eq!(
             attachments[0].content,
             AttachmentContent::FileContent {
-                content: "A1\nA2".to_string(),
+                content: "1: A1\n2: A2".to_string(),
                 start_line: 1,
                 end_line: 2,
                 total_lines: 3,
@@ -952,7 +954,7 @@ pub mod tests {
         assert_eq!(
             attachments[1].content,
             AttachmentContent::FileContent {
-                content: "B3\nB4".to_string(),
+                content: "3: B3\n4: B4".to_string(),
                 start_line: 3,
                 end_line: 4,
                 total_lines: 4,
@@ -980,7 +982,7 @@ pub mod tests {
         assert_eq!(
             attachments[0].content,
             AttachmentContent::FileContent {
-                content: "Meta3\nMeta4\nMeta5".to_string(),
+                content: "3: Meta3\n4: Meta4\n5: Meta5".to_string(),
                 start_line: 3,
                 end_line: 5,
                 total_lines: 7,
@@ -1012,7 +1014,7 @@ pub mod tests {
         assert_eq!(
             attachments_full[0].content,
             AttachmentContent::FileContent {
-                content: "Full1\nFull2\nFull3\nFull4\nFull5".to_string(),
+                content: "1: Full1\n2: Full2\n3: Full3\n4: Full4\n5: Full5".to_string(),
                 start_line: 1,
                 end_line: 5,
                 total_lines: 5,
@@ -1023,7 +1025,7 @@ pub mod tests {
         assert_eq!(
             attachments_range[0].content,
             AttachmentContent::FileContent {
-                content: "Full2\nFull3\nFull4".to_string(),
+                content: "2: Full2\n3: Full3\n4: Full4".to_string(),
                 start_line: 2,
                 end_line: 4,
                 total_lines: 5,
@@ -1034,7 +1036,7 @@ pub mod tests {
         assert_eq!(
             attachments_range_start[0].content,
             AttachmentContent::FileContent {
-                content: "Full2\nFull3\nFull4\nFull5".to_string(),
+                content: "2: Full2\n3: Full3\n4: Full4\n5: Full5".to_string(),
                 start_line: 2,
                 end_line: 5,
                 total_lines: 5,

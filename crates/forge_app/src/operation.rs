@@ -559,6 +559,8 @@ mod tests {
             http: Default::default(),
             max_file_size: 256 << 10, // 256 KiB
             forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
+            auto_open_dump: false,
+            custom_history_path: None,
         }
     }
 

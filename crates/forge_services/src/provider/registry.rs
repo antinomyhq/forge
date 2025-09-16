@@ -51,10 +51,23 @@ impl<F: EnvironmentInfra> ProviderRegistry for ForgeProviderRegistry<F> {
 
         let provider = self
             .get_provider(config)
-            .context("No valid provider configuration found. Please set one of the following environment variables: OPENROUTER_API_KEY, REQUESTY_API_KEY, XAI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY. For more details, visit: https://forgecode.dev/docs/custom-providers/")?;
+            .context("No valid provider configuration found. Please set one of the following environment variables: OPENROUTER_API_KEY, REQUESTY_API_KEY, XAI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, or VERTEX_AI_AUTH_TOKEN (with PROJECT_ID and LOCATION). For more details, visit: https://forgecode.dev/docs/custom-providers/")?;
         self.cache.write().await.replace(provider.clone());
         Ok(provider)
     }
+}
+
+fn resolve_vertex_env_provider<F: EnvironmentInfra>(
+    key: &str,
+    env: &F,
+) -> anyhow::Result<Provider> {
+    let project_id = env.get_env_var("PROJECT_ID").ok_or(anyhow::anyhow!(
+        "PROJECT_ID is missing. Please set the PROJECT_ID environment variable."
+    ))?;
+    let location = env.get_env_var("LOCATION").ok_or(anyhow::anyhow!(
+        "LOCATION is missing. Please set the LOCATION environment variable."
+    ))?;
+    Provider::vertex_ai(key, &project_id, &location)
 }
 
 fn resolve_env_provider<F: EnvironmentInfra>(
@@ -73,12 +86,18 @@ fn resolve_env_provider<F: EnvironmentInfra>(
         ("ZAI_CODING_API_KEY", Box::new(Provider::zai_coding)),
     ];
 
-    keys.into_iter().find_map(|(key, fun)| {
-        env.get_env_var(key).map(|key| {
-            let provider = fun(&key);
-            override_url(provider, url.clone())
+    keys.into_iter()
+        .find_map(|(key, fun)| {
+            env.get_env_var(key).map(|key| {
+                let provider = fun(&key);
+                override_url(provider, url.clone())
+            })
         })
-    })
+        .or_else(|| {
+            // Check for Vertex AI last since it requires multiple environment variables
+            env.get_env_var("VERTEX_AI_AUTH_TOKEN")
+                .and_then(|key| resolve_vertex_env_provider(&key, env).ok())
+        })
 }
 
 fn override_url(mut provider: Provider, url: Option<ProviderUrl>) -> Provider {

@@ -63,6 +63,12 @@ impl From<Temperature> for f32 {
     }
 }
 
+impl From<f32> for Temperature {
+    fn from(value: f32) -> Self {
+        Temperature::new_unchecked(value)
+    }
+}
+
 impl fmt::Display for Temperature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)

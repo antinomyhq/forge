@@ -21,6 +21,8 @@
 - [Command-Line Options](#command-line-options)
 - [Advanced Configuration](#advanced-configuration)
   - [Provider Configuration](#provider-configuration)
+  - [Setup Instructions](#setup-instructions)
+  - [Available Models](#available-models)
   - [forge.yaml Configuration Options](#forgeyaml-configuration-options)
   - [Environment Variables](#environment-variables)
   - [MCP Configuration](#mcp-configuration)
@@ -274,14 +276,39 @@ model: claude-3.7-sonnet
 # .env
 PROJECT_ID=<your_project_id>
 LOCATION=<your_location>
-OPENAI_API_KEY=<vertex_ai_key>
-OPENAI_URL=https://${LOCATION}-aiplatform.googleapis.com/v1beta1/projects/${PROJECT_ID}/locations/${LOCATION}/endpoints/openapi
+VERTEX_AI_AUTH_TOKEN=<your_auth_token>
 ```
 
 ```yaml
 # forge.yaml
-model: publishers/anthropic/models/claude-3-7-sonnet
+model: google/gemini-2.5-pro
 ```
+
+### Setup Instructions
+
+1. **Install Google Cloud CLI** and authenticate:
+   ```bash
+   gcloud auth login
+   gcloud config set project YOUR_PROJECT_ID
+   ```
+
+2. **Get your authentication token**:
+   ```bash
+   gcloud auth print-access-token
+   ```
+   Use this token as `VERTEX_AI_AUTH_TOKEN`.
+
+3. **Find your project ID and location**:
+   - Project ID: Available in Google Cloud Console or via `gcloud config get-value project`
+   - Location: Your Google Cloud region (e.g., `us-central1`, `europe-west1`)
+
+### Available Models
+
+Forge loads Vertex AI models from a static configuration file, including:
+- Claude models: `claude-sonnet-4@20250514`
+- Gemini models: `gemini-2.5-pro`, `gemini-2.0-flash`
+
+Use the `/model` command in Forge CLI to see all available models.
 
 </details>
 
@@ -323,6 +350,7 @@ model: deepseek-r1-distill-llama-70b
 To use Amazon Bedrock models with Forge, you'll need to first set up the [Bedrock Access Gateway](https://github.com/aws-samples/bedrock-access-gateway):
 
 1. **Set up Bedrock Access Gateway**:
+
    - Follow the deployment steps in the [Bedrock Access Gateway repo](https://github.com/aws-samples/bedrock-access-gateway)
    - Create your own API key in Secrets Manager
    - Deploy the CloudFormation stack
@@ -413,7 +441,22 @@ Configuring the tool calls settings:
 ```bash
 # .env
 FORGE_TOOL_TIMEOUT=300         # Maximum execution time in seconds for a tool before it is terminated to prevent hanging the session. (default: 300)
+FORGE_DUMP_AUTO_OPEN=false     # Automatically open dump files in browser (default: false)
 ```
+
+</details>
+
+<details>
+<summary><strong>ZSH Plugin Configuration</strong></summary>
+
+Configure the ZSH plugin behavior:
+
+```bash
+# .env
+FORGE_BIN=forge                    # Command to use for forge operations (default: "forge")
+```
+
+The `FORGE_BIN` environment variable allows you to customize the command used by the ZSH plugin when transforming `#` prefixed commands. If not set, it defaults to `"forge"`.
 
 </details>
 
@@ -425,6 +468,7 @@ System-level environment variables (usually set automatically):
 ```bash
 # .env
 FORGE_MAX_SEARCH_RESULT_BYTES=101024   # Maximum bytes for search results (default: 101024 - 10 KB)
+FORGE_HISTORY_FILE=/path/to/history    # Custom path for Forge history file (default: uses system default location)
 SHELL=/bin/zsh                         # Shell to use for command execution (Unix/Linux/macOS)
 COMSPEC=cmd.exe                        # Command processor to use (Windows)
 ```
@@ -456,9 +500,9 @@ Define custom commands as shortcuts for repetitive prompts:
 ```yaml
 # forge.yaml
 commands:
-  - name: 'refactor'
-    description: 'Refactor selected code'
-    prompt: 'Please refactor this code to improve readability and performance'
+  - name: "refactor"
+    description: "Refactor selected code"
+    prompt: "Please refactor this code to improve readability and performance"
 ```
 
 </details>
@@ -470,7 +514,7 @@ Specify the default AI model to use for all agents in the workflow.
 
 ```yaml
 # forge.yaml
-model: 'claude-3.7-sonnet'
+model: "claude-3.7-sonnet"
 ```
 
 </details>
@@ -562,16 +606,16 @@ Or manually create a `.mcp.json` file with the following structure:
 
 ```json
 {
-	"mcpServers": {
-		"server_name": {
-			"command": "command_to_execute",
-			"args": ["arg1", "arg2"],
-			"env": { "ENV_VAR": "value" }
-		},
-		"another_server": {
-			"url": "http://localhost:3000/events"
-		}
-	}
+  "mcpServers": {
+    "server_name": {
+      "command": "command_to_execute",
+      "args": ["arg1", "arg2"],
+      "env": { "ENV_VAR": "value" }
+    },
+    "another_server": {
+      "url": "http://localhost:3000/events"
+    }
+  }
 }
 ```
 

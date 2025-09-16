@@ -28,7 +28,7 @@ impl Transformer for ProviderPipeline<'_> {
         let or_transformers = DefaultTransformation::<Request>::new()
             .pipe(DropToolCalls.when(when_model("mistral")))
             .pipe(SetToolChoice::new(ToolChoice::Auto).when(when_model("gemini")))
-            .pipe(SetCache.when(when_model("gemini|anthropic|glm")))
+            .pipe(SetCache.when(when_model("gemini|anthropic")))
             .when(move |_| supports_open_router_params(provider));
 
         let open_ai_compat = MakeOpenAiCompat.when(move |_| !supports_open_router_params(provider));
@@ -42,7 +42,10 @@ impl Transformer for ProviderPipeline<'_> {
 
 /// function checks if provider supports open-router parameters.
 fn supports_open_router_params(provider: &Provider) -> bool {
-    provider.is_open_router() || provider.is_forge()
+    provider.is_open_router()
+        || provider.is_forge()
+        || provider.is_zai()
+        || provider.is_zai_coding()
 }
 
 #[cfg(test)]

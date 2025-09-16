@@ -89,6 +89,19 @@ jobs:
     outputs:
       crate_release_name: ${{ steps.set_output.outputs.crate_release_name }}
       crate_release_id: ${{ steps.set_output.outputs.crate_release_id }}
+  draft_release_pr:
+    if: 'github.event_name == ''pull_request'' && contains(github.event.pull_request.labels.*.name, ''ci: build all targets'')'
+    name: Draft Release for PR
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v5
+    - id: set_output
+      name: Set Release Version
+      run: echo "crate_release_name=pr-build-${{ github.event.number }}" >> $GITHUB_OUTPUT && echo "crate_release_id=pr-build-${{ github.event.number }}" >> $GITHUB_OUTPUT
+    outputs:
+      crate_release_name: ${{ steps.set_output.outputs.crate_release_name }}
+      crate_release_id: ${{ steps.set_output.outputs.crate_release_id }}
   build_release:
     needs:
     - draft_release
@@ -175,7 +188,7 @@ jobs:
         overwrite: 'true'
   build_release_pr:
     needs:
-    - draft_release
+    - draft_release_pr
     if: 'github.event_name == ''pull_request'' && contains(github.event.pull_request.labels.*.name, ''ci: build all targets'')'
     name: build-release
     runs-on: ${{ matrix.os }}
@@ -248,6 +261,6 @@ jobs:
       env:
         RUSTFLAGS: ${{ env.RUSTFLAGS }}
         POSTHOG_API_SECRET: ${{secrets.POSTHOG_API_SECRET}}
-        APP_VERSION: ${{ needs.draft_release.outputs.crate_release_name }}
+        APP_VERSION: ${{ needs.draft_release_pr.outputs.crate_release_name }}
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

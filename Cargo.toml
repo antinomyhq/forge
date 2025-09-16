@@ -106,9 +106,9 @@ rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", rev = "3a9791
 ] }
 open = "5.3.2"
 nucleo = "0.5.0"
-humantime = "2.2.0"
 gray_matter = "0.3.2"
 num-format = "0.4"
+humantime = "2.1.0"
 
 
 # Internal crates
