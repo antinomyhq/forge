@@ -1,5 +1,5 @@
 // Tests for this module can be found in: tests/orch_*.rs
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -27,6 +27,7 @@ pub struct Orchestrator<S> {
     custom_instructions: Vec<String>,
     agent: Agent,
     event: Event,
+    tool_error_tracker: ToolErrorTracker,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -50,6 +51,7 @@ impl<S: AgentService> Orchestrator<S> {
             models: Default::default(),
             files: Default::default(),
             custom_instructions: Default::default(),
+            tool_error_tracker: Default::default(),
         }
     }
 
@@ -251,7 +253,7 @@ impl<S: AgentService> Orchestrator<S> {
             event_value = %format!("{:?}", event.value),
             "Dispatching event"
         );
-        let mut tool_failure_attempts = HashMap::new();
+
         debug!(
             conversation_id = %self.conversation.id,
             agent = %self.agent.id,
@@ -476,36 +478,23 @@ impl<S: AgentService> Orchestrator<S> {
                     .await?;
             }
 
-            // Check if tool calls are within allowed limits if max_tool_failure_per_turn is
-            // configured
-            let mut allowed_limits_exceeded =
-                self.check_tool_call_failures(&tool_failure_attempts, &tool_calls);
-
             // Process tool calls and update context
             let mut tool_call_records = self.execute_tool_calls(&tool_calls, &tool_context).await?;
 
-            // Update the tool call attempts, if the tool call is an error
-            // we increment the attempts, otherwise we remove it from the attempts map
-            if let Some(allowed_max_attempts) = agent.max_tool_failure_per_turn.as_ref() {
-                tool_call_records.iter_mut().for_each(|(_, result)| {
+            self.tool_error_tracker.adjust_record(&tool_call_records);
+            let mut allowed_limits_exceeded = !self.tool_error_tracker.maxed_out_tools().is_empty();
+            let allowed_max_attempts = self.tool_error_tracker.get_limit();
+            tool_call_records.iter_mut().for_each(|(_, result)| {
                     if result.is_error() {
-                        let current_attempts = tool_failure_attempts
-                            .entry(result.name.clone())
-                            .and_modify(|count| *count += 1)
-                            .or_insert(1);
-                        let attempts_left = allowed_max_attempts.saturating_sub(*current_attempts);
-
+                        let attempts_left = self.tool_error_tracker.get_attempts_remaining(&result.name);
                         // Add attempt information to the error message so the agent can reflect on it.
                         let message = Element::new("retry").text(format!(
                             "This tool call failed. You have {attempts_left} attempt(s) remaining out of a maximum of {allowed_max_attempts}. Please reflect on the error, adjust your approach if needed, and try again."
                         ));
 
                         result.output.combine_mut(ToolOutput::text(message));
-                    } else {
-                        tool_failure_attempts.remove(&result.name);
                     }
                 });
-            }
 
             context = context.append_message(content.clone(), reasoning_details, tool_call_records);
 
@@ -564,7 +553,7 @@ impl<S: AgentService> Orchestrator<S> {
                 warn!(
                     agent_id = %agent.id,
                     model_id = %model_id,
-                    tools = %tool_failure_attempts.iter().map(|(name, count)| format!("{name}: {count}")).collect::<Vec<_>>().join(", "),
+                    tools = %self.tool_error_tracker.get_counts().iter().map(|(name, count)| format!("{name}: {count}")).collect::<Vec<_>>().join(", "),
                     max_tool_failure_per_turn = ?agent.max_tool_failure_per_turn,
                     "Tool execution failure limit exceeded - terminating conversation to prevent infinite retry loops."
                 );
@@ -625,20 +614,6 @@ impl<S: AgentService> Orchestrator<S> {
         }
 
         Ok(())
-    }
-
-    fn check_tool_call_failures(
-        &self,
-        tool_failure_attempts: &HashMap<ToolName, usize>,
-        tool_calls: &[ToolCallFull],
-    ) -> bool {
-        let agent = &self.agent;
-        agent.max_tool_failure_per_turn.is_some_and(|limit| {
-            tool_calls
-                .iter()
-                .map(|call| tool_failure_attempts.get(&call.name).unwrap_or(&0))
-                .any(|count| *count >= limit)
-        })
     }
 
     async fn set_user_prompt(&self, mut context: Context) -> anyhow::Result<Context> {

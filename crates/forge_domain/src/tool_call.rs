@@ -5,7 +5,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
 use crate::xml::extract_tag_content;
-use crate::{Error, Result, ToolCallArguments, ToolName};
+use crate::{Error, Result, ToolCallArguments, ToolName, ToolResult};
 
 /// Unique identifier for a using a tool
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -187,17 +187,33 @@ where
         })
 }
 
-#[derive(Clone, Debug)]
+#[derive(Default, Clone, Debug)]
 pub struct ToolErrorTracker {
-    counts: HashMap<ToolName, u32>,
-    limit: u32,
+    counts: HashMap<ToolName, usize>,
+    limit: usize,
 }
 
 impl ToolErrorTracker {
-    pub fn new(limit: u32) -> Self {
+    pub fn new(limit: usize) -> Self {
         Self { counts: Default::default(), limit }
     }
 
+    pub fn adjust_record(&mut self, records: &[(ToolCallFull, ToolResult)]) -> &mut Self {
+        let records_iter = records.iter();
+        let failed = records_iter
+            .clone()
+            .filter(|record| record.1.is_error())
+            .map(|record| &record.1.name)
+            .collect::<Vec<_>>();
+
+        let succeeded = records_iter
+            .clone()
+            .filter(|record| !record.1.is_error())
+            .map(|record| &record.1.name)
+            .collect::<Vec<_>>();
+
+        self.adjust(&failed, &succeeded)
+    }
     pub fn adjust(&mut self, failed: &[&ToolName], succeeded: &[&ToolName]) -> &mut Self {
         // Handle failures first
         let uniq_failed = failed.iter().collect::<HashSet<&&ToolName>>();
@@ -224,6 +240,23 @@ impl ToolErrorTracker {
             .filter(|(_, count)| **count >= limit)
             .map(|data| data.0)
             .collect::<Vec<_>>()
+    }
+
+    pub fn get_counts(&self) -> &HashMap<ToolName, usize> {
+        &self.counts
+    }
+
+    pub fn get_limit(&self) -> usize {
+        self.limit
+    }
+
+    pub fn get_attempt_count(&self, tool_name: &ToolName) -> usize {
+        *self.counts.get(tool_name).unwrap_or(&0)
+    }
+
+    pub fn get_attempts_remaining(&self, tool_name: &ToolName) -> usize {
+        let current_attempts = self.get_attempt_count(tool_name);
+        self.limit.saturating_sub(current_attempts)
     }
 }
 

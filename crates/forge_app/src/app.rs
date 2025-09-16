@@ -111,6 +111,7 @@ impl<S: Services> ForgeApp<S> {
         // Get system and mcp tool definitions
         let all_tool_definitions = self.tool_registry.list().await?;
         let tool_definitions = agent.resolve_tool_definitions(&all_tool_definitions);
+        let max_tool_failure_per_turn = agent.max_tool_failure_per_turn.unwrap_or(3);
 
         // Create the orchestrator with all necessary dependencies
         let orch = Orchestrator::new(
@@ -121,6 +122,7 @@ impl<S: Services> ForgeApp<S> {
             agent,
             chat.event,
         )
+        .tool_error_tracker(ToolErrorTracker::new(max_tool_failure_per_turn))
         .custom_instructions(custom_instructions)
         .tool_definitions(tool_definitions)
         .models(models)
