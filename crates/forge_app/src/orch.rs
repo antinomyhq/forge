@@ -483,7 +483,7 @@ impl<S: AgentService> Orchestrator<S> {
 
             self.tool_error_tracker.adjust_record(&tool_call_records);
             let mut allowed_limits_exceeded = !self.tool_error_tracker.maxed_out_tools().is_empty();
-            let allowed_max_attempts = self.tool_error_tracker.get_limit();
+            let allowed_max_attempts = self.tool_error_tracker.max_limit();
             tool_call_records.iter_mut().for_each(|(_, result)| {
                     if result.is_error() {
                         let attempts_left = self.tool_error_tracker.get_attempts_remaining(&result.name);
@@ -553,8 +553,8 @@ impl<S: AgentService> Orchestrator<S> {
                 warn!(
                     agent_id = %agent.id,
                     model_id = %model_id,
-                    tools = %self.tool_error_tracker.get_counts().iter().map(|(name, count)| format!("{name}: {count}")).collect::<Vec<_>>().join(", "),
-                    max_tool_failure_per_turn = ?agent.max_tool_failure_per_turn,
+                    tools = %self.tool_error_tracker.error_counts().iter().map(|(name, count)| format!("{name}: {count}")).collect::<Vec<_>>().join(", "),
+                    max_tool_failure_per_turn = ?self.tool_error_tracker.max_limit(),
                     "Tool execution failure limit exceeded - terminating conversation to prevent infinite retry loops."
                 );
 

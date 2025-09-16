@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use derive_getters::Getters;
 use derive_more::derive::From;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
@@ -187,15 +188,15 @@ where
         })
 }
 
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone, Debug, Getters)]
 pub struct ToolErrorTracker {
-    counts: HashMap<ToolName, usize>,
-    limit: usize,
+    error_counts: HashMap<ToolName, usize>,
+    max_limit: usize,
 }
 
 impl ToolErrorTracker {
     pub fn new(limit: usize) -> Self {
-        Self { counts: Default::default(), limit }
+        Self { error_counts: Default::default(), max_limit: limit }
     }
 
     pub fn adjust_record(&mut self, records: &[(ToolCallFull, ToolResult)]) -> &mut Self {
@@ -214,49 +215,43 @@ impl ToolErrorTracker {
 
         self.adjust(&failed, &succeeded)
     }
-    pub fn adjust(&mut self, failed: &[&ToolName], succeeded: &[&ToolName]) -> &mut Self {
+
+    fn adjust(&mut self, failed: &[&ToolName], succeeded: &[&ToolName]) -> &mut Self {
         // Handle failures first
         let uniq_failed = failed.iter().collect::<HashSet<&&ToolName>>();
         for tool in uniq_failed.iter() {
-            if let Some(count) = self.counts.get_mut(tool) {
+            if let Some(count) = self.error_counts.get_mut(tool) {
                 *count += 1;
             } else {
-                self.counts.insert(tool.to_owned().to_owned().to_owned(), 1);
+                self.error_counts
+                    .insert(tool.to_owned().to_owned().to_owned(), 1);
             }
         }
 
         // Reset counter for tools that have clear evidence of success
         for tool in succeeded.iter().filter(|tool| !uniq_failed.contains(tool)) {
-            self.counts.remove(tool);
+            self.error_counts.remove(tool);
         }
 
         self
     }
 
     pub fn maxed_out_tools(&self) -> Vec<&ToolName> {
-        let limit = self.limit;
-        self.counts
+        let limit = self.max_limit;
+        self.error_counts
             .iter()
             .filter(|(_, count)| **count >= limit)
             .map(|data| data.0)
             .collect::<Vec<_>>()
     }
 
-    pub fn get_counts(&self) -> &HashMap<ToolName, usize> {
-        &self.counts
-    }
-
-    pub fn get_limit(&self) -> usize {
-        self.limit
-    }
-
-    pub fn get_attempt_count(&self, tool_name: &ToolName) -> usize {
-        *self.counts.get(tool_name).unwrap_or(&0)
+    pub fn get_error_count(&self, tool_name: &ToolName) -> usize {
+        *self.error_counts.get(tool_name).unwrap_or(&0)
     }
 
     pub fn get_attempts_remaining(&self, tool_name: &ToolName) -> usize {
-        let current_attempts = self.get_attempt_count(tool_name);
-        self.limit.saturating_sub(current_attempts)
+        let current_attempts = self.get_error_count(tool_name);
+        self.max_limit.saturating_sub(current_attempts)
     }
 }
 
