@@ -17,6 +17,6 @@ commands:
       <lint>cargo +nightly fmt --all; cargo +nightly clippy --fix --allow-staged --allow-dirty --workspace</lint>
       <test>cargo insta test --accept --unreferenced=delete</test>
     - Fix every issue found in the process
-model: glm-4.5
+model: anthropic/claude-sonnet-4
 max_walker_depth: 1024
 tool_supported: true

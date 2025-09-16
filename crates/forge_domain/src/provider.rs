@@ -119,6 +119,21 @@ impl Provider {
         }
     }
 
+    pub fn vertex_ai(key: &str, project_id: &str, location: &str) -> anyhow::Result<Provider> {
+        let url = if location == "global" {
+            format!(
+                "https://aiplatform.googleapis.com/v1/projects/{}/locations/{}/endpoints/openapi/",
+                project_id, location
+            )
+        } else {
+            format!(
+                "https://{}-aiplatform.googleapis.com/v1/projects/{}/locations/{}/endpoints/openapi/",
+                location, project_id, location
+            )
+        };
+        Ok(Provider::OpenAI { url: Url::parse(&url)?, key: Some(key.into()) })
+    }
+
     pub fn key(&self) -> Option<&str> {
         match self {
             Provider::OpenAI { key, .. } => key.as_deref(),
@@ -220,6 +235,15 @@ impl Provider {
         match self {
             Provider::OpenAI { .. } => false,
             Provider::Anthropic { url, .. } => url.as_str().starts_with(Self::ANTHROPIC_URL),
+        }
+    }
+
+    pub fn is_vertex_ai(&self) -> bool {
+        match self {
+            Provider::OpenAI { url, key: _ } => url
+                .as_str()
+                .contains("aiplatform.googleapis.com/v1/projects/"),
+            Provider::Anthropic { .. } => false,
         }
     }
 }
@@ -392,5 +416,21 @@ mod tests {
         let base_url = fixture.to_base_url();
         let model_url = fixture.model_url();
         assert_eq!(base_url.join("models").unwrap(), model_url);
+    }
+
+    #[test]
+    fn test_vertex_ai_global_location() {
+        let fixture = Provider::vertex_ai("test_token", "forge-452914", "global").unwrap();
+        let actual = fixture.to_base_url();
+        let expected = Url::parse("https://aiplatform.googleapis.com/v1/projects/forge-452914/locations/global/endpoints/openapi/").unwrap();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_vertex_ai_regular_location() {
+        let fixture = Provider::vertex_ai("test_token", "test_project", "us-central1").unwrap();
+        let actual = fixture.to_base_url();
+        let expected = Url::parse("https://us-central1-aiplatform.googleapis.com/v1/projects/test_project/locations/us-central1/endpoints/openapi/").unwrap();
+        assert_eq!(actual, expected);
     }
 }

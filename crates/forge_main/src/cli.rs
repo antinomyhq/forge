@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
+use forge_domain::ConversationId;
 
 #[derive(Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
@@ -56,12 +57,21 @@ pub struct Cli {
     #[arg(long)]
     pub conversation: Option<PathBuf>,
 
-    /// Reload the last active conversation for the current workspace.
+    /// Generate a new conversation ID and exit.
     ///
-    /// When enabled, automatically loads and resumes the most recently active
-    /// conversation instead of starting a new one.
+    /// When enabled, generates a new unique conversation ID and prints it to
+    /// stdout. This ID can be used with --resume --conversation-id to
+    /// manage multiple terminal sessions with separate conversation
+    /// contexts.
     #[arg(long, default_value_t = false)]
-    pub resume: bool,
+    pub generate_conversation_id: bool,
+
+    /// Resume an existing conversation by providing its conversation ID.
+    ///
+    /// The conversation ID must be a valid UUID format. You can generate a new
+    /// conversation ID using --generate-conversation-id.
+    #[arg(long, value_parser = parse_conversation_id)]
+    pub resume: Option<ConversationId>,
 
     /// Top-level subcommands
     #[command(subcommand)]
@@ -81,6 +91,10 @@ pub struct Cli {
     pub sandbox: Option<String>,
 }
 
+fn parse_conversation_id(s: &str) -> std::result::Result<ConversationId, String> {
+    ConversationId::parse(s).map_err(|e| e.to_string())
+}
+
 impl Cli {
     /// Checks if user is in is_interactive
     pub fn is_interactive(&self) -> bool {
@@ -96,6 +110,20 @@ pub enum TopLevelCommand {
     Mcp(McpCommandGroup),
     /// Print information about the environment
     Info,
+    /// Generate shell prompt completion scripts
+    Term(TerminalArgs),
+}
+
+#[derive(clap::Args, Debug, Clone)]
+pub struct TerminalArgs {
+    /// Generate shell prompt completion script
+    #[arg(short, long)]
+    pub generate_prompt: ShellType,
+}
+
+#[derive(clap::ValueEnum, Debug, Clone, Copy)]
+pub enum ShellType {
+    Zsh,
 }
 
 /// Group of MCP-related commands

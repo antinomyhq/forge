@@ -166,7 +166,7 @@ impl<S: Services> ForgeApp<S> {
             .services
             .find_conversation(conversation_id)
             .await?
-            .ok_or_else(|| anyhow::anyhow!("Conversation not found: {}", conversation_id))?;
+            .ok_or_else(|| forge_domain::Error::ConversationNotFound(*conversation_id))?;
 
         // Get the context from the conversation
         let context = match conversation.context.as_ref() {
