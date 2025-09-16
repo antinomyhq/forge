@@ -37,10 +37,7 @@ impl<S: AS> TitleGenerator<S> {
             .temperature(1.0f32)
             .conversation_id(ConversationId::generate())
             .add_message(ContextMessage::system(template))
-            .add_message(ContextMessage::user(
-                prompt.clone(),
-                Some(self.model_id.clone()),
-            ));
+            .add_message(ContextMessage::user(prompt, Some(self.model_id.clone())));
 
         let stream = self.services.chat_agent(&self.model_id, ctx).await?;
         let ChatCompletionMessageFull { content, .. } = stream.into_full(false).await?;
