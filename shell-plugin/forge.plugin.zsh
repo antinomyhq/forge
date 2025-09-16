@@ -1,14 +1,13 @@
 #!/usr/bin/env zsh
 
 # Forge ZSH Plugin - ZLE Widget Version
-# Converts '# abc' to '$_FORGE_BIN <<< abc' using ZLE widgets
-# Now with @ tab completion support
+# Converts '#? abc' to always resume conversations using ZLE widgets
+# Features: Auto-resume existing conversations or start new ones, @ tab completion support
 
 # Configuration: Change these variables to customize the forge command and special characters
 # Using typeset to keep variables local to plugin scope and prevent public exposure
 typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
-typeset -h _FORGE_OLD_CONVERSATION_PATTERN="#\!"
-typeset -h _FORGE_NEW_CONVERSATION_PATTERN="#\?"
+typeset -h _FORGE_CONVERSATION_PATTERN="#\?"
 
 # Store conversation ID in a temporary variable (local to plugin)
 typeset -h _FORGE_CONVERSATION_ID=""
@@ -18,22 +17,16 @@ function _forge_transform_buffer() {
     local forge_cmd=""
     local input_text=""
     
-    # Check if the line starts with resume character (default: '?? ')
-    if [[ "$BUFFER" =~ "^${_FORGE_OLD_CONVERSATION_PATTERN} (.*)$" ]]; then
-        # Use existing conversation ID with --resume
-        if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
-            forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID"
-            input_text="${match[1]}"
-        else
-            echo "No conversation ID found. Start a new conversation with '#?'"
-            return 1
-        fi
-    # Check if the line starts with new conversation character (default: '? ')
-    elif [[ "$BUFFER" =~ "^${_FORGE_NEW_CONVERSATION_PATTERN} (.*)$" ]]; then
-        # Generate new conversation ID first
-        _FORGE_CONVERSATION_ID=$($_FORGE_BIN --generate-conversation-id)
-        forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID"
+    # Check if the line starts with the conversation pattern (default: '# ')
+    if [[ "$BUFFER" =~ "^${_FORGE_CONVERSATION_PATTERN}(.*)$" ]]; then
         input_text="${match[1]}"
+        
+        # Always try to resume - if no conversation ID exists, generate a new one
+        if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
+            _FORGE_CONVERSATION_ID=$($_FORGE_BIN --generate-conversation-id)
+        fi
+        
+        forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID"
     else
         return 1  # No transformation needed
     fi
@@ -90,7 +83,7 @@ function forge-at-completion() {
     zle expand-or-complete
 }
 
-# ZLE widget for Enter key that checks for # prefix
+# ZLE widget for Enter key that transforms #? commands to always resume conversations
 function forge-accept-line() {
     # Attempt transformation using helper
     if _forge_transform_buffer; then
