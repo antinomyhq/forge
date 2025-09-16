@@ -217,11 +217,11 @@ impl ToolErrorTracker {
     }
 
     pub fn failed(&mut self, tool_name: &ToolName) -> &mut Self {
-        self.adjust(&[&tool_name], &[])
+        self.adjust(&[tool_name], &[])
     }
 
     pub fn succeed(&mut self, tool_name: &ToolName) -> &mut Self {
-        self.adjust(&[], &[&tool_name])
+        self.adjust(&[], &[tool_name])
     }
 
     fn adjust(&mut self, failed: &[&ToolName], succeeded: &[&ToolName]) -> &mut Self {

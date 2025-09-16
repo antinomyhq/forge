@@ -140,7 +140,7 @@ impl AgentService for Runner {
                 return result;
             }
         }
-        
+
         panic!("No mock tool call not found: {name}")
     }
 
