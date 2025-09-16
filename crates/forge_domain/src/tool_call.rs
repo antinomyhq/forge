@@ -202,8 +202,8 @@ impl ToolErrorTracker {
         // Handle failures first
         let uniq_failed = failed.iter().collect::<HashSet<&&ToolName>>();
         for tool in uniq_failed.iter() {
-            if let Some(count) = self.counts.get_mut(&tool) {
-                *count = *count + 1;
+            if let Some(count) = self.counts.get_mut(tool) {
+                *count += 1;
             } else {
                 self.counts.insert(tool.to_owned().to_owned().to_owned(), 1);
             }
@@ -299,10 +299,10 @@ mod tests {
     #[test]
     fn test_no_tools_called_returns_empty() {
         let counter = ToolErrorTracker::new(3);
-        
+
         let actual = counter.maxed_out_tools();
         let expected: Vec<&ToolName> = vec![];
-        
+
         assert_eq!(actual, expected);
     }
 
@@ -342,7 +342,8 @@ mod tests {
     fn test_tool_in_both_failed_and_succeeded_lists() {
         let read = &ToolName::new("READ");
         let mut counter = ToolErrorTracker::new(3);
-        // Tool appears in both failed and succeeded - success should NOT reset due to filter
+        // Tool appears in both failed and succeeded - success should NOT reset due to
+        // filter
         counter.adjust(&[read], &[read]);
 
         let actual = counter.maxed_out_tools();
