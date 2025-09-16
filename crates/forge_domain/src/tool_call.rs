@@ -1,9 +1,12 @@
+use std::collections::{HashMap, HashSet};
+
+use derive_getters::Getters;
 use derive_more::derive::From;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
 use crate::xml::extract_tag_content;
-use crate::{Error, Result, ToolCallArguments, ToolName};
+use crate::{Error, Result, ToolCallArguments, ToolName, ToolResult};
 
 /// Unique identifier for a using a tool
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -185,6 +188,84 @@ where
         })
 }
 
+#[derive(Default, Clone, Debug, Getters)]
+pub struct ToolErrorTracker {
+    errors: HashMap<ToolName, usize>,
+    limit: usize,
+}
+
+impl ToolErrorTracker {
+    pub fn new(limit: usize) -> Self {
+        Self { errors: Default::default(), limit }
+    }
+
+    pub fn adjust_record(&mut self, records: &[(ToolCallFull, ToolResult)]) -> &mut Self {
+        let records_iter = records.iter();
+        let failed = records_iter
+            .clone()
+            .filter(|record| record.1.is_error())
+            .map(|record| &record.1.name)
+            .collect::<Vec<_>>();
+
+        let succeeded = records_iter
+            .clone()
+            .filter(|record| !record.1.is_error())
+            .map(|record| &record.1.name)
+            .collect::<Vec<_>>();
+
+        self.adjust(&failed, &succeeded)
+    }
+
+    pub fn failed(&mut self, tool_name: &ToolName) -> &mut Self {
+        self.adjust(&[tool_name], &[])
+    }
+
+    pub fn succeed(&mut self, tool_name: &ToolName) -> &mut Self {
+        self.adjust(&[], &[tool_name])
+    }
+
+    fn adjust(&mut self, failed: &[&ToolName], succeeded: &[&ToolName]) -> &mut Self {
+        // Handle failures first
+        let uniq_failed = failed.iter().collect::<HashSet<&&ToolName>>();
+        for tool in uniq_failed.iter() {
+            if let Some(count) = self.errors.get_mut(tool) {
+                *count += 1;
+            } else {
+                self.errors.insert((**tool).to_owned(), 1);
+            }
+        }
+
+        // Reset counter for tools that have clear evidence of success
+        for tool in succeeded.iter().filter(|tool| !uniq_failed.contains(tool)) {
+            self.errors.remove(tool);
+        }
+
+        self
+    }
+
+    fn maxed_out_tools(&self) -> Vec<&ToolName> {
+        let limit = self.limit;
+        self.errors
+            .iter()
+            .filter(|(_, count)| **count > limit)
+            .map(|data| data.0)
+            .collect::<Vec<_>>()
+    }
+
+    pub fn limit_reached(&self) -> bool {
+        !self.maxed_out_tools().is_empty()
+    }
+
+    pub fn error_count(&self, tool_name: &ToolName) -> usize {
+        *self.errors.get(tool_name).unwrap_or(&0)
+    }
+
+    pub fn remaining_attempts(&self, tool_name: &ToolName) -> usize {
+        let current_attempts = self.error_count(tool_name);
+        self.limit.saturating_sub(current_attempts)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
@@ -250,6 +331,107 @@ mod tests {
                 ),
             },
         ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_no_tools_called_returns_empty() {
+        let counter = ToolErrorTracker::new(3);
+
+        let actual = counter.maxed_out_tools();
+        let expected: Vec<&ToolName> = vec![];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_only_successful_tools_never_maxed_out() {
+        let read = &ToolName::new("READ");
+        let write = &ToolName::new("WRITE");
+        let mut counter = ToolErrorTracker::new(3);
+        counter
+            .adjust(&[], &[read, write])
+            .adjust(&[], &[read, write, read]);
+
+        let actual = counter.maxed_out_tools();
+        let expected: Vec<&ToolName> = vec![];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_multiple_tools_maxed_out() {
+        let read = &ToolName::new("READ");
+        let write = &ToolName::new("WRITE");
+        let mut counter = ToolErrorTracker::new(2);
+        counter
+            .adjust(&[read, write], &[])
+            .adjust(&[read, write], &[])
+            .adjust(&[read, write], &[]);
+
+        let mut actual = counter.maxed_out_tools();
+        actual.sort_by_key(|tool| tool.as_str());
+
+        let mut expected = vec![read, write];
+        expected.sort_by_key(|tool| tool.as_str());
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_tool_in_both_failed_and_succeeded_lists() {
+        let read = &ToolName::new("READ");
+        let mut counter = ToolErrorTracker::new(3);
+        // Tool appears in both failed and succeeded - success should NOT reset due to
+        // filter
+        counter.adjust(&[read], &[read]);
+
+        let actual = counter.maxed_out_tools();
+        let expected: Vec<&ToolName> = vec![];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_tool_at_exact_limit_boundary() {
+        let read = &ToolName::new("READ");
+        let mut counter = ToolErrorTracker::new(3);
+        counter
+            .adjust(&[read], &[])
+            .adjust(&[read], &[])
+            .adjust(&[read], &[])
+            .adjust(&[read], &[]); // Exactly at limit
+
+        let actual = counter.maxed_out_tools();
+        let expected = vec![read];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_zero_limit_maxes_out_immediately() {
+        let read = &ToolName::new("READ");
+        let mut counter = ToolErrorTracker::new(0);
+        counter.adjust(&[read], &[]);
+
+        let actual = counter.maxed_out_tools();
+        let expected = vec![read];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_maxed_tool_cannot_recover_after_success() {
+        let read = &ToolName::new("READ");
+        let mut counter = ToolErrorTracker::new(2);
+        counter
+            .adjust(&[read], &[])
+            .adjust(&[read], &[]) // Tool is now maxed out
+            .adjust(&[], &[read]); // Success should remove from counts
+
+        let actual = counter.maxed_out_tools();
+        let expected: Vec<&ToolName> = vec![];
 
         assert_eq!(actual, expected);
     }
@@ -343,6 +525,55 @@ mod tests {
             call_id: Some(ToolCallId("0".to_string())),
             arguments: ToolCallArguments::from_json(r#"{"path": "/test/file.md"}"#),
         }];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_consecutive_failures_max_out_tool() {
+        let read = &ToolName::new("READ");
+        let mut counter = ToolErrorTracker::new(2);
+        counter
+            .adjust(&[read, read, read], &[])
+            .adjust(&[read, read], &[])
+            .adjust(&[read], &[]);
+
+        let actual = counter.maxed_out_tools();
+        let expected = vec![read];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_successful_tool_resets_then_other_tool_maxed_out() {
+        let read = &ToolName::new("READ");
+        let write = &ToolName::new("WRITE");
+        let mut counter = ToolErrorTracker::new(2);
+        counter
+            .adjust(&[read, read, read], &[])
+            .adjust(&[read, read], &[])
+            .adjust(&[read], &[])
+            .adjust(&[write], &[read])
+            .adjust(&[write], &[])
+            .adjust(&[write], &[]);
+
+        let actual = counter.maxed_out_tools();
+        let expected = vec![write];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_tool_maxed_out_despite_intermittent_successes() {
+        let read = &ToolName::new("READ");
+        let mut counter = ToolErrorTracker::new(2);
+        counter
+            .adjust(&[read, read, read], &[read])
+            .adjust(&[read, read], &[read]) // Hitting limit
+            .adjust(&[read], &[read]); // Still failing
+
+        let actual = counter.maxed_out_tools();
+        let expected = vec![read];
 
         assert_eq!(actual, expected);
     }

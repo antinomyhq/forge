@@ -2,7 +2,8 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use forge_domain::{
-    ChatCompletionMessage, ChatResponse, Conversation, ConversationId, ToolCallFull, ToolResult,
+    ChatCompletionMessage, ChatResponse, Conversation, ConversationId, ToolCallFull,
+    ToolErrorTracker, ToolResult,
 };
 use handlebars::{Handlebars, no_escape};
 use rust_embed::Embed;
@@ -82,6 +83,7 @@ impl Runner {
             agent.apply_workflow_config(&setup.workflow),
             event,
         )
+        .error_tracker(ToolErrorTracker::new(3))
         .tool_definitions(system_tools)
         .sender(tx)
         .files(setup.files.clone());
@@ -129,6 +131,7 @@ impl AgentService for Runner {
         _: &forge_domain::ToolCallContext,
         test_call: forge_domain::ToolCallFull,
     ) -> forge_domain::ToolResult {
+        let name = test_call.name.clone();
         let mut guard = self.test_tool_calls.lock().await;
         for (id, (call, result)) in guard.iter().enumerate() {
             if call.call_id == test_call.call_id {
@@ -137,7 +140,8 @@ impl AgentService for Runner {
                 return result;
             }
         }
-        panic!("Tool call not found")
+
+        panic!("No mock tool call not found: {name}")
     }
 
     async fn render(

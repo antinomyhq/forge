@@ -1,5 +1,5 @@
 // Tests for this module can be found in: tests/orch_*.rs
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -27,6 +27,7 @@ pub struct Orchestrator<S> {
     custom_instructions: Vec<String>,
     agent: Agent,
     event: Event,
+    error_tracker: ToolErrorTracker,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -50,6 +51,7 @@ impl<S: AgentService> Orchestrator<S> {
             models: Default::default(),
             files: Default::default(),
             custom_instructions: Default::default(),
+            error_tracker: Default::default(),
         }
     }
 
@@ -251,7 +253,7 @@ impl<S: AgentService> Orchestrator<S> {
             event_value = %format!("{:?}", event.value),
             "Dispatching event"
         );
-        let mut tool_failure_attempts = HashMap::new();
+
         debug!(
             conversation_id = %self.conversation.id,
             agent = %self.agent.id,
@@ -334,7 +336,6 @@ impl<S: AgentService> Orchestrator<S> {
         let mut is_complete = false;
         let mut has_attempted_completion = false;
 
-        let mut empty_tool_call_count = 0;
         let mut request_count = 0;
 
         // Retrieve the number of requests allowed per tick.
@@ -342,7 +343,6 @@ impl<S: AgentService> Orchestrator<S> {
 
         // Store tool calls at turn level
         let mut turn_has_tool_calls = false;
-        let title_generator = TitleGenerator::new(self.services.clone());
 
         let tool_context =
             ToolCallContext::new(self.conversation.metrics.clone()).sender(self.sender.clone());
@@ -371,10 +371,21 @@ impl<S: AgentService> Orchestrator<S> {
                 }),
             );
 
-            // Generate title only if conversation doesn't have any title.
+            // Generate title only if conversation doesn't have any title and event.value
+            // exists
             use futures::future::{Either, ready};
-            let title_generator_future: Either<_, _> = if self.conversation.title.is_none() {
-                Either::Left(title_generator.generate(&context, &model_id))
+            let title_generator_future: Either<_, _> = if let Some(ref prompt) = self.event.value {
+                if self.conversation.title.is_none() {
+                    let title_generator = TitleGenerator::new(
+                        self.services.clone(),
+                        prompt.to_owned(),
+                        model_id.clone(),
+                    )
+                    .reasoning(agent.reasoning.clone());
+                    Either::Left(async move { title_generator.generate().await })
+                } else {
+                    Either::Right(ready(Ok::<Option<String>, anyhow::Error>(None)))
+                }
             } else {
                 Either::Right(ready(Ok::<Option<String>, anyhow::Error>(None)))
             };
@@ -467,107 +478,70 @@ impl<S: AgentService> Orchestrator<S> {
                     .await?;
             }
 
-            // Check if tool calls are within allowed limits if max_tool_failure_per_turn is
-            // configured
-            let mut allowed_limits_exceeded =
-                self.check_tool_call_failures(&tool_failure_attempts, &tool_calls);
-
             // Process tool calls and update context
             let mut tool_call_records = self.execute_tool_calls(&tool_calls, &tool_context).await?;
 
-            // Update the tool call attempts, if the tool call is an error
-            // we increment the attempts, otherwise we remove it from the attempts map
-            if let Some(allowed_max_attempts) = agent.max_tool_failure_per_turn.as_ref() {
-                tool_call_records.iter_mut().for_each(|(_, result)| {
-                    if result.is_error() {
-                        let current_attempts = tool_failure_attempts
-                            .entry(result.name.clone())
-                            .and_modify(|count| *count += 1)
-                            .or_insert(1);
-                        let attempts_left = allowed_max_attempts.saturating_sub(*current_attempts);
+            self.error_tracker.adjust_record(&tool_call_records);
+            let allowed_max_attempts = self.error_tracker.limit();
+            for (_, result) in tool_call_records.iter_mut() {
+                if result.is_error() {
+                    let attempts_left = self.error_tracker.remaining_attempts(&result.name);
+                    // Add attempt information to the error message so the agent can reflect on it.
+                    let context = serde_json::json!({
+                        "attempts_left": attempts_left,
+                        "allowed_max_attempts": allowed_max_attempts,
+                    });
+                    let text = self
+                        .services
+                        .render("{{> forge-tool-retry-message.md }}", &context)
+                        .await?;
+                    let message = Element::new("retry").text(text);
 
-                        // Add attempt information to the error message so the agent can reflect on it.
-                        let message = Element::new("retry").text(format!(
-                            "This tool call failed. You have {attempts_left} attempt(s) remaining out of a maximum of {allowed_max_attempts}. Please reflect on the error, adjust your approach if needed, and try again."
-                        ));
-
-                        result.output.combine_mut(ToolOutput::text(message));
-                    } else {
-                        tool_failure_attempts.remove(&result.name);
-                    }
-                });
+                    result.output.combine_mut(ToolOutput::text(message));
+                }
             }
 
             context = context.append_message(content.clone(), reasoning_details, tool_call_records);
 
-            if !(turn_has_tool_calls || has_tool_calls) {
-                // No tools were called in the previous turn nor were they called in this step;
-                // Means that this is conversation.
+            match (turn_has_tool_calls, has_tool_calls) {
+                (false, false) => {
+                    // No tools were called in the previous turn nor were they called in this step;
+                    // Means that this is conversation.
 
-                self.send(ChatResponse::TaskMessage {
-                    content: ChatResponseContent::Markdown(
-                        remove_tag_with_prefix(&content, "forge_")
-                            .as_str()
-                            .to_string(),
-                    ),
-                })
-                .await?;
-                is_complete = true
-            } else if turn_has_tool_calls && !has_tool_calls {
-                // Since no tool calls are present, which doesn't mean task is complete so
-                // re-prompt the agent to ensure the task complete.
-                let content = self
-                    .services
-                    .render(
-                        "{{> forge-partial-tool-required.md}}",
-                        &serde_json::json!({
-                            "tool_supported": tool_supported
-                        }),
-                    )
-                    .await?;
-                context =
-                    context.add_message(ContextMessage::user(content, model_id.clone().into()));
-
-                warn!(
-                    agent_id = %agent.id,
-                    model_id = %model_id,
-                    empty_tool_call_count,
-                    "Agent is unable to follow instructions"
-                );
-
-                empty_tool_call_count += 1;
-                // TODO: Move the hard coded limit into env
-                if empty_tool_call_count >= 3 {
-                    warn!(
-                        agent_id = %agent.id,
-                        model_id = %model_id,
-                        empty_tool_call_count,
-                        "Forced completion due to repeated empty tool calls"
-                    );
-                    allowed_limits_exceeded = true;
-                }
-            } else {
-                empty_tool_call_count = 0;
-            }
-
-            if allowed_limits_exceeded {
-                // Tool call retry limit exceeded, force completion
-                warn!(
-                    agent_id = %agent.id,
-                    model_id = %model_id,
-                    tools = %tool_failure_attempts.iter().map(|(name, count)| format!("{name}: {count}")).collect::<Vec<_>>().join(", "),
-                    max_tool_failure_per_turn = ?agent.max_tool_failure_per_turn,
-                    "Tool execution failure limit exceeded - terminating conversation to prevent infinite retry loops."
-                );
-
-                if let Some(limit) = agent.max_tool_failure_per_turn {
-                    self.send(ChatResponse::Interrupt {
-                        reason: InterruptionReason::MaxToolFailurePerTurnLimitReached {
-                            limit: limit as u64,
-                        },
+                    self.send(ChatResponse::TaskMessage {
+                        content: ChatResponseContent::Markdown(
+                            remove_tag_with_prefix(&content, "forge_")
+                                .as_str()
+                                .to_string(),
+                        ),
                     })
                     .await?;
+                    is_complete = true;
+                    self.error_tracker
+                        .succeed(&ToolsDiscriminants::AttemptCompletion.name());
                 }
+                (true, false) => {
+                    // Since no tool calls are present, which doesn't mean task is complete so
+                    // re-prompt the agent to ensure the task complete.
+                    let content = self.attempt_completion_prompt(tool_supported).await?;
+                    let message = ContextMessage::user(content, model_id.clone().into());
+                    context = context.add_message(message);
+                    self.error_tracker
+                        .failed(&ToolsDiscriminants::AttemptCompletion.name());
+                }
+                _ => {
+                    self.error_tracker
+                        .failed(&ToolsDiscriminants::AttemptCompletion.name());
+                }
+            }
+
+            if self.error_tracker.limit_reached() {
+                self.send(ChatResponse::Interrupt {
+                    reason: InterruptionReason::MaxToolFailurePerTurnLimitReached {
+                        limit: *self.error_tracker.limit() as u64,
+                    },
+                })
+                .await?;
 
                 is_complete = true;
             }
@@ -618,18 +592,11 @@ impl<S: AgentService> Orchestrator<S> {
         Ok(())
     }
 
-    fn check_tool_call_failures(
-        &self,
-        tool_failure_attempts: &HashMap<ToolName, usize>,
-        tool_calls: &[ToolCallFull],
-    ) -> bool {
-        let agent = &self.agent;
-        agent.max_tool_failure_per_turn.is_some_and(|limit| {
-            tool_calls
-                .iter()
-                .map(|call| tool_failure_attempts.get(&call.name).unwrap_or(&0))
-                .any(|count| *count >= limit)
-        })
+    async fn attempt_completion_prompt(&self, tool_supported: bool) -> anyhow::Result<String> {
+        let ctx = serde_json::json!({"tool_supported": tool_supported});
+        self.services
+            .render("{{> forge-partial-tool-required.md}}", &ctx)
+            .await
     }
 
     async fn set_user_prompt(&self, mut context: Context) -> anyhow::Result<Context> {

@@ -2,15 +2,15 @@ use std::sync::Arc;
 
 use convert_case::{Case, Casing};
 use forge_domain::{
-    ChatRequest, ChatResponse, ChatResponseContent, Event, TitleFormat, ToolCallContext,
-    ToolDefinition, ToolName, ToolOutput,
+    ChatRequest, ChatResponse, ChatResponseContent, Conversation, Event, TitleFormat,
+    ToolCallContext, ToolDefinition, ToolName, ToolOutput,
 };
 use forge_template::Element;
 use futures::StreamExt;
 use tokio::sync::RwLock;
 
 use crate::error::Error;
-use crate::{AgentLoaderService, ConversationService, Services};
+use crate::{AgentLoaderService, Services};
 
 #[derive(Clone)]
 pub struct AgentExecutor<S> {
@@ -52,7 +52,7 @@ impl<S: Services> AgentExecutor<S> {
         .await?;
 
         // Create a new conversation for agent execution
-        let conversation = ConversationService::init_conversation(self.services.as_ref()).await?;
+        let conversation = Conversation::generate();
 
         // Execute the request through the ForgeApp
         let app = crate::ForgeApp::new(self.services.clone());

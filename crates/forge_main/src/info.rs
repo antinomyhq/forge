@@ -445,6 +445,7 @@ mod tests {
             http: Default::default(),
             max_file_size: 1000,
             auto_open_dump: false,
+            custom_history_path: None,
         }
     }
 

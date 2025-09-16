@@ -107,16 +107,17 @@ impl<S: AgentService> Compactor<S> {
         compact: &Compact,
         messages: &[ContextMessage],
     ) -> anyhow::Result<String> {
-        let sequence_context = messages
+        // Start with the original sequence context to preserve message structure
+        let mut context = messages
             .iter()
             .fold(Context::default(), |ctx, msg| ctx.add_message(msg.clone()));
 
         let summary_tag = compact.summary_tag.as_ref().cloned().unwrap_or_default();
-        let context = sequence_context.to_text();
         let ctx = serde_json::json!({
             "summary_tag": summary_tag
         });
 
+        // Render the summarization request as a user message instead of system prompt
         let prompt = self
             .services
             .render(
@@ -134,12 +135,8 @@ impl<S: AgentService> Compactor<S> {
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("No model specified for compaction"))?;
 
-        let mut context = Context::default()
-            .add_message(ContextMessage::system(prompt))
-            .add_message(ContextMessage::user(
-                format!("<context>{context}</context"),
-                Some(model.clone()),
-            ));
+        // Add the summarization request as a user message to the existing context
+        context = context.add_message(ContextMessage::user(prompt, Some(model.clone())));
 
         if let Some(max_token) = compact.max_tokens {
             context = context.max_tokens(max_token);

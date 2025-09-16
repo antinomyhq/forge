@@ -68,6 +68,14 @@ impl Conversation {
             context: None,
         }
     }
+    /// Creates a new conversation with a new conversation ID.
+    ///
+    /// This is a convenience constructor that automatically generates a unique
+    /// conversation ID, making it easy to create new conversations without
+    /// having to manually create the ID.
+    pub fn generate() -> Self {
+        Self::new(ConversationId::generate())
+    }
 
     /// Generates an HTML representation of the conversation
     ///
