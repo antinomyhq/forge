@@ -538,8 +538,7 @@ impl<S: AgentService> Orchestrator<S> {
                     "Agent is unable to follow instructions"
                 );
 
-                empty_tool_call_count += 1;
-                // TODO: Move the hard coded limit into env
+                empty_tool_call_count += 1;                
             } else {
                 empty_tool_call_count = 0;
             }

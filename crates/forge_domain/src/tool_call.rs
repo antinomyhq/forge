@@ -239,7 +239,7 @@ impl ToolErrorTracker {
         let limit = self.limit;
         self.errors
             .iter()
-            .filter(|(_, count)| **count >= limit)
+            .filter(|(_, count)| **count > limit)
             .map(|data| data.0)
             .collect::<Vec<_>>()
     }
@@ -359,10 +359,12 @@ mod tests {
         let mut counter = ToolErrorTracker::new(2);
         counter
             .adjust(&[read, write], &[])
+            .adjust(&[read, write], &[])
             .adjust(&[read, write], &[]);
 
         let mut actual = counter.maxed_out_tools();
         actual.sort_by_key(|tool| tool.as_str());
+
         let mut expected = vec![read, write];
         expected.sort_by_key(|tool| tool.as_str());
 
@@ -388,6 +390,7 @@ mod tests {
         let read = &ToolName::new("READ");
         let mut counter = ToolErrorTracker::new(3);
         counter
+            .adjust(&[read], &[])
             .adjust(&[read], &[])
             .adjust(&[read], &[])
             .adjust(&[read], &[]); // Exactly at limit
@@ -521,7 +524,7 @@ mod tests {
     #[test]
     fn test_consecutive_failures_max_out_tool() {
         let read = &ToolName::new("READ");
-        let mut counter = ToolErrorTracker::new(3);
+        let mut counter = ToolErrorTracker::new(2);
         counter
             .adjust(&[read, read, read], &[])
             .adjust(&[read, read], &[])
@@ -537,7 +540,7 @@ mod tests {
     fn test_successful_tool_resets_then_other_tool_maxed_out() {
         let read = &ToolName::new("READ");
         let write = &ToolName::new("WRITE");
-        let mut counter = ToolErrorTracker::new(3);
+        let mut counter = ToolErrorTracker::new(2);
         counter
             .adjust(&[read, read, read], &[])
             .adjust(&[read, read], &[])
@@ -555,11 +558,11 @@ mod tests {
     #[test]
     fn test_tool_maxed_out_despite_intermittent_successes() {
         let read = &ToolName::new("READ");
-        let mut counter = ToolErrorTracker::new(3);
+        let mut counter = ToolErrorTracker::new(2);
         counter
             .adjust(&[read, read, read], &[read])
-            .adjust(&[read, read], &[read])
-            .adjust(&[read], &[read]);
+            .adjust(&[read, read], &[read]) // Hitting limit
+            .adjust(&[read], &[read]); // Still failing
 
         let actual = counter.maxed_out_tools();
         let expected = vec![read];
