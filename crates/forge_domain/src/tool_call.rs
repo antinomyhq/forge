@@ -231,7 +231,7 @@ impl ToolErrorTracker {
     }
 
     pub fn get_attempt_count(&self, tool_name: &ToolName) -> u32 {
-        self.counts.get(tool_name).unwrap_or(&0).clone()
+        *self.counts.get(tool_name).unwrap_or(&0)
     }
 
     pub fn get_attempts_remaining(&self, tool_name: &ToolName) -> u32 {
