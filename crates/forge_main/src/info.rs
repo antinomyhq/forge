@@ -408,43 +408,6 @@ impl From<&Conversation> for Info {
 
         if let Some(title) = &conversation.title {
             info = info.add_key_value("Title", title);
-        } else {
-            info = info.add_key_value("Title", "(untitled)");
-        }
-
-        // Add conversation metrics
-        let metrics = &conversation.metrics;
-
-        // Duration
-        let duration = match metrics.duration() {
-            Some(d) => humantime::format_duration(Duration::from_secs(d.as_secs())).to_string(),
-            None => "0s".to_string(),
-        };
-        info = info.add_key_value("Duration", duration);
-
-        // Files changed count
-        let files_changed_count = metrics.files_changed.len();
-        if files_changed_count > 0 {
-            info = info.add_key_value("Files Changed", files_changed_count.to_string());
-
-            // Total lines added/removed
-            let total_added: u64 = metrics
-                .files_changed
-                .values()
-                .map(|fm| fm.lines_added)
-                .sum();
-            let total_removed: u64 = metrics
-                .files_changed
-                .values()
-                .map(|fm| fm.lines_removed)
-                .sum();
-
-            if total_added > 0 || total_removed > 0 {
-                info =
-                    info.add_key_value("Lines Changed", format!("+{total_added} -{total_removed}"));
-            }
-        } else {
-            info = info.add_key_value("Files Changed", "0");
         }
 
         info
@@ -679,10 +642,7 @@ mod tests {
         // Verify it contains the conversation section
         assert!(expected_display.contains("CONVERSATION"));
         assert!(expected_display.contains("Test Conversation"));
-        assert!(expected_display.contains("Files Changed"));
-        assert!(expected_display.contains("2"));
-        assert!(expected_display.contains("+8"));
-        assert!(expected_display.contains("-3"));
+        assert!(expected_display.contains(&conversation_id.to_string()));
     }
 
     #[test]
@@ -709,7 +669,6 @@ mod tests {
         // Verify it contains the conversation section with untitled
         assert!(expected_display.contains("CONVERSATION"));
         assert!(expected_display.contains("(untitled)"));
-        assert!(expected_display.contains("Files Changed"));
-        assert!(expected_display.contains("0"));
+        assert!(expected_display.contains(&conversation_id.to_string()));
     }
 }

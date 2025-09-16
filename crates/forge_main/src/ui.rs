@@ -371,22 +371,35 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.spinner.start(Some("Loading Info"))?;
         let mut info = Info::from(&self.api.environment()).extend(Info::from(&self.state));
 
+        // Execute async operations in parallel
+        let conversation_future = async {
+            if let Some(conversation_id) = &self.state.conversation_id {
+                self.api.conversation(conversation_id).await.ok().flatten()
+            } else {
+                None
+            }
+        };
+
+        let config_future = self.api.app_config();
+        let usage_future = self.api.user_usage();
+
+        let (conversation_result, config_result, usage_result) =
+            tokio::join!(conversation_future, config_future, usage_future);
+
         // Add conversation information if available
-        if let Some(conversation_id) = &self.state.conversation_id
-            && let Ok(Some(conversation)) = self.api.conversation(conversation_id).await
-        {
+        if let Some(conversation) = conversation_result {
             info = info.extend(Info::from(&conversation));
         }
 
         // Add user information if available
-        if let Some(config) = self.api.app_config().await
+        if let Some(config) = config_result
             && let Some(login_info) = &config.key_info
         {
             info = info.extend(Info::from(login_info));
         }
 
         // Add usage information
-        if let Ok(Some(user_usage)) = self.api.user_usage().await {
+        if let Ok(Some(user_usage)) = usage_result {
             info = info.extend(Info::from(&user_usage));
         }
 
