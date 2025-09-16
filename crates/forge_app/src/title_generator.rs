@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use forge_domain::{
-    ChatCompletionMessageFull, Context, ContextMessage, ConversationId, ModelId,
-    ResultStreamExt, extract_tag_content,
+    ChatCompletionMessageFull, Context, ContextMessage, ConversationId, ModelId, ResultStreamExt,
+    extract_tag_content,
 };
 use serde_json::Value;
 
