@@ -221,8 +221,9 @@ impl<S: AgentService> Orchestrator<S> {
             .services
             .chat_agent(model_id, transformers.transform(context))
             .await?;
-
-        response.into_full(!tool_supported).await
+        response
+            .into_full(!tool_supported, self.sender.clone())
+            .await
     }
     /// Checks if compaction is needed and performs it if necessary
     async fn check_and_compact(&self, context: &Context) -> anyhow::Result<Option<Context>> {
@@ -396,7 +397,6 @@ impl<S: AgentService> Orchestrator<S> {
                     tool_calls,
                     content,
                     usage,
-                    reasoning,
                     reasoning_details,
                     finish_reason,
                 },
@@ -468,15 +468,6 @@ impl<S: AgentService> Orchestrator<S> {
                 .await?;
             }
 
-            if let Some(reasoning) = reasoning.as_ref()
-                && !is_complete
-                && context.is_reasoning_supported()
-            {
-                // If reasoning is present, send it as a separate message
-                self.send(ChatResponse::TaskReasoning { content: reasoning.to_string() })
-                    .await?;
-            }
-
             // Check if tool calls are within allowed limits if max_tool_failure_per_turn is
             // configured
             let mut allowed_limits_exceeded =
@@ -513,7 +504,6 @@ impl<S: AgentService> Orchestrator<S> {
             if !(turn_has_tool_calls || has_tool_calls) {
                 // No tools were called in the previous turn nor were they called in this step;
                 // Means that this is conversation.
-
                 self.send(ChatResponse::TaskMessage {
                     content: ChatResponseContent::Markdown(
                         remove_tag_with_prefix(&content, "forge_")

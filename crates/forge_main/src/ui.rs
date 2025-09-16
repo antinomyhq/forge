@@ -15,7 +15,7 @@ use forge_domain::{
     ChatResponseContent, McpConfig, McpServerConfig, Metrics, Provider, Scope, TitleFormat,
 };
 use forge_fs::ForgeFS;
-use forge_spinner::SpinnerManager;
+use forge_spinner::{WriterWrapper, ForgeSpinner, SpinnerManager, StdoutWriter};
 use forge_tracker::ToolCallPayload;
 use merge::Merge;
 use serde::Deserialize;
@@ -62,7 +62,7 @@ pub struct UI<A, F: Fn() -> A> {
     console: Console,
     command: Arc<ForgeCommandManager>,
     cli: Cli,
-    spinner: SpinnerManager,
+    spinner: SpinnerManager<StdoutWriter, ForgeSpinner>,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
 }
@@ -166,7 +166,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             console: Console::new(env.clone(), command.clone()),
             cli,
             command,
-            spinner: SpinnerManager::new(),
+            spinner: SpinnerManager::new(StdoutWriter::default(), ForgeSpinner::new()),
             markdown: MarkdownFormat::new(),
             _guard: forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?,
         })
@@ -929,10 +929,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.should_continue().await?;
             }
             ChatResponse::TaskReasoning { content } => {
-                if !content.trim().is_empty() {
-                    let rendered_content = self.markdown.render(&content);
-                    self.writeln(rendered_content.dimmed())?;
-                }
+                self.spinner.write(content.dimmed().to_string())?;
             }
             ChatResponse::TaskComplete => {
                 if let Some(conversation_id) = self.state.conversation_id.as_ref() {

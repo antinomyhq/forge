@@ -1,145 +1,217 @@
-use std::time::Instant;
+mod console_writer;
+mod spinner;
 
 use anyhow::Result;
-use colored::Colorize;
-use indicatif::{ProgressBar, ProgressStyle};
-use rand::seq::IndexedRandom;
-use tokio::task::JoinHandle;
+pub use console_writer::*;
+pub use spinner::*;
 
 /// Manages spinner functionality for the UI
-#[derive(Default)]
-pub struct SpinnerManager {
-    spinner: Option<ProgressBar>,
-    start_time: Option<Instant>,
+pub struct SpinnerManager<W: Writer, S: Spinner> {
+    spinner: S,
+    writer: WriterWrapper<W>,
     message: Option<String>,
-    tracker: Option<JoinHandle<()>>,
 }
 
-impl SpinnerManager {
-    pub fn new() -> Self {
-        Self::default()
+impl<W: Writer, S: Spinner> SpinnerManager<W, S> {
+    pub fn new(writer: W, spinner: S) -> Self {
+        Self { spinner, writer: WriterWrapper::new(writer), message: None }
     }
 
-    /// Start the spinner with a message
+    // Starts the spinner
     pub fn start(&mut self, message: Option<&str>) -> Result<()> {
-        self.stop(None)?;
-
-        let words = [
-            "Thinking",
-            "Processing",
-            "Analyzing",
-            "Forging",
-            "Researching",
-            "Synthesizing",
-            "Reasoning",
-            "Contemplating",
-        ];
-
-        // Use a random word from the list
-        let word = match message {
-            None => words.choose(&mut rand::rng()).unwrap_or(&words[0]),
-            Some(msg) => msg,
-        };
-
-        // Store the base message without styling for later use with the timer
-        self.message = Some(word.to_string());
-
-        // Initialize the start time for the timer
-        self.start_time = Some(Instant::now());
-
-        // Create the spinner with a better style that respects terminal width
-        let pb = ProgressBar::new_spinner();
-
-        // This style includes {msg} which will be replaced with our formatted message
-        // The {spinner} will show a visual spinner animation
-        pb.set_style(
-            ProgressStyle::default_spinner()
-                .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
-                .template("{spinner:.green} {msg}")
-                .unwrap(),
-        );
-
-        // Increase the tick rate to make the spinner move faster
-        // Setting to 60ms for a smooth yet fast animation
-        pb.enable_steady_tick(std::time::Duration::from_millis(60));
-
-        // Set the initial message
-        let message = format!(
-            "{} 0s · {}",
-            word.green().bold(),
-            "Ctrl+C to interrupt".white().dimmed()
-        );
-        pb.set_message(message);
-
-        self.spinner = Some(pb);
-
-        // Clone the necessary components for the tracker task
-        let spinner_clone = self.spinner.clone();
-        let start_time_clone = self.start_time;
-        let message_clone = self.message.clone();
-
-        // Spwan tracker to keep the track of time in sec.
-        self.tracker = Some(tokio::spawn(async move {
-            let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(500));
-            loop {
-                interval.tick().await;
-                // Update the spinner with the current elapsed time
-                if let (Some(spinner), Some(start_time), Some(message)) =
-                    (&spinner_clone, start_time_clone, &message_clone)
-                {
-                    let elapsed = start_time.elapsed();
-                    let seconds = elapsed.as_secs();
-
-                    // Create a new message with the elapsed time
-                    let updated_message = format!(
-                        "{} {}s · {}",
-                        message.green().bold(),
-                        seconds,
-                        "Ctrl+C to interrupt".white().dimmed()
-                    );
-
-                    // Update the spinner's message
-                    spinner.set_message(updated_message);
-                }
-            }
-        }));
-
+        let _ = self.spinner.start(message)?;
+        self.message = message.map(|m| m.to_string());
         Ok(())
     }
 
     /// Stop the active spinner if any
     pub fn stop(&mut self, message: Option<String>) -> Result<()> {
-        if let Some(spinner) = self.spinner.take() {
-            // Always finish the spinner first
-            spinner.finish_and_clear();
+        let _ = self.stop_internal(message, true)?;
+        Ok(())
+    }
 
-            // Then print the message if provided
-            if let Some(msg) = message {
-                println!("{msg}");
+    /// Stop the active spinner if any and prints the provided content.
+    fn stop_internal(&mut self, message: Option<String>, new_line: bool) -> Result<()> {
+        self.spinner.stop()?;
+        // Then print the message if provided
+        if let Some(msg) = message {
+            if new_line {
+                self.writer.writeln(&msg)?;
+            } else {
+                self.writer.write(&msg)?;
             }
-        } else if let Some(message) = message {
-            // If there's no spinner but we have a message, just print it
-            println!("{message}");
         }
-
-        // Tracker task will be dropped here.
-        if let Some(a) = self.tracker.take() {
-            drop(a)
-        }
-        self.tracker = None;
-        self.start_time = None;
         self.message = None;
         Ok(())
     }
 
+    // Writes the console with new line.
     pub fn write_ln(&mut self, message: impl ToString) -> Result<()> {
-        let is_running = self.spinner.is_some();
+        let is_running = self.spinner.is_running();
         let prev_message = self.message.clone();
         self.stop(Some(message.to_string()))?;
         if is_running {
-            self.start(prev_message.as_deref())?
+            self.start(prev_message.as_deref())?;
         }
 
         Ok(())
+    }
+
+    // Writes the console without new line.
+    pub fn write(&mut self, message: impl ToString) -> Result<()> {
+        let is_running = self.spinner.is_running();
+        let prev_message = self.message.clone();
+        self.stop_internal(Some(message.to_string()), false)?;
+        if is_running {
+            self.message = prev_message;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pretty_assertions::assert_eq;
+    use std::io;
+
+    impl Default for SpinnerManager<WriterWrapper<TestWriter>, TestSpinner> {
+        fn default() -> Self {
+            let fixture_writer = WriterWrapper::new(TestWriter::default());
+            let fixture_spinner = TestSpinner::default();
+            SpinnerManager::new(fixture_writer, fixture_spinner)
+        }
+    }
+
+    // Test Writer implementation
+    #[derive(Default)]
+    struct TestWriter {
+        content: String,
+    }
+
+    impl Writer for TestWriter {
+        fn write(&mut self, s: &str) -> io::Result<()> {
+            self.content.push_str(s);
+            Ok(())
+        }
+
+        fn writeln(&mut self, s: &str) -> io::Result<()> {
+            self.content.push_str(&format!("{}\n", s));
+            Ok(())
+        }
+    }
+
+    // Test Spinner implementation
+    #[derive(Default)]
+    struct TestSpinner {
+        running: bool,
+        started_message: Option<String>,
+    }
+
+    impl Spinner for TestSpinner {
+        fn start(&mut self, message: Option<&str>) -> Result<()> {
+            self.running = true;
+            self.started_message = message.map(|m| m.to_string());
+            Ok(())
+        }
+
+        fn stop(&mut self) -> Result<()> {
+            self.running = false;
+            self.started_message = None;
+            Ok(())
+        }
+
+        fn is_running(&self) -> bool {
+            self.running
+        }
+    }
+
+    #[test]
+    fn test_start_activates_spinner_with_message() {
+        let mut fixture = SpinnerManager::default();
+        let actual = fixture.start(Some("test message"));
+
+        assert!(actual.is_ok());
+        // assert on spinner.
+        assert_eq!(fixture.spinner.is_running(), true);
+        assert_eq!(fixture.message, Some("test message".to_string()));
+        assert_eq!(
+            fixture.spinner.started_message,
+            Some("test message".to_string())
+        );
+        // writer shouldn't write anything.
+        assert!(fixture.writer.message().is_none())
+    }
+
+    #[test]
+    fn test_start_activates_spinner_without_message() {
+        let mut fixture = SpinnerManager::default();
+        let actual = fixture.start(None);
+
+        assert!(actual.is_ok());
+        // assert on spinner.
+        assert_eq!(fixture.spinner.is_running(), true);
+        assert_eq!(fixture.message, None);
+        assert_eq!(fixture.spinner.started_message, None);
+        // writer shouldn't write anything.
+        assert!(fixture.writer.message().is_none())
+    }
+
+    #[test]
+    fn test_stop_deactivates_spinner_with_message() {
+        let mut fixture = SpinnerManager::default();
+        fixture.start(Some("processing")).unwrap();
+
+        let actual = fixture.stop(Some("completed".to_string()));
+
+        // spinner shouldn't be running.
+        assert!(actual.is_ok());
+        assert_eq!(fixture.spinner.is_running(), false);
+        assert_eq!(fixture.message, None);
+
+        // writer should add new line.
+        assert_eq!(fixture.writer.message(),Some(&"completed\n".to_string()))
+    }
+
+    #[test]
+    fn test_stop_deactivates_spinner_without_message() {
+        let mut fixture = SpinnerManager::default();
+        fixture.start(Some("processing")).unwrap();
+
+        let actual = fixture.stop(None);
+
+        assert!(actual.is_ok());
+        assert_eq!(fixture.spinner.is_running(), false);
+        assert_eq!(fixture.message, None);
+
+        // writer should add new line.
+        assert_eq!(fixture.writer.message(), None);
+    }
+
+    #[test]
+    fn test_write_ln_stops_spinner_writes_message_and_restarts() {
+        let mut fixture = SpinnerManager::default();
+        fixture.start(Some("processing")).unwrap();
+
+        let actual = fixture.write_ln("output message");
+
+        assert!(actual.is_ok());
+        // when we write something, spinner should be stopped.
+        assert_eq!(fixture.spinner.is_running(), true);
+        assert_eq!(fixture.message, Some("processing".to_string()));
+        assert_eq!(fixture.writer.message(), Some(&"output message\n".to_string()));
+    }
+
+    #[test]
+    fn test_write_outputs_message_without_newline_and_stops_spinner() {
+        let mut fixture = SpinnerManager::default();
+        fixture.start(Some("processing")).unwrap();
+
+        let actual = fixture.write("output message");
+
+        assert!(actual.is_ok());
+        assert_eq!(fixture.spinner.is_running(), false);
+        assert_eq!(fixture.message, Some("processing".to_string()));
+        assert_eq!(fixture.writer.message(), Some(&"output message".to_string()));
     }
 }
