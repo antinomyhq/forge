@@ -51,7 +51,7 @@ impl<S: AgentService> Orchestrator<S> {
             models: Default::default(),
             files: Default::default(),
             custom_instructions: Default::default(),
-            tool_error_tracker: ToolErrorTracker::new(3), // Will be updated in run method
+            tool_error_tracker: Default::default(),
         }
     }
 
@@ -253,10 +253,6 @@ impl<S: AgentService> Orchestrator<S> {
             event_value = %format!("{:?}", event.value),
             "Dispatching event"
         );
-
-        // Initialize ToolErrorTracker with the agent's max_tool_failure_per_turn limit
-        let max_tool_failure_limit = self.agent.max_tool_failure_per_turn.unwrap_or(3) as u32;
-        self.tool_error_tracker = ToolErrorTracker::new(max_tool_failure_limit);
 
         debug!(
             conversation_id = %self.conversation.id,
@@ -482,24 +478,32 @@ impl<S: AgentService> Orchestrator<S> {
                     .await?;
             }
 
-            // Check if tool calls are within allowed limits if max_tool_failure_per_turn is
-            // configured
-            let mut allowed_limits_exceeded = self.check_tool_call_failures(&tool_calls);
-
             // Process tool calls and update context
             let mut tool_call_records = self.execute_tool_calls(&tool_calls, &tool_context).await?;
 
             // Update the tool call attempts using ToolErrorTracker
-            if let Some(allowed_max_attempts) = agent.max_tool_failure_per_turn.as_ref() {
-                let mut failed_tools = Vec::new();
-                let mut succeeded_tools = Vec::new();
+            let tool_call_records_iter = tool_call_records.iter();
+            let mut failed = tool_call_records_iter
+                .clone()
+                .filter(|record| record.1.is_error())
+                .map(|record| record.1.name)
+                .collect::<Vec<_>>();
 
-                tool_call_records.iter_mut().for_each(|(_, result)| {
+            let mut succeeded = tool_call_records_iter
+                .clone()
+                .filter(|record| !record.1.is_error())
+                .map(|record| record.1.name)
+                .collect::<Vec<_>>();
+
+            self.tool_error_tracker.adjust(&failed, &succeeded);
+
+            tool_call_records.iter_mut().for_each(|(_, result)| {
                     if result.is_error() {
-                        failed_tools.push(&result.name);
-
-                        // Get attempts remaining from ToolErrorTracker for message generation
-                        let attempts_left = self.tool_error_tracker.get_attempts_remaining(&result.name);
+                        let current_attempts = tool_failure_attempts
+                            .entry(result.name.clone())
+                            .and_modify(|count| *count += 1)
+                            .or_insert(1);
+                        let attempts_left = allowed_max_attempts.saturating_sub(*current_attempts);
 
                         // Add attempt information to the error message so the agent can reflect on it.
                         let message = Element::new("retry").text(format!(
@@ -508,14 +512,9 @@ impl<S: AgentService> Orchestrator<S> {
 
                         result.output.combine_mut(ToolOutput::text(message));
                     } else {
-                        succeeded_tools.push(&result.name);
+                        tool_failure_attempts.remove(&result.name);
                     }
                 });
-
-                // Update the ToolErrorTracker with failed and succeeded tools
-                self.tool_error_tracker
-                    .adjust(&failed_tools, &succeeded_tools);
-            }
 
             context = context.append_message(content.clone(), reasoning_details, tool_call_records);
 
@@ -635,20 +634,6 @@ impl<S: AgentService> Orchestrator<S> {
         }
 
         Ok(())
-    }
-
-    fn check_tool_call_failures(&self, tool_calls: &[ToolCallFull]) -> bool {
-        let agent = &self.agent;
-        if agent.max_tool_failure_per_turn.is_none() {
-            return false;
-        }
-
-        let maxed_out_tools = self.tool_error_tracker.maxed_out_tools();
-        tool_calls.iter().any(|call| {
-            maxed_out_tools
-                .iter()
-                .any(|tool_name| **tool_name == call.name)
-        })
     }
 
     async fn set_user_prompt(&self, mut context: Context) -> anyhow::Result<Context> {
