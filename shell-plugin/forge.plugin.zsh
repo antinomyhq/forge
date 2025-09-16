@@ -83,7 +83,7 @@ function forge-at-completion() {
     zle expand-or-complete
 }
 
-# ZLE widget for Enter key that transforms # commands to always resume conversations
+# ZLE widget for Enter key that transforms #? commands to always resume conversations
 function forge-accept-line() {
     # Attempt transformation using helper
     if _forge_transform_buffer; then
