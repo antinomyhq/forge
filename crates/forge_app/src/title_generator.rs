@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use forge_domain::{
-    ChatCompletionMessageFull, Context, ContextMessage, ConversationId, ModelId, ReasoningConfig,
+    ChatCompletionMessageFull, Context, ContextMessage, ConversationId, ModelId,
     ResultStreamExt, extract_tag_content,
 };
 use serde_json::Value;
@@ -36,7 +36,6 @@ impl<S: AS> TitleGenerator<S> {
         let ctx = Context::default()
             .temperature(1.0f32)
             .conversation_id(ConversationId::generate())
-            .reasoning(ReasoningConfig::default().enabled(false))
             .add_message(ContextMessage::system(template))
             .add_message(ContextMessage::user(
                 prompt.clone(),
