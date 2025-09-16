@@ -483,20 +483,23 @@ impl<S: AgentService> Orchestrator<S> {
 
             self.error_tracker.adjust_record(&tool_call_records);
             let allowed_max_attempts = self.error_tracker.limit();
-            tool_call_records.iter_mut().for_each(|(_, result)| {
-                    if result.is_error() {
-                        let attempts_left = self.error_tracker.remaining_attempts(&result.name);
-                        // Add attempt information to the error message so the agent can reflect on it.
-                        let text = [
-                            "This tool call failed.", 
-                            format!("You have {attempts_left} attempt(s) remaining out of a maximum of {allowed_max_attempts}.").as_str(), 
-                            "Please reflect on the error, adjust your approach if needed, and try again."
-                        ].join("");
-                        let message = Element::new("retry").text(text);
+            for (_, result) in tool_call_records.iter_mut() {
+                if result.is_error() {
+                    let attempts_left = self.error_tracker.remaining_attempts(&result.name);
+                    // Add attempt information to the error message so the agent can reflect on it.
+                    let context = serde_json::json!({
+                        "attempts_left": attempts_left,
+                        "allowed_max_attempts": allowed_max_attempts,
+                    });
+                    let text = self
+                        .services
+                        .render("{{> forge-tool-retry-message.md }}", &context)
+                        .await?;
+                    let message = Element::new("retry").text(text);
 
-                        result.output.combine_mut(ToolOutput::text(message));
-                    }
-                });
+                    result.output.combine_mut(ToolOutput::text(message));
+                }
+            }
 
             context = context.append_message(content.clone(), reasoning_details, tool_call_records);
 
