@@ -190,13 +190,13 @@ where
 
 #[derive(Default, Clone, Debug, Getters)]
 pub struct ToolErrorTracker {
-    error_counts: HashMap<ToolName, usize>,
-    max_limit: usize,
+    errors: HashMap<ToolName, usize>,
+    limit: usize,
 }
 
 impl ToolErrorTracker {
     pub fn new(limit: usize) -> Self {
-        Self { error_counts: Default::default(), max_limit: limit }
+        Self { errors: Default::default(), limit }
     }
 
     pub fn adjust_record(&mut self, records: &[(ToolCallFull, ToolResult)]) -> &mut Self {
@@ -220,38 +220,41 @@ impl ToolErrorTracker {
         // Handle failures first
         let uniq_failed = failed.iter().collect::<HashSet<&&ToolName>>();
         for tool in uniq_failed.iter() {
-            if let Some(count) = self.error_counts.get_mut(tool) {
+            if let Some(count) = self.errors.get_mut(tool) {
                 *count += 1;
             } else {
-                self.error_counts
-                    .insert(tool.to_owned().to_owned().to_owned(), 1);
+                self.errors.insert(tool.to_owned().to_owned().to_owned(), 1);
             }
         }
 
         // Reset counter for tools that have clear evidence of success
         for tool in succeeded.iter().filter(|tool| !uniq_failed.contains(tool)) {
-            self.error_counts.remove(tool);
+            self.errors.remove(tool);
         }
 
         self
     }
 
-    pub fn maxed_out_tools(&self) -> Vec<&ToolName> {
-        let limit = self.max_limit;
-        self.error_counts
+    fn maxed_out_tools(&self) -> Vec<&ToolName> {
+        let limit = self.limit;
+        self.errors
             .iter()
             .filter(|(_, count)| **count >= limit)
             .map(|data| data.0)
             .collect::<Vec<_>>()
     }
 
-    pub fn get_error_count(&self, tool_name: &ToolName) -> usize {
-        *self.error_counts.get(tool_name).unwrap_or(&0)
+    pub fn limit_reached(&self) -> bool {
+        !self.maxed_out_tools().is_empty()
     }
 
-    pub fn get_attempts_remaining(&self, tool_name: &ToolName) -> usize {
-        let current_attempts = self.get_error_count(tool_name);
-        self.max_limit.saturating_sub(current_attempts)
+    pub fn error_count(&self, tool_name: &ToolName) -> usize {
+        *self.errors.get(tool_name).unwrap_or(&0)
+    }
+
+    pub fn remaining_attempts(&self, tool_name: &ToolName) -> usize {
+        let current_attempts = self.error_count(tool_name);
+        self.limit.saturating_sub(current_attempts)
     }
 }
 

@@ -27,7 +27,7 @@ pub struct Orchestrator<S> {
     custom_instructions: Vec<String>,
     agent: Agent,
     event: Event,
-    tool_error_tracker: ToolErrorTracker,
+    error_tracker: ToolErrorTracker,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -51,7 +51,7 @@ impl<S: AgentService> Orchestrator<S> {
             models: Default::default(),
             files: Default::default(),
             custom_instructions: Default::default(),
-            tool_error_tracker: Default::default(),
+            error_tracker: Default::default(),
         }
     }
 
@@ -481,16 +481,18 @@ impl<S: AgentService> Orchestrator<S> {
             // Process tool calls and update context
             let mut tool_call_records = self.execute_tool_calls(&tool_calls, &tool_context).await?;
 
-            self.tool_error_tracker.adjust_record(&tool_call_records);
-            let mut allowed_limits_exceeded = !self.tool_error_tracker.maxed_out_tools().is_empty();
-            let allowed_max_attempts = self.tool_error_tracker.max_limit();
+            self.error_tracker.adjust_record(&tool_call_records);
+            let allowed_max_attempts = self.error_tracker.limit();
             tool_call_records.iter_mut().for_each(|(_, result)| {
                     if result.is_error() {
-                        let attempts_left = self.tool_error_tracker.get_attempts_remaining(&result.name);
+                        let attempts_left = self.error_tracker.remaining_attempts(&result.name);
                         // Add attempt information to the error message so the agent can reflect on it.
-                        let message = Element::new("retry").text(format!(
-                            "This tool call failed. You have {attempts_left} attempt(s) remaining out of a maximum of {allowed_max_attempts}. Please reflect on the error, adjust your approach if needed, and try again."
-                        ));
+                        let text = [
+                            "This tool call failed.", 
+                            format!("You have {attempts_left} attempt(s) remaining out of a maximum of {allowed_max_attempts}.").as_str(), 
+                            "Please reflect on the error, adjust your approach if needed, and try again."
+                        ].join("");
+                        let message = Element::new("retry").text(text);
 
                         result.output.combine_mut(ToolOutput::text(message));
                     }
@@ -535,37 +537,17 @@ impl<S: AgentService> Orchestrator<S> {
 
                 empty_tool_call_count += 1;
                 // TODO: Move the hard coded limit into env
-                if empty_tool_call_count >= 3 {
-                    warn!(
-                        agent_id = %agent.id,
-                        model_id = %model_id,
-                        empty_tool_call_count,
-                        "Forced completion due to repeated empty tool calls"
-                    );
-                    allowed_limits_exceeded = true;
-                }
             } else {
                 empty_tool_call_count = 0;
             }
 
-            if allowed_limits_exceeded {
-                // Tool call retry limit exceeded, force completion
-                warn!(
-                    agent_id = %agent.id,
-                    model_id = %model_id,
-                    tools = %self.tool_error_tracker.error_counts().iter().map(|(name, count)| format!("{name}: {count}")).collect::<Vec<_>>().join(", "),
-                    max_tool_failure_per_turn = ?self.tool_error_tracker.max_limit(),
-                    "Tool execution failure limit exceeded - terminating conversation to prevent infinite retry loops."
-                );
-
-                if let Some(limit) = agent.max_tool_failure_per_turn {
-                    self.send(ChatResponse::Interrupt {
-                        reason: InterruptionReason::MaxToolFailurePerTurnLimitReached {
-                            limit: limit as u64,
-                        },
-                    })
-                    .await?;
-                }
+            if self.error_tracker.limit_reached() {
+                self.send(ChatResponse::Interrupt {
+                    reason: InterruptionReason::MaxToolFailurePerTurnLimitReached {
+                        limit: *self.error_tracker.limit() as u64,
+                    },
+                })
+                .await?;
 
                 is_complete = true;
             }

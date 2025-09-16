@@ -122,7 +122,7 @@ impl<S: Services> ForgeApp<S> {
             agent,
             chat.event,
         )
-        .tool_error_tracker(ToolErrorTracker::new(max_tool_failure_per_turn))
+        .error_tracker(ToolErrorTracker::new(max_tool_failure_per_turn))
         .custom_instructions(custom_instructions)
         .tool_definitions(tool_definitions)
         .models(models)
