@@ -379,7 +379,8 @@ impl<S: AgentService> Orchestrator<S> {
                         self.services.clone(),
                         prompt.to_owned(),
                         model_id.clone(),
-                    );
+                    )
+                    .reasoning(agent.reasoning.clone());
                     Either::Left(async move { title_generator.generate().await })
                 } else {
                     Either::Right(ready(Ok::<Option<String>, anyhow::Error>(None)))
