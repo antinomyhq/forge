@@ -5,7 +5,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
 use crate::xml::extract_tag_content;
-use crate::{Error, Result, ToolCallArguments, ToolName};
+use crate::{Error, Result, ToolCallArguments, ToolName, ToolResult};
 
 /// Unique identifier for a using a tool
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -198,7 +198,22 @@ impl ToolErrorTracker {
         Self { counts: Default::default(), limit }
     }
 
-    // FIXME: add a new function that takes tool call records as input
+    pub fn adjust_record(&mut self, records: &[(ToolCallFull, ToolResult)]) -> &mut Self {
+        let records_iter = records.iter();
+        let failed = records_iter
+            .clone()
+            .filter(|record| record.1.is_error())
+            .map(|record| &record.1.name)
+            .collect::<Vec<_>>();
+
+        let succeeded = records_iter
+            .clone()
+            .filter(|record| !record.1.is_error())
+            .map(|record| &record.1.name)
+            .collect::<Vec<_>>();
+
+        self.adjust(&failed, &succeeded)
+    }
     pub fn adjust(&mut self, failed: &[&ToolName], succeeded: &[&ToolName]) -> &mut Self {
         // Handle failures first
         let uniq_failed = failed.iter().collect::<HashSet<&&ToolName>>();
@@ -229,6 +244,10 @@ impl ToolErrorTracker {
 
     pub fn get_counts(&self) -> &HashMap<ToolName, usize> {
         &self.counts
+    }
+
+    pub fn get_limit(&self) -> usize {
+        self.limit
     }
 
     pub fn get_attempt_count(&self, tool_name: &ToolName) -> usize {

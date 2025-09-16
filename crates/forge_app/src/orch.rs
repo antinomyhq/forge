@@ -481,38 +481,18 @@ impl<S: AgentService> Orchestrator<S> {
             // Process tool calls and update context
             let mut tool_call_records = self.execute_tool_calls(&tool_calls, &tool_context).await?;
 
-            // Update the tool call attempts using ToolErrorTracker
-            let tool_call_records_iter = tool_call_records.iter();
-            let mut failed = tool_call_records_iter
-                .clone()
-                .filter(|record| record.1.is_error())
-                .map(|record| record.1.name)
-                .collect::<Vec<_>>();
-
-            let mut succeeded = tool_call_records_iter
-                .clone()
-                .filter(|record| !record.1.is_error())
-                .map(|record| record.1.name)
-                .collect::<Vec<_>>();
-
-            self.tool_error_tracker.adjust(&failed, &succeeded);
-
+            self.tool_error_tracker.adjust_record(&tool_call_records);
+            let mut allowed_limits_exceeded = !self.tool_error_tracker.maxed_out_tools().is_empty();
+            let allowed_max_attempts = self.tool_error_tracker.get_limit();
             tool_call_records.iter_mut().for_each(|(_, result)| {
                     if result.is_error() {
-                        let current_attempts = tool_failure_attempts
-                            .entry(result.name.clone())
-                            .and_modify(|count| *count += 1)
-                            .or_insert(1);
-                        let attempts_left = allowed_max_attempts.saturating_sub(*current_attempts);
-
+                        let attempts_left = self.tool_error_tracker.get_attempts_remaining(&result.name);
                         // Add attempt information to the error message so the agent can reflect on it.
                         let message = Element::new("retry").text(format!(
                             "This tool call failed. You have {attempts_left} attempt(s) remaining out of a maximum of {allowed_max_attempts}. Please reflect on the error, adjust your approach if needed, and try again."
                         ));
 
                         result.output.combine_mut(ToolOutput::text(message));
-                    } else {
-                        tool_failure_attempts.remove(&result.name);
                     }
                 });
 
