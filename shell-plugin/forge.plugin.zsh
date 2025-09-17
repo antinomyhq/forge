@@ -143,4 +143,4 @@ bindkey '^J' forge-accept-line
 bindkey '^G' forge-insert-pattern
 
 # Bind Tab to our custom @ completion widget  
-bindkey '^[[Z' forge-at-completion  # Shift+Tab for @ completion
+bindkey '^I' forge-at-completion  # Tab for @ completion
