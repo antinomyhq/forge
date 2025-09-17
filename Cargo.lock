@@ -1210,6 +1210,7 @@ dependencies = [
  "lazy_static",
  "merge 0.2.0",
  "nom 8.0.0",
+ "pretty-num",
  "pretty_assertions",
  "regex",
  "schemars",
@@ -3211,6 +3212,12 @@ name = "precomputed-hash"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "925383efa346730478fb4838dbe9137d2a47675ad789c546d150a6e1dd4ab31c"
+
+[[package]]
+name = "pretty-num"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2bfff55c3353ff43605263111dcc4dee89b5e09fc8660f174c53e980d8db8cf"
 
 [[package]]
 name = "pretty_assertions"

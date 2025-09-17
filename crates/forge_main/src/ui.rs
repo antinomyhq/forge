@@ -33,9 +33,6 @@ use crate::title_display::TitleDisplayExt;
 use crate::update::on_update;
 use crate::{TRACKER, banner, tracker};
 
-// Configuration constants
-const MAX_CONVERSATIONS_TO_SHOW: usize = 20;
-
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, Default)]
 pub struct PartialEvent {
     pub name: String,
@@ -423,7 +420,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.spinner.start(Some("Loading Conversations"))?;
         let conversations = self
             .api
-            .list_conversations(Some(MAX_CONVERSATIONS_TO_SHOW))
+            .list_conversations(None)
             .await?;
         self.spinner.stop(None)?;
 
