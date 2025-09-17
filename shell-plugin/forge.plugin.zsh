@@ -84,6 +84,34 @@ function forge-at-completion() {
 }
 
 # ZLE widget for Enter key that transforms #? commands to always resume conversations
+# ZLE widget for inserting conversation pattern
+function forge-insert-pattern() {
+    # Toggle the conversation pattern at the beginning of the line
+    # while maintaining cursor position relative to the original text
+    local pattern="#? "
+    local original_cursor_pos=$CURSOR
+    
+    # Check if buffer already starts with the pattern
+    if [[ "$BUFFER" =~ "^${_FORGE_CONVERSATION_PATTERN} " ]]; then
+        # Remove pattern from the beginning
+        BUFFER="${BUFFER#${pattern}}"
+        
+        # Adjust cursor position, but don't go below 0
+        CURSOR=$((original_cursor_pos - ${#pattern}))
+        if [[ $CURSOR -lt 0 ]]; then
+            CURSOR=0
+        fi
+    else
+        # Insert pattern at the beginning of the buffer
+        BUFFER="${pattern}${BUFFER}"
+        
+        # Adjust cursor position to account for the inserted pattern length
+        CURSOR=$((original_cursor_pos + ${#pattern}))
+    fi
+    
+    zle redisplay
+}
+
 function forge-accept-line() {
     # Attempt transformation using helper
     if _forge_transform_buffer; then
@@ -103,6 +131,7 @@ function forge-accept-line() {
 }
 
 # Register ZLE widgets
+zle -N forge-insert-pattern
 zle -N forge-accept-line
 zle -N forge-at-completion
 
@@ -110,5 +139,8 @@ zle -N forge-at-completion
 bindkey '^M' forge-accept-line
 bindkey '^J' forge-accept-line
 
-# Bind Tab to our custom @ completion widget
-bindkey '^I' forge-at-completion
+# Bind CTRL+I to insert conversation pattern
+bindkey '^I' forge-insert-pattern
+
+# Bind Tab to our custom @ completion widget  
+bindkey '^[[Z' forge-at-completion  # Shift+Tab for @ completion
