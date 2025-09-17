@@ -103,7 +103,7 @@ mod tests {
     fn test_select_conversation_empty_list() {
         let conversations = vec![];
         let result = ConversationSelector::select_conversation(&conversations).unwrap();
-        assert_eq!(result, None);
+        assert!(result.is_none());
     }
 
     #[test]
