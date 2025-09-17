@@ -706,34 +706,37 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.update_model(workflow.model.clone());
 
                 // We need to try and get the conversation ID first before fetching the model
-                let id = if let Some(ref path) = self.cli.conversation {
+                let conversation = if let Some(ref path) = self.cli.conversation {
                     let conversation: Conversation =
                         serde_json::from_str(ForgeFS::read_utf8(path.as_os_str()).await?.as_str())
                             .context("Failed to parse Conversation")?;
-
-                    let conversation_id = conversation.id;
-
-                    self.api.upsert_conversation(conversation).await?;
-                    conversation_id
+                    self.api.upsert_conversation(conversation.clone()).await?;
+                    conversation
                 } else if let Some(conversation_id) = self.cli.resume {
                     // Use the explicitly provided conversation ID
                     // Check if conversation with this ID already exists
-                    if self.api.conversation(&conversation_id).await?.is_none() {
+                    if self.api.conversation(&conversation_id).await?.is_none() {}
+                    if let Some(conversation) = self.api.conversation(&conversation_id).await? {
+                        conversation
+                    } else {
                         // Conversation doesn't exist, create a new one with this ID
                         let conversation = Conversation::new(conversation_id);
-                        self.api.upsert_conversation(conversation).await?;
+                        self.api.upsert_conversation(conversation.clone()).await?;
+                        conversation
                     }
-                    conversation_id
                 } else {
                     let conversation = Conversation::generate();
                     self.api.upsert_conversation(conversation.clone()).await?;
-
-                    conversation.id
+                    conversation
                 };
 
-                self.state.conversation_id = Some(id);
+                self.state.conversation_id = Some(conversation.id);
+                self.state.usage = conversation
+                    .context
+                    .and_then(|ctx| ctx.usage)
+                    .unwrap_or_default();
 
-                Ok(id)
+                Ok(conversation.id)
             }
         }
     }
