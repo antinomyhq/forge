@@ -445,8 +445,8 @@ impl Display for TokenCount {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use pretty_num::PrettyNumber;
         match self {
-            TokenCount::Actual(count) => write!(f, "{}",(*count as i64).pretty_format()),
-            TokenCount::Approx(count) => write!(f, "~{}",(*count as i64).pretty_format()),
+            TokenCount::Actual(count) => write!(f, "{}", (*count as i64).pretty_format()),
+            TokenCount::Approx(count) => write!(f, "~{}", (*count as i64).pretty_format()),
         }
     }
 }
