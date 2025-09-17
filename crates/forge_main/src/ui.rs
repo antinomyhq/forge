@@ -715,12 +715,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         conversation
                     } else {
                         // Conversation doesn't exist, create a new one with this ID
-                        let conversation = Conversation::new(conversation_id);
-                        conversation
+                        
+                        Conversation::new(conversation_id)
                     }
                 } else {
-                    let conversation = Conversation::generate();
-                    conversation
+                    
+                    Conversation::generate()
                 };
 
                 self.api.upsert_conversation(conversation.clone()).await?;
