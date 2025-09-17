@@ -446,9 +446,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         if let Some(conversation) = ConversationSelector::select_conversation(&conversations)? {
             self.state.conversation_id = Some(conversation.id);
             self.state.usage = conversation
-                    .context
-                    .and_then(|ctx| ctx.usage)
-                    .unwrap_or(self.state.usage.clone());
+                .context
+                .and_then(|ctx| ctx.usage)
+                .unwrap_or(self.state.usage.clone());
         }
         Ok(())
     }
