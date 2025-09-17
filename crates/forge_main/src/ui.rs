@@ -99,7 +99,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_new(&mut self) -> Result<()> {
         self.api = Arc::new((self.new_api)());
         self.init_state(false).await?;
+
+        // Reset previously set CLI parameters by the user
         self.cli.conversation = None;
+        self.cli.resume = None;
+
         self.display_banner()?;
         self.trace_user();
         self.hydrate_caches();
