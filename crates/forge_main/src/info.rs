@@ -669,7 +669,7 @@ mod tests {
 
         // Verify it contains the conversation section with untitled
         assert!(expected_display.contains("CONVERSATION"));
-        assert!(expected_display.contains("(untitled)"));
+        assert!(!expected_display.contains("Title:"));
         assert!(expected_display.contains(&conversation_id.to_string()));
     }
 }
