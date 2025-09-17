@@ -2,6 +2,17 @@ use anyhow::Result;
 use inquire::ui::{RenderConfig, Styled};
 use inquire::{Confirm, InquireError, Select};
 
+/// Simple filter function type for SelectFilter.
+///
+/// The function receives:
+/// - Current user input (filter value)
+/// - Current option being evaluated (with type preserved)
+/// - Index of the current option in the original list
+///
+/// Returns true to include the item, false to filter it out.
+/// Items with lower index get higher scores automatically.
+pub type SelectFilter<T> = fn(&str, &T, usize) -> bool;
+
 /// Centralized inquire select functionality with consistent error handling
 pub struct ForgeSelect;
 
@@ -12,6 +23,7 @@ pub struct SelectBuilder<T> {
     starting_cursor: Option<usize>,
     default: Option<bool>,
     help_message: Option<&'static str>,
+    filter: Option<SelectFilter<T>>,
 }
 
 impl ForgeSelect {
@@ -41,6 +53,7 @@ impl ForgeSelect {
             starting_cursor: None,
             default: None,
             help_message: None,
+            filter: None,
         }
     }
 
@@ -52,6 +65,7 @@ impl ForgeSelect {
             starting_cursor: None,
             default: None,
             help_message: None,
+            filter: None,
         }
     }
 }
@@ -72,6 +86,12 @@ impl<T: 'static> SelectBuilder<T> {
     /// Set help message
     pub fn with_help_message(mut self, message: &'static str) -> Self {
         self.help_message = Some(message);
+        self
+    }
+
+    /// Set a custom filter function
+    pub fn with_filter(mut self, filter: SelectFilter<T>) -> Self {
+        self.filter = Some(filter);
         self
     }
 
@@ -99,9 +119,10 @@ impl<T: 'static> SelectBuilder<T> {
             return Ok(result.map(|b| unsafe { std::mem::transmute_copy(&b) }));
         }
 
-        // Regular select
-        let mut select = Select::new(&self.message, self.options);
+        let total_items = self.options.len() as i64;
 
+        // Regular select without custom filter
+        let mut select = Select::new(&self.message, self.options);
         select = select.with_render_config(ForgeSelect::default_render_config());
 
         let help_message = self
@@ -113,7 +134,24 @@ impl<T: 'static> SelectBuilder<T> {
             select = select.with_starting_cursor(cursor);
         }
 
-        ForgeSelect::handle_inquire_error(select.prompt())
+        // Apply custom filter if provided
+        let filter = self.filter.map(|filter| {
+            move |input: &str, option: &T, _: &str, idx: usize| {
+                if filter(input, option, idx) {
+                    Some(total_items - idx as i64) // Earlier items get higher scores
+                } else {
+                    None // Filter out
+                }
+            }
+        });
+
+        let result = if let Some(scorer) = filter {
+            select.with_scorer(&scorer).prompt()
+        } else {
+            select.prompt()
+        };
+
+        ForgeSelect::handle_inquire_error(result)
     }
 }
 
@@ -131,6 +169,7 @@ mod tests {
         assert_eq!(select.options, vec!["a", "b", "c"]);
         assert_eq!(select.starting_cursor, None);
         assert_eq!(select.help_message, None);
+        assert!(select.scorer.is_none());
     }
 
     #[test]
@@ -155,6 +194,7 @@ mod tests {
         assert_eq!(confirm.message, "Are you sure?");
         assert_eq!(confirm.options, vec![true, false]);
         assert_eq!(confirm.default, None);
+        assert!(confirm.scorer.is_none());
     }
 
     #[test]

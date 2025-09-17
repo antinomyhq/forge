@@ -117,6 +117,12 @@ impl ConversationSelector {
         if let Some(selected) =
             ForgeSelect::select("Select the conversation to resume:", conversations)
                 .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
+                .with_filter(|input, conversation_item, _idx| {
+                    let conversation = &conversation_item.0.1;
+                    conversation.title.as_ref()
+                        .map(|title| title.to_lowercase().contains(&input.to_lowercase()))
+                        .unwrap_or(false)
+                })
                 .prompt()?
         {
             Ok(Some(selected.0.1.id))
