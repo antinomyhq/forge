@@ -707,7 +707,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     let conversation: Conversation =
                         serde_json::from_str(ForgeFS::read_utf8(path.as_os_str()).await?.as_str())
                             .context("Failed to parse Conversation")?;
-                    self.api.upsert_conversation(conversation.clone()).await?;
                     conversation
                 } else if let Some(conversation_id) = self.cli.resume {
                     // Use the explicitly provided conversation ID
@@ -717,15 +716,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     } else {
                         // Conversation doesn't exist, create a new one with this ID
                         let conversation = Conversation::new(conversation_id);
-                        self.api.upsert_conversation(conversation.clone()).await?;
                         conversation
                     }
                 } else {
                     let conversation = Conversation::generate();
-                    self.api.upsert_conversation(conversation.clone()).await?;
                     conversation
                 };
 
+                self.api.upsert_conversation(conversation.clone()).await?;
                 self.state.conversation_id = Some(conversation.id);
                 self.state.usage = conversation
                     .context
