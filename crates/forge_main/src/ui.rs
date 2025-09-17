@@ -202,6 +202,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.init_state(true).await?;
         self.trace_user();
         self.hydrate_caches();
+        self.init_conversation().await?;
 
         // Check for dispatch flag first
         if let Some(dispatch_json) = self.cli.event.clone() {
@@ -695,13 +696,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Some(ref id) => Ok(*id),
             None => {
                 self.spinner.start(Some("Initializing"))?;
-
-                // Select a model if workflow doesn't have one
-                let workflow = self.init_state(false).await?;
-
-                // Update state
-                self.update_model(workflow.model.clone());
-
                 // We need to try and get the conversation ID first before fetching the model
                 let conversation = if let Some(ref path) = self.cli.conversation {
                     let conversation: Conversation =
@@ -715,7 +709,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         conversation
                     } else {
                         // Conversation doesn't exist, create a new one with this ID
-
                         Conversation::new(conversation_id)
                     }
                 } else {
@@ -728,6 +721,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .context
                     .and_then(|ctx| ctx.usage)
                     .unwrap_or(self.state.usage.clone());
+
+                // stop the spinner once all the work is complete.
+                self.spinner.stop(None)?;
 
                 Ok(conversation.id)
             }
@@ -781,6 +777,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let agent = self.api.get_operating_agent().await.unwrap_or_default();
         self.state = UIState::new(self.api.environment(), base_workflow, agent).provider(provider);
 
+        self.update_model(workflow.model.clone());
         Ok(workflow)
     }
     async fn init_provider(&mut self) -> Result<Provider> {
