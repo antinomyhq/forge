@@ -42,7 +42,7 @@ impl ConversationSelector {
                 .title
                 .as_ref()
                 .map(|title| {
-                    const MAX_TITLE: usize = 40;
+                    const MAX_TITLE: usize = 57;
                     if title.len() > MAX_TITLE {
                         format!("{}...", title.chars().take(MAX_TITLE).collect::<String>())
                     } else {
@@ -99,15 +99,15 @@ impl ConversationSelector {
             .zip(formatted_conversations)
             .map(|(date, (title, message_count, total_tokens))| {
                 format!(
-                    "{:<title_width$} {:<date_width$} {:>msg_width$} msgs {:>token_width$} tokens",
+                    "{:<title_width$} {:>msg_width$} msgs {:>token_width$} tokens {:>date_width$}",
                     title.bold(),
-                    date.dimmed(),
                     message_count.to_string().yellow(),
                     total_tokens.cyan(),
+                    date,
                     title_width = max_title_length,
-                    date_width = max_date_length,
                     msg_width = max_message_count_length,
-                    token_width = max_tokens_length
+                    token_width = max_tokens_length,
+                    date_width = max_date_length
                 )
             })
             .zip(conversation_iter.cloned())
