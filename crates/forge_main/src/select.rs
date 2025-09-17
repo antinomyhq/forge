@@ -169,7 +169,6 @@ mod tests {
         assert_eq!(select.options, vec!["a", "b", "c"]);
         assert_eq!(select.starting_cursor, None);
         assert_eq!(select.help_message, None);
-        assert!(select.scorer.is_none());
     }
 
     #[test]
@@ -194,7 +193,6 @@ mod tests {
         assert_eq!(confirm.message, "Are you sure?");
         assert_eq!(confirm.options, vec![true, false]);
         assert_eq!(confirm.default, None);
-        assert!(confirm.scorer.is_none());
     }
 
     #[test]
