@@ -531,7 +531,7 @@ impl<S: AgentService> Orchestrator<S> {
                 }
                 _ => {
                     self.error_tracker
-                        .failed(&ToolsDiscriminants::AttemptCompletion.name());
+                        .succeed(&ToolsDiscriminants::AttemptCompletion.name());
                 }
             }
 
@@ -539,6 +539,7 @@ impl<S: AgentService> Orchestrator<S> {
                 self.send(ChatResponse::Interrupt {
                     reason: InterruptionReason::MaxToolFailurePerTurnLimitReached {
                         limit: *self.error_tracker.limit() as u64,
+                        errors: self.error_tracker.errors().clone(),
                     },
                 })
                 .await?;
