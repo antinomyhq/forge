@@ -734,7 +734,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.state.usage = conversation
                     .context
                     .and_then(|ctx| ctx.usage)
-                    .unwrap_or_default();
+                    .unwrap_or(self.state.usage.clone());
 
                 Ok(conversation.id)
             }
