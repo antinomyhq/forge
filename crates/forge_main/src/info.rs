@@ -164,11 +164,7 @@ impl From<&Metrics> for Info {
 pub fn get_usage(state: &UIState) -> Info {
     let cache_percentage = calculate_cache_percentage(&state.usage);
     let cached_display = if cache_percentage > 0 {
-        format!(
-            "{} [{}%]",
-            state.usage.cached_tokens,
-            cache_percentage
-        )
+        format!("{} [{}%]", state.usage.cached_tokens, cache_percentage)
     } else {
         state.usage.cached_tokens.to_string()
     };
