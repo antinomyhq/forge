@@ -715,11 +715,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         conversation
                     } else {
                         // Conversation doesn't exist, create a new one with this ID
-                        
+
                         Conversation::new(conversation_id)
                     }
                 } else {
-                    
                     Conversation::generate()
                 };
 
