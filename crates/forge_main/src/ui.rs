@@ -949,7 +949,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     InterruptionReason::MaxRequestPerTurnLimitReached { limit } => {
                         format!("Maximum request ({limit}) per turn achieved")
                     }
-                    InterruptionReason::MaxToolFailurePerTurnLimitReached { limit } => {
+                    InterruptionReason::MaxToolFailurePerTurnLimitReached { limit, .. } => {
                         format!("Maximum tool failure limit ({limit}) reached for this turn")
                     }
                 };

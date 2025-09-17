@@ -247,7 +247,7 @@ impl ToolErrorTracker {
         let limit = self.limit;
         self.errors
             .iter()
-            .filter(|(_, count)| **count > limit)
+            .filter(|(_, count)| **count >= limit)
             .map(|data| data.0)
             .collect::<Vec<_>>()
     }
