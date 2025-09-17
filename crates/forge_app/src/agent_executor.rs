@@ -53,7 +53,10 @@ impl<S: Services> AgentExecutor<S> {
 
         // Create a new conversation for agent execution
         let conversation = Conversation::generate().title(task.clone());
-        self.services.conversation_service().upsert_conversation(conversation.clone()).await?;
+        self.services
+            .conversation_service()
+            .upsert_conversation(conversation.clone())
+            .await?;
         // Execute the request through the ForgeApp
         let app = crate::ForgeApp::new(self.services.clone());
         let mut response_stream = app
