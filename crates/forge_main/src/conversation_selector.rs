@@ -3,7 +3,7 @@ use std::fmt::Display;
 use anyhow::Result;
 use chrono::Utc;
 use colored::Colorize;
-use forge_api::{Conversation, ConversationId};
+use forge_api::Conversation;
 
 use crate::select::ForgeSelect;
 
@@ -14,7 +14,7 @@ impl ConversationSelector {
     /// Select a conversation from the provided list
     ///
     /// Returns the selected conversation ID, or None if no selection was made
-    pub fn select_conversation(conversations: &[Conversation]) -> Result<Option<ConversationId>> {
+    pub fn select_conversation(conversations: &[Conversation]) -> Result<Option<Conversation>> {
         if conversations.is_empty() {
             return Ok(None);
         }
@@ -72,7 +72,7 @@ impl ConversationSelector {
                 .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
                 .prompt()?
         {
-            Ok(Some(selected.0.1.id))
+            Ok(Some(selected.0.1))
         } else {
             Ok(None)
         }

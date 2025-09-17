@@ -443,8 +443,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
-        if let Some(id) = ConversationSelector::select_conversation(&conversations)? {
-            self.state.conversation_id = Some(id);
+        if let Some(conversation) = ConversationSelector::select_conversation(&conversations)? {
+            self.state.conversation_id = Some(conversation.id);
+            if let Some(usage) = conversation
+                .context
+                .as_ref()
+                .and_then(|ctx| ctx.usage.as_ref())
+            {
+                self.state.usage = usage.clone()
+            }
         }
         Ok(())
     }
