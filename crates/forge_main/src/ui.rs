@@ -715,7 +715,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 } else if let Some(conversation_id) = self.cli.resume {
                     // Use the explicitly provided conversation ID
                     // Check if conversation with this ID already exists
-                    if self.api.conversation(&conversation_id).await?.is_none() {}
+                    self.api.conversation(&conversation_id).await?.is_none();
                     if let Some(conversation) = self.api.conversation(&conversation_id).await? {
                         conversation
                     } else {
