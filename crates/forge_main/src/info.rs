@@ -167,27 +167,18 @@ pub fn get_usage(state: &UIState) -> Info {
     let cached_display = if cache_percentage > 0 {
         format!(
             "{} [{}%]",
-            state.usage.cached_tokens.to_formatted_string(&Locale::en),
+            state.usage.cached_tokens,
             cache_percentage
         )
     } else {
-        state.usage.cached_tokens.to_formatted_string(&Locale::en)
+        state.usage.cached_tokens.to_string()
     };
 
     let mut usage = Info::new()
         .add_title("TOKEN USAGE")
-        .add_key_value(
-            "Input Tokens",
-            state.usage.prompt_tokens.to_formatted_string(&Locale::en),
-        )
-        .add_key_value("Cached Tokens", cached_display)
-        .add_key_value(
-            "Output Tokens",
-            state
-                .usage
-                .completion_tokens
-                .to_formatted_string(&Locale::en),
-        );
+        .add_key_value("Input Tokens", &state.usage.prompt_tokens)
+        .add_key_value("Cached Tokens", &cached_display)
+        .add_key_value("Output Tokens", &state.usage.completion_tokens);
 
     let is_forge_provider = state.provider.as_ref().is_some_and(|p| p.is_forge());
     if let Some(cost) = state.usage.cost.as_ref()
