@@ -65,11 +65,11 @@ impl ForgeInfra {
         let workspace_id = env.workspace_id();
         let conversation_repository = Arc::new(ConversationRepositoryImpl::new(
             db_pool.clone(),
-            workspace_id.clone(),
+            workspace_id,
         ));
         let workspace_config_repository = Arc::new(WorkspaceConfigRepositoryImpl::new(
             db_pool,
-            workspace_id.clone(),
+            workspace_id,
         ));
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),

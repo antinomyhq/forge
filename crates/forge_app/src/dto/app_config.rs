@@ -31,7 +31,7 @@ pub struct LoginInfo {
     pub auth_provider_id: Option<String>,
 }
 
-#[derive(Default, Clone, Serialize, Deserialize, Setters)]
+#[derive(Debug, PartialEq, Default, Clone, Serialize, Deserialize, Setters)]
 #[serde(rename_all = "camelCase")]
 #[setters(strip_option)]
 pub struct WorkspaceConfig {
