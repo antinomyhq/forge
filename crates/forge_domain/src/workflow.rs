@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::temperature::Temperature;
 use crate::update::Update;
-use crate::{Compact, MaxTokens, ModelId, TopK, TopP};
+use crate::{Compact, MaxTokens, TopK, TopP};
 
 /// Configuration for a workflow that contains all settings
 /// required to initialize a workflow.
@@ -28,11 +28,6 @@ pub struct Workflow {
     #[merge(strategy = crate::merge::vec::append)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub commands: Vec<Command>,
-
-    /// Default model ID to use for agents in this workflow
-    #[merge(strategy = crate::merge::option)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub model: Option<ModelId>,
 
     /// Maximum depth to which the file walker should traverse for all agents
     /// If not provided, each agent's individual setting will be used
