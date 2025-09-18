@@ -742,26 +742,26 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     /// Initialize the state of the UI
     async fn init_state(&mut self, first: bool) -> Result<Workflow> {
-        let provider = self.init_provider().await?;
-        let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
-        if workflow.model.is_none() {
-            workflow.model = Some(
+        let mut workspace_config = self.api.get_workspace_config().await.unwrap_or_default();
+        if workspace_config.active_model.is_none() {
+            workspace_config.active_model = Some(
                 self.select_model()
                     .await?
                     .ok_or(anyhow::anyhow!("Model selection is required to continue"))?,
             );
         }
-        let mut base_workflow = Workflow::default();
-        base_workflow.merge(workflow.clone());
+
+        // Fetch independent operations parallely.
+        let provider_fut = self.init_provider();
+        let workflow_fut = self.api.read_merged(self.cli.workflow.as_deref());
+        let (provider, workflow) = tokio::try_join!(provider_fut, workflow_fut)?;
+
         if first {
             // only call on_update if this is the first initialization
-            on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
+            on_update(self.api.clone(), workflow.updates.as_ref()).await;
         }
-        self.api
-            .write_workflow(self.cli.workflow.as_deref(), &workflow)
-            .await?;
 
-        self.command.register_all(&base_workflow);
+        self.command.register_all(&workflow);
 
         // Register agent commands
         match self.api.get_agents().await {
@@ -784,14 +784,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         }
 
-        let workflow_config = self.api.get_workspace_config().await.unwrap_or_default();
-        let agent = workflow_config.operating_agent.unwrap_or_default();
-        let model = workflow_config.active_model;
+        let model = workspace_config.active_model;
+        let agent = workspace_config.operating_agent.unwrap_or_default();
         self.state = UIState::new(self.api.environment(), model, agent).provider(provider);
 
         Ok(workflow)
     }
-    async fn init_provider(&mut self) -> Result<Provider> {
+    
+    async fn init_provider(&self) -> Result<Provider> {
         self.api.provider().await
         // match self.api.provider().await {
         //     // Use the forge key if available in the config.
