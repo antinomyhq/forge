@@ -74,8 +74,6 @@ impl ConversationSelector {
             .max()
             .unwrap_or(0);
 
-        let max_date_length: usize = dates.clone().map(|s| s.len()).max().unwrap_or(0);
-
         let max_message_count_length: usize = formatted_conversations
             .clone()
             .map(|(_, count, _)| count.to_string().len())
@@ -107,7 +105,7 @@ impl ConversationSelector {
                     title_width = max_title_length,
                     msg_width = max_message_count_length,
                     token_width = max_tokens_length,
-                    date_width = max_date_length
+                    date_width = 10
                 )
             })
             .zip(conversation_iter.cloned())
