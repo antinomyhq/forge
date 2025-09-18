@@ -785,7 +785,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         let workflow_config = self.api.get_workspace_config().await.unwrap_or_default();
-        self.state = UIState::new(self.api.environment(), base_workflow, workflow_config.operating_agent.unwrap_or_default()).provider(provider);
+        let agent = workflow_config.operating_agent.unwrap_or_default();
+        let model = workflow_config.active_model;
+        self.state = UIState::new(self.api.environment(), model, agent).provider(provider);
 
         Ok(workflow)
     }
