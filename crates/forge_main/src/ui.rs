@@ -103,7 +103,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.display_banner()?;
         self.trace_user();
         self.hydrate_caches();
-        self.init_conversation(true).await?;
+        self.init_conversation().await?;
         Ok(())
     }
 
@@ -119,7 +119,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .cloned()
             .ok_or(anyhow::anyhow!("Undefined agent: {agent_id}"))?;
 
-        let conversation_id = self.init_conversation(false).await?;
+        let conversation_id = self.init_conversation().await?;
         if let Some(conversation) = self.api.conversation(&conversation_id).await? {
             self.api.set_operating_agent(agent_id).await?;
             self.api.upsert_conversation(conversation).await?;
@@ -203,7 +203,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.init_state(true).await?;
         self.trace_user();
         self.hydrate_caches();
-        self.init_conversation(false).await?;
+        self.init_conversation().await?;
 
         // Check for dispatch flag first
         if let Some(dispatch_json) = self.cli.event.clone() {
@@ -608,7 +608,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(false)
     }
     async fn on_compaction(&mut self) -> Result<(), anyhow::Error> {
-        let conversation_id = self.init_conversation(false).await?;
+        let conversation_id = self.init_conversation().await?;
         let compaction_result = self.api.compact_conversation(&conversation_id).await?;
         let token_reduction = compaction_result.token_reduction_percentage();
         let message_reduction = compaction_result.message_reduction_percentage();
@@ -681,7 +681,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     // Handle dispatching events from the CLI
     async fn handle_dispatch(&mut self, json: String) -> Result<()> {
         // Initialize the conversation
-        let conversation_id = self.init_conversation(false).await?;
+        let conversation_id = self.init_conversation().await?;
 
         // Parse the JSON to determine the event name and value
         let event: PartialEvent = serde_json::from_str(&json)?;
@@ -692,35 +692,29 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.on_chat(chat).await
     }
 
-    async fn init_conversation(&mut self, force_new: bool) -> Result<ConversationId> {
+    async fn init_conversation(&mut self) -> Result<ConversationId> {
         match self.state.conversation_id {
             Some(ref id) => Ok(*id),
             None => {
                 self.spinner.start(Some("Initializing"))?;
 
-                let conversation = if force_new {
-                    Conversation::generate()
-                } else {
-                    // We need to try and get the conversation ID first before fetching the model
-                    let conversation = if let Some(ref path) = self.cli.conversation {
-                        let conversation: Conversation = serde_json::from_str(
-                            ForgeFS::read_utf8(path.as_os_str()).await?.as_str(),
-                        )
-                        .context("Failed to parse Conversation")?;
-                        conversation
-                    } else if let Some(conversation_id) = self.cli.resume {
-                        // Use the explicitly provided conversation ID
-                        // Check if conversation with this ID already exists
-                        if let Some(conversation) = self.api.conversation(&conversation_id).await? {
-                            conversation
-                        } else {
-                            // Conversation doesn't exist, create a new one with this ID
-                            Conversation::new(conversation_id)
-                        }
-                    } else {
-                        Conversation::generate()
-                    };
+                // We need to try and get the conversation ID first before fetching the model
+                let conversation = if let Some(ref path) = self.cli.conversation {
+                    let conversation: Conversation =
+                        serde_json::from_str(ForgeFS::read_utf8(path.as_os_str()).await?.as_str())
+                            .context("Failed to parse Conversation")?;
                     conversation
+                } else if let Some(conversation_id) = self.cli.resume {
+                    // Use the explicitly provided conversation ID
+                    // Check if conversation with this ID already exists
+                    if let Some(conversation) = self.api.conversation(&conversation_id).await? {
+                        conversation
+                    } else {
+                        // Conversation doesn't exist, create a new one with this ID
+                        Conversation::new(conversation_id)
+                    }
+                } else {
+                    Conversation::generate()
                 };
 
                 self.api.upsert_conversation(conversation.clone()).await?;
@@ -842,7 +836,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn on_message(&mut self, content: Option<String>) -> Result<()> {
-        let conversation_id = self.init_conversation(false).await?;
+        let conversation_id = self.init_conversation().await?;
 
         // Create a ChatRequest with the appropriate event type
         let event = if self.state.is_first {
@@ -1055,7 +1049,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn on_custom_event(&mut self, event: Event) -> Result<()> {
-        let conversation_id = self.init_conversation(false).await?;
+        let conversation_id = self.init_conversation().await?;
         let chat = ChatRequest::new(event, conversation_id);
         self.on_chat(chat).await
     }
