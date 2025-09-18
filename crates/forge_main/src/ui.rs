@@ -8,7 +8,7 @@ use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId,
     EVENT_USER_TASK_INIT, EVENT_USER_TASK_UPDATE, Event, InterruptionReason, Model, ModelId,
-    ToolName, Workflow,
+    ToolName, Workflow, WorkspaceConfig,
 };
 use forge_display::MarkdownFormat;
 use forge_domain::{
@@ -122,9 +122,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .cloned()
             .ok_or(anyhow::anyhow!("Undefined agent: {agent_id}"))?;
 
+        // TODO: improve following 3 async calls.
         let conversation_id = self.init_conversation().await?;
         if let Some(conversation) = self.api.conversation(&conversation_id).await? {
-            self.api.set_operating_agent(agent_id).await?;
             self.api.upsert_conversation(conversation).await?;
         }
 
@@ -132,10 +132,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.state.is_first = true;
         self.state.operating_agent = agent.id.clone();
 
-        // Update the app config with the new operating agent.
-        self.api.set_operating_agent(agent.id.clone()).await?;
-        let name = agent.id.as_str().to_case(Case::UpperSnake).bold();
+        // Update the workspace config with the new operating agent.
+        self.api
+            .set_workspace_config(WorkspaceConfig::default().operating_agent(agent_id))
+            .await?;
 
+        let name = agent.id.as_str().to_case(Case::UpperSnake).bold();
         let title = format!(
             "∙ {}",
             agent.title.as_deref().unwrap_or("<Missing agent.title>")
@@ -666,11 +668,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             None => return Ok(()),
         };
 
-        self.api
-            .update_workflow(self.cli.workflow.as_deref(), |workflow| {
-                workflow.model = Some(model.clone());
-            })
-            .await?;
+        // update the workspace config with selected model and operating agent.
+        let workspace_config = WorkspaceConfig::default()
+            .active_model(model.clone())
+            .operating_agent(self.state.operating_agent.clone());
+        self.api.set_workspace_config(workspace_config).await?;
 
         // Update the UI state with the new model
         self.update_model(Some(model.clone()));
@@ -782,8 +784,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         }
 
-        let agent = self.api.get_operating_agent().await.unwrap_or_default();
-        self.state = UIState::new(self.api.environment(), base_workflow, agent).provider(provider);
+        let workflow_config = self.api.get_workspace_config().await.unwrap_or_default();
+        self.state = UIState::new(self.api.environment(), base_workflow, workflow_config.operating_agent.unwrap_or_default()).provider(provider);
 
         Ok(workflow)
     }

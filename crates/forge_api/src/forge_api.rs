@@ -2,11 +2,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::dto::{AppConfig, InitAuth, ToolsOverview};
+use forge_app::dto::{AppConfig, InitAuth, ToolsOverview, WorkspaceConfig};
 use forge_app::{
     AgentLoaderService, AppConfigService, AuthService, ConversationService, EnvironmentService,
     FileDiscoveryService, ForgeApp, McpConfigManager, ProviderRegistry, ProviderService, Services,
-    User, UserUsage, Walker, WorkflowService,
+    User, UserUsage, Walker, WorkflowService, WorkspaceConfigService,
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
@@ -196,16 +196,18 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         Ok(None)
     }
 
-    async fn get_operating_agent(&self) -> Option<AgentId> {
+    async fn get_workspace_config(&self) -> Option<WorkspaceConfig> {
         self.services
-            .get_app_config()
+            .workspace_config_service()
+            .get_workspace_config()
             .await
-            .and_then(|config| config.operating_agent)
+            .unwrap_or_default()
     }
 
-    async fn set_operating_agent(&self, agent_id: AgentId) -> anyhow::Result<()> {
-        let mut config = self.services.get_app_config().await.unwrap_or_default();
-        config.operating_agent = Some(agent_id);
-        self.services.set_app_config(&config).await
+    async fn set_workspace_config(&self, workspace_config: WorkspaceConfig) -> anyhow::Result<()> {
+        self.services
+            .workspace_config_service()
+            .upsert_workspace_config(workspace_config)
+            .await
     }
 }

@@ -25,7 +25,7 @@ pub struct PoolConfig {
 impl PoolConfig {
     pub fn new(database_path: PathBuf) -> Self {
         Self {
-            max_size: 5,
+            max_size: 1,
             min_idle: Some(1),
             connection_timeout: Duration::from_secs(30),
             idle_timeout: Some(Duration::from_secs(600)), // 10 minutes

@@ -1,5 +1,6 @@
 use derive_more::From;
-use forge_domain::AgentId;
+use derive_setters::Setters;
+use forge_domain::{AgentId, ModelId};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
@@ -14,8 +15,6 @@ pub struct InitAuth {
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
     pub key_info: Option<LoginInfo>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub operating_agent: Option<AgentId>,
 }
 
 #[derive(Clone, Serialize, Deserialize, From)]
@@ -30,4 +29,14 @@ pub struct LoginInfo {
     pub name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auth_provider_id: Option<String>,
+}
+
+#[derive(Default, Clone, Serialize, Deserialize, Setters)]
+#[serde(rename_all = "camelCase")]
+#[setters(strip_option)]
+pub struct WorkspaceConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operating_agent: Option<AgentId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_model: Option<ModelId>,
 }

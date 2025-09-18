@@ -1337,6 +1337,7 @@ dependencies = [
  "chrono",
  "derive_setters",
  "forge_app",
+ "forge_domain",
  "forge_fs",
  "forge_snaps",
  "futures",

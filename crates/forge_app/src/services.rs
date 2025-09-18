@@ -14,7 +14,7 @@ use reqwest_eventsource::EventSource;
 use url::Url;
 
 use crate::Walker;
-use crate::dto::{AppConfig, InitAuth, LoginInfo};
+use crate::dto::{AppConfig, InitAuth, LoginInfo, WorkspaceConfig};
 use crate::user::{User, UserUsage};
 
 #[derive(Debug)]
@@ -343,6 +343,12 @@ pub trait AppConfigService: Send + Sync {
 }
 
 #[async_trait::async_trait]
+pub trait WorkspaceConfigService: Send + Sync {
+    async fn get_workspace_config(&self) -> anyhow::Result<Option<WorkspaceConfig>>;
+    async fn upsert_workspace_config(&self, config: WorkspaceConfig) -> anyhow::Result<()>;
+}
+
+#[async_trait::async_trait]
 pub trait AuthService: Send + Sync {
     async fn init_auth(&self) -> anyhow::Result<InitAuth>;
     async fn login(&self, auth: &InitAuth) -> anyhow::Result<LoginInfo>;
@@ -397,6 +403,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type McpService: McpService;
     type AuthService: AuthService;
     type AppConfigService: AppConfigService;
+    type WorkspaceConfigService: WorkspaceConfigService;
     type ProviderRegistry: ProviderRegistry;
     type AgentLoaderService: AgentLoaderService;
     type PolicyService: PolicyService;
@@ -423,6 +430,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn custom_instructions_service(&self) -> &Self::CustomInstructionsService;
     fn auth_service(&self) -> &Self::AuthService;
     fn app_config_service(&self) -> &Self::AppConfigService;
+    fn workspace_config_service(&self) -> &Self::WorkspaceConfigService;
     fn provider_registry(&self) -> &Self::ProviderRegistry;
     fn agent_loader_service(&self) -> &Self::AgentLoaderService;
     fn policy_service(&self) -> &Self::PolicyService;

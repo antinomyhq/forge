@@ -3,18 +3,20 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
+use forge_app::dto::WorkspaceConfig;
 use forge_domain::{CommandOutput, Conversation, ConversationId, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
     CommandInfra, ConversationRepository, DirectoryReaderInfra, EnvironmentInfra,
     FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
-    HttpInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
+    HttpInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra, WorkspaceConfigRepository,
 };
 use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
 use reqwest_eventsource::EventSource;
 
 use crate::database::repository::conversation::ConversationRepositoryImpl;
+use crate::database::repository::workspace_config::WorkspaceConfigRepositoryImpl;
 use crate::database::{DatabasePool, PoolConfig};
 use crate::env::ForgeEnvironmentInfra;
 use crate::executor::ForgeCommandExecutorService;
@@ -49,6 +51,7 @@ pub struct ForgeInfra {
     walker_service: Arc<ForgeWalkerService>,
     http_service: Arc<ForgeHttpInfra>,
     conversation_repository: Arc<ConversationRepositoryImpl>,
+    workspace_config_repository: Arc<WorkspaceConfigRepositoryImpl>,
 }
 
 impl ForgeInfra {
@@ -59,8 +62,15 @@ impl ForgeInfra {
         let http_service = Arc::new(ForgeHttpInfra::new(env.http.clone()));
         let db_pool =
             Arc::new(DatabasePool::try_from(PoolConfig::new(env.database_path())).unwrap());
-        let conversation_repository =
-            Arc::new(ConversationRepositoryImpl::new(db_pool, env.workspace_id()));
+        let workspace_id = env.workspace_id();
+        let conversation_repository = Arc::new(ConversationRepositoryImpl::new(
+            db_pool.clone(),
+            workspace_id.clone(),
+        ));
+        let workspace_config_repository = Arc::new(WorkspaceConfigRepositoryImpl::new(
+            db_pool,
+            workspace_id.clone(),
+        ));
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
             file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),
@@ -81,6 +91,7 @@ impl ForgeInfra {
             walker_service: Arc::new(ForgeWalkerService::new()),
             http_service,
             conversation_repository,
+            workspace_config_repository,
         }
     }
 }
@@ -309,5 +320,20 @@ impl ConversationRepository for ForgeInfra {
 
     async fn get_last_conversation(&self) -> anyhow::Result<Option<Conversation>> {
         self.conversation_repository.get_last_conversation().await
+    }
+}
+
+#[async_trait::async_trait]
+impl WorkspaceConfigRepository for ForgeInfra {
+    async fn upsert_workspace_config(&self, config: WorkspaceConfig) -> anyhow::Result<()> {
+        self.workspace_config_repository
+            .upsert_workspace_config(config)
+            .await
+    }
+
+    async fn get_workspace_config(&self) -> anyhow::Result<Option<WorkspaceConfig>> {
+        self.workspace_config_repository
+            .get_workspace_config()
+            .await
     }
 }

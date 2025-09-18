@@ -19,6 +19,7 @@ mod template;
 mod tool_services;
 mod utils;
 mod workflow;
+mod workspace_config;
 
 pub use agent_loader::*;
 pub use clipper::*;
@@ -27,3 +28,4 @@ pub use discovery::*;
 pub use forge_services::*;
 pub use infra::*;
 pub use policy::*;
+pub use workspace_config::*;
