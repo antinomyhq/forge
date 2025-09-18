@@ -67,10 +67,8 @@ impl ForgeInfra {
             db_pool.clone(),
             workspace_id,
         ));
-        let workspace_config_repository = Arc::new(WorkspaceConfigRepositoryImpl::new(
-            db_pool,
-            workspace_id,
-        ));
+        let workspace_config_repository =
+            Arc::new(WorkspaceConfigRepositoryImpl::new(db_pool, workspace_id));
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
             file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),

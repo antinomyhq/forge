@@ -749,7 +749,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .ok_or(anyhow::anyhow!("Model selection is required to continue"))?,
             );
             // Update the database with correct model.
-            self.api.set_workspace_config(workspace_config.clone()).await?;
+            self.api
+                .set_workspace_config(workspace_config.clone())
+                .await?;
         }
 
         // Fetch independent operations parallely.

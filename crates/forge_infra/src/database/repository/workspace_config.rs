@@ -39,7 +39,7 @@ impl TryFrom<WorkspaceConfigRecord> for WorkspaceConfig {
     fn try_from(record: WorkspaceConfigRecord) -> Result<Self, Self::Error> {
         Ok(WorkspaceConfig {
             operating_agent: record.operating_agent.map(AgentId::new),
-            active_model: record.active_model.map(|model| ModelId::new(model)),
+            active_model: record.active_model.map(ModelId::new),
         })
     }
 }
