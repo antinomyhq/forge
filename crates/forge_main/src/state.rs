@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use derive_setters::Setters;
-use forge_api::{AgentId, ConversationId, Environment, ModelId, Provider, Usage, Workflow};
+use forge_api::{AgentId, ConversationId, Environment, ModelId, Provider, Usage};
 
 use crate::prompt::ForgePrompt;
 

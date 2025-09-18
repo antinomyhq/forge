@@ -17,7 +17,6 @@ use forge_domain::{
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
-use merge::Merge;
 use serde::Deserialize;
 use serde_json::Value;
 use tokio_stream::StreamExt;
@@ -790,7 +789,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         Ok(workflow)
     }
-    
+
     async fn init_provider(&self) -> Result<Provider> {
         self.api.provider().await
         // match self.api.provider().await {
