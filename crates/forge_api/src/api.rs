@@ -103,6 +103,6 @@ pub trait API: Sync + Send {
     async fn user_info(&self) -> anyhow::Result<Option<User>>;
     async fn user_usage(&self) -> anyhow::Result<Option<UserUsage>>;
 
-    async fn get_workspace_config(&self) -> Option<WorkspaceConfig>;
+    async fn get_workspace_config(&self) -> anyhow::Result<Option<WorkspaceConfig>>;
     async fn set_workspace_config(&self, config: WorkspaceConfig) -> anyhow::Result<()>;
 }

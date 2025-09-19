@@ -196,12 +196,11 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         Ok(None)
     }
 
-    async fn get_workspace_config(&self) -> Option<WorkspaceConfig> {
+    async fn get_workspace_config(&self) -> anyhow::Result<Option<WorkspaceConfig>> {
         self.services
             .workspace_config_service()
             .get_workspace_config()
             .await
-            .unwrap_or_default()
     }
 
     async fn set_workspace_config(&self, workspace_config: WorkspaceConfig) -> anyhow::Result<()> {
