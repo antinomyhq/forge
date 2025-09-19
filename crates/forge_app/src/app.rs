@@ -12,9 +12,9 @@ use crate::orch::Orchestrator;
 use crate::services::{CustomInstructionsService, TemplateService};
 use crate::tool_registry::ToolRegistry;
 use crate::{
-    AgentLoaderService, AppConfigService, AttachmentService, ConversationService,
+    AgentLoaderService, AttachmentService, AuthConfigService, ConversationService,
     EnvironmentService, FileDiscoveryService, McpService, ProviderRegistry, ProviderService,
-    Services, Walker, WorkflowService,
+    Services, Walker, WorkflowService, WorkspaceConfigService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -51,7 +51,7 @@ impl<S: Services> ForgeApp<S> {
             .unwrap_or_default()
             .expect("conversation for the request should've been created at this point.");
 
-        let config = services.get_app_config().await.unwrap_or_default();
+        let config = services.get_auth_config().await.unwrap_or_default();
         let provider = services
             .get_provider(config)
             .await
@@ -93,14 +93,22 @@ impl<S: Services> ForgeApp<S> {
         }
 
         let custom_instructions = services.get_custom_instructions().await;
+        let workspace_config = services
+            .workspace_config_service()
+            .get_workspace_config()
+            .await?
+            .unwrap_or_default();
+        let active_model = workspace_config.active_model;
 
         // Prepare agents with user configuration and subscriptions
         let agents = services.get_agents().await?;
-
         let mcp_tools = self.services.mcp_service().list().await?;
         let agent = agents
             .into_iter()
-            .map(|agent| {
+            .map(|mut agent| {
+                if agent.model.is_none() {
+                    agent.model = active_model.clone();
+                }
                 agent
                     .apply_workflow_config(&workflow)
                     .extend_mcp_tools(&mcp_tools)
@@ -175,7 +183,7 @@ impl<S: Services> ForgeApp<S> {
             Some(context) => context.clone(),
             None => {
                 // No context to compact, return zero metrics
-                return Ok(CompactionResult::new(0, 0, 0, 0));
+                return Ok(CompactionResult::default());
             }
         };
 
@@ -183,6 +191,7 @@ impl<S: Services> ForgeApp<S> {
         let original_messages = context.messages.len();
         let original_tokens_approx = context.token_count_approx();
 
+        // TODO: use operating agent stored in database instead.
         // Find the main agent (first agent in the conversation)
         // In most cases, there should be a primary agent for compaction
         let agent = self

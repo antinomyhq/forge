@@ -2,9 +2,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::dto::{AppConfig, InitAuth, ToolsOverview, WorkspaceConfig};
+use forge_app::dto::{AuthConfig, InitAuth, ToolsOverview, WorkspaceConfig};
 use forge_app::{
-    AgentLoaderService, AppConfigService, AuthService, ConversationService, EnvironmentService,
+    AgentLoaderService, AuthConfigService, AuthService, ConversationService, EnvironmentService,
     FileDiscoveryService, ForgeApp, McpConfigManager, ProviderRegistry, ProviderService, Services,
     User, UserUsage, Walker, WorkflowService, WorkspaceConfigService,
 };
@@ -170,12 +170,12 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     }
     async fn provider(&self) -> anyhow::Result<Provider> {
         self.services
-            .get_provider(self.services.get_app_config().await.unwrap_or_default())
+            .get_provider(self.services.get_auth_config().await.unwrap_or_default())
             .await
     }
 
-    async fn app_config(&self) -> Option<AppConfig> {
-        self.services.get_app_config().await
+    async fn auth_config(&self) -> Option<AuthConfig> {
+        self.services.get_auth_config().await
     }
 
     async fn user_info(&self) -> Result<Option<User>> {

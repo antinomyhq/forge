@@ -156,7 +156,6 @@ impl Workflow {
     pub fn new() -> Self {
         Self {
             commands: Vec::new(),
-            model: None,
             max_walker_depth: None,
             custom_rules: None,
             temperature: None,
@@ -178,6 +177,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
+    use crate::ModelId;
 
     #[test]
     fn test_workflow_new_creates_empty_workflow() {
@@ -188,7 +188,6 @@ mod tests {
 
         // Assert
         assert!(actual.commands.is_empty());
-        assert_eq!(actual.model, None);
         assert_eq!(actual.max_walker_depth, None);
         assert_eq!(actual.custom_rules, None);
         assert_eq!(actual.temperature, None);

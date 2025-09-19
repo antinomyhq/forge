@@ -14,7 +14,7 @@ use reqwest_eventsource::EventSource;
 use url::Url;
 
 use crate::Walker;
-use crate::dto::{AppConfig, InitAuth, LoginInfo, WorkspaceConfig};
+use crate::dto::{AuthConfig, InitAuth, LoginInfo, WorkspaceConfig};
 use crate::user::{User, UserUsage};
 
 #[derive(Debug)]
@@ -337,9 +337,9 @@ pub trait ShellService: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait AppConfigService: Send + Sync {
-    async fn get_app_config(&self) -> Option<AppConfig>;
-    async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()>;
+pub trait AuthConfigService: Send + Sync {
+    async fn get_auth_config(&self) -> Option<AuthConfig>;
+    async fn set_auth_config(&self, config: &AuthConfig) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -357,7 +357,7 @@ pub trait AuthService: Send + Sync {
 }
 #[async_trait::async_trait]
 pub trait ProviderRegistry: Send + Sync {
-    async fn get_provider(&self, config: AppConfig) -> anyhow::Result<Provider>;
+    async fn get_provider(&self, config: AuthConfig) -> anyhow::Result<Provider>;
 }
 
 #[async_trait::async_trait]
@@ -402,7 +402,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type ShellService: ShellService;
     type McpService: McpService;
     type AuthService: AuthService;
-    type AppConfigService: AppConfigService;
+    type AppConfigService: AuthConfigService;
     type WorkspaceConfigService: WorkspaceConfigService;
     type ProviderRegistry: ProviderRegistry;
     type AgentLoaderService: AgentLoaderService;
@@ -699,19 +699,19 @@ impl<I: Services> CustomInstructionsService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> ProviderRegistry for I {
-    async fn get_provider(&self, config: AppConfig) -> anyhow::Result<Provider> {
+    async fn get_provider(&self, config: AuthConfig) -> anyhow::Result<Provider> {
         self.provider_registry().get_provider(config).await
     }
 }
 
 #[async_trait::async_trait]
-impl<I: Services> AppConfigService for I {
-    async fn get_app_config(&self) -> Option<AppConfig> {
-        self.app_config_service().get_app_config().await
+impl<I: Services> AuthConfigService for I {
+    async fn get_auth_config(&self) -> Option<AuthConfig> {
+        self.app_config_service().get_auth_config().await
     }
 
-    async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
-        self.app_config_service().set_app_config(config).await
+    async fn set_auth_config(&self, config: &AuthConfig) -> anyhow::Result<()> {
+        self.app_config_service().set_auth_config(config).await
     }
 }
 

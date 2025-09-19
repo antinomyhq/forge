@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId,
+    API, AgentId, AuthConfig, ChatRequest, ChatResponse, Conversation, ConversationId,
     EVENT_USER_TASK_INIT, EVENT_USER_TASK_UPDATE, Event, InterruptionReason, Model, ModelId,
     ToolName, Workflow, WorkspaceConfig,
 };
@@ -384,7 +384,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         };
 
-        let config_future = self.api.app_config();
+        let config_future = self.api.auth_config();
         let usage_future = self.api.user_usage();
 
         let (conversation_result, config_result, usage_result) =
@@ -570,7 +570,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.api.logout().await?;
                 self.login().await?;
                 self.spinner.stop(None)?;
-                let config: AppConfig = self.api.app_config().await.unwrap_or_default();
+                let config: AuthConfig = self.api.auth_config().await.unwrap_or_default();
                 tracker::login(
                     config
                         .key_info
@@ -700,13 +700,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Some(ref id) => Ok(*id),
             None => {
                 self.spinner.start(Some("Initializing"))?;
-
-                // Select a model if workflow doesn't have one
-                let workflow = self.init_state(false).await?;
-
-                // Update state
-                self.update_model(workflow.model.clone());
-
                 // We need to try and get the conversation ID first before fetching the model
                 let conversation = if let Some(ref path) = self.cli.conversation {
                     let conversation: Conversation =
