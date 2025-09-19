@@ -5,7 +5,7 @@ use chrono::{DateTime, Local};
 use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, ChatCompletionMessage, ChatResponse, ContextMessage, Conversation, Environment,
-    Event, HttpConfig, RetryConfig, Role, Template, ToolCallFull, ToolDefinition,
+    Event, HttpConfig, ModelId, RetryConfig, Role, Template, ToolCallFull, ToolDefinition,
     ToolResult, ToolsDiscriminants, Workflow,
 };
 use url::Url;
@@ -80,6 +80,7 @@ impl TestContext {
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(AgentId::new("forge"))
+                .model(ModelId::new("some-model"))
                 .system_prompt(Template::new("You are Forge"))
                 .tools(vec![
                     ("fs_read").into(),
