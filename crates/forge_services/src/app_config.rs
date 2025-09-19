@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_app::AppConfigService;
-use forge_app::dto::AppConfig;
+use forge_app::AuthConfigService;
+use forge_app::dto::AuthConfig;
 
 use crate::{EnvironmentInfra, FileReaderInfra, FileWriterInfra};
 
@@ -14,12 +14,12 @@ impl<I: FileReaderInfra + FileWriterInfra + EnvironmentInfra> ForgeConfigService
     pub fn new(infra: Arc<I>) -> Self {
         Self { infra }
     }
-    async fn read(&self) -> anyhow::Result<AppConfig> {
+    async fn read(&self) -> anyhow::Result<AuthConfig> {
         let env = self.infra.get_environment();
         let config = self.infra.read(env.app_config().as_path()).await?;
         Ok(serde_json::from_slice(&config)?)
     }
-    async fn write(&self, config: &AppConfig) -> anyhow::Result<()> {
+    async fn write(&self, config: &AuthConfig) -> anyhow::Result<()> {
         let env = self.infra.get_environment();
         self.infra
             .write(
@@ -32,14 +32,14 @@ impl<I: FileReaderInfra + FileWriterInfra + EnvironmentInfra> ForgeConfigService
 }
 
 #[async_trait::async_trait]
-impl<I: FileReaderInfra + FileWriterInfra + EnvironmentInfra> AppConfigService
+impl<I: FileReaderInfra + FileWriterInfra + EnvironmentInfra> AuthConfigService
     for ForgeConfigService<I>
 {
-    async fn get_app_config(&self) -> Option<AppConfig> {
+    async fn get_auth_config(&self) -> Option<AuthConfig> {
         self.read().await.ok()
     }
 
-    async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
+    async fn set_auth_config(&self, config: &AuthConfig) -> anyhow::Result<()> {
         self.write(config).await
     }
 }

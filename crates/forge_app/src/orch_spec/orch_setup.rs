@@ -43,9 +43,7 @@ impl TestContext {
             current_time: Local::now(),
             mock_assistant_responses: Default::default(),
             mock_tool_call_responses: Default::default(),
-            workflow: Workflow::new()
-                .model(ModelId::new("openai/gpt-1"))
-                .tool_supported(true),
+            workflow: Workflow::new().tool_supported(true),
             templates: Default::default(),
             files: Default::default(),
             env: Environment {
@@ -82,6 +80,7 @@ impl TestContext {
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(AgentId::new("forge"))
+                .model(ModelId::new("some-model"))
                 .system_prompt(Template::new("You are Forge"))
                 .tools(vec![
                     ("fs_read").into(),

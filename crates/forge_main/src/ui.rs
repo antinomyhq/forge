@@ -6,9 +6,9 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId,
+    API, AgentId, AuthConfig, ChatRequest, ChatResponse, Conversation, ConversationId,
     EVENT_USER_TASK_INIT, EVENT_USER_TASK_UPDATE, Event, InterruptionReason, Model, ModelId,
-    ToolName, Workflow,
+    ToolName, Workflow, WorkspaceConfig,
 };
 use forge_display::MarkdownFormat;
 use forge_domain::{
@@ -17,7 +17,6 @@ use forge_domain::{
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
-use merge::Merge;
 use serde::Deserialize;
 use serde_json::Value;
 use tokio_stream::StreamExt;
@@ -122,9 +121,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .cloned()
             .ok_or(anyhow::anyhow!("Undefined agent: {agent_id}"))?;
 
+        // TODO: improve following 3 async calls.
         let conversation_id = self.init_conversation().await?;
         if let Some(conversation) = self.api.conversation(&conversation_id).await? {
-            self.api.set_operating_agent(agent_id).await?;
             self.api.upsert_conversation(conversation).await?;
         }
 
@@ -132,10 +131,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.state.is_first = true;
         self.state.operating_agent = agent.id.clone();
 
-        // Update the app config with the new operating agent.
-        self.api.set_operating_agent(agent.id.clone()).await?;
-        let name = agent.id.as_str().to_case(Case::UpperSnake).bold();
+        // Update the workspace config with the new operating agent.
+        self.api
+            .set_workspace_config(WorkspaceConfig::default().operating_agent(agent_id))
+            .await?;
 
+        let name = agent.id.as_str().to_case(Case::UpperSnake).bold();
         let title = format!(
             "∙ {}",
             agent.title.as_deref().unwrap_or("<Missing agent.title>")
@@ -383,7 +384,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         };
 
-        let config_future = self.api.app_config();
+        let config_future = self.api.auth_config();
         let usage_future = self.api.user_usage();
 
         let (conversation_result, config_result, usage_result) =
@@ -569,7 +570,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.api.logout().await?;
                 self.login().await?;
                 self.spinner.stop(None)?;
-                let config: AppConfig = self.api.app_config().await.unwrap_or_default();
+                let config: AuthConfig = self.api.auth_config().await.unwrap_or_default();
                 tracker::login(
                     config
                         .key_info
@@ -666,11 +667,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             None => return Ok(()),
         };
 
-        self.api
-            .update_workflow(self.cli.workflow.as_deref(), |workflow| {
-                workflow.model = Some(model.clone());
-            })
-            .await?;
+        // update the workspace config with selected model and operating agent.
+        let workspace_config = WorkspaceConfig::default()
+            .active_model(model.clone())
+            .operating_agent(self.state.operating_agent.clone());
+        self.api.set_workspace_config(workspace_config).await?;
 
         // Update the UI state with the new model
         self.update_model(Some(model.clone()));
@@ -699,13 +700,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Some(ref id) => Ok(*id),
             None => {
                 self.spinner.start(Some("Initializing"))?;
-
-                // Select a model if workflow doesn't have one
-                let workflow = self.init_state(false).await?;
-
-                // Update state
-                self.update_model(workflow.model.clone());
-
                 // We need to try and get the conversation ID first before fetching the model
                 let conversation = if let Some(ref path) = self.cli.conversation {
                     let conversation: Conversation =
@@ -740,26 +734,35 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     /// Initialize the state of the UI
     async fn init_state(&mut self, first: bool) -> Result<Workflow> {
-        let provider = self.init_provider().await?;
-        let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
-        if workflow.model.is_none() {
-            workflow.model = Some(
+        let mut workspace_config = self
+            .api
+            .get_workspace_config()
+            .await
+            .unwrap_or_default()
+            .unwrap_or_default();
+        if workspace_config.active_model.is_none() {
+            workspace_config.active_model = Some(
                 self.select_model()
                     .await?
                     .ok_or(anyhow::anyhow!("Model selection is required to continue"))?,
             );
+            // Update the database with correct model.
+            self.api
+                .set_workspace_config(workspace_config.clone())
+                .await?;
         }
-        let mut base_workflow = Workflow::default();
-        base_workflow.merge(workflow.clone());
+
+        // Fetch independent operations parallely.
+        let provider_fut = self.init_provider();
+        let workflow_fut = self.api.read_merged(self.cli.workflow.as_deref());
+        let (provider, workflow) = tokio::try_join!(provider_fut, workflow_fut)?;
+
         if first {
             // only call on_update if this is the first initialization
-            on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
+            on_update(self.api.clone(), workflow.updates.as_ref()).await;
         }
-        self.api
-            .write_workflow(self.cli.workflow.as_deref(), &workflow)
-            .await?;
 
-        self.command.register_all(&base_workflow);
+        self.command.register_all(&workflow);
 
         // Register agent commands
         match self.api.get_agents().await {
@@ -782,12 +785,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         }
 
-        let agent = self.api.get_operating_agent().await.unwrap_or_default();
-        self.state = UIState::new(self.api.environment(), base_workflow, agent).provider(provider);
+        let model = workspace_config.active_model;
+        let agent = workspace_config.operating_agent.unwrap_or_default();
+        self.state = UIState::new(self.api.environment(), model, agent).provider(provider);
 
         Ok(workflow)
     }
-    async fn init_provider(&mut self) -> Result<Provider> {
+
+    async fn init_provider(&self) -> Result<Provider> {
         self.api.provider().await
         // match self.api.provider().await {
         //     // Use the forge key if available in the config.

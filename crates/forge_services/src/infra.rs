@@ -6,6 +6,7 @@ use forge_app::domain::{
     CommandOutput, Conversation, ConversationId, Environment, McpServerConfig, ToolDefinition,
     ToolName, ToolOutput,
 };
+use forge_app::dto::WorkspaceConfig;
 use forge_app::{WalkedFile, Walker};
 use forge_snaps::Snapshot;
 use reqwest::Response;
@@ -234,4 +235,10 @@ pub trait ConversationRepository: Send + Sync {
         limit: Option<usize>,
     ) -> anyhow::Result<Option<Vec<Conversation>>>;
     async fn get_last_conversation(&self) -> anyhow::Result<Option<Conversation>>;
+}
+
+#[async_trait::async_trait]
+pub trait WorkspaceConfigRepository: Send + Sync {
+    async fn upsert_workspace_config(&self, config: WorkspaceConfig) -> anyhow::Result<()>;
+    async fn get_workspace_config(&self) -> anyhow::Result<Option<WorkspaceConfig>>;
 }
