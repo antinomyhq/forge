@@ -1,13 +1,22 @@
 #!/usr/bin/env zsh
 
 # Forge ZSH Plugin - ZLE Widget Version
-# Converts '#? abc' to always resume conversations using ZLE widgets
+# Converts '?? abc' to always resume conversations using ZLE widgets
 # Features: Auto-resume existing conversations or start new ones, @ tab completion support
 
 # Configuration: Change these variables to customize the forge command and special characters
 # Using typeset to keep variables local to plugin scope and prevent public exposure
 typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
-typeset -h _FORGE_CONVERSATION_PATTERN="#\?"
+typeset -h _FORGE_CONVERSATION_PATTERN="\?\?"
+
+ZSH_HIGHLIGHT_HIGHLIGHTERS+=(pattern)
+ZSH_HIGHLIGHT_PATTERNS+=('(#s)\?\?' 'fg=green,bold,dim')
+
+# Make sure the pattern highlighter is enabled
+ZSH_HIGHLIGHT_HIGHLIGHTERS+=(pattern)
+# Match "?? " followed by anything, style it bold+dim (no color override)
+ZSH_HIGHLIGHT_PATTERNS+=('(#s)\?\? *' 'fg=white,bold')
+
 
 # Store conversation ID in a temporary variable (local to plugin)
 typeset -h _FORGE_CONVERSATION_ID=""
@@ -17,7 +26,7 @@ function _forge_transform_buffer() {
     local forge_cmd=""
     local input_text=""
     
-    # Check if the line starts with the conversation pattern (default: '# ')
+    # Check if the line starts with the conversation pattern (default: '??')
     if [[ "$BUFFER" =~ "^${_FORGE_CONVERSATION_PATTERN}(.*)$" ]]; then
         input_text="${match[1]}"
         
@@ -88,7 +97,7 @@ function forge-at-completion() {
 function forge-insert-pattern() {
     # Toggle the conversation pattern at the beginning of the line
     # while maintaining cursor position relative to the original text
-    local pattern="#? "
+    local pattern="?? "
     local original_cursor_pos=$CURSOR
     
     # Check if buffer already starts with the pattern
@@ -126,7 +135,7 @@ function forge-accept-line() {
         return
     fi
     
-    # For non-# commands, use normal accept-line
+    # For non-?? commands, use normal accept-line
     zle accept-line
 }
 
@@ -135,7 +144,7 @@ zle -N forge-insert-pattern
 zle -N forge-accept-line
 zle -N forge-at-completion
 
-# Bind Enter to our custom accept-line that transforms # commands
+# Bind Enter to our custom accept-line that transforms ?? commands
 bindkey '^M' forge-accept-line
 bindkey '^J' forge-accept-line
 
