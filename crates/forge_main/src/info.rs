@@ -414,6 +414,26 @@ impl From<&Conversation> for Info {
     }
 }
 
+impl From<&forge_api::WorkspaceConfig> for Info {
+    fn from(config: &forge_api::WorkspaceConfig) -> Self {
+        let mut info = Info::new().add_title("WORKSPACE CONFIG");
+
+        if let Some(agent) = &config.operating_agent {
+            info = info.add_key_value("Operating Agent", agent.to_string());
+        } else {
+            info = info.add_key_value("Operating Agent", "(not set)".to_string());
+        }
+
+        if let Some(model) = &config.active_model {
+            info = info.add_key_value("Active Model", model.to_string());
+        } else {
+            info = info.add_key_value("Active Model", "(not set)".to_string());
+        }
+
+        info
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -671,5 +691,34 @@ mod tests {
         assert!(expected_display.contains("CONVERSATION"));
         assert!(!expected_display.contains("Title:"));
         assert!(expected_display.contains(&conversation_id.to_string()));
+    }
+    #[test]
+    fn test_workspace_config_info_display_with_values() {
+        use forge_api::{AgentId, ModelId, WorkspaceConfig};
+
+        let fixture = WorkspaceConfig::default()
+            .operating_agent(AgentId::new("forge"))
+            .active_model(ModelId::new("gpt-4"));
+
+        let actual = super::Info::from(&fixture);
+        let expected_display = actual.to_string();
+
+        assert!(expected_display.contains("WORKSPACE CONFIG"));
+        assert!(expected_display.contains("  Operating Agent: forge"));
+        assert!(expected_display.contains("  Active Model: gpt-4"));
+    }
+
+    #[test]
+    fn test_workspace_config_info_display_empty() {
+        use forge_api::WorkspaceConfig;
+
+        let fixture = WorkspaceConfig::default();
+
+        let actual = super::Info::from(&fixture);
+        let expected_display = actual.to_string();
+
+        assert!(expected_display.contains("WORKSPACE CONFIG"));
+        assert!(expected_display.contains("  Operating Agent: (not set)"));
+        assert!(expected_display.contains("  Active Model: (not set)"));
     }
 }

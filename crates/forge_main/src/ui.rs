@@ -21,7 +21,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use tokio_stream::StreamExt;
 
-use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
+use crate::cli::{Cli, ConfigArgs, McpCommand, TopLevelCommand, Transport};
 use crate::conversation_selector::ConversationSelector;
 use crate::info::{Info, get_usage};
 use crate::input::Console;
@@ -359,9 +359,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             TopLevelCommand::Info => {
                 // Make sure to init model
                 self.on_new().await?;
-
                 self.on_info().await?;
                 return Ok(());
+            }
+            TopLevelCommand::Config(args) => {
+                let out = if args.agent.is_none() && args.model.is_none() {
+                    self.on_config_show().await
+                } else {
+                    self.on_config_set(args).await
+                };
+                return out;
             }
             TopLevelCommand::Term(terminal_args) => {
                 self.on_terminal(terminal_args).await?;
@@ -409,6 +416,83 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         self.writeln(info)?;
         self.spinner.stop(None)?;
+
+        Ok(())
+    }
+
+    async fn on_config_show(&mut self) -> anyhow::Result<()> {
+        self.spinner
+            .start(Some("Loading Workspace Configuration"))?;
+
+        // Get current workspace config
+        let workspace_config = self.api.get_workspace_config().await;
+        let info = Info::from(&workspace_config.unwrap_or_default());
+        self.writeln(info)?;
+        self.spinner.stop(None)?;
+        Ok(())
+    }
+
+    async fn on_config_set(&mut self, args: crate::cli::ConfigArgs) -> anyhow::Result<()> {
+        // Handle interactive agent selection if --set-agent was provided without a value
+        if let Some(agent_option) = &args.agent {
+            if agent_option.is_none() {
+                return self.on_agent_selector().await;
+            }
+        }
+
+        // Handle interactive model selection if --set-model was provided without a value
+        if let Some(model_option) = &args.model {
+            if model_option.is_none() {
+                return self.on_model_selection().await;
+            }
+        }
+
+        self.spinner.start(Some("Validating Configuration"))?;
+
+        // Validate agent if provided
+        if let Some(Some(ref agent_name)) = args.agent {
+            let agents = self.api.get_agents().await?;
+            if !agents
+                .iter()
+                .any(|agent| agent.id.to_string() == *agent_name)
+            {
+                self.spinner.stop(None)?;
+                anyhow::bail!(
+                    "Invalid agent '{}'. Available agents: {}",
+                    agent_name,
+                    agents
+                        .iter()
+                        .map(|a| a.id.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+            }
+        }
+
+        // Validate model if provided
+        if let Some(Some(ref model_name)) = args.model {
+            let models = self.get_models().await?;
+            if !models
+                .iter()
+                .any(|model| model.id.to_string() == *model_name)
+            {
+                self.spinner.stop(None)?;
+                anyhow::bail!(
+                    "Model '{}' not supported by configured provider.",
+                    model_name
+                );
+            }
+        }
+        // Set the workspace configuration
+        self.spinner.start(Some("Updating Configuration"))?;
+        self.api
+            .set_workspace_config(WorkspaceConfig::from(args))
+            .await?;
+        self.spinner.stop(None)?;
+
+        self.writeln_title(TitleFormat::action(
+            "Configuration updated successfully".to_string(),
+        ))?;
 
         Ok(())
     }
@@ -523,47 +607,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.api.execute_shell_command_raw(command).await?;
             }
             Command::Agent => {
-                #[derive(Clone)]
-                struct Agent {
-                    id: AgentId,
-                    label: String,
-                }
-
-                impl Display for Agent {
-                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        write!(f, "{}", self.label)
-                    }
-                }
-
-                let agents = self.api.get_agents().await?;
-                let n = agents
-                    .iter()
-                    .map(|a| a.id.as_str().len())
-                    .max()
-                    .unwrap_or_default();
-                let display_agents = agents
-                    .into_iter()
-                    .map(|agent| {
-                        let title = &agent.title.unwrap_or("<Missing agent.title>".to_string());
-                        {
-                            let label = format!(
-                                "{:<n$} {}",
-                                agent.id.as_str().to_case(Case::UpperSnake).bold(),
-                                title.lines().collect::<Vec<_>>().join(" ").dimmed()
-                            );
-                            Agent { label, id: agent.id.clone() }
-                        }
-                    })
-                    .collect::<Vec<_>>();
-
-                if let Some(selected_agent) = ForgeSelect::select(
-                    "select the agent from following list",
-                    display_agents.clone(),
-                )
-                .prompt()?
-                {
-                    self.on_agent_change(selected_agent.id).await?;
-                }
+                let _ = self.on_agent_selector().await;
             }
             Command::Login => {
                 self.spinner.start(Some("Logging in"))?;
@@ -610,6 +654,52 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         Ok(false)
     }
+
+    async fn on_agent_selector(&mut self) -> Result<(), anyhow::Error> {
+        #[derive(Clone)]
+        struct Agent {
+            id: AgentId,
+            label: String,
+        }
+
+        impl Display for Agent {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}", self.label)
+            }
+        }
+
+        let agents = self.api.get_agents().await?;
+        let n = agents
+            .iter()
+            .map(|a| a.id.as_str().len())
+            .max()
+            .unwrap_or_default();
+        let display_agents = agents
+            .into_iter()
+            .map(|agent| {
+                let title = &agent.title.unwrap_or("<Missing agent.title>".to_string());
+                {
+                    let label = format!(
+                        "{:<n$} {}",
+                        agent.id.as_str().to_case(Case::UpperSnake).bold(),
+                        title.lines().collect::<Vec<_>>().join(" ").dimmed()
+                    );
+                    Agent { label, id: agent.id.clone() }
+                }
+            })
+            .collect::<Vec<_>>();
+
+        if let Some(selected_agent) = ForgeSelect::select(
+            "select the agent from following list",
+            display_agents.clone(),
+        )
+        .prompt()?
+        {
+            self.on_agent_change(selected_agent.id).await?;
+        }
+        Ok(())
+    }
+
     async fn on_compaction(&mut self) -> Result<(), anyhow::Error> {
         let conversation_id = self.init_conversation().await?;
         let compaction_result = self.api.compact_conversation(&conversation_id).await?;
@@ -1085,6 +1175,19 @@ fn parse_env(env: Vec<String>) -> BTreeMap<String, String> {
             }
         })
         .collect()
+}
+
+impl From<ConfigArgs> for WorkspaceConfig {
+    fn from(args: ConfigArgs) -> Self {
+        let mut workspace_config = WorkspaceConfig::default();
+        if let Some(Some(agent)) = args.agent {
+            workspace_config = workspace_config.operating_agent(AgentId::new(agent));
+        }
+        if let Some(Some(model)) = args.model {
+            workspace_config = workspace_config.active_model(ModelId::new(model));
+        }
+        workspace_config
+    }
 }
 
 struct CliModel(Model);
