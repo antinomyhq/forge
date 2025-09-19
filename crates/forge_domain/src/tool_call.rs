@@ -247,7 +247,7 @@ impl ToolErrorTracker {
         let limit = self.limit;
         self.errors
             .iter()
-            .filter(|(_, count)| **count > limit)
+            .filter(|(_, count)| **count >= limit)
             .map(|data| data.0)
             .collect::<Vec<_>>()
     }
@@ -394,14 +394,14 @@ mod tests {
     }
 
     #[test]
-    fn test_tool_at_exact_limit_boundary() {
+    fn test_tool_over_limit_boundary() {
         let read = &ToolName::new("READ");
         let mut counter = ToolErrorTracker::new(3);
         counter
-            .adjust(&[read], &[])
-            .adjust(&[read], &[])
-            .adjust(&[read], &[])
-            .adjust(&[read], &[]); // Exactly at limit
+            .adjust(&[read], &[]) // count = 1
+            .adjust(&[read], &[]) // count = 2
+            .adjust(&[read], &[]) // count = 3
+            .adjust(&[read], &[]); // count = 4 (over limit)
 
         let actual = counter.maxed_out_tools();
         let expected = vec![read];
@@ -574,6 +574,37 @@ mod tests {
 
         let actual = counter.maxed_out_tools();
         let expected = vec![read];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_tool_exactly_at_limit_is_maxed_out() {
+        // Test that count == limit triggers maxed_out (testing >= not just >)
+        let read = &ToolName::new("READ");
+        let mut counter = ToolErrorTracker::new(3);
+        counter
+            .adjust(&[read], &[]) // count = 1
+            .adjust(&[read], &[]) // count = 2
+            .adjust(&[read], &[]); // count = 3 (exactly at limit)
+
+        let actual = counter.maxed_out_tools();
+        let expected = vec![read];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_tool_just_under_limit_not_maxed_out() {
+        // Test that count < limit does NOT trigger maxed_out
+        let read = &ToolName::new("READ");
+        let mut counter = ToolErrorTracker::new(3);
+        counter
+            .adjust(&[read], &[]) // count = 1
+            .adjust(&[read], &[]); // count = 2 (under limit of 3)
+
+        let actual = counter.maxed_out_tools();
+        let expected: Vec<&ToolName> = vec![];
 
         assert_eq!(actual, expected);
     }

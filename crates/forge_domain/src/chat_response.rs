@@ -1,6 +1,7 @@
+use std::collections::HashMap;
 use std::time::Duration;
 
-use crate::{ToolCallFull, ToolResult, Usage};
+use crate::{ToolCallFull, ToolName, ToolResult, Usage};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ChatResponseContent {
@@ -55,8 +56,13 @@ pub enum ChatResponse {
 
 #[derive(Debug, Clone)]
 pub enum InterruptionReason {
-    MaxToolFailurePerTurnLimitReached { limit: u64 },
-    MaxRequestPerTurnLimitReached { limit: u64 },
+    MaxToolFailurePerTurnLimitReached {
+        limit: u64,
+        errors: HashMap<ToolName, usize>,
+    },
+    MaxRequestPerTurnLimitReached {
+        limit: u64,
+    },
 }
 
 #[derive(Clone)]

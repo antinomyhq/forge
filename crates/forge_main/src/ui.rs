@@ -96,7 +96,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_new(&mut self) -> Result<()> {
         self.api = Arc::new((self.new_api)());
         self.init_state(false).await?;
+
+        // Reset previously set CLI parameters by the user
         self.cli.conversation = None;
+        self.cli.resume = None;
+
         self.display_banner()?;
         self.trace_user();
         self.hydrate_caches();
@@ -215,36 +219,45 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Get initial input from file or prompt
         let mut command = match &self.cli.command {
-            Some(path) => self.console.upload(path).await?,
-            None => self.prompt().await?,
+            Some(path) => self.console.upload(path).await,
+            None => self.prompt().await,
         };
 
         loop {
-            tokio::select! {
-                _ = tokio::signal::ctrl_c() => {
-                    tracing::info!("User interrupted operation with Ctrl+C");
-                }
-                result = self.on_command(command) => {
-                    match result {
-                        Ok(exit) => if exit {return Ok(())},
-                        Err(error) => {
-                            if let Some(conversation_id) = self.state.conversation_id.as_ref()
-                                && let Some(conversation) = self.api.conversation(conversation_id).await.ok().flatten() {
-                                    TRACKER.set_conversation(conversation).await;
-                                }
-                            tracker::error(&error);
-                            tracing::error!(error = ?error);
-                            self.spinner.stop(None)?;
-                            self.writeln_title(TitleFormat::error(format!("{error:?}")))?;
-                        },
+            match command {
+                Ok(command) => {
+                    tokio::select! {
+                        _ = tokio::signal::ctrl_c() => {
+                            tracing::info!("User interrupted operation with Ctrl+C");
+                        }
+                        result = self.on_command(command) => {
+                            match result {
+                                Ok(exit) => if exit {return Ok(())},
+                                Err(error) => {
+                                    if let Some(conversation_id) = self.state.conversation_id.as_ref()
+                                        && let Some(conversation) = self.api.conversation(conversation_id).await.ok().flatten() {
+                                            TRACKER.set_conversation(conversation).await;
+                                        }
+                                    tracker::error(&error);
+                                    tracing::error!(error = ?error);
+                                    self.spinner.stop(None)?;
+                                    self.writeln_title(TitleFormat::error(format!("{error:?}")))?;
+                                },
+                            }
+                        }
                     }
+
+                    self.spinner.stop(None)?;
+                }
+                Err(error) => {
+                    tracker::error(&error);
+                    tracing::error!(error = ?error);
+                    self.spinner.stop(None)?;
+                    self.writeln_title(TitleFormat::error(format!("{error:?}")))?;
                 }
             }
-
-            self.spinner.stop(None)?;
-
             // Centralized prompt call at the end of the loop
-            command = self.prompt().await?;
+            command = self.prompt().await;
         }
     }
 
@@ -428,8 +441,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
-        if let Some(id) = ConversationSelector::select_conversation(&conversations)? {
-            self.state.conversation_id = Some(id);
+        if let Some(conversation) = ConversationSelector::select_conversation(&conversations)? {
+            self.state.conversation_id = Some(conversation.id);
+            self.state.usage = conversation
+                .context
+                .and_then(|ctx| ctx.usage)
+                .unwrap_or(self.state.usage.clone());
         }
         Ok(())
     }
@@ -684,34 +701,33 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.update_model(workflow.model.clone());
 
                 // We need to try and get the conversation ID first before fetching the model
-                let id = if let Some(ref path) = self.cli.conversation {
+                let conversation = if let Some(ref path) = self.cli.conversation {
                     let conversation: Conversation =
                         serde_json::from_str(ForgeFS::read_utf8(path.as_os_str()).await?.as_str())
                             .context("Failed to parse Conversation")?;
-
-                    let conversation_id = conversation.id;
-
-                    self.api.upsert_conversation(conversation).await?;
-                    conversation_id
+                    conversation
                 } else if let Some(conversation_id) = self.cli.resume {
                     // Use the explicitly provided conversation ID
                     // Check if conversation with this ID already exists
-                    if self.api.conversation(&conversation_id).await?.is_none() {
+                    if let Some(conversation) = self.api.conversation(&conversation_id).await? {
+                        conversation
+                    } else {
                         // Conversation doesn't exist, create a new one with this ID
-                        let conversation = Conversation::new(conversation_id);
-                        self.api.upsert_conversation(conversation).await?;
-                    }
-                    conversation_id
-                } else {
-                    let conversation = Conversation::generate();
-                    self.api.upsert_conversation(conversation.clone()).await?;
 
-                    conversation.id
+                        Conversation::new(conversation_id)
+                    }
+                } else {
+                    Conversation::generate()
                 };
 
-                self.state.conversation_id = Some(id);
+                self.api.upsert_conversation(conversation.clone()).await?;
+                self.state.conversation_id = Some(conversation.id);
+                self.state.usage = conversation
+                    .context
+                    .and_then(|ctx| ctx.usage)
+                    .unwrap_or(self.state.usage.clone());
 
-                Ok(id)
+                Ok(conversation.id)
             }
         }
     }
@@ -934,7 +950,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     InterruptionReason::MaxRequestPerTurnLimitReached { limit } => {
                         format!("Maximum request ({limit}) per turn achieved")
                     }
-                    InterruptionReason::MaxToolFailurePerTurnLimitReached { limit } => {
+                    InterruptionReason::MaxToolFailurePerTurnLimitReached { limit, .. } => {
                         format!("Maximum tool failure limit ({limit}) reached for this turn")
                     }
                 };
