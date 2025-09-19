@@ -423,13 +423,12 @@ impl Agent {
         agent.add_subscription(format!("{id}/{EVENT_USER_TASK_UPDATE}"));
 
         // Set compaction model from agent if it's not configured.
-        if let Some(model) = agent.model.as_ref() {
-            if let Some(compact) = agent.compact.as_mut()
+        if let Some(model) = agent.model.as_ref()
+            && let Some(compact) = agent.compact.as_mut()
                 && compact.model.is_none()
             {
                 compact.model = Some(model.clone());
             }
-        }
         agent
     }
 }
