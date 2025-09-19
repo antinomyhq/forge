@@ -33,12 +33,13 @@ impl ConversationSelector {
                 "now".to_string()
             } else {
                 let duration = humantime::format_duration(duration);
-                format!("{} ago", duration)
+                format!("{duration} ago")
             }
         });
 
-        let titles = conversation_iter.clone().map(|c| {
-            c.title
+        let formatted_conversations = conversation_iter.clone().map(|c| {
+            let title = c
+                .title
                 .as_ref()
                 .map(|title| {
                     const MAX_TITLE: usize = 57;
@@ -48,10 +49,42 @@ impl ConversationSelector {
                         title.to_owned()
                     }
                 })
-                .unwrap_or_else(|| format!("<unknown> [{}]", c.id).to_string())
+                .unwrap_or_else(|| format!("<unknown> [{}]", c.id).to_string());
+
+            let message_count = c
+                .context
+                .as_ref()
+                .map(|ctx| ctx.messages.len())
+                .unwrap_or(0);
+
+            let total_tokens = c
+                .context
+                .as_ref()
+                .and_then(|ctx| ctx.usage.as_ref())
+                .map(|usage| format!("{}", usage.total_tokens))
+                .unwrap_or_else(|| "0".to_string());
+
+            (title, message_count, total_tokens)
         });
 
-        let max_title_length: usize = titles.clone().map(|s| s.len()).max().unwrap_or(0);
+        // Calculate maximum widths for consistent spacing
+        let max_title_length: usize = formatted_conversations
+            .clone()
+            .map(|(title, _, _)| title.len())
+            .max()
+            .unwrap_or(0);
+
+        let max_message_count_length: usize = formatted_conversations
+            .clone()
+            .map(|(_, count, _)| count.to_string().len())
+            .max()
+            .unwrap_or(0);
+
+        let max_tokens_length: usize = formatted_conversations
+            .clone()
+            .map(|(_, _, tokens)| tokens.len())
+            .max()
+            .unwrap_or(0);
 
         struct ConversationItem((String, Conversation));
         impl Display for ConversationItem {
@@ -61,8 +94,20 @@ impl ConversationSelector {
         }
 
         let conversations = dates
-            .zip(titles)
-            .map(|(date, title)| format!("{:<max_title_length$} {}", title.bold(), date.dimmed()))
+            .zip(formatted_conversations)
+            .map(|(date, (title, message_count, total_tokens))| {
+                format!(
+                    "{:<title_width$} {:>msg_width$} msgs {:>token_width$} tokens {:>date_width$}",
+                    title.bold(),
+                    message_count.to_string().yellow(),
+                    total_tokens.cyan(),
+                    date,
+                    title_width = max_title_length,
+                    msg_width = max_message_count_length,
+                    token_width = max_tokens_length,
+                    date_width = 10
+                )
+            })
             .zip(conversation_iter.cloned())
             .map(ConversationItem)
             .collect::<Vec<_>>();
@@ -70,6 +115,14 @@ impl ConversationSelector {
         if let Some(selected) =
             ForgeSelect::select("Select the conversation to resume:", conversations)
                 .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
+                .with_filter(|input, conversation_item, _idx| {
+                    let conversation = &conversation_item.0.1;
+                    conversation
+                        .title
+                        .as_ref()
+                        .map(|title| title.to_lowercase().contains(&input.to_lowercase()))
+                        .unwrap_or(false)
+                })
                 .prompt()?
         {
             Ok(Some(selected.0.1))

@@ -5,7 +5,6 @@ use std::time::Duration;
 use colored::Colorize;
 use forge_api::{Conversation, Environment, LoginInfo, Metrics, Usage, UserUsage};
 use forge_tracker::VERSION;
-use num_format::{Locale, ToFormattedString};
 
 use crate::model::ForgeCommandManager;
 use crate::state::UIState;
@@ -165,29 +164,16 @@ impl From<&Metrics> for Info {
 pub fn get_usage(state: &UIState) -> Info {
     let cache_percentage = calculate_cache_percentage(&state.usage);
     let cached_display = if cache_percentage > 0 {
-        format!(
-            "{} [{}%]",
-            state.usage.cached_tokens.to_formatted_string(&Locale::en),
-            cache_percentage
-        )
+        format!("{} [{}%]", state.usage.cached_tokens, cache_percentage)
     } else {
-        state.usage.cached_tokens.to_formatted_string(&Locale::en)
+        state.usage.cached_tokens.to_string()
     };
 
     let mut usage = Info::new()
         .add_title("TOKEN USAGE")
-        .add_key_value(
-            "Input Tokens",
-            state.usage.prompt_tokens.to_formatted_string(&Locale::en),
-        )
-        .add_key_value("Cached Tokens", cached_display)
-        .add_key_value(
-            "Output Tokens",
-            state
-                .usage
-                .completion_tokens
-                .to_formatted_string(&Locale::en),
-        );
+        .add_key_value("Input Tokens", &state.usage.prompt_tokens)
+        .add_key_value("Cached Tokens", &cached_display)
+        .add_key_value("Output Tokens", &state.usage.completion_tokens);
 
     let is_forge_provider = state.provider.as_ref().is_some_and(|p| p.is_forge());
     if let Some(cost) = state.usage.cost.as_ref()
