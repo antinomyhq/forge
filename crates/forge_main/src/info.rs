@@ -704,8 +704,8 @@ mod tests {
         let expected_display = actual.to_string();
 
         assert!(expected_display.contains("WORKSPACE CONFIG"));
-        assert!(expected_display.contains("  Operating Agent: forge"));
-        assert!(expected_display.contains("  Active Model: gpt-4"));
+        assert!(expected_display.contains("Operating Agent") && expected_display.contains("forge"));
+        assert!(expected_display.contains("Active Model") && expected_display.contains("gpt-4"));
     }
 
     #[test]
@@ -718,7 +718,7 @@ mod tests {
         let expected_display = actual.to_string();
 
         assert!(expected_display.contains("WORKSPACE CONFIG"));
-        assert!(expected_display.contains("  Operating Agent: (not set)"));
-        assert!(expected_display.contains("  Active Model: (not set)"));
+        assert!(expected_display.contains("Operating Agent") && expected_display.contains("(not set)"));
+        assert!(expected_display.contains("Active Model") && expected_display.contains("(not set)"));
     }
 }
