@@ -110,20 +110,11 @@ pub enum TopLevelCommand {
     Mcp(McpCommandGroup),
     /// Print information about the environment
     Info,
-    /// Generate shell prompt completion scripts
-    Term(TerminalArgs),
-}
+    /// Generate ZSH shell prompt completion scripts
+    GenerateZSHPrompt,
 
-#[derive(clap::Args, Debug, Clone)]
-pub struct TerminalArgs {
-    /// Generate shell prompt completion script
-    #[arg(short, long)]
-    pub generate_prompt: ShellType,
-}
-
-#[derive(clap::ValueEnum, Debug, Clone, Copy)]
-pub enum ShellType {
-    Zsh,
+    /// List all the agents
+    ShowAgents,
 }
 
 /// Group of MCP-related commands

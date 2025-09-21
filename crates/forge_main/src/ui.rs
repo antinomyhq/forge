@@ -362,11 +362,32 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_info().await?;
                 return Ok(());
             }
-            TopLevelCommand::Term(terminal_args) => {
-                self.on_terminal(terminal_args).await?;
+            TopLevelCommand::GenerateZSHPrompt => {
+                self.on_zsh_prompt().await?;
+                return Ok(());
+            }
+            TopLevelCommand::ShowAgents => {
+                self.on_term_agents().await?;
                 return Ok(());
             }
         }
+        Ok(())
+    }
+
+    async fn on_term_agents(&self) -> anyhow::Result<()> {
+        let output = self.api
+            .get_agents()
+            .await?
+            .iter()
+            .map(|agent| {
+                let title = agent.title.as_deref().unwrap_or("No title available");
+                format!("{}\t{}", agent.id, title)
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        println!("{}", output);
+
         Ok(())
     }
 
@@ -412,12 +433,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn on_terminal(&mut self, terminal_args: crate::cli::TerminalArgs) -> anyhow::Result<()> {
-        match terminal_args.generate_prompt {
-            crate::cli::ShellType::Zsh => {
-                println!("{}", include_str!("../../../shell-plugin/forge.plugin.zsh"))
-            }
-        }
+    async fn on_zsh_prompt(&self) -> anyhow::Result<()> {
+        println!("{}", include_str!("../../../shell-plugin/forge.plugin.zsh"));
         Ok(())
     }
 
