@@ -367,21 +367,29 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 return Ok(());
             }
             TopLevelCommand::ShowAgents => {
-                self.on_term_agents().await?;
+                self.on_show_agents().await?;
                 return Ok(());
             }
         }
         Ok(())
     }
 
-    async fn on_term_agents(&self) -> anyhow::Result<()> {
-        let output = self.api
-            .get_agents()
-            .await?
+    async fn on_show_agents(&self) -> anyhow::Result<()> {
+        let agents = self.api.get_agents().await?;
+
+        // Find the maximum agent ID length for consistent padding
+        let max_id_length = agents
+            .iter()
+            .map(|agent| agent.id.as_str().to_case(Case::UpperSnake).len())
+            .max()
+            .unwrap_or(0);
+
+        let output = agents
             .iter()
             .map(|agent| {
                 let title = agent.title.as_deref().unwrap_or("No title available");
-                format!("{}\t{}", agent.id, title)
+                let agent = agent.id.as_str().to_case(Case::UpperSnake);
+                format!("{:<width$} {}", agent, title, width = max_id_length)
             })
             .collect::<Vec<_>>()
             .join("\n");
