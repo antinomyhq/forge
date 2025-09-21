@@ -124,9 +124,9 @@ function forge-accept-line() {
         echo  # Add a newline before execution for better UX
         eval "$BUFFER"
         
-        # Clear the buffer and reset prompt
-        BUFFER=""
-        CURSOR=0
+        # Set buffer to conversation pattern for continued interaction
+        BUFFER="?? "
+        CURSOR=${#BUFFER}
         zle reset-prompt
         return
     fi
