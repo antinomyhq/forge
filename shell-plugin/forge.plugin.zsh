@@ -10,11 +10,7 @@ typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
 typeset -h _FORGE_CONVERSATION_PATTERN="\?\?"
 
 ZSH_HIGHLIGHT_HIGHLIGHTERS+=(pattern)
-ZSH_HIGHLIGHT_PATTERNS+=('(#s)\?\?' 'fg=green,bold,dim')
-
-# Make sure the pattern highlighter is enabled
-ZSH_HIGHLIGHT_HIGHLIGHTERS+=(pattern)
-# Match "?? " followed by anything, style it bold+dim (no color override)
+# Style the conversation pattern with appropriate highlighting
 ZSH_HIGHLIGHT_PATTERNS+=('(#s)\?\? *' 'fg=white,bold')
 
 
