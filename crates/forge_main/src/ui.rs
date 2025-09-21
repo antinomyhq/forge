@@ -375,7 +375,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn on_show_agents(&self) -> anyhow::Result<()> {
-        let agents = self.api.get_agents().await?;
+        let mut agents = self.api.get_agents().await?;
+
+        // Sort agents by ID (name) alphabetically
+        agents.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
 
         // Find the maximum agent ID length for consistent padding
         let max_id_length = agents
