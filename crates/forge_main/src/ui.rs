@@ -11,9 +11,7 @@ use forge_api::{
     ToolName, Workflow,
 };
 use forge_display::MarkdownFormat;
-use forge_domain::{
-    ChatResponseContent, McpConfig, McpServerConfig, Metrics, Provider, Scope, TitleFormat,
-};
+use forge_domain::{ChatResponseContent, McpConfig, McpServerConfig, Provider, Scope, TitleFormat};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
@@ -698,6 +696,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         match self.state.conversation_id {
             Some(ref id) => Ok(*id),
             None => {
+                let mut conversation_created = false;
                 self.spinner.start(Some("Initializing"))?;
 
                 // Select a model if workflow doesn't have one
@@ -723,6 +722,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         Conversation::new(conversation_id)
                     }
                 } else {
+                    conversation_created = true;
                     Conversation::generate()
                 };
 
@@ -733,6 +733,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .and_then(|ctx| ctx.usage)
                     .unwrap_or(self.state.usage.clone());
 
+                if conversation_created {
+                    self.writeln_title(
+                        TitleFormat::info("Initialized conversation")
+                            .sub_title(conversation.id.into_string()),
+                    )?;
+                } else {
+                    self.writeln_title(
+                        TitleFormat::info("Resumed conversation")
+                            .sub_title(conversation.id.into_string()),
+                    )?;
+                }
                 Ok(conversation.id)
             }
         }
@@ -973,7 +984,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ChatResponse::TaskComplete => {
                 if let Some(conversation_id) = self.state.conversation_id.as_ref() {
                     let conversation = self.api.conversation(conversation_id).await?;
-                    self.on_completion(conversation.unwrap().metrics).await?;
+                    self.on_completion(conversation.unwrap()).await?;
                 }
             }
         }
@@ -993,11 +1004,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn on_completion(&mut self, metrics: Metrics) -> anyhow::Result<()> {
+    async fn on_completion(&mut self, conversation: Conversation) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Summary"))?;
 
         let info = Info::default()
-            .extend(Info::from(&metrics))
+            .extend(Info::from(&conversation))
             .extend(get_usage(&self.state));
 
         // if let Ok(Some(usage)) = self.api.user_usage().await {
