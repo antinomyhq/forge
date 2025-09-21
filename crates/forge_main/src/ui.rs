@@ -696,7 +696,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         match self.state.conversation_id {
             Some(ref id) => Ok(*id),
             None => {
-                let mut conversation_created = false;
+                let mut new_conversation = false;
                 self.spinner.start(Some("Initializing"))?;
 
                 // Select a model if workflow doesn't have one
@@ -718,11 +718,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         conversation
                     } else {
                         // Conversation doesn't exist, create a new one with this ID
-
+                        new_conversation = true;
                         Conversation::new(conversation_id)
                     }
                 } else {
-                    conversation_created = true;
+                    new_conversation = true;
                     Conversation::generate()
                 };
 
@@ -733,7 +733,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .and_then(|ctx| ctx.usage)
                     .unwrap_or(self.state.usage.clone());
 
-                if conversation_created {
+                if new_conversation {
                     self.writeln_title(
                         TitleFormat::info("Initialized conversation")
                             .sub_title(conversation.id.into_string()),
