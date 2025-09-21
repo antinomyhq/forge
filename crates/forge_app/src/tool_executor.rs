@@ -146,16 +146,37 @@ impl<
                         input.end_line.map(|i| i as u64),
                     )
                     .await?;
-                let output = if input.show_line_numbers {
-                    let numbered_content = output
-                        .content
-                        .file_content()
-                        .numbered_from(output.start_line as usize);
-                    output.content(crate::Content::file(numbered_content))
-                } else {
-                    output
+
+                let new_content = match output.content {
+                    crate::Content::File(ref content) => {
+                        if input.show_line_numbers {
+                            let numbered_content =
+                                content.numbered_from(output.start_line.unwrap_or(1) as usize);
+                            crate::Content::file(numbered_content)
+                        } else {
+                            crate::Content::file(content.clone())
+                        }
+                    }
+                    crate::Content::Image(ref data, ref mime_type) => {
+                        // For images, we don't show line numbers - return as is
+                        crate::Content::image(data.clone(), mime_type.clone())
+                    }
+                    crate::Content::Pdf(
+                        ref content,
+                        total_pages,
+                        extracted_pages,
+                        total_text_length,
+                    ) => {
+                        // For PDFs, we don't show line numbers but we add metadata
+                        let pdf_content = format!(
+                            "PDF Content ({} pages total, {} pages extracted, {} characters):\n\n{}",
+                            total_pages, extracted_pages, total_text_length, content
+                        );
+                        crate::Content::file(pdf_content)
+                    }
                 };
 
+                let output = output.content(new_content);
                 (input, output).into()
             }
             Tools::Write(input) => {

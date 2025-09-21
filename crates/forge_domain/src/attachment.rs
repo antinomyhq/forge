@@ -12,6 +12,12 @@ pub struct Attachment {
 #[derive(Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
 pub enum AttachmentContent {
     Image(Image),
+    Pdf {
+        content: String,
+        total_pages: u32,
+        extracted_pages: u32,
+        total_text_length: usize,
+    },
     FileContent {
         content: String,
         start_line: u64,
@@ -28,9 +34,26 @@ impl AttachmentContent {
         }
     }
 
+    pub fn as_pdf(&self) -> Option<&String> {
+        match self {
+            AttachmentContent::Pdf { content, .. } => Some(content),
+            _ => None,
+        }
+    }
+
+    pub fn pdf_info(&self) -> Option<(u32, u32, usize)> {
+        match self {
+            AttachmentContent::Pdf { total_pages, extracted_pages, total_text_length, .. } => {
+                Some((*total_pages, *extracted_pages, *total_text_length))
+            }
+            _ => None,
+        }
+    }
+
     pub fn contains(&self, text: &str) -> bool {
         match self {
             AttachmentContent::Image(_) => false,
+            AttachmentContent::Pdf { content, .. } => content.contains(text),
             AttachmentContent::FileContent { content, .. } => content.contains(text),
         }
     }
@@ -38,6 +61,7 @@ impl AttachmentContent {
     pub fn file_content(&self) -> Option<&str> {
         match self {
             AttachmentContent::FileContent { content, .. } => Some(content),
+            AttachmentContent::Pdf { content, .. } => Some(content),
             _ => None,
         }
     }

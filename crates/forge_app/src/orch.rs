@@ -314,6 +314,21 @@ impl<S: AgentService> Orchestrator<S> {
             .fold(context.clone(), |ctx, attachment| {
                 ctx.add_message(match attachment.content {
                     AttachmentContent::Image(image) => ContextMessage::Image(image),
+                    AttachmentContent::Pdf {
+                        content,
+                        total_pages,
+                        extracted_pages,
+                        total_text_length,
+                    } => {
+                        let elm = Element::new("pdf_content")
+                            .attr("path", attachment.path)
+                            .attr("total_pages", total_pages)
+                            .attr("extracted_pages", extracted_pages)
+                            .attr("total_text_length", total_text_length)
+                            .cdata(content);
+
+                        ContextMessage::user(elm, model_id.clone().into())
+                    }
                     AttachmentContent::FileContent {
                         content,
                         start_line,

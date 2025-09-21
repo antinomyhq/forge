@@ -11,6 +11,7 @@ mod operation;
 mod orch;
 #[cfg(test)]
 mod orch_spec;
+pub mod pdf_processor;
 mod retry;
 mod services;
 mod title_generator;

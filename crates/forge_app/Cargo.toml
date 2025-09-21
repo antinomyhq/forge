@@ -35,6 +35,8 @@ reqwest.workspace = true
 bytes.workspace = true
 reqwest-eventsource.workspace = true
 schemars.workspace = true
+pdf-extract = "0.7"
+lopdf = "0.34"
 
 
 [dev-dependencies]

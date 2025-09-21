@@ -465,7 +465,6 @@ mod tests {
             "program.exe",
             "library.dll",
             "archive.zip",
-            "document.pdf",
             "music.mp3",
             "video.mp4",
             "image.bmp",
@@ -478,6 +477,24 @@ mod tests {
             let path = Path::new(file);
             let actual = Walker::is_likely_binary(path);
             assert!(actual, "File {} should be detected as binary", file);
+        }
+    }
+
+    #[test]
+    fn test_is_likely_binary_allows_pdf_files() {
+        use std::path::Path;
+
+        // Test that PDF files are no longer considered binary
+        let pdf_files = ["document.pdf", "DOCUMENT.PDF", "file.PDF", "data.pdf"];
+
+        for file in &pdf_files {
+            let path = Path::new(file);
+            let actual = Walker::is_likely_binary(path);
+            assert!(
+                !actual,
+                "PDF file {} should not be detected as binary",
+                file
+            );
         }
     }
 
@@ -526,7 +543,6 @@ mod tests {
         // Test case sensitivity
         let case_test_files = [
             ("program.EXE", true),
-            ("DOCUMENT.PDF", true),
             ("Archive.ZIP", true),
             ("Source.RS", false),
             ("Script.JS", false),
