@@ -120,6 +120,10 @@ function forge-insert-pattern() {
     
     zle redisplay
 }
+# Function to clear the current conversation ID
+function forge-clear-conversation() {
+    _FORGE_CONVERSATION_ID=""    
+}
 
 function forge-accept-line() {
     # Attempt transformation using helper
@@ -143,6 +147,7 @@ function forge-accept-line() {
 zle -N forge-insert-pattern
 zle -N forge-accept-line
 zle -N forge-at-completion
+zle -N forge-clear-conversation
 
 # Bind Enter to our custom accept-line that transforms ?? commands
 bindkey '^M' forge-accept-line
@@ -153,3 +158,5 @@ bindkey '^G' forge-insert-pattern
 
 # Bind Tab to our custom @ completion widget  
 bindkey '^I' forge-at-completion  # Tab for @ completion
+# Bind CTRL+K to clear conversation
+bindkey '^K' forge-clear-conversation
