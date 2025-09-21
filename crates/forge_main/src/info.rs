@@ -123,7 +123,7 @@ impl From<&Metrics> for Info {
                 humantime::format_duration(Duration::from_secs(duration.as_secs())).to_string();
             info = info.add_title(format!("TASK COMPLETED [in {duration}]"));
         } else {
-            info = info.add_title(format!("TASK COMPLETED"))
+            info = info.add_title("TASK COMPLETED".to_string())
         }
 
         // Add file changes section inspired by the example format
