@@ -93,6 +93,7 @@ impl<S: Services> ForgeApp<S> {
         }
 
         let custom_instructions = services.get_custom_instructions().await;
+        // Get the configuration for active workspace.
         let workspace_config = services
             .workspace_config_service()
             .get_workspace_config()

@@ -402,7 +402,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type ShellService: ShellService;
     type McpService: McpService;
     type AuthService: AuthService;
-    type AppConfigService: AuthConfigService;
+    type AuthConfigService: AuthConfigService;
     type WorkspaceConfigService: WorkspaceConfigService;
     type ProviderRegistry: ProviderRegistry;
     type AgentLoaderService: AgentLoaderService;
@@ -429,7 +429,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn environment_service(&self) -> &Self::EnvironmentService;
     fn custom_instructions_service(&self) -> &Self::CustomInstructionsService;
     fn auth_service(&self) -> &Self::AuthService;
-    fn app_config_service(&self) -> &Self::AppConfigService;
+    fn app_config_service(&self) -> &Self::AuthConfigService;
     fn workspace_config_service(&self) -> &Self::WorkspaceConfigService;
     fn provider_registry(&self) -> &Self::ProviderRegistry;
     fn agent_loader_service(&self) -> &Self::AgentLoaderService;
