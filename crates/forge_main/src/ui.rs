@@ -732,7 +732,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Ok(Some(config)) => config,
             _ => WorkspaceConfig::default(),
         };
-        
+
         if workspace_config.active_model.is_none() {
             workspace_config.active_model = Some(
                 self.select_model()
