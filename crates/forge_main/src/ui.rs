@@ -121,12 +121,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .cloned()
             .ok_or(anyhow::anyhow!("Undefined agent: {agent_id}"))?;
 
-        // TODO: improve following 3 async calls.
-        let conversation_id = self.init_conversation().await?;
-        if let Some(conversation) = self.api.conversation(&conversation_id).await? {
-            self.api.upsert_conversation(conversation).await?;
-        }
-
         // Reset is_first to true when switching agents
         self.state.is_first = true;
         self.state.operating_agent = agent.id.clone();
