@@ -100,7 +100,7 @@ impl TryFrom<PoolConfig> for DatabasePool {
                 diesel::sql_query("PRAGMA synchronous = NORMAL;")
                     .execute(conn)
                     .map_err(diesel::r2d2::Error::QueryError)?;
-                 diesel::sql_query("PRAGMA wal_autocheckpoint = 1000;")
+                diesel::sql_query("PRAGMA wal_autocheckpoint = 1000;")
                     .execute(conn)
                     .map_err(diesel::r2d2::Error::QueryError)?;
                 diesel::sql_query("PRAGMA wal_checkpoint(TRUNCATE);")
