@@ -728,12 +728,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     /// Initialize the state of the UI
     async fn init_state(&mut self, first: bool) -> Result<Workflow> {
-        let mut workspace_config = self
-            .api
-            .get_workspace_config()
-            .await
-            .unwrap_or_default()
-            .unwrap_or_default();
+        let mut workspace_config = match self.api.get_workspace_config().await {
+            Ok(Some(config)) => config,
+            _ => WorkspaceConfig::default(),
+        };
+        
         if workspace_config.active_model.is_none() {
             workspace_config.active_model = Some(
                 self.select_model()
