@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use forge_app::ConversationService;
-use forge_app::domain::{Conversation, ConversationId};
+use forge_app::domain::{Conversation, ConversationId, ConversationSummary};
 
 use crate::ConversationRepository;
 
@@ -52,7 +52,7 @@ impl<S: ConversationRepository> ConversationService for ForgeConversationService
         Ok(())
     }
 
-    async fn get_conversations(&self, limit: Option<usize>) -> Result<Option<Vec<Conversation>>> {
+    async fn get_conversations(&self, limit: Option<usize>) -> Result<Option<Vec<ConversationSummary>>> {
         self.conversation_repository
             .get_all_conversations(limit)
             .await

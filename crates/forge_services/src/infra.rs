@@ -3,8 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_app::domain::{
-    CommandOutput, Conversation, ConversationId, Environment, McpServerConfig, ToolDefinition,
-    ToolName, ToolOutput,
+    CommandOutput, Conversation, ConversationId, ConversationSummary, Environment, McpServerConfig, ToolDefinition, ToolName, ToolOutput
 };
 use forge_app::{WalkedFile, Walker};
 use forge_snaps::Snapshot;
@@ -232,6 +231,6 @@ pub trait ConversationRepository: Send + Sync {
     async fn get_all_conversations(
         &self,
         limit: Option<usize>,
-    ) -> anyhow::Result<Option<Vec<Conversation>>>;
+    ) -> anyhow::Result<Option<Vec<ConversationSummary>>>;
     async fn get_last_conversation(&self) -> anyhow::Result<Option<Conversation>>;
 }

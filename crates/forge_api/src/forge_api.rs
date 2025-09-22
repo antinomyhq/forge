@@ -111,7 +111,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         self.services.find_conversation(conversation_id).await
     }
 
-    async fn list_conversations(&self, limit: Option<usize>) -> anyhow::Result<Vec<Conversation>> {
+    async fn list_conversations(&self, limit: Option<usize>) -> anyhow::Result<Vec<ConversationSummary>> {
         Ok(self
             .services
             .get_conversations(limit)

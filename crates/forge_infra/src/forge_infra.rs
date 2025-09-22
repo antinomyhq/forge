@@ -3,7 +3,7 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_domain::{CommandOutput, Conversation, ConversationId, Environment, McpServerConfig};
+use forge_domain::{CommandOutput, Conversation, ConversationId, ConversationSummary, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
     CommandInfra, ConversationRepository, DirectoryReaderInfra, EnvironmentInfra,
@@ -301,7 +301,7 @@ impl ConversationRepository for ForgeInfra {
     async fn get_all_conversations(
         &self,
         limit: Option<usize>,
-    ) -> anyhow::Result<Option<Vec<Conversation>>> {
+    ) -> anyhow::Result<Option<Vec<ConversationSummary>>> {
         self.conversation_repository
             .get_all_conversations(limit)
             .await

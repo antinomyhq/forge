@@ -4,7 +4,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{Context, Error, Metrics, Result};
+use crate::{Context, Error, Metrics, Result, Usage};
 
 // Event type constants
 pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
@@ -40,6 +40,16 @@ pub struct Conversation {
     pub title: Option<String>,
     pub context: Option<Context>,
     pub metrics: Metrics,
+    pub metadata: MetaData,
+}
+
+// Lightweight conversation summary for listing purposes
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConversationSummary {
+    pub id: ConversationId,
+    pub title: Option<String>,
+    pub message_count: usize,
+    pub usage: Option<Usage>,
     pub metadata: MetaData,
 }
 

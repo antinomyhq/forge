@@ -3,9 +3,7 @@ use std::path::{Path, PathBuf};
 use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
-    Environment, File, McpConfig, Model, ModelId, PatchOperation, Provider, ResultStream, Scope,
-    ToolCallFull, ToolDefinition, ToolOutput, Workflow,
+    Agent, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, ConversationSummary, Environment, File, McpConfig, Model, ModelId, PatchOperation, Provider, ResultStream, Scope, ToolCallFull, ToolDefinition, ToolOutput, Workflow
 };
 use merge::Merge;
 use reqwest::Response;
@@ -163,7 +161,7 @@ pub trait ConversationService: Send + Sync {
     async fn get_conversations(
         &self,
         limit: Option<usize>,
-    ) -> anyhow::Result<Option<Vec<Conversation>>>;
+    ) -> anyhow::Result<Option<Vec<ConversationSummary>>>;
 
     /// Find the last active conversation
     async fn last_conversation(&self) -> anyhow::Result<Option<Conversation>>;
@@ -451,7 +449,7 @@ impl<I: Services> ConversationService for I {
     async fn get_conversations(
         &self,
         limit: Option<usize>,
-    ) -> anyhow::Result<Option<Vec<Conversation>>> {
+    ) -> anyhow::Result<Option<Vec<ConversationSummary>>> {
         self.conversation_service().get_conversations(limit).await
     }
 

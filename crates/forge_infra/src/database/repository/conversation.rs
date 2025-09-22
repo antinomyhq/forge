@@ -2,11 +2,13 @@ use std::sync::Arc;
 
 use chrono::{NaiveDateTime, Utc};
 use diesel::prelude::*;
-use forge_domain::{Context, Conversation, ConversationId, MetaData, WorkspaceId};
+use forge_domain::{
+    Context, Conversation, ConversationId, ConversationSummary, MetaData, TokenCount, Usage, WorkspaceId,
+};
 use forge_services::ConversationRepository;
 
 use crate::database::DatabasePool;
-use crate::database::schema::conversations;
+use crate::database::schema::{conversation_stats, conversations};
 
 // Database model for conversations table
 #[derive(Debug, Queryable, Selectable, Insertable, AsChangeset)]
@@ -17,6 +19,24 @@ struct ConversationRecord {
     title: Option<String>,
     workspace_id: i64,
     context: Option<String>,
+    created_at: NaiveDateTime,
+    updated_at: Option<NaiveDateTime>,
+}
+
+// Database model for conversation_stats table
+#[derive(Debug, Queryable, Selectable, Insertable, AsChangeset)]
+#[diesel(table_name = conversation_stats)]
+#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+struct ConversationStatsRecord {
+    conversation_id: String,
+    workspace_id: i64,
+    title: Option<String>,
+    message_count: i32,
+    total_tokens: i64,
+    prompt_tokens: i64,
+    completion_tokens: i64,
+    cached_tokens: i64,
+    cost: Option<f64>,
     created_at: NaiveDateTime,
     updated_at: Option<NaiveDateTime>,
 }
@@ -41,6 +61,42 @@ impl ConversationRecord {
     }
 }
 
+impl ConversationStatsRecord {
+    pub fn new(wid: WorkspaceId, conversation: &Conversation) -> Self {
+        let conversation_id = conversation.id.to_string();
+        let message_count = conversation
+            .context
+            .as_ref()
+            .map(|c| c.messages.len())
+            .unwrap_or_default() as i32;
+
+        let usage = conversation
+            .context
+            .as_ref()
+            .and_then(|c| c.usage.clone())
+            .unwrap_or_default();
+        let total_tokens = *usage.total_tokens as i64;
+        let prompt_tokens = *usage.prompt_tokens as i64;
+        let completion_tokens = *usage.completion_tokens as i64;
+        let cached_tokens = *usage.cached_tokens as i64;
+        let cost = usage.cost.clone();
+
+        Self {
+            conversation_id,
+            workspace_id: wid.id() as i64,
+            title: conversation.title.clone(),
+            message_count,
+            total_tokens,
+            prompt_tokens,
+            completion_tokens,
+            cached_tokens,
+            cost,
+            created_at: conversation.metadata.created_at.naive_utc(),
+            updated_at: conversation.metadata.updated_at.map(|u| u.naive_utc()),
+        }
+    }
+}
+
 impl TryFrom<ConversationRecord> for Conversation {
     type Error = anyhow::Error;
     fn try_from(record: ConversationRecord) -> anyhow::Result<Self> {
@@ -55,6 +111,25 @@ impl TryFrom<ConversationRecord> for Conversation {
                 MetaData::new(record.created_at.and_utc())
                     .updated_at(record.updated_at.map(|updated_at| updated_at.and_utc())),
             ))
+    }
+}
+
+impl From<ConversationStatsRecord> for ConversationSummary {
+    fn from(value: ConversationStatsRecord) -> Self {
+        Self {
+            id: ConversationId::parse(value.conversation_id).unwrap(),
+            title: value.title,
+            message_count: value.message_count as usize,
+            usage: Some(Usage {
+                prompt_tokens: TokenCount::Actual(value.prompt_tokens as usize),
+                completion_tokens: TokenCount::Actual(value.completion_tokens as usize),
+                total_tokens: TokenCount::Actual(value.total_tokens as usize),
+                cached_tokens: TokenCount::Actual(value.cached_tokens as usize),
+                cost: value.cost,
+            }),
+            metadata: MetaData::new(value.created_at.and_utc())
+                .updated_at(value.updated_at.map(|updated_at| updated_at.and_utc())),
+        }
     }
 }
 
@@ -75,17 +150,42 @@ impl ConversationRepository for ConversationRepositoryImpl {
         let mut connection = self.pool.get_connection()?;
 
         let wid = self.wid;
-        let record = ConversationRecord::new(conversation, wid);
-        diesel::insert_into(conversations::table)
-            .values(&record)
-            .on_conflict(conversations::conversation_id)
-            .do_update()
-            .set((
-                conversations::title.eq(&record.title),
-                conversations::context.eq(&record.context),
-                conversations::updated_at.eq(record.updated_at),
-            ))
-            .execute(&mut connection)?;
+        let record = ConversationRecord::new(conversation.clone(), wid.clone());
+        let stats_record = ConversationStatsRecord::new(wid, &conversation);
+
+        // Use a transaction to ensure both tables are updated atomically
+        connection.transaction(|conn| {
+            // Upsert conversation
+            diesel::insert_into(conversations::table)
+                .values(&record)
+                .on_conflict(conversations::conversation_id)
+                .do_update()
+                .set((
+                    conversations::title.eq(&record.title),
+                    conversations::context.eq(&record.context),
+                    conversations::updated_at.eq(record.updated_at),
+                ))
+                .execute(conn)?;
+
+            // Upsert conversation stats
+            diesel::insert_into(conversation_stats::table)
+                .values(&stats_record)
+                .on_conflict(conversation_stats::conversation_id)
+                .do_update()
+                .set((
+                    conversation_stats::message_count.eq(stats_record.message_count),
+                    conversation_stats::total_tokens.eq(stats_record.total_tokens),
+                    conversation_stats::prompt_tokens.eq(stats_record.prompt_tokens),
+                    conversation_stats::completion_tokens.eq(stats_record.completion_tokens),
+                    conversation_stats::cached_tokens.eq(stats_record.cached_tokens),
+                    conversation_stats::cost.eq(stats_record.cost),
+                    conversation_stats::updated_at.eq(stats_record.updated_at),
+                ))
+                .execute(conn)?;
+
+            Ok::<(), anyhow::Error>(())
+        })?;
+
         Ok(())
     }
 
@@ -109,28 +209,34 @@ impl ConversationRepository for ConversationRepositoryImpl {
     async fn get_all_conversations(
         &self,
         limit: Option<usize>,
-    ) -> anyhow::Result<Option<Vec<Conversation>>> {
+    ) -> anyhow::Result<Option<Vec<ConversationSummary>>> {
         let mut connection = self.pool.get_connection()?;
 
         let workspace_id = self.wid.id() as i64;
-        let mut query = conversations::table
-            .filter(conversations::workspace_id.eq(&workspace_id))
-            .order(conversations::created_at.desc())
+
+        let mut query = conversation_stats::table
+            .select(ConversationStatsRecord::as_select())
+            .filter(conversation_stats::workspace_id.eq(&workspace_id))
+            .order(conversation_stats::created_at.desc())
             .into_boxed();
 
         if let Some(limit_value) = limit {
             query = query.limit(limit_value as i64);
         }
 
-        let records: Vec<ConversationRecord> = query.load(&mut connection)?;
+        let records: Vec<ConversationStatsRecord> = query.load(&mut connection)?;
 
         if records.is_empty() {
             return Ok(None);
         }
 
-        let conversations: Result<Vec<Conversation>, _> =
-            records.into_iter().map(Conversation::try_from).collect();
-        Ok(Some(conversations?))
+        // Convert to ConversationSummary first, then to Conversation for backward compatibility
+        let summaries: Vec<ConversationSummary> = records
+            .into_iter()
+            .map(ConversationSummary::from)
+            .collect();
+
+        Ok(Some(summaries))
     }
 
     async fn get_last_conversation(&self) -> anyhow::Result<Option<Conversation>> {

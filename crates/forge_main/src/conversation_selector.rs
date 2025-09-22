@@ -3,7 +3,7 @@ use std::fmt::Display;
 use anyhow::Result;
 use chrono::Utc;
 use colored::Colorize;
-use forge_api::Conversation;
+use forge_api::ConversationSummary;
 
 use crate::select::ForgeSelect;
 
@@ -14,7 +14,9 @@ impl ConversationSelector {
     /// Select a conversation from the provided list
     ///
     /// Returns the selected conversation ID, or None if no selection was made
-    pub fn select_conversation(conversations: &[Conversation]) -> Result<Option<Conversation>> {
+    pub fn select_conversation(
+        conversations: &[ConversationSummary],
+    ) -> Result<Option<ConversationSummary>> {
         if conversations.is_empty() {
             return Ok(None);
         }
@@ -51,16 +53,11 @@ impl ConversationSelector {
                 })
                 .unwrap_or_else(|| format!("<unknown> [{}]", c.id).to_string());
 
-            let message_count = c
-                .context
-                .as_ref()
-                .map(|ctx| ctx.messages.len())
-                .unwrap_or(0);
+            let message_count = c.message_count;
 
             let total_tokens = c
-                .context
+                .usage
                 .as_ref()
-                .and_then(|ctx| ctx.usage.as_ref())
                 .map(|usage| format!("{}", usage.total_tokens))
                 .unwrap_or_else(|| "0".to_string());
 
@@ -86,7 +83,7 @@ impl ConversationSelector {
             .max()
             .unwrap_or(0);
 
-        struct ConversationItem((String, Conversation));
+        struct ConversationItem((String, ConversationSummary));
         impl Display for ConversationItem {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 self.0.0.fmt(f)
