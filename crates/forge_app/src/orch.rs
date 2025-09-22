@@ -607,7 +607,7 @@ impl<S: AgentService> Orchestrator<S> {
             && event.value.is_some()
         {
             let event_context = EventContext::new(event.clone())
-                .current_time(self.current_time.format("%Y-%m-%d").to_string());
+                .current_date(self.current_time.format("%Y-%m-%d").to_string());
             debug!(event_context = ?event_context, "Event context");
             Some(
                 self.services
