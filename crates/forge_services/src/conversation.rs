@@ -52,7 +52,10 @@ impl<S: ConversationRepository> ConversationService for ForgeConversationService
         Ok(())
     }
 
-    async fn get_conversations(&self, limit: Option<usize>) -> Result<Option<Vec<ConversationSummary>>> {
+    async fn get_conversations(
+        &self,
+        limit: Option<usize>,
+    ) -> Result<Option<Vec<ConversationSummary>>> {
         self.conversation_repository
             .get_all_conversations(limit)
             .await

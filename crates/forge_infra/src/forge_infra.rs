@@ -3,7 +3,9 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_domain::{CommandOutput, Conversation, ConversationId, ConversationSummary, Environment, McpServerConfig};
+use forge_domain::{
+    CommandOutput, Conversation, ConversationId, ConversationSummary, Environment, McpServerConfig,
+};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
     CommandInfra, ConversationRepository, DirectoryReaderInfra, EnvironmentInfra,

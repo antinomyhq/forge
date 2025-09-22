@@ -3,7 +3,8 @@ use std::sync::Arc;
 use chrono::{NaiveDateTime, Utc};
 use diesel::prelude::*;
 use forge_domain::{
-    Context, Conversation, ConversationId, ConversationSummary, MetaData, TokenCount, Usage, WorkspaceId,
+    Context, Conversation, ConversationId, ConversationSummary, MetaData, TokenCount, Usage,
+    WorkspaceId,
 };
 use forge_services::ConversationRepository;
 
@@ -79,7 +80,7 @@ impl ConversationStatsRecord {
         let prompt_tokens = *usage.prompt_tokens as i64;
         let completion_tokens = *usage.completion_tokens as i64;
         let cached_tokens = *usage.cached_tokens as i64;
-        let cost = usage.cost.clone();
+        let cost = usage.cost;
 
         Self {
             conversation_id,
@@ -150,7 +151,7 @@ impl ConversationRepository for ConversationRepositoryImpl {
         let mut connection = self.pool.get_connection()?;
 
         let wid = self.wid;
-        let record = ConversationRecord::new(conversation.clone(), wid.clone());
+        let record = ConversationRecord::new(conversation.clone(), wid);
         let stats_record = ConversationStatsRecord::new(wid, &conversation);
 
         // Use a transaction to ensure both tables are updated atomically
@@ -230,11 +231,10 @@ impl ConversationRepository for ConversationRepositoryImpl {
             return Ok(None);
         }
 
-        // Convert to ConversationSummary first, then to Conversation for backward compatibility
-        let summaries: Vec<ConversationSummary> = records
-            .into_iter()
-            .map(ConversationSummary::from)
-            .collect();
+        // Convert to ConversationSummary first, then to Conversation for backward
+        // compatibility
+        let summaries: Vec<ConversationSummary> =
+            records.into_iter().map(ConversationSummary::from).collect();
 
         Ok(Some(summaries))
     }
