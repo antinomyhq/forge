@@ -110,6 +110,8 @@ pub enum TopLevelCommand {
     Mcp(McpCommandGroup),
     /// Print information about the environment
     Info,
+    /// Read or update workspace configuration (agent and model)
+    Config(ConfigArgs),
     /// Generate shell prompt completion scripts
     Term(TerminalArgs),
 }
@@ -227,4 +229,18 @@ impl From<Scope> for forge_domain::Scope {
 pub enum Transport {
     Stdio,
     Sse,
+}
+
+
+#[derive(Parser, Debug, Clone, Default)]
+pub struct ConfigArgs {
+    /// Set the operating agent for this workspace (e.g. forge, muse, sage)
+    /// If no value is provided, an interactive selector will be shown
+    #[arg(long = "set-agent", value_name = "AGENT")]
+    pub agent: Option<Option<String>>,
+
+    /// Set the active model for this workspace (e.g. gpt-4o, claude-3.5-sonnet)
+    /// If no value is provided, an interactive selector will be shown
+    #[arg(long = "set-model", value_name = "MODEL")]
+    pub model: Option<Option<String>>,
 }
