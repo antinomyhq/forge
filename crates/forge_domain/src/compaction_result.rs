@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 /// Contains metrics related to context compaction
 /// This struct provides information about the compaction operation
 /// such as the original and compacted token counts.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct CompactionResult {
     /// Number of tokens in the original context
     pub original_tokens: usize,

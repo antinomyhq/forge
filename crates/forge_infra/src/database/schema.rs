@@ -1,5 +1,3 @@
-// @generated automatically by Diesel CLI.
-
 diesel::table! {
     conversations (conversation_id) {
         conversation_id -> Text,
@@ -10,3 +8,15 @@ diesel::table! {
         updated_at -> Nullable<Timestamp>,
     }
 }
+
+diesel::table! {
+    workspace_configs (workspace_id) {
+        workspace_id -> BigInt,
+        operating_agent -> Nullable<Text>,
+        active_model -> Nullable<Text>,
+        created_at -> Timestamp,
+        updated_at -> Nullable<Timestamp>,
+    }
+}
+
+diesel::allow_tables_to_appear_in_same_query!(conversations, workspace_configs,);

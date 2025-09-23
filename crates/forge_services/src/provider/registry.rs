@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use forge_app::ProviderRegistry;
 use forge_app::domain::{Provider, ProviderUrl};
-use forge_app::dto::AppConfig;
+use forge_app::dto::AuthConfig;
 use tokio::sync::RwLock;
 
 use crate::EnvironmentInfra;
@@ -33,7 +33,7 @@ impl<F: EnvironmentInfra> ForgeProviderRegistry<F> {
         }
         None
     }
-    fn get_provider(&self, _forge_config: AppConfig) -> Option<Provider> {
+    fn get_provider(&self, _forge_config: AuthConfig) -> Option<Provider> {
         // if let Some(forge_key) = &forge_config.key_info {
         //     let provider = Provider::forge(forge_key.api_key.as_str());
         //     return Some(override_url(provider, self.provider_url()));
@@ -44,7 +44,7 @@ impl<F: EnvironmentInfra> ForgeProviderRegistry<F> {
 
 #[async_trait::async_trait]
 impl<F: EnvironmentInfra> ProviderRegistry for ForgeProviderRegistry<F> {
-    async fn get_provider(&self, config: AppConfig) -> anyhow::Result<Provider> {
+    async fn get_provider(&self, config: AuthConfig) -> anyhow::Result<Provider> {
         if let Some(provider) = self.cache.read().await.as_ref() {
             return Ok(provider.clone());
         }
