@@ -103,9 +103,6 @@ impl TryFrom<PoolConfig> for DatabasePool {
                 diesel::sql_query("PRAGMA wal_autocheckpoint = 1000;")
                     .execute(conn)
                     .map_err(diesel::r2d2::Error::QueryError)?;
-                diesel::sql_query("PRAGMA wal_checkpoint(TRUNCATE);")
-                    .execute(conn)
-                    .map_err(diesel::r2d2::Error::QueryError)?;
                 Ok(())
             }
         }
