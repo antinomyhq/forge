@@ -909,6 +909,24 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         }
 
                         return Ok(());
+                    } else if format == "openai" {
+                        use forge_app::dto::openai::Request;
+                        let path = format!("{timestamp}-dump.json");
+                        let mut request = Request::from(conversation.context.unwrap_or_default());
+                        if let Some(model) = self.state.model.as_ref() {
+                            request = request.model(model.clone());
+                        }
+                        let content = serde_json::to_string_pretty(&request)?;
+                        tokio::fs::write(path.as_str(), content).await?;
+
+                        self.writeln_title(
+                            TitleFormat::action("Conversation JSON dump created".to_string())
+                                .sub_title(path.to_string()),
+                        )?;
+
+                        if self.api.environment().auto_open_dump {
+                            open::that(path.as_str()).ok();
+                        }
                     }
                 } else {
                     // Default: Export as JSON
