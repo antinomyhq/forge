@@ -13,7 +13,7 @@ use crate::temperature::Temperature;
 use crate::template::Template;
 use crate::{
     Context, EVENT_USER_TASK_INIT, EVENT_USER_TASK_UPDATE, Error, EventContext, MaxTokens, ModelId,
-    Result, SystemContext, ToolDefinition, ToolName, TopK, TopP, Workflow,
+    Result, SystemContext, ToolDefinition, ToolName, Tools, TopK, TopP, Workflow,
 };
 
 // Unique identifier for an agent
@@ -316,12 +316,23 @@ impl Agent {
         let unique_agent_tools: HashSet<_> = self.tools.iter().flatten().collect();
 
         // Filter and collect tool definitions based on agent's tool list
-        unique_agent_tools
+        let mut tool_definations: Vec<ToolDefinition> = unique_agent_tools
             .iter()
             .flat_map(|tool| tool_definitions_map.get(*tool))
             .cloned()
             .cloned()
-            .collect()
+            .collect();
+
+        // Ensure attempt_completion tool is at index 0 if it exists
+        if let Some(pos) = tool_definations
+            .iter()
+            .position(|tool| Tools::is_attempt_completion(&tool.name))
+            && pos != 0 {
+                let attempt_completion_tool = tool_definations.remove(pos);
+                tool_definations.insert(0, attempt_completion_tool);
+            }
+
+        tool_definations
     }
 
     pub fn extend_mcp_tools(self, mcp_tools: &HashMap<String, Vec<ToolDefinition>>) -> Self {
@@ -891,5 +902,65 @@ mod tests {
             "string_ref".to_string(),
         ];
         assert_eq!(actual, &expected);
+    }
+
+    #[test]
+    fn test_attempt_completion_tool_moved_to_index_0() {
+        let fixture = Agent::new("test-agent").tools(vec![
+            ToolName::new("tool1"),
+            ToolName::new("tool2"),
+            ToolName::new("attempt_completion"),
+            ToolName::new("tool3"),
+        ]);
+        let tool_definitions: Vec<ToolDefinition> = vec![
+            ToolDefinition::new("tool1"),
+            ToolDefinition::new("tool2"),
+            ToolDefinition::new("attempt_completion"),
+            ToolDefinition::new("tool3"),
+        ];
+
+        let actual = fixture.resolve_tool_definitions(&tool_definitions);
+
+        // attempt_completion should be moved to index 0
+        assert_eq!(actual.len(), 4);
+        assert_eq!(actual[0].name, ToolName::new("attempt_completion"));
+    }
+
+    #[test]
+    fn test_attempt_completion_tool_already_at_index_0() {
+        let fixture = Agent::new("test-agent").tools(vec![
+            ToolName::new("attempt_completion"),
+            ToolName::new("tool1"),
+            ToolName::new("tool2"),
+        ]);
+        let tool_definitions: Vec<ToolDefinition> = vec![
+            ToolDefinition::new("attempt_completion"),
+            ToolDefinition::new("tool1"),
+            ToolDefinition::new("tool2"),
+        ];
+
+        let actual = fixture.resolve_tool_definitions(&tool_definitions);
+
+        // attempt_completion should remain at index 0
+        assert_eq!(actual.len(), 3);
+        assert_eq!(actual[0].name, ToolName::new("attempt_completion"));
+    }
+
+    #[test]
+    fn test_no_attempt_completion_tool_no_change() {
+        let fixture = Agent::new("test-agent").tools(vec![
+            ToolName::new("tool1"),
+            ToolName::new("tool2"),
+            ToolName::new("tool3"),
+        ]);
+        let tool_definitions: Vec<ToolDefinition> = vec![
+            ToolDefinition::new("tool1"),
+            ToolDefinition::new("tool2"),
+            ToolDefinition::new("tool3"),
+        ];
+
+        let actual = fixture.resolve_tool_definitions(&tool_definitions);
+        // All tools should be present, no attempt_completion tool
+        assert_eq!(actual.len(), 3);
     }
 }
