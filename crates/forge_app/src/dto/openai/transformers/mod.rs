@@ -3,6 +3,7 @@ mod make_cerebras_compat;
 mod make_openai_compat;
 mod pipeline;
 mod set_cache;
+mod set_provider_preferences;
 mod set_temperature;
 mod tool_choice;
 mod when_model;

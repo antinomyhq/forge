@@ -4,6 +4,7 @@ use super::drop_tool_call::DropToolCalls;
 use super::make_cerebras_compat::MakeCerebrasCompat;
 use super::make_openai_compat::MakeOpenAiCompat;
 use super::set_cache::SetCache;
+use super::set_provider_preferences::SetProviderPreferences;
 use super::set_temperature::SetTemperature;
 use super::tool_choice::SetToolChoice;
 use super::when_model::when_model;
@@ -30,6 +31,13 @@ impl Transformer for ProviderPipeline<'_> {
             .pipe(DropToolCalls.when(when_model("mistral")))
             .pipe(SetToolChoice::new(ToolChoice::Auto).when(when_model("gemini")))
             .pipe(SetCache.when(when_model("gemini|anthropic")))
+            .pipe(
+                SetProviderPreferences::new(
+                    vec!["moonshotai".to_string(), "groq".to_string()],
+                    false,
+                )
+                .when(when_model("kimi-k2")),
+            )
             .when(move |_| supports_open_router_params(provider));
 
         let open_ai_compat = MakeOpenAiCompat.when(move |_| !supports_open_router_params(provider));
@@ -102,5 +110,51 @@ mod tests {
 
         // Expected: temperature should remain unchanged for non-kimi models
         assert_eq!(actual.temperature, Some(1.0));
+    }
+
+    #[test]
+    fn test_kimi_k2_provider_preferences_set_for_open_router() {
+        // Fixture
+        let provider = Provider::open_router("openrouter");
+        let mut pipeline = ProviderPipeline::new(&provider);
+        let request = Request::default().model(ModelId::new("kimi-k2-128k"));
+
+        // Execute
+        let actual = pipeline.transform(request);
+
+        // Expected: provider preferences should be set for kimi-k2 models
+        let expected_preferences = Some(crate::dto::openai::ProviderPreferences {
+            order: vec!["moonshotai".to_string(), "groq".to_string()],
+            allow_fallbacks: false,
+        });
+        assert_eq!(actual.provider, expected_preferences);
+    }
+
+    #[test]
+    fn test_non_kimi_model_provider_preferences_unchanged() {
+        // Fixture
+        let provider = Provider::open_router("openrouter");
+        let mut pipeline = ProviderPipeline::new(&provider);
+        let request = Request::default().model(ModelId::new("gpt-4"));
+
+        // Execute
+        let actual = pipeline.transform(request);
+
+        // Expected: provider preferences should remain None for non-kimi models
+        assert_eq!(actual.provider, None);
+    }
+
+    #[test]
+    fn test_kimi_k2_provider_preferences_not_set_for_non_openrouter() {
+        // Fixture
+        let provider = Provider::openai("openai");
+        let mut pipeline = ProviderPipeline::new(&provider);
+        let request = Request::default().model(ModelId::new("kimi-k2-128k"));
+
+        // Execute
+        let actual = pipeline.transform(request);
+
+        // Expected: provider preferences should not be set for non-OpenRouter providers
+        assert_eq!(actual.provider, None);
     }
 }
