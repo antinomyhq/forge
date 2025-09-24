@@ -55,7 +55,10 @@ async fn test_rendered_user_message() {
     let user_message = messages.iter().find(|message| message.has_role(Role::User));
     assert!(user_message.is_some(), "Should have user message");
 
-    let content = format!("\n  <task>Hi</task>\n  <system_date>{}</system_date>\n", current_time.format("%Y-%m-%d"));
+    let content = format!(
+        "\n  <task>Hi</task>\n  <system_date>{}</system_date>\n",
+        current_time.format("%Y-%m-%d")
+    );
     assert_eq!(user_message.unwrap().content().unwrap(), content)
 }
 
