@@ -20,7 +20,7 @@ async fn main() -> Result<()> {
             "Unexpected error occurred".to_string()
         };
 
-        eprintln!("{}", TitleFormat::error(message.to_string()).display());
+        println!("{}", TitleFormat::error(message.to_string()).display());
         tracker::error_blocking(message);
         std::process::exit(1);
     }));
