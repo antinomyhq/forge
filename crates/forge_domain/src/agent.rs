@@ -327,10 +327,11 @@ impl Agent {
         if let Some(pos) = tool_definations
             .iter()
             .position(|tool| Tools::is_attempt_completion(&tool.name))
-            && pos != 0 {
-                let attempt_completion_tool = tool_definations.remove(pos);
-                tool_definations.insert(0, attempt_completion_tool);
-            }
+            && pos != 0
+        {
+            let attempt_completion_tool = tool_definations.remove(pos);
+            tool_definations.insert(0, attempt_completion_tool);
+        }
 
         tool_definations
     }
