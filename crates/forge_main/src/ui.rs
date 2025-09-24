@@ -384,7 +384,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Find the maximum agent ID length for consistent padding
         let max_id_length = agents
             .iter()
-            .map(|agent| agent.id.as_str().to_case(Case::UpperSnake).len())
+            .map(|agent| agent.id.as_str().len())
             .max()
             .unwrap_or(0);
 
@@ -392,7 +392,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .iter()
             .map(|agent| {
                 let title = agent.title.as_deref().unwrap_or("No title available");
-                let agent = agent.id.as_str().to_case(Case::UpperSnake);
+                let agent = agent.id.as_str();
                 format!("{:<width$} {}", agent, title, width = max_id_length)
             })
             .collect::<Vec<_>>()
