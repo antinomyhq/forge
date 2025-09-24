@@ -515,7 +515,7 @@ impl<S: AgentService> Orchestrator<S> {
                                 .to_string(),
                         ),
                     })
-                    .await?;
+                .await?;
                     is_complete = true;
                     self.error_tracker
                         .succeed(&ToolsDiscriminants::AttemptCompletion.name());

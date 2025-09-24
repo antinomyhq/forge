@@ -45,7 +45,7 @@ impl EventContext {
             suggestions: Default::default(),
             variables: Default::default(),
             current_date: chrono::Local::now()
-                .format("%Y-%m-%d %H:%M:%S %:z")
+                .format("%Y-%m-%d")
                 .to_string(),
         }
     }
