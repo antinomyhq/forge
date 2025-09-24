@@ -576,7 +576,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         {
                             let label = format!(
                                 "{:<n$} {}",
-                                agent.id.as_str().to_case(Case::UpperSnake).bold(),
+                                agent.id.as_str().bold(),
                                 title.lines().collect::<Vec<_>>().join(" ").dimmed()
                             );
                             Agent { label, id: agent.id.clone() }
