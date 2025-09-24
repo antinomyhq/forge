@@ -105,6 +105,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.display_banner()?;
         self.trace_user();
         self.hydrate_caches();
+        self.init_conversation().await?;
         Ok(())
     }
 
@@ -204,6 +205,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.init_state(true).await?;
         self.trace_user();
         self.hydrate_caches();
+        self.init_conversation().await?;
 
         // Check for dispatch flag first
         if let Some(dispatch_json) = self.cli.event.clone() {
@@ -699,12 +701,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 let mut new_conversation = false;
                 self.spinner.start(Some("Initializing"))?;
 
-                // Select a model if workflow doesn't have one
-                let workflow = self.init_state(false).await?;
-
-                // Update state
-                self.update_model(workflow.model.clone());
-
                 // We need to try and get the conversation ID first before fetching the model
                 let conversation = if let Some(ref path) = self.cli.conversation {
                     let conversation: Conversation =
@@ -732,6 +728,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .context
                     .and_then(|ctx| ctx.usage)
                     .unwrap_or(self.state.usage.clone());
+                self.spinner.stop(None)?;
 
                 if new_conversation {
                     self.writeln_title(
@@ -751,8 +748,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     /// Initialize the state of the UI
     async fn init_state(&mut self, first: bool) -> Result<Workflow> {
-        let provider = self.init_provider().await?;
-        let mut workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
+        // Run the independent initialization tasks in parallel for better performance
+        let (provider, mut workflow) = tokio::try_join!(
+            self.init_provider(),
+            self.api.read_workflow(self.cli.workflow.as_deref())
+        )?;
+
+        // Ensure we have a model selected before proceeding with initialization
         if workflow.model.is_none() {
             workflow.model = Some(
                 self.select_model()
@@ -760,45 +762,60 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .ok_or(anyhow::anyhow!("Model selection is required to continue"))?,
             );
         }
+
+        // Create base workflow and trigger updates if this is the first initialization
         let mut base_workflow = Workflow::default();
         base_workflow.merge(workflow.clone());
         if first {
             // only call on_update if this is the first initialization
             on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
         }
-        self.api
-            .write_workflow(self.cli.workflow.as_deref(), &workflow)
-            .await?;
 
-        self.command.register_all(&base_workflow);
+        // Execute independent operations in parallel to improve performance
+        let write_workflow_fut = self
+            .api
+            .write_workflow(self.cli.workflow.as_deref(), &workflow);
+        let get_agents_fut = self.api.get_agents();
+        let get_operating_agent_fut = self.api.get_operating_agent();
 
-        // Register agent commands
-        match self.api.get_agents().await {
+        let (write_workflow_result, agents_result, operating_agent_result) =
+            tokio::join!(write_workflow_fut, get_agents_fut, get_operating_agent_fut);
+
+        // Handle workflow write result first as it's critical for the system state
+        write_workflow_result?;
+
+        // Register agent commands with proper error handling and user feedback
+        match agents_result {
             Ok(agents) => {
-                let result = self.command.register_agent_commands(agents);
+                let registration_result = self.command.register_agent_commands(agents);
 
                 // Show warning for any skipped agents due to conflicts
-                for skipped_command in result.skipped_conflicts {
+                for skipped_command in registration_result.skipped_conflicts {
                     self.writeln_title(TitleFormat::error(format!(
-                        "Skipped agent command '{}' due to name conflict with built-in command",
-                        skipped_command
+                        "Skipped agent command '{skipped_command}' due to name conflict with built-in command"
                     )))?;
                 }
             }
             Err(e) => {
                 self.writeln_title(TitleFormat::error(format!(
-                    "Failed to load agents for command registration: {}",
-                    e
+                    "Failed to load agents for command registration: {e}"
                 )))?;
             }
         }
 
-        let agent = self.api.get_operating_agent().await.unwrap_or_default();
+        // Get the operating agent with fallback to default
+        let agent = operating_agent_result.unwrap_or_default();
+
+        // Finalize UI state initialization by registering commands and setting up the
+        // state
+        self.command.register_all(&base_workflow);
         self.state = UIState::new(self.api.environment(), base_workflow, agent).provider(provider);
+        self.update_model(workflow.model.clone());
 
         Ok(workflow)
     }
-    async fn init_provider(&mut self) -> Result<Provider> {
+
+    async fn init_provider(&self) -> Result<Provider> {
         self.api.provider().await
         // match self.api.provider().await {
         //     // Use the forge key if available in the config.

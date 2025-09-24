@@ -3,7 +3,8 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use anyhow::Result;
-use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
+use diesel::prelude::*;
+use diesel::r2d2::{ConnectionManager, CustomizeConnection, Pool, PooledConnection};
 use diesel::sqlite::SqliteConnection;
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
 use tracing::{debug, warn};
@@ -85,9 +86,33 @@ impl TryFrom<PoolConfig> for DatabasePool {
         let database_url = config.database_path.to_string_lossy().to_string();
         let manager = ConnectionManager::<SqliteConnection>::new(&database_url);
 
+        // Configure SQLite for better concurrency ref: https://docs.diesel.rs/master/diesel/sqlite/struct.SqliteConnection.html#concurrency
+        #[derive(Debug)]
+        struct SqliteCustomizer;
+        impl CustomizeConnection<SqliteConnection, diesel::r2d2::Error> for SqliteCustomizer {
+            fn on_acquire(&self, conn: &mut SqliteConnection) -> Result<(), diesel::r2d2::Error> {
+                diesel::sql_query("PRAGMA busy_timeout = 30000;")
+                    .execute(conn)
+                    .map_err(diesel::r2d2::Error::QueryError)?;
+                diesel::sql_query("PRAGMA journal_mode = WAL;")
+                    .execute(conn)
+                    .map_err(diesel::r2d2::Error::QueryError)?;
+                diesel::sql_query("PRAGMA synchronous = NORMAL;")
+                    .execute(conn)
+                    .map_err(diesel::r2d2::Error::QueryError)?;
+                diesel::sql_query("PRAGMA wal_autocheckpoint = 1000;")
+                    .execute(conn)
+                    .map_err(diesel::r2d2::Error::QueryError)?;
+                Ok(())
+            }
+        }
+
+        let customizer = SqliteCustomizer;
+
         let mut builder = Pool::builder()
             .max_size(config.max_size)
-            .connection_timeout(config.connection_timeout);
+            .connection_timeout(config.connection_timeout)
+            .connection_customizer(Box::new(customizer));
 
         if let Some(min_idle) = config.min_idle {
             builder = builder.min_idle(Some(min_idle));
