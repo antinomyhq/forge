@@ -380,18 +380,12 @@ pub struct Followup {
     #[serde(default)]
     pub explanation: Option<String>,
 }
-
-/// After each tool use, the user will respond with the result of
-/// that tool use, i.e. if it succeeded or failed, along with any reasons for
-/// failure. Once you've received the results of tool uses and can confirm that
-/// the task is complete, use this tool to present the result of your work to
-/// the user in markdown format. The user may respond with feedback if they are
-/// not satisfied with the result, which you can use to make improvements and
-/// try again. IMPORTANT NOTE: This tool CANNOT be used until you've confirmed
-/// from the user that any previous tool uses were successful. Failure to do so
-/// will result in code corruption and system failure. Before using this tool,
-/// you must ask yourself if you've confirmed from the user that any previous
-/// tool uses were successful. If not, then DO NOT use this tool.
+/// This tool must be used to communicate the final output of a any completed user
+/// task. It produces a markdown-formatted response that summarizes the result,
+/// the steps taken, and any tools or reasoning applied to achieve completion.
+/// This tool must only be called once the task is fully resolved; if the task
+/// is not yet complete, continue using other tools until it is. It should never
+/// be used mid-process.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct AttemptCompletion {
     /// The result of the task. Formulate this result in a way that is final and
