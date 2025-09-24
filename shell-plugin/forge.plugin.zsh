@@ -2,8 +2,9 @@
 
 # Forge ZSH Plugin - ZLE Widget Version  
 # Converts command-tagged commands to resume conversations using ZLE widgets
-# Supports :plan/:p (muse), :ask/:a (sage), :command_name (custom command), : (forge default)
-# Features: Auto-resume existing conversations or start new ones, @ tab completion support
+# Supports :plan/:p (muse), :ask/:a (sage), :new (start new conversation), :command_name (custom command), : (forge default)
+# Features: Auto-resume existing conversations or start new ones, @ tab completion support, banner display for new conversations
+# Provides show-banner function for displaying the Forge ASCII art banner
 
 # Configuration: Change these variables to customize the forge command and special characters
 # Using typeset to keep variables local to plugin scope and prevent public exposure
@@ -31,15 +32,33 @@ typeset -h _FORGE_CONVERSATION_ID=""
 # Store the last command for reuse
 typeset -h _FORGE_COMMAND=""
 
+# Function to display the Forge banner
+function show-banner() {
+    echo
+    echo " _____                    "
+    echo "|  ___|__  _ __ __ _  ___ "
+    echo "| |_ / _ \| '__/ _\` |/ _ \\"
+    echo "|  _| (_) | | | (_| |  __/"
+    echo "|_|  \___/|_|  \__, |\\___|"
+    echo "               |___/      "
+}
+
 # Helper function for shared transformation logic
 function _forge_transform_buffer() {
     local forge_cmd=""
     local input_text=""
+    local is_new_conversation=false
     
     # Check if the line starts with any of the supported patterns
     if  [[ "$BUFFER" =~ "^:([a-zA-Z][a-zA-Z0-9_-]*) (.*)$" ]]; then
         _FORGE_COMMAND="${match[1]}"
         input_text="${match[2]}"
+        
+        # Handle :new command specially - clear conversation ID
+        if [[ "$_FORGE_COMMAND" == "new" ]]; then
+            _FORGE_CONVERSATION_ID=""
+            is_new_conversation=true
+        fi
     elif [[ "$BUFFER" =~ "^: (.*)$" ]]; then
         input_text="${match[1]}"        
     else
@@ -49,6 +68,12 @@ function _forge_transform_buffer() {
     # Always try to resume - if no conversation ID exists, generate a new one
     if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
         _FORGE_CONVERSATION_ID=$($_FORGE_BIN --generate-conversation-id)
+        is_new_conversation=true
+    fi
+    
+    # Print banner for new conversations
+    if [[ "$is_new_conversation" == true ]]; then
+        show-banner
     fi
     
     # Build the forge command with the appropriate command
