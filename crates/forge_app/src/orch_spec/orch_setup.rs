@@ -12,6 +12,16 @@ use url::Url;
 
 use crate::orch_spec::orch_runner::Runner;
 
+// User prompt
+const USER_PROMPT: &'static str = r#"
+{{#if (eq event.name 'forge/user_task_update')}}
+  <feedback>{{event.value}}</feedback>
+  {{else}}
+  <task>{{event.value}}</task>
+  {{/if}}
+  <system_date>{{current_date}}</system_date>
+"#;
+
 #[derive(Setters)]
 #[setters(into)]
 pub struct TestContext {
@@ -83,6 +93,7 @@ impl TestContext {
             title: Some("test-conversation".into()),
             agent: Agent::new(AgentId::new("forge"))
                 .system_prompt(Template::new("You are Forge"))
+                .user_prompt(Template::new(USER_PROMPT))
                 .tools(vec![
                     ("fs_read").into(),
                     ("fs_write").into(),
