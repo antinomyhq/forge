@@ -4,6 +4,7 @@ use super::drop_tool_call::DropToolCalls;
 use super::make_cerebras_compat::MakeCerebrasCompat;
 use super::make_openai_compat::MakeOpenAiCompat;
 use super::set_cache::SetCache;
+use super::set_temperature::SetTemperature;
 use super::tool_choice::SetToolChoice;
 use super::when_model::when_model;
 use crate::dto::openai::{Request, ToolChoice};
@@ -35,7 +36,10 @@ impl Transformer for ProviderPipeline<'_> {
 
         let cerebras_compat = MakeCerebrasCompat.when(move |_| provider.is_cerebras());
 
-        let mut combined = or_transformers.pipe(open_ai_compat).pipe(cerebras_compat);
+        let mut combined = or_transformers
+            .pipe(open_ai_compat)
+            .pipe(cerebras_compat)
+            .pipe(SetTemperature::new(0.6).when(when_model("kimi-k2")));
         combined.transform(request)
     }
 }
@@ -50,6 +54,9 @@ fn supports_open_router_params(provider: &Provider) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use forge_domain::ModelId;
+    use pretty_assertions::assert_eq;
+
     use super::*;
 
     #[test]
@@ -65,5 +72,35 @@ mod tests {
         )));
         assert!(!supports_open_router_params(&Provider::xai("xai")));
         assert!(!supports_open_router_params(&Provider::anthropic("claude")));
+    }
+
+    #[test]
+    fn test_kimi_k2_temperature_set_for_open_router() {
+        // Fixture
+        let provider = Provider::open_router("openrouter");
+        let mut pipeline = ProviderPipeline::new(&provider);
+        let request = Request::default().model(ModelId::new("kimi-k2-128k"));
+
+        // Execute
+        let actual = pipeline.transform(request);
+
+        // Expected: temperature should be set to 0.6 for kimi-k2 models
+        assert_eq!(actual.temperature, Some(0.6));
+    }
+
+    #[test]
+    fn test_non_kimi_model_temperature_unchanged() {
+        // Fixture
+        let provider = Provider::open_router("openrouter");
+        let mut pipeline = ProviderPipeline::new(&provider);
+        let request = Request::default()
+            .model(ModelId::new("gpt-4"))
+            .temperature(1.0);
+
+        // Execute
+        let actual = pipeline.transform(request);
+
+        // Expected: temperature should remain unchanged for non-kimi models
+        assert_eq!(actual.temperature, Some(1.0));
     }
 }
