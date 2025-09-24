@@ -1,8 +1,8 @@
 #!/usr/bin/env zsh
 
 # Forge ZSH Plugin - ZLE Widget Version  
-# Converts agent-tagged commands to resume conversations using ZLE widgets
-# Supports :plan/:p (muse), :ask/:a (sage), :agent_name (custom agent), : (forge default)
+# Converts command-tagged commands to resume conversations using ZLE widgets
+# Supports :plan/:p (muse), :ask/:a (sage), :command_name (custom command), : (forge default)
 # Features: Auto-resume existing conversations or start new ones, @ tab completion support
 
 # Configuration: Change these variables to customize the forge command and special characters
@@ -32,21 +32,21 @@ typeset -h _FORGE_CONVERSATION_ID=""
 function _forge_transform_buffer() {
     local forge_cmd=""
     local input_text=""
-    local agent=""
+    local command=""
     
     # Check if the line starts with any of the supported patterns
     if [[ "$BUFFER" =~ "^:plan (.*)$" ]] || [[ "$BUFFER" =~ "^:p (.*)$" ]]; then
         input_text="${match[1]}"
-        agent="muse"
+        command="muse"
     elif [[ "$BUFFER" =~ "^:ask (.*)$" ]] || [[ "$BUFFER" =~ "^:a (.*)$" ]]; then
         input_text="${match[1]}"
-        agent="sage"
+        command="sage"
     elif [[ "$BUFFER" =~ "^:([a-zA-Z][a-zA-Z0-9_-]*) (.*)$" ]]; then
-        agent="${match[1]}"
+        command="${match[1]}"
         input_text="${match[2]}"
     elif [[ "$BUFFER" =~ "^: (.*)$" ]]; then
         input_text="${match[1]}"
-        agent="forge"  # Default agent
+        command="forge"  # Default command
     else
         return 1  # No transformation needed
     fi
@@ -56,8 +56,8 @@ function _forge_transform_buffer() {
         _FORGE_CONVERSATION_ID=$($_FORGE_BIN --generate-conversation-id)
     fi
     
-    # Build the forge command with the appropriate agent
-    forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID --agent $agent"
+    # Build the forge command with the appropriate command
+    forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID --command $command"
     
     # Save the original command to history
     local original_command="$BUFFER"
@@ -81,9 +81,9 @@ function forge-completion() {
         local filter_text="${current_word#@}"
         local selected
         if [[ -n "$filter_text" ]]; then
-            selected=$(fd --type f --hidden --exclude .git | fzf --query "$filter_text" --height 40% --reverse)
+            selected=$(fd --type f --hidden --exclude .git | fzf --select-1 --query "$filter_text" --height 40% --reverse)
         else
-            selected=$(fd --type f --hidden --exclude .git | fzf --height 40% --reverse)
+            selected=$(fd --type f --hidden --exclude .git | fzf --select-1 --height 40% --reverse)
         fi
         
         if [[ -n "$selected" ]]; then
@@ -102,29 +102,29 @@ function forge-completion() {
         # Extract the text after the colon for filtering
         local filter_text="${LBUFFER#:}"
         
-        # Get available agents from forge show-commands
-        local agents_output
-        agents_output=$($_FORGE_BIN show-commands 2>/dev/null)
+        # Get available commands from forge show-commands
+        local command_output
+        command_output=$($_FORGE_BIN show-commands 2>/dev/null)
         
-        if [[ $? -eq 0 && -n "$agents_output" ]]; then
+        if [[ $? -eq 0 && -n "$command_output" ]]; then
             # Use fzf for interactive selection with prefilled filter
             local selected
             if [[ -n "$filter_text" ]]; then
-                selected=$(echo "$agents_output" | fzf --nth=1 --query "$filter_text" --height 40% --reverse --prompt="Forge Command ❯ ")
+                selected=$(echo "$command_output" | fzf --select-1 --nth=1 --query "$filter_text" --height 40% --reverse --prompt="Forge Command ❯ ")
             else
-                selected=$(echo "$agents_output" | fzf --nth=1 --height 40% --reverse --prompt="Forge Command ❯ ")
+                selected=$(echo "$command_output" | fzf --select-1 --nth=1 --height 40% --reverse --prompt="Forge Command ❯ ")
             fi
             
             if [[ -n "$selected" ]]; then
-                # Extract just the agent name (first word before any description)
-                local agent_name="${selected%% *}"
-                # Replace the current buffer with the selected agent
-                BUFFER=":$agent_name "
+                # Extract just the command name (first word before any description)
+                local command_name="${selected%% *}"
+                # Replace the current buffer with the selected command
+                BUFFER=":$command_name "
                 CURSOR=${#BUFFER}
             fi
         else
             # Fallback if forge show-commands fails - show basic message
-            echo "\nError: Could not load agents from forge show-commands"
+            echo "\nError: Could not load commands from forge show-commands"
         fi
         
         zle reset-prompt
