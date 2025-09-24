@@ -63,7 +63,7 @@ function _forge_transform_buffer() {
     print -s "$original_command"    
     
     # Transform to forge command
-    BUFFER="$forge_cmd <<< $(printf %q "$input_text")"
+    BUFFER="$forge_cmd -p $(printf %q "$input_text")"
     
     # Move cursor to end
     CURSOR=${#BUFFER}
