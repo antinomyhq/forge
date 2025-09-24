@@ -262,7 +262,8 @@ impl ForgeCommandManager {
             "/exit" => Ok(Command::Exit),
             "/update" => Ok(Command::Update),
             "/dump" => {
-                if !parameters.is_empty() && (parameters[0] == "html" || parameters[0] == "openai") {
+                if !parameters.is_empty() && (parameters[0] == "html" || parameters[0] == "openai")
+                {
                     Ok(Command::Dump(Some(parameters[0].to_string())))
                 } else {
                     Ok(Command::Dump(None))
