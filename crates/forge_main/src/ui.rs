@@ -376,24 +376,20 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     /// Lists all the commands
     async fn on_show_commands(&self) -> anyhow::Result<()> {
-        let mut agents = self.api.get_agents().await?;
+        let commands = self.command.list();
 
-        // Sort agents by ID (name) alphabetically
-        agents.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
+        // Find the maximum command name length for consistent padding
+        let max_name_length = commands.iter().map(|cmd| cmd.name.len()).max().unwrap_or(0);
 
-        // Find the maximum agent ID length for consistent padding
-        let max_id_length = agents
+        let output = commands
             .iter()
-            .map(|agent| agent.id.as_str().len())
-            .max()
-            .unwrap_or(0);
-
-        let output = agents
-            .iter()
-            .map(|agent| {
-                let title = agent.title.as_deref().unwrap_or("No title available");
-                let agent = agent.id.as_str();
-                format!("{:<width$} {}", agent, title, width = max_id_length)
+            .map(|cmd| {
+                format!(
+                    "{:<width$} {}",
+                    cmd.name,
+                    cmd.description,
+                    width = max_name_length
+                )
             })
             .collect::<Vec<_>>()
             .join("\n");
@@ -761,13 +757,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                 if new_conversation {
                     self.writeln_title(
-                        TitleFormat::debug("Initialized conversation")
-                            .sub_title(conversation.id.into_string()),
+                        TitleFormat::debug("Initialize").sub_title(conversation.id.into_string()),
                     )?;
                 } else {
                     self.writeln_title(
-                        TitleFormat::debug("Resumed conversation")
-                            .sub_title(conversation.id.into_string()),
+                        TitleFormat::debug("Continue").sub_title(conversation.id.into_string()),
                     )?;
                 }
                 Ok(conversation.id)

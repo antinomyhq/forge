@@ -87,25 +87,25 @@ impl ForgeCommandManager {
     fn is_reserved_command(name: &str) -> bool {
         matches!(
             name,
-            "/agent"
-                | "/forge"
-                | "/muse"
-                | "/sage"
-                | "/help"
-                | "/compact"
-                | "/new"
-                | "/info"
-                | "/usage"
-                | "/exit"
-                | "/update"
-                | "/dump"
-                | "/model"
-                | "/tools"
-                | "/login"
-                | "/logout"
-                | "/retry"
-                | "/conversations"
-                | "/list"
+            "agent"
+                | "forge"
+                | "muse"
+                | "sage"
+                | "help"
+                | "compact"
+                | "new"
+                | "info"
+                | "usage"
+                | "exit"
+                | "update"
+                | "dump"
+                | "model"
+                | "tools"
+                | "login"
+                | "logout"
+                | "retry"
+                | "conversations"
+                | "list"
         )
     }
 
@@ -131,7 +131,7 @@ impl ForgeCommandManager {
         commands.sort_by(|a, b| a.name.cmp(&b.name));
 
         commands.extend(workflow.commands.clone().into_iter().map(|cmd| {
-            let name = format!("/{}", cmd.name);
+            let name = cmd.name.clone();
             let description = format!("⚙ {}", cmd.description);
             let value = cmd.prompt.clone();
 
@@ -148,14 +148,14 @@ impl ForgeCommandManager {
         let mut result =
             AgentCommandRegistrationResult { registered_count: 0, skipped_conflicts: Vec::new() };
 
-        // Remove existing agent commands (commands starting with "/agent-")
-        guard.retain(|cmd| !cmd.name.starts_with("/agent-"));
+        // Remove existing agent commands (commands starting with "agent-")
+        guard.retain(|cmd| !cmd.name.starts_with("agent-"));
 
         // Add new agent commands
         for agent in agents {
             let agent_id_str = agent.id.as_str();
             let sanitized_id = Self::sanitize_agent_id(agent_id_str);
-            let command_name = format!("/agent-{}", sanitized_id);
+            let command_name = format!("agent-{}", sanitized_id);
 
             // Skip if it would conflict with reserved commands
             if Self::is_reserved_command(&command_name) {
@@ -285,7 +285,8 @@ impl ForgeCommandManager {
                 if let Some(command) = parts.first() {
                     // Check if it's an agent command pattern (/agent-*)
                     if command.starts_with("/agent-") {
-                        if let Some(found_command) = self.find(command) {
+                        let command_name = command.strip_prefix('/').unwrap();
+                        if let Some(found_command) = self.find(command_name) {
                             // Extract the agent ID from the command value
                             if let Some(agent_id) = &found_command.value {
                                 return Ok(Command::AgentSwitch(agent_id.clone()));
@@ -295,11 +296,12 @@ impl ForgeCommandManager {
                     }
 
                     // Handle custom workflow commands
-                    if let Some(command) = self.find(command) {
+                    let command_name = command.strip_prefix('/').unwrap_or(command);
+                    if let Some(command) = self.find(command_name) {
                         let value = self.extract_command_value(&command, &parts[1..]);
 
                         Ok(Command::Custom(PartialEvent::new(
-                            command.name.clone().strip_prefix('/').unwrap().to_string(),
+                            command.name.clone(),
                             value.unwrap_or_default(),
                         )))
                     } else {
@@ -409,27 +411,27 @@ pub enum Command {
 impl Command {
     pub fn name(&self) -> &str {
         match self {
-            Command::Compact => "/compact",
-            Command::New => "/new",
-            Command::Message(_) => "/message",
-            Command::Update => "/update",
-            Command::Info => "/info",
-            Command::Usage => "/usage",
-            Command::Exit => "/exit",
-            Command::Forge => "/forge",
-            Command::Muse => "/muse",
-            Command::Sage => "/sage",
-            Command::Help => "/help",
-            Command::Dump(_) => "/dump",
-            Command::Model => "/model",
-            Command::Tools => "/tools",
+            Command::Compact => "compact",
+            Command::New => "new",
+            Command::Message(_) => "message",
+            Command::Update => "update",
+            Command::Info => "info",
+            Command::Usage => "usage",
+            Command::Exit => "exit",
+            Command::Forge => "forge",
+            Command::Muse => "muse",
+            Command::Sage => "sage",
+            Command::Help => "help",
+            Command::Dump(_) => "dump",
+            Command::Model => "model",
+            Command::Tools => "tools",
             Command::Custom(event) => &event.name,
             Command::Shell(_) => "!shell",
-            Command::Agent => "/agent",
-            Command::Login => "/login",
-            Command::Logout => "/logout",
-            Command::Retry => "/retry",
-            Command::Conversations => "/conversations",
+            Command::Agent => "agent",
+            Command::Login => "login",
+            Command::Logout => "logout",
+            Command::Retry => "retry",
+            Command::Conversations => "conversations",
             Command::AgentSwitch(agent_id) => agent_id,
         }
     }
@@ -663,7 +665,7 @@ mod tests {
         let commands = manager.list();
 
         // The list command should be included
-        let contains_list = commands.iter().any(|cmd| cmd.name == "/conversations");
+        let contains_list = commands.iter().any(|cmd| cmd.name == "conversations");
         assert!(
             contains_list,
             "Conversations command should be in default commands"
@@ -709,11 +711,11 @@ mod tests {
     #[test]
     fn test_is_reserved_command() {
         // Test reserved commands
-        assert!(ForgeCommandManager::is_reserved_command("/agent"));
-        assert!(ForgeCommandManager::is_reserved_command("/forge"));
-        assert!(ForgeCommandManager::is_reserved_command("/muse"));
-        assert!(!ForgeCommandManager::is_reserved_command("/agent-custom"));
-        assert!(!ForgeCommandManager::is_reserved_command("/custom"));
+        assert!(ForgeCommandManager::is_reserved_command("agent"));
+        assert!(ForgeCommandManager::is_reserved_command("forge"));
+        assert!(ForgeCommandManager::is_reserved_command("muse"));
+        assert!(!ForgeCommandManager::is_reserved_command("agent-custom"));
+        assert!(!ForgeCommandManager::is_reserved_command("custom"));
     }
 
     #[test]
@@ -738,20 +740,16 @@ mod tests {
         let commands = fixture.list();
         let agent_commands: Vec<_> = commands
             .iter()
-            .filter(|cmd| cmd.name.starts_with("/agent-"))
+            .filter(|cmd| cmd.name.starts_with("agent-"))
             .collect();
 
         assert_eq!(agent_commands.len(), 2);
         assert!(
             agent_commands
                 .iter()
-                .any(|cmd| cmd.name == "/agent-test-agent")
+                .any(|cmd| cmd.name == "agent-test-agent")
         );
-        assert!(
-            agent_commands
-                .iter()
-                .any(|cmd| cmd.name == "/agent-another")
-        );
+        assert!(agent_commands.iter().any(|cmd| cmd.name == "agent-another"));
     }
 
     #[test]
