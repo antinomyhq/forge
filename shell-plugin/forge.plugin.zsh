@@ -30,7 +30,7 @@ ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z]# *(*|[[:graph:]]*)' 'fg=white,bold')
 typeset -h _FORGE_CONVERSATION_ID=""
 
 # Store the last command for reuse
-typeset -h _FORGE_COMMAND=""
+typeset -h _FORGE_USER_ACTION=""
 
 # Function to display the Forge banner
 function show-banner() {
@@ -51,11 +51,11 @@ function _forge_transform_buffer() {
     
     # Check if the line starts with any of the supported patterns
     if  [[ "$BUFFER" =~ "^:([a-zA-Z][a-zA-Z0-9_-]*) (.*)$" ]]; then
-        _FORGE_COMMAND="${match[1]}"
+        _FORGE_USER_ACTION="${match[1]}"
         input_text="${match[2]}"
         
         # Handle :new command specially - clear conversation ID
-        if [[ "$_FORGE_COMMAND" == "new" ]]; then
+        if [[ "$_FORGE_USER_ACTION" == "new" ]]; then
             _FORGE_CONVERSATION_ID=""
             is_new_conversation=true
         fi
@@ -77,8 +77,8 @@ function _forge_transform_buffer() {
     fi
     
     # Build the forge command with the appropriate command
-    if [[ -n "$_FORGE_COMMAND" ]]; then
-        forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID --command $_FORGE_COMMAND"
+    if [[ -n "$_FORGE_USER_ACTION" ]]; then
+        forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID --action $_FORGE_USER_ACTION"
     else
         forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID"
     fi
@@ -167,7 +167,7 @@ function forge-accept-line() {
         eval "$BUFFER"
         
         # Set buffer to the last command for continued interaction
-        BUFFER="${_FORGE_CONVERSATION_PATTERN}${_FORGE_COMMAND} "
+        BUFFER="${_FORGE_CONVERSATION_PATTERN}${_FORGE_USER_ACTION}"
         CURSOR=${#BUFFER}
         zle reset-prompt
         return
