@@ -761,12 +761,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                 if new_conversation {
                     self.writeln_title(
-                        TitleFormat::info("Initialized conversation")
+                        TitleFormat::debug("Initialized conversation")
                             .sub_title(conversation.id.into_string()),
                     )?;
                 } else {
                     self.writeln_title(
-                        TitleFormat::info("Resumed conversation")
+                        TitleFormat::debug("Resumed conversation")
                             .sub_title(conversation.id.into_string()),
                     )?;
                 }
