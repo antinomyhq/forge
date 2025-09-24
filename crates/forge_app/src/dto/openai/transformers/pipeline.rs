@@ -34,7 +34,7 @@ impl Transformer for ProviderPipeline<'_> {
             .pipe(
                 SetProviderPreferences::new(
                     vec!["moonshotai".to_string(), "groq".to_string()],
-                    false,
+                    true,
                 )
                 .when(when_model("kimi-k2")),
             )
@@ -125,7 +125,7 @@ mod tests {
         // Expected: provider preferences should be set for kimi-k2 models
         let expected_preferences = Some(crate::dto::openai::ProviderPreferences {
             order: vec!["moonshotai".to_string(), "groq".to_string()],
-            allow_fallbacks: false,
+            allow_fallbacks: true,
         });
         assert_eq!(actual.provider, expected_preferences);
     }
