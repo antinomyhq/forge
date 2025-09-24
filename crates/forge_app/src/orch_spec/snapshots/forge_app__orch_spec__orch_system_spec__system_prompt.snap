@@ -14,7 +14,7 @@ You are Forge
 <available_tools>
 <tool>{"name":"fs_read","description":"","arguments":{}}</tool>
 <tool>{"name":"fs_write","description":"","arguments":{}}</tool>
-<tool>{"name":"attempt_completion","description":"This tool must be used to communicate the final output of a any completed user\n task. It produces a markdown-formatted response that summarizes the result,\n the steps taken, and any tools or reasoning applied to achieve completion.\n This tool must only be called once the task is fully resolved; if the task\n is not yet complete, continue using other tools until it is. It should never\n be used mid-process.","arguments":{"result":{"description":"The result of the task. Formulate this result in a way that is final and does not require further input from the user. Don't end your result with questions or offers for further assistance.","type":"string","is_required":true}}}</tool>
+<tool>{"name":"attempt_completion","description":"This tool must be used to communicate the final output of a any completed\n user task. It produces a markdown-formatted response that summarizes the\n result, the steps taken, and any tools or reasoning applied to achieve\n completion. This tool must only be called once the task is fully resolved;\n if the task is not yet complete, continue using other tools until it is. It\n should never be used mid-process.","arguments":{"result":{"description":"The result of the task. Formulate this result in a way that is final and does not require further input from the user. Don't end your result with questions or offers for further assistance.","type":"string","is_required":true}}}</tool>
 </available_tools>
 
 <tool_usage_example>
