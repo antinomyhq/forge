@@ -69,42 +69,66 @@ function _forge_transform_buffer() {
     return 0  # Successfully transformed
 }
 
-# ZLE widget for @ tab completion - opens fd | fzf
-function forge-at-completion() {
+# Custom completion widget that handles both :commands and @ completion
+function forge-completion() {
     local current_word="${LBUFFER##* }"
     
-    # Check if the current word starts with @
+    # Handle @ completion (existing functionality)
     if [[ "$current_word" =~ ^@.*$ ]]; then
-        # Extract the part after @ for filtering
         local filter_text="${current_word#@}"
-        
-        # Use fd to find files and fzf for interactive selection
         local selected
         if [[ -n "$filter_text" ]]; then
-            # If there's text after @, use it as initial filter
             selected=$(fd --type f --hidden --exclude .git | fzf --query "$filter_text" --height 40% --reverse)
         else
-            # If just @ was typed, show all files
             selected=$(fd --type f --hidden --exclude .git | fzf --height 40% --reverse)
         fi
         
-        # If a file was selected, replace the @ text with the selected file path
         if [[ -n "$selected" ]]; then
             selected="@[${selected}]"
-            # Remove the @ and any text after it from LBUFFER
             LBUFFER="${LBUFFER%$current_word}"
-            # Add the selected file path
             BUFFER="${LBUFFER}${selected}${RBUFFER}"
-            # Move cursor to end of inserted text
             CURSOR=$((${#LBUFFER} + ${#selected}))
         fi
         
-        # Reset the prompt
         zle reset-prompt
         return 0
     fi
     
-    # If not @ completion, fall back to default completion
+    # Handle :command completion
+    if [[ "${LBUFFER}" =~ "^:[a-zA-Z]*$" ]]; then
+        # Extract the text after the colon for filtering
+        local filter_text="${LBUFFER#:}"
+        
+        # Get available agents from forge show-commands
+        local agents_output
+        agents_output=$($_FORGE_BIN show-commands 2>/dev/null)
+        
+        if [[ $? -eq 0 && -n "$agents_output" ]]; then
+            # Use fzf for interactive selection with prefilled filter
+            local selected
+            if [[ -n "$filter_text" ]]; then
+                selected=$(echo "$agents_output" | fzf --nth=1 --query "$filter_text" --height 40% --reverse --prompt="Forge Command ❯ ")
+            else
+                selected=$(echo "$agents_output" | fzf --nth=1 --height 40% --reverse --prompt="Forge Command ❯ ")
+            fi
+            
+            if [[ -n "$selected" ]]; then
+                # Extract just the agent name (first word before any description)
+                local agent_name="${selected%% *}"
+                # Replace the current buffer with the selected agent
+                BUFFER=":$agent_name "
+                CURSOR=${#BUFFER}
+            fi
+        else
+            # Fallback if forge show-commands fails - show basic message
+            echo "\nError: Could not load agents from forge show-commands"
+        fi
+        
+        zle reset-prompt
+        return 0
+    fi
+    
+    # Fall back to default completion
     zle expand-or-complete
 }
 
@@ -128,11 +152,12 @@ function forge-accept-line() {
 
 # Register ZLE widgets
 zle -N forge-accept-line
-zle -N forge-at-completion
+# Register completions
+zle -N forge-completion
+
 
 # Bind Enter to our custom accept-line that transforms :commands
 bindkey '^M' forge-accept-line
 bindkey '^J' forge-accept-line
-
-# Bind Tab to our custom @ completion widget  
-bindkey '^I' forge-at-completion  # Tab for @ completion
+# Update the Tab binding to use the new completion widget
+bindkey '^I' forge-completion  # Tab for both @ and :command completion
