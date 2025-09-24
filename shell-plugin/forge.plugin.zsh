@@ -143,7 +143,7 @@ function forge-accept-line() {
         eval "$BUFFER"
         
         # Set buffer to conversation pattern for continued interaction
-        BUFFER="${_FORGE_CONVERSATION_PATTERN} "
+        BUFFER="${_FORGE_CONVERSATION_PATTERN}reset"
         CURSOR=${#BUFFER}
         zle reset-prompt
         return
