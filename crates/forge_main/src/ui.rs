@@ -366,15 +366,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_zsh_prompt().await?;
                 return Ok(());
             }
-            TopLevelCommand::ShowAgents => {
-                self.on_show_agents().await?;
+            TopLevelCommand::ShowCommands => {
+                self.on_show_commands().await?;
                 return Ok(());
             }
         }
         Ok(())
     }
 
-    async fn on_show_agents(&self) -> anyhow::Result<()> {
+    /// Lists all the commands
+    async fn on_show_commands(&self) -> anyhow::Result<()> {
         let mut agents = self.api.get_agents().await?;
 
         // Sort agents by ID (name) alphabetically
