@@ -1,17 +1,25 @@
 #!/usr/bin/env zsh
 
-# Forge ZSH Plugin - ZLE Widget Version
-# Converts '#? abc' to always resume conversations using ZLE widgets
+# Forge ZSH Plugin - ZLE Widget Version  
+# Converts agent-tagged commands to resume conversations using ZLE widgets
+# Supports :plan/:p (muse), :ask/:a (sage), :agent_name (custom agent), : (forge default)
 # Features: Auto-resume existing conversations or start new ones, @ tab completion support
 
 # Configuration: Change these variables to customize the forge command and special characters
 # Using typeset to keep variables local to plugin scope and prevent public exposure
 typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
-typeset -h _FORGE_CONVERSATION_PATTERN="\?\?"
+typeset -h _FORGE_CONVERSATION_PATTERN=":"
 
 ZSH_HIGHLIGHT_HIGHLIGHTERS+=(pattern)
 # Style the conversation pattern with appropriate highlighting
-ZSH_HIGHLIGHT_PATTERNS+=('(#s)\?\? *' 'fg=white,bold')
+# Keywords in yellow, rest in default white
+
+# Highlight colon + word at the beginning in yellow
+ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z]#' 'fg=yellow,bold')
+
+# Highlight everything after that word + space in white
+ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z]# *(*|[[:graph:]]*)' 'fg=white,bold')
+
 
 
 # Store conversation ID in a temporary variable (local to plugin)
@@ -21,20 +29,32 @@ typeset -h _FORGE_CONVERSATION_ID=""
 function _forge_transform_buffer() {
     local forge_cmd=""
     local input_text=""
+    local agent=""
     
-    # Check if the line starts with the conversation pattern (default: '??')
-    if [[ "$BUFFER" =~ "^${_FORGE_CONVERSATION_PATTERN}(.*)$" ]]; then
+    # Check if the line starts with any of the supported patterns
+    if [[ "$BUFFER" =~ "^:plan (.*)$" ]] || [[ "$BUFFER" =~ "^:p (.*)$" ]]; then
         input_text="${match[1]}"
-        
-        # Always try to resume - if no conversation ID exists, generate a new one
-        if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
-            _FORGE_CONVERSATION_ID=$($_FORGE_BIN --generate-conversation-id)
-        fi
-        
-        forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID"
+        agent="muse"
+    elif [[ "$BUFFER" =~ "^:ask (.*)$" ]] || [[ "$BUFFER" =~ "^:a (.*)$" ]]; then
+        input_text="${match[1]}"
+        agent="sage"
+    elif [[ "$BUFFER" =~ "^:([a-zA-Z][a-zA-Z0-9_-]*) (.*)$" ]]; then
+        agent="${match[1]}"
+        input_text="${match[2]}"
+    elif [[ "$BUFFER" =~ "^: (.*)$" ]]; then
+        input_text="${match[1]}"
+        agent="forge"  # Default agent
     else
         return 1  # No transformation needed
     fi
+    
+    # Always try to resume - if no conversation ID exists, generate a new one
+    if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
+        _FORGE_CONVERSATION_ID=$($_FORGE_BIN --generate-conversation-id)
+    fi
+    
+    # Build the forge command with the appropriate agent
+    forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID --agent $agent"
     
     # Save the original command to history
     local original_command="$BUFFER"
@@ -88,35 +108,6 @@ function forge-at-completion() {
     zle expand-or-complete
 }
 
-# ZLE widget for Enter key that transforms #? commands to always resume conversations
-# ZLE widget for inserting conversation pattern
-function forge-insert-pattern() {
-    # Toggle the conversation pattern at the beginning of the line
-    # while maintaining cursor position relative to the original text
-    local pattern="?? "
-    local original_cursor_pos=$CURSOR
-    
-    # Check if buffer already starts with the pattern
-    if [[ "$BUFFER" =~ "^${_FORGE_CONVERSATION_PATTERN} " ]]; then
-        # Remove pattern from the beginning
-        BUFFER="${BUFFER#${pattern}}"
-        
-        # Adjust cursor position, but don't go below 0
-        CURSOR=$((original_cursor_pos - ${#pattern}))
-        if [[ $CURSOR -lt 0 ]]; then
-            CURSOR=0
-        fi
-    else
-        # Insert pattern at the beginning of the buffer
-        BUFFER="${pattern}${BUFFER}"
-        
-        # Adjust cursor position to account for the inserted pattern length
-        CURSOR=$((original_cursor_pos + ${#pattern}))
-    fi
-    
-    zle redisplay
-}
-
 function forge-accept-line() {
     # Attempt transformation using helper
     if _forge_transform_buffer; then
@@ -125,27 +116,23 @@ function forge-accept-line() {
         eval "$BUFFER"
         
         # Set buffer to conversation pattern for continued interaction
-        BUFFER="?? "
+        BUFFER="${_FORGE_CONVERSATION_PATTERN} "
         CURSOR=${#BUFFER}
         zle reset-prompt
         return
     fi
     
-    # For non-?? commands, use normal accept-line
+    # For non-:commands, use normal accept-line
     zle accept-line
 }
 
 # Register ZLE widgets
-zle -N forge-insert-pattern
 zle -N forge-accept-line
 zle -N forge-at-completion
 
-# Bind Enter to our custom accept-line that transforms ?? commands
+# Bind Enter to our custom accept-line that transforms :commands
 bindkey '^M' forge-accept-line
 bindkey '^J' forge-accept-line
-
-# Bind CTRL+G to insert/toggle conversation pattern  
-bindkey '^G' forge-insert-pattern
 
 # Bind Tab to our custom @ completion widget  
 bindkey '^I' forge-at-completion  # Tab for @ completion
