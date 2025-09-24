@@ -28,25 +28,20 @@ ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z]# *(*|[[:graph:]]*)' 'fg=white,bold')
 # Store conversation ID in a temporary variable (local to plugin)
 typeset -h _FORGE_CONVERSATION_ID=""
 
+# Store the last command for reuse
+typeset -h _FORGE_COMMAND=""
+
 # Helper function for shared transformation logic
 function _forge_transform_buffer() {
     local forge_cmd=""
     local input_text=""
-    local command=""
     
     # Check if the line starts with any of the supported patterns
-    if [[ "$BUFFER" =~ "^:plan (.*)$" ]] || [[ "$BUFFER" =~ "^:p (.*)$" ]]; then
-        input_text="${match[1]}"
-        command="muse"
-    elif [[ "$BUFFER" =~ "^:ask (.*)$" ]] || [[ "$BUFFER" =~ "^:a (.*)$" ]]; then
-        input_text="${match[1]}"
-        command="sage"
-    elif [[ "$BUFFER" =~ "^:([a-zA-Z][a-zA-Z0-9_-]*) (.*)$" ]]; then
-        command="${match[1]}"
+    if  [[ "$BUFFER" =~ "^:([a-zA-Z][a-zA-Z0-9_-]*) (.*)$" ]]; then
+        _FORGE_COMMAND="${match[1]}"
         input_text="${match[2]}"
     elif [[ "$BUFFER" =~ "^: (.*)$" ]]; then
-        input_text="${match[1]}"
-        command="forge"  # Default command
+        input_text="${match[1]}"        
     else
         return 1  # No transformation needed
     fi
@@ -57,11 +52,15 @@ function _forge_transform_buffer() {
     fi
     
     # Build the forge command with the appropriate command
-    forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID --command $command"
+    if [[ -n "$_FORGE_COMMAND" ]]; then
+        forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID --command $_FORGE_COMMAND"
+    else
+        forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID"
+    fi
     
-    # Save the original command to history
+    # Save the original command to history and store for reuse
     local original_command="$BUFFER"
-    print -s "$original_command"
+    print -s "$original_command"    
     
     # Transform to forge command
     BUFFER="$forge_cmd <<< $(printf %q "$input_text")"
@@ -142,8 +141,8 @@ function forge-accept-line() {
         echo  # Add a newline before execution for better UX
         eval "$BUFFER"
         
-        # Set buffer to conversation pattern for continued interaction
-        BUFFER="${_FORGE_CONVERSATION_PATTERN}reset"
+        # Set buffer to the last command for continued interaction
+        BUFFER="${_FORGE_CONVERSATION_PATTERN}${_FORGE_COMMAND} "
         CURSOR=${#BUFFER}
         zle reset-prompt
         return
