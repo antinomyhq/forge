@@ -142,8 +142,8 @@ impl From<ToolDefinition> for ResponseTool {
             parameters: {
                 let mut params = serde_json::to_value(value.input_schema).unwrap();
                 // Ensure OpenAI compatibility by adding properties field if missing
-                if let Some(obj) = params.as_object_mut()
-                    && obj.get("type") == Some(&serde_json::Value::String("object".to_string()))
+                if let Some(obj) = params.as_object_mut() {
+                    if obj.get("type") == Some(&serde_json::Value::String("object".to_string()))
                         && !obj.contains_key("properties")
                     {
                         obj.insert(
