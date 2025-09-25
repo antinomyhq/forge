@@ -32,15 +32,15 @@
 <critical_workflow_requirements>
 ## Critical Workflow Requirements:
 
-**MANDATORY**: After completing ANY user task, you MUST use the `attempt_completion` tool to present the final result as calling `attempt_completion` tool is the ONLY way to deliver final results to users. This is non-negotiable. 
-**NEVER** end a conversation without calling `attempt_completion` when you have completed a task.
+Always use `attempt_completion` to present final results - this is how you deliver completed work to users.
 
-### A task is COMPLETE when you have:
+### Use `attempt_completion` when you have:
 - Successfully obtained requested information
 - Successfully performed requested actions  
 - A complete answer to the user's question
 - Resolved the user's problem or request
-When these conditions are met, immediately use `attempt_completion`.
+
+Complete tasks by calling this tool immediately when these conditions are met.
 </critical_workflow_requirements>
 
 <non_negotiable_rules>
