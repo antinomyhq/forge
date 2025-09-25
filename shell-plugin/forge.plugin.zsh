@@ -4,7 +4,6 @@
 # Converts command-tagged commands to resume conversations using ZLE widgets
 # Supports :plan/:p (muse), :ask/:a (sage), :new (start new conversation), :command_name (custom command), : (forge default)
 # Features: Auto-resume existing conversations or start new ones, @ tab completion support, banner display for new conversations
-# Provides show-banner function for displaying the Forge ASCII art banner
 
 # Configuration: Change these variables to customize the forge command and special characters
 # Using typeset to keep variables local to plugin scope and prevent public exposure
@@ -32,22 +31,11 @@ typeset -h _FORGE_CONVERSATION_ID=""
 # Store the last command for reuse
 typeset -h _FORGE_USER_ACTION=""
 
-# Function to display the Forge banner
-function show-banner() {
-    echo
-    echo " _____                    "
-    echo "|  ___|__  _ __ __ _  ___ "
-    echo "| |_ / _ \| '__/ _\` |/ _ \\"
-    echo "|  _| (_) | | | (_| |  __/"
-    echo "|_|  \___/|_|  \__, |\\___|"
-    echo "               |___/      "
-}
 
 # Helper function for shared transformation logic
 function _forge_transform_buffer() {
     local forge_cmd=""
     local input_text=""
-    local is_new_conversation=false
     
     # Check if the line starts with any of the supported patterns
     if [[ "$BUFFER" =~ "^:([a-zA-Z][a-zA-Z0-9_-]*)( (.*))?$" ]]; then
@@ -60,22 +48,14 @@ function _forge_transform_buffer() {
     else
         return 1  # No transformation needed
     fi
-    
-    # Handle :new command specially - clear conversation ID
+
     if [[ "$_FORGE_USER_ACTION" == "new" ]]; then
-        _FORGE_CONVERSATION_ID=""
-        is_new_conversation=true
+        return 1 # No transformation needed
     fi
-    
+        
     # Always try to resume - if no conversation ID exists, generate a new one
     if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
         _FORGE_CONVERSATION_ID=$($_FORGE_BIN --generate-conversation-id)
-        is_new_conversation=true
-    fi
-    
-    # Print banner for new conversations
-    if [[ "$is_new_conversation" == true ]]; then
-        show-banner
     fi
     
     # Build the forge command with the appropriate command
@@ -173,6 +153,16 @@ function forge-accept-line() {
         CURSOR=${#BUFFER}
         zle reset-prompt
         return
+    fi
+
+    if [[ "$_FORGE_USER_ACTION" == "new" ]]; then
+        _FORGE_CONVERSATION_ID=""
+        _FORGE_USER_ACTION=""
+        BUFFER=""
+        CURSOR=${#BUFFER}
+        zle reset-prompt
+
+        return 0
     fi
     
     # For non-:commands, use normal accept-line
