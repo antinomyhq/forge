@@ -50,19 +50,21 @@ function _forge_transform_buffer() {
     local is_new_conversation=false
     
     # Check if the line starts with any of the supported patterns
-    if  [[ "$BUFFER" =~ "^:([a-zA-Z][a-zA-Z0-9_-]*) (.*)$" ]]; then
+    if [[ "$BUFFER" =~ "^:([a-zA-Z][a-zA-Z0-9_-]*)( (.*))?$" ]]; then
+        # Action with or without parameters: :foo or :foo bar baz
         _FORGE_USER_ACTION="${match[1]}"
-        input_text="${match[2]}"
-        
-        # Handle :new command specially - clear conversation ID
-        if [[ "$_FORGE_USER_ACTION" == "new" ]]; then
-            _FORGE_CONVERSATION_ID=""
-            is_new_conversation=true
-        fi
+        input_text="${match[3]:-}"  # Use empty string if no parameters (match[2] is the space + params, match[3] is just params)
     elif [[ "$BUFFER" =~ "^: (.*)$" ]]; then
+        # Default action with parameters: : something
         input_text="${match[1]}"        
     else
         return 1  # No transformation needed
+    fi
+    
+    # Handle :new command specially - clear conversation ID
+    if [[ "$_FORGE_USER_ACTION" == "new" ]]; then
+        _FORGE_CONVERSATION_ID=""
+        is_new_conversation=true
     fi
     
     # Always try to resume - if no conversation ID exists, generate a new one

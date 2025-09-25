@@ -89,6 +89,13 @@ pub struct Cli {
     /// The worktree name will be used as the branch name.
     #[arg(long)]
     pub sandbox: Option<String>,
+    /// Execute a specific slash command directly.
+    ///
+    /// Allows running slash commands (like /info, /tools, /new) directly from
+    /// the command line without entering interactive mode.
+    /// Example: --action info, --action "dump html", --action "new"
+    #[arg(long, short = 'a')]
+    pub action: Option<String>,
 }
 
 fn parse_conversation_id(s: &str) -> std::result::Result<ConversationId, String> {

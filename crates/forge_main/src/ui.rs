@@ -212,6 +212,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return self.handle_dispatch(dispatch_json).await;
         }
 
+        // Handle direct action if provided
+        if let Some(action) = self.cli.action.clone() {
+            self.on_action(action).await?;
+        }
+
         // Handle direct prompt if provided
         let prompt = self.cli.prompt.clone();
         if let Some(prompt) = prompt {
@@ -280,6 +285,27 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
+    // Handle action parameter by parsing and executing slash commands
+    async fn on_action(&mut self, action: String) -> Result<()> {
+        let action_for_error = action.clone();
+
+        // Format the action as a slash command if it doesn't already start with /
+        let action = if action.starts_with('/') {
+            action
+        } else {
+            format!("/{}", action)
+        };
+
+        // Parse the action using the command manager
+        let command = self
+            .command
+            .parse(&action)
+            .with_context(|| format!("Failed to parse action: {}", action_for_error))?;
+
+        // Execute the command
+        self.on_command(command).await?;
+        Ok(())
+    }
     async fn handle_subcommands(&mut self, subcommand: TopLevelCommand) -> anyhow::Result<()> {
         match subcommand {
             TopLevelCommand::Mcp(mcp_command) => match mcp_command.command {
