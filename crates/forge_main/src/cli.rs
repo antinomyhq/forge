@@ -120,8 +120,8 @@ pub enum TopLevelCommand {
     /// Generate ZSH shell prompt completion scripts
     GenerateZSHPrompt,
 
-    /// Lists all the commands
-    ShowCommands,
+    /// Lists all the agents
+    ShowAgents,
 }
 
 /// Group of MCP-related commands

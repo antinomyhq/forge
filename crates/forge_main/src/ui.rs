@@ -392,29 +392,38 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_zsh_prompt().await?;
                 return Ok(());
             }
-            TopLevelCommand::ShowCommands => {
-                self.on_show_commands().await?;
+            TopLevelCommand::ShowAgents => {
+                self.on_show_agents().await?;
                 return Ok(());
             }
         }
         Ok(())
     }
 
-    /// Lists all the commands
-    async fn on_show_commands(&self) -> anyhow::Result<()> {
-        let commands = self.command.list();
+    /// Lists all the agents
+    async fn on_show_agents(&self) -> anyhow::Result<()> {
+        let agents = self.api.get_agents().await?;
 
-        // Find the maximum command name length for consistent padding
-        let max_name_length = commands.iter().map(|cmd| cmd.name.len()).max().unwrap_or(0);
+        if agents.is_empty() {
+            return Ok(());
+        }
 
-        let output = commands
+        // Find the maximum agent ID length for consistent padding
+        let max_id_length = agents
             .iter()
-            .map(|cmd| {
+            .map(|agent| agent.id.as_str().len())
+            .max()
+            .unwrap_or(0);
+
+        let output = agents
+            .iter()
+            .map(|agent| {
+                let title = agent.title.as_deref().unwrap_or("<Missing agent.title>");
                 format!(
                     "{:<width$} {}",
-                    cmd.name,
-                    cmd.description,
-                    width = max_name_length
+                    agent.id.as_str(),
+                    title.lines().collect::<Vec<_>>().join(" "),
+                    width = max_id_length
                 )
             })
             .collect::<Vec<_>>()
