@@ -63,11 +63,7 @@ function _forge_transform_buffer() {
         forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID --action $_FORGE_USER_ACTION"
     else
         forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID"
-    fi
-    
-    # Save the original command to history and store for reuse
-    local original_command="$BUFFER"
-    print -s "$original_command"    
+    fi        
     
     # Transform to forge command
     BUFFER="$forge_cmd -p $(printf %q "$input_text")"
