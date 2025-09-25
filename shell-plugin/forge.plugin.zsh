@@ -9,6 +9,7 @@
 # Using typeset to keep variables local to plugin scope and prevent public exposure
 typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
 typeset -h _FORGE_CONVERSATION_PATTERN=":"
+typeset -h _FORGE_RESET_COMMAND="reset"
 
 # Style tagged files to be in green
 ZSH_HIGHLIGHT_PATTERNS+=('@\[[^]]#\]' 'fg=green,bold')
@@ -50,7 +51,7 @@ function _forge_transform_buffer() {
     fi
 
     # Handle `new` as a special case
-    if [[ "$_FORGE_USER_ACTION" == "new" ]]; then
+    if [[ "$_FORGE_USER_ACTION" == "$_FORGE_RESET_COMMAND" ]]; then
         return 1 # No transformation needed
     fi
         
@@ -143,19 +144,23 @@ function forge-accept-line() {
         eval "$BUFFER"
         
         # Set buffer to the last command for continued interaction
-        BUFFER="${_FORGE_CONVERSATION_PATTERN}${_FORGE_USER_ACTION}"
+        BUFFER="${_FORGE_CONVERSATION_PATTERN}${_FORGE_RESET_COMMAND}"
         CURSOR=${#BUFFER}
         zle reset-prompt
         return
     fi
 
-    if [[ "$_FORGE_USER_ACTION" == "new" ]]; then
+    if [[ "$_FORGE_USER_ACTION" == "$_FORGE_RESET_COMMAND" ]]; then
+        echo
+        if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
+            echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Reset ${_FORGE_CONVERSATION_ID}\033[0m"            
+        fi
+        
         _FORGE_CONVERSATION_ID=""
         _FORGE_USER_ACTION=""
         BUFFER=""
         CURSOR=${#BUFFER}
         zle reset-prompt
-
         return 0
     fi
     
