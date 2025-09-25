@@ -140,10 +140,11 @@ impl From<ToolDefinition> for ResponseTool {
             name: value.name.to_string(),
             description: Some(value.description),
             parameters: {
-                let mut params = serde_json::to_value(value.input_schema).unwrap();
+                let mut params = serde_json::to_value(value.input_schema)
+                    .unwrap_or_else(|_| serde_json::json!({}));
                 // Ensure OpenAI compatibility by adding properties field if missing
-                if let Some(obj) = params.as_object_mut() {
-                    if obj.get("type") == Some(&serde_json::Value::String("object".to_string()))
+                if let Some(obj) = params.as_object_mut()
+                    && obj.get("type") == Some(&serde_json::Value::String("object".to_string()))
                         && !obj.contains_key("properties")
                     {
                         obj.insert(
@@ -181,7 +182,7 @@ impl From<Context> for ResponsesRequest {
             text: None,
             stop: None,
             stream: None,
-            max_tokens: context.max_tokens.map(|t| t as u32),
+            max_tokens: context.max_tokens.and_then(|t| u32::try_from(t).ok()),
             temperature: context.temperature.map(|t| t.value()),
             tool_choice: context.tool_choice.map(|tc| tc.into()),
             previous_response_id: None,
