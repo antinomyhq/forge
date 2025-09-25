@@ -91,9 +91,10 @@ pub struct Cli {
     pub sandbox: Option<String>,
     /// Specify an agent to execute tasks with.
     ///
-    /// Allows selecting a specific agent to handle the conversation and task execution.
-    /// Agents provide specialized capabilities and knowledge domains.
-    /// Example: --agent sage, --agent planner, --agent "code-reviewer"
+    /// Allows selecting a specific agent to handle the conversation and task
+    /// execution. Agents provide specialized capabilities and knowledge
+    /// domains. Example: --agent sage, --agent planner, --agent
+    /// "code-reviewer"
     #[arg(long, short = 'a')]
     pub agent: Option<String>,
 }
