@@ -362,11 +362,49 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_info().await?;
                 return Ok(());
             }
-            TopLevelCommand::Term(terminal_args) => {
-                self.on_terminal(terminal_args).await?;
+            TopLevelCommand::GenerateZSHPrompt => {
+                self.on_zsh_prompt().await?;
+                return Ok(());
+            }
+            TopLevelCommand::ShowAgents => {
+                self.on_show_agents().await?;
                 return Ok(());
             }
         }
+        Ok(())
+    }
+
+    /// Lists all the agents
+    async fn on_show_agents(&self) -> anyhow::Result<()> {
+        let agents = self.api.get_agents().await?;
+
+        if agents.is_empty() {
+            return Ok(());
+        }
+
+        // Find the maximum agent ID length for consistent padding
+        let max_id_length = agents
+            .iter()
+            .map(|agent| agent.id.as_str().len())
+            .max()
+            .unwrap_or(0);
+
+        let output = agents
+            .iter()
+            .map(|agent| {
+                let title = agent.title.as_deref().unwrap_or("<Missing agent.title>");
+                format!(
+                    "{:<width$} {}",
+                    agent.id.as_str(),
+                    title.lines().collect::<Vec<_>>().join(" "),
+                    width = max_id_length
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        println!("{}", output);
+
         Ok(())
     }
 
@@ -412,12 +450,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn on_terminal(&mut self, terminal_args: crate::cli::TerminalArgs) -> anyhow::Result<()> {
-        match terminal_args.generate_prompt {
-            crate::cli::ShellType::Zsh => {
-                println!("{}", include_str!("../../../shell-plugin/forge.plugin.zsh"))
-            }
-        }
+    async fn on_zsh_prompt(&self) -> anyhow::Result<()> {
+        println!("{}", include_str!("../../../shell-plugin/forge.plugin.zsh"));
         Ok(())
     }
 
@@ -547,7 +581,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         {
                             let label = format!(
                                 "{:<n$} {}",
-                                agent.id.as_str().to_case(Case::UpperSnake).bold(),
+                                agent.id.as_str().bold(),
                                 title.lines().collect::<Vec<_>>().join(" ").dimmed()
                             );
                             Agent { label, id: agent.id.clone() }
@@ -695,7 +729,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn init_conversation(&mut self) -> Result<ConversationId> {
-        match self.state.conversation_id {
+        let id = match self.state.conversation_id {
             Some(ref id) => Ok(*id),
             None => {
                 let mut new_conversation = false;
@@ -732,18 +766,22 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                 if new_conversation {
                     self.writeln_title(
-                        TitleFormat::info("Initialized conversation")
-                            .sub_title(conversation.id.into_string()),
+                        TitleFormat::debug("Initialize").sub_title(conversation.id.into_string()),
                     )?;
                 } else {
                     self.writeln_title(
-                        TitleFormat::info("Resumed conversation")
-                            .sub_title(conversation.id.into_string()),
+                        TitleFormat::debug("Continue").sub_title(conversation.id.into_string()),
                     )?;
                 }
                 Ok(conversation.id)
             }
+        };
+
+        if let Some(ref agent) = self.cli.agent {
+            self.state.operating_agent = AgentId::new(agent)
         }
+
+        id
     }
 
     /// Initialize the state of the UI

@@ -89,6 +89,14 @@ pub struct Cli {
     /// The worktree name will be used as the branch name.
     #[arg(long)]
     pub sandbox: Option<String>,
+    /// Specify an agent to execute tasks with.
+    ///
+    /// Allows selecting a specific agent to handle the conversation and task
+    /// execution. Agents provide specialized capabilities and knowledge
+    /// domains. Example: --agent sage, --agent planner, --agent
+    /// "code-reviewer"
+    #[arg(long, short = 'a')]
+    pub agent: Option<String>,
 }
 
 fn parse_conversation_id(s: &str) -> std::result::Result<ConversationId, String> {
@@ -110,20 +118,11 @@ pub enum TopLevelCommand {
     Mcp(McpCommandGroup),
     /// Print information about the environment
     Info,
-    /// Generate shell prompt completion scripts
-    Term(TerminalArgs),
-}
+    /// Generate ZSH shell prompt completion scripts
+    GenerateZSHPrompt,
 
-#[derive(clap::Args, Debug, Clone)]
-pub struct TerminalArgs {
-    /// Generate shell prompt completion script
-    #[arg(short, long)]
-    pub generate_prompt: ShellType,
-}
-
-#[derive(clap::ValueEnum, Debug, Clone, Copy)]
-pub enum ShellType {
-    Zsh,
+    /// Lists all the agents
+    ShowAgents,
 }
 
 /// Group of MCP-related commands

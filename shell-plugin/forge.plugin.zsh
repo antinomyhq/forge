@@ -1,47 +1,74 @@
 #!/usr/bin/env zsh
 
-# Forge ZSH Plugin - ZLE Widget Version
-# Converts '#? abc' to always resume conversations using ZLE widgets
-# Features: Auto-resume existing conversations or start new ones, @ tab completion support
+# Forge ZSH Plugin - ZLE Widget Version  
+# Converts command-tagged commands to resume conversations using ZLE widgets
+# Supports :plan/:p (muse), :ask/:a (sage), :new (start new conversation), :command_name (custom command), : (forge default)
+# Features: Auto-resume existing conversations or start new ones, @ tab completion support, banner display for new conversations
 
 # Configuration: Change these variables to customize the forge command and special characters
 # Using typeset to keep variables local to plugin scope and prevent public exposure
 typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
-typeset -h _FORGE_CONVERSATION_PATTERN="\?\?"
+typeset -h _FORGE_CONVERSATION_PATTERN=":"
+typeset -h _FORGE_RESET_COMMAND="reset"
+
+# Style tagged files to be in green
+ZSH_HIGHLIGHT_PATTERNS+=('@\[[^]]#\]' 'fg=green,bold')
 
 ZSH_HIGHLIGHT_HIGHLIGHTERS+=(pattern)
 # Style the conversation pattern with appropriate highlighting
-ZSH_HIGHLIGHT_PATTERNS+=('(#s)\?\? *' 'fg=white,bold')
+# Keywords in yellow, rest in default white
+
+# Highlight colon + word at the beginning in yellow
+ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z]#' 'fg=yellow,bold')
+
+# Highlight everything after that word + space in white
+ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z]# *(*|[[:graph:]]*)' 'fg=white,bold')
+
 
 
 # Store conversation ID in a temporary variable (local to plugin)
 typeset -h _FORGE_CONVERSATION_ID=""
+
+# Store the last command for reuse
+typeset -h _FORGE_USER_ACTION=""
+
 
 # Helper function for shared transformation logic
 function _forge_transform_buffer() {
     local forge_cmd=""
     local input_text=""
     
-    # Check if the line starts with the conversation pattern (default: '??')
-    if [[ "$BUFFER" =~ "^${_FORGE_CONVERSATION_PATTERN}(.*)$" ]]; then
-        input_text="${match[1]}"
-        
-        # Always try to resume - if no conversation ID exists, generate a new one
-        if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
-            _FORGE_CONVERSATION_ID=$($_FORGE_BIN --generate-conversation-id)
-        fi
-        
-        forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID"
+    # Check if the line starts with any of the supported patterns
+    if [[ "$BUFFER" =~ "^:([a-zA-Z][a-zA-Z0-9_-]*)( (.*))?$" ]]; then
+        # Action with or without parameters: :foo or :foo bar baz
+        _FORGE_USER_ACTION="${match[1]}"
+        input_text="${match[3]:-}"  # Use empty string if no parameters (match[2] is the space + params, match[3] is just params)
+    elif [[ "$BUFFER" =~ "^: (.*)$" ]]; then
+        # Default action with parameters: : something
+        input_text="${match[1]}"        
     else
         return 1  # No transformation needed
     fi
+
+    # Handle `new` as a special case
+    if [[ "$_FORGE_USER_ACTION" == "$_FORGE_RESET_COMMAND" ]]; then
+        return 1 # No transformation needed
+    fi
+        
+    # Always try to resume - if no conversation ID exists, generate a new one
+    if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
+        _FORGE_CONVERSATION_ID=$($_FORGE_BIN --generate-conversation-id)
+    fi
     
-    # Save the original command to history
-    local original_command="$BUFFER"
-    print -s "$original_command"
+    # Build the forge command with the appropriate command
+    if [[ -n "$_FORGE_USER_ACTION" ]]; then
+        forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID --agent $_FORGE_USER_ACTION"
+    else
+        forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID"
+    fi        
     
     # Transform to forge command
-    BUFFER="$forge_cmd <<< $(printf %q "$input_text")"
+    BUFFER="$forge_cmd -p $(printf %q "$input_text")"
     
     # Move cursor to end
     CURSOR=${#BUFFER}
@@ -49,72 +76,64 @@ function _forge_transform_buffer() {
     return 0  # Successfully transformed
 }
 
-# ZLE widget for @ tab completion - opens fd | fzf
-function forge-at-completion() {
+# Custom completion widget that handles both :commands and @ completion
+function forge-completion() {
     local current_word="${LBUFFER##* }"
     
-    # Check if the current word starts with @
+    # Handle @ completion (existing functionality)
     if [[ "$current_word" =~ ^@.*$ ]]; then
-        # Extract the part after @ for filtering
         local filter_text="${current_word#@}"
-        
-        # Use fd to find files and fzf for interactive selection
         local selected
         if [[ -n "$filter_text" ]]; then
-            # If there's text after @, use it as initial filter
-            selected=$(fd --type f --hidden --exclude .git | fzf --query "$filter_text" --height 40% --reverse)
+            selected=$(fd --type f --hidden --exclude .git | fzf --select-1 --query "$filter_text" --height 40% --reverse)
         else
-            # If just @ was typed, show all files
-            selected=$(fd --type f --hidden --exclude .git | fzf --height 40% --reverse)
+            selected=$(fd --type f --hidden --exclude .git | fzf --select-1 --height 40% --reverse)
         fi
         
-        # If a file was selected, replace the @ text with the selected file path
         if [[ -n "$selected" ]]; then
             selected="@[${selected}]"
-            # Remove the @ and any text after it from LBUFFER
             LBUFFER="${LBUFFER%$current_word}"
-            # Add the selected file path
             BUFFER="${LBUFFER}${selected}${RBUFFER}"
-            # Move cursor to end of inserted text
             CURSOR=$((${#LBUFFER} + ${#selected}))
         fi
         
-        # Reset the prompt
         zle reset-prompt
         return 0
     fi
     
-    # If not @ completion, fall back to default completion
-    zle expand-or-complete
-}
-
-# ZLE widget for Enter key that transforms #? commands to always resume conversations
-# ZLE widget for inserting conversation pattern
-function forge-insert-pattern() {
-    # Toggle the conversation pattern at the beginning of the line
-    # while maintaining cursor position relative to the original text
-    local pattern="?? "
-    local original_cursor_pos=$CURSOR
-    
-    # Check if buffer already starts with the pattern
-    if [[ "$BUFFER" =~ "^${_FORGE_CONVERSATION_PATTERN} " ]]; then
-        # Remove pattern from the beginning
-        BUFFER="${BUFFER#${pattern}}"
+    # Handle :command completion
+    if [[ "${LBUFFER}" =~ "^:[a-zA-Z]*$" ]]; then
+        # Extract the text after the colon for filtering
+        local filter_text="${LBUFFER#:}"
         
-        # Adjust cursor position, but don't go below 0
-        CURSOR=$((original_cursor_pos - ${#pattern}))
-        if [[ $CURSOR -lt 0 ]]; then
-            CURSOR=0
+        # Get available commands from forge show-agents
+        local command_output
+        command_output=$($_FORGE_BIN show-agents 2>/dev/null)
+        
+        if [[ $? -eq 0 && -n "$command_output" ]]; then
+            # Use fzf for interactive selection with prefilled filter
+            local selected
+            if [[ -n "$filter_text" ]]; then
+                selected=$(echo "$command_output" | fzf --select-1 --nth=1 --query "$filter_text" --height 40% --reverse --prompt="Agent ❯ ")
+            else
+                selected=$(echo "$command_output" | fzf --select-1 --nth=1 --height 40% --reverse --prompt="Agent ❯ ")
+            fi
+            
+            if [[ -n "$selected" ]]; then
+                # Extract just the command name (first word before any description)
+                local command_name="${selected%% *}"
+                # Replace the current buffer with the selected command
+                BUFFER=":$command_name "
+                CURSOR=${#BUFFER}
+            fi
         fi
-    else
-        # Insert pattern at the beginning of the buffer
-        BUFFER="${pattern}${BUFFER}"
         
-        # Adjust cursor position to account for the inserted pattern length
-        CURSOR=$((original_cursor_pos + ${#pattern}))
+        zle reset-prompt
+        return 0
     fi
     
-    zle redisplay
+    # Fall back to default completion
+    zle expand-or-complete
 }
 
 function forge-accept-line() {
@@ -124,28 +143,39 @@ function forge-accept-line() {
         echo  # Add a newline before execution for better UX
         eval "$BUFFER"
         
-        # Set buffer to conversation pattern for continued interaction
-        BUFFER="?? "
+        # Set buffer to the last command for continued interaction
+        BUFFER="${_FORGE_CONVERSATION_PATTERN}${_FORGE_RESET_COMMAND}"
         CURSOR=${#BUFFER}
         zle reset-prompt
         return
     fi
+
+    if [[ "$_FORGE_USER_ACTION" == "$_FORGE_RESET_COMMAND" ]]; then
+        echo
+        if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
+            echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Reset ${_FORGE_CONVERSATION_ID}\033[0m"            
+        fi
+        
+        _FORGE_CONVERSATION_ID=""
+        _FORGE_USER_ACTION=""
+        BUFFER=""
+        CURSOR=${#BUFFER}
+        zle reset-prompt
+        return 0
+    fi
     
-    # For non-?? commands, use normal accept-line
+    # For non-:commands, use normal accept-line
     zle accept-line
 }
 
 # Register ZLE widgets
-zle -N forge-insert-pattern
 zle -N forge-accept-line
-zle -N forge-at-completion
+# Register completions
+zle -N forge-completion
 
-# Bind Enter to our custom accept-line that transforms ?? commands
+
+# Bind Enter to our custom accept-line that transforms :commands
 bindkey '^M' forge-accept-line
 bindkey '^J' forge-accept-line
-
-# Bind CTRL+G to insert/toggle conversation pattern  
-bindkey '^G' forge-insert-pattern
-
-# Bind Tab to our custom @ completion widget  
-bindkey '^I' forge-at-completion  # Tab for @ completion
+# Update the Tab binding to use the new completion widget
+bindkey '^I' forge-completion  # Tab for both @ and :command completion

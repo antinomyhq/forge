@@ -18,14 +18,29 @@ impl Completer for CommandCompleter {
         self.0
             .list()
             .into_iter()
-            .filter(|cmd| cmd.name.starts_with(line))
-            .map(|cmd| Suggestion {
-                value: cmd.name,
-                description: Some(cmd.description),
-                style: None,
-                extra: None,
-                span: Span::new(0, line.len()),
-                append_whitespace: false,
+            .filter_map(|cmd| {
+                // For command completion, we want to show commands with `/` prefix
+                let display_name = if cmd.name.starts_with('!') {
+                    // Shell commands already have the `!` prefix
+                    cmd.name.clone()
+                } else {
+                    // Add `/` prefix for slash commands
+                    format!("/{}", cmd.name)
+                };
+
+                // Check if the display name starts with what the user typed
+                if display_name.starts_with(line) {
+                    Some(Suggestion {
+                        value: display_name,
+                        description: Some(cmd.description),
+                        style: None,
+                        extra: None,
+                        span: Span::new(0, line.len()),
+                        append_whitespace: false,
+                    })
+                } else {
+                    None
+                }
             })
             .collect()
     }
