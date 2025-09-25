@@ -3,6 +3,7 @@ mod model;
 mod reasoning;
 mod request;
 mod response;
+mod responses;
 mod tool_choice;
 mod transformers;
 
@@ -11,5 +12,6 @@ pub use model::*;
 pub use reasoning::*;
 pub use request::*;
 pub use response::*;
+pub use responses::*;
 pub use tool_choice::*;
 pub use transformers::ProviderPipeline;

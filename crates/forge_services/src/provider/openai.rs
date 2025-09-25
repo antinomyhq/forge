@@ -5,7 +5,9 @@ use forge_app::HttpClientService;
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream, Transformer,
 };
-use forge_app::dto::openai::{ListModelResponse, ProviderPipeline, Request, Response};
+use forge_app::dto::openai::{
+    ListModelResponse, ProviderPipeline, Request, Response, ResponsesRequest, ResponsesResponse,
+};
 use lazy_static::lazy_static;
 use reqwest::header::AUTHORIZATION;
 use tracing::{debug, info};
@@ -91,6 +93,40 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         Ok(Box::pin(stream))
     }
 
+    async fn inner_responses(
+        &self,
+        model: &ModelId,
+        context: ChatContext,
+    ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+        let request = ResponsesRequest::from(context)
+            .model(model.clone())
+            .stream(true);
+
+        let url = join_url(self.provider.to_base_url().as_str(), "v1/responses")?;
+        let headers = create_headers(self.get_headers());
+
+        info!(
+            url = %url,
+            model = %model,
+            headers = ?sanitize_headers(&headers),
+            "Connecting to Responses API Endpoint"
+        );
+
+        let json_bytes = serde_json::to_vec(&request)
+            .with_context(|| "Failed to serialize responses request")?;
+
+        let es = self
+            .http
+            .eventsource(&url, Some(headers), json_bytes.into())
+            .await
+            .with_context(|| format_http_context(None, "POST", &url))?;
+
+        // Use ResponsesResponse for the new /v1/responses endpoint
+        let stream = into_chat_completion_message::<ResponsesResponse>(url, es);
+
+        Ok(Box::pin(stream))
+    }
+
     async fn inner_models(&self) -> Result<Vec<forge_app::domain::Model>> {
         // For Vertex AI, load models from static JSON file using VertexProvider logic
         if self.provider.is_vertex_ai() {
@@ -163,11 +199,29 @@ impl<T: HttpClientService> OpenAIProvider<T> {
         model: &ModelId,
         context: ChatContext,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        self.inner_chat(model, context).await
+        // Check if we should use the responses endpoint for GPT-5 models
+        if self.should_use_responses_endpoint(model) {
+            self.inner_responses(model, context).await
+        } else {
+            self.inner_chat(model, context).await
+        }
     }
 
     pub async fn models(&self) -> Result<Vec<forge_app::domain::Model>> {
         self.inner_models().await
+    }
+
+    /// Determine if we should use the v1/responses endpoint
+    /// for models like GPT-5 that benefit from the new API
+    fn should_use_responses_endpoint(&self, model: &ModelId) -> bool {
+        // Only use responses API for OpenAI provider
+        if !self.provider.is_open_ai() {
+            return false;
+        }
+
+        // Check if the model is GPT-5 or a model that should use responses
+        let model_str = model.to_string().to_lowercase();
+        model_str.contains("gpt-5") || model_str.contains("gpt5")
     }
 }
 
