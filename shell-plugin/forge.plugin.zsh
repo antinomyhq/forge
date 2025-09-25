@@ -104,17 +104,17 @@ function forge-completion() {
         # Extract the text after the colon for filtering
         local filter_text="${LBUFFER#:}"
         
-        # Get available commands from forge show-commands
+        # Get available commands from forge show-agents
         local command_output
-        command_output=$($_FORGE_BIN show-commands 2>/dev/null)
+        command_output=$($_FORGE_BIN show-agents 2>/dev/null)
         
         if [[ $? -eq 0 && -n "$command_output" ]]; then
             # Use fzf for interactive selection with prefilled filter
             local selected
             if [[ -n "$filter_text" ]]; then
-                selected=$(echo "$command_output" | fzf --select-1 --nth=1 --query "$filter_text" --height 40% --reverse --prompt="Forge Command ❯ ")
+                selected=$(echo "$command_output" | fzf --select-1 --nth=1 --query "$filter_text" --height 40% --reverse --prompt="Agent ❯ ")
             else
-                selected=$(echo "$command_output" | fzf --select-1 --nth=1 --height 40% --reverse --prompt="Forge Command ❯ ")
+                selected=$(echo "$command_output" | fzf --select-1 --nth=1 --height 40% --reverse --prompt="Agent ❯ ")
             fi
             
             if [[ -n "$selected" ]]; then
@@ -124,9 +124,6 @@ function forge-completion() {
                 BUFFER=":$command_name "
                 CURSOR=${#BUFFER}
             fi
-        else
-            # Fallback if forge show-commands fails - show basic message
-            echo "\nError: Could not load commands from forge show-commands"
         fi
         
         zle reset-prompt
