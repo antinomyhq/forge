@@ -49,6 +49,7 @@ function _forge_transform_buffer() {
         return 1  # No transformation needed
     fi
 
+    # Handle `new` as a special case
     if [[ "$_FORGE_USER_ACTION" == "new" ]]; then
         return 1 # No transformation needed
     fi
@@ -60,7 +61,7 @@ function _forge_transform_buffer() {
     
     # Build the forge command with the appropriate command
     if [[ -n "$_FORGE_USER_ACTION" ]]; then
-        forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID --action $_FORGE_USER_ACTION"
+        forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID --agent $_FORGE_USER_ACTION"
     else
         forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID"
     fi        

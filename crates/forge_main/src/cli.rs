@@ -89,13 +89,13 @@ pub struct Cli {
     /// The worktree name will be used as the branch name.
     #[arg(long)]
     pub sandbox: Option<String>,
-    /// Execute a specific slash command directly.
+    /// Specify an agent to execute tasks with.
     ///
-    /// Allows running slash commands (like /info, /tools, /new) directly from
-    /// the command line without entering interactive mode.
-    /// Example: --action info, --action "dump html", --action "new"
+    /// Allows selecting a specific agent to handle the conversation and task execution.
+    /// Agents provide specialized capabilities and knowledge domains.
+    /// Example: --agent sage, --agent planner, --agent "code-reviewer"
     #[arg(long, short = 'a')]
-    pub action: Option<String>,
+    pub agent: Option<String>,
 }
 
 fn parse_conversation_id(s: &str) -> std::result::Result<ConversationId, String> {
