@@ -15,7 +15,7 @@ pub struct InitAuth {
 pub struct AppConfig {
     pub key_info: Option<LoginInfo>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub operating_agent: Option<AgentId>,
+    pub active_agent: Option<AgentId>,
 }
 
 #[derive(Clone, Serialize, Deserialize, From, Debug, PartialEq)]
