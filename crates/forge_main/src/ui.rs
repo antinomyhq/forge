@@ -771,11 +771,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                 if new_conversation {
                     self.writeln_title(
-                        TitleFormat::debug(format!("Initialize")).sub_title(sub_title),
+                        TitleFormat::debug("Initialize".to_string()).sub_title(sub_title),
                     )?;
                 } else {
                     self.writeln_title(
-                        TitleFormat::debug(format!("Continue")).sub_title(sub_title),
+                        TitleFormat::debug("Continue".to_string()).sub_title(sub_title),
                     )?;
                 }
                 Ok(conversation.id)
