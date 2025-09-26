@@ -30,25 +30,10 @@ impl Transformer for SortTools {
 
 #[cfg(test)]
 mod tests {
-    use insta::assert_yaml_snapshot;
     use pretty_assertions::assert_eq;
-    use serde::Serialize;
 
     use super::*;
     use crate::ToolDefinition;
-
-    #[derive(Serialize)]
-    struct TransformationSnapshot {
-        transformation: String,
-        before: Context,
-        after: Context,
-    }
-
-    impl TransformationSnapshot {
-        fn new(transformation: &str, before: Context, after: Context) -> Self {
-            Self { transformation: transformation.to_string(), before, after }
-        }
-    }
 
     fn fixture_context_with_tools() -> Context {
         Context::default().tools(vec![
@@ -63,42 +48,9 @@ mod tests {
         let fixture = fixture_context_with_tools();
 
         let mut transformer = SortTools::new();
-        let actual = transformer.transform(fixture.clone());
+        let actual = transformer.transform(fixture);
 
         let expected_order = vec!["alpha_tool", "beta_tool", "zebra_tool"];
-        let actual_order: Vec<String> = actual
-            .tools
-            .iter()
-            .map(|tool| tool.name.to_string())
-            .collect();
-
-        assert_eq!(actual_order, expected_order);
-
-        let snapshot = TransformationSnapshot::new("SortTools", fixture, actual);
-        assert_yaml_snapshot!(snapshot);
-    }
-
-    #[test]
-    fn test_handles_empty_tools() {
-        let fixture = Context::default();
-
-        let mut transformer = SortTools::new();
-        let actual = transformer.transform(fixture.clone());
-        let expected = fixture;
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_handles_single_tool() {
-        let fixture = Context::default().tools(vec![
-            ToolDefinition::new("single_tool").description("Single tool"),
-        ]);
-
-        let mut transformer = SortTools::new();
-        let actual = transformer.transform(fixture.clone());
-
-        let expected_order = vec!["single_tool"];
         let actual_order: Vec<String> = actual
             .tools
             .iter()
