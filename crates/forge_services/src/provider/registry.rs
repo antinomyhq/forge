@@ -7,7 +7,6 @@ use url::Url;
 
 use crate::EnvironmentInfra;
 
-
 pub struct ForgeProviderRegistry<F> {
     infra: Arc<F>,
     // IMPORTANT: This cache is used to avoid logging out if the user has logged out from other

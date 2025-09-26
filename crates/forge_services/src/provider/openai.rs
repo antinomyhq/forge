@@ -5,10 +5,10 @@ use forge_app::HttpClientService;
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, ModelId, ResultStream, Transformer,
 };
-use forge_app::dto::Provider;
 use forge_app::dto::openai::{
     ListModelResponse, ProviderPipeline, Request, Response, ResponsesRequest, ResponsesResponse,
 };
+use forge_app::dto::{Provider, ProviderId};
 use lazy_static::lazy_static;
 use reqwest::header::AUTHORIZATION;
 use tracing::{debug, info};
@@ -43,7 +43,8 @@ impl<H: HttpClientService> OpenAIProvider<H> {
     fn get_headers_with_request(&self, request: &Request) -> Vec<(String, String)> {
         let mut headers = self.get_headers();
         // Add Session-Id header for zai and zai_coding providers
-        if (self.provider.is_zai() || self.provider.is_zai_coding()) && request.session_id.is_some()
+        if (self.provider.id == forge_app::dto::ProviderId::Zai || self.provider.id == forge_app::dto::ProviderId::ZaiCoding)
+            && request.session_id.is_some()
         {
             headers.push((
                 "Session-Id".to_string(),
@@ -130,7 +131,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
 
     async fn inner_models(&self) -> Result<Vec<forge_app::domain::Model>> {
         // For Vertex AI, load models from static JSON file using VertexProvider logic
-        if self.provider.is_vertex_ai() {
+        if self.provider.id == forge_app::dto::ProviderId::VertexAi {
             debug!("Loading Vertex AI models from static JSON file");
             Ok(self.inner_vertex_models())
         } else {
@@ -216,7 +217,7 @@ impl<T: HttpClientService> OpenAIProvider<T> {
     /// for models like GPT-5 that benefit from the new API
     fn should_use_responses_endpoint(&self, model: &ModelId) -> bool {
         // Only use responses API for OpenAI provider
-        if !self.provider.is_open_ai() {
+        if self.provider.id != forge_app::dto::ProviderId::OpenAI {
             return false;
         }
 
@@ -232,7 +233,7 @@ mod tests {
     use anyhow::Context;
     use bytes::Bytes;
     use forge_app::HttpClientService;
-    use forge_app::dto::ProviderUrl;
+    use forge_app::dto::{ProviderId, ProviderUrl};
     use reqwest::header::HeaderMap;
     use reqwest_eventsource::EventSource;
 
@@ -289,6 +290,7 @@ mod tests {
 
     fn create_provider(base_url: &str) -> anyhow::Result<OpenAIProvider<MockHttpClient>> {
         let provider = Provider {
+            id: ProviderId::OpenAI,
             url: ProviderUrl::OpenAI(reqwest::Url::parse(base_url)?),
             key: Some("test-api-key".to_string()),
         };

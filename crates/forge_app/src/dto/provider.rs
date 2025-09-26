@@ -2,6 +2,30 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ProviderId {
+    Forge,
+    OpenAI,
+    OpenRouter,
+    Requesty,
+    Zai,
+    ZaiCoding,
+    Cerebras,
+    Xai,
+    Anthropic,
+    VertexAi,
+}
+
+pub const OPEN_ROUTER_URL: &str = "https://openrouter.ai/api/v1/";
+pub const REQUESTY_URL: &str = "https://router.requesty.ai/v1/";
+pub const XAI_URL: &str = "https://api.x.ai/v1/";
+pub const OPENAI_URL: &str = "https://api.openai.com/v1/";
+pub const ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/";
+pub const FORGE_URL: &str = "https://antinomy.ai/api/v1/";
+pub const ZAI_URL: &str = "https://api.z.ai/api/paas/v4/";
+pub const ZAI_CODING_URL: &str = "https://api.z.ai/api/coding/paas/v4/";
+pub const CEREBRAS_URL: &str = "https://api.cerebras.ai/v1/";
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ProviderUrl {
     OpenAI(Url),
@@ -20,6 +44,7 @@ impl ProviderUrl {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Setters)]
 #[setters(strip_option, into)]
 pub struct Provider {
+    pub id: ProviderId,
     pub url: ProviderUrl,
     pub key: Option<String>,
 }
@@ -27,62 +52,71 @@ pub struct Provider {
 impl Provider {
     pub fn forge(key: &str) -> Provider {
         Provider {
-            url: ProviderUrl::OpenAI(Url::parse(Provider::FORGE_URL).unwrap()),
+            id: ProviderId::Forge,
+            url: ProviderUrl::OpenAI(Url::parse(FORGE_URL).unwrap()),
             key: Some(key.into()),
         }
     }
 
     pub fn openai(key: &str) -> Provider {
         Provider {
-            url: ProviderUrl::OpenAI(Url::parse(Provider::OPENAI_URL).unwrap()),
+            id: ProviderId::OpenAI,
+            url: ProviderUrl::OpenAI(Url::parse(OPENAI_URL).unwrap()),
             key: Some(key.into()),
         }
     }
 
     pub fn open_router(key: &str) -> Provider {
         Provider {
-            url: ProviderUrl::OpenAI(Url::parse(Provider::OPEN_ROUTER_URL).unwrap()),
+            id: ProviderId::OpenRouter,
+            url: ProviderUrl::OpenAI(Url::parse(OPEN_ROUTER_URL).unwrap()),
             key: Some(key.into()),
         }
     }
 
     pub fn requesty(key: &str) -> Provider {
         Provider {
-            url: ProviderUrl::OpenAI(Url::parse(Provider::REQUESTY_URL).unwrap()),
+            id: ProviderId::Requesty,
+            url: ProviderUrl::OpenAI(Url::parse(REQUESTY_URL).unwrap()),
             key: Some(key.into()),
         }
     }
 
     pub fn zai(key: &str) -> Provider {
         Provider {
-            url: ProviderUrl::OpenAI(Url::parse(Provider::ZAI_URL).unwrap()),
+            id: ProviderId::Zai,
+            url: ProviderUrl::OpenAI(Url::parse(ZAI_URL).unwrap()),
             key: Some(key.into()),
         }
     }
     pub fn zai_coding(key: &str) -> Provider {
         Provider {
-            url: ProviderUrl::OpenAI(Url::parse(Provider::ZAI_CODING_URL).unwrap()),
+            id: ProviderId::ZaiCoding,
+            url: ProviderUrl::OpenAI(Url::parse(ZAI_CODING_URL).unwrap()),
             key: Some(key.into()),
         }
     }
 
     pub fn cerebras(key: &str) -> Provider {
         Provider {
-            url: ProviderUrl::OpenAI(Url::parse(Provider::CEREBRAS_URL).unwrap()),
+            id: ProviderId::Cerebras,
+            url: ProviderUrl::OpenAI(Url::parse(CEREBRAS_URL).unwrap()),
             key: Some(key.into()),
         }
     }
 
     pub fn xai(key: &str) -> Provider {
         Provider {
-            url: ProviderUrl::OpenAI(Url::parse(Provider::XAI_URL).unwrap()),
+            id: ProviderId::Xai,
+            url: ProviderUrl::OpenAI(Url::parse(XAI_URL).unwrap()),
             key: Some(key.into()),
         }
     }
 
     pub fn anthropic(key: &str) -> Provider {
         Provider {
-            url: ProviderUrl::Anthropic(Url::parse(Provider::ANTHROPIC_URL).unwrap()),
+            id: ProviderId::Anthropic,
+            url: ProviderUrl::Anthropic(Url::parse(ANTHROPIC_URL).unwrap()),
             key: Some(key.into()),
         }
     }
@@ -100,6 +134,7 @@ impl Provider {
             )
         };
         Ok(Provider {
+            id: ProviderId::VertexAi,
             url: ProviderUrl::OpenAI(Url::parse(&url)?),
             key: Some(key.into()),
         })
@@ -107,16 +142,6 @@ impl Provider {
 }
 
 impl Provider {
-    pub const OPEN_ROUTER_URL: &str = "https://openrouter.ai/api/v1/";
-    pub const REQUESTY_URL: &str = "https://router.requesty.ai/v1/";
-    pub const XAI_URL: &str = "https://api.x.ai/v1/";
-    pub const OPENAI_URL: &str = "https://api.openai.com/v1/";
-    pub const ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/";
-    pub const FORGE_URL: &str = "https://antinomy.ai/api/v1/";
-    pub const ZAI_URL: &str = "https://api.z.ai/api/paas/v4/";
-    pub const ZAI_CODING_URL: &str = "https://api.z.ai/api/coding/paas/v4/";
-    pub const CEREBRAS_URL: &str = "https://api.cerebras.ai/v1/";
-
     /// Converts the provider to it's base URL
     pub fn to_base_url(&self) -> Url {
         match &self.url {
@@ -128,8 +153,8 @@ impl Provider {
     pub fn model_url(&self) -> Url {
         match &self.url {
             ProviderUrl::OpenAI(url) => {
-                if self.is_zai_coding() {
-                    let base_url = Url::parse(Provider::ZAI_URL).unwrap();
+                if self.id == ProviderId::ZaiCoding {
+                    let base_url = Url::parse(ZAI_URL).unwrap();
                     base_url.join("models").unwrap()
                 } else {
                     url.join("models").unwrap()
@@ -139,77 +164,6 @@ impl Provider {
         }
     }
 
-    pub fn is_forge(&self) -> bool {
-        match &self.url {
-            ProviderUrl::OpenAI(url) => url.as_str().starts_with(Self::FORGE_URL),
-            ProviderUrl::Anthropic(_) => false,
-        }
-    }
-
-    pub fn is_open_router(&self) -> bool {
-        match &self.url {
-            ProviderUrl::OpenAI(url) => url.as_str().starts_with(Self::OPEN_ROUTER_URL),
-            ProviderUrl::Anthropic(_) => false,
-        }
-    }
-
-    pub fn is_requesty(&self) -> bool {
-        match &self.url {
-            ProviderUrl::OpenAI(url) => url.as_str().starts_with(Self::REQUESTY_URL),
-            ProviderUrl::Anthropic(_) => false,
-        }
-    }
-
-    pub fn is_zai(&self) -> bool {
-        match &self.url {
-            ProviderUrl::OpenAI(url) => url.as_str().starts_with(Self::ZAI_URL),
-            ProviderUrl::Anthropic(_) => false,
-        }
-    }
-
-    pub fn is_zai_coding(&self) -> bool {
-        match &self.url {
-            ProviderUrl::OpenAI(url) => url.as_str().starts_with(Self::ZAI_CODING_URL),
-            ProviderUrl::Anthropic(_) => false,
-        }
-    }
-
-    pub fn is_cerebras(&self) -> bool {
-        match &self.url {
-            ProviderUrl::OpenAI(url) => url.as_str().starts_with(Self::CEREBRAS_URL),
-            ProviderUrl::Anthropic(_) => false,
-        }
-    }
-
-    pub fn is_xai(&self) -> bool {
-        match &self.url {
-            ProviderUrl::OpenAI(url) => url.as_str().starts_with(Self::XAI_URL),
-            ProviderUrl::Anthropic(_) => false,
-        }
-    }
-
-    pub fn is_open_ai(&self) -> bool {
-        match &self.url {
-            ProviderUrl::OpenAI(url) => url.as_str().starts_with(Self::OPENAI_URL),
-            ProviderUrl::Anthropic(_) => false,
-        }
-    }
-
-    pub fn is_anthropic(&self) -> bool {
-        match &self.url {
-            ProviderUrl::OpenAI(_) => false,
-            ProviderUrl::Anthropic(url) => url.as_str().starts_with(Self::ANTHROPIC_URL),
-        }
-    }
-
-    pub fn is_vertex_ai(&self) -> bool {
-        match &self.url {
-            ProviderUrl::OpenAI(url) => url
-                .as_str()
-                .contains("aiplatform.googleapis.com/v1/projects/"),
-            ProviderUrl::Anthropic(_) => false,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -225,6 +179,7 @@ mod tests {
         let fixture = "test_key";
         let actual = Provider::xai(fixture);
         let expected = Provider {
+            id: ProviderId::Xai,
             url: ProviderUrl::OpenAI(Url::from_str("https://api.x.ai/v1/").unwrap()),
             key: Some(fixture.to_string()),
         };
@@ -232,19 +187,19 @@ mod tests {
     }
 
     #[test]
-    fn test_is_xai() {
+    fn test_is_xai_with_direct_comparison() {
         let fixture_xai = Provider::xai("key");
-        assert!(fixture_xai.is_xai());
+        assert_eq!(fixture_xai.id, ProviderId::Xai);
 
         let fixture_other = Provider::openai("key");
-        assert!(!fixture_other.is_xai());
+        assert_ne!(fixture_other.id, ProviderId::Xai);
     }
 
     #[test]
     fn test_zai_coding_to_base_url() {
         let fixture = Provider::zai_coding("test_key");
         let actual = fixture.to_base_url();
-        let expected = Url::parse(Provider::ZAI_CODING_URL).unwrap();
+        let expected = Url::parse(ZAI_CODING_URL).unwrap();
         assert_eq!(actual, expected);
     }
 
@@ -252,10 +207,7 @@ mod tests {
     fn test_zai_coding_to_model_url() {
         let fixture = Provider::zai_coding("test_key");
         let actual = fixture.model_url();
-        let expected = Url::parse(Provider::ZAI_URL)
-            .unwrap()
-            .join("models")
-            .unwrap();
+        let expected = Url::parse(ZAI_URL).unwrap().join("models").unwrap();
         assert_eq!(actual, expected);
     }
 
@@ -263,7 +215,7 @@ mod tests {
     fn test_regular_zai_to_base_url() {
         let fixture = Provider::zai("test_key");
         let actual = fixture.to_base_url();
-        let expected = Url::parse(Provider::ZAI_URL).unwrap();
+        let expected = Url::parse(ZAI_URL).unwrap();
         assert_eq!(actual, expected);
     }
 
@@ -271,10 +223,7 @@ mod tests {
     fn test_regular_zai_to_model_url() {
         let fixture = Provider::zai("test_key");
         let actual = fixture.model_url();
-        let expected = Url::parse(Provider::ZAI_URL)
-            .unwrap()
-            .join("models")
-            .unwrap();
+        let expected = Url::parse(ZAI_URL).unwrap().join("models").unwrap();
         assert_eq!(actual, expected);
     }
 

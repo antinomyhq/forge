@@ -186,7 +186,7 @@ mod tests {
 
     use bytes::Bytes;
     use forge_app::HttpClientService;
-    use forge_app::dto::{Provider, ProviderUrl};
+    use forge_app::dto::{Provider, ProviderId, ProviderUrl};
     use reqwest::Url;
     use reqwest::header::HeaderMap;
     use reqwest_eventsource::EventSource;
@@ -227,6 +227,7 @@ mod tests {
     #[tokio::test]
     async fn test_cache_initialization() {
         let provider = Provider {
+            id: ProviderId::OpenAI,
             url: ProviderUrl::OpenAI(Url::parse("https://api.openai.com/v1/").unwrap()),
             key: Some("test-key".to_string()),
         };
@@ -242,6 +243,7 @@ mod tests {
     #[tokio::test]
     async fn test_refresh_models_method_exists() {
         let provider = Provider {
+            id: ProviderId::OpenAI,
             url: ProviderUrl::OpenAI(Url::parse("https://api.openai.com/v1/").unwrap()),
             key: Some("test-key".to_string()),
         };
@@ -259,6 +261,7 @@ mod tests {
     #[tokio::test]
     async fn test_builder_pattern_api() {
         let provider = Provider {
+            id: ProviderId::OpenAI,
             url: ProviderUrl::OpenAI(Url::parse("https://api.openai.com/v1/").unwrap()),
             key: Some("test-key".to_string()),
         };
@@ -279,6 +282,7 @@ mod tests {
     #[tokio::test]
     async fn test_builder_with_defaults() {
         let provider = Provider {
+            id: ProviderId::OpenAI,
             url: ProviderUrl::OpenAI(Url::parse("https://api.openai.com/v1/").unwrap()),
             key: Some("test-key".to_string()),
         };
