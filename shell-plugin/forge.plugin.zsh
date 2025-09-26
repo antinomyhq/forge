@@ -131,6 +131,9 @@ function forge-completion() {
 }
 
 function forge-accept-line() {
+    # Save the original command for history
+    local original_buffer="$BUFFER"
+    
     # Parse the buffer first in parent shell context to avoid subshell issues
     local user_action=""
     local input_text=""
@@ -149,6 +152,9 @@ function forge-accept-line() {
         zle accept-line
         return
     fi
+    
+    # Add the original command to history before transformation
+    print -s -- "$original_buffer"
     
     # Handle reset command specially
     if [[ "$user_action" == "$_FORGE_RESET_COMMAND" ]]; then
