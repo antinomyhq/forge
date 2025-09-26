@@ -149,11 +149,11 @@ function forge-accept-line() {
     if [[ "$_FORGE_USER_ACTION" == "$_FORGE_RESET_COMMAND" ]]; then
         echo
         if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
-            echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Reset ${_FORGE_CONVERSATION_ID}\033[0m"            
+            echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Reset ${_FORGE_CONVERSATION_ID}\033[0m"
         fi
         
         _FORGE_CONVERSATION_ID=""
-        _FORGE_USER_ACTION=""
+        unset _FORGE_USER_ACTION
         BUFFER=""
         CURSOR=${#BUFFER}
         zle reset-prompt

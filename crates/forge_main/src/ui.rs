@@ -764,13 +764,18 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .unwrap_or(self.state.usage.clone());
                 self.spinner.stop(None)?;
 
+                let mut sub_title = conversation.id.into_string();
+                if let Some(ref agent) = self.cli.agent {
+                    sub_title.push_str(format!(" [via {agent}]").as_str());
+                }
+
                 if new_conversation {
                     self.writeln_title(
-                        TitleFormat::debug("Initialize").sub_title(conversation.id.into_string()),
+                        TitleFormat::debug(format!("Initialize")).sub_title(sub_title),
                     )?;
                 } else {
                     self.writeln_title(
-                        TitleFormat::debug("Continue").sub_title(conversation.id.into_string()),
+                        TitleFormat::debug(format!("Continue")).sub_title(sub_title),
                     )?;
                 }
                 Ok(conversation.id)
