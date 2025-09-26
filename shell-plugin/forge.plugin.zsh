@@ -61,11 +61,7 @@ function _forge_transform_buffer() {
     fi
     
     # Build the forge command with the appropriate command
-    if [[ -n "$_FORGE_USER_ACTION" ]]; then
-        forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID --agent $_FORGE_USER_ACTION"
-    else
-        forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID"
-    fi        
+    forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID --agent ${_FORGE_USER_ACTION:-forge}"        
     
     # Transform to forge command
     BUFFER="$forge_cmd -p $(printf %q "$input_text")"
