@@ -174,6 +174,24 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
             .await
     }
 
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
+        self.services.provider_registry().get_all_providers().await
+    }
+
+    async fn set_active_provider(&self, provider: Provider) -> anyhow::Result<()> {
+        self.services
+            .provider_registry()
+            .set_active_provider(provider)
+            .await
+    }
+
+    async fn get_active_provider(&self) -> anyhow::Result<Option<Provider>> {
+        self.services
+            .provider_registry()
+            .get_active_provider()
+            .await
+    }
+
     async fn app_config(&self) -> Option<AppConfig> {
         self.services.get_app_config().await
     }
