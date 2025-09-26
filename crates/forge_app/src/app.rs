@@ -12,9 +12,9 @@ use crate::orch::Orchestrator;
 use crate::services::{CustomInstructionsService, TemplateService};
 use crate::tool_registry::ToolRegistry;
 use crate::{
-    AgentLoaderService, AppConfigService, AttachmentService, ConversationService,
-    EnvironmentService, FileDiscoveryService, McpService, ProviderRegistry, ProviderService,
-    Services, Walker, WorkflowService,
+    AgentLoaderService, AttachmentService, ConversationService, EnvironmentService,
+    FileDiscoveryService, McpService, ProviderRegistry, ProviderService, Services, Walker,
+    WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -51,9 +51,8 @@ impl<S: Services> ForgeApp<S> {
             .unwrap_or_default()
             .expect("conversation for the request should've been created at this point.");
 
-        let config = services.get_app_config().await.unwrap_or_default();
         let provider = services
-            .get_provider(config)
+            .get_active_provider()
             .await
             .context("Failed to get provider")?;
         let models = services.models(provider).await?;

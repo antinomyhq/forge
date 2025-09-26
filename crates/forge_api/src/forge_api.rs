@@ -169,9 +169,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         forge_app.logout().await
     }
     async fn provider(&self) -> anyhow::Result<Provider> {
-        self.services
-            .get_provider(self.services.get_app_config().await.unwrap_or_default())
-            .await
+        self.services.get_active_provider().await
     }
 
     async fn app_config(&self) -> Option<AppConfig> {

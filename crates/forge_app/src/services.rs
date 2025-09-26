@@ -351,7 +351,9 @@ pub trait AuthService: Send + Sync {
 }
 #[async_trait::async_trait]
 pub trait ProviderRegistry: Send + Sync {
-    async fn get_provider(&self, config: AppConfig) -> anyhow::Result<Provider>;
+    async fn get_active_provider(&self) -> anyhow::Result<Provider>;
+    async fn set_active_provider(&self, provider: Provider) -> anyhow::Result<()>;
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>>;
 }
 
 #[async_trait::async_trait]
@@ -691,8 +693,16 @@ impl<I: Services> CustomInstructionsService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> ProviderRegistry for I {
-    async fn get_provider(&self, config: AppConfig) -> anyhow::Result<Provider> {
-        self.provider_registry().get_provider(config).await
+    async fn get_active_provider(&self) -> anyhow::Result<Provider> {
+        self.provider_registry().get_active_provider().await
+    }
+
+    async fn set_active_provider(&self, provider: Provider) -> anyhow::Result<()> {
+        self.provider_registry().set_active_provider(provider).await
+    }
+
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
+        self.provider_registry().get_all_providers().await
     }
 }
 
