@@ -33,37 +33,38 @@ typeset -h _FORGE_CONVERSATION_ID=""
 typeset -h _FORGE_USER_ACTION=""
 
 
-# Helper function for shared transformation logic
+# Helper function for buffer parsing (kept for potential future use)
+# Note: This function is currently not used but kept for backward compatibility
 function _forge_transform_buffer() {
-    local forge_cmd=""
+    local user_action=""
     local input_text=""
     
     # Check if the line starts with any of the supported patterns
     if [[ "$BUFFER" =~ "^:([a-zA-Z][a-zA-Z0-9_-]*)( (.*))?$" ]]; then
         # Action with or without parameters: :foo or :foo bar baz
-        _FORGE_USER_ACTION="${match[1]}"
-        input_text="${match[3]:-}"  # Use empty string if no parameters (match[2] is the space + params, match[3] is just params)
+        user_action="${match[1]}"
+        input_text="${match[3]:-}"  # Use empty string if no parameters
     elif [[ "$BUFFER" =~ "^: (.*)$" ]]; then
         # Default action with parameters: : something
+        user_action=""
         input_text="${match[1]}"        
     else
         return 1  # No transformation needed
     fi
 
-    # Handle `new` as a special case
-    if [[ "$_FORGE_USER_ACTION" == "$_FORGE_RESET_COMMAND" ]]; then
+    # Handle reset as a special case
+    if [[ "$user_action" == "$_FORGE_RESET_COMMAND" ]]; then
         return 1 # No transformation needed
     fi
-        
-    # Always try to resume - if no conversation ID exists, generate a new one
-    if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
-        _FORGE_CONVERSATION_ID=$($_FORGE_BIN --generate-conversation-id)
-    fi
+    
+    # Note: Cannot generate conversation ID here as this runs in subshell
+    # This would need to be passed as parameter or handled in parent
+    local conversation_id="${1:-$_FORGE_CONVERSATION_ID}"
     
     # Build the forge command with the appropriate command
-    forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID --agent ${_FORGE_USER_ACTION:-forge}"        
+    local forge_cmd="$_FORGE_BIN --resume $conversation_id --agent ${user_action:-forge}"        
     
-    # Return the transformed command without modifying BUFFER
+    # Return the transformed command
     echo "$forge_cmd -p $(printf %q "$input_text")"
     
     return 0  # Successfully transformed
@@ -130,36 +131,59 @@ function forge-completion() {
 }
 
 function forge-accept-line() {
-    # Attempt transformation using helper
-    local transformed_command
-    if transformed_command=$(_forge_transform_buffer); then
-        # Execute the transformed command directly (bypass history for this)
-        echo  # Add a newline before execution for better UX
-        eval "$transformed_command"
-        
-        # Only update buffer after successful execution
-        BUFFER="${_FORGE_CONVERSATION_PATTERN}${_FORGE_RESET_COMMAND}"
-        CURSOR=${#BUFFER}
-        zle reset-prompt
+    # Parse the buffer first in parent shell context to avoid subshell issues
+    local user_action=""
+    local input_text=""
+    
+    # Check if the line starts with any of the supported patterns
+    if [[ "$BUFFER" =~ "^:([a-zA-Z][a-zA-Z0-9_-]*)( (.*))?$" ]]; then
+        # Action with or without parameters: :foo or :foo bar baz
+        user_action="${match[1]}"
+        input_text="${match[3]:-}"  # Use empty string if no parameters
+    elif [[ "$BUFFER" =~ "^: (.*)$" ]]; then
+        # Default action with parameters: : something
+        user_action=""
+        input_text="${match[1]}"
+    else
+        # For non-:commands, use normal accept-line
+        zle accept-line
         return
     fi
-
-    if [[ "$_FORGE_USER_ACTION" == "$_FORGE_RESET_COMMAND" ]]; then
+    
+    # Handle reset command specially
+    if [[ "$user_action" == "$_FORGE_RESET_COMMAND" ]]; then
         echo
         if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
             echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Reset ${_FORGE_CONVERSATION_ID}\033[0m"
         fi
         
         _FORGE_CONVERSATION_ID=""
-        unset _FORGE_USER_ACTION
+        _FORGE_USER_ACTION=""
         BUFFER=""
         CURSOR=${#BUFFER}
         zle reset-prompt
         return 0
     fi
     
-    # For non-:commands, use normal accept-line
-    zle accept-line
+    # Store the action for potential reuse
+    _FORGE_USER_ACTION="$user_action"
+    
+    # Generate conversation ID if needed (in parent shell context)
+    if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
+        _FORGE_CONVERSATION_ID=$($_FORGE_BIN --generate-conversation-id)
+    fi
+    
+    # Build and execute the forge command
+    local forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID --agent ${user_action:-forge}"
+    local full_command="$forge_cmd -p $(printf %q "$input_text")"
+    
+    echo  # Add a newline before execution for better UX
+    eval "$full_command"
+    
+    # Clear the buffer for next command
+    BUFFER=""
+    CURSOR=${#BUFFER}
+    zle reset-prompt
 }
 
 # Register ZLE widgets
