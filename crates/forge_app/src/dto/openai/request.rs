@@ -164,7 +164,8 @@ pub struct Prediction {
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct ProviderPreferences {
-    // Define fields as necessary
+    pub order: Vec<String>,
+    pub allow_fallbacks: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Setters, Default)]
