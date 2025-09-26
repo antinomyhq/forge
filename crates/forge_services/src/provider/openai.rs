@@ -5,10 +5,10 @@ use forge_app::HttpClientService;
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, ModelId, ResultStream, Transformer,
 };
+use forge_app::dto::Provider;
 use forge_app::dto::openai::{
     ListModelResponse, ProviderPipeline, Request, Response, ResponsesRequest, ResponsesResponse,
 };
-use forge_app::dto::{Provider, ProviderId};
 use lazy_static::lazy_static;
 use reqwest::header::AUTHORIZATION;
 use tracing::{debug, info};
@@ -43,7 +43,8 @@ impl<H: HttpClientService> OpenAIProvider<H> {
     fn get_headers_with_request(&self, request: &Request) -> Vec<(String, String)> {
         let mut headers = self.get_headers();
         // Add Session-Id header for zai and zai_coding providers
-        if (self.provider.id == forge_app::dto::ProviderId::Zai || self.provider.id == forge_app::dto::ProviderId::ZaiCoding)
+        if (self.provider.id == forge_app::dto::ProviderId::Zai
+            || self.provider.id == forge_app::dto::ProviderId::ZaiCoding)
             && request.session_id.is_some()
         {
             headers.push((

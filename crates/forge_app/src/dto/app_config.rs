@@ -10,7 +10,7 @@ pub struct InitAuth {
     pub token: String,
 }
 
-#[derive(Default, Clone, Serialize, Deserialize)]
+#[derive(Default, Clone, Serialize, Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
     pub key_info: Option<LoginInfo>,
@@ -18,7 +18,7 @@ pub struct AppConfig {
     pub operating_agent: Option<AgentId>,
 }
 
-#[derive(Clone, Serialize, Deserialize, From)]
+#[derive(Clone, Serialize, Deserialize, From, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginInfo {
     pub api_key: String,

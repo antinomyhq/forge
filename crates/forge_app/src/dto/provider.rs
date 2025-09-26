@@ -163,7 +163,6 @@ impl Provider {
             ProviderUrl::Anthropic(url) => url.join("models").unwrap(),
         }
     }
-
 }
 
 #[cfg(test)]
