@@ -63,11 +63,8 @@ function _forge_transform_buffer() {
     # Build the forge command with the appropriate command
     forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID --agent ${_FORGE_USER_ACTION:-forge}"        
     
-    # Transform to forge command
-    BUFFER="$forge_cmd -p $(printf %q "$input_text")"
-    
-    # Move cursor to end
-    CURSOR=${#BUFFER}
+    # Return the transformed command without modifying BUFFER
+    echo "$forge_cmd -p $(printf %q "$input_text")"
     
     return 0  # Successfully transformed
 }
@@ -134,12 +131,13 @@ function forge-completion() {
 
 function forge-accept-line() {
     # Attempt transformation using helper
-    if _forge_transform_buffer; then
+    local transformed_command
+    if transformed_command=$(_forge_transform_buffer); then
         # Execute the transformed command directly (bypass history for this)
         echo  # Add a newline before execution for better UX
-        eval "$BUFFER"
+        eval "$transformed_command"
         
-        # Set buffer to the last command for continued interaction
+        # Only update buffer after successful execution
         BUFFER="${_FORGE_CONVERSATION_PATTERN}${_FORGE_RESET_COMMAND}"
         CURSOR=${#BUFFER}
         zle reset-prompt
