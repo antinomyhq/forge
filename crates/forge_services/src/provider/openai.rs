@@ -32,7 +32,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
     // - `X-Title`: Sets/modifies your app's title
     fn get_headers(&self) -> Vec<(String, String)> {
         let mut headers = Vec::new();
-        if let Some(ref api_key) = self.provider.key() {
+        if let Some(ref api_key) = self.provider.key {
             headers.push((AUTHORIZATION.to_string(), format!("Bearer {api_key}")));
         }
         headers
@@ -231,6 +231,7 @@ mod tests {
     use anyhow::Context;
     use bytes::Bytes;
     use forge_app::HttpClientService;
+    use forge_app::domain::ProviderUrl;
     use reqwest::header::HeaderMap;
     use reqwest_eventsource::EventSource;
 
@@ -286,8 +287,8 @@ mod tests {
     }
 
     fn create_provider(base_url: &str) -> anyhow::Result<OpenAIProvider<MockHttpClient>> {
-        let provider = Provider::OpenAI {
-            url: reqwest::Url::parse(base_url)?,
+        let provider = Provider {
+            url: ProviderUrl::OpenAI(reqwest::Url::parse(base_url)?),
             key: Some("test-api-key".to_string()),
         };
 

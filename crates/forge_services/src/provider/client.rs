@@ -7,7 +7,8 @@ use anyhow::{Context as _, Result};
 use derive_setters::Setters;
 use forge_app::HttpClientService;
 use forge_app::domain::{
-    ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ResultStream, RetryConfig,
+    ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ProviderUrl,
+    ResultStream, RetryConfig,
 };
 use reqwest::Url;
 use reqwest::header::HeaderMap;
@@ -47,14 +48,14 @@ impl ClientBuilder {
         let provider = self.provider;
         let retry_config = self.retry_config;
 
-        let inner = match &provider {
-            Provider::OpenAI { .. } => {
+        let inner = match &provider.url {
+            ProviderUrl::OpenAI(_) => {
                 InnerClient::OpenAICompat(OpenAIProvider::new(provider.clone(), http.clone()))
             }
 
-            Provider::Anthropic { key, .. } => InnerClient::Anthropic(Anthropic::new(
+            ProviderUrl::Anthropic(_) => InnerClient::Anthropic(Anthropic::new(
                 http.clone(),
-                key.to_string(),
+                provider.api_key().unwrap_or_default().to_string(),
                 provider.to_base_url().to_string(),
                 "2023-06-01".to_string(),
             )),
@@ -225,8 +226,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_initialization() {
-        let provider = Provider::OpenAI {
-            url: Url::parse("https://api.openai.com/v1/").unwrap(),
+        let provider = Provider {
+            url: ProviderUrl::OpenAI(Url::parse("https://api.openai.com/v1/").unwrap()),
             key: Some("test-key".to_string()),
         };
         let client = ClientBuilder::new(provider, "dev")
@@ -240,8 +241,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_refresh_models_method_exists() {
-        let provider = Provider::OpenAI {
-            url: Url::parse("https://api.openai.com/v1/").unwrap(),
+        let provider = Provider {
+            url: ProviderUrl::OpenAI(Url::parse("https://api.openai.com/v1/").unwrap()),
             key: Some("test-key".to_string()),
         };
         let client = ClientBuilder::new(provider, "dev")
@@ -257,8 +258,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_builder_pattern_api() {
-        let provider = Provider::OpenAI {
-            url: Url::parse("https://api.openai.com/v1/").unwrap(),
+        let provider = Provider {
+            url: ProviderUrl::OpenAI(Url::parse("https://api.openai.com/v1/").unwrap()),
             key: Some("test-key".to_string()),
         };
 
@@ -277,8 +278,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_builder_with_defaults() {
-        let provider = Provider::OpenAI {
-            url: Url::parse("https://api.openai.com/v1/").unwrap(),
+        let provider = Provider {
+            url: ProviderUrl::OpenAI(Url::parse("https://api.openai.com/v1/").unwrap()),
             key: Some("test-key".to_string()),
         };
 

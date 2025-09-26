@@ -180,7 +180,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
 
     async fn user_info(&self) -> Result<Option<User>> {
         let provider = self.provider().await?;
-        if let Some(api_key) = provider.key() {
+        if let Some(ref api_key) = provider.key {
             let user_info = self.services.user_info(api_key).await?;
             return Ok(Some(user_info));
         }
@@ -189,7 +189,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
 
     async fn user_usage(&self) -> Result<Option<UserUsage>> {
         let provider = self.provider().await?;
-        if let Some(api_key) = provider.key() {
+        if let Some(ref api_key) = provider.key {
             let user_usage = self.services.user_usage(api_key).await?;
             return Ok(Some(user_usage));
         }

@@ -5,6 +5,7 @@ use forge_app::ProviderRegistry;
 use forge_app::domain::{Provider, ProviderUrl};
 use forge_app::dto::AppConfig;
 use tokio::sync::RwLock;
+use url::Url;
 
 use crate::EnvironmentInfra;
 
@@ -23,13 +24,17 @@ impl<F: EnvironmentInfra> ForgeProviderRegistry<F> {
     }
 
     fn provider_url(&self) -> Option<ProviderUrl> {
-        if let Some(url) = self.infra.get_env_var("OPENAI_URL") {
-            return Some(ProviderUrl::OpenAI(url));
+        if let Some(url) = self.infra.get_env_var("OPENAI_URL")
+            && let Ok(parsed_url) = Url::parse(&url)
+        {
+            return Some(ProviderUrl::OpenAI(parsed_url));
         }
 
         // Check for Anthropic URL override
-        if let Some(url) = self.infra.get_env_var("ANTHROPIC_URL") {
-            return Some(ProviderUrl::Anthropic(url));
+        if let Some(url) = self.infra.get_env_var("ANTHROPIC_URL")
+            && let Ok(parsed_url) = Url::parse(&url)
+        {
+            return Some(ProviderUrl::Anthropic(parsed_url));
         }
         None
     }
@@ -100,9 +105,10 @@ fn resolve_env_provider<F: EnvironmentInfra>(
         })
 }
 
-fn override_url(mut provider: Provider, url: Option<ProviderUrl>) -> Provider {
+fn override_url(provider: Provider, url: Option<ProviderUrl>) -> Provider {
     if let Some(url) = url {
-        provider.url(url);
+        provider.url(url)
+    } else {
+        provider
     }
-    provider
 }
