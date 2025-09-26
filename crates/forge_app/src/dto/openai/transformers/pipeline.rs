@@ -1,4 +1,4 @@
-use forge_domain::{DefaultTransformation, Provider, Transformer};
+use forge_domain::{DefaultTransformation, Transformer};
 
 use super::drop_tool_call::DropToolCalls;
 use super::make_cerebras_compat::MakeCerebrasCompat;
@@ -6,6 +6,7 @@ use super::make_openai_compat::MakeOpenAiCompat;
 use super::set_cache::SetCache;
 use super::tool_choice::SetToolChoice;
 use super::when_model::when_model;
+use crate::dto::Provider;
 use crate::dto::openai::{Request, ToolChoice};
 
 /// Pipeline for transforming requests based on the provider type

@@ -4,7 +4,7 @@ use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
     Agent, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
-    Environment, File, McpConfig, Model, ModelId, PatchOperation, Provider, ResultStream, Scope,
+    Environment, File, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope,
     ToolCallFull, ToolDefinition, ToolOutput, Workflow,
 };
 use merge::Merge;
@@ -14,7 +14,7 @@ use reqwest_eventsource::EventSource;
 use url::Url;
 
 use crate::Walker;
-use crate::dto::{AppConfig, InitAuth, LoginInfo};
+use crate::dto::{AppConfig, InitAuth, LoginInfo, Provider};
 use crate::user::{User, UserUsage};
 
 #[derive(Debug)]

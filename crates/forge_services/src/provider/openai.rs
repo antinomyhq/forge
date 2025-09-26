@@ -3,8 +3,9 @@ use std::sync::Arc;
 use anyhow::{Context as _, Result};
 use forge_app::HttpClientService;
 use forge_app::domain::{
-    ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ResultStream, Transformer,
+    ChatCompletionMessage, Context as ChatContext, ModelId, ResultStream, Transformer,
 };
+use forge_app::dto::Provider;
 use forge_app::dto::openai::{
     ListModelResponse, ProviderPipeline, Request, Response, ResponsesRequest, ResponsesResponse,
 };
@@ -231,7 +232,7 @@ mod tests {
     use anyhow::Context;
     use bytes::Bytes;
     use forge_app::HttpClientService;
-    use forge_app::domain::ProviderUrl;
+    use forge_app::dto::ProviderUrl;
     use reqwest::header::HeaderMap;
     use reqwest_eventsource::EventSource;
 

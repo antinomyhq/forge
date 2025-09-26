@@ -7,9 +7,9 @@ use anyhow::{Context as _, Result};
 use derive_setters::Setters;
 use forge_app::HttpClientService;
 use forge_app::domain::{
-    ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ProviderUrl,
-    ResultStream, RetryConfig,
+    ChatCompletionMessage, Context, HttpConfig, Model, ModelId, ResultStream, RetryConfig,
 };
+use forge_app::dto::{Provider, ProviderUrl};
 use reqwest::Url;
 use reqwest::header::HeaderMap;
 use tokio::sync::RwLock;
@@ -55,7 +55,7 @@ impl ClientBuilder {
 
             ProviderUrl::Anthropic(_) => InnerClient::Anthropic(Anthropic::new(
                 http.clone(),
-                provider.api_key().unwrap_or_default().to_string(),
+                provider.key.clone().unwrap_or_default(),
                 provider.to_base_url().to_string(),
                 "2023-06-01".to_string(),
             )),
@@ -186,7 +186,7 @@ mod tests {
 
     use bytes::Bytes;
     use forge_app::HttpClientService;
-    use forge_app::domain::Provider;
+    use forge_app::dto::{Provider, ProviderUrl};
     use reqwest::Url;
     use reqwest::header::HeaderMap;
     use reqwest_eventsource::EventSource;
