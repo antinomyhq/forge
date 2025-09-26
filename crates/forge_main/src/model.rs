@@ -275,6 +275,7 @@ impl ForgeCommandManager {
             "/model" => Ok(Command::Model),
             "/tools" => Ok(Command::Tools),
             "/agent" => Ok(Command::Agent),
+            "/provider" => Ok(Command::Provider),
             "/login" => Ok(Command::Login),
             "/logout" => Ok(Command::Logout),
             "/retry" => Ok(Command::Retry),
@@ -406,6 +407,10 @@ pub enum Command {
     /// Switch directly to a specific agent by ID
     #[strum(props(usage = "Switch directly to a specific agent"))]
     AgentSwitch(String),
+
+    /// Switch or configure active provider
+    #[strum(props(usage = "Switch or configure active provider"))]
+    Provider,
 }
 
 impl Command {
@@ -428,6 +433,7 @@ impl Command {
             Command::Custom(event) => &event.name,
             Command::Shell(_) => "!shell",
             Command::Agent => "agent",
+            Command::Provider => "provider",
             Command::Login => "login",
             Command::Logout => "logout",
             Command::Retry => "retry",
