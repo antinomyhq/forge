@@ -87,7 +87,7 @@ jobs:
       if: '!contains(matrix.target, ''-unknown-linux-'')'
       run: echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV
     - name: Build Binary
-      uses: ClementTsang/cargo-action@v0.0.6
+      uses: ClementTsang/cargo-action@v0.0.7
       with:
         command: build --release
         args: --target ${{ matrix.target }}
