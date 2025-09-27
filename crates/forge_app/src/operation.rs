@@ -229,13 +229,27 @@ impl ToolOperation {
                         .attr("path", input.path)
                         .attr(
                             "display_lines",
-                            format!("{}-{}", output.start_line, output.end_line),
+                            format!(
+                                "{}-{}",
+                                output.start_line.unwrap_or(1),
+                                output.end_line.unwrap_or(content.lines().count() as u64)
+                            ),
                         )
                         .attr("total_lines", content.lines().count())
                         .cdata(content);
 
                     forge_domain::ToolOutput::text(elm)
                 }
+                Content::Image(_, _) => forge_domain::ToolOutput::text(
+                    Element::new("image_content")
+                        .attr("path", input.path)
+                        .cdata("Image file processed"),
+                ),
+                Content::Pdf(_, _, _, _) => forge_domain::ToolOutput::text(
+                    Element::new("pdf_content")
+                        .attr("path", input.path)
+                        .cdata("PDF file processed"),
+                ),
             },
             ToolOperation::FsCreate { input, output } => {
                 let diff_result = DiffFormat::format(
@@ -594,9 +608,9 @@ mod tests {
             },
             output: ReadOutput {
                 content: Content::File("Hello, world!\nThis is a test file.".to_string()),
-                start_line: 1,
-                end_line: 2,
-                total_lines: 2,
+                start_line: Some(1),
+                end_line: Some(2),
+                total_lines: Some(2),
             },
         };
 
@@ -624,9 +638,9 @@ mod tests {
             },
             output: ReadOutput {
                 content: Content::File("struct Foo<T>{ name: T }".to_string()),
-                start_line: 1,
-                end_line: 1,
-                total_lines: 1,
+                start_line: Some(1),
+                end_line: Some(1),
+                total_lines: Some(1),
             },
         };
 
@@ -654,9 +668,9 @@ mod tests {
             },
             output: ReadOutput {
                 content: Content::File("Line 1\nLine 2\nLine 3".to_string()),
-                start_line: 2,
-                end_line: 3,
-                total_lines: 5,
+                start_line: Some(2),
+                end_line: Some(3),
+                total_lines: Some(5),
             },
         };
 
@@ -684,9 +698,9 @@ mod tests {
             },
             output: ReadOutput {
                 content: Content::File("Truncated content".to_string()),
-                start_line: 1,
-                end_line: 100,
-                total_lines: 200,
+                start_line: Some(1),
+                end_line: Some(100),
+                total_lines: Some(200),
             },
         };
 

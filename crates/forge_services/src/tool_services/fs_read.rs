@@ -2,6 +2,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Context;
+use forge_app::pdf_processor::PdfProcessor;
 use forge_app::{Content, FsReadService, ReadOutput};
 
 use crate::range::resolve_range;
@@ -63,23 +64,89 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
         assert_absolute_path(path)?;
         let env = self.0.get_environment();
 
-        // Validate file size before reading content
-        assert_file_size(&*self.0, path, env.max_file_size).await?;
+        // Check file type by extension first
+        let extension = path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
 
-        let (start_line, end_line) = resolve_range(start_line, end_line, env.max_read_size);
+        // For PDF files, we allow larger sizes since we extract text with limits
+        if extension.to_lowercase().as_str() == "pdf" {
+            // Use a larger limit for PDF files (e.g., 50MB) since we extract text
+            const PDF_MAX_SIZE: u64 = 50 * 1024 * 1024; // 50MB
+            assert_file_size(&*self.0, path, PDF_MAX_SIZE).await?;
+        } else {
+            // Use standard file size limit for other files
+            assert_file_size(&*self.0, path, env.max_file_size).await?;
+        }
 
-        let (content, file_info) = self
-            .0
-            .range_read_utf8(path, start_line, end_line)
-            .await
-            .with_context(|| format!("Failed to read file content from {}", path.display()))?;
+        let file_data = self.0.read(path).await?;
 
-        Ok(ReadOutput {
-            content: Content::File(content),
-            start_line: file_info.start_line,
-            end_line: file_info.end_line,
-            total_lines: file_info.total_lines,
-        })
+        let content = match extension.to_lowercase().as_str() {
+            "pdf" => {
+                if !PdfProcessor::is_pdf(&file_data) {
+                    return Err(anyhow::anyhow!(
+                        "File is not a valid PDF: {}",
+                        path.display()
+                    ));
+                }
+
+                // Extract text with context limits
+                let (extracted_text, total_pages, extracted_pages, text_length) =
+                    PdfProcessor::extract_text_with_limits(
+                        &file_data,
+                        (env.max_read_size * 100) as usize, /* Convert line limit to character
+                                                             * limit */
+                        50, // Max pages to extract
+                    )
+                    .await?;
+
+                Content::pdf(extracted_text, total_pages, extracted_pages, text_length)
+            }
+            "jpg" | "jpeg" | "png" | "webp" | "gif" | "bmp" | "svg" => {
+                let mime_type = match extension.to_lowercase().as_str() {
+                    "jpg" | "jpeg" => "image/jpeg",
+                    "png" => "image/png",
+                    "webp" => "image/webp",
+                    "gif" => "image/gif",
+                    "bmp" => "image/bmp",
+                    "svg" => "image/svg+xml",
+                    _ => "application/octet-stream",
+                };
+                Content::image(file_data, mime_type)
+            }
+            _ => {
+                // Handle as text file
+                let (start_line, end_line) = resolve_range(start_line, end_line, env.max_read_size);
+
+                let (content, _file_info) = self
+                    .0
+                    .range_read_utf8(path, start_line, end_line)
+                    .await
+                    .with_context(|| {
+                        format!("Failed to read file content from {}", path.display())
+                    })?;
+
+                Content::file(content)
+            }
+        };
+
+        // Set line information based on content type
+        let (start_line, end_line, total_lines) = match content {
+            Content::File(_) => {
+                let (start_line, end_line) = resolve_range(start_line, end_line, env.max_read_size);
+                let (_, file_info) = self
+                    .0
+                    .range_read_utf8(path, start_line, end_line)
+                    .await
+                    .with_context(|| format!("Failed to read file info from {}", path.display()))?;
+                (
+                    Some(file_info.start_line),
+                    Some(file_info.end_line),
+                    Some(file_info.total_lines),
+                )
+            }
+            _ => (None, None, None),
+        };
+
+        Ok(ReadOutput { content, start_line, end_line, total_lines })
     }
 }
 

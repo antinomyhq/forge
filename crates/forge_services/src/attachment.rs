@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use forge_app::AttachmentService;
 use forge_app::domain::{Attachment, AttachmentContent, FileTag, Image, LineNumbers};
+use forge_app::pdf_processor::PdfProcessor;
 
 use crate::range::resolve_range;
 use crate::{EnvironmentInfra, FileReaderInfra};
@@ -31,18 +32,49 @@ impl<F: FileReaderInfra + EnvironmentInfra> ForgeChatRequest<F> {
             path = self.infra.get_environment().cwd.join(path);
         }
 
-        // Determine file type (text or image with format)
-        let mime_type = extension.and_then(|ext| match ext.as_str() {
+        // Determine file type (text, image, or pdf with format)
+        let mime_type = extension.clone().and_then(|ext| match ext.as_str() {
             "jpeg" | "jpg" => Some("image/jpeg".to_string()),
             "png" => Some("image/png".to_string()),
             "webp" => Some("image/webp".to_string()),
             _ => None,
         });
 
+        let is_pdf = extension.map(|ext| ext.as_str() == "pdf").unwrap_or(false);
+
         //NOTE: Apply the same slicing as file reads for text content
         let content = match mime_type {
             Some(mime_type) => {
                 AttachmentContent::Image(Image::new_bytes(self.infra.read(&path).await?, mime_type))
+            }
+            None if is_pdf => {
+                let env = self.infra.get_environment();
+                let pdf_data = self.infra.read(&path).await?;
+
+                // Check if it's actually a PDF
+                if !PdfProcessor::is_pdf(&pdf_data) {
+                    return Err(anyhow::anyhow!(
+                        "File is not a valid PDF: {}",
+                        path.display()
+                    ));
+                }
+
+                // Extract text with context limits
+                let (extracted_text, total_pages, extracted_pages, text_length) =
+                    PdfProcessor::extract_text_with_limits(
+                        &pdf_data,
+                        (env.max_read_size * 100) as usize, /* Convert line limit to character
+                                                             * limit */
+                        50, // Max pages to extract
+                    )
+                    .await?;
+
+                AttachmentContent::Pdf {
+                    content: extracted_text,
+                    total_pages,
+                    extracted_pages,
+                    total_text_length: text_length,
+                }
             }
             None => {
                 let env = self.infra.get_environment();

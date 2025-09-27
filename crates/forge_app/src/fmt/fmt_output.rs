@@ -110,9 +110,9 @@ mod tests {
             },
             output: ReadOutput {
                 content: Content::File("Hello, world!".to_string()),
-                start_line: 1,
-                end_line: 1,
-                total_lines: 5,
+                start_line: Some(1),
+                end_line: Some(1),
+                total_lines: Some(5),
             },
         };
         let env = fixture_environment();
@@ -135,9 +135,9 @@ mod tests {
             },
             output: ReadOutput {
                 content: Content::File("Line 1\nLine 2\nLine 3".to_string()),
-                start_line: 2,
-                end_line: 4,
-                total_lines: 10,
+                start_line: Some(2),
+                end_line: Some(4),
+                total_lines: Some(10),
             },
         };
         let env = fixture_environment();

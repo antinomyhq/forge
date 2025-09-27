@@ -23,7 +23,6 @@ mp4
 o
 obj
 pdb
-pdf
 ppt
 pptx
 pyc

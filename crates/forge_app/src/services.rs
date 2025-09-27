@@ -34,14 +34,16 @@ pub struct PatchOutput {
 #[setters(into)]
 pub struct ReadOutput {
     pub content: Content,
-    pub start_line: u64,
-    pub end_line: u64,
-    pub total_lines: u64,
+    pub start_line: Option<u64>,
+    pub end_line: Option<u64>,
+    pub total_lines: Option<u64>,
 }
 
 #[derive(Debug)]
 pub enum Content {
     File(String),
+    Image(Vec<u8>, String),
+    Pdf(String, u32, u32, usize),
 }
 
 impl Content {
@@ -49,9 +51,45 @@ impl Content {
         Self::File(content.into())
     }
 
-    pub fn file_content(&self) -> &str {
+    pub fn image<S: Into<String>>(content: Vec<u8>, mime_type: S) -> Self {
+        Self::Image(content, mime_type.into())
+    }
+
+    pub fn pdf<S: Into<String>>(
+        content: S,
+        total_pages: u32,
+        extracted_pages: u32,
+        total_text_length: usize,
+    ) -> Self {
+        Self::Pdf(
+            content.into(),
+            total_pages,
+            extracted_pages,
+            total_text_length,
+        )
+    }
+
+    pub fn file_content(&self) -> Option<&str> {
         match self {
-            Self::File(content) => content,
+            Self::File(content) => Some(content),
+            Self::Pdf(content, ..) => Some(content),
+            _ => None,
+        }
+    }
+
+    pub fn image_data(&self) -> Option<(&Vec<u8>, &str)> {
+        match self {
+            Self::Image(data, mime_type) => Some((data, mime_type)),
+            _ => None,
+        }
+    }
+
+    pub fn pdf_data(&self) -> Option<(&str, u32, u32, usize)> {
+        match self {
+            Self::Pdf(content, total_pages, extracted_pages, total_text_length) => {
+                Some((content, *total_pages, *extracted_pages, *total_text_length))
+            }
+            _ => None,
         }
     }
 }
