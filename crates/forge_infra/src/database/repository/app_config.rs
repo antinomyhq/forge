@@ -42,7 +42,6 @@ impl AppConfigRepository for AppConfigRepositoryImpl {
 #[cfg(test)]
 mod tests {
 
-
     use forge_app::dto::AppConfig;
     use pretty_assertions::assert_eq;
     use tempfile::TempDir;
@@ -58,12 +57,12 @@ mod tests {
     fn repository_with_config_fixture() -> anyhow::Result<(AppConfigRepositoryImpl, TempDir)> {
         let temp_dir = tempfile::tempdir()?;
         let config_path = temp_dir.path().join(".config.json");
-        
+
         // Create a config file with default config
         let config = AppConfig::default();
         let content = serde_json::to_string_pretty(&config)?;
         std::fs::write(&config_path, content)?;
-        
+
         Ok((AppConfigRepositoryImpl::new(config_path), temp_dir))
     }
 
@@ -96,7 +95,7 @@ mod tests {
         let actual = repo.set_app_config(&fixture).await;
 
         assert!(actual.is_ok());
-        
+
         // Verify the config was actually written by reading it back
         let read_config = repo.get_app_config().await?;
         assert_eq!(read_config, Some(fixture));

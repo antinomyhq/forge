@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::dto::{AppConfig, InitAuth, Provider, ToolsOverview};
+use forge_app::dto::{AppConfig, InitAuth, Provider, ProviderId, ToolsOverview};
 use forge_app::{
     AgentLoaderService, AppConfigService, AuthService, ConversationService, EnvironmentService,
     FileDiscoveryService, ForgeApp, McpConfigManager, ProviderRegistry, ProviderService, Services,
@@ -50,11 +50,15 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     async fn models(&self) -> Result<Vec<Model>> {
         Ok(self
             .services
-            .models(self.provider().await.context("User is not logged in")?)
+            .models(self.get_provider().await.context("User is not logged in")?)
             .await?)
     }
     async fn get_agents(&self) -> Result<Vec<Agent>> {
         Ok(self.services.get_agents().await?)
+    }
+
+    async fn providers(&self) -> Result<Vec<Provider>> {
+        Ok(self.services.get_all_providers().await?)
     }
 
     async fn chat(
@@ -168,8 +172,12 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         let forge_app = ForgeApp::new(self.services.clone());
         forge_app.logout().await
     }
-    async fn provider(&self) -> anyhow::Result<Provider> {
+    async fn get_provider(&self) -> anyhow::Result<Provider> {
         self.services.get_active_provider().await
+    }
+
+    async fn set_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
+        self.services.set_active_provider(provider_id).await
     }
 
     async fn app_config(&self) -> Option<AppConfig> {
@@ -177,7 +185,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     }
 
     async fn user_info(&self) -> Result<Option<User>> {
-        let provider = self.provider().await?;
+        let provider = self.get_provider().await?;
         if let Some(ref api_key) = provider.key {
             let user_info = self.services.user_info(api_key).await?;
             return Ok(Some(user_info));
@@ -186,7 +194,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     }
 
     async fn user_usage(&self) -> Result<Option<UserUsage>> {
-        let provider = self.provider().await?;
+        let provider = self.get_provider().await?;
         if let Some(ref api_key) = provider.key {
             let user_usage = self.services.user_usage(api_key).await?;
             return Ok(Some(user_usage));

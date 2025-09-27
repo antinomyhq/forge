@@ -1,22 +1,104 @@
 use std::sync::Arc;
 
 use forge_app::ProviderRegistry;
-use forge_app::dto::{Provider, ProviderUrl};
-use tokio::sync::RwLock;
+use forge_app::dto::{
+    ANTHROPIC_URL, CEREBRAS_URL, OPEN_ROUTER_URL, OPENAI_URL, Provider, ProviderId, ProviderUrl,
+    REQUESTY_URL, XAI_URL, ZAI_CODING_URL, ZAI_URL,
+};
 use url::Url;
 
-use crate::EnvironmentInfra;
+use crate::{AppConfigRepository, EnvironmentInfra, ProviderError};
 
 pub struct ForgeProviderRegistry<F> {
     infra: Arc<F>,
-    // IMPORTANT: This cache is used to avoid logging out if the user has logged out from other
-    // session. This helps to keep the user logged in for current session.
-    cache: Arc<RwLock<Option<Provider>>>,
 }
 
-impl<F: EnvironmentInfra> ForgeProviderRegistry<F> {
+impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        Self { infra, cache: Arc::new(Default::default()) }
+        Self { infra }
+    }
+
+    fn provider_from_id(&self, id: forge_app::dto::ProviderId) -> anyhow::Result<Provider> {
+        // First, match provider_id to get environment variable name and provider config
+        let (env_var_name, url) = match id {
+            ProviderId::OpenRouter => (
+                "OPENROUTER_API_KEY",
+                ProviderUrl::OpenAI(Url::parse(OPEN_ROUTER_URL).unwrap()),
+            ),
+            ProviderId::Requesty => (
+                "REQUESTY_API_KEY",
+                ProviderUrl::OpenAI(Url::parse(REQUESTY_URL).unwrap()),
+            ),
+            ProviderId::Xai => (
+                "XAI_API_KEY",
+                ProviderUrl::OpenAI(Url::parse(XAI_URL).unwrap()),
+            ),
+            ProviderId::OpenAI => (
+                "OPENAI_API_KEY",
+                ProviderUrl::OpenAI(Url::parse(OPENAI_URL).unwrap()),
+            ),
+            ProviderId::Anthropic => (
+                "ANTHROPIC_API_KEY",
+                ProviderUrl::Anthropic(Url::parse(ANTHROPIC_URL).unwrap()),
+            ),
+            ProviderId::Cerebras => (
+                "CEREBRAS_API_KEY",
+                ProviderUrl::OpenAI(Url::parse(CEREBRAS_URL).unwrap()),
+            ),
+            ProviderId::Zai => (
+                "ZAI_API_KEY",
+                ProviderUrl::OpenAI(Url::parse(ZAI_URL).unwrap()),
+            ),
+            ProviderId::ZaiCoding => (
+                "ZAI_CODING_API_KEY",
+                ProviderUrl::OpenAI(Url::parse(ZAI_CODING_URL).unwrap()),
+            ),
+            ProviderId::VertexAi => {
+                if let Some(auth_token) = self.infra.get_env_var("VERTEX_AI_AUTH_TOKEN") {
+                    return resolve_vertex_env_provider(&auth_token, self.infra.as_ref());
+                } else {
+                    return Err(ProviderError::env_var_not_found(
+                        ProviderId::VertexAi,
+                        "VERTEX_AI_AUTH_TOKEN",
+                    )
+                    .into());
+                }
+            }
+            ProviderId::Forge => {
+                // Forge provider isn't typically configured via env vars in the registry
+                return Err(ProviderError::provider_not_available(ProviderId::Forge).into());
+            }
+        };
+
+        // Get the API key and create provider using field assignment
+        if let Some(api_key) = self.infra.get_env_var(env_var_name) {
+            Ok(Provider { id, url, key: Some(api_key) })
+        } else {
+            Err(ProviderError::env_var_not_found(id, env_var_name).into())
+        }
+    }
+
+    fn get_first_available_provider(&self) -> anyhow::Result<Provider> {
+        // Define all provider IDs in order of preference
+        let provider_ids = [
+            ProviderId::OpenAI,
+            ProviderId::Anthropic,
+            ProviderId::OpenRouter,
+            ProviderId::Xai,
+            ProviderId::Cerebras,
+            ProviderId::Zai,
+            ProviderId::ZaiCoding,
+            ProviderId::Requesty,
+            ProviderId::VertexAi,
+        ];
+
+        for provider_id in provider_ids {
+            if let Ok(provider) = self.provider_from_id(provider_id) {
+                return Ok(provider);
+            }
+        }
+
+        Err(forge_app::Error::NoActiveProvider.into())
     }
 
     fn provider_url(&self) -> Option<ProviderUrl> {
@@ -37,18 +119,37 @@ impl<F: EnvironmentInfra> ForgeProviderRegistry<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra> ProviderRegistry for ForgeProviderRegistry<F> {
+impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProviderRegistry<F> {
     async fn get_active_provider(&self) -> anyhow::Result<Provider> {
-        self.cache
-            .read()
-            .await
-            .as_ref()
-            .cloned()
-            .ok_or_else(|| forge_app::Error::NoActiveProvider.into())
+        if let Some(app_config) = self.infra.get_app_config().await?
+            && let Some(provider_id) = app_config.active_provider_id
+        {
+            let mut provider = self.provider_from_id(provider_id)?;
+
+            // Apply URL overrides if present
+            if let Some(provider_url) = self.provider_url() {
+                provider = override_url(provider, Some(provider_url));
+            }
+
+            return Ok(provider);
+        }
+
+        // No active provider set, try to find the first available one
+        let mut provider = self.get_first_available_provider()?;
+
+        // Apply URL overrides if present
+        if let Some(provider_url) = self.provider_url() {
+            provider = override_url(provider, Some(provider_url));
+        }
+
+        Ok(provider)
     }
 
-    async fn set_active_provider(&self, provider: Provider) -> anyhow::Result<()> {
-        self.cache.write().await.replace(provider);
+    async fn set_active_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
+        let mut app_config = self.infra.get_app_config().await?.unwrap_or_default();
+        app_config.active_provider_id = Some(provider_id);
+        self.infra.set_app_config(&app_config).await?;
+
         Ok(())
     }
 
@@ -90,12 +191,16 @@ fn resolve_vertex_env_provider<F: EnvironmentInfra>(
     key: &str,
     env: &F,
 ) -> anyhow::Result<Provider> {
-    let project_id = env.get_env_var("PROJECT_ID").ok_or(anyhow::anyhow!(
-        "PROJECT_ID is missing. Please set the PROJECT_ID environment variable."
-    ))?;
-    let location = env.get_env_var("LOCATION").ok_or(anyhow::anyhow!(
-        "LOCATION is missing. Please set the LOCATION environment variable."
-    ))?;
+    let project_id = env.get_env_var("PROJECT_ID").ok_or_else(|| {
+        ProviderError::vertex_ai_config(
+            "PROJECT_ID is missing. Please set the PROJECT_ID environment variable.",
+        )
+    })?;
+    let location = env.get_env_var("LOCATION").ok_or_else(|| {
+        ProviderError::vertex_ai_config(
+            "LOCATION is missing. Please set the LOCATION environment variable.",
+        )
+    })?;
     Provider::vertex_ai(key, &project_id, &location)
 }
 

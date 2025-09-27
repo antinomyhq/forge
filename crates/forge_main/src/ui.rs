@@ -8,7 +8,7 @@ use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId,
     EVENT_USER_TASK_INIT, EVENT_USER_TASK_UPDATE, Event, InterruptionReason, Model, ModelId,
-    Provider, ToolName, Workflow,
+    Provider, ProviderId, ToolName, Workflow,
 };
 use forge_display::MarkdownFormat;
 use forge_domain::{ChatResponseContent, McpConfig, McpServerConfig, Scope, TitleFormat};
@@ -552,6 +552,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Command::Model => {
                 self.on_model_selection().await?;
             }
+            Command::Provider => {
+                self.on_provider_selection().await?;
+            }
             Command::Shell(ref command) => {
                 self.api.execute_shell_command_raw(command).await?;
             }
@@ -610,7 +613,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         .and_then(|v| v.auth_provider_id)
                         .unwrap_or_default(),
                 );
-                let provider = self.api.provider().await?;
+                let provider = self.api.get_provider().await?;
                 self.state.provider = Some(provider);
             }
             Command::Logout => {
@@ -689,6 +692,37 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
     }
 
+    async fn select_provider(&mut self) -> Result<Option<Provider>> {
+        // Fetch available providers
+        let mut providers = self
+            .api
+            .providers()
+            .await?
+            .into_iter()
+            .map(CliProvider)
+            .collect::<Vec<_>>();
+
+        // Sort the providers by their display names in ascending order
+        providers.sort_by_key(|a| a.to_string());
+
+        // Find the index of the current provider
+        let current_provider = self.api.get_provider().await.ok();
+        let starting_cursor = current_provider
+            .as_ref()
+            .and_then(|current| providers.iter().position(|p| p.0.id == current.id))
+            .unwrap_or(0);
+
+        // Use the centralized select module
+        match ForgeSelect::select("Select a provider:", providers)
+            .with_starting_cursor(starting_cursor)
+            .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
+            .prompt()?
+        {
+            Some(provider) => Ok(Some(provider.0)),
+            None => Ok(None),
+        }
+    }
+
     // Helper method to handle model selection and update the conversation
     async fn on_model_selection(&mut self) -> Result<()> {
         // Select a model
@@ -710,6 +744,27 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.update_model(Some(model.clone()));
 
         self.writeln_title(TitleFormat::action(format!("Switched to model: {model}")))?;
+
+        Ok(())
+    }
+
+    async fn on_provider_selection(&mut self) -> Result<()> {
+        // Select a provider
+        let provider_option = self.select_provider().await?;
+
+        // If no provider was selected (user canceled), return early
+        let provider = match provider_option {
+            Some(provider) => provider,
+            None => return Ok(()),
+        };
+
+        // Set the provider via API
+        self.api.set_provider(provider.id).await?;
+
+        self.writeln_title(TitleFormat::action(format!(
+            "Switched to provider: {}",
+            CliProvider(provider.clone())
+        )))?;
 
         Ok(())
     }
@@ -859,7 +914,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn init_provider(&self) -> Result<Provider> {
-        self.api.provider().await
+        self.api.get_provider().await
         // match self.api.provider().await {
         //     // Use the forge key if available in the config.
         //     Ok(provider) => Ok(provider),
@@ -1189,6 +1244,26 @@ impl Display for CliModel {
         }
 
         Ok(())
+    }
+}
+
+struct CliProvider(Provider);
+
+impl Display for CliProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match &self.0.id {
+            ProviderId::Forge => "Forge",
+            ProviderId::OpenAI => "OpenAI",
+            ProviderId::OpenRouter => "OpenRouter",
+            ProviderId::Requesty => "Requesty",
+            ProviderId::Zai => "Z.ai",
+            ProviderId::ZaiCoding => "Z.ai Coding",
+            ProviderId::Cerebras => "Cerebras",
+            ProviderId::Xai => "xAI",
+            ProviderId::Anthropic => "Anthropic",
+            ProviderId::VertexAi => "Vertex AI",
+        };
+        write!(f, "{}", name)
     }
 }
 

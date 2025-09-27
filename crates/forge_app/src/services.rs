@@ -14,7 +14,7 @@ use reqwest_eventsource::EventSource;
 use url::Url;
 
 use crate::Walker;
-use crate::dto::{AppConfig, InitAuth, LoginInfo, Provider};
+use crate::dto::{AppConfig, InitAuth, LoginInfo, Provider, ProviderId};
 use crate::user::{User, UserUsage};
 
 #[derive(Debug)]
@@ -352,7 +352,7 @@ pub trait AuthService: Send + Sync {
 #[async_trait::async_trait]
 pub trait ProviderRegistry: Send + Sync {
     async fn get_active_provider(&self) -> anyhow::Result<Provider>;
-    async fn set_active_provider(&self, provider: Provider) -> anyhow::Result<()>;
+    async fn set_active_provider(&self, provider_id: ProviderId) -> anyhow::Result<()>;
     async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>>;
 }
 
@@ -697,8 +697,10 @@ impl<I: Services> ProviderRegistry for I {
         self.provider_registry().get_active_provider().await
     }
 
-    async fn set_active_provider(&self, provider: Provider) -> anyhow::Result<()> {
-        self.provider_registry().set_active_provider(provider).await
+    async fn set_active_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
+        self.provider_registry()
+            .set_active_provider(provider_id)
+            .await
     }
 
     async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {

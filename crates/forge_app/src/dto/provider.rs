@@ -1,18 +1,23 @@
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
+use strum_macros::{Display, EnumString};
 use url::Url;
 
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize, Display, EnumString)]
 pub enum ProviderId {
     Forge,
+    #[strum(serialize = "OpenAI")]
     OpenAI,
+    #[strum(serialize = "OpenRouter")]
     OpenRouter,
     Requesty,
     Zai,
+    #[strum(serialize = "ZaiCoding")]
     ZaiCoding,
     Cerebras,
     Xai,
     Anthropic,
+    #[strum(serialize = "VertexAi")]
     VertexAi,
 }
 
