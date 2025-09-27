@@ -111,7 +111,11 @@ impl Snapshot {
     }
 
     pub async fn save(&self, path: Option<PathBuf>) -> anyhow::Result<()> {
-        let content = ForgeFS::read(&self.path).await?;
+        let content = if ForgeFS::exists(&self.path) {
+            ForgeFS::read(&self.path).await?
+        } else {
+            vec![]
+        };
         let path = self.snapshot_path(path);
         ForgeFS::write(path, content).await?;
         Ok(())
