@@ -16,6 +16,7 @@ forge_domain.workspace = true
 forge_walker.workspace = true
 forge_display.workspace = true
 forge_tracker.workspace = true
+termimad.workspace = true
 
 forge_spinner.workspace = true
 inquire.workspace = true

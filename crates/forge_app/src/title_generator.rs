@@ -49,7 +49,7 @@ impl<S: AS> TitleGenerator<S> {
         }
 
         let stream = self.services.chat_agent(&self.model_id, ctx).await?;
-        let ChatCompletionMessageFull { content, .. } = stream.into_full(false).await?;
+        let ChatCompletionMessageFull { content, .. } = stream.into_full(false, None).await?;
         if let Some(extracted) = extract_tag_content(&content, "title") {
             return Ok(Some(extracted.to_string()));
         }

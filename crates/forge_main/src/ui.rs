@@ -10,14 +10,15 @@ use forge_api::{
     EVENT_USER_TASK_INIT, EVENT_USER_TASK_UPDATE, Event, InterruptionReason, Model, ModelId,
     ToolName, Workflow,
 };
-use forge_display::MarkdownFormat;
+use forge_display::{MarkdownFormat, MarkdownWriter};
 use forge_domain::{ChatResponseContent, McpConfig, McpServerConfig, Provider, Scope, TitleFormat};
 use forge_fs::ForgeFS;
-use forge_spinner::SpinnerManager;
+use forge_spinner::{ForgeSpinner, SpinnerManager, StdoutWriter};
 use forge_tracker::ToolCallPayload;
 use merge::Merge;
 use serde::Deserialize;
 use serde_json::Value;
+use termimad::crossterm::terminal;
 use tokio_stream::StreamExt;
 
 use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
@@ -53,14 +54,14 @@ impl From<PartialEvent> for Event {
 }
 
 pub struct UI<A, F: Fn() -> A> {
-    markdown: MarkdownFormat,
+    markdown: MarkdownWriter,
     state: UIState,
     api: Arc<F::Output>,
     new_api: Arc<F>,
     console: Console,
     command: Arc<ForgeCommandManager>,
     cli: Cli,
-    spinner: SpinnerManager,
+    spinner: SpinnerManager<StdoutWriter, ForgeSpinner>,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
 }
@@ -169,8 +170,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             console: Console::new(env.clone(), command.clone()),
             cli,
             command,
-            spinner: SpinnerManager::new(),
-            markdown: MarkdownFormat::new(),
+            spinner: SpinnerManager::new(StdoutWriter, ForgeSpinner::new()),
+            markdown: {
+                let (width, _) = terminal::size().unwrap_or((80, 24));
+                MarkdownFormat::new().width(width as usize).writer()
+            },
             _guard: forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?,
         })
     }
@@ -914,17 +918,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_chat(&mut self, chat: ChatRequest) -> Result<()> {
         let mut stream = self.api.chat(chat).await?;
 
+        // Stop spinner during streaming to avoid interference
+        self.spinner.stop(None)?;
+
         while let Some(message) = stream.next().await {
             match message {
                 Ok(message) => self.handle_chat_response(message).await?,
                 Err(err) => {
-                    self.spinner.stop(None)?;
                     return Err(err);
                 }
             }
         }
-
-        self.spinner.stop(None)?;
 
         Ok(())
     }
@@ -986,7 +990,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 ChatResponseContent::PlainText(text) => self.writeln(text)?,
                 ChatResponseContent::Markdown(text) => {
                     tracing::info!(message = %text, "Agent Response");
-                    self.writeln(self.markdown.render(&text))?;
+                    for c in text.chars() {
+                        self.markdown.add_char(c)?;
+                        std::thread::sleep(std::time::Duration::from_millis(1));
+                    }
                 }
             },
             ChatResponse::ToolCallStart(_) => {
@@ -1036,10 +1043,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.should_continue().await?;
             }
             ChatResponse::TaskReasoning { content } => {
-                if !content.trim().is_empty() {
-                    let rendered_content = self.markdown.render(&content);
-                    self.writeln(rendered_content.dimmed())?;
-                }
+                self.spinner.write(content.dimmed().to_string())?;
             }
             ChatResponse::TaskComplete => {
                 if let Some(conversation_id) = self.state.conversation_id.as_ref() {
