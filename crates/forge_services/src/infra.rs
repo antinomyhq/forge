@@ -235,3 +235,9 @@ pub trait ConversationRepository: Send + Sync {
     ) -> anyhow::Result<Option<Vec<Conversation>>>;
     async fn get_last_conversation(&self) -> anyhow::Result<Option<Conversation>>;
 }
+
+#[async_trait::async_trait]
+pub trait AppConfigRepository: Send + Sync {
+    async fn get_app_config(&self) -> anyhow::Result<Option<forge_app::dto::AppConfig>>;
+    async fn set_app_config(&self, config: &forge_app::dto::AppConfig) -> anyhow::Result<()>;
+}

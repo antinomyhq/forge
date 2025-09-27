@@ -1,4 +1,4 @@
-use forge_domain::{DefaultTransformation, Provider, Transformer};
+use forge_domain::{DefaultTransformation, Transformer};
 
 use super::drop_tool_call::DropToolCalls;
 use super::make_cerebras_compat::MakeCerebrasCompat;
@@ -7,6 +7,7 @@ use super::set_cache::SetCache;
 use super::tool_choice::SetToolChoice;
 use super::when_model::when_model;
 use crate::dto::openai::{Request, ToolChoice};
+use crate::dto::{Provider, ProviderId};
 
 /// Pipeline for transforming requests based on the provider type
 pub struct ProviderPipeline<'a>(&'a Provider);
@@ -33,7 +34,7 @@ impl Transformer for ProviderPipeline<'_> {
 
         let open_ai_compat = MakeOpenAiCompat.when(move |_| !supports_open_router_params(provider));
 
-        let cerebras_compat = MakeCerebrasCompat.when(move |_| provider.is_cerebras());
+        let cerebras_compat = MakeCerebrasCompat.when(move |_| provider.id == ProviderId::Cerebras);
 
         let mut combined = or_transformers.pipe(open_ai_compat).pipe(cerebras_compat);
         combined.transform(request)
@@ -42,10 +43,10 @@ impl Transformer for ProviderPipeline<'_> {
 
 /// function checks if provider supports open-router parameters.
 fn supports_open_router_params(provider: &Provider) -> bool {
-    provider.is_open_router()
-        || provider.is_forge()
-        || provider.is_zai()
-        || provider.is_zai_coding()
+    provider.id == ProviderId::OpenRouter
+        || provider.id == ProviderId::Forge
+        || provider.id == ProviderId::Zai
+        || provider.id == ProviderId::ZaiCoding
 }
 
 #[cfg(test)]

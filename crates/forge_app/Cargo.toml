@@ -25,6 +25,7 @@ console.workspace = true
 derive_more.workspace = true
 tempfile.workspace = true
 strum.workspace = true
+strum_macros.workspace = true
 forge_template.workspace = true
 merge.workspace = true
 convert_case.workspace = true

@@ -3,9 +3,10 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use forge_app::ProviderService;
 use forge_app::domain::{
-    ChatCompletionMessage, Context as ChatContext, HttpConfig, Model, ModelId, Provider,
-    ResultStream, RetryConfig,
+    ChatCompletionMessage, Context as ChatContext, HttpConfig, Model, ModelId, ResultStream,
+    RetryConfig,
 };
+use forge_app::dto::Provider;
 use tokio::sync::Mutex;
 
 use crate::EnvironmentInfra;

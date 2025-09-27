@@ -4,6 +4,7 @@ mod attachment;
 mod auth;
 mod clipper;
 mod custom_instructions;
+mod error;
 
 mod conversation;
 mod discovery;
@@ -24,6 +25,7 @@ pub use agent_loader::*;
 pub use clipper::*;
 pub use custom_instructions::*;
 pub use discovery::*;
+pub use error::*;
 pub use forge_services::*;
 pub use infra::*;
 pub use policy::*;

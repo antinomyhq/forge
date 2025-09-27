@@ -3,7 +3,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use colored::Colorize;
-use forge_api::{Conversation, Environment, LoginInfo, Metrics, Usage, UserUsage};
+use forge_api::{Conversation, Environment, LoginInfo, Metrics, ProviderId, Usage, UserUsage};
 use forge_tracker::VERSION;
 use num_format::{Locale, ToFormattedString};
 
@@ -102,7 +102,7 @@ impl From<&UIState> for Info {
 
         if let Some(provider) = &value.provider {
             info = info.add_key_value("Provider (URL)", provider.to_base_url());
-            if let Some(api_key) = &provider.key() {
+            if let Some(ref api_key) = provider.key {
                 info = info.add_key_value("API Key", truncate_key(api_key));
             }
         }
@@ -194,7 +194,10 @@ pub fn get_usage(state: &UIState) -> Info {
                 .to_formatted_string(&Locale::en),
         );
 
-    let is_forge_provider = state.provider.as_ref().is_some_and(|p| p.is_forge());
+    let is_forge_provider = state
+        .provider
+        .as_ref()
+        .is_some_and(|p| p.id == ProviderId::Forge);
     if let Some(cost) = state.usage.cost.as_ref()
         && !is_forge_provider
     {

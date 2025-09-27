@@ -27,4 +27,7 @@ pub enum Error {
 
     #[error("No agent has subscribed to the event: {0}")]
     UnsubscribedEvent(String),
+
+    #[error("No active provider configured")]
+    NoActiveProvider,
 }

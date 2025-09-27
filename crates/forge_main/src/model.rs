@@ -273,6 +273,7 @@ impl ForgeCommandManager {
             "/sage" => Ok(Command::Sage),
             "/help" => Ok(Command::Help),
             "/model" => Ok(Command::Model),
+            "/provider" => Ok(Command::Provider),
             "/tools" => Ok(Command::Tools),
             "/agent" => Ok(Command::Agent),
             "/login" => Ok(Command::Login),
@@ -373,6 +374,10 @@ pub enum Command {
     /// This can be triggered with the '/model' command.
     #[strum(props(usage = "Switch to a different model"))]
     Model,
+    /// Switch or select the active provider
+    /// This can be triggered with the '/provider' command.
+    #[strum(props(usage = "Switch to a different provider"))]
+    Provider,
     /// List all available tools with their descriptions and schema
     /// This can be triggered with the '/tools' command.
     #[strum(props(usage = "List all available tools with their descriptions and schema"))]
@@ -424,6 +429,7 @@ impl Command {
             Command::Help => "help",
             Command::Dump(_) => "dump",
             Command::Model => "model",
+            Command::Provider => "provider",
             Command::Tools => "tools",
             Command::Custom(event) => &event.name,
             Command::Shell(_) => "!shell",

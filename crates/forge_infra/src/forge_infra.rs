@@ -6,14 +6,15 @@ use bytes::Bytes;
 use forge_domain::{CommandOutput, Conversation, ConversationId, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
-    CommandInfra, ConversationRepository, DirectoryReaderInfra, EnvironmentInfra,
-    FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
-    HttpInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
+    AppConfigRepository, CommandInfra, ConversationRepository, DirectoryReaderInfra,
+    EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra,
+    FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
 };
 use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
 use reqwest_eventsource::EventSource;
 
+use crate::database::repository::app_config::AppConfigRepositoryImpl;
 use crate::database::repository::conversation::ConversationRepositoryImpl;
 use crate::database::{DatabasePool, PoolConfig};
 use crate::env::ForgeEnvironmentInfra;
@@ -49,6 +50,7 @@ pub struct ForgeInfra {
     walker_service: Arc<ForgeWalkerService>,
     http_service: Arc<ForgeHttpInfra>,
     conversation_repository: Arc<ConversationRepositoryImpl>,
+    app_config_repository: Arc<AppConfigRepositoryImpl>,
 }
 
 impl ForgeInfra {
@@ -61,6 +63,11 @@ impl ForgeInfra {
             Arc::new(DatabasePool::try_from(PoolConfig::new(env.database_path())).unwrap());
         let conversation_repository =
             Arc::new(ConversationRepositoryImpl::new(db_pool, env.workspace_id()));
+
+        let app_config_repository = Arc::new(AppConfigRepositoryImpl::new(
+            env.app_config().as_path().to_path_buf(),
+        ));
+
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
             file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),
@@ -81,6 +88,7 @@ impl ForgeInfra {
             walker_service: Arc::new(ForgeWalkerService::new()),
             http_service,
             conversation_repository,
+            app_config_repository,
         }
     }
 }
@@ -309,5 +317,15 @@ impl ConversationRepository for ForgeInfra {
 
     async fn get_last_conversation(&self) -> anyhow::Result<Option<Conversation>> {
         self.conversation_repository.get_last_conversation().await
+    }
+}
+#[async_trait::async_trait]
+impl AppConfigRepository for ForgeInfra {
+    async fn get_app_config(&self) -> anyhow::Result<Option<forge_app::dto::AppConfig>> {
+        self.app_config_repository.get_app_config().await
+    }
+
+    async fn set_app_config(&self, config: &forge_app::dto::AppConfig) -> anyhow::Result<()> {
+        self.app_config_repository.set_app_config(config).await
     }
 }
