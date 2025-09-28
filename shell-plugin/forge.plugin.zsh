@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
 
-# Forge ZSH Plugin - ZLE Widget Version  
+# Forge ZSH Plugin - ZLE Widget Version
 # Converts command-tagged commands to resume conversations using ZLE widgets
 # Supports :plan/:p (muse), :ask/:a (sage), :new (start new conversation), :command_name (custom command), : (forge default)
 # Features: Auto-resume existing conversations or start new ones, @ tab completion support, banner display for new conversations
@@ -105,7 +105,7 @@ function forge-accept-line() {
         # Action with or without parameters: :foo or :foo bar baz
         user_action="${match[1]}"
         input_text="${match[3]:-}"  # Use empty string if no parameters
-    elif [[ "$BUFFER" =~ "^: (.*)$" ]]; then
+        elif [[ "$BUFFER" =~ "^: (.*)$" ]]; then
         # Default action with parameters: : something
         user_action=""
         input_text="${match[1]}"
@@ -143,15 +143,15 @@ function forge-accept-line() {
     
     # Build and execute the forge command
     local forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID --agent ${user_action:-forge}"
-    local full_command="$forge_cmd -p $(printf %q "$input_text")"
+    local full_command="$forge_cmd -p \"$input_text\""
     
-    echo  # Add a newline before execution for better UX
-    eval "$full_command"
+    # Use push-line to clear the current line before execution
+    zle push-line
     
-    # Clear the buffer for next command
-    BUFFER=""
-    CURSOR=${#BUFFER}
-    zle reset-prompt
+    # Set buffer to the transformed command and execute
+    BUFFER="$full_command"
+    zle accept-line
+    return
 }
 
 # Register ZLE widgets
