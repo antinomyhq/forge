@@ -27,7 +27,8 @@ ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z]# *(*|[[:graph:]]*)' 'fg=white,bold')
 
 
 # Store conversation ID in a temporary variable (local to plugin)
-typeset -h _FORGE_CONVERSATION_ID=""
+export FORGE_CONVERSATION_ID=""
+export FORGE_ACTIVE_AGENT=""
 
 # Store the last command for reuse
 typeset -h _FORGE_USER_ACTION=""
@@ -121,11 +122,11 @@ function forge-accept-line() {
     # Handle reset command specially
     if [[ "$user_action" == "$_FORGE_RESET_COMMAND" ]]; then
         echo
-        if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
-            echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Reset ${_FORGE_CONVERSATION_ID}\033[0m"
+        if [[ -n "$FORGE_CONVERSATION_ID" ]]; then
+            echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Reset ${FORGE_CONVERSATION_ID}\033[0m"
         fi
         
-        _FORGE_CONVERSATION_ID=""
+        FORGE_CONVERSATION_ID=""
         _FORGE_USER_ACTION=""
         BUFFER=""
         CURSOR=${#BUFFER}
@@ -137,12 +138,15 @@ function forge-accept-line() {
     _FORGE_USER_ACTION="$user_action"
     
     # Generate conversation ID if needed (in parent shell context)
-    if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
-        _FORGE_CONVERSATION_ID=$($_FORGE_BIN --generate-conversation-id)
+    if [[ -z "$FORGE_CONVERSATION_ID" ]]; then
+        FORGE_CONVERSATION_ID=$($_FORGE_BIN --generate-conversation-id)
     fi
     
+    # Set the active agent for this execution
+    FORGE_ACTIVE_AGENT="${user_action:-forge}"
+    
     # Build and execute the forge command
-    local forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID --agent ${user_action:-forge}"
+    local forge_cmd="$_FORGE_BIN"
     local full_command="$forge_cmd -p \"$input_text\""
     
     # Use push-line to clear the current line before execution
