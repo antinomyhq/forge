@@ -32,44 +32,6 @@ typeset -h _FORGE_CONVERSATION_ID=""
 # Store the last command for reuse
 typeset -h _FORGE_USER_ACTION=""
 
-
-# Helper function for buffer parsing (kept for potential future use)
-# Note: This function is currently not used but kept for backward compatibility
-function _forge_transform_buffer() {
-    local user_action=""
-    local input_text=""
-    
-    # Check if the line starts with any of the supported patterns
-    if [[ "$BUFFER" =~ "^:([a-zA-Z][a-zA-Z0-9_-]*)( (.*))?$" ]]; then
-        # Action with or without parameters: :foo or :foo bar baz
-        user_action="${match[1]}"
-        input_text="${match[3]:-}"  # Use empty string if no parameters
-    elif [[ "$BUFFER" =~ "^: (.*)$" ]]; then
-        # Default action with parameters: : something
-        user_action=""
-        input_text="${match[1]}"        
-    else
-        return 1  # No transformation needed
-    fi
-
-    # Handle reset as a special case
-    if [[ "$user_action" == "$_FORGE_RESET_COMMAND" ]]; then
-        return 1 # No transformation needed
-    fi
-    
-    # Note: Cannot generate conversation ID here as this runs in subshell
-    # This would need to be passed as parameter or handled in parent
-    local conversation_id="${1:-$_FORGE_CONVERSATION_ID}"
-    
-    # Build the forge command with the appropriate command
-    local forge_cmd="$_FORGE_BIN --resume $conversation_id --agent ${user_action:-forge}"        
-    
-    # Return the transformed command
-    echo "$forge_cmd -p $(printf %q "$input_text")"
-    
-    return 0  # Successfully transformed
-}
-
 # Custom completion widget that handles both :commands and @ completion
 function forge-completion() {
     local current_word="${LBUFFER##* }"
