@@ -8,8 +8,8 @@
 typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
 typeset -h _FORGE_CONVERSATION_PATTERN=":"
 
-# Style tagged files to be in green
-ZSH_HIGHLIGHT_PATTERNS+=('@\[[^]]#\]' 'fg=green,bold')
+# Style tagged files
+ZSH_HIGHLIGHT_PATTERNS+=('@\[[^]]#\]' 'fg=cyan,bold')
 
 ZSH_HIGHLIGHT_HIGHLIGHTERS+=(pattern)
 # Style the conversation pattern with appropriate highlighting
@@ -20,6 +20,11 @@ ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z]#' 'fg=yellow,bold')
 
 # Highlight everything after that word + space in white
 ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z]# *(*|[[:graph:]]*)' 'fg=white,bold')
+
+# Private fzf function with common options for consistent UX
+function _forge_fzf() {
+    fzf --cycle --select-1 --height 40% --reverse "$@"
+}
 
 
 
@@ -39,9 +44,9 @@ function forge-completion() {
         local filter_text="${current_word#@}"
         local selected
         if [[ -n "$filter_text" ]]; then
-            selected=$(fd --type f --hidden --exclude .git | fzf --cycle --select-1 --query "$filter_text" --height 40% --reverse)
+            selected=$(fd --type f --hidden --exclude .git | _forge_fzf --query "$filter_text")
         else
-            selected=$(fd --type f --hidden --exclude .git | fzf --cycle --select-1 --height 40% --reverse)
+            selected=$(fd --type f --hidden --exclude .git | _forge_fzf)
         fi
         
         if [[ -n "$selected" ]]; then
@@ -65,12 +70,12 @@ function forge-completion() {
         command_output=$($_FORGE_BIN show-agents 2>/dev/null)
         
         if [[ $? -eq 0 && -n "$command_output" ]]; then
-            # Use fzf --cycle for interactive selection with prefilled filter
+            # Use fzf for interactive selection with prefilled filter
             local selected
             if [[ -n "$filter_text" ]]; then
-                selected=$(echo "$command_output" | fzf --cycle --select-1 --nth=1 --query "$filter_text" --height 40% --reverse --prompt="Agent ❯ ")
+                selected=$(echo "$command_output" | _forge_fzf --nth=1 --query "$filter_text" --prompt="Agent ❯ ")
             else
-                selected=$(echo "$command_output" | fzf --cycle --select-1 --nth=1 --height 40% --reverse --prompt="Agent ❯ ")
+                selected=$(echo "$command_output" | _forge_fzf --nth=1 --prompt="Agent ❯ ")
             fi
             
             if [[ -n "$selected" ]]; then
@@ -140,7 +145,7 @@ function forge-accept-line() {
     fi
     
     # Set the active agent for this execution
-    FORGE_ACTIVE_AGENT="${user_action:-forge}"
+    FORGE_ACTIVE_AGENT="${user_action:-${FORGE_ACTIVE_AGENT:-forge}}"
     
     # Build and execute the forge command
     local forge_cmd="$_FORGE_BIN"
