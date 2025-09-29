@@ -147,14 +147,14 @@ function forge-accept-line() {
     
     # Build and execute the forge command
     local forge_cmd="$_FORGE_BIN"
-    local full_command="$forge_cmd -p \"$input_text\""
+    local full_command="$forge_cmd -p $(printf %q "$input_text")"
     
     # Use push-line to clear the current line before execution
     zle push-line
     
     # Set buffer to the transformed command and execute
     BUFFER="$full_command"
-    zle accept-line
+    zle accept-line    
     return
 }
 
