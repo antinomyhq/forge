@@ -30,7 +30,7 @@ function _forge_fzf() {
 
 # Store conversation ID in a temporary variable (local to plugin)
 export FORGE_CONVERSATION_ID=""
-export FORGE_ACTIVE_AGENT=""
+export FORGE_ACTIVE_AGENT="forge"
 
 # Store the last command for reuse
 typeset -h _FORGE_USER_ACTION=""
@@ -145,7 +145,7 @@ function forge-accept-line() {
     fi
     
     # Set the active agent for this execution
-    FORGE_ACTIVE_AGENT="${user_action:-${FORGE_ACTIVE_AGENT:-forge}}"
+    FORGE_ACTIVE_AGENT="${user_action:-${FORGE_ACTIVE_AGENT}}"
     
     # Build and execute the forge command
     local forge_cmd="$_FORGE_BIN"
