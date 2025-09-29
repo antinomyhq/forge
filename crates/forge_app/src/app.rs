@@ -73,6 +73,7 @@ impl<S: Services> ForgeApp<S> {
             .collect_files(walker)
             .await?
             .into_iter()
+            .filter(|f| !f.is_dir)
             .map(|f| f.path)
             .collect::<Vec<_>>();
 
