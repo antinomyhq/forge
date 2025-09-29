@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use forge_domain::ConversationId;
 
 #[derive(Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
@@ -60,18 +59,11 @@ pub struct Cli {
     /// Generate a new conversation ID and exit.
     ///
     /// When enabled, generates a new unique conversation ID and prints it to
-    /// stdout. This ID can be used with --resume --conversation-id to
-    /// manage multiple terminal sessions with separate conversation
+    /// stdout. This ID can be used with the FORGE_CONVERSATION_ID environment
+    /// variable to manage multiple terminal sessions with separate conversation
     /// contexts.
     #[arg(long, default_value_t = false)]
     pub generate_conversation_id: bool,
-
-    /// Resume an existing conversation by providing its conversation ID.
-    ///
-    /// The conversation ID must be a valid UUID format. You can generate a new
-    /// conversation ID using --generate-conversation-id.
-    #[arg(long, value_parser = parse_conversation_id)]
-    pub resume: Option<ConversationId>,
 
     /// Top-level subcommands
     #[command(subcommand)]
@@ -89,18 +81,6 @@ pub struct Cli {
     /// The worktree name will be used as the branch name.
     #[arg(long)]
     pub sandbox: Option<String>,
-    /// Specify an agent to execute tasks with.
-    ///
-    /// Allows selecting a specific agent to handle the conversation and task
-    /// execution. Agents provide specialized capabilities and knowledge
-    /// domains. Example: --agent sage, --agent planner, --agent
-    /// "code-reviewer"
-    #[arg(long, short = 'a')]
-    pub agent: Option<String>,
-}
-
-fn parse_conversation_id(s: &str) -> std::result::Result<ConversationId, String> {
-    ConversationId::parse(s).map_err(|e| e.to_string())
 }
 
 impl Cli {

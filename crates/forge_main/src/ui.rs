@@ -22,6 +22,7 @@ use tokio_stream::StreamExt;
 
 use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
 use crate::conversation_selector::ConversationSelector;
+use crate::env::{get_agent_from_env, get_conversation_id_from_env};
 use crate::info::{Info, get_usage};
 use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
@@ -100,7 +101,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Reset previously set CLI parameters by the user
         self.cli.conversation = None;
-        self.cli.resume = None;
 
         self.display_banner()?;
         self.trace_user();
@@ -741,8 +741,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         serde_json::from_str(ForgeFS::read_utf8(path.as_os_str()).await?.as_str())
                             .context("Failed to parse Conversation")?;
                     conversation
-                } else if let Some(conversation_id) = self.cli.resume {
-                    // Use the explicitly provided conversation ID
+                } else if let Some(conversation_id) = get_conversation_id_from_env() {
                     // Check if conversation with this ID already exists
                     if let Some(conversation) = self.api.conversation(&conversation_id).await? {
                         conversation
@@ -765,7 +764,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.spinner.stop(None)?;
 
                 let mut sub_title = conversation.id.into_string();
-                if let Some(ref agent) = self.cli.agent {
+                if let Some(ref agent) = get_agent_from_env() {
                     sub_title.push_str(format!(" [via {agent}]").as_str());
                 }
 
@@ -782,7 +781,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         };
 
-        if let Some(ref agent) = self.cli.agent {
+        if let Some(ref agent) = get_agent_from_env() {
             self.state.operating_agent = AgentId::new(agent)
         }
 
