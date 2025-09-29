@@ -1,9 +1,7 @@
 #!/usr/bin/env zsh
 
-# Forge ZSH Plugin - ZLE Widget Version
-# Converts command-tagged commands to resume conversations using ZLE widgets
-# Supports :plan/:p (muse), :ask/:a (sage), :new (start new conversation), :command_name (custom command), : (forge default)
-# Features: Auto-resume existing conversations or start new ones, @ tab completion support, banner display for new conversations
+# Documentation in [README.md](./README.md)
+
 
 # Configuration: Change these variables to customize the forge command and special characters
 # Using typeset to keep variables local to plugin scope and prevent public exposure
@@ -154,7 +152,7 @@ function forge-accept-line() {
     
     # Set buffer to the transformed command and execute
     BUFFER="$full_command"
-    zle accept-line    
+    zle accept-line
     return
 }
 
