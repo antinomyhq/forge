@@ -7,7 +7,6 @@
 # Using typeset to keep variables local to plugin scope and prevent public exposure
 typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
 typeset -h _FORGE_CONVERSATION_PATTERN=":"
-typeset -h _FORGE_RESET_COMMAND="reset"
 
 # Style tagged files to be in green
 ZSH_HIGHLIGHT_PATTERNS+=('@\[[^]]#\]' 'fg=green,bold')
@@ -40,9 +39,9 @@ function forge-completion() {
         local filter_text="${current_word#@}"
         local selected
         if [[ -n "$filter_text" ]]; then
-            selected=$(fd --type f --hidden --exclude .git | fzf --select-1 --query "$filter_text" --height 40% --reverse)
+            selected=$(fd --type f --hidden --exclude .git | fzf --cycle --select-1 --query "$filter_text" --height 40% --reverse)
         else
-            selected=$(fd --type f --hidden --exclude .git | fzf --select-1 --height 40% --reverse)
+            selected=$(fd --type f --hidden --exclude .git | fzf --cycle --select-1 --height 40% --reverse)
         fi
         
         if [[ -n "$selected" ]]; then
@@ -66,12 +65,12 @@ function forge-completion() {
         command_output=$($_FORGE_BIN show-agents 2>/dev/null)
         
         if [[ $? -eq 0 && -n "$command_output" ]]; then
-            # Use fzf for interactive selection with prefilled filter
+            # Use fzf --cycle for interactive selection with prefilled filter
             local selected
             if [[ -n "$filter_text" ]]; then
-                selected=$(echo "$command_output" | fzf --select-1 --nth=1 --query "$filter_text" --height 40% --reverse --prompt="Agent ❯ ")
+                selected=$(echo "$command_output" | fzf --cycle --select-1 --nth=1 --query "$filter_text" --height 40% --reverse --prompt="Agent ❯ ")
             else
-                selected=$(echo "$command_output" | fzf --select-1 --nth=1 --height 40% --reverse --prompt="Agent ❯ ")
+                selected=$(echo "$command_output" | fzf --cycle --select-1 --nth=1 --height 40% --reverse --prompt="Agent ❯ ")
             fi
             
             if [[ -n "$selected" ]]; then
@@ -118,7 +117,7 @@ function forge-accept-line() {
     print -s -- "$original_buffer"
     
     # Handle reset command specially
-    if [[ "$user_action" == "$_FORGE_RESET_COMMAND" ]]; then
+    if [[ "$user_action" == "reset" || "$user_action" == "r" ]]; then
         echo
         if [[ -n "$FORGE_CONVERSATION_ID" ]]; then
             echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Reset ${FORGE_CONVERSATION_ID}\033[0m"
