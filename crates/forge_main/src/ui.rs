@@ -808,7 +808,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Create base workflow and trigger updates if this is the first initialization
         let mut base_workflow = Workflow::default();
         base_workflow.merge(workflow.clone());
-        if first {
+        if first && self.cli.is_interactive() {
             // only call on_update if this is the first initialization
             on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
         }
