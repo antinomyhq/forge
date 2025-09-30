@@ -7,8 +7,8 @@ use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, EVENT_USER_TASK_INIT,
-    EVENT_USER_TASK_UPDATE, Event, InterruptionReason, Model, ModelId, Provider, ProviderId,
-    ToolName, Workflow,
+    EVENT_USER_TASK_UPDATE, Event, InterruptionReason, Model, ModelId, Provider, ToolName,
+    Workflow,
 };
 use forge_display::MarkdownFormat;
 use forge_domain::{ChatResponseContent, McpConfig, McpServerConfig, Scope, TitleFormat};
@@ -1247,18 +1247,7 @@ struct CliProvider(Provider);
 
 impl Display for CliProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = match &self.0.id {
-            ProviderId::Forge => "Forge",
-            ProviderId::OpenAI => "OpenAI",
-            ProviderId::OpenRouter => "OpenRouter",
-            ProviderId::Requesty => "Requesty",
-            ProviderId::Zai => "Z.ai",
-            ProviderId::ZaiCoding => "Z.ai Coding",
-            ProviderId::Cerebras => "Cerebras",
-            ProviderId::Xai => "xAI",
-            ProviderId::Anthropic => "Anthropic",
-            ProviderId::VertexAi => "Vertex AI",
-        };
+        let name = self.0.id.to_string();
         write!(f, "{}", name)
     }
 }
