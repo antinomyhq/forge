@@ -20,13 +20,13 @@ pub struct UIState {
 }
 
 impl UIState {
-    pub fn new(env: Environment, workflow: Workflow, operating_agent: AgentId) -> Self {
+    pub fn new(env: Environment, _workflow: Workflow, operating_agent: AgentId, model: Option<ModelId>) -> Self {
         Self {
             cwd: env.cwd,
             conversation_id: Default::default(),
             usage: Default::default(),
             is_first: true,
-            model: workflow.model,
+            model,
             operating_agent,
             provider: Default::default(),
         }

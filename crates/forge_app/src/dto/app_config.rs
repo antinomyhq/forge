@@ -1,5 +1,5 @@
 use derive_more::From;
-use forge_domain::AgentId;
+use forge_domain::{AgentId, ModelId};
 use serde::{Deserialize, Serialize};
 
 use crate::dto::ProviderId;
@@ -20,6 +20,8 @@ pub struct AppConfig {
     pub active_agent: Option<AgentId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_provider: Option<ProviderId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_model: Option<ModelId>,
 }
 
 #[derive(Clone, Serialize, Deserialize, From, Debug, PartialEq)]

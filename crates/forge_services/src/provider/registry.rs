@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use forge_app::ProviderRegistry;
+use forge_app::domain::ModelId;
 use forge_app::dto::{Provider, ProviderId, ProviderResponse};
 use strum::IntoEnumIterator;
 use url::Url;
@@ -145,6 +146,25 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
             .iter()
             .filter_map(|id| self.provider_from_id(*id).ok())
             .collect::<Vec<_>>())
+    }
+
+    async fn get_active_model(&self) -> anyhow::Result<ModelId> {
+        if let Some(app_config) = self.infra.get_app_config().await?
+            && let Some(model_id) = app_config.active_model
+        {
+            return Ok(model_id);
+        }
+
+        // No active model set, throw an error
+        Err(forge_app::Error::NoActiveModel.into())
+    }
+
+    async fn set_active_model(&self, model: ModelId) -> anyhow::Result<ModelId> {
+        let mut config = self.infra.get_app_config().await?.unwrap_or_default();
+        config.active_model = Some(model.clone());
+        self.infra.set_app_config(&config).await?;
+
+        Ok(model)
     }
 }
 

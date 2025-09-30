@@ -422,18 +422,21 @@ impl Agent {
         agent.add_subscription(format!("{id}/{EVENT_USER_TASK_INIT}"));
         agent.add_subscription(format!("{id}/{EVENT_USER_TASK_UPDATE}"));
 
-        // Set model for agent
-        if let Some(ref model) = workflow.model {
-            if agent.model.is_none() {
-                agent.model = Some(model.clone());
-            }
-            if let Some(ref mut compact) = agent.compact
-                && compact.model.is_none()
-            {
-                compact.model = Some(model.clone());
-            }
-        }
         agent
+    }
+
+    /// Sets the model in the agent and its compaction configuration
+    pub fn set_model_deeply(mut self, model: ModelId) -> Self {
+        // Set model for agent
+        if self.model.is_none() {
+            self.model = Some(model.clone());
+        }
+        if let Some(ref mut compact) = self.compact
+            && compact.model.is_none()
+        {
+            compact.model = Some(model.clone());
+        }
+        self
     }
 }
 

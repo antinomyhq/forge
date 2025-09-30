@@ -721,11 +721,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             None => return Ok(()),
         };
 
-        self.api
-            .update_workflow(self.cli.workflow.as_deref(), |workflow| {
-                workflow.model = Some(model.clone());
-            })
-            .await?;
+        // Update the operating model via API
+        self.api.set_operating_model(model.clone()).await?;
 
         // Update the UI state with the new model
         self.update_model(Some(model.clone()));
@@ -845,18 +842,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Initialize the state of the UI
     async fn init_state(&mut self, first: bool) -> Result<Workflow> {
         // Run the independent initialization tasks in parallel for better performance
-        let (provider, mut workflow) = tokio::try_join!(
+        let (provider, workflow) = tokio::try_join!(
             self.init_provider(),
             self.api.read_workflow(self.cli.workflow.as_deref())
         )?;
 
         // Ensure we have a model selected before proceeding with initialization
-        if workflow.model.is_none() {
-            workflow.model = Some(
-                self.select_model()
-                    .await?
-                    .ok_or(anyhow::anyhow!("Model selection is required to continue"))?,
-            );
+        if self.api.get_operating_model().await.is_none() {
+            let model = self.select_model()
+                .await?
+                .ok_or(anyhow::anyhow!("Model selection is required to continue"))?;
+            self.api.set_operating_model(model).await?;
         }
 
         // Create base workflow and trigger updates if this is the first initialization
@@ -905,8 +901,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Finalize UI state initialization by registering commands and setting up the
         // state
         self.command.register_all(&base_workflow);
-        self.state = UIState::new(self.api.environment(), base_workflow, agent).provider(provider);
-        self.update_model(workflow.model.clone());
+        let operating_model = self.api.get_operating_model().await;
+        self.state = UIState::new(self.api.environment(), base_workflow, agent, operating_model.clone()).provider(provider);
+        self.update_model(operating_model);
 
         Ok(workflow)
     }

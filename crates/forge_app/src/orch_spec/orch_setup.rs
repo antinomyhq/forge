@@ -4,9 +4,7 @@ use std::path::PathBuf;
 use chrono::{DateTime, Local};
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, AgentId, ChatCompletionMessage, ChatResponse, ContextMessage, Conversation, Environment,
-    Event, HttpConfig, ModelId, RetryConfig, Role, Template, ToolCallFull, ToolDefinition,
-    ToolResult, ToolsDiscriminants, Workflow,
+    Agent, AgentId, ChatCompletionMessage, ChatResponse, ContextMessage, Conversation, Environment, Event, HttpConfig, ModelId, RetryConfig, Role, Template, ToolCallFull, ToolDefinition, ToolResult, ToolsDiscriminants, Workflow
 };
 use url::Url;
 
@@ -34,6 +32,7 @@ pub struct TestContext {
     pub env: Environment,
     pub current_time: DateTime<Local>,
     pub title: Option<String>,
+    pub model: ModelId,
 
     // Final output of the test is store in the context
     pub output: TestOutput,
@@ -49,13 +48,12 @@ impl TestContext {
     pub fn from_event(event: Event) -> Self {
         Self {
             event,
+            model: ModelId::new("openai/gpt-1"),
             output: TestOutput::default(),
             current_time: Local::now(),
             mock_assistant_responses: Default::default(),
             mock_tool_call_responses: Default::default(),
-            workflow: Workflow::new()
-                .model(ModelId::new("openai/gpt-1"))
-                .tool_supported(true),
+            workflow: Workflow::new().tool_supported(true),
             templates: Default::default(),
             files: Default::default(),
             env: Environment {

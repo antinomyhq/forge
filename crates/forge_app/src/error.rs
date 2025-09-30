@@ -30,4 +30,7 @@ pub enum Error {
 
     #[error("No active provider configured")]
     NoActiveProvider,
+
+    #[error("No active model configured")]
+    NoActiveModel,
 }
