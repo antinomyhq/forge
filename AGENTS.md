@@ -102,3 +102,10 @@ Always verify changes by running tests and linting the codebase
 - Safely assume git is pre-installed
 - Safely assume github cli (gh) is pre-installed
 - Always use `Co-Authored-By: ForgeCode <noreply@forgecode.dev>` for git commits and Github comments
+
+## Build and debuging
+- use debug builds for faster iteration
+  ```
+  cargo build
+  ```
+- use release builds for performance testing

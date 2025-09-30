@@ -177,6 +177,9 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     async fn app_config(&self) -> Option<AppConfig> {
         self.services.get_app_config().await
     }
+    async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
+        self.services.set_app_config(config).await
+    }
 
     async fn user_info(&self) -> Result<Option<User>> {
         let provider = self.provider().await?;

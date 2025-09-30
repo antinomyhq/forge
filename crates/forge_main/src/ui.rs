@@ -20,7 +20,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use tokio_stream::StreamExt;
 
-use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
+use crate::cli::{Cli, ConfigCommand, McpCommand, TopLevelCommand, Transport};
 use crate::conversation_selector::ConversationSelector;
 use crate::env::{get_agent_from_env, get_conversation_id_from_env};
 use crate::info::{Info, get_usage};
@@ -355,6 +355,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     )))?;
                 }
             },
+            TopLevelCommand::Config(config_command) => match config_command.command {
+                ConfigCommand::Set(set_args) => {
+                    self.handle_config_set(set_args).await?;
+                }
+                ConfigCommand::Show => {
+                    self.handle_config_show().await?;
+                }
+                ConfigCommand::Get(get_args) => {
+                    self.handle_config_get(get_args).await?;
+                }
+            },
             TopLevelCommand::Info => {
                 // Make sure to init model
                 self.on_new().await?;
@@ -659,6 +670,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Returns Some(ModelId) if a model was selected, or None if selection was
     /// canceled
     async fn select_model(&mut self) -> Result<Option<ModelId>> {
+        // First check if there's a configured default model in app config
+        if let Some(config) = self.api.app_config().await
+            && let Some(operating_model) = config.operating_model
+        {
+            return Ok(Some(operating_model));
+        }
+
         // Fetch available models
         let mut models = self
             .get_models()
@@ -707,7 +725,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .await?;
 
         // Update the UI state with the new model
-        self.update_model(Some(model.clone()));
+        tracker::set_model(model.to_string());
+        self.state.model = Some(model.clone());
 
         self.writeln_title(TitleFormat::action(format!("Switched to model: {model}")))?;
 
@@ -764,9 +783,28 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.spinner.stop(None)?;
 
                 let mut sub_title = conversation.id.into_string();
-                if let Some(ref agent) = get_agent_from_env() {
-                    sub_title.push_str(format!(" [via {agent}]").as_str());
-                }
+
+                // Show the actual operating agent that will be used
+                let operating_agent =
+                    if let Some(config_agent) = self.api.get_operating_agent().await {
+                        // Use configured default agent
+                        config_agent.as_str().to_string()
+                    } else if let Some(ref agent) = get_agent_from_env() {
+                        // Environment variable takes precedence
+                        agent.clone()
+                    } else {
+                        // Use default agent
+                        AgentId::default().as_str().to_string()
+                    };
+
+                // Show the model that will be used
+                let model_display = if let Some(model) = &self.state.model {
+                    format!(" with {}", model.as_str())
+                } else {
+                    String::new()
+                };
+
+                sub_title.push_str(format!(" [via {operating_agent}{model_display}]").as_str());
 
                 if new_conversation {
                     self.writeln_title(
@@ -781,9 +819,19 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         };
 
-        if let Some(ref agent) = get_agent_from_env() {
-            self.state.operating_agent = AgentId::new(agent)
-        }
+        // Set operating agent with proper precedence: configured agent first, then env,
+        // then default
+        self.state.operating_agent =
+            if let Some(config_agent) = self.api.get_operating_agent().await {
+                // Use configured default agent
+                config_agent
+            } else if let Some(ref agent) = get_agent_from_env() {
+                // Environment variable takes precedence over default but not config
+                AgentId::new(agent)
+            } else {
+                // Use default agent
+                AgentId::default()
+            };
 
         id
     }
@@ -797,7 +845,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         )?;
 
         // Ensure we have a model selected before proceeding with initialization
-        if workflow.model.is_none() {
+        // Check if app config has a default model that should override workflow model
+        if let Some(config) = self.api.app_config().await
+            && let Some(app_config_model) = config.operating_model
+        {
+            workflow.model = Some(app_config_model);
+        } else if workflow.model.is_none() {
             workflow.model = Some(
                 self.select_model()
                     .await?
@@ -845,14 +898,22 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         }
 
-        // Get the operating agent with fallback to default
-        let agent = operating_agent_result.unwrap_or_default();
+        // Get the operating agent with fallback to configured default
+        let agent = operating_agent_result.unwrap_or_else(|| {
+            // If no agent is configured in the app config, fall back to the default
+            AgentId::default()
+        });
 
         // Finalize UI state initialization by registering commands and setting up the
         // state
         self.command.register_all(&base_workflow);
         self.state = UIState::new(self.api.environment(), base_workflow, agent).provider(provider);
-        self.update_model(workflow.model.clone());
+
+        // Set model in tracker and state
+        if let Some(ref model) = workflow.model {
+            tracker::set_model(model.to_string());
+        }
+        self.state.model = workflow.model.clone();
 
         Ok(workflow)
     }
@@ -1099,13 +1160,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    fn update_model(&mut self, model: Option<ModelId>) {
-        if let Some(ref model) = model {
-            tracker::set_model(model.to_string());
-        }
-        self.state.model = model;
-    }
-
     async fn on_custom_event(&mut self, event: Event) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
         let chat = ChatRequest::new(event, conversation_id);
@@ -1141,6 +1195,89 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 tracker::login(user_info.auth_provider_id.into_string());
             }
         });
+    }
+
+    async fn handle_config_set(
+        &mut self,
+        set_args: crate::cli::ConfigSetArgs,
+    ) -> anyhow::Result<()> {
+        let mut config = self.api.app_config().await.unwrap_or_default();
+        let mut updated = false;
+
+        if let Some(model_str) = set_args.model {
+            config.set_default_model(Some(ModelId::new(model_str.clone())));
+            self.writeln_title(TitleFormat::info(format!(
+                "Default model set to: {model_str}"
+            )))?;
+            updated = true;
+        }
+
+        if let Some(agent_str) = set_args.agent {
+            config.set_operating_agent(Some(AgentId::new(agent_str.clone())));
+            self.writeln_title(TitleFormat::info(format!(
+                "Default agent set to: {agent_str}"
+            )))?;
+            updated = true;
+        }
+
+        if !updated {
+            return Err(anyhow::anyhow!(
+                "No configuration values provided. Use --model and/or --agent"
+            ));
+        }
+
+        // Validate the configuration
+        if let Err(e) = config.validate() {
+            return Err(anyhow::anyhow!("Configuration validation failed: {e}"));
+        }
+
+        // Save the configuration
+        self.api.set_app_config(&config).await?;
+        Ok(())
+    }
+
+    async fn handle_config_show(&mut self) -> anyhow::Result<()> {
+        let config = self.api.app_config().await.unwrap_or_default();
+
+        self.writeln_title(TitleFormat::info("Current Configuration"))?;
+
+        match config.operating_model {
+            Some(model) => self.writeln(format!("Default Model: {}", model))?,
+            None => self.writeln("Default Model: <not set>")?,
+        }
+
+        match config.operating_agent {
+            Some(agent) => self.writeln(format!("Default Agent: {}", agent))?,
+            None => self.writeln("Default Agent: <not set>")?,
+        }
+
+        Ok(())
+    }
+
+    async fn handle_config_get(
+        &mut self,
+        get_args: crate::cli::ConfigGetArgs,
+    ) -> anyhow::Result<()> {
+        let config = self.api.app_config().await.unwrap_or_default();
+
+        match get_args.key.as_str() {
+            "model" => match config.operating_model {
+                Some(model) => self.writeln(model.as_str())?,
+                None => return Err(anyhow::anyhow!("Default model is not set")),
+            },
+            "agent" => match config.operating_agent {
+                Some(agent) => self.writeln(agent.as_str())?,
+                None => return Err(anyhow::anyhow!("Default agent is not set")),
+            },
+            _ => {
+                return Err(anyhow::anyhow!(
+                    "Unknown configuration key: '{}'. Valid keys are: model, agent",
+                    get_args.key
+                ));
+            }
+        }
+
+        Ok(())
     }
 }
 

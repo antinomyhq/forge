@@ -97,17 +97,38 @@ impl<S: Services> ForgeApp<S> {
 
         // Prepare agents with user configuration and subscriptions
         let agents = services.get_agents().await?;
+        let config = services.get_app_config().await.unwrap_or_default();
 
         let mcp_tools = self.services.mcp_service().list().await?;
-        let agent = agents
+
+        // Apply workflow configuration and MCP tools to all agents
+        let processed_agents: Vec<Agent> = agents
             .into_iter()
             .map(|agent| {
                 agent
                     .apply_workflow_config(&workflow)
                     .extend_mcp_tools(&mcp_tools)
             })
-            .find(|agent| agent.has_subscription(&chat.event.name))
-            .ok_or(crate::Error::UnsubscribedEvent(chat.event.name.to_owned()))?;
+            .collect();
+
+        // Select agent based on configuration or event subscription
+        let agent = if let Some(configured_agent_id) = config.operating_agent {
+            processed_agents
+                .into_iter()
+                .find(|agent| agent.id == configured_agent_id)
+                .ok_or_else(|| {
+                    crate::Error::AgentNotFound(format!(
+                        "Configured agent '{}' not found in available agents",
+                        configured_agent_id
+                    ))
+                })?
+        } else {
+            // Use default behavior: find agent by event subscription
+            processed_agents
+                .into_iter()
+                .find(|agent| agent.has_subscription(&chat.event.name))
+                .ok_or(crate::Error::UnsubscribedEvent(chat.event.name.to_owned()))?
+        };
 
         // Get system and mcp tool definitions
         let all_tool_definitions = self.tool_registry.list().await?;

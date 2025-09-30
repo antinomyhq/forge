@@ -101,6 +101,7 @@ pub trait API: Sync + Send {
     async fn logout(&self) -> anyhow::Result<()>;
     async fn provider(&self) -> anyhow::Result<Provider>;
     async fn app_config(&self) -> Option<AppConfig>;
+    async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()>;
     async fn user_info(&self) -> anyhow::Result<Option<User>>;
     async fn user_usage(&self) -> anyhow::Result<Option<UserUsage>>;
 

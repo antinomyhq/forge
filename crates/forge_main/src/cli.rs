@@ -96,6 +96,8 @@ impl Cli {
 #[derive(Subcommand, Debug, Clone)]
 pub enum TopLevelCommand {
     Mcp(McpCommandGroup),
+    /// Manage configuration settings
+    Config(ConfigCommandGroup),
     /// Print information about the environment
     Info,
     /// Generate ZSH shell prompt completion scripts
@@ -111,6 +113,13 @@ pub struct McpCommandGroup {
     /// Subcommands under `mcp`
     #[command(subcommand)]
     pub command: McpCommand,
+}
+/// Group of config-related commands
+#[derive(Parser, Debug, Clone)]
+pub struct ConfigCommandGroup {
+    /// Subcommands under `config`
+    #[command(subcommand)]
+    pub command: ConfigCommand,
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -130,7 +139,34 @@ pub enum McpCommand {
     /// Add a server in JSON format
     AddJson(McpAddJsonArgs),
 }
+#[derive(Subcommand, Debug, Clone)]
+pub enum ConfigCommand {
+    /// Set configuration values (model and/or agent)
+    Set(ConfigSetArgs),
 
+    /// Show current configuration
+    Show,
+
+    /// Get specific configuration value
+    Get(ConfigGetArgs),
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct ConfigSetArgs {
+    /// Model to set as default (e.g., anthropic/claude-sonnet-4)
+    #[arg(long)]
+    pub model: Option<String>,
+
+    /// Agent to set as default (e.g., muse)
+    #[arg(long)]
+    pub agent: Option<String>,
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct ConfigGetArgs {
+    /// Configuration key to retrieve (model, agent)
+    pub key: String,
+}
 #[derive(Parser, Debug, Clone)]
 pub struct McpAddArgs {
     /// Configuration scope (local, user, or project)
