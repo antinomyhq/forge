@@ -23,7 +23,7 @@ use tokio_stream::StreamExt;
 use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
 use crate::conversation_selector::ConversationSelector;
 use crate::env::{get_agent_from_env, get_conversation_id_from_env};
-use crate::info::{Info, get_usage};
+use crate::info::Info;
 use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
 use crate::select::ForgeSelect;
@@ -409,7 +409,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn on_info(&mut self) -> anyhow::Result<()> {
-        self.spinner.start(Some("Loading Info"))?;
         let mut info = Info::from(&self.api.environment()).extend(Info::from(&self.state));
 
         // Execute async operations in parallel
@@ -422,10 +421,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         };
 
         let config_future = self.api.app_config();
-        let usage_future = self.api.user_usage();
 
-        let (conversation_result, config_result, usage_result) =
-            tokio::join!(conversation_future, config_future, usage_future);
+        let (conversation_result, config_result) = tokio::join!(conversation_future, config_future);
 
         // Add conversation information if available
         if let Some(conversation) = conversation_result {
@@ -439,13 +436,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             info = info.extend(Info::from(login_info));
         }
 
-        // Add usage information
-        if let Ok(Some(user_usage)) = usage_result {
-            info = info.extend(Info::from(&user_usage));
-        }
-
         self.writeln(info)?;
-        self.spinner.stop(None)?;
 
         Ok(())
     }
@@ -1066,9 +1057,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_completion(&mut self, conversation: Conversation) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Summary"))?;
 
-        let info = Info::default()
-            .extend(Info::from(&conversation))
-            .extend(get_usage(&self.state));
+        let info = Info::default().extend(&conversation).extend(&self.state);
 
         // if let Ok(Some(usage)) = self.api.user_usage().await {
         //     info = info.extend(Info::from(&usage));
@@ -1122,7 +1111,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn on_usage(&mut self) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Usage"))?;
-        let mut info = get_usage(&self.state);
+        let mut info: Info = (&self.state.usage).into();
         if let Ok(Some(user_usage)) = self.api.user_usage().await {
             info = info.extend(Info::from(&user_usage));
         }
