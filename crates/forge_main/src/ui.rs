@@ -420,10 +420,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         };
 
         let login_future = self.api.get_login_info();
-        let usage_future = self.api.user_usage();
 
-        let (conversation_result, key_info, usage_result) =
-            tokio::join!(conversation_future, login_future, usage_future);
+        let (conversation_result, key_info) = tokio::join!(conversation_future, login_future);
 
         // Add conversation information if available
         if let Some(conversation) = conversation_result {
@@ -433,11 +431,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Add user information if available
         if let Some(login_info) = key_info? {
             info = info.extend(Info::from(&login_info));
-        }
-
-        // Add usage information
-        if let Ok(Some(user_usage)) = usage_result {
-            info = info.extend(Info::from(&user_usage));
         }
 
         self.writeln(info)?;
