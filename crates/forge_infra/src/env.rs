@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use forge_app::dto::FORGE_URL;
+use forge_app::dto::Provider;
 use forge_domain::{Environment, RetryConfig, TlsBackend, TlsVersion};
 use forge_services::EnvironmentInfra;
 use reqwest::Url;
@@ -45,7 +45,7 @@ impl ForgeEnvironmentInfra {
             .get_env_var("FORGE_API_URL")
             .as_ref()
             .and_then(|url| Url::parse(url.as_str()).ok())
-            .unwrap_or_else(|| Url::parse(FORGE_URL).unwrap());
+            .unwrap_or_else(|| Url::parse(Provider::FORGE_URL).unwrap());
 
         // Convert 10 KB to bytes as default
         let default_max_bytes: f64 = 10.0 * 1024.0;

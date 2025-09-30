@@ -1,10 +1,7 @@
 use std::sync::Arc;
 
 use forge_app::ProviderRegistry;
-use forge_app::dto::{
-    ANTHROPIC_URL, CEREBRAS_URL, OPEN_ROUTER_URL, OPENAI_URL, Provider, ProviderId,
-    ProviderResponse, REQUESTY_URL, XAI_URL, ZAI_CODING_URL, ZAI_URL,
-};
+use forge_app::dto::{Provider, ProviderId, ProviderResponse};
 use strum::IntoEnumIterator;
 use url::Url;
 
@@ -25,42 +22,42 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
             ProviderId::OpenRouter => (
                 "OPENROUTER_API_KEY",
                 ProviderResponse::OpenAI,
-                Url::parse(OPEN_ROUTER_URL).unwrap(),
+                Url::parse(Provider::OPEN_ROUTER_URL).unwrap(),
             ),
             ProviderId::Requesty => (
                 "REQUESTY_API_KEY",
                 ProviderResponse::OpenAI,
-                Url::parse(REQUESTY_URL).unwrap(),
+                Url::parse(Provider::REQUESTY_URL).unwrap(),
             ),
             ProviderId::Xai => (
                 "XAI_API_KEY",
                 ProviderResponse::OpenAI,
-                Url::parse(XAI_URL).unwrap(),
+                Url::parse(Provider::XAI_URL).unwrap(),
             ),
             ProviderId::OpenAI => (
                 "OPENAI_API_KEY",
                 ProviderResponse::OpenAI,
-                Url::parse(OPENAI_URL).unwrap(),
+                Url::parse(Provider::OPENAI_URL).unwrap(),
             ),
             ProviderId::Anthropic => (
                 "ANTHROPIC_API_KEY",
                 ProviderResponse::Anthropic,
-                Url::parse(ANTHROPIC_URL).unwrap(),
+                Url::parse(Provider::ANTHROPIC_URL).unwrap(),
             ),
             ProviderId::Cerebras => (
                 "CEREBRAS_API_KEY",
                 ProviderResponse::OpenAI,
-                Url::parse(CEREBRAS_URL).unwrap(),
+                Url::parse(Provider::CEREBRAS_URL).unwrap(),
             ),
             ProviderId::Zai => (
                 "ZAI_API_KEY",
                 ProviderResponse::OpenAI,
-                Url::parse(ZAI_URL).unwrap(),
+                Url::parse(Provider::ZAI_URL).unwrap(),
             ),
             ProviderId::ZaiCoding => (
                 "ZAI_CODING_API_KEY",
                 ProviderResponse::OpenAI,
-                Url::parse(ZAI_CODING_URL).unwrap(),
+                Url::parse(Provider::ZAI_CODING_URL).unwrap(),
             ),
             ProviderId::VertexAi => {
                 if let Some(auth_token) = self.infra.get_env_var("VERTEX_AI_AUTH_TOKEN") {
