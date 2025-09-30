@@ -1032,9 +1032,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 }
             }
             ChatResponse::TaskComplete => {
-                if let Some(conversation_id) = self.state.conversation_id.as_ref() {
-                    let conversation = self.api.conversation(conversation_id).await?;
-                    self.on_completion(conversation.unwrap()).await?;
+                if let Some(conversation_id) = self.state.conversation_id {
+                    self.on_completion(conversation_id).await?;
                 }
             }
         }
@@ -1054,8 +1053,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn on_completion(&mut self, conversation: Conversation) -> anyhow::Result<()> {
+    async fn on_completion(&mut self, conversation_id: ConversationId) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Summary"))?;
+        let conversation = self
+            .api
+            .conversation(&conversation_id)
+            .await?
+            .ok_or(anyhow::anyhow!("Conversation not found: {conversation_id}"))?;
 
         let info = Info::default().extend(&conversation).extend(&self.state);
 
