@@ -769,12 +769,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             let model_available = models.iter().any(|m| m.id == current_model);
 
             if !model_available {
-                self.writeln_title(TitleFormat::error(format!(
-                    "Model '{}' is not available with provider '{}'",
-                    current_model,
-                    CliProvider(provider.clone())
-                )))?;
-
                 // Prompt user to select a new model
                 self.writeln_title(TitleFormat::info("Please select a new model"))?;
                 self.on_model_selection().await?;
@@ -1266,7 +1260,11 @@ struct CliProvider(Provider);
 impl Display for CliProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let name = self.0.id.to_string();
-        write!(f, "{}", name)
+        write!(f, "{}", name)?;
+        if let Some(domain) = self.0.url.domain() {
+            write!(f, " [{}]", domain)?;
+        }
+        Ok(())
     }
 }
 
