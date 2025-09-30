@@ -114,6 +114,16 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
         }
         None
     }
+
+    async fn update<U>(&self, updater: U) -> anyhow::Result<()>
+    where
+        U: FnOnce(&mut forge_app::dto::AppConfig),
+    {
+        let mut config = self.infra.get_app_config().await?.unwrap_or_default();
+        updater(&mut config);
+        self.infra.set_app_config(&config).await?;
+        Ok(())
+    }
 }
 
 #[async_trait::async_trait]
@@ -130,11 +140,10 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
     }
 
     async fn set_active_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        let mut config = self.infra.get_app_config().await?.unwrap_or_default();
-        config.active_provider = Some(provider_id);
-        self.infra.set_app_config(&config).await?;
-
-        Ok(())
+        self.update(|config| {
+            config.active_provider = Some(provider_id);
+        })
+        .await
     }
 
     async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
@@ -159,12 +168,11 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
         Err(forge_app::Error::NoActiveModel.into())
     }
 
-    async fn set_active_model(&self, model: ModelId) -> anyhow::Result<ModelId> {
-        let mut config = self.infra.get_app_config().await?.unwrap_or_default();
-        config.active_model = Some(model.clone());
-        self.infra.set_app_config(&config).await?;
-
-        Ok(model)
+    async fn set_active_model(&self, model: ModelId) -> anyhow::Result<()> {
+        self.update(|config| {
+            config.active_model = Some(model.clone());
+        })
+        .await
     }
 }
 

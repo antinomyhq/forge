@@ -849,7 +849,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Ensure we have a model selected before proceeding with initialization
         if self.api.get_operating_model().await.is_none() {
-            let model = self.select_model()
+            let model = self
+                .select_model()
                 .await?
                 .ok_or(anyhow::anyhow!("Model selection is required to continue"))?;
             self.api.set_operating_model(model).await?;
@@ -902,7 +903,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // state
         self.command.register_all(&base_workflow);
         let operating_model = self.api.get_operating_model().await;
-        self.state = UIState::new(self.api.environment(), base_workflow, agent, operating_model.clone()).provider(provider);
+        self.state =
+            UIState::new(self.api.environment(), agent, operating_model.clone()).provider(provider);
         self.update_model(operating_model);
 
         Ok(workflow)

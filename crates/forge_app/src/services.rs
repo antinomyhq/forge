@@ -351,7 +351,7 @@ pub trait ProviderRegistry: Send + Sync {
     async fn set_active_provider(&self, provider_id: ProviderId) -> anyhow::Result<()>;
     async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>>;
     async fn get_active_model(&self) -> anyhow::Result<ModelId>;
-    async fn set_active_model(&self, model: ModelId) -> anyhow::Result<ModelId>;
+    async fn set_active_model(&self, model: ModelId) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -707,7 +707,7 @@ impl<I: Services> ProviderRegistry for I {
         self.provider_registry().get_active_model().await
     }
 
-    async fn set_active_model(&self, model: ModelId) -> anyhow::Result<ModelId> {
+    async fn set_active_model(&self, model: ModelId) -> anyhow::Result<()> {
         self.provider_registry().set_active_model(model).await
     }
 }

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use derive_setters::Setters;
-use forge_api::{AgentId, ConversationId, Environment, ModelId, Provider, Usage, Workflow};
+use forge_api::{AgentId, ConversationId, Environment, ModelId, Provider, Usage};
 
 use crate::prompt::ForgePrompt;
 
@@ -20,7 +20,7 @@ pub struct UIState {
 }
 
 impl UIState {
-    pub fn new(env: Environment, _workflow: Workflow, operating_agent: AgentId, model: Option<ModelId>) -> Self {
+    pub fn new(env: Environment, operating_agent: AgentId, model: Option<ModelId>) -> Self {
         Self {
             cwd: env.cwd,
             conversation_id: Default::default(),
