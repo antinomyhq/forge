@@ -1,23 +1,35 @@
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
-use strum_macros::{Display, EnumString};
+use strum_macros::{Display, EnumIter, EnumString};
 use url::Url;
 
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize, Display, EnumString)]
+/// --- IMPORTANT ---
+/// The order of providers is important because that would be order in which the providers will be resolved
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    Display,
+    EnumString,
+    EnumIter,
+    PartialOrd,
+    Ord,
+)]
 pub enum ProviderId {
     Forge,
-    #[strum(serialize = "OpenAI")]
     OpenAI,
-    #[strum(serialize = "OpenRouter")]
     OpenRouter,
     Requesty,
     Zai,
-    #[strum(serialize = "ZaiCoding")]
     ZaiCoding,
     Cerebras,
     Xai,
     Anthropic,
-    #[strum(serialize = "VertexAi")]
     VertexAi,
 }
 

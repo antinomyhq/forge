@@ -7,18 +7,18 @@ use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, HttpConfig, Model, ModelId, ResultStream,
     RetryConfig,
 };
-use forge_app::dto::Provider;
+use forge_app::dto::{Provider, ProviderId};
 use tokio::sync::Mutex;
 
-use crate::{AppConfigRepository, EnvironmentInfra};
 use crate::http::HttpClient;
 use crate::infra::HttpInfra;
 use crate::provider::client::{Client, ClientBuilder};
+use crate::{AppConfigRepository, EnvironmentInfra};
 #[derive(Clone)]
 pub struct ForgeProviderService<I> {
     retry_config: Arc<RetryConfig>,
     cached_client: Arc<Mutex<Option<Client<HttpClient<I>>>>>,
-    cached_models: Arc<Mutex<HashMap<Provider, Vec<Model>>>>,
+    cached_models: Arc<Mutex<HashMap<ProviderId, Vec<Model>>>>,
     version: String,
     timeout_config: HttpConfig,
     http_infra: Arc<I>,
@@ -61,7 +61,9 @@ impl<I: EnvironmentInfra + HttpInfra + AppConfigRepository> ForgeProviderService
 }
 
 #[async_trait::async_trait]
-impl<I: EnvironmentInfra + HttpInfra + AppConfigRepository> ProviderService for ForgeProviderService<I> {
+impl<I: EnvironmentInfra + HttpInfra + AppConfigRepository> ProviderService
+    for ForgeProviderService<I>
+{
     async fn chat(
         &self,
         model: &ModelId,
@@ -77,10 +79,12 @@ impl<I: EnvironmentInfra + HttpInfra + AppConfigRepository> ProviderService for 
     }
 
     async fn models(&self, provider: Provider) -> Result<Vec<Model>> {
+        let provider_id = provider.id;
+
         // Check cache first
         {
             let models_guard = self.cached_models.lock().await;
-            if let Some(cached_models) = models_guard.get(&provider) {
+            if let Some(cached_models) = models_guard.get(&provider_id) {
                 return Ok(cached_models.clone());
             }
         }
@@ -92,7 +96,7 @@ impl<I: EnvironmentInfra + HttpInfra + AppConfigRepository> ProviderService for 
         // Cache the models for this provider
         {
             let mut models_guard = self.cached_models.lock().await;
-            models_guard.insert(provider, models.clone());
+            models_guard.insert(provider_id, models.clone());
         }
 
         Ok(models)

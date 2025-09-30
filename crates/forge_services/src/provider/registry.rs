@@ -5,6 +5,7 @@ use forge_app::dto::{
     ANTHROPIC_URL, CEREBRAS_URL, OPEN_ROUTER_URL, OPENAI_URL, Provider, ProviderId,
     ProviderResponse, REQUESTY_URL, XAI_URL, ZAI_CODING_URL, ZAI_URL,
 };
+use strum::IntoEnumIterator;
 use url::Url;
 
 use crate::{AppConfigRepository, EnvironmentInfra, ProviderError};
@@ -148,20 +149,13 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
 
     async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
         // Define all provider IDs in order of preference
-        Ok([
-            ProviderId::OpenAI,
-            ProviderId::Anthropic,
-            ProviderId::OpenRouter,
-            ProviderId::Xai,
-            ProviderId::Cerebras,
-            ProviderId::Zai,
-            ProviderId::ZaiCoding,
-            ProviderId::Requesty,
-            ProviderId::VertexAi,
-        ]
-        .into_iter()
-        .filter_map(|id| self.provider_from_id(id).ok())
-        .collect::<Vec<_>>())
+
+        let mut providers = ProviderId::iter().collect::<Vec<_>>();
+        providers.sort();
+        Ok(providers
+            .iter()
+            .filter_map(|id| self.provider_from_id(*id).ok())
+            .collect::<Vec<_>>())
     }
 }
 
