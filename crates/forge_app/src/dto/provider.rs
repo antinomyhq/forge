@@ -4,7 +4,8 @@ use strum_macros::{Display, EnumIter, EnumString};
 use url::Url;
 
 /// --- IMPORTANT ---
-/// The order of providers is important because that would be order in which the providers will be resolved
+/// The order of providers is important because that would be order in which the
+/// providers will be resolved
 #[derive(
     Debug,
     Copy,
