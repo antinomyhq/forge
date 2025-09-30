@@ -131,8 +131,6 @@ function forge-accept-line() {
         
         _forge_print_agent_message "FORGE"
         
-        _forge_print_agent_message "FORGE"
-        
         FORGE_CONVERSATION_ID=""
         FORGE_ACTIVE_AGENT="forge"
         BUFFER=""
