@@ -7,7 +7,8 @@ use super::{ToolCall, ToolCallFull};
 use crate::TokenCount;
 use crate::reasoning::{Reasoning, ReasoningFull};
 
-#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq, Setters)]
+#[setters(strip_option)]
 pub struct Usage {
     pub prompt_tokens: TokenCount,
     pub completion_tokens: TokenCount,
