@@ -139,9 +139,9 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
     }
 
     async fn set_active_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        let mut app_config = self.infra.get_app_config().await?.unwrap_or_default();
-        app_config.active_provider = Some(provider_id);
-        self.infra.set_app_config(&app_config).await?;
+        let mut config = self.infra.get_app_config().await?.unwrap_or_default();
+        config.active_provider = Some(provider_id);
+        self.infra.set_app_config(&config).await?;
 
         Ok(())
     }

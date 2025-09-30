@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use forge_app::dto::{AppConfig, InitAuth, ProviderId, ToolsOverview};
+use forge_app::dto::{InitAuth, ProviderId, ToolsOverview};
 use forge_app::{User, UserUsage};
 use forge_domain::AgentId;
 use forge_stream::MpscStream;
@@ -99,11 +99,11 @@ pub trait API: Sync + Send {
     async fn write_mcp_config(&self, scope: &Scope, config: &McpConfig) -> Result<()>;
 
     async fn init_login(&self) -> Result<InitAuth>;
+    async fn get_login_info(&self) -> Result<Option<LoginInfo>>;
     async fn login(&self, auth: &InitAuth) -> Result<()>;
     async fn logout(&self) -> anyhow::Result<()>;
     async fn get_provider(&self) -> anyhow::Result<Provider>;
     async fn set_provider(&self, provider_id: ProviderId) -> anyhow::Result<()>;
-    async fn app_config(&self) -> Option<AppConfig>;
     async fn user_info(&self) -> anyhow::Result<Option<User>>;
     async fn user_usage(&self) -> anyhow::Result<Option<UserUsage>>;
 

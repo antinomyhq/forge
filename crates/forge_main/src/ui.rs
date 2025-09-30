@@ -6,9 +6,9 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId,
-    EVENT_USER_TASK_INIT, EVENT_USER_TASK_UPDATE, Event, InterruptionReason, Model, ModelId,
-    Provider, ProviderId, ToolName, Workflow,
+    API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, EVENT_USER_TASK_INIT,
+    EVENT_USER_TASK_UPDATE, Event, InterruptionReason, Model, ModelId, Provider, ProviderId,
+    ToolName, Workflow,
 };
 use forge_display::MarkdownFormat;
 use forge_domain::{ChatResponseContent, McpConfig, McpServerConfig, Scope, TitleFormat};
@@ -421,11 +421,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         };
 
-        let config_future = self.api.app_config();
+        let login_future = self.api.get_login_info();
         let usage_future = self.api.user_usage();
 
-        let (conversation_result, config_result, usage_result) =
-            tokio::join!(conversation_future, config_future, usage_future);
+        let (conversation_result, key_info, usage_result) =
+            tokio::join!(conversation_future, login_future, usage_future);
 
         // Add conversation information if available
         if let Some(conversation) = conversation_result {
@@ -433,10 +433,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         // Add user information if available
-        if let Some(config) = config_result
-            && let Some(login_info) = &config.key_info
-        {
-            info = info.extend(Info::from(login_info));
+        if let Some(login) = key_info? {
+            info = info.extend(Info::from(&login));
         }
 
         // Add usage information
@@ -606,10 +604,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.api.logout().await?;
                 self.login().await?;
                 self.spinner.stop(None)?;
-                let config: AppConfig = self.api.app_config().await.unwrap_or_default();
+                let key_info = self.api.get_login_info().await?;
                 tracker::login(
-                    config
-                        .key_info
+                    key_info
                         .and_then(|v| v.auth_provider_id)
                         .unwrap_or_default(),
                 );
