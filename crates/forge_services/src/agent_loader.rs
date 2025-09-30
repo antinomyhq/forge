@@ -98,8 +98,6 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
             [
                 ("forge", include_str!("agents/forge.md")),
                 ("muse", include_str!("agents/muse.md")),
-                ("prime", include_str!("agents/prime.md")),
-                ("parker", include_str!("agents/parker.md")),
                 ("sage", include_str!("agents/sage.md")),
             ]
             .into_iter()
@@ -259,8 +257,6 @@ mod tests {
         let builtin_agents = [
             ("forge", include_str!("agents/forge.md")),
             ("muse", include_str!("agents/muse.md")),
-            ("prime", include_str!("agents/prime.md")),
-            ("parker", include_str!("agents/parker.md")),
             ("sage", include_str!("agents/sage.md")),
         ];
 

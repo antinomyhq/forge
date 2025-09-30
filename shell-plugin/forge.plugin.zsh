@@ -1,18 +1,15 @@
 #!/usr/bin/env zsh
 
-# Forge ZSH Plugin - ZLE Widget Version  
-# Converts command-tagged commands to resume conversations using ZLE widgets
-# Supports :plan/:p (muse), :ask/:a (sage), :new (start new conversation), :command_name (custom command), : (forge default)
-# Features: Auto-resume existing conversations or start new ones, @ tab completion support, banner display for new conversations
+# Documentation in [README.md](./README.md)
+
 
 # Configuration: Change these variables to customize the forge command and special characters
 # Using typeset to keep variables local to plugin scope and prevent public exposure
 typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
 typeset -h _FORGE_CONVERSATION_PATTERN=":"
-typeset -h _FORGE_RESET_COMMAND="reset"
 
-# Style tagged files to be in green
-ZSH_HIGHLIGHT_PATTERNS+=('@\[[^]]#\]' 'fg=green,bold')
+# Style tagged files
+ZSH_HIGHLIGHT_PATTERNS+=('@\[[^]]#\]' 'fg=cyan,bold')
 
 ZSH_HIGHLIGHT_HIGHLIGHTERS+=(pattern)
 # Style the conversation pattern with appropriate highlighting
@@ -24,51 +21,22 @@ ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z]#' 'fg=yellow,bold')
 # Highlight everything after that word + space in white
 ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z]# *(*|[[:graph:]]*)' 'fg=white,bold')
 
+# Private fzf function with common options for consistent UX
+function _forge_fzf() {
+    fzf --cycle --select-1 --height 40% --reverse "$@"
+}
+
+# Helper function to print operating agent messages with consistent formatting
+function _forge_print_agent_message() {
+    local agent_name="${1:-${FORGE_ACTIVE_AGENT}}"
+    echo "\033[33m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] \033[1;37m${agent_name:u}\033[0m \033[90mis now active\033[0m"
+}
+
 
 
 # Store conversation ID in a temporary variable (local to plugin)
-typeset -h _FORGE_CONVERSATION_ID=""
-
-# Store the last command for reuse
-typeset -h _FORGE_USER_ACTION=""
-
-
-# Helper function for buffer parsing (kept for potential future use)
-# Note: This function is currently not used but kept for backward compatibility
-function _forge_transform_buffer() {
-    local user_action=""
-    local input_text=""
-    
-    # Check if the line starts with any of the supported patterns
-    if [[ "$BUFFER" =~ "^:([a-zA-Z][a-zA-Z0-9_-]*)( (.*))?$" ]]; then
-        # Action with or without parameters: :foo or :foo bar baz
-        user_action="${match[1]}"
-        input_text="${match[3]:-}"  # Use empty string if no parameters
-    elif [[ "$BUFFER" =~ "^: (.*)$" ]]; then
-        # Default action with parameters: : something
-        user_action=""
-        input_text="${match[1]}"        
-    else
-        return 1  # No transformation needed
-    fi
-
-    # Handle reset as a special case
-    if [[ "$user_action" == "$_FORGE_RESET_COMMAND" ]]; then
-        return 1 # No transformation needed
-    fi
-    
-    # Note: Cannot generate conversation ID here as this runs in subshell
-    # This would need to be passed as parameter or handled in parent
-    local conversation_id="${1:-$_FORGE_CONVERSATION_ID}"
-    
-    # Build the forge command with the appropriate command
-    local forge_cmd="$_FORGE_BIN --resume $conversation_id --agent ${user_action:-forge}"        
-    
-    # Return the transformed command
-    echo "$forge_cmd -p $(printf %q "$input_text")"
-    
-    return 0  # Successfully transformed
-}
+export FORGE_CONVERSATION_ID=""
+export FORGE_ACTIVE_AGENT="forge"
 
 # Custom completion widget that handles both :commands and @ completion
 function forge-completion() {
@@ -79,9 +47,9 @@ function forge-completion() {
         local filter_text="${current_word#@}"
         local selected
         if [[ -n "$filter_text" ]]; then
-            selected=$(fd --type f --hidden --exclude .git | fzf --select-1 --query "$filter_text" --height 40% --reverse)
+            selected=$(fd --type f --hidden --exclude .git | _forge_fzf --query "$filter_text")
         else
-            selected=$(fd --type f --hidden --exclude .git | fzf --select-1 --height 40% --reverse)
+            selected=$(fd --type f --hidden --exclude .git | _forge_fzf)
         fi
         
         if [[ -n "$selected" ]]; then
@@ -108,9 +76,9 @@ function forge-completion() {
             # Use fzf for interactive selection with prefilled filter
             local selected
             if [[ -n "$filter_text" ]]; then
-                selected=$(echo "$command_output" | fzf --select-1 --nth=1 --query "$filter_text" --height 40% --reverse --prompt="Agent ❯ ")
+                selected=$(echo "$command_output" | _forge_fzf --nth=1 --query "$filter_text" --prompt="Agent ❯ ")
             else
-                selected=$(echo "$command_output" | fzf --select-1 --nth=1 --height 40% --reverse --prompt="Agent ❯ ")
+                selected=$(echo "$command_output" | _forge_fzf --nth=1 --prompt="Agent ❯ ")
             fi
             
             if [[ -n "$selected" ]]; then
@@ -143,7 +111,7 @@ function forge-accept-line() {
         # Action with or without parameters: :foo or :foo bar baz
         user_action="${match[1]}"
         input_text="${match[3]:-}"  # Use empty string if no parameters
-    elif [[ "$BUFFER" =~ "^: (.*)$" ]]; then
+        elif [[ "$BUFFER" =~ "^: (.*)$" ]]; then
         # Default action with parameters: : something
         user_action=""
         input_text="${match[1]}"
@@ -157,39 +125,50 @@ function forge-accept-line() {
     print -s -- "$original_buffer"
     
     # Handle reset command specially
-    if [[ "$user_action" == "$_FORGE_RESET_COMMAND" ]]; then
+    if [[ "$user_action" == "reset" || "$user_action" == "r" ]]; then
         echo
-        if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
-            echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Reset ${_FORGE_CONVERSATION_ID}\033[0m"
+        if [[ -n "$FORGE_CONVERSATION_ID" ]]; then
+            echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Reset ${FORGE_CONVERSATION_ID}\033[0m"
         fi
         
-        _FORGE_CONVERSATION_ID=""
-        _FORGE_USER_ACTION=""
+        _forge_print_agent_message "FORGE"
+        
+        FORGE_CONVERSATION_ID=""
+        FORGE_ACTIVE_AGENT="forge"
         BUFFER=""
         CURSOR=${#BUFFER}
         zle reset-prompt
         return 0
     fi
-    
-    # Store the action for potential reuse
-    _FORGE_USER_ACTION="$user_action"
-    
-    # Generate conversation ID if needed (in parent shell context)
-    if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
-        _FORGE_CONVERSATION_ID=$($_FORGE_BIN --generate-conversation-id)
+
+    # Check if input_text is empty - just set the active agent
+    if [[ -z "$input_text" ]]; then
+        echo
+        FORGE_ACTIVE_AGENT="${user_action:-${FORGE_ACTIVE_AGENT}}"
+        _forge_print_agent_message
+        BUFFER=""
+        CURSOR=0
+        zle reset-prompt
+        return 0
     fi
     
+    # Generate conversation ID if needed (in parent shell context)
+    if [[ -z "$FORGE_CONVERSATION_ID" ]]; then
+        FORGE_CONVERSATION_ID=$($_FORGE_BIN --generate-conversation-id)
+    fi
+    
+    # Set the active agent for this execution
+    FORGE_ACTIVE_AGENT="${user_action:-${FORGE_ACTIVE_AGENT}}"
+    
     # Build and execute the forge command
-    local forge_cmd="$_FORGE_BIN --resume $_FORGE_CONVERSATION_ID --agent ${user_action:-forge}"
-    local full_command="$forge_cmd -p $(printf %q "$input_text")"
+    local forge_cmd="$_FORGE_BIN"
+    local quoted_input=${input_text//\'/\'\\\'\'}
+    local full_command="$forge_cmd -p '$quoted_input'"
     
-    echo  # Add a newline before execution for better UX
-    eval "$full_command"
-    
-    # Clear the buffer for next command
-    BUFFER=""
-    CURSOR=${#BUFFER}
-    zle reset-prompt
+    # Set buffer to the transformed command and execute
+    BUFFER="$full_command"
+    zle accept-line
+    return
 }
 
 # Register ZLE widgets
