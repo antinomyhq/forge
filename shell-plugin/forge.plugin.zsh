@@ -125,6 +125,8 @@ function forge-accept-line() {
             echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Reset ${FORGE_CONVERSATION_ID}\033[0m"
         fi
         
+        echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Reset operating agent to FORGE"
+        
         FORGE_CONVERSATION_ID=""
         FORGE_ACTIVE_AGENT="forge"
         BUFFER=""
