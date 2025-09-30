@@ -105,7 +105,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.display_banner()?;
         self.trace_user();
         self.hydrate_caches();
-        self.init_conversation().await?;
         Ok(())
     }
 

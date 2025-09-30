@@ -96,7 +96,7 @@ impl From<&UIState> for Info {
     fn from(value: &UIState) -> Self {
         let mut info = Info::new().add_title("AGENT");
 
-        info = info.add_key_value("Name", value.operating_agent.as_str());
+        info = info.add_key_value("Name", value.operating_agent.as_str().to_uppercase());
 
         if let Some(model) = &value.model {
             info = info.add_key_value("Model", model);
