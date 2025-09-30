@@ -42,7 +42,7 @@ pub enum ProviderResponse {
 #[setters(strip_option, into)]
 pub struct Provider {
     pub id: ProviderId,
-    pub api: ProviderResponse,
+    pub response: ProviderResponse,
     pub url: Url,
     pub key: Option<String>,
 }
@@ -51,7 +51,7 @@ impl Provider {
     pub fn forge(key: &str) -> Provider {
         Provider {
             id: ProviderId::Forge,
-            api: ProviderResponse::OpenAI,
+            response: ProviderResponse::OpenAI,
             url: Url::parse(FORGE_URL).unwrap(),
             key: Some(key.into()),
         }
@@ -60,7 +60,7 @@ impl Provider {
     pub fn openai(key: &str) -> Provider {
         Provider {
             id: ProviderId::OpenAI,
-            api: ProviderResponse::OpenAI,
+            response: ProviderResponse::OpenAI,
             url: Url::parse(OPENAI_URL).unwrap(),
             key: Some(key.into()),
         }
@@ -69,7 +69,7 @@ impl Provider {
     pub fn open_router(key: &str) -> Provider {
         Provider {
             id: ProviderId::OpenRouter,
-            api: ProviderResponse::OpenAI,
+            response: ProviderResponse::OpenAI,
             url: Url::parse(OPEN_ROUTER_URL).unwrap(),
             key: Some(key.into()),
         }
@@ -78,7 +78,7 @@ impl Provider {
     pub fn requesty(key: &str) -> Provider {
         Provider {
             id: ProviderId::Requesty,
-            api: ProviderResponse::OpenAI,
+            response: ProviderResponse::OpenAI,
             url: Url::parse(REQUESTY_URL).unwrap(),
             key: Some(key.into()),
         }
@@ -87,7 +87,7 @@ impl Provider {
     pub fn zai(key: &str) -> Provider {
         Provider {
             id: ProviderId::Zai,
-            api: ProviderResponse::OpenAI,
+            response: ProviderResponse::OpenAI,
             url: Url::parse(ZAI_URL).unwrap(),
             key: Some(key.into()),
         }
@@ -95,7 +95,7 @@ impl Provider {
     pub fn zai_coding(key: &str) -> Provider {
         Provider {
             id: ProviderId::ZaiCoding,
-            api: ProviderResponse::OpenAI,
+            response: ProviderResponse::OpenAI,
             url: Url::parse(ZAI_CODING_URL).unwrap(),
             key: Some(key.into()),
         }
@@ -104,7 +104,7 @@ impl Provider {
     pub fn cerebras(key: &str) -> Provider {
         Provider {
             id: ProviderId::Cerebras,
-            api: ProviderResponse::OpenAI,
+            response: ProviderResponse::OpenAI,
             url: Url::parse(CEREBRAS_URL).unwrap(),
             key: Some(key.into()),
         }
@@ -113,7 +113,7 @@ impl Provider {
     pub fn xai(key: &str) -> Provider {
         Provider {
             id: ProviderId::Xai,
-            api: ProviderResponse::OpenAI,
+            response: ProviderResponse::OpenAI,
             url: Url::parse(XAI_URL).unwrap(),
             key: Some(key.into()),
         }
@@ -122,7 +122,7 @@ impl Provider {
     pub fn anthropic(key: &str) -> Provider {
         Provider {
             id: ProviderId::Anthropic,
-            api: ProviderResponse::Anthropic,
+            response: ProviderResponse::Anthropic,
             url: Url::parse(ANTHROPIC_URL).unwrap(),
             key: Some(key.into()),
         }
@@ -142,7 +142,7 @@ impl Provider {
         };
         Ok(Provider {
             id: ProviderId::VertexAi,
-            api: ProviderResponse::OpenAI,
+            response: ProviderResponse::OpenAI,
             url: Url::parse(&url)?,
             key: Some(key.into()),
         })
@@ -156,7 +156,7 @@ impl Provider {
     }
 
     pub fn model_url(&self) -> Url {
-        match &self.api {
+        match &self.response {
             ProviderResponse::OpenAI => {
                 if self.id == ProviderId::ZaiCoding {
                     let base_url = Url::parse(ZAI_URL).unwrap();
@@ -184,7 +184,7 @@ mod tests {
         let actual = Provider::xai(fixture);
         let expected = Provider {
             id: ProviderId::Xai,
-            api: ProviderResponse::OpenAI,
+            response: ProviderResponse::OpenAI,
             url: Url::from_str("https://api.x.ai/v1/").unwrap(),
             key: Some(fixture.to_string()),
         };

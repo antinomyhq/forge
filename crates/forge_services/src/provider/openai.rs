@@ -292,7 +292,7 @@ mod tests {
     fn create_provider(base_url: &str) -> anyhow::Result<OpenAIProvider<MockHttpClient>> {
         let provider = Provider {
             id: ProviderId::OpenAI,
-            api: ProviderResponse::OpenAI,
+            response: ProviderResponse::OpenAI,
             url: reqwest::Url::parse(base_url)?,
             key: Some("test-api-key".to_string()),
         };

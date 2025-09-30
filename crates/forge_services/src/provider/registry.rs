@@ -80,33 +80,18 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
 
         // Get the API key and create provider using field assignment
         if let Some(api_key) = self.infra.get_env_var(env_var_name) {
-            Ok(Provider { id, api, url, key: Some(api_key) })
+            Ok(Provider { id, response: api, url, key: Some(api_key) })
         } else {
             Err(ProviderError::env_var_not_found(id, env_var_name).into())
         }
     }
 
-    fn get_first_available_provider(&self) -> anyhow::Result<Provider> {
-        // Define all provider IDs in order of preference
-        let provider_ids = [
-            ProviderId::OpenAI,
-            ProviderId::Anthropic,
-            ProviderId::OpenRouter,
-            ProviderId::Xai,
-            ProviderId::Cerebras,
-            ProviderId::Zai,
-            ProviderId::ZaiCoding,
-            ProviderId::Requesty,
-            ProviderId::VertexAi,
-        ];
-
-        for provider_id in provider_ids {
-            if let Ok(provider) = self.provider_from_id(provider_id) {
-                return Ok(provider);
-            }
-        }
-
-        Err(forge_app::Error::NoActiveProvider.into())
+    async fn get_first_available_provider(&self) -> anyhow::Result<Provider> {
+        self.get_all_providers()
+            .await?
+            .first()
+            .cloned()
+            .ok_or_else(|| forge_app::Error::NoActiveProvider.into())
     }
 
     fn provider_url(&self) -> Option<(ProviderResponse, Url)> {
@@ -143,7 +128,7 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
         }
 
         // No active provider set, try to find the first available one
-        let mut provider = self.get_first_available_provider()?;
+        let mut provider = self.get_first_available_provider().await?;
 
         // Apply URL overrides if present
         if let Some(provider_url) = self.provider_url() {
@@ -162,36 +147,21 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
     }
 
     async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
-        let mut providers = Vec::new();
-        let url = self.provider_url();
-
-        // Get all available providers based on environment variables
-        let keys: [(&str, Box<dyn Fn(&str) -> Provider>); 8] = [
-            ("OPENROUTER_API_KEY", Box::new(Provider::open_router)),
-            ("REQUESTY_API_KEY", Box::new(Provider::requesty)),
-            ("XAI_API_KEY", Box::new(Provider::xai)),
-            ("OPENAI_API_KEY", Box::new(Provider::openai)),
-            ("ANTHROPIC_API_KEY", Box::new(Provider::anthropic)),
-            ("CEREBRAS_API_KEY", Box::new(Provider::cerebras)),
-            ("ZAI_API_KEY", Box::new(Provider::zai)),
-            ("ZAI_CODING_API_KEY", Box::new(Provider::zai_coding)),
-        ];
-
-        for (key, provider_fn) in keys.iter() {
-            if let Some(api_key) = self.infra.get_env_var(key) {
-                let provider = provider_fn(&api_key);
-                providers.push(override_url(provider, url.clone()));
-            }
-        }
-
-        // Check for Vertex AI
-        if let Some(auth_token) = self.infra.get_env_var("VERTEX_AI_AUTH_TOKEN")
-            && let Ok(provider) = resolve_vertex_env_provider(&auth_token, self.infra.as_ref())
-        {
-            providers.push(provider);
-        }
-
-        Ok(providers)
+        // Define all provider IDs in order of preference
+        Ok([
+            ProviderId::OpenAI,
+            ProviderId::Anthropic,
+            ProviderId::OpenRouter,
+            ProviderId::Xai,
+            ProviderId::Cerebras,
+            ProviderId::Zai,
+            ProviderId::ZaiCoding,
+            ProviderId::Requesty,
+            ProviderId::VertexAi,
+        ]
+        .into_iter()
+        .filter_map(|id| self.provider_from_id(id).ok())
+        .collect::<Vec<_>>())
     }
 }
 
@@ -213,8 +183,8 @@ fn resolve_vertex_env_provider<F: EnvironmentInfra>(
 }
 
 fn override_url(provider: Provider, url_override: Option<(ProviderResponse, Url)>) -> Provider {
-    if let Some((api, url)) = url_override {
-        provider.api(api).url(url)
+    if let Some((response, url)) = url_override {
+        provider.response(response).url(url)
     } else {
         provider
     }

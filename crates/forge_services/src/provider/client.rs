@@ -48,7 +48,7 @@ impl ClientBuilder {
         let provider = self.provider;
         let retry_config = self.retry_config;
 
-        let inner = match &provider.api {
+        let inner = match &provider.response {
             ProviderResponse::OpenAI => {
                 InnerClient::OpenAICompat(OpenAIProvider::new(provider.clone(), http.clone()))
             }
@@ -228,7 +228,7 @@ mod tests {
     async fn test_cache_initialization() {
         let provider = Provider {
             id: ProviderId::OpenAI,
-            api: ProviderResponse::OpenAI,
+            response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
@@ -245,7 +245,7 @@ mod tests {
     async fn test_refresh_models_method_exists() {
         let provider = Provider {
             id: ProviderId::OpenAI,
-            api: ProviderResponse::OpenAI,
+            response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
@@ -264,7 +264,7 @@ mod tests {
     async fn test_builder_pattern_api() {
         let provider = Provider {
             id: ProviderId::OpenAI,
-            api: ProviderResponse::OpenAI,
+            response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
@@ -286,7 +286,7 @@ mod tests {
     async fn test_builder_with_defaults() {
         let provider = Provider {
             id: ProviderId::OpenAI,
-            api: ProviderResponse::OpenAI,
+            response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some("test-key".to_string()),
         };
