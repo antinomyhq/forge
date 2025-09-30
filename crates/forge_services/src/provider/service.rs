@@ -1,28 +1,30 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::ProviderService;
 use forge_app::domain::{
-    ChatCompletionMessage, Context as ChatContext, HttpConfig, Model, ModelId, Provider,
-    ResultStream, RetryConfig,
+    ChatCompletionMessage, Context as ChatContext, HttpConfig, Model, ModelId, ResultStream,
+    RetryConfig,
 };
+use forge_app::dto::{Provider, ProviderId};
 use tokio::sync::Mutex;
 
-use crate::EnvironmentInfra;
 use crate::http::HttpClient;
 use crate::infra::HttpInfra;
 use crate::provider::client::{Client, ClientBuilder};
+use crate::{AppConfigRepository, EnvironmentInfra};
 #[derive(Clone)]
-pub struct ForgeProviderService<I: HttpInfra> {
+pub struct ForgeProviderService<I> {
     retry_config: Arc<RetryConfig>,
     cached_client: Arc<Mutex<Option<Client<HttpClient<I>>>>>,
-    cached_models: Arc<Mutex<Option<Vec<Model>>>>,
+    cached_models: Arc<Mutex<HashMap<ProviderId, Vec<Model>>>>,
     version: String,
     timeout_config: HttpConfig,
     http_infra: Arc<I>,
 }
 
-impl<I: EnvironmentInfra + HttpInfra> ForgeProviderService<I> {
+impl<I: EnvironmentInfra + HttpInfra + AppConfigRepository> ForgeProviderService<I> {
     pub fn new(infra: Arc<I>) -> Self {
         let env = infra.get_environment();
         let version = env.version();
@@ -30,7 +32,7 @@ impl<I: EnvironmentInfra + HttpInfra> ForgeProviderService<I> {
         Self {
             retry_config,
             cached_client: Arc::new(Mutex::new(None)),
-            cached_models: Arc::new(Mutex::new(None)),
+            cached_models: Arc::new(Mutex::new(HashMap::new())),
             version,
             timeout_config: env.http,
             http_infra: infra,
@@ -59,7 +61,9 @@ impl<I: EnvironmentInfra + HttpInfra> ForgeProviderService<I> {
 }
 
 #[async_trait::async_trait]
-impl<I: EnvironmentInfra + HttpInfra> ProviderService for ForgeProviderService<I> {
+impl<I: EnvironmentInfra + HttpInfra + AppConfigRepository> ProviderService
+    for ForgeProviderService<I>
+{
     async fn chat(
         &self,
         model: &ModelId,
@@ -75,10 +79,12 @@ impl<I: EnvironmentInfra + HttpInfra> ProviderService for ForgeProviderService<I
     }
 
     async fn models(&self, provider: Provider) -> Result<Vec<Model>> {
+        let provider_id = provider.id;
+
         // Check cache first
         {
             let models_guard = self.cached_models.lock().await;
-            if let Some(cached_models) = models_guard.as_ref() {
+            if let Some(cached_models) = models_guard.get(&provider_id) {
                 return Ok(cached_models.clone());
             }
         }
@@ -87,10 +93,10 @@ impl<I: EnvironmentInfra + HttpInfra> ProviderService for ForgeProviderService<I
         let client = self.client(provider).await?;
         let models = client.models().await?;
 
-        // Cache the models
+        // Cache the models for this provider
         {
             let mut models_guard = self.cached_models.lock().await;
-            *models_guard = Some(models.clone());
+            models_guard.insert(provider_id, models.clone());
         }
 
         Ok(models)

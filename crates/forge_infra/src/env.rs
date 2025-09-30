@@ -1,7 +1,8 @@
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use forge_domain::{Environment, Provider, RetryConfig, TlsBackend, TlsVersion};
+use forge_app::dto::Provider;
+use forge_domain::{Environment, RetryConfig, TlsBackend, TlsVersion};
 use forge_services::EnvironmentInfra;
 use reqwest::Url;
 

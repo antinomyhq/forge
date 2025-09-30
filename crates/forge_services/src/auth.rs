@@ -7,8 +7,8 @@ use forge_app::{AuthService, Error, User, UserUsage};
 use reqwest::Url;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 
-use crate::EnvironmentInfra;
 use crate::infra::HttpInfra;
+use crate::{AppConfigRepository, EnvironmentInfra};
 
 const AUTH_ROUTE: &str = "auth/sessions/";
 const USER_INFO_ROUTE: &str = "auth/user";
@@ -19,7 +19,7 @@ pub struct ForgeAuthService<I> {
     infra: Arc<I>,
 }
 
-impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
+impl<I: HttpInfra + EnvironmentInfra + AppConfigRepository> ForgeAuthService<I> {
     pub fn new(infra: Arc<I>) -> Self {
         Self { infra }
     }
@@ -98,10 +98,22 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
 
         Ok(serde_json::from_slice(&response.bytes().await?)?)
     }
+
+    async fn get_auth_token(&self) -> anyhow::Result<Option<LoginInfo>> {
+        let config = self.infra.get_app_config().await?;
+        Ok(config.and_then(|config| config.key_info))
+    }
+
+    async fn set_auth_token(&self, login: Option<LoginInfo>) -> anyhow::Result<()> {
+        let mut config = self.infra.get_app_config().await?.unwrap_or_default();
+        config.key_info = login;
+        self.infra.set_app_config(&config).await?;
+        Ok(())
+    }
 }
 
 #[async_trait::async_trait]
-impl<I: HttpInfra + EnvironmentInfra> AuthService for ForgeAuthService<I> {
+impl<I: HttpInfra + EnvironmentInfra + AppConfigRepository> AuthService for ForgeAuthService<I> {
     async fn init_auth(&self) -> anyhow::Result<InitAuth> {
         self.init().await
     }
@@ -116,5 +128,13 @@ impl<I: HttpInfra + EnvironmentInfra> AuthService for ForgeAuthService<I> {
 
     async fn user_usage(&self, api_key: &str) -> anyhow::Result<UserUsage> {
         self.user_usage(api_key).await
+    }
+
+    async fn get_auth_token(&self) -> anyhow::Result<Option<LoginInfo>> {
+        self.get_auth_token().await
+    }
+
+    async fn set_auth_token(&self, token: Option<LoginInfo>) -> anyhow::Result<()> {
+        self.set_auth_token(token).await
     }
 }

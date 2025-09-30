@@ -6,12 +6,12 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId,
-    EVENT_USER_TASK_INIT, EVENT_USER_TASK_UPDATE, Event, InterruptionReason, Model, ModelId,
-    ToolName, Workflow,
+    API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, EVENT_USER_TASK_INIT,
+    EVENT_USER_TASK_UPDATE, Event, InterruptionReason, Model, ModelId, Provider, ToolName,
+    Workflow,
 };
 use forge_display::MarkdownFormat;
-use forge_domain::{ChatResponseContent, McpConfig, McpServerConfig, Provider, Scope, TitleFormat};
+use forge_domain::{ChatResponseContent, McpConfig, McpServerConfig, Scope, TitleFormat};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
@@ -419,9 +419,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         };
 
-        let config_future = self.api.app_config();
+        let login_future = self.api.get_login_info();
+        let usage_future = self.api.user_usage();
 
-        let (conversation_result, config_result) = tokio::join!(conversation_future, config_future);
+        let (conversation_result, key_info, usage_result) =
+            tokio::join!(conversation_future, login_future, usage_future);
 
         // Add conversation information if available
         if let Some(conversation) = conversation_result {
@@ -429,10 +431,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         // Add user information if available
-        if let Some(config) = config_result
-            && let Some(login_info) = &config.key_info
-        {
-            info = info.extend(Info::from(login_info));
+        if let Some(login_info) = key_info? {
+            info = info.extend(Info::from(&login_info));
+        }
+
+        // Add usage information
+        if let Ok(Some(user_usage)) = usage_result {
+            info = info.extend(Info::from(&user_usage));
         }
 
         self.writeln(info)?;
@@ -542,6 +547,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Command::Model => {
                 self.on_model_selection().await?;
             }
+            Command::Provider => {
+                self.on_provider_selection().await?;
+            }
             Command::Shell(ref command) => {
                 self.api.execute_shell_command_raw(command).await?;
             }
@@ -593,14 +601,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.api.logout().await?;
                 self.login().await?;
                 self.spinner.stop(None)?;
-                let config: AppConfig = self.api.app_config().await.unwrap_or_default();
+                let key_info = self.api.get_login_info().await?;
                 tracker::login(
-                    config
-                        .key_info
+                    key_info
                         .and_then(|v| v.auth_provider_id)
                         .unwrap_or_default(),
                 );
-                let provider = self.api.provider().await?;
+                let provider = self.api.get_provider().await?;
                 self.state.provider = Some(provider);
             }
             Command::Logout => {
@@ -679,6 +686,37 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
     }
 
+    async fn select_provider(&mut self) -> Result<Option<Provider>> {
+        // Fetch available providers
+        let mut providers = self
+            .api
+            .providers()
+            .await?
+            .into_iter()
+            .map(CliProvider)
+            .collect::<Vec<_>>();
+
+        // Sort the providers by their display names in ascending order
+        providers.sort_by_key(|a| a.to_string());
+
+        // Find the index of the current provider
+        let current_provider = self.api.get_provider().await.ok();
+        let starting_cursor = current_provider
+            .as_ref()
+            .and_then(|current| providers.iter().position(|p| p.0.id == current.id))
+            .unwrap_or(0);
+
+        // Use the centralized select module
+        match ForgeSelect::select("Select a provider:", providers)
+            .with_starting_cursor(starting_cursor)
+            .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
+            .prompt()?
+        {
+            Some(provider) => Ok(Some(provider.0)),
+            None => Ok(None),
+        }
+    }
+
     // Helper method to handle model selection and update the conversation
     async fn on_model_selection(&mut self) -> Result<()> {
         // Select a model
@@ -700,6 +738,45 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.update_model(Some(model.clone()));
 
         self.writeln_title(TitleFormat::action(format!("Switched to model: {model}")))?;
+
+        Ok(())
+    }
+
+    async fn on_provider_selection(&mut self) -> Result<()> {
+        // Select a provider
+        let provider_option = self.select_provider().await?;
+
+        // If no provider was selected (user canceled), return early
+        let provider = match provider_option {
+            Some(provider) => provider,
+            None => return Ok(()),
+        };
+
+        // Set the provider via API
+        self.api.set_provider(provider.id).await?;
+
+        self.writeln_title(TitleFormat::action(format!(
+            "Switched to provider: {}",
+            CliProvider(provider.clone())
+        )))?;
+
+        // Check if the current model is available for the new provider
+        if let Some(current_model) = self.state.model.clone() {
+            let models = self.get_models().await?;
+            let model_available = models.iter().any(|m| m.id == current_model);
+
+            if !model_available {
+                self.writeln_title(TitleFormat::error(format!(
+                    "Model '{}' is not available with provider '{}'",
+                    current_model,
+                    CliProvider(provider.clone())
+                )))?;
+
+                // Prompt user to select a new model
+                self.writeln_title(TitleFormat::info("Please select a new model"))?;
+                self.on_model_selection().await?;
+            }
+        }
 
         Ok(())
     }
@@ -848,7 +925,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn init_provider(&self) -> Result<Provider> {
-        self.api.provider().await
+        self.api.get_provider().await
         // match self.api.provider().await {
         //     // Use the forge key if available in the config.
         //     Ok(provider) => Ok(provider),
@@ -1180,6 +1257,15 @@ impl Display for CliModel {
         }
 
         Ok(())
+    }
+}
+
+struct CliProvider(Provider);
+
+impl Display for CliProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = self.0.id.to_string();
+        write!(f, "{}", name)
     }
 }
 

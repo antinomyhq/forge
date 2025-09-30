@@ -2,15 +2,15 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::dto::{AppConfig, InitAuth, ToolsOverview};
+use forge_app::dto::{InitAuth, LoginInfo, Provider, ProviderId, ToolsOverview};
 use forge_app::{
-    AgentLoaderService, AppConfigService, AuthService, ConversationService, EnvironmentService,
-    FileDiscoveryService, ForgeApp, McpConfigManager, ProviderRegistry, ProviderService, Services,
-    User, UserUsage, Walker, WorkflowService,
+    AgentLoaderService, AuthService, ConversationService, EnvironmentService, FileDiscoveryService,
+    ForgeApp, McpConfigManager, ProviderRegistry, ProviderService, Services, User, UserUsage,
+    Walker, WorkflowService,
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
-use forge_services::{CommandInfra, ForgeServices};
+use forge_services::{AppConfigRepository, CommandInfra, ForgeServices};
 use forge_stream::MpscStream;
 
 use crate::API;
@@ -35,7 +35,7 @@ impl ForgeAPI<ForgeServices<ForgeInfra>, ForgeInfra> {
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
+impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> {
     async fn discover(&self) -> Result<Vec<File>> {
         let environment = self.services.get_environment();
         let config = Walker::unlimited().cwd(environment.cwd);
@@ -50,11 +50,15 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     async fn models(&self) -> Result<Vec<Model>> {
         Ok(self
             .services
-            .models(self.provider().await.context("User is not logged in")?)
+            .models(self.get_provider().await.context("User is not logged in")?)
             .await?)
     }
     async fn get_agents(&self) -> Result<Vec<Agent>> {
         Ok(self.services.get_agents().await?)
+    }
+
+    async fn providers(&self) -> Result<Vec<Provider>> {
+        Ok(self.services.get_all_providers().await?)
     }
 
     async fn chat(
@@ -168,19 +172,17 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         let forge_app = ForgeApp::new(self.services.clone());
         forge_app.logout().await
     }
-    async fn provider(&self) -> anyhow::Result<Provider> {
-        self.services
-            .get_provider(self.services.get_app_config().await.unwrap_or_default())
-            .await
+    async fn get_provider(&self) -> anyhow::Result<Provider> {
+        self.services.get_active_provider().await
     }
 
-    async fn app_config(&self) -> Option<AppConfig> {
-        self.services.get_app_config().await
+    async fn set_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
+        self.services.set_active_provider(provider_id).await
     }
 
     async fn user_info(&self) -> Result<Option<User>> {
-        let provider = self.provider().await?;
-        if let Some(api_key) = provider.key() {
+        let provider = self.get_provider().await?;
+        if let Some(ref api_key) = provider.key {
             let user_info = self.services.user_info(api_key).await?;
             return Ok(Some(user_info));
         }
@@ -188,8 +190,8 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     }
 
     async fn user_usage(&self) -> Result<Option<UserUsage>> {
-        let provider = self.provider().await?;
-        if let Some(api_key) = provider.key() {
+        let provider = self.get_provider().await?;
+        if let Some(ref api_key) = provider.key {
             let user_usage = self.services.user_usage(api_key).await?;
             return Ok(Some(user_usage));
         }
@@ -197,15 +199,20 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     }
 
     async fn get_operating_agent(&self) -> Option<AgentId> {
-        self.services
+        self.infra
             .get_app_config()
             .await
-            .and_then(|config| config.operating_agent)
+            .ok()?
+            .and_then(|config| config.active_agent)
     }
 
     async fn set_operating_agent(&self, agent_id: AgentId) -> anyhow::Result<()> {
-        let mut config = self.services.get_app_config().await.unwrap_or_default();
-        config.operating_agent = Some(agent_id);
-        self.services.set_app_config(&config).await
+        let mut config = self.infra.get_app_config().await?.unwrap_or_default();
+        config.active_agent = Some(agent_id);
+        self.infra.set_app_config(&config).await
+    }
+
+    async fn get_login_info(&self) -> Result<Option<LoginInfo>> {
+        self.services.auth_service().get_auth_token().await
     }
 }

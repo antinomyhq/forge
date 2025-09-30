@@ -4,7 +4,7 @@ use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
     Agent, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
-    Environment, File, McpConfig, Model, ModelId, PatchOperation, Provider, ResultStream, Scope,
+    Environment, File, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope,
     ToolCallFull, ToolDefinition, ToolOutput, Workflow,
 };
 use merge::Merge;
@@ -14,7 +14,7 @@ use reqwest_eventsource::EventSource;
 use url::Url;
 
 use crate::Walker;
-use crate::dto::{AppConfig, InitAuth, LoginInfo};
+use crate::dto::{InitAuth, LoginInfo, Provider, ProviderId};
 use crate::user::{User, UserUsage};
 
 #[derive(Debug)]
@@ -337,21 +337,19 @@ pub trait ShellService: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait AppConfigService: Send + Sync {
-    async fn get_app_config(&self) -> Option<AppConfig>;
-    async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()>;
-}
-
-#[async_trait::async_trait]
 pub trait AuthService: Send + Sync {
     async fn init_auth(&self) -> anyhow::Result<InitAuth>;
     async fn login(&self, auth: &InitAuth) -> anyhow::Result<LoginInfo>;
     async fn user_info(&self, api_key: &str) -> anyhow::Result<User>;
     async fn user_usage(&self, api_key: &str) -> anyhow::Result<UserUsage>;
+    async fn get_auth_token(&self) -> anyhow::Result<Option<LoginInfo>>;
+    async fn set_auth_token(&self, token: Option<LoginInfo>) -> anyhow::Result<()>;
 }
 #[async_trait::async_trait]
 pub trait ProviderRegistry: Send + Sync {
-    async fn get_provider(&self, config: AppConfig) -> anyhow::Result<Provider>;
+    async fn get_active_provider(&self) -> anyhow::Result<Provider>;
+    async fn set_active_provider(&self, provider_id: ProviderId) -> anyhow::Result<()>;
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>>;
 }
 
 #[async_trait::async_trait]
@@ -396,7 +394,6 @@ pub trait Services: Send + Sync + 'static + Clone {
     type ShellService: ShellService;
     type McpService: McpService;
     type AuthService: AuthService;
-    type AppConfigService: AppConfigService;
     type ProviderRegistry: ProviderRegistry;
     type AgentLoaderService: AgentLoaderService;
     type PolicyService: PolicyService;
@@ -422,7 +419,6 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn environment_service(&self) -> &Self::EnvironmentService;
     fn custom_instructions_service(&self) -> &Self::CustomInstructionsService;
     fn auth_service(&self) -> &Self::AuthService;
-    fn app_config_service(&self) -> &Self::AppConfigService;
     fn provider_registry(&self) -> &Self::ProviderRegistry;
     fn agent_loader_service(&self) -> &Self::AgentLoaderService;
     fn policy_service(&self) -> &Self::PolicyService;
@@ -691,19 +687,18 @@ impl<I: Services> CustomInstructionsService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> ProviderRegistry for I {
-    async fn get_provider(&self, config: AppConfig) -> anyhow::Result<Provider> {
-        self.provider_registry().get_provider(config).await
-    }
-}
-
-#[async_trait::async_trait]
-impl<I: Services> AppConfigService for I {
-    async fn get_app_config(&self) -> Option<AppConfig> {
-        self.app_config_service().get_app_config().await
+    async fn get_active_provider(&self) -> anyhow::Result<Provider> {
+        self.provider_registry().get_active_provider().await
     }
 
-    async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
-        self.app_config_service().set_app_config(config).await
+    async fn set_active_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
+        self.provider_registry()
+            .set_active_provider(provider_id)
+            .await
+    }
+
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
+        self.provider_registry().get_all_providers().await
     }
 }
 
@@ -723,6 +718,14 @@ impl<I: Services> AuthService for I {
 
     async fn user_usage(&self, api_key: &str) -> anyhow::Result<UserUsage> {
         self.auth_service().user_usage(api_key).await
+    }
+
+    async fn get_auth_token(&self) -> anyhow::Result<Option<LoginInfo>> {
+        self.auth_service().get_auth_token().await
+    }
+
+    async fn set_auth_token(&self, token: Option<LoginInfo>) -> anyhow::Result<()> {
+        self.auth_service().set_auth_token(token).await
     }
 }
 

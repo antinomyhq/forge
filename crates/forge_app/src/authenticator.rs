@@ -6,13 +6,13 @@ use backon::{ExponentialBuilder, Retryable};
 use forge_domain::RetryConfig;
 
 use crate::dto::InitAuth;
-use crate::{AppConfigService, AuthService, Error};
+use crate::{AuthService, Error};
 
 pub struct Authenticator<S> {
     service: Arc<S>,
 }
 
-impl<S: AppConfigService + AuthService> Authenticator<S> {
+impl<S: AuthService> Authenticator<S> {
     pub fn new(service: Arc<S>) -> Self {
         Self { service }
     }
@@ -30,21 +30,16 @@ impl<S: AppConfigService + AuthService> Authenticator<S> {
         .await
     }
     pub async fn logout(&self) -> anyhow::Result<()> {
-        if let Some(mut config) = self.service.get_app_config().await {
-            config.key_info.take();
-            self.service.set_app_config(&config).await?;
-        }
+        self.service.set_auth_token(None).await?;
         Ok(())
     }
     async fn login_inner(&self, init_auth: &InitAuth) -> anyhow::Result<()> {
-        let mut config = self.service.get_app_config().await.unwrap_or_default();
-        if config.key_info.is_some() {
+        let key_info = self.service.get_auth_token().await?;
+        if key_info.is_some() {
             return Ok(());
         }
         let key = self.service.login(init_auth).await?;
-
-        config.key_info.replace(key);
-        self.service.set_app_config(&config).await?;
+        self.service.set_auth_token(Some(key)).await?;
         Ok(())
     }
     async fn poll<T, F>(
