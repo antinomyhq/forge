@@ -34,16 +34,22 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
                 ProviderResponse::OpenAI,
                 Url::parse(Provider::XAI_URL).unwrap(),
             ),
-            ProviderId::OpenAI => (
-                "OPENAI_API_KEY",
-                ProviderResponse::OpenAI,
-                Url::parse(Provider::OPENAI_URL).unwrap(),
-            ),
-            ProviderId::Anthropic => (
-                "ANTHROPIC_API_KEY",
-                ProviderResponse::Anthropic,
-                Url::parse(Provider::ANTHROPIC_URL).unwrap(),
-            ),
+            ProviderId::OpenAI => {
+                let url = match self.provider_url() {
+                    Some((ProviderResponse::OpenAI, url)) => url,
+                    _ => Url::parse(Provider::OPENAI_URL).unwrap(),
+                };
+
+                ("OPENAI_API_KEY", ProviderResponse::OpenAI, url)
+            }
+            ProviderId::Anthropic => {
+                let url = match self.provider_url() {
+                    Some((ProviderResponse::Anthropic, url)) => url,
+                    _ => Url::parse(Provider::ANTHROPIC_URL).unwrap(),
+                };
+
+                ("ANTHROPIC_API_KEY", ProviderResponse::Anthropic, url)
+            }
             ProviderId::Cerebras => (
                 "CEREBRAS_API_KEY",
                 ProviderResponse::OpenAI,
@@ -115,25 +121,11 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
         if let Some(app_config) = self.infra.get_app_config().await?
             && let Some(provider_id) = app_config.active_provider
         {
-            let mut provider = self.provider_from_id(provider_id)?;
-
-            // Apply URL overrides if present
-            if let Some(provider_url) = self.provider_url() {
-                provider = override_url(provider, Some(provider_url));
-            }
-
-            return Ok(provider);
+            return self.provider_from_id(provider_id);
         }
 
         // No active provider set, try to find the first available one
-        let mut provider = self.get_first_available_provider().await?;
-
-        // Apply URL overrides if present
-        if let Some(provider_url) = self.provider_url() {
-            provider = override_url(provider, Some(provider_url));
-        }
-
-        Ok(provider)
+        self.get_first_available_provider().await
     }
 
     async fn set_active_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
@@ -171,12 +163,4 @@ fn resolve_vertex_env_provider<F: EnvironmentInfra>(
         )
     })?;
     Provider::vertex_ai(key, &project_id, &location)
-}
-
-fn override_url(provider: Provider, url_override: Option<(ProviderResponse, Url)>) -> Provider {
-    if let Some((response, url)) = url_override {
-        provider.response(response).url(url)
-    } else {
-        provider
-    }
 }

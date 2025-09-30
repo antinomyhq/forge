@@ -17,7 +17,7 @@ use crate::{AppConfigRepository, EnvironmentInfra};
 #[derive(Clone)]
 pub struct ForgeProviderService<I> {
     retry_config: Arc<RetryConfig>,
-    cached_client: Arc<Mutex<Option<Client<HttpClient<I>>>>>,
+    cached_clients: Arc<Mutex<HashMap<ProviderId, Client<HttpClient<I>>>>>,
     cached_models: Arc<Mutex<HashMap<ProviderId, Vec<Model>>>>,
     version: String,
     timeout_config: HttpConfig,
@@ -31,7 +31,7 @@ impl<I: EnvironmentInfra + HttpInfra + AppConfigRepository> ForgeProviderService
         let retry_config = Arc::new(env.retry_config);
         Self {
             retry_config,
-            cached_client: Arc::new(Mutex::new(None)),
+            cached_clients: Arc::new(Mutex::new(HashMap::new())),
             cached_models: Arc::new(Mutex::new(HashMap::new())),
             version,
             timeout_config: env.http,
@@ -40,23 +40,31 @@ impl<I: EnvironmentInfra + HttpInfra + AppConfigRepository> ForgeProviderService
     }
 
     async fn client(&self, provider: Provider) -> Result<Client<HttpClient<I>>> {
-        let mut client_guard = self.cached_client.lock().await;
+        let provider_id = provider.id;
 
-        match client_guard.as_ref() {
-            Some(client) => Ok(client.clone()),
-            None => {
-                let infra = self.http_infra.clone();
-                let client = ClientBuilder::new(provider, &self.version)
-                    .retry_config(self.retry_config.clone())
-                    .timeout_config(self.timeout_config.clone())
-                    .use_hickory(false) // use native DNS resolver(GAI)
-                    .build(Arc::new(HttpClient::new(infra)))?;
-
-                // Cache the new client
-                *client_guard = Some(client.clone());
-                Ok(client)
+        // Check cache first
+        {
+            let clients_guard = self.cached_clients.lock().await;
+            if let Some(cached_client) = clients_guard.get(&provider_id) {
+                return Ok(cached_client.clone());
             }
         }
+
+        // Client not in cache, create new client
+        let infra = self.http_infra.clone();
+        let client = ClientBuilder::new(provider, &self.version)
+            .retry_config(self.retry_config.clone())
+            .timeout_config(self.timeout_config.clone())
+            .use_hickory(false) // use native DNS resolver(GAI)
+            .build(Arc::new(HttpClient::new(infra)))?;
+
+        // Cache the new client for this provider
+        {
+            let mut clients_guard = self.cached_clients.lock().await;
+            clients_guard.insert(provider_id, client.clone());
+        }
+
+        Ok(client)
     }
 }
 
