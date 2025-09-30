@@ -414,7 +414,11 @@ impl From<&Conversation> for Info {
         }
 
         // Insert metrics information
-        info.extend(Info::from(&conversation.metrics))
+        if !conversation.metrics.files_changed.is_empty() {
+            info.extend(&conversation.metrics)
+        } else {
+            info
+        }
     }
 }
 
