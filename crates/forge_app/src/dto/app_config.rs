@@ -1,5 +1,5 @@
 use derive_more::From;
-use forge_domain::AgentId;
+use forge_domain::{AgentId, ModelId};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
@@ -16,6 +16,10 @@ pub struct AppConfig {
     pub key_info: Option<LoginInfo>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub operating_agent: Option<AgentId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_model: Option<ModelId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_agent: Option<AgentId>,
 }
 
 #[derive(Clone, Serialize, Deserialize, From)]

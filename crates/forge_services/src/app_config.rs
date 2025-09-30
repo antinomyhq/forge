@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::AppConfigService;
+use forge_app::domain::{AgentId, ModelId};
 use forge_app::dto::AppConfig;
 
 use crate::{EnvironmentInfra, FileReaderInfra, FileWriterInfra};
@@ -41,5 +42,25 @@ impl<I: FileReaderInfra + FileWriterInfra + EnvironmentInfra> AppConfigService
 
     async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
         self.write(config).await
+    }
+
+    async fn get_default_model(&self) -> anyhow::Result<Option<ModelId>> {
+        Ok(self.read().await?.default_model)
+    }
+
+    async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
+        let mut config = self.read().await.unwrap_or_default();
+        config.default_model = Some(model);
+        self.write(&config).await
+    }
+
+    async fn get_default_agent(&self) -> anyhow::Result<Option<AgentId>> {
+        Ok(self.read().await?.default_agent)
+    }
+
+    async fn set_default_agent(&self, agent: AgentId) -> anyhow::Result<()> {
+        let mut config = self.read().await.unwrap_or_default();
+        config.default_agent = Some(agent);
+        self.write(&config).await
     }
 }

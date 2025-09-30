@@ -3,9 +3,9 @@ use std::path::{Path, PathBuf};
 use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
-    Environment, File, McpConfig, Model, ModelId, PatchOperation, Provider, ResultStream, Scope,
-    ToolCallFull, ToolDefinition, ToolOutput, Workflow,
+    Agent, AgentId, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation,
+    ConversationId, Environment, File, McpConfig, Model, ModelId, PatchOperation, Provider,
+    ResultStream, Scope, ToolCallFull, ToolDefinition, ToolOutput, Workflow,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -340,6 +340,12 @@ pub trait ShellService: Send + Sync {
 pub trait AppConfigService: Send + Sync {
     async fn get_app_config(&self) -> Option<AppConfig>;
     async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()>;
+
+    // Config management methods
+    async fn get_default_model(&self) -> anyhow::Result<Option<ModelId>>;
+    async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()>;
+    async fn get_default_agent(&self) -> anyhow::Result<Option<AgentId>>;
+    async fn set_default_agent(&self, agent: AgentId) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -704,6 +710,22 @@ impl<I: Services> AppConfigService for I {
 
     async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
         self.app_config_service().set_app_config(config).await
+    }
+
+    async fn get_default_model(&self) -> anyhow::Result<Option<ModelId>> {
+        self.app_config_service().get_default_model().await
+    }
+
+    async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
+        self.app_config_service().set_default_model(model).await
+    }
+
+    async fn get_default_agent(&self) -> anyhow::Result<Option<AgentId>> {
+        self.app_config_service().get_default_agent().await
+    }
+
+    async fn set_default_agent(&self, agent: AgentId) -> anyhow::Result<()> {
+        self.app_config_service().set_default_agent(agent).await
     }
 }
 

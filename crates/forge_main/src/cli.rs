@@ -96,6 +96,8 @@ impl Cli {
 #[derive(Subcommand, Debug, Clone)]
 pub enum TopLevelCommand {
     Mcp(McpCommandGroup),
+    /// Configure default settings
+    Config(ConfigCommandGroup),
     /// Print information about the environment
     Info,
     /// Generate ZSH shell prompt completion scripts
@@ -111,6 +113,14 @@ pub struct McpCommandGroup {
     /// Subcommands under `mcp`
     #[command(subcommand)]
     pub command: McpCommand,
+}
+
+/// Group of Config-related commands
+#[derive(Parser, Debug, Clone)]
+pub struct ConfigCommandGroup {
+    /// Subcommands under `config`
+    #[command(subcommand)]
+    pub command: ConfigCommand,
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -129,6 +139,21 @@ pub enum McpCommand {
 
     /// Add a server in JSON format
     AddJson(McpAddJsonArgs),
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum ConfigCommand {
+    /// Set the default model
+    SetModel(ConfigSetModelArgs),
+
+    /// Get the current default model
+    GetModel,
+
+    /// Set the default agent
+    SetAgent(ConfigSetAgentArgs),
+
+    /// Get the current default agent
+    GetAgent,
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -206,4 +231,16 @@ impl From<Scope> for forge_domain::Scope {
 pub enum Transport {
     Stdio,
     Sse,
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct ConfigSetModelArgs {
+    /// Model ID to set as default
+    pub model_id: String,
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct ConfigSetAgentArgs {
+    /// Agent ID to set as default
+    pub agent_id: String,
 }

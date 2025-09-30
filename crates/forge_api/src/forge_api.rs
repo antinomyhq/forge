@@ -208,4 +208,20 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
         config.operating_agent = Some(agent_id);
         self.services.set_app_config(&config).await
     }
+
+    async fn get_default_model(&self) -> anyhow::Result<Option<ModelId>> {
+        self.services.get_default_model().await
+    }
+
+    async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
+        self.services.set_default_model(model).await
+    }
+
+    async fn get_default_agent(&self) -> anyhow::Result<Option<AgentId>> {
+        self.services.get_default_agent().await
+    }
+
+    async fn set_default_agent(&self, agent: AgentId) -> anyhow::Result<()> {
+        self.services.set_default_agent(agent).await
+    }
 }

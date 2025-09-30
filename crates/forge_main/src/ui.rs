@@ -20,7 +20,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use tokio_stream::StreamExt;
 
-use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
+use crate::cli::{Cli, ConfigCommand, McpCommand, TopLevelCommand, Transport};
 use crate::conversation_selector::ConversationSelector;
 use crate::env::{get_agent_from_env, get_conversation_id_from_env};
 use crate::info::{Info, get_usage};
@@ -282,6 +282,20 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn handle_subcommands(&mut self, subcommand: TopLevelCommand) -> anyhow::Result<()> {
         match subcommand {
+            TopLevelCommand::Config(config_command) => match config_command.command {
+                ConfigCommand::SetModel(args) => {
+                    self.handle_config_set_model(args.model_id).await?;
+                }
+                ConfigCommand::GetModel => {
+                    self.handle_config_get_model().await?;
+                }
+                ConfigCommand::SetAgent(args) => {
+                    self.handle_config_set_agent(args.agent_id).await?;
+                }
+                ConfigCommand::GetAgent => {
+                    self.handle_config_get_agent().await?;
+                }
+            },
             TopLevelCommand::Mcp(mcp_command) => match mcp_command.command {
                 McpCommand::Add(add) => {
                     let name = add.name;
@@ -405,6 +419,54 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         println!("{}", output);
 
+        Ok(())
+    }
+
+    /// Handle setting the default model
+    async fn handle_config_set_model(&mut self, model_id: String) -> anyhow::Result<()> {
+        let model = ModelId::new(model_id.clone());
+        self.api.set_default_model(model).await?;
+        self.writeln_title(TitleFormat::info(format!(
+            "Set default model to: {}",
+            model_id
+        )))?;
+        Ok(())
+    }
+
+    /// Handle getting the current default model
+    async fn handle_config_get_model(&mut self) -> anyhow::Result<()> {
+        match self.api.get_default_model().await? {
+            Some(model) => {
+                self.writeln_title(TitleFormat::info(format!("Default model: {}", model)))?;
+            }
+            None => {
+                self.writeln_title(TitleFormat::info("No default model configured"))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Handle setting the default agent
+    async fn handle_config_set_agent(&mut self, agent_id: String) -> anyhow::Result<()> {
+        let agent = AgentId::new(agent_id.clone());
+        self.api.set_default_agent(agent).await?;
+        self.writeln_title(TitleFormat::info(format!(
+            "Set default agent to: {}",
+            agent_id
+        )))?;
+        Ok(())
+    }
+
+    /// Handle getting the current default agent
+    async fn handle_config_get_agent(&mut self) -> anyhow::Result<()> {
+        match self.api.get_default_agent().await? {
+            Some(agent) => {
+                self.writeln_title(TitleFormat::info(format!("Default agent: {}", agent)))?;
+            }
+            None => {
+                self.writeln_title(TitleFormat::info("No default agent configured"))?;
+            }
+        }
         Ok(())
     }
 
