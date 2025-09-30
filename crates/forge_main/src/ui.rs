@@ -763,6 +763,24 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             CliProvider(provider.clone())
         )))?;
 
+        // Check if the current model is available for the new provider
+        if let Some(current_model) = self.state.model.clone() {
+            let models = self.get_models().await?;
+            let model_available = models.iter().any(|m| m.id == current_model);
+
+            if !model_available {
+                self.writeln_title(TitleFormat::error(format!(
+                    "Model '{}' is not available with provider '{}'",
+                    current_model,
+                    CliProvider(provider.clone())
+                )))?;
+
+                // Prompt user to select a new model
+                self.writeln_title(TitleFormat::info("Please select a new model"))?;
+                self.on_model_selection().await?;
+            }
+        }
+
         Ok(())
     }
 
