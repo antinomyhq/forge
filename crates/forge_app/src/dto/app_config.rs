@@ -19,7 +19,7 @@ pub struct AppConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_agent: Option<AgentId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub active_provider_id: Option<ProviderId>,
+    pub active_provider: Option<ProviderId>,
 }
 
 #[derive(Clone, Serialize, Deserialize, From, Debug, PartialEq)]

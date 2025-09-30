@@ -32,17 +32,9 @@ pub const ZAI_CODING_URL: &str = "https://api.z.ai/api/coding/paas/v4/";
 pub const CEREBRAS_URL: &str = "https://api.cerebras.ai/v1/";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum ProviderUrl {
-    OpenAI(Url),
-    Anthropic(Url),
-}
-impl ProviderUrl {
-    pub fn as_str(&self) -> &str {
-        match self {
-            ProviderUrl::OpenAI(url) => url.as_str(),
-            ProviderUrl::Anthropic(url) => url.as_str(),
-        }
-    }
+pub enum ProviderResponse {
+    OpenAI,
+    Anthropic,
 }
 
 /// Providers that can be used.
@@ -50,7 +42,8 @@ impl ProviderUrl {
 #[setters(strip_option, into)]
 pub struct Provider {
     pub id: ProviderId,
-    pub url: ProviderUrl,
+    pub api: ProviderResponse,
+    pub url: Url,
     pub key: Option<String>,
 }
 
@@ -58,7 +51,8 @@ impl Provider {
     pub fn forge(key: &str) -> Provider {
         Provider {
             id: ProviderId::Forge,
-            url: ProviderUrl::OpenAI(Url::parse(FORGE_URL).unwrap()),
+            api: ProviderResponse::OpenAI,
+            url: Url::parse(FORGE_URL).unwrap(),
             key: Some(key.into()),
         }
     }
@@ -66,7 +60,8 @@ impl Provider {
     pub fn openai(key: &str) -> Provider {
         Provider {
             id: ProviderId::OpenAI,
-            url: ProviderUrl::OpenAI(Url::parse(OPENAI_URL).unwrap()),
+            api: ProviderResponse::OpenAI,
+            url: Url::parse(OPENAI_URL).unwrap(),
             key: Some(key.into()),
         }
     }
@@ -74,7 +69,8 @@ impl Provider {
     pub fn open_router(key: &str) -> Provider {
         Provider {
             id: ProviderId::OpenRouter,
-            url: ProviderUrl::OpenAI(Url::parse(OPEN_ROUTER_URL).unwrap()),
+            api: ProviderResponse::OpenAI,
+            url: Url::parse(OPEN_ROUTER_URL).unwrap(),
             key: Some(key.into()),
         }
     }
@@ -82,7 +78,8 @@ impl Provider {
     pub fn requesty(key: &str) -> Provider {
         Provider {
             id: ProviderId::Requesty,
-            url: ProviderUrl::OpenAI(Url::parse(REQUESTY_URL).unwrap()),
+            api: ProviderResponse::OpenAI,
+            url: Url::parse(REQUESTY_URL).unwrap(),
             key: Some(key.into()),
         }
     }
@@ -90,14 +87,16 @@ impl Provider {
     pub fn zai(key: &str) -> Provider {
         Provider {
             id: ProviderId::Zai,
-            url: ProviderUrl::OpenAI(Url::parse(ZAI_URL).unwrap()),
+            api: ProviderResponse::OpenAI,
+            url: Url::parse(ZAI_URL).unwrap(),
             key: Some(key.into()),
         }
     }
     pub fn zai_coding(key: &str) -> Provider {
         Provider {
             id: ProviderId::ZaiCoding,
-            url: ProviderUrl::OpenAI(Url::parse(ZAI_CODING_URL).unwrap()),
+            api: ProviderResponse::OpenAI,
+            url: Url::parse(ZAI_CODING_URL).unwrap(),
             key: Some(key.into()),
         }
     }
@@ -105,7 +104,8 @@ impl Provider {
     pub fn cerebras(key: &str) -> Provider {
         Provider {
             id: ProviderId::Cerebras,
-            url: ProviderUrl::OpenAI(Url::parse(CEREBRAS_URL).unwrap()),
+            api: ProviderResponse::OpenAI,
+            url: Url::parse(CEREBRAS_URL).unwrap(),
             key: Some(key.into()),
         }
     }
@@ -113,7 +113,8 @@ impl Provider {
     pub fn xai(key: &str) -> Provider {
         Provider {
             id: ProviderId::Xai,
-            url: ProviderUrl::OpenAI(Url::parse(XAI_URL).unwrap()),
+            api: ProviderResponse::OpenAI,
+            url: Url::parse(XAI_URL).unwrap(),
             key: Some(key.into()),
         }
     }
@@ -121,7 +122,8 @@ impl Provider {
     pub fn anthropic(key: &str) -> Provider {
         Provider {
             id: ProviderId::Anthropic,
-            url: ProviderUrl::Anthropic(Url::parse(ANTHROPIC_URL).unwrap()),
+            api: ProviderResponse::Anthropic,
+            url: Url::parse(ANTHROPIC_URL).unwrap(),
             key: Some(key.into()),
         }
     }
@@ -140,7 +142,8 @@ impl Provider {
         };
         Ok(Provider {
             id: ProviderId::VertexAi,
-            url: ProviderUrl::OpenAI(Url::parse(&url)?),
+            api: ProviderResponse::OpenAI,
+            url: Url::parse(&url)?,
             key: Some(key.into()),
         })
     }
@@ -149,23 +152,20 @@ impl Provider {
 impl Provider {
     /// Converts the provider to it's base URL
     pub fn to_base_url(&self) -> Url {
-        match &self.url {
-            ProviderUrl::OpenAI(url) => url.clone(),
-            ProviderUrl::Anthropic(url) => url.clone(),
-        }
+        self.url.clone()
     }
 
     pub fn model_url(&self) -> Url {
-        match &self.url {
-            ProviderUrl::OpenAI(url) => {
+        match &self.api {
+            ProviderResponse::OpenAI => {
                 if self.id == ProviderId::ZaiCoding {
                     let base_url = Url::parse(ZAI_URL).unwrap();
                     base_url.join("models").unwrap()
                 } else {
-                    url.join("models").unwrap()
+                    self.url.join("models").unwrap()
                 }
             }
-            ProviderUrl::Anthropic(url) => url.join("models").unwrap(),
+            ProviderResponse::Anthropic => self.url.join("models").unwrap(),
         }
     }
 }
@@ -184,7 +184,8 @@ mod tests {
         let actual = Provider::xai(fixture);
         let expected = Provider {
             id: ProviderId::Xai,
-            url: ProviderUrl::OpenAI(Url::from_str("https://api.x.ai/v1/").unwrap()),
+            api: ProviderResponse::OpenAI,
+            url: Url::from_str("https://api.x.ai/v1/").unwrap(),
             key: Some(fixture.to_string()),
         };
         assert_eq!(actual, expected);

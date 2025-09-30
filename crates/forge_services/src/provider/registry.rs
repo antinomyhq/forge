@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use forge_app::ProviderRegistry;
 use forge_app::dto::{
-    ANTHROPIC_URL, CEREBRAS_URL, OPEN_ROUTER_URL, OPENAI_URL, Provider, ProviderId, ProviderUrl,
-    REQUESTY_URL, XAI_URL, ZAI_CODING_URL, ZAI_URL,
+    ANTHROPIC_URL, CEREBRAS_URL, OPEN_ROUTER_URL, OPENAI_URL, Provider, ProviderId,
+    ProviderResponse, REQUESTY_URL, XAI_URL, ZAI_CODING_URL, ZAI_URL,
 };
 use url::Url;
 
@@ -20,38 +20,46 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
 
     fn provider_from_id(&self, id: forge_app::dto::ProviderId) -> anyhow::Result<Provider> {
         // First, match provider_id to get environment variable name and provider config
-        let (env_var_name, url) = match id {
+        let (env_var_name, api, url) = match id {
             ProviderId::OpenRouter => (
                 "OPENROUTER_API_KEY",
-                ProviderUrl::OpenAI(Url::parse(OPEN_ROUTER_URL).unwrap()),
+                ProviderResponse::OpenAI,
+                Url::parse(OPEN_ROUTER_URL).unwrap(),
             ),
             ProviderId::Requesty => (
                 "REQUESTY_API_KEY",
-                ProviderUrl::OpenAI(Url::parse(REQUESTY_URL).unwrap()),
+                ProviderResponse::OpenAI,
+                Url::parse(REQUESTY_URL).unwrap(),
             ),
             ProviderId::Xai => (
                 "XAI_API_KEY",
-                ProviderUrl::OpenAI(Url::parse(XAI_URL).unwrap()),
+                ProviderResponse::OpenAI,
+                Url::parse(XAI_URL).unwrap(),
             ),
             ProviderId::OpenAI => (
                 "OPENAI_API_KEY",
-                ProviderUrl::OpenAI(Url::parse(OPENAI_URL).unwrap()),
+                ProviderResponse::OpenAI,
+                Url::parse(OPENAI_URL).unwrap(),
             ),
             ProviderId::Anthropic => (
                 "ANTHROPIC_API_KEY",
-                ProviderUrl::Anthropic(Url::parse(ANTHROPIC_URL).unwrap()),
+                ProviderResponse::Anthropic,
+                Url::parse(ANTHROPIC_URL).unwrap(),
             ),
             ProviderId::Cerebras => (
                 "CEREBRAS_API_KEY",
-                ProviderUrl::OpenAI(Url::parse(CEREBRAS_URL).unwrap()),
+                ProviderResponse::OpenAI,
+                Url::parse(CEREBRAS_URL).unwrap(),
             ),
             ProviderId::Zai => (
                 "ZAI_API_KEY",
-                ProviderUrl::OpenAI(Url::parse(ZAI_URL).unwrap()),
+                ProviderResponse::OpenAI,
+                Url::parse(ZAI_URL).unwrap(),
             ),
             ProviderId::ZaiCoding => (
                 "ZAI_CODING_API_KEY",
-                ProviderUrl::OpenAI(Url::parse(ZAI_CODING_URL).unwrap()),
+                ProviderResponse::OpenAI,
+                Url::parse(ZAI_CODING_URL).unwrap(),
             ),
             ProviderId::VertexAi => {
                 if let Some(auth_token) = self.infra.get_env_var("VERTEX_AI_AUTH_TOKEN") {
@@ -72,7 +80,7 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
 
         // Get the API key and create provider using field assignment
         if let Some(api_key) = self.infra.get_env_var(env_var_name) {
-            Ok(Provider { id, url, key: Some(api_key) })
+            Ok(Provider { id, api, url, key: Some(api_key) })
         } else {
             Err(ProviderError::env_var_not_found(id, env_var_name).into())
         }
@@ -101,18 +109,18 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
         Err(forge_app::Error::NoActiveProvider.into())
     }
 
-    fn provider_url(&self) -> Option<ProviderUrl> {
+    fn provider_url(&self) -> Option<(ProviderResponse, Url)> {
         if let Some(url) = self.infra.get_env_var("OPENAI_URL")
             && let Ok(parsed_url) = Url::parse(&url)
         {
-            return Some(ProviderUrl::OpenAI(parsed_url));
+            return Some((ProviderResponse::OpenAI, parsed_url));
         }
 
         // Check for Anthropic URL override
         if let Some(url) = self.infra.get_env_var("ANTHROPIC_URL")
             && let Ok(parsed_url) = Url::parse(&url)
         {
-            return Some(ProviderUrl::Anthropic(parsed_url));
+            return Some((ProviderResponse::Anthropic, parsed_url));
         }
         None
     }
@@ -122,7 +130,7 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
 impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProviderRegistry<F> {
     async fn get_active_provider(&self) -> anyhow::Result<Provider> {
         if let Some(app_config) = self.infra.get_app_config().await?
-            && let Some(provider_id) = app_config.active_provider_id
+            && let Some(provider_id) = app_config.active_provider
         {
             let mut provider = self.provider_from_id(provider_id)?;
 
@@ -147,7 +155,7 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
 
     async fn set_active_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
         let mut app_config = self.infra.get_app_config().await?.unwrap_or_default();
-        app_config.active_provider_id = Some(provider_id);
+        app_config.active_provider = Some(provider_id);
         self.infra.set_app_config(&app_config).await?;
 
         Ok(())
@@ -204,9 +212,9 @@ fn resolve_vertex_env_provider<F: EnvironmentInfra>(
     Provider::vertex_ai(key, &project_id, &location)
 }
 
-fn override_url(provider: Provider, url: Option<ProviderUrl>) -> Provider {
-    if let Some(url) = url {
-        provider.url(url)
+fn override_url(provider: Provider, url_override: Option<(ProviderResponse, Url)>) -> Provider {
+    if let Some((api, url)) = url_override {
+        provider.api(api).url(url)
     } else {
         provider
     }

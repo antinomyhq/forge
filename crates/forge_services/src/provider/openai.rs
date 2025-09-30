@@ -234,7 +234,7 @@ mod tests {
     use anyhow::Context;
     use bytes::Bytes;
     use forge_app::HttpClientService;
-    use forge_app::dto::{ProviderId, ProviderUrl};
+    use forge_app::dto::{ProviderId, ProviderResponse};
     use reqwest::header::HeaderMap;
     use reqwest_eventsource::EventSource;
 
@@ -292,7 +292,8 @@ mod tests {
     fn create_provider(base_url: &str) -> anyhow::Result<OpenAIProvider<MockHttpClient>> {
         let provider = Provider {
             id: ProviderId::OpenAI,
-            url: ProviderUrl::OpenAI(reqwest::Url::parse(base_url)?),
+            api: ProviderResponse::OpenAI,
+            url: reqwest::Url::parse(base_url)?,
             key: Some("test-api-key".to_string()),
         };
 
