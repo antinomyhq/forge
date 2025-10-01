@@ -94,6 +94,7 @@ Use the following format to update task status:
 [ ]: PENDING
 [~]: IN_PROGRESS
 [x]: DONE
+[!]: FAILED
 </task_status>
 
 </plan_execution_steps>
