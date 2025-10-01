@@ -321,7 +321,7 @@ impl ConversationRepository for ForgeInfra {
 }
 #[async_trait::async_trait]
 impl AppConfigRepository for ForgeInfra {
-    async fn get_app_config(&self) -> anyhow::Result<Option<forge_app::dto::AppConfig>> {
+    async fn get_app_config(&self) -> anyhow::Result<forge_app::dto::AppConfig> {
         self.app_config_repository.get_app_config().await
     }
 

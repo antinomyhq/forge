@@ -101,11 +101,11 @@ impl<I: HttpInfra + EnvironmentInfra + AppConfigRepository> ForgeAuthService<I> 
 
     async fn get_auth_token(&self) -> anyhow::Result<Option<LoginInfo>> {
         let config = self.infra.get_app_config().await?;
-        Ok(config.and_then(|config| config.key_info))
+        Ok(config.key_info)
     }
 
     async fn set_auth_token(&self, login: Option<LoginInfo>) -> anyhow::Result<()> {
-        let mut config = self.infra.get_app_config().await?.unwrap_or_default();
+        let mut config = self.infra.get_app_config().await?;
         config.key_info = login;
         self.infra.set_app_config(&config).await?;
         Ok(())

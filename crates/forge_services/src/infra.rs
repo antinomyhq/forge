@@ -238,6 +238,6 @@ pub trait ConversationRepository: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait AppConfigRepository: Send + Sync {
-    async fn get_app_config(&self) -> anyhow::Result<Option<forge_app::dto::AppConfig>>;
+    async fn get_app_config(&self) -> anyhow::Result<forge_app::dto::AppConfig>;
     async fn set_app_config(&self, config: &forge_app::dto::AppConfig) -> anyhow::Result<()>;
 }

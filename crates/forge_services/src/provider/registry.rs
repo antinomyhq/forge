@@ -119,7 +119,7 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
     where
         U: FnOnce(&mut forge_app::dto::AppConfig),
     {
-        let mut config = self.infra.get_app_config().await?.unwrap_or_default();
+        let mut config = self.infra.get_app_config().await?;
         updater(&mut config);
         self.infra.set_app_config(&config).await?;
         Ok(())
@@ -129,9 +129,8 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
 #[async_trait::async_trait]
 impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProviderRegistry<F> {
     async fn get_active_provider(&self) -> anyhow::Result<Provider> {
-        if let Some(app_config) = self.infra.get_app_config().await?
-            && let Some(provider_id) = app_config.active_provider
-        {
+        let app_config = self.infra.get_app_config().await?;
+        if let Some(provider_id) = app_config.active_provider {
             return self.provider_from_id(provider_id);
         }
 
@@ -158,9 +157,8 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
     }
 
     async fn get_active_model(&self) -> anyhow::Result<ModelId> {
-        if let Some(app_config) = self.infra.get_app_config().await?
-            && let Some(model_id) = app_config.active_model
-        {
+        let app_config = self.infra.get_app_config().await?;
+        if let Some(model_id) = app_config.active_model {
             return Ok(model_id);
         }
 
