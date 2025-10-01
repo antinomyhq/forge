@@ -8,6 +8,9 @@
 typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
 typeset -h _FORGE_CONVERSATION_PATTERN=":"
 
+# Detect fd command - Ubuntu/Debian use 'fdfind', others use 'fd'
+typeset -h _FORGE_FD_CMD="$(command -v fdfind 2>/dev/null || command -v fd 2>/dev/null || echo 'fd')"
+
 # Style tagged files
 ZSH_HIGHLIGHT_PATTERNS+=('@\[[^]]#\]' 'fg=cyan,bold')
 
@@ -47,9 +50,9 @@ function forge-completion() {
         local filter_text="${current_word#@}"
         local selected
         if [[ -n "$filter_text" ]]; then
-            selected=$(fd --type f --hidden --exclude .git | _forge_fzf --query "$filter_text")
+            selected=$($_FORGE_FD_CMD --type f --hidden --exclude .git | _forge_fzf --query "$filter_text")
         else
-            selected=$(fd --type f --hidden --exclude .git | _forge_fzf)
+            selected=$($_FORGE_FD_CMD --type f --hidden --exclude .git | _forge_fzf)
         fi
         
         if [[ -n "$selected" ]]; then
