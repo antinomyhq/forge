@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
+    Agent, AgentId, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
     Environment, File, McpConfig, Model, ModelId, PatchOperation, ResultStream, Scope,
     ToolCallFull, ToolDefinition, ToolOutput, Workflow,
 };
@@ -352,6 +352,8 @@ pub trait ProviderRegistry: Send + Sync {
     async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>>;
     async fn get_active_model(&self) -> anyhow::Result<ModelId>;
     async fn set_active_model(&self, model: ModelId) -> anyhow::Result<()>;
+    async fn get_active_agent(&self) -> anyhow::Result<Option<AgentId>>;
+    async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -709,6 +711,14 @@ impl<I: Services> ProviderRegistry for I {
 
     async fn set_active_model(&self, model: ModelId) -> anyhow::Result<()> {
         self.provider_registry().set_active_model(model).await
+    }
+
+    async fn get_active_agent(&self) -> anyhow::Result<Option<AgentId>> {
+        self.provider_registry().get_active_agent().await
+    }
+
+    async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()> {
+        self.provider_registry().set_active_agent(agent_id).await
     }
 }
 

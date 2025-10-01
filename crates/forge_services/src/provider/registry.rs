@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use forge_app::ProviderRegistry;
-use forge_app::domain::ModelId;
+use forge_app::domain::{AgentId, ModelId};
 use forge_app::dto::{Provider, ProviderId, ProviderResponse};
 use strum::IntoEnumIterator;
 use url::Url;
@@ -169,6 +169,18 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
     async fn set_active_model(&self, model: ModelId) -> anyhow::Result<()> {
         self.update(|config| {
             config.active_model = Some(model.clone());
+        })
+        .await
+    }
+
+    async fn get_active_agent(&self) -> anyhow::Result<Option<AgentId>> {
+        let app_config = self.infra.get_app_config().await?;
+        Ok(app_config.active_agent)
+    }
+
+    async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()> {
+        self.update(|config| {
+            config.active_agent = Some(agent_id);
         })
         .await
     }
