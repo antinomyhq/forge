@@ -62,6 +62,7 @@ reqwest-eventsource.workspace = true
 lazy_static = "1.5.0"
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
 insta.workspace = true
 mockito.workspace = true
 pretty_assertions.workspace = true

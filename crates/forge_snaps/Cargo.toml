@@ -14,7 +14,8 @@ serde.workspace = true
 
 uuid = { workspace = true, features = ["v4", "serde"] }
 chrono.workspace = true
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true }
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
 tempfile.workspace = true

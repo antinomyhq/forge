@@ -37,4 +37,5 @@ diesel_migrations = "2.2.0"
 chrono = { version = "0.4", features = ["serde"] }
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
 serial_test = "3.2"
