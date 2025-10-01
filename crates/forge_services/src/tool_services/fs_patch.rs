@@ -167,6 +167,13 @@ fn apply_replacement(
                     ))
                 }
             }
+
+            // Delete the matched text
+            PatchOperation::Delete => Ok(format!(
+                "{}{}",
+                &haystack[..patch.start],
+                &haystack[patch.end()..]
+            )),
         }
     } else {
         match operation {
@@ -178,6 +185,8 @@ fn apply_replacement(
             PatchOperation::Replace | PatchOperation::ReplaceAll => Ok(content.to_string()),
             // Swap doesn't make sense with empty search - keep source unchanged
             PatchOperation::Swap => Ok(haystack),
+            // Delete doesn't make sense with empty search - keep source unchanged
+            PatchOperation::Delete => Ok(haystack),
         }
     }
 }
@@ -545,6 +554,56 @@ mod tests {
         let search = Some("missing".to_string());
         let operation = PatchOperation::ReplaceAll;
         let content = "replacement";
+
+        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Could not find match for search text: missing")
+        );
+    }
+
+    #[test]
+    fn test_apply_replacement_delete_with_search() {
+        let source = "hello world test";
+        let search = Some("world ".to_string());
+        let operation = PatchOperation::Delete;
+        let content = "";
+
+        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        assert_eq!(result.unwrap(), "hello test");
+    }
+
+    #[test]
+    fn test_apply_replacement_delete_multiline() {
+        let source = "line1\nline2\nline3";
+        let search = Some("line2\n".to_string());
+        let operation = PatchOperation::Delete;
+        let content = "";
+
+        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        assert_eq!(result.unwrap(), "line1\nline3");
+    }
+
+    #[test]
+    fn test_apply_replacement_delete_no_search() {
+        let source = "hello world";
+        let search = None;
+        let operation = PatchOperation::Delete;
+        let content = "";
+
+        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        assert_eq!(result.unwrap(), "hello world");
+    }
+
+    #[test]
+    fn test_apply_replacement_delete_no_match() {
+        let source = "hello world";
+        let search = Some("missing".to_string());
+        let operation = PatchOperation::Delete;
+        let content = "";
 
         let result = super::apply_replacement(source.to_string(), search, &operation, content);
         assert!(result.is_err());
