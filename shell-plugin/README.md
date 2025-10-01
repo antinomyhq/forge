@@ -88,6 +88,8 @@ Clear the current conversation context:
 
 ```bash
 :reset
+# or use the alias
+:r
 ```
 
 This will:
@@ -95,6 +97,22 @@ This will:
 - Clear the current conversation ID
 - Reset the session state
 - Display a confirmation message with timestamp
+
+#### System Information
+
+View system and project information:
+
+```bash
+:info
+# or use the alias
+:i
+```
+
+This displays:
+
+- System information
+- Project details
+- Current configuration
 
 #### Session Status
 
@@ -169,6 +187,7 @@ All transformed commands are properly saved to ZSH history, allowing you to:
 : I'm working on a Rust web API
 : What are the best practices for error handling?
 : Show me an example with @[src/errors.rs]
+:info
 :reset
 : New conversation starts here
 ```

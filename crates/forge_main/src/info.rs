@@ -3,7 +3,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use colored::Colorize;
-use forge_api::{Conversation, Environment, LoginInfo, Metrics, ProviderId, Usage, UserUsage};
+use forge_api::{Conversation, Environment, LoginInfo, Metrics, Usage, UserUsage};
 use forge_tracker::VERSION;
 use num_format::{Locale, ToFormattedString};
 
@@ -47,8 +47,8 @@ impl Info {
         self
     }
 
-    pub fn extend(mut self, other: Info) -> Self {
-        self.sections.extend(other.sections);
+    pub fn extend(mut self, other: impl Into<Info>) -> Self {
+        self.sections.extend(other.into().sections);
         self
     }
 }
@@ -94,10 +94,12 @@ impl From<&Environment> for Info {
 
 impl From<&UIState> for Info {
     fn from(value: &UIState) -> Self {
-        let mut info = Info::new().add_title("MODEL");
+        let mut info = Info::new().add_title("AGENT");
+
+        info = info.add_key_value("Name", value.operating_agent.as_str().to_uppercase());
 
         if let Some(model) = &value.model {
-            info = info.add_key_value("Current", model);
+            info = info.add_key_value("Model", model);
         }
 
         if let Some(provider) = &value.provider {
@@ -107,7 +109,7 @@ impl From<&UIState> for Info {
             }
         }
 
-        info = info.extend(get_usage(value));
+        info = info.extend(&value.usage);
 
         info
     }
@@ -167,43 +169,36 @@ impl From<&Metrics> for Info {
     }
 }
 
-pub fn get_usage(state: &UIState) -> Info {
-    let cache_percentage = calculate_cache_percentage(&state.usage);
-    let cached_display = if cache_percentage > 0 {
-        format!(
-            "{} [{}%]",
-            state.usage.cached_tokens.to_formatted_string(&Locale::en),
-            cache_percentage
-        )
-    } else {
-        state.usage.cached_tokens.to_formatted_string(&Locale::en)
-    };
+impl From<&Usage> for Info {
+    fn from(value: &Usage) -> Self {
+        let cache_percentage = calculate_cache_percentage(value);
+        let cached_display = if cache_percentage > 0 {
+            format!(
+                "{} [{}%]",
+                value.cached_tokens.to_formatted_string(&Locale::en),
+                cache_percentage
+            )
+        } else {
+            value.cached_tokens.to_formatted_string(&Locale::en)
+        };
 
-    let mut usage = Info::new()
-        .add_title("TOKEN USAGE")
-        .add_key_value(
-            "Input Tokens",
-            state.usage.prompt_tokens.to_formatted_string(&Locale::en),
-        )
-        .add_key_value("Cached Tokens", cached_display)
-        .add_key_value(
-            "Output Tokens",
-            state
-                .usage
-                .completion_tokens
-                .to_formatted_string(&Locale::en),
-        );
+        let mut usage_info = Info::new()
+            .add_title("TOKEN USAGE")
+            .add_key_value(
+                "Input Tokens",
+                value.prompt_tokens.to_formatted_string(&Locale::en),
+            )
+            .add_key_value("Cached Tokens", cached_display)
+            .add_key_value(
+                "Output Tokens",
+                value.completion_tokens.to_formatted_string(&Locale::en),
+            );
 
-    let is_forge_provider = state
-        .provider
-        .as_ref()
-        .is_some_and(|p| p.id == ProviderId::Forge);
-    if let Some(cost) = state.usage.cost.as_ref()
-        && !is_forge_provider
-    {
-        usage = usage.add_key_value("Cost", format!("${cost:.4}"));
+        if let Some(cost) = value.cost.as_ref() {
+            usage_info = usage_info.add_key_value("Cost", format!("${cost:.4}"));
+        }
+        usage_info
     }
-    usage
 }
 
 fn calculate_cache_percentage(usage: &Usage) -> u8 {
@@ -419,7 +414,11 @@ impl From<&Conversation> for Info {
         }
 
         // Insert metrics information
-        info.extend(Info::from(&conversation.metrics))
+        if !conversation.metrics.files_changed.is_empty() {
+            info.extend(&conversation.metrics)
+        } else {
+            info
+        }
     }
 }
 

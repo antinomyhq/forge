@@ -1,4 +1,4 @@
-use forge_api::ConversationId;
+use forge_api::{AgentId, ConversationId};
 
 // Environment variable names
 pub const FORGE_CONVERSATION_ID: &str = "FORGE_CONVERSATION_ID";
@@ -12,8 +12,8 @@ pub fn get_conversation_id_from_env() -> Option<ConversationId> {
 }
 
 /// Get agent ID from FORGE_ACTIVE_AGENT environment variable
-pub fn get_agent_from_env() -> Option<String> {
-    std::env::var(FORGE_ACTIVE_AGENT).ok()
+pub fn get_agent_from_env() -> Option<AgentId> {
+    std::env::var(FORGE_ACTIVE_AGENT).ok().map(AgentId::new)
 }
 
 #[cfg(test)]
@@ -74,7 +74,7 @@ mod tests {
         }
 
         let actual = get_agent_from_env();
-        let expected = Some("sage".to_string());
+        let expected = Some(AgentId::new("sage"));
 
         assert_eq!(actual, expected);
         unsafe {

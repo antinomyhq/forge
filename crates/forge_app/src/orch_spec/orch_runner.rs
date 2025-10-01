@@ -80,7 +80,9 @@ impl Runner {
             setup.env.clone(),
             conversation,
             setup.current_time,
-            agent.apply_workflow_config(&setup.workflow),
+            agent
+                .apply_workflow_config(&setup.workflow)
+                .set_model_deeply(setup.model.clone()),
             event,
         )
         .error_tracker(ToolErrorTracker::new(3))

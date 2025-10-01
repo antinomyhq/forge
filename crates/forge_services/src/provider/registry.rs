@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use forge_app::ProviderRegistry;
+use forge_app::domain::{AgentId, ModelId};
 use forge_app::dto::{Provider, ProviderId, ProviderResponse};
 use strum::IntoEnumIterator;
 use url::Url;
@@ -113,14 +114,23 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
         }
         None
     }
+
+    async fn update<U>(&self, updater: U) -> anyhow::Result<()>
+    where
+        U: FnOnce(&mut forge_app::dto::AppConfig),
+    {
+        let mut config = self.infra.get_app_config().await?;
+        updater(&mut config);
+        self.infra.set_app_config(&config).await?;
+        Ok(())
+    }
 }
 
 #[async_trait::async_trait]
 impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProviderRegistry<F> {
     async fn get_active_provider(&self) -> anyhow::Result<Provider> {
-        if let Some(app_config) = self.infra.get_app_config().await?
-            && let Some(provider_id) = app_config.active_provider
-        {
+        let app_config = self.infra.get_app_config().await?;
+        if let Some(provider_id) = app_config.active_provider {
             return self.provider_from_id(provider_id);
         }
 
@@ -129,11 +139,10 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
     }
 
     async fn set_active_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        let mut config = self.infra.get_app_config().await?.unwrap_or_default();
-        config.active_provider = Some(provider_id);
-        self.infra.set_app_config(&config).await?;
-
-        Ok(())
+        self.update(|config| {
+            config.active_provider = Some(provider_id);
+        })
+        .await
     }
 
     async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
@@ -145,6 +154,35 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
             .iter()
             .filter_map(|id| self.provider_from_id(*id).ok())
             .collect::<Vec<_>>())
+    }
+
+    async fn get_active_model(&self) -> anyhow::Result<ModelId> {
+        let app_config = self.infra.get_app_config().await?;
+        if let Some(model_id) = app_config.active_model {
+            return Ok(model_id);
+        }
+
+        // No active model set, throw an error
+        Err(forge_app::Error::NoActiveModel.into())
+    }
+
+    async fn set_active_model(&self, model: ModelId) -> anyhow::Result<()> {
+        self.update(|config| {
+            config.active_model = Some(model.clone());
+        })
+        .await
+    }
+
+    async fn get_active_agent(&self) -> anyhow::Result<Option<AgentId>> {
+        let app_config = self.infra.get_app_config().await?;
+        Ok(app_config.active_agent)
+    }
+
+    async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()> {
+        self.update(|config| {
+            config.active_agent = Some(agent_id);
+        })
+        .await
     }
 }
 

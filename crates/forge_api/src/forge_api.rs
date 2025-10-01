@@ -199,17 +199,19 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
     }
 
     async fn get_operating_agent(&self) -> Option<AgentId> {
-        self.infra
-            .get_app_config()
-            .await
-            .ok()?
-            .and_then(|config| config.active_agent)
+        self.services.get_active_agent().await.ok().flatten()
     }
 
     async fn set_operating_agent(&self, agent_id: AgentId) -> anyhow::Result<()> {
-        let mut config = self.infra.get_app_config().await?.unwrap_or_default();
-        config.active_agent = Some(agent_id);
-        self.infra.set_app_config(&config).await
+        self.services.set_active_agent(agent_id).await
+    }
+
+    async fn get_operating_model(&self) -> Option<ModelId> {
+        self.services.get_active_model().await.ok()
+    }
+
+    async fn set_operating_model(&self, model_id: ModelId) -> anyhow::Result<()> {
+        self.services.set_active_model(model_id).await
     }
 
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {

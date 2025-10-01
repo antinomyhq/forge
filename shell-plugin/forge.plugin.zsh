@@ -32,10 +32,8 @@ function _forge_fzf() {
 # Helper function to print operating agent messages with consistent formatting
 function _forge_print_agent_message() {
     local agent_name="${1:-${FORGE_ACTIVE_AGENT}}"
-    echo "\033[33m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] \033[1;37m${agent_name:u}\033[0m \033[90mis now active\033[0m"
+    echo "\033[33m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] \033[1;37m${agent_name:u}\033[0m \033[90mis now the active agent\033[0m"
 }
-
-
 
 # Store conversation ID in a temporary variable (local to plugin)
 export FORGE_CONVERSATION_ID=""
@@ -143,7 +141,20 @@ function forge-accept-line() {
         zle reset-prompt
         return 0
     fi
-
+    
+    # Handle info command specially
+    if [[ "$user_action" == "info" || "$user_action" == "i" ]]; then
+        echo
+        
+        # Run forge info
+        $_FORGE_BIN info
+        
+        BUFFER=""
+        CURSOR=${#BUFFER}
+        zle reset-prompt
+        return 0
+    fi
+    
     # Check if input_text is empty - just set the active agent
     if [[ -z "$input_text" ]]; then
         echo

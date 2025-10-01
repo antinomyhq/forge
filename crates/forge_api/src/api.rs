@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use forge_app::dto::{InitAuth, ProviderId, ToolsOverview};
 use forge_app::{User, UserUsage};
-use forge_domain::AgentId;
+use forge_domain::{AgentId, ModelId};
 use forge_stream::MpscStream;
 
 use crate::*;
@@ -112,4 +112,10 @@ pub trait API: Sync + Send {
 
     /// Sets the operating agent
     async fn set_operating_agent(&self, agent_id: AgentId) -> anyhow::Result<()>;
+
+    /// Gets the currently operating model
+    async fn get_operating_model(&self) -> Option<ModelId>;
+
+    /// Sets the operating model
+    async fn set_operating_model(&self, model_id: ModelId) -> anyhow::Result<()>;
 }

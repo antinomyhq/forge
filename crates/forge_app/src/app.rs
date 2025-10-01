@@ -96,12 +96,13 @@ impl<S: Services> ForgeApp<S> {
 
         // Prepare agents with user configuration and subscriptions
         let agents = services.get_agents().await?;
-
+        let model = services.get_active_model().await?;
         let mcp_tools = self.services.mcp_service().list().await?;
         let agent = agents
             .into_iter()
             .map(|agent| {
                 agent
+                    .set_model_deeply(model.clone())
                     .apply_workflow_config(&workflow)
                     .extend_mcp_tools(&mcp_tools)
             })

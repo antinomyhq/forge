@@ -23,7 +23,7 @@ use tokio_stream::StreamExt;
 use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
 use crate::conversation_selector::ConversationSelector;
 use crate::env::{get_agent_from_env, get_conversation_id_from_env};
-use crate::info::{Info, get_usage};
+use crate::info::Info;
 use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
 use crate::select::ForgeSelect;
@@ -105,7 +105,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.display_banner()?;
         self.trace_user();
         self.hydrate_caches();
-        self.init_conversation().await?;
         Ok(())
     }
 
@@ -409,7 +408,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn on_info(&mut self) -> anyhow::Result<()> {
-        self.spinner.start(Some("Loading Info"))?;
         let mut info = Info::from(&self.api.environment()).extend(Info::from(&self.state));
 
         // Execute async operations in parallel
@@ -422,10 +420,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         };
 
         let login_future = self.api.get_login_info();
-        let usage_future = self.api.user_usage();
 
-        let (conversation_result, key_info, usage_result) =
-            tokio::join!(conversation_future, login_future, usage_future);
+        let (conversation_result, key_info) = tokio::join!(conversation_future, login_future);
 
         // Add conversation information if available
         if let Some(conversation) = conversation_result {
@@ -433,17 +429,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         // Add user information if available
-        if let Some(login) = key_info? {
-            info = info.extend(Info::from(&login));
-        }
-
-        // Add usage information
-        if let Ok(Some(user_usage)) = usage_result {
-            info = info.extend(Info::from(&user_usage));
+        if let Some(login_info) = key_info? {
+            info = info.extend(Info::from(&login_info));
         }
 
         self.writeln(info)?;
-        self.spinner.stop(None)?;
 
         Ok(())
     }
@@ -731,11 +721,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             None => return Ok(()),
         };
 
-        self.api
-            .update_workflow(self.cli.workflow.as_deref(), |workflow| {
-                workflow.model = Some(model.clone());
-            })
-            .await?;
+        // Update the operating model via API
+        self.api.set_operating_model(model.clone()).await?;
 
         // Update the UI state with the new model
         self.update_model(Some(model.clone()));
@@ -793,6 +780,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn init_conversation(&mut self) -> Result<ConversationId> {
+        if let Some(agent_id) = get_agent_from_env()
+            && !self.cli.is_interactive()
+        {
+            self.api.set_operating_agent(agent_id).await?;
+        }
+
         let id = match self.state.conversation_id {
             Some(ref id) => Ok(*id),
             None => {
@@ -828,7 +821,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.spinner.stop(None)?;
 
                 let mut sub_title = conversation.id.into_string();
-                if let Some(ref agent) = get_agent_from_env() {
+                if let Some(ref agent) = self.api.get_operating_agent().await {
                     sub_title.push_str(format!(" [via {agent}]").as_str());
                 }
 
@@ -845,7 +838,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         };
 
-        if let Some(ref agent) = get_agent_from_env() {
+        if let Some(ref agent) = self.api.get_operating_agent().await {
             self.state.operating_agent = AgentId::new(agent)
         }
 
@@ -855,18 +848,18 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Initialize the state of the UI
     async fn init_state(&mut self, first: bool) -> Result<Workflow> {
         // Run the independent initialization tasks in parallel for better performance
-        let (provider, mut workflow) = tokio::try_join!(
+        let (provider, workflow) = tokio::try_join!(
             self.init_provider(),
             self.api.read_workflow(self.cli.workflow.as_deref())
         )?;
 
         // Ensure we have a model selected before proceeding with initialization
-        if workflow.model.is_none() {
-            workflow.model = Some(
-                self.select_model()
-                    .await?
-                    .ok_or(anyhow::anyhow!("Model selection is required to continue"))?,
-            );
+        if self.api.get_operating_model().await.is_none() {
+            let model = self
+                .select_model()
+                .await?
+                .ok_or(anyhow::anyhow!("Model selection is required to continue"))?;
+            self.api.set_operating_model(model).await?;
         }
 
         // Create base workflow and trigger updates if this is the first initialization
@@ -915,8 +908,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Finalize UI state initialization by registering commands and setting up the
         // state
         self.command.register_all(&base_workflow);
-        self.state = UIState::new(self.api.environment(), base_workflow, agent).provider(provider);
-        self.update_model(workflow.model.clone());
+        let operating_model = self.api.get_operating_model().await;
+        self.state =
+            UIState::new(self.api.environment(), agent, operating_model.clone()).provider(provider);
+        self.update_model(operating_model);
 
         Ok(workflow)
     }
@@ -1105,9 +1100,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 }
             }
             ChatResponse::TaskComplete => {
-                if let Some(conversation_id) = self.state.conversation_id.as_ref() {
-                    let conversation = self.api.conversation(conversation_id).await?;
-                    self.on_completion(conversation.unwrap()).await?;
+                if let Some(conversation_id) = self.state.conversation_id {
+                    self.on_completion(conversation_id).await?;
                 }
             }
         }
@@ -1127,12 +1121,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn on_completion(&mut self, conversation: Conversation) -> anyhow::Result<()> {
+    async fn on_completion(&mut self, conversation_id: ConversationId) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Summary"))?;
+        let conversation = self
+            .api
+            .conversation(&conversation_id)
+            .await?
+            .ok_or(anyhow::anyhow!("Conversation not found: {conversation_id}"))?;
 
-        let info = Info::default()
-            .extend(Info::from(&conversation))
-            .extend(get_usage(&self.state));
+        let info = Info::default().extend(&conversation).extend(&self.state);
 
         // if let Ok(Some(usage)) = self.api.user_usage().await {
         //     info = info.extend(Info::from(&usage));
@@ -1186,7 +1183,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn on_usage(&mut self) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Usage"))?;
-        let mut info = get_usage(&self.state);
+        let mut info: Info = (&self.state.usage).into();
         if let Ok(Some(user_usage)) = self.api.user_usage().await {
             info = info.extend(Info::from(&user_usage));
         }
