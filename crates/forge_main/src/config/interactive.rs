@@ -91,7 +91,6 @@ pub async fn select_agent<A: API>(api: &A) -> Result<Option<AgentId>> {
     // Show selection
     match ForgeSelect::select("Select an agent:", agents)
         .with_starting_cursor(starting_cursor)
-        .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
         .prompt()?
     {
         Some(agent) => Ok(Some(agent.0.id)),
@@ -122,7 +121,6 @@ pub async fn select_model<A: API>(api: &A) -> Result<Option<ModelId>> {
     // Show selection
     match ForgeSelect::select("Select a model:", models)
         .with_starting_cursor(starting_cursor)
-        .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
         .prompt()?
     {
         Some(model) => Ok(Some(model.0.id)),
@@ -153,7 +151,6 @@ pub async fn select_provider<A: API>(api: &A) -> Result<Option<ProviderId>> {
     // Show selection
     match ForgeSelect::select("Select a provider:", providers)
         .with_starting_cursor(starting_cursor)
-        .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
         .prompt()?
     {
         Some(provider) => Ok(Some(provider.0.id)),
@@ -187,9 +184,7 @@ pub fn show_config_menu() -> Result<Option<ConfigOption>> {
         ConfigOption::Provider,
     ];
 
-    ForgeSelect::select("What would you like to configure?", options)
-        .with_help_message("Use arrow keys to navigate and Enter to select")
-        .prompt()
+    ForgeSelect::select("What would you like to configure?", options).prompt()
 }
 
 #[cfg(test)]
