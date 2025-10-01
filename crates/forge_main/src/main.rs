@@ -6,7 +6,8 @@ use anyhow::Result;
 use clap::Parser;
 use forge_api::ForgeAPI;
 use forge_domain::TitleFormat;
-use forge_main::{Cli, Sandbox, TitleDisplayExt, UI, tracker};
+use forge_main::cli::TopLevelCommand;
+use forge_main::{Cli, Sandbox, TitleDisplayExt, UI, handle_config_command, tracker};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -52,6 +53,16 @@ async fn main() -> Result<()> {
         },
         (_, _) => std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
     };
+
+    // Handle config commands before initializing UI
+    if let Some(ref subcommands) = cli.subcommands
+        && let TopLevelCommand::Config(config_group) = subcommands
+    {
+        let restricted = cli.restricted;
+        let api = ForgeAPI::init(restricted, cwd.clone());
+        handle_config_command(&api, config_group.command.clone()).await?;
+        return Ok(());
+    }
 
     // Initialize the ForgeAPI with the restricted mode if specified
     let restricted = cli.restricted;

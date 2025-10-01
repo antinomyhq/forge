@@ -370,6 +370,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_show_agents().await?;
                 return Ok(());
             }
+            TopLevelCommand::Config(_) => {
+                // Config commands are handled in main.rs before UI initialization
+                // This case should not be reached
+                return Ok(());
+            }
         }
         Ok(())
     }
