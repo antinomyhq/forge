@@ -271,6 +271,19 @@ pub trait FsPatchService: Send + Sync {
 }
 
 #[async_trait::async_trait]
+pub trait FsPatchRangeService: Send + Sync {
+    /// Patches a file at the specified path by applying operations to line
+    /// ranges.
+    async fn patch_range(
+        &self,
+        path: String,
+        ranges: Vec<forge_domain::LineRange>,
+        operation: forge_domain::PatchRangeOperation,
+        content: String,
+    ) -> anyhow::Result<PatchOutput>;
+}
+
+#[async_trait::async_trait]
 pub trait FsReadService: Send + Sync {
     /// Reads a file at the specified path and returns its content.
     async fn read(
@@ -385,6 +398,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type FsCreateService: FsCreateService;
     type PlanCreateService: PlanCreateService;
     type FsPatchService: FsPatchService;
+    type FsPatchRangeService: FsPatchRangeService;
     type FsReadService: FsReadService;
     type FsRemoveService: FsRemoveService;
     type FsSearchService: FsSearchService;
@@ -408,6 +422,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn fs_create_service(&self) -> &Self::FsCreateService;
     fn plan_create_service(&self) -> &Self::PlanCreateService;
     fn fs_patch_service(&self) -> &Self::FsPatchService;
+    fn fs_patch_range_service(&self) -> &Self::FsPatchRangeService;
     fn fs_read_service(&self) -> &Self::FsReadService;
     fn fs_remove_service(&self) -> &Self::FsRemoveService;
     fn fs_search_service(&self) -> &Self::FsSearchService;
@@ -588,6 +603,21 @@ impl<I: Services> FsPatchService for I {
     ) -> anyhow::Result<PatchOutput> {
         self.fs_patch_service()
             .patch(path, search, operation, content)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> FsPatchRangeService for I {
+    async fn patch_range(
+        &self,
+        path: String,
+        ranges: Vec<forge_domain::LineRange>,
+        operation: forge_domain::PatchRangeOperation,
+        content: String,
+    ) -> anyhow::Result<PatchOutput> {
+        self.fs_patch_range_service()
+            .patch_range(path, ranges, operation, content)
             .await
     }
 }

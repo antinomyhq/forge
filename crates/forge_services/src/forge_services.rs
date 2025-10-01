@@ -15,8 +15,8 @@ use crate::policy::ForgePolicyService;
 use crate::provider::{ForgeProviderRegistry, ForgeProviderService};
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{
-    ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead, ForgeFsRemove,
-    ForgeFsSearch, ForgeFsUndo, ForgePlanCreate, ForgeShell,
+    ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsPatchRange, ForgeFsRead,
+    ForgeFsRemove, ForgeFsSearch, ForgeFsUndo, ForgePlanCreate, ForgeShell,
 };
 use crate::workflow::ForgeWorkflowService;
 use crate::{
@@ -49,6 +49,7 @@ pub struct ForgeServices<F: HttpInfra + EnvironmentInfra + McpServerInfra + Walk
     file_search_service: Arc<ForgeFsSearch<F>>,
     file_remove_service: Arc<ForgeFsRemove<F>>,
     file_patch_service: Arc<ForgeFsPatch<F>>,
+    file_patch_range_service: Arc<ForgeFsPatchRange<F>>,
     file_undo_service: Arc<ForgeFsUndo<F>>,
     shell_service: Arc<ForgeShell<F>>,
     fetch_service: Arc<ForgeFetch>,
@@ -93,6 +94,7 @@ impl<
         let file_search_service = Arc::new(ForgeFsSearch::new(infra.clone()));
         let file_remove_service = Arc::new(ForgeFsRemove::new(infra.clone()));
         let file_patch_service = Arc::new(ForgeFsPatch::new(infra.clone()));
+        let file_patch_range_service = Arc::new(ForgeFsPatchRange::new(infra.clone()));
         let file_undo_service = Arc::new(ForgeFsUndo::new(infra.clone()));
         let shell_service = Arc::new(ForgeShell::new(infra.clone()));
         let fetch_service = Arc::new(ForgeFetch::new());
@@ -117,6 +119,7 @@ impl<
             file_search_service,
             file_remove_service,
             file_patch_service,
+            file_patch_range_service,
             file_undo_service,
             shell_service,
             fetch_service,
@@ -164,6 +167,7 @@ impl<
     type FsCreateService = ForgeFsCreate<F>;
     type PlanCreateService = ForgePlanCreate<F>;
     type FsPatchService = ForgeFsPatch<F>;
+    type FsPatchRangeService = ForgeFsPatchRange<F>;
     type FsReadService = ForgeFsRead<F>;
     type FsRemoveService = ForgeFsRemove<F>;
     type FsSearchService = ForgeFsSearch<F>;
@@ -222,6 +226,10 @@ impl<
 
     fn fs_patch_service(&self) -> &Self::FsPatchService {
         &self.file_patch_service
+    }
+
+    fn fs_patch_range_service(&self) -> &Self::FsPatchRangeService {
+        &self.file_patch_range_service
     }
 
     fn fs_read_service(&self) -> &Self::FsReadService {

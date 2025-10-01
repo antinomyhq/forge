@@ -63,6 +63,15 @@ impl FormatContent for Tools {
                         .into(),
                 )
             }
+            Tools::PatchRange(input) => {
+                let display_path = display_path_for(&input.path);
+                Some(
+                    TitleFormat::debug(input.operation.as_ref())
+                        .sub_title(display_path)
+                        .into(),
+                )
+            }
+
             Tools::Undo(input) => {
                 let display_path = display_path_for(&input.path);
                 Some(TitleFormat::debug("Undo").sub_title(display_path).into())

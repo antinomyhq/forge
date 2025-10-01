@@ -28,6 +28,14 @@ impl FormatContent for ToolOperation {
                     .diff()
                     .to_string(),
             )),
+            ToolOperation::FsPatchRange { input: _, output } => {
+                Some(ChatResponseContent::PlainText(
+                    DiffFormat::format(&output.before, &output.after)
+                        .diff()
+                        .to_string(),
+                ))
+            }
+
             ToolOperation::FsUndo { input: _, output: _ } => None,
             ToolOperation::NetFetch { input: _, output: _ } => None,
             ToolOperation::Shell { output: _ } => None,

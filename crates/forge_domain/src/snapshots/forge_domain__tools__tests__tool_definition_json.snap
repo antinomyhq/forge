@@ -193,11 +193,77 @@ expression: tools
   }
 }
 {
+  "name": "patch_range",
+  "description": "Modifies files by applying operations to specific line ranges. This tool\n provides efficient line-based editing without requiring exact text matching.\n Ideal for targeted modifications when you know the line numbers. Supports\n prepend, append, replace operations on single or multiple line ranges. Use\n this when you need to modify specific lines by their position rather than\n searching for text patterns. For complex refactoring or modifying all\n pattern occurrences, use `write` instead.",
+  "input_schema": {
+    "title": "FSPatchRange",
+    "description": "Modifies files by applying operations to specific line ranges. This tool provides efficient line-based editing without requiring exact text matching. Ideal for targeted modifications when you know the line numbers. Supports prepend, append, replace operations on single or multiple line ranges. Use this when you need to modify specific lines by their position rather than searching for text patterns. For complex refactoring or modifying all pattern occurrences, use `write` instead.",
+    "type": "object",
+    "required": [
+      "content",
+      "operation",
+      "path",
+      "ranges"
+    ],
+    "properties": {
+      "content": {
+        "description": "The content to use for the operation (replacement text or lines to prepend/append)",
+        "type": "string"
+      },
+      "explanation": {
+        "description": "One sentence explanation as to why this specific tool is being used, and how it contributes to the goal.",
+        "default": null,
+        "type": "string",
+        "nullable": true
+      },
+      "operation": {
+        "description": "The operation to perform on the targeted line ranges. Possible options are: - 'prepend': Add content before the first line of the range - 'append': Add content after the last line of the range - 'replace': Replace the entire range with the new content",
+        "type": "string",
+        "enum": [
+          "prepend",
+          "append",
+          "replace"
+        ]
+      },
+      "path": {
+        "description": "The path to the file to modify",
+        "type": "string"
+      },
+      "ranges": {
+        "description": "One or more line ranges to target for the operation. Each range specifies start_line and optionally end_line. Operations are applied to the specified ranges in order.",
+        "type": "array",
+        "items": {
+          "description": "Line range specification for patch operations. Each range specifies a contiguous block of lines to be modified.",
+          "type": "object",
+          "required": [
+            "start_line"
+          ],
+          "properties": {
+            "end_line": {
+              "description": "Ending line number (1-based, inclusive). If not provided, only the start_line is targeted.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0,
+              "nullable": true
+            },
+            "start_line": {
+              "description": "Starting line number (1-based, inclusive)",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          }
+        }
+      }
+    }
+  }
+}
+{
   "name": "undo",
-  "description": "Reverts the most recent file operation (create/modify/delete) on a specific\n file. Use this tool when you need to recover from incorrect file changes or\n if a revert is requested by the user.",
+  "description": "file. Use this tool when you need to recover from incorrect file changes or\n if a revert is requested by the user.",
   "input_schema": {
     "title": "FSUndo",
-    "description": "Reverts the most recent file operation (create/modify/delete) on a specific file. Use this tool when you need to recover from incorrect file changes or if a revert is requested by the user.",
+    "description": "file. Use this tool when you need to recover from incorrect file changes or if a revert is requested by the user.",
     "type": "object",
     "required": [
       "path"

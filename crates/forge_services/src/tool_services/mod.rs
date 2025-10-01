@@ -2,6 +2,8 @@ mod fetch;
 mod followup;
 mod fs_create;
 mod fs_patch;
+mod fs_patch_range;
+
 mod fs_read;
 mod fs_remove;
 mod fs_search;
@@ -14,6 +16,7 @@ pub use fetch::*;
 pub use followup::*;
 pub use fs_create::*;
 pub use fs_patch::*;
+pub use fs_patch_range::*;
 pub use fs_read::*;
 pub use fs_remove::*;
 pub use fs_search::*;

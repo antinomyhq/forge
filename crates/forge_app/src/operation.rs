@@ -5,8 +5,8 @@ use console::strip_ansi_codes;
 use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
-    Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite, Metrics, NetFetch,
-    PlanCreate, ToolName,
+    Environment, FSPatch, FSPatchRange, FSRead, FSRemove, FSSearch, FSUndo, FSWrite, Metrics,
+    NetFetch, PlanCreate, ToolName,
 };
 use forge_template::Element;
 
@@ -84,6 +84,11 @@ pub enum ToolOperation {
         input: FSPatch,
         output: PatchOutput,
     },
+    FsPatchRange {
+        input: FSPatchRange,
+        output: PatchOutput,
+    },
+
     FsUndo {
         input: FSUndo,
         output: FsUndoOutput,
@@ -353,6 +358,31 @@ impl ToolOperation {
                 }
             },
             ToolOperation::FsPatch { input, output } => {
+                let diff_result = DiffFormat::format(&output.before, &output.after);
+                let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
+                let mut elm = Element::new("file_diff")
+                    .attr("path", &input.path)
+                    .attr("total_lines", output.after.lines().count())
+                    .cdata(diff);
+
+                if let Some(warning) = &output.warning {
+                    elm = elm.append(Element::new("warning").text(warning));
+                }
+
+                file_change_stats(
+                    FileOperationStats {
+                        path: input.path.clone(),
+                        tool_name: tool_name.clone(),
+                        lines_added: diff_result.lines_added(),
+                        lines_removed: diff_result.lines_removed(),
+                        operation_type: OperationType::Change,
+                    },
+                    metrics,
+                );
+
+                forge_domain::ToolOutput::text(elm)
+            }
+            ToolOperation::FsPatchRange { input, output } => {
                 let diff_result = DiffFormat::format(&output.before, &output.after);
                 let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
                 let mut elm = Element::new("file_diff")

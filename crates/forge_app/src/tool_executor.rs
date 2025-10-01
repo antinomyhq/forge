@@ -7,9 +7,9 @@ use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::ShellService;
 use crate::utils::format_display_path;
 use crate::{
-    ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
-    FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService,
-    PlanCreateService, PolicyService,
+    ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchRangeService,
+    FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoService,
+    NetFetchService, PlanCreateService, PolicyService,
 };
 
 pub struct ToolExecutor<S> {
@@ -23,6 +23,7 @@ impl<
         + NetFetchService
         + FsRemoveService
         + FsPatchService
+        + FsPatchRangeService
         + FsUndoService
         + ShellService
         + FollowUpService
@@ -197,6 +198,19 @@ impl<
                     .await?;
                 (input, output).into()
             }
+            Tools::PatchRange(input) => {
+                let output = self
+                    .services
+                    .patch_range(
+                        input.path.clone(),
+                        input.ranges.clone(),
+                        input.operation.clone(),
+                        input.content.clone(),
+                    )
+                    .await?;
+                (input, output).into()
+            }
+
             Tools::Undo(input) => {
                 let output = self.services.undo(input.path.clone()).await?;
                 (input, output).into()

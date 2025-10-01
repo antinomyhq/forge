@@ -11,7 +11,7 @@ use schemars::schema::RootSchema;
 use serde::Serialize;
 use serde_json::Map;
 use strum::IntoEnumIterator;
-use strum_macros::{AsRefStr, Display, EnumDiscriminants, EnumIter};
+use strum_macros::{AsRefStr, Display, EnumDiscriminants, EnumIter, EnumString};
 
 use crate::{ToolCallFull, ToolDefinition, ToolDescription, ToolName};
 
@@ -41,6 +41,7 @@ pub enum Tools {
     Search(FSSearch),
     Remove(FSRemove),
     Patch(FSPatch),
+    PatchRange(FSPatchRange),
     Undo(FSUndo),
     Shell(Shell),
     Fetch(NetFetch),
@@ -277,7 +278,81 @@ pub struct FSPatch {
     pub explanation: Option<String>,
 }
 
-/// Reverts the most recent file operation (create/modify/delete) on a specific
+/// Line range specification for patch operations. Each range specifies a
+/// contiguous block of lines to be modified.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct LineRange {
+    /// Starting line number (1-based, inclusive)
+    pub start_line: u32,
+
+    /// Ending line number (1-based, inclusive). If not provided, only the
+    /// start_line is targeted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_line: Option<u32>,
+}
+
+/// Modifies files by applying operations to specific line ranges. This tool
+/// provides efficient line-based editing without requiring exact text matching.
+/// Ideal for targeted modifications when you know the line numbers. Supports
+/// prepend, append, replace operations on single or multiple line ranges. Use
+/// this when you need to modify specific lines by their position rather than
+/// searching for text patterns. For complex refactoring or modifying all
+/// pattern occurrences, use `write` instead.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct FSPatchRange {
+    /// The path to the file to modify
+    pub path: String,
+
+    /// One or more line ranges to target for the operation. Each range
+    /// specifies start_line and optionally end_line. Operations are applied
+    /// to the specified ranges in order.
+    pub ranges: Vec<LineRange>,
+
+    /// The operation to perform on the targeted line ranges. Possible options
+    /// are:
+    /// - 'prepend': Add content before the first line of the range
+    /// - 'append': Add content after the last line of the range
+    /// - 'replace': Replace the entire range with the new content
+    pub operation: PatchRangeOperation,
+
+    /// The content to use for the operation (replacement text or lines to
+    /// prepend/append)
+    pub content: String,
+
+    /// One sentence explanation as to why this specific tool is being used, and
+    /// how it contributes to the goal.
+    #[serde(default)]
+    pub explanation: Option<String>,
+}
+
+/// Operations supported by the patch_range tool
+#[derive(
+    Default,
+    Debug,
+    Clone,
+    Serialize,
+    Deserialize,
+    EnumIter,
+    EnumString,
+    AsRefStr,
+    Display,
+    PartialEq,
+    JsonSchema,
+)]
+#[strum(serialize_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum PatchRangeOperation {
+    /// Prepend content before the targeted line range
+    #[default]
+    Prepend,
+
+    /// Append content after the targeted line range
+    Append,
+
+    /// Replace the entire line range with new content
+    Replace,
+}
+
 /// file. Use this tool when you need to recover from incorrect file changes or
 /// if a revert is requested by the user.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
@@ -534,6 +609,7 @@ impl ToolDescription for Tools {
     fn description(&self) -> String {
         match self {
             Tools::Patch(v) => v.description(),
+            Tools::PatchRange(v) => v.description(),
             Tools::Shell(v) => v.description(),
             Tools::Followup(v) => v.description(),
             Tools::Fetch(v) => v.description(),
@@ -569,6 +645,7 @@ impl Tools {
             .into_generator();
         match self {
             Tools::Patch(_) => r#gen.into_root_schema_for::<FSPatch>(),
+            Tools::PatchRange(_) => r#gen.into_root_schema_for::<FSPatchRange>(),
             Tools::Shell(_) => r#gen.into_root_schema_for::<Shell>(),
             Tools::Followup(_) => r#gen.into_root_schema_for::<Followup>(),
             Tools::Fetch(_) => r#gen.into_root_schema_for::<NetFetch>(),
@@ -674,6 +751,11 @@ impl Tools {
                 url: input.url.clone(),
                 cwd,
                 message: format!("Fetch content from URL: {}", input.url),
+            }),
+            Tools::PatchRange(input) => Some(crate::policies::PermissionOperation::Write {
+                path: std::path::PathBuf::from(&input.path),
+                cwd,
+                message: format!("Modify file (range): {}", display_path_for(&input.path)),
             }),
             // Operations that don't require permission checks
             Tools::Undo(_) | Tools::Followup(_) | Tools::AttemptCompletion(_) | Tools::Plan(_) => {
