@@ -780,15 +780,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn init_conversation(&mut self) -> Result<ConversationId> {
+        if let Some(agent_id) = get_agent_from_env()
+            && !self.cli.is_interactive()
+        {
+            self.api.set_operating_agent(agent_id).await?;
+        }
+
         let id = match self.state.conversation_id {
             Some(ref id) => Ok(*id),
             None => {
                 let mut new_conversation = false;
                 self.spinner.start(Some("Initializing"))?;
-
-                if let Some(agent_id) = get_agent_from_env() {
-                    self.api.set_operating_agent(agent_id).await?;
-                }
 
                 // We need to try and get the conversation ID first before fetching the model
                 let conversation = if let Some(ref path) = self.cli.conversation {
