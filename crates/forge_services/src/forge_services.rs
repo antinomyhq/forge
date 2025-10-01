@@ -1,6 +1,11 @@
 use std::sync::Arc;
 
-use forge_app::Services;
+use async_trait::async_trait;
+use forge_app::config_resolver::{
+    ConfigError, ConfigSource, ConfigurationResolver, ResolvedConfig,
+};
+use forge_app::domain::{AgentId, ModelId};
+use forge_app::{AgentLoaderService, AppConfigService, Services};
 
 use crate::agent_loader::AgentLoaderService as ForgeAgentLoaderService;
 use crate::app_config::ForgeConfigService;
@@ -36,7 +41,15 @@ type AuthService<F> = ForgeAuthService<F>;
 /// - F: The infrastructure implementation that provides core services like
 ///   environment, file reading, vector indexing, and embedding.
 #[derive(Clone)]
-pub struct ForgeServices<F: HttpInfra + EnvironmentInfra + McpServerInfra + WalkerInfra> {
+pub struct ForgeServices<
+    F: HttpInfra
+        + EnvironmentInfra
+        + McpServerInfra
+        + WalkerInfra
+        + SnapshotInfra
+        + FileRemoverInfra
+        + FileDirectoryInfra,
+> {
     chat_service: Arc<ForgeProviderService<F>>,
     conversation_service: Arc<ForgeConversationService<F>>,
     template_service: Arc<ForgeTemplateService<F>>,
@@ -62,6 +75,7 @@ pub struct ForgeServices<F: HttpInfra + EnvironmentInfra + McpServerInfra + Walk
     provider_service: Arc<ForgeProviderRegistry<F>>,
     agent_loader_service: Arc<ForgeAgentLoaderService<F>>,
     policy_service: ForgePolicyService<F>,
+    environment: Vec<String>,
 }
 
 impl<
@@ -75,7 +89,11 @@ impl<
         + DirectoryReaderInfra
         + CommandInfra
         + UserInfra
-        + ConversationRepository,
+        + ConversationRepository
+        + SnapshotInfra
+        + FileRemoverInfra
+        + FileDirectoryInfra
+        + Clone,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -105,6 +123,9 @@ impl<
             Arc::new(ForgeCustomInstructionsService::new(infra.clone()));
         let agent_loader_service = Arc::new(ForgeAgentLoaderService::new(infra.clone()));
         let policy_service = ForgePolicyService::new(infra.clone());
+        let environment = std::env::vars()
+            .map(|(k, v)| format!("{}={}", k, v))
+            .collect();
 
         Self {
             conversation_service,
@@ -132,6 +153,7 @@ impl<
             provider_service,
             agent_loader_service,
             policy_service,
+            environment,
         }
     }
 }
@@ -179,6 +201,7 @@ impl<
     type ProviderRegistry = ForgeProviderRegistry<F>;
     type AgentLoaderService = ForgeAgentLoaderService<F>;
     type PolicyService = ForgePolicyService<F>;
+    type ConfigurationResolver = Self;
 
     fn provider_service(&self) -> &Self::ProviderService {
         &self.chat_service
@@ -276,5 +299,160 @@ impl<
 
     fn policy_service(&self) -> &Self::PolicyService {
         &self.policy_service
+    }
+
+    fn configuration_resolver(&self) -> &Self::ConfigurationResolver {
+        self
+    }
+}
+
+#[async_trait]
+impl<F> ConfigurationResolver for ForgeServices<F>
+where
+    F: McpServerInfra
+        + EnvironmentInfra
+        + FileWriterInfra
+        + FileInfoInfra
+        + FileReaderInfra
+        + HttpInfra
+        + WalkerInfra
+        + DirectoryReaderInfra
+        + CommandInfra
+        + UserInfra
+        + ConversationRepository
+        + SnapshotInfra
+        + FileRemoverInfra
+        + FileDirectoryInfra
+        + Clone
+        + 'static,
+{
+    async fn resolve_agent(&self) -> Result<Option<(AgentId, ConfigSource)>, ConfigError> {
+        // Environment variables have highest precedence
+        if let Some(agent) = self.get_agent_from_env() {
+            return Ok(Some((agent, ConfigSource::Environment)));
+        }
+
+        // Then app config
+        if let Some(config) = self.config_service.get_app_config().await
+            && let Some(agent) = config.operating_agent
+            && !agent.as_str().is_empty()
+        {
+            return Ok(Some((agent, ConfigSource::AppConfig)));
+        }
+
+        // Finally default
+        Ok(Some((AgentId::default(), ConfigSource::Default)))
+    }
+
+    async fn resolve_model(&self) -> Result<Option<(ModelId, ConfigSource)>, ConfigError> {
+        // Environment variables have highest precedence
+        if let Some(model) = self.get_model_from_env() {
+            return Ok(Some((model, ConfigSource::Environment)));
+        }
+
+        // Then app config
+        if let Some(config) = self.config_service.get_app_config().await
+            && let Some(model) = config.operating_model
+            && !model.as_str().is_empty()
+        {
+            return Ok(Some((model, ConfigSource::AppConfig)));
+        }
+
+        // No default model - user must select one
+        Ok(None)
+    }
+
+    async fn resolve_config(&self) -> Result<ResolvedConfig, ConfigError> {
+        let agent = self.resolve_agent().await?;
+        let model = self.resolve_model().await?;
+
+        Ok(ResolvedConfig { agent, model })
+    }
+
+    async fn validate_resolved_config(&self, config: &ResolvedConfig) -> Result<(), ConfigError> {
+        // Validate that the agent exists if specified
+        if let Some((agent, _)) = &config.agent {
+            let agents = self.agent_loader_service.get_agents().await?;
+            if !agents.iter().any(|a| a.id == *agent) {
+                return Err(ConfigError::AgentNotAvailable(agent.clone()));
+            }
+        }
+
+        // TODO: Validate model availability when we have a proper way to access
+        // provider For now, we'll skip model validation to avoid provider
+        // service complexity
+
+        // Validate model-agent compatibility if both are specified
+        if let (Some((agent, _)), Some((model, _))) = (&config.agent, &config.model)
+            && let Some(incompatibility) =
+                self.check_agent_model_compatibility(agent, model).await?
+        {
+            return Err(incompatibility);
+        }
+
+        Ok(())
+    }
+
+    async fn get_app_config(&self) -> Result<Option<forge_app::dto::AppConfig>, ConfigError> {
+        Ok(self.config_service.get_app_config().await)
+    }
+
+    async fn set_app_config(&self, config: &forge_app::dto::AppConfig) -> Result<(), ConfigError> {
+        // Validate the configuration before setting
+        if let Err(e) = config.validate() {
+            return Err(ConfigError::ValidationFailed(e.to_string()));
+        }
+
+        self.config_service.set_app_config(config).await?;
+        Ok(())
+    }
+}
+
+impl<F> ForgeServices<F>
+where
+    F: McpServerInfra
+        + EnvironmentInfra
+        + FileWriterInfra
+        + FileInfoInfra
+        + FileReaderInfra
+        + HttpInfra
+        + WalkerInfra
+        + DirectoryReaderInfra
+        + CommandInfra
+        + UserInfra
+        + ConversationRepository
+        + SnapshotInfra
+        + FileRemoverInfra
+        + FileDirectoryInfra
+        + Clone,
+{
+    fn get_agent_from_env(&self) -> Option<AgentId> {
+        self.environment.iter().find_map(|line| {
+            line.strip_prefix("FORGE_AGENT=")
+                .map(|agent| AgentId::new(agent.to_string()))
+        })
+    }
+
+    fn get_model_from_env(&self) -> Option<ModelId> {
+        self.environment.iter().find_map(|line| {
+            line.strip_prefix("FORGE_MODEL=")
+                .map(|model| ModelId::new(model.to_string()))
+        })
+    }
+
+    async fn check_agent_model_compatibility(
+        &self,
+        agent: &AgentId,
+        _model: &ModelId,
+    ) -> Result<Option<ConfigError>, ConfigError> {
+        // Get the agent to check its capabilities
+        let agents = self.agent_loader_service.get_agents().await?;
+        let _agent_info = agents.iter().find(|a| a.id == *agent);
+
+        // TODO: Implement agent-model compatibility checking
+        // For now, we'll assume all agents are compatible with all models
+        // In the future, we might check agent.allowed_models if it exists
+
+        Ok(None)
     }
 }

@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, AppConfig, ChatRequest, ChatResponse, Conversation, ConversationId,
+    API, AgentId, AppConfig, ChatRequest, ChatResponse, ConfigSource, Conversation, ConversationId,
     EVENT_USER_TASK_INIT, EVENT_USER_TASK_UPDATE, Event, InterruptionReason, Model, ModelId,
     ToolName, Workflow,
 };
@@ -22,7 +22,7 @@ use tokio_stream::StreamExt;
 
 use crate::cli::{Cli, ConfigCommand, McpCommand, TopLevelCommand, Transport};
 use crate::conversation_selector::ConversationSelector;
-use crate::env::{get_agent_from_env, get_conversation_id_from_env};
+use crate::env::get_conversation_id_from_env;
 use crate::info::{Info, get_usage};
 use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
@@ -784,27 +784,45 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                 let mut sub_title = conversation.id.into_string();
 
-                // Show the actual operating agent that will be used
-                let operating_agent =
-                    if let Some(config_agent) = self.api.get_operating_agent().await {
-                        // Use configured default agent
-                        config_agent.as_str().to_string()
-                    } else if let Some(ref agent) = get_agent_from_env() {
-                        // Environment variable takes precedence
-                        agent.clone()
-                    } else {
-                        // Use default agent
-                        AgentId::default().as_str().to_string()
-                    };
+                // Use the centralized configuration resolver to get resolved configuration
+                let resolved_config = self.api.get_resolved_config().await?;
 
-                // Show the model that will be used
-                let model_display = if let Some(model) = &self.state.model {
-                    format!(" with {}", model.as_str())
+                // Show the actual operating agent that will be used with source information
+                let operating_agent_display = if let Some((agent, source)) = resolved_config.agent {
+                    match source {
+                        ConfigSource::Environment => {
+                            format!("{} (env)", agent.as_str())
+                        }
+                        ConfigSource::AppConfig => {
+                            format!("{} (config)", agent.as_str())
+                        }
+                        ConfigSource::Default => {
+                            format!("{} (default)", agent.as_str())
+                        }
+                    }
+                } else {
+                    "default".to_string()
+                };
+
+                // Show the model that will be used with source information
+                let model_display = if let Some((model, source)) = resolved_config.model {
+                    match source {
+                        ConfigSource::Environment => {
+                            format!(" with {} (env)", model.as_str())
+                        }
+                        ConfigSource::AppConfig => {
+                            format!(" with {} (config)", model.as_str())
+                        }
+                        ConfigSource::Default => {
+                            format!(" with {} (default)", model.as_str())
+                        }
+                    }
                 } else {
                     String::new()
                 };
 
-                sub_title.push_str(format!(" [via {operating_agent}{model_display}]").as_str());
+                sub_title
+                    .push_str(format!(" [via {operating_agent_display}{model_display}]").as_str());
 
                 if new_conversation {
                     self.writeln_title(
@@ -819,19 +837,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         };
 
-        // Set operating agent with proper precedence: configured agent first, then env,
-        // then default
-        self.state.operating_agent =
-            if let Some(config_agent) = self.api.get_operating_agent().await {
-                // Use configured default agent
-                config_agent
-            } else if let Some(ref agent) = get_agent_from_env() {
-                // Environment variable takes precedence over default but not config
-                AgentId::new(agent)
-            } else {
-                // Use default agent
-                AgentId::default()
-            };
+        // Set operating agent using the centralized configuration resolver
+        if let Some((agent, _)) = self.api.get_resolved_config().await?.agent {
+            self.state.operating_agent = agent;
+        }
 
         id
     }
@@ -845,11 +854,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         )?;
 
         // Ensure we have a model selected before proceeding with initialization
-        // Check if app config has a default model that should override workflow model
-        if let Some(config) = self.api.app_config().await
-            && let Some(app_config_model) = config.operating_model
-        {
-            workflow.model = Some(app_config_model);
+        // Use the centralized configuration resolver for consistent model resolution
+        let resolved_config = self.api.get_resolved_config().await?;
+
+        if let Some((model, _)) = resolved_config.model {
+            workflow.model = Some(model);
         } else if workflow.model.is_none() {
             workflow.model = Some(
                 self.select_model()
@@ -871,10 +880,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .api
             .write_workflow(self.cli.workflow.as_deref(), &workflow);
         let get_agents_fut = self.api.get_agents();
-        let get_operating_agent_fut = self.api.get_operating_agent();
+        let get_resolved_config_fut = self.api.get_resolved_config();
 
-        let (write_workflow_result, agents_result, operating_agent_result) =
-            tokio::join!(write_workflow_fut, get_agents_fut, get_operating_agent_fut);
+        let (write_workflow_result, agents_result, resolved_config_result) =
+            tokio::join!(write_workflow_fut, get_agents_fut, get_resolved_config_fut);
 
         // Handle workflow write result first as it's critical for the system state
         write_workflow_result?;
@@ -898,11 +907,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         }
 
-        // Get the operating agent with fallback to configured default
-        let agent = operating_agent_result.unwrap_or_else(|| {
-            // If no agent is configured in the app config, fall back to the default
-            AgentId::default()
-        });
+        // Get the operating agent from the resolved configuration
+        let agent = resolved_config_result
+            .ok()
+            .and_then(|config| config.agent)
+            .map(|(agent, _)| agent)
+            .unwrap_or_default();
 
         // Finalize UI state initialization by registering commands and setting up the
         // state
@@ -1226,9 +1236,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ));
         }
 
-        // Validate the configuration
+        // Validate the configuration with improved error handling
         if let Err(e) = config.validate() {
-            return Err(anyhow::anyhow!("Configuration validation failed: {e}"));
+            return Err(anyhow::anyhow!("Configuration validation failed: {}", e));
         }
 
         // Save the configuration
@@ -1237,17 +1247,32 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn handle_config_show(&mut self) -> anyhow::Result<()> {
-        let config = self.api.app_config().await.unwrap_or_default();
+        // Use the resolved configuration to show actual values with source information
+        let resolved_config = self.api.get_resolved_config().await?;
 
         self.writeln_title(TitleFormat::info("Current Configuration"))?;
 
-        match config.operating_model {
-            Some(model) => self.writeln(format!("Default Model: {}", model))?,
+        match resolved_config.model {
+            Some((model, source)) => {
+                let source_str = match source {
+                    ConfigSource::Environment => " (from environment)",
+                    ConfigSource::AppConfig => " (from config)",
+                    ConfigSource::Default => " (default)",
+                };
+                self.writeln(format!("Default Model: {}{}", model, source_str))?;
+            }
             None => self.writeln("Default Model: <not set>")?,
         }
 
-        match config.operating_agent {
-            Some(agent) => self.writeln(format!("Default Agent: {}", agent))?,
+        match resolved_config.agent {
+            Some((agent, source)) => {
+                let source_str = match source {
+                    ConfigSource::Environment => " (from environment)",
+                    ConfigSource::AppConfig => " (from config)",
+                    ConfigSource::Default => " (default)",
+                };
+                self.writeln(format!("Default Agent: {}{}", agent, source_str))?;
+            }
             None => self.writeln("Default Agent: <not set>")?,
         }
 
@@ -1258,15 +1283,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         &mut self,
         get_args: crate::cli::ConfigGetArgs,
     ) -> anyhow::Result<()> {
-        let config = self.api.app_config().await.unwrap_or_default();
+        // Use the resolved configuration for consistent behavior
+        let resolved_config = self.api.get_resolved_config().await?;
 
         match get_args.key.as_str() {
-            "model" => match config.operating_model {
-                Some(model) => self.writeln(model.as_str())?,
+            "model" => match resolved_config.model {
+                Some((model, _)) => self.writeln(model.as_str())?,
                 None => return Err(anyhow::anyhow!("Default model is not set")),
             },
-            "agent" => match config.operating_agent {
-                Some(agent) => self.writeln(agent.as_str())?,
+            "agent" => match resolved_config.agent {
+                Some((agent, _)) => self.writeln(agent.as_str())?,
                 None => return Err(anyhow::anyhow!("Default agent is not set")),
             },
             _ => {

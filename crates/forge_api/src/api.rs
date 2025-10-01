@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
+use forge_app::config_resolver::ResolvedConfig;
 use forge_app::dto::{AppConfig, InitAuth, ToolsOverview};
 use forge_app::{User, UserUsage};
 use forge_domain::AgentId;
@@ -105,9 +106,18 @@ pub trait API: Sync + Send {
     async fn user_info(&self) -> anyhow::Result<Option<User>>;
     async fn user_usage(&self) -> anyhow::Result<Option<UserUsage>>;
 
-    /// Gets the currently operating agent
+    /// Gets the currently operating agent with proper precedence resolution
     async fn get_operating_agent(&self) -> Option<AgentId>;
 
     /// Sets the operating agent
     async fn set_operating_agent(&self, agent_id: AgentId) -> anyhow::Result<()>;
+
+    /// Gets the currently operating model with proper precedence resolution
+    async fn get_operating_model(&self) -> Option<ModelId>;
+
+    /// Sets the operating model
+    async fn set_operating_model(&self, model_id: ModelId) -> anyhow::Result<()>;
+
+    /// Gets the resolved configuration with source information
+    async fn get_resolved_config(&self) -> anyhow::Result<ResolvedConfig>;
 }

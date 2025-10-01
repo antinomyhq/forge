@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use forge_app::config_resolver::{ConfigurationResolver, ResolvedConfig};
 use forge_app::dto::{AppConfig, InitAuth, ToolsOverview};
 use forge_app::{
     AgentLoaderService, AppConfigService, AuthService, ConversationService, EnvironmentService,
@@ -201,14 +202,41 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
 
     async fn get_operating_agent(&self) -> Option<AgentId> {
         self.services
-            .get_app_config()
+            .configuration_resolver()
+            .resolve_agent()
             .await
-            .and_then(|config| config.operating_agent)
+            .ok()
+            .flatten()
+            .map(|(agent, _)| agent)
     }
 
     async fn set_operating_agent(&self, agent_id: AgentId) -> anyhow::Result<()> {
         let mut config = self.services.get_app_config().await.unwrap_or_default();
         config.operating_agent = Some(agent_id);
         self.services.set_app_config(&config).await
+    }
+
+    async fn get_operating_model(&self) -> Option<ModelId> {
+        self.services
+            .configuration_resolver()
+            .resolve_model()
+            .await
+            .ok()
+            .flatten()
+            .map(|(model, _)| model)
+    }
+
+    async fn set_operating_model(&self, model_id: ModelId) -> anyhow::Result<()> {
+        let mut config = self.services.get_app_config().await.unwrap_or_default();
+        config.operating_model = Some(model_id);
+        self.services.set_app_config(&config).await
+    }
+
+    async fn get_resolved_config(&self) -> anyhow::Result<ResolvedConfig> {
+        Ok(self
+            .services
+            .configuration_resolver()
+            .resolve_config()
+            .await?)
     }
 }

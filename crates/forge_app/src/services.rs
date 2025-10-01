@@ -14,6 +14,7 @@ use reqwest_eventsource::EventSource;
 use url::Url;
 
 use crate::Walker;
+use crate::config_resolver::ConfigurationResolver;
 use crate::dto::{AppConfig, InitAuth, LoginInfo};
 use crate::user::{User, UserUsage};
 
@@ -400,6 +401,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type ProviderRegistry: ProviderRegistry;
     type AgentLoaderService: AgentLoaderService;
     type PolicyService: PolicyService;
+    type ConfigurationResolver: ConfigurationResolver;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn conversation_service(&self) -> &Self::ConversationService;
@@ -426,6 +428,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn provider_registry(&self) -> &Self::ProviderRegistry;
     fn agent_loader_service(&self) -> &Self::AgentLoaderService;
     fn policy_service(&self) -> &Self::PolicyService;
+    fn configuration_resolver(&self) -> &Self::ConfigurationResolver;
 }
 
 #[async_trait::async_trait]

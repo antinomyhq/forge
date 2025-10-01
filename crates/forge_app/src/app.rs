@@ -7,6 +7,7 @@ use forge_domain::*;
 use forge_stream::MpscStream;
 
 use crate::authenticator::Authenticator;
+use crate::config_resolver::ConfigurationResolver;
 use crate::dto::{InitAuth, ToolsOverview};
 use crate::orch::Orchestrator;
 use crate::services::{CustomInstructionsService, TemplateService};
@@ -95,10 +96,16 @@ impl<S: Services> ForgeApp<S> {
 
         let custom_instructions = services.get_custom_instructions().await;
 
-        // Prepare agents with user configuration and subscriptions
-        let agents = services.get_agents().await?;
-        let config = services.get_app_config().await.unwrap_or_default();
+        // Use the centralized configuration resolver to get resolved configuration
+        let resolved_config = services.configuration_resolver().resolve_config().await?;
 
+        // Validate the resolved configuration
+        services
+            .configuration_resolver()
+            .validate_resolved_config(&resolved_config)
+            .await?;
+
+        let agents = services.get_agents().await?;
         let mcp_tools = self.services.mcp_service().list().await?;
 
         // Apply workflow configuration and MCP tools to all agents
@@ -111,8 +118,8 @@ impl<S: Services> ForgeApp<S> {
             })
             .collect();
 
-        // Select agent based on configuration or event subscription
-        let agent = if let Some(configured_agent_id) = config.operating_agent {
+        // Select agent based on resolved configuration or event subscription
+        let agent = if let Some((configured_agent_id, _)) = resolved_config.agent {
             processed_agents
                 .into_iter()
                 .find(|agent| agent.id == configured_agent_id)
