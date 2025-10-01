@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 use forge_api::{API, AgentId, ModelId, ProviderId};
 
 use super::display::{display_all_config, display_single_field, display_success};
+use super::error::{ConfigError, Result as ConfigResult};
 use super::interactive::{
     ConfigOption, select_agent, select_model, select_provider, show_config_menu,
 };
@@ -12,13 +13,14 @@ use crate::cli::{ConfigCommand, ConfigGetArgs, ConfigSetArgs};
 /// Handle config command
 pub async fn handle_config_command<A: API>(api: &A, command: ConfigCommand) -> Result<()> {
     match command {
-        ConfigCommand::Set(args) => handle_config_set(api, args).await,
-        ConfigCommand::Get(args) => handle_config_get(api, args).await,
+        ConfigCommand::Set(args) => handle_config_set(api, args).await?,
+        ConfigCommand::Get(args) => handle_config_get(api, args).await?,
     }
+    Ok(())
 }
 
 /// Handle config set command
-async fn handle_config_set<A: API>(api: &A, args: ConfigSetArgs) -> Result<()> {
+async fn handle_config_set<A: API>(api: &A, args: ConfigSetArgs) -> ConfigResult<()> {
     if args.has_any_field() {
         // Non-interactive mode: set specified values
         handle_non_interactive_set(api, args).await
@@ -29,7 +31,14 @@ async fn handle_config_set<A: API>(api: &A, args: ConfigSetArgs) -> Result<()> {
 }
 
 /// Handle non-interactive config set
-async fn handle_non_interactive_set<A: API>(api: &A, args: ConfigSetArgs) -> Result<()> {
+async fn handle_non_interactive_set<A: API>(api: &A, args: ConfigSetArgs) -> ConfigResult<()> {
+    // Set provider if specified
+    if let Some(provider_str) = args.provider {
+        let provider_id = validate_provider(api, &provider_str).await?;
+        api.set_provider(provider_id).await?;
+        display_success("Provider set", &provider_str);
+    }
+
     // Set agent if specified
     if let Some(agent_str) = args.agent {
         let agent_id = validate_agent(api, &agent_str).await?;
@@ -44,18 +53,11 @@ async fn handle_non_interactive_set<A: API>(api: &A, args: ConfigSetArgs) -> Res
         display_success("Model set", model_id.as_str());
     }
 
-    // Set provider if specified
-    if let Some(provider_str) = args.provider {
-        let provider_id = validate_provider(api, &provider_str).await?;
-        api.set_provider(provider_id).await?;
-        display_success("Provider set", &provider_str);
-    }
-
     Ok(())
 }
 
 /// Handle interactive config set
-async fn handle_interactive_set<A: API>(api: &A) -> Result<()> {
+async fn handle_interactive_set<A: API>(api: &A) -> ConfigResult<()> {
     // Show menu to select what to configure
     let option = match show_config_menu()? {
         Some(opt) => opt,
@@ -87,7 +89,7 @@ async fn handle_interactive_set<A: API>(api: &A) -> Result<()> {
 }
 
 /// Handle config get command
-async fn handle_config_get<A: API>(api: &A, args: ConfigGetArgs) -> Result<()> {
+async fn handle_config_get<A: API>(api: &A, args: ConfigGetArgs) -> ConfigResult<()> {
     if let Some(field) = args.field {
         // Get specific field
         match field.to_lowercase().as_str() {
@@ -110,10 +112,7 @@ async fn handle_config_get<A: API>(api: &A, args: ConfigGetArgs) -> Result<()> {
                 display_single_field("provider", provider);
             }
             _ => {
-                anyhow::bail!(
-                    "Invalid field: '{}'. Valid fields are: agent, model, provider",
-                    field
-                );
+                return Err(ConfigError::InvalidField { field: field.clone() });
             }
         }
     } else {
@@ -135,7 +134,7 @@ async fn handle_config_get<A: API>(api: &A, args: ConfigGetArgs) -> Result<()> {
 }
 
 /// Validate agent exists
-async fn validate_agent<A: API>(api: &A, agent_str: &str) -> Result<AgentId> {
+async fn validate_agent<A: API>(api: &A, agent_str: &str) -> ConfigResult<AgentId> {
     let agents = api.get_agents().await?;
     let agent_id = AgentId::new(agent_str);
 
@@ -143,16 +142,15 @@ async fn validate_agent<A: API>(api: &A, agent_str: &str) -> Result<AgentId> {
         Ok(agent_id)
     } else {
         let available: Vec<_> = agents.iter().map(|a| a.id.as_str()).collect();
-        anyhow::bail!(
-            "Agent '{}' not found. Available agents: {}",
-            agent_str,
-            available.join(", ")
-        );
+        Err(ConfigError::AgentNotFound {
+            agent: agent_str.to_string(),
+            available: available.join(", "),
+        })
     }
 }
 
 /// Validate model exists
-async fn validate_model<A: API>(api: &A, model_str: &str) -> Result<ModelId> {
+async fn validate_model<A: API>(api: &A, model_str: &str) -> ConfigResult<ModelId> {
     let models = api.models().await?;
     let model_id = ModelId::new(model_str);
 
@@ -167,16 +165,12 @@ async fn validate_model<A: API>(api: &A, model_str: &str) -> Result<ModelId> {
             available.join(", ")
         };
 
-        anyhow::bail!(
-            "Model '{}' not found. Available models: {}",
-            model_str,
-            suggestion
-        );
+        Err(ConfigError::ModelNotFound { model: model_str.to_string(), available: suggestion })
     }
 }
 
 /// Validate provider exists and has API key
-async fn validate_provider<A: API>(api: &A, provider_str: &str) -> Result<ProviderId> {
+async fn validate_provider<A: API>(api: &A, provider_str: &str) -> ConfigResult<ProviderId> {
     // Parse provider ID from string
     let provider_id = ProviderId::from_str(provider_str).with_context(|| {
         format!(
@@ -191,15 +185,14 @@ async fn validate_provider<A: API>(api: &A, provider_str: &str) -> Result<Provid
     if providers.iter().any(|p| p.id == provider_id) {
         Ok(provider_id)
     } else {
-        anyhow::bail!(
-            "Provider '{}' is not available. Make sure the API key is set. Available providers: {}",
-            provider_str,
-            providers
+        Err(ConfigError::ProviderNotAvailable {
+            provider: provider_str.to_string(),
+            available: providers
                 .iter()
                 .map(|p| p.id.to_string())
                 .collect::<Vec<_>>()
-                .join(", ")
-        );
+                .join(", "),
+        })
     }
 }
 

@@ -9,6 +9,7 @@ path = "src/main.rs"
 
 
 [dependencies]
+thiserror = { workspace = true }
 clap.workspace = true
 console.workspace = true
 forge_app.workspace = true

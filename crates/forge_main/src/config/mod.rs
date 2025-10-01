@@ -1,4 +1,5 @@
 mod display;
+mod error;
 mod handler;
 mod interactive;
 
