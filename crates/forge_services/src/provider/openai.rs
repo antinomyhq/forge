@@ -166,8 +166,6 @@ impl<T: HttpClientService> OpenAIProvider<T> {
         model: &ModelId,
         context: ChatContext,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        // Check if we should use the responses endpoint for GPT-5 models
-
         self.inner_chat(model, context).await
     }
 
