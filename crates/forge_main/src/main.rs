@@ -60,7 +60,10 @@ async fn main() -> Result<()> {
     {
         let restricted = cli.restricted;
         let api = ForgeAPI::init(restricted, cwd.clone());
-        handle_config_command(&api, config_group.command.clone()).await?;
+        if let Err(e) = handle_config_command(&api, config_group.command.clone()).await {
+            println!("{}", TitleFormat::error(e.to_string()).display());
+            std::process::exit(1);
+        }
         return Ok(());
     }
 
