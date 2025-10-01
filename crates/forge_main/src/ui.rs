@@ -786,6 +786,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 let mut new_conversation = false;
                 self.spinner.start(Some("Initializing"))?;
 
+                if let Some(agent_id) = get_agent_from_env() {
+                    self.api.set_operating_agent(agent_id).await?;
+                }
+
                 // We need to try and get the conversation ID first before fetching the model
                 let conversation = if let Some(ref path) = self.cli.conversation {
                     let conversation: Conversation =
@@ -815,7 +819,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.spinner.stop(None)?;
 
                 let mut sub_title = conversation.id.into_string();
-                if let Some(ref agent) = get_agent_from_env() {
+                if let Some(ref agent) = self.api.get_operating_agent().await {
                     sub_title.push_str(format!(" [via {agent}]").as_str());
                 }
 
@@ -832,7 +836,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         };
 
-        if let Some(ref agent) = get_agent_from_env() {
+        if let Some(ref agent) = self.api.get_operating_agent().await {
             self.state.operating_agent = AgentId::new(agent)
         }
 
