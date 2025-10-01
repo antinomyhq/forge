@@ -5,8 +5,8 @@ expression: to_value(actual)
 <file_diff
   path="/home/user/test.txt"
   total_lines="2"
-><![CDATA[1        |-Hello world
-    1    |+Hello universe
-2   2    | This is a test
+><![CDATA[1   |-Hello world
+  1 |+Hello universe
+2 2 | This is a test
 ]]>
 </file_diff>
