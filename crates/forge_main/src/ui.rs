@@ -873,16 +873,28 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         new_conversation: bool,
         id: ConversationId,
     ) -> Result<(), anyhow::Error> {
-        let mut sub_title = id.into_string();
-        if let Some(ref agent) = self.api.get_operating_agent().await {
-            sub_title.push_str(format!(" [via {agent}]").as_str());
-        }
-        let title = if new_conversation {
-            TitleFormat::debug("Initialize".to_string()).sub_title(sub_title)
+        let mut title = if new_conversation {
+            "Initialize".to_string()
         } else {
-            TitleFormat::debug("Continue".to_string()).sub_title(sub_title)
+            "Continue".to_string()
         };
-        self.writeln_title(title)?;
+
+        title.push_str(format!(" {}", id.into_string()).as_str());
+
+        let mut sub_title = String::new();
+        sub_title.push_str("[");
+
+        if let Some(ref agent) = self.api.get_operating_agent().await {
+            sub_title.push_str(format!("via {}", agent.to_string()).as_str());
+        }
+
+        if let Some(ref model) = self.api.get_operating_model().await {
+            sub_title.push_str(format!("/{}", model.as_str()).as_str());
+        }
+
+        sub_title.push_str("]");
+
+        self.writeln_title(TitleFormat::debug(title).sub_title(sub_title.bold().to_string()))?;
         Ok(())
     }
 
