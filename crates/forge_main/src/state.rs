@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use derive_setters::Setters;
-use forge_api::{ConversationId, Environment, Usage};
+use forge_api::{ConversationId, Environment};
 
 //TODO: UIState and ForgePrompt seem like the same thing and can be merged
 /// State information for the UI
@@ -10,7 +10,6 @@ use forge_api::{ConversationId, Environment, Usage};
 pub struct UIState {
     pub cwd: PathBuf,
     pub conversation_id: Option<ConversationId>,
-    pub usage: Usage,
     pub is_first: bool,
 }
 
@@ -19,7 +18,6 @@ impl UIState {
         Self {
             cwd: env.cwd,
             conversation_id: Default::default(),
-            usage: Default::default(),
             is_first: true,
         }
     }

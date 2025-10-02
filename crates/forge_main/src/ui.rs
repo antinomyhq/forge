@@ -175,15 +175,23 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn prompt(&self) -> Result<Command> {
+        // Get usage from current conversation if available
+        let usage = if let Some(conversation_id) = &self.state.conversation_id {
+            self.api
+                .conversation(conversation_id)
+                .await
+                .ok()
+                .flatten()
+                .and_then(|conv| conv.context)
+                .and_then(|ctx| ctx.usage)
+        } else {
+            None
+        };
+
         // Prompt the user for input
         let agent_id = self.api.get_operating_agent().await.unwrap_or_default();
         let model = self.api.get_operating_model().await;
-        let forge_prompt = ForgePrompt {
-            cwd: self.state.cwd.clone(),
-            usage: Some(self.state.usage.clone()),
-            model,
-            agent_id,
-        };
+        let forge_prompt = ForgePrompt { cwd: self.state.cwd.clone(), usage, model, agent_id };
         self.console.prompt(forge_prompt).await
     }
 
@@ -507,10 +515,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         if let Some(conversation) = ConversationSelector::select_conversation(&conversations)? {
             self.state.conversation_id = Some(conversation.id);
-            self.state.usage = conversation
-                .context
-                .and_then(|ctx| ctx.usage)
-                .unwrap_or(self.state.usage.clone());
         }
         Ok(())
     }
@@ -848,10 +852,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                 self.api.upsert_conversation(conversation.clone()).await?;
                 self.state.conversation_id = Some(conversation.id);
-                self.state.usage = conversation
-                    .context
-                    .and_then(|ctx| ctx.usage)
-                    .unwrap_or(self.state.usage.clone());
                 self.spinner.stop(None)?;
 
                 let mut sub_title = conversation.id.into_string();
@@ -1072,10 +1072,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     return Ok(());
                 }
             }
-            ChatResponse::Usage(usage) => {
-                // Accumulate all metrics (tokens + cost) instead of overwriting
-                self.state.usage = self.state.usage.clone().accumulate(&usage);
-            }
+            ChatResponse::Usage(_) => {}
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 if !self.api.environment().retry_config.suppress_retry_errors {
                     self.spinner.start(Some("Retrying"))?;
@@ -1186,7 +1183,26 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn on_usage(&mut self) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Usage"))?;
-        let mut info: Info = (&self.state.usage).into();
+
+        // Get usage from current conversation if available
+        let conversation_usage = if let Some(conversation_id) = &self.state.conversation_id {
+            self.api
+                .conversation(conversation_id)
+                .await
+                .ok()
+                .flatten()
+                .and_then(|conv| conv.context)
+                .and_then(|ctx| ctx.usage)
+        } else {
+            None
+        };
+
+        let mut info = if let Some(usage) = conversation_usage {
+            Info::from(&usage)
+        } else {
+            Info::new()
+        };
+
         if let Ok(Some(user_usage)) = self.api.user_usage().await {
             info = info.extend(Info::from(&user_usage));
         }
