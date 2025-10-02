@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, EVENT_USER_TASK_INIT,
+    API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId,
     EVENT_USER_TASK_UPDATE, Event, InterruptionReason, Model, ModelId, Provider, ToolName,
     Workflow,
 };
@@ -127,9 +127,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             self.api.set_operating_agent(agent_id).await?;
             self.api.upsert_conversation(conversation).await?;
         }
-
-        // Reset is_first to true when switching agents
-        self.state.is_first = true;
 
         // Update the app config with the new operating agent.
         self.api.set_operating_agent(agent.id.clone()).await?;
@@ -983,14 +980,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let conversation_id = self.init_conversation().await?;
 
         // Create a ChatRequest with the appropriate event type
-        let event = if self.state.is_first {
-            self.state.is_first = false;
-            self.create_task_event(content, EVENT_USER_TASK_INIT)
-                .await?
-        } else {
-            self.create_task_event(content, EVENT_USER_TASK_UPDATE)
-                .await?
-        };
+        let event = self.create_task_event(content, EVENT_USER_TASK_UPDATE)
+            .await?;
 
         // Create the chat request with the event
         let chat = ChatRequest::new(event, conversation_id);

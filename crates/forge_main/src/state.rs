@@ -10,7 +10,6 @@ use forge_api::{ConversationId, Environment};
 pub struct UIState {
     pub cwd: PathBuf,
     pub conversation_id: Option<ConversationId>,
-    pub is_first: bool,
 }
 
 impl UIState {
@@ -18,7 +17,6 @@ impl UIState {
         Self {
             cwd: env.cwd,
             conversation_id: Default::default(),
-            is_first: true,
         }
     }
 }
