@@ -7,39 +7,7 @@
 use std::fmt::Display;
 
 use colored::Colorize;
-use forge_api::{AgentId, Model, Provider};
-
-/// Agent wrapper for selection menus with formatted display labels
-///
-/// This struct is used to create agent selection items with properly formatted
-/// labels that include the agent ID and title, extracted from the original UI
-/// code.
-#[derive(Clone)]
-pub struct CLIAgent {
-    pub id: AgentId,
-    label: String,
-}
-
-impl Display for CLIAgent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.label)
-    }
-}
-
-impl CLIAgent {
-    pub fn from_agent_with_label(agent: &forge_api::Agent, n: usize) -> Self {
-        let title = &agent
-            .title
-            .clone()
-            .unwrap_or("<Missing agent.title>".to_string());
-        let label = format!(
-            "{:<n$} {}",
-            agent.id.as_str().bold(),
-            title.lines().collect::<Vec<_>>().join(" ").dimmed()
-        );
-        CLIAgent { label, id: agent.id.clone() }
-    }
-}
+use forge_api::{Model, Provider};
 
 /// Wrapper for displaying models in selection menus
 ///
