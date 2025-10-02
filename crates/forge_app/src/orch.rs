@@ -12,7 +12,7 @@ use tracing::{debug, info, warn};
 use crate::agent::AgentService;
 use crate::compact::Compactor;
 use crate::title_generator::TitleGenerator;
-use crate::user_prompt::UserPromptService;
+use crate::user_prompt::UserPromptBuilder;
 
 #[derive(Clone, Setters)]
 #[setters(into, strip_option)]
@@ -28,7 +28,7 @@ pub struct Orchestrator<S> {
     agent: Agent,
     event: Event,
     error_tracker: ToolErrorTracker,
-    user_prompt_service: UserPromptService<S>,
+    user_prompt_service: UserPromptBuilder<S>,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -41,7 +41,7 @@ impl<S: AgentService> Orchestrator<S> {
         event: Event,
     ) -> Self {
         Self {
-            user_prompt_service: UserPromptService::new(
+            user_prompt_service: UserPromptBuilder::new(
                 services.clone(),
                 agent.clone(),
                 event.clone(),

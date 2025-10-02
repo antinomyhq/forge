@@ -7,14 +7,14 @@ use crate::agent::AgentService;
 
 /// Service responsible for setting user prompts in the conversation context
 #[derive(Clone)]
-pub struct UserPromptService<S> {
+pub struct UserPromptBuilder<S> {
     services: Arc<S>,
     agent: Agent,
     event: Event,
     current_time: chrono::DateTime<chrono::Local>,
 }
 
-impl<S> UserPromptService<S> {
+impl<S> UserPromptBuilder<S> {
     /// Creates a new UserPromptService
     pub fn new(
         service: Arc<S>,
