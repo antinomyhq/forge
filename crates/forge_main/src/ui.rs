@@ -23,7 +23,7 @@ use tokio_stream::StreamExt;
 use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
 use crate::conversation_selector::ConversationSelector;
 use crate::env::{get_agent_from_env, get_conversation_id_from_env};
-use crate::info::Info;
+use crate::info::{Info, truncate_key};
 use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
 use crate::prompt::ForgePrompt;
@@ -416,7 +416,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn on_info(&mut self) -> anyhow::Result<()> {
-        let mut info = Info::from(&self.api.environment()).extend(Info::from(&self.state));
+        let mut info = Info::from(&self.api.environment());
 
         // Execute async operations in parallel
         let conversation_future = async {
@@ -430,23 +430,38 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let login_future = self.api.get_login_info();
         let operating_agent_future = self.api.get_operating_agent();
         let operating_model_future = self.api.get_operating_model();
+        let provider_future = self.api.get_provider();
 
-        let (conversation_result, key_info, operating_agent, operating_model) =
-            tokio::join!(conversation_future, login_future, operating_agent_future, operating_model_future);
+        let (conversation_result, key_info, operating_agent, operating_model, provider_result) = tokio::join!(
+            conversation_future,
+            login_future,
+            operating_agent_future,
+            operating_model_future,
+            provider_future
+        );
 
         // Add conversation information if available
         if let Some(conversation) = conversation_result {
             info = info.extend(Info::from(&conversation));
         }
 
+        info = info.add_title("AGENT");
         // Add agent information if available [under Conversation]
         if let Some(agent) = operating_agent {
-            info = info.add_key_value("Agent", agent.as_str().to_uppercase());
+            info = info.add_key_value("ID", agent.as_str().to_uppercase());
         }
 
         // Add model information if available
         if let Some(model) = operating_model {
             info = info.add_key_value("Model", model);
+        }
+
+        // Add provider information if available
+        if let Ok(provider) = provider_result {
+            info = info.add_key_value("Provider (URL)", provider.to_base_url());
+            if let Some(ref api_key) = provider.key {
+                info = info.add_key_value("API Key", truncate_key(api_key));
+            }
         }
 
         // Add user information if available
@@ -621,8 +636,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         .and_then(|v| v.auth_provider_id)
                         .unwrap_or_default(),
                 );
-                let provider = self.api.get_provider().await?;
-                self.state.provider = Some(provider);
             }
             Command::Logout => {
                 self.spinner.start(Some("Logging out"))?;
@@ -863,10 +876,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Initialize the state of the UI
     async fn init_state(&mut self, first: bool) -> Result<Workflow> {
         // Run the independent initialization tasks in parallel for better performance
-        let (provider, workflow) = tokio::try_join!(
-            self.init_provider(),
-            self.api.read_workflow(self.cli.workflow.as_deref())
-        )?;
+        let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
 
         // Ensure we have a model selected before proceeding with initialization
         if self.api.get_operating_model().await.is_none() {
@@ -921,32 +931,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // state
         self.command.register_all(&base_workflow);
         let operating_model = self.api.get_operating_model().await;
-        self.state =
-            UIState::new(self.api.environment()).provider(provider);
+        self.state = UIState::new(self.api.environment());
         self.update_model(operating_model);
 
         Ok(workflow)
     }
 
-    async fn init_provider(&self) -> Result<Provider> {
-        self.api.get_provider().await
-        // match self.api.provider().await {
-        //     // Use the forge key if available in the config.
-        //     Ok(provider) => Ok(provider),
-        //     Err(_) => {
-        //         // If no key is available, start the login flow.
-        //         // self.login().await?;
-        //         let config: AppConfig = self.api.app_config().await?;
-        //         tracker::login(
-        //             config
-        //                 .key_info
-        //                 .and_then(|v| v.auth_provider_id)
-        //                 .unwrap_or_default(),
-        //         );
-        //         self.api.provider().await
-        //     }
-        // }
-    }
     async fn login(&mut self) -> Result<()> {
         let auth = self.api.init_login().await?;
         open::that(auth.auth_url.as_str()).ok();
@@ -1143,7 +1133,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .await?
             .ok_or(anyhow::anyhow!("Conversation not found: {conversation_id}"))?;
 
-        let info = Info::default().extend(&conversation).extend(&self.state);
+        let info = Info::default().extend(&conversation);
 
         // if let Ok(Some(usage)) = self.api.user_usage().await {
         //     info = info.extend(Info::from(&usage));
