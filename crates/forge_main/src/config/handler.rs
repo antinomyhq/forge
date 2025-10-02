@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::str::FromStr;
 
 use anyhow::{Context, Result};
@@ -5,10 +6,9 @@ use forge_api::{API, AgentId, ModelId, ProviderId};
 
 use super::display::{display_all_config, display_single_field, display_success};
 use super::error::{ConfigError, Result as ConfigResult};
-use super::interactive::{
-    ConfigOption, select_agent, select_model, select_provider, show_config_menu,
-};
 use crate::cli::{ConfigCommand, ConfigGetArgs, ConfigSetArgs};
+use crate::select::ForgeSelect;
+use crate::ui_components::{CLIAgent, CliModel, CliProvider};
 
 /// Handle config command
 pub async fn handle_config_command<A: API>(api: &A, command: ConfigCommand) -> Result<()> {
@@ -202,6 +202,133 @@ fn get_valid_provider_names() -> Vec<String> {
     ProviderId::iter().map(|p| p.to_string()).collect()
 }
 
+/// Configuration option for interactive menu
+#[derive(Debug, Clone)]
+pub enum ConfigOption {
+    Agent,
+    Model,
+    Provider,
+}
+
+impl Display for ConfigOption {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ConfigOption::Agent => write!(f, "Agent"),
+            ConfigOption::Model => write!(f, "Model"),
+            ConfigOption::Provider => write!(f, "Provider"),
+        }
+    }
+}
+
+/// Show interactive menu to select what to configure
+pub fn show_config_menu() -> Result<Option<ConfigOption>> {
+    let options = vec![
+        ConfigOption::Agent,
+        ConfigOption::Model,
+        ConfigOption::Provider,
+    ];
+
+    ForgeSelect::select("What would you like to configure?", options).prompt()
+}
+
+/// Interactive agent selection
+pub async fn select_agent<A: API>(api: &A) -> Result<Option<AgentId>> {
+    // Fetch available agents
+    let agents = api.get_agents().await?;
+
+    // Find the maximum agent ID length for consistent padding
+    let max_id_length = agents
+        .iter()
+        .map(|agent| agent.id.as_str().len())
+        .max()
+        .unwrap_or(0);
+
+    // Convert to SelectionAgent with formatted labels
+    let mut display_agents = agents
+        .into_iter()
+        .map(|agent| CLIAgent::from_agent_with_label(&agent, max_id_length))
+        .collect::<Vec<_>>();
+
+    // Sort by agent ID
+    display_agents.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
+
+    // Get current agent to set starting cursor
+    let current_agent = api.get_operating_agent().await;
+    let starting_cursor = current_agent
+        .as_ref()
+        .and_then(|current| display_agents.iter().position(|a| a.id == *current))
+        .unwrap_or(0);
+
+    // Show selection
+    match ForgeSelect::select("Select an agent:", display_agents)
+        .with_starting_cursor(starting_cursor)
+        .prompt()?
+    {
+        Some(agent) => Ok(Some(agent.id)),
+        None => Ok(None),
+    }
+}
+
+/// Interactive model selection
+pub async fn select_model<A: API>(api: &A) -> Result<Option<ModelId>> {
+    // Fetch available models
+    let mut models = api
+        .models()
+        .await?
+        .into_iter()
+        .map(CliModel)
+        .collect::<Vec<_>>();
+
+    // Sort alphabetically
+    models.sort_by(|a, b| a.0.id.as_str().cmp(b.0.id.as_str()));
+
+    // Get current model to set starting cursor
+    let current_model = api.get_operating_model().await;
+    let starting_cursor = current_model
+        .as_ref()
+        .and_then(|current| models.iter().position(|m| &m.0.id == current))
+        .unwrap_or(0);
+
+    // Show selection
+    match ForgeSelect::select("Select a model:", models)
+        .with_starting_cursor(starting_cursor)
+        .prompt()?
+    {
+        Some(model) => Ok(Some(model.0.id)),
+        None => Ok(None),
+    }
+}
+
+/// Interactive provider selection
+pub async fn select_provider<A: API>(api: &A) -> Result<Option<ProviderId>> {
+    // Fetch available providers
+    let mut providers = api
+        .providers()
+        .await?
+        .into_iter()
+        .map(CliProvider)
+        .collect::<Vec<_>>();
+
+    // Sort by display name
+    providers.sort_by_key(|p| p.0.id.to_string());
+
+    // Get current provider to set starting cursor
+    let current_provider = api.get_provider().await.ok();
+    let starting_cursor = current_provider
+        .as_ref()
+        .and_then(|current| providers.iter().position(|p| p.0.id == current.id))
+        .unwrap_or(0);
+
+    // Show selection
+    match ForgeSelect::select("Select a provider:", providers)
+        .with_starting_cursor(starting_cursor)
+        .prompt()?
+    {
+        Some(provider) => Ok(Some(provider.0.id)),
+        None => Ok(None),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
@@ -233,6 +360,14 @@ mod tests {
         let fixture = ConfigSetArgs { agent: None, model: None, provider: None };
         let actual = fixture.has_any_field();
         let expected = false;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_config_option_display() {
+        let fixture = ConfigOption::Agent;
+        let actual = format!("{}", fixture);
+        let expected = "Agent";
         assert_eq!(actual, expected);
     }
 }

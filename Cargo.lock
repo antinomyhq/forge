@@ -1367,6 +1367,7 @@ dependencies = [
  "tokio-stream",
  "tracing",
  "update-informer",
+ "url",
 ]
 
 [[package]]
