@@ -1,0 +1,17 @@
+{
+  "id": "minimal-model",
+  "name": "Minimal Model",
+  "attachment": false,
+  "reasoning": false,
+  "temperature": false,
+  "tool_call": false,
+  "modalities": {
+    "input": ["text"],
+    "output": ["text"]
+  },
+  "open_weights": true,
+  "limit": {
+    "context": 4096,
+    "output": 1024
+  }
+}

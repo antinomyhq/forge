@@ -1,0 +1,7 @@
+{
+  "input": 1.5,
+  "output": 3.0,
+  "cache_read": 0.5,
+  "cache_write": 0.75,
+  "reasoning": 5.0
+}
