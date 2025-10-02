@@ -910,9 +910,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         }
 
-        // Get the operating agent with fallback to default
-        let _agent = operating_agent_result.unwrap_or_default();
-
         // Finalize UI state initialization by registering commands and setting up the
         // state
         self.command.register_all(&base_workflow);
