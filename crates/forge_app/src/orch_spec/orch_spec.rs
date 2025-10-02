@@ -9,21 +9,21 @@ use crate::orch_spec::orch_runner::TestContext;
 
 #[tokio::test]
 async fn test_history_is_saved() {
-    let mut ctx = TestContext::init_forge_task("This is a test").mock_assistant_responses(vec![
+    let mut ctx = TestContext::default().mock_assistant_responses(vec![
         ChatCompletionMessage::assistant(Content::full("Sure")).finish_reason(FinishReason::Stop),
     ]);
-    ctx.run().await.unwrap();
+    ctx.run("This is a test").await.unwrap();
     let actual = &ctx.output.conversation_history;
     assert!(!actual.is_empty());
 }
 
 #[tokio::test]
 async fn test_attempt_completion_requirement() {
-    let mut ctx = TestContext::init_forge_task("Hi").mock_assistant_responses(vec![
+    let mut ctx = TestContext::default().mock_assistant_responses(vec![
         ChatCompletionMessage::assistant(Content::full("Hello!")).finish_reason(FinishReason::Stop),
     ]);
 
-    ctx.run().await.unwrap();
+    ctx.run("Hi").await.unwrap();
 
     let messages = ctx.output.context_messages();
 
@@ -44,11 +44,11 @@ async fn test_attempt_completion_requirement() {
 
 #[tokio::test]
 async fn test_rendered_user_message() {
-    let mut ctx = TestContext::init_forge_task("Hi").mock_assistant_responses(vec![
+    let mut ctx = TestContext::default().mock_assistant_responses(vec![
         ChatCompletionMessage::assistant(Content::full("Hello!")).finish_reason(FinishReason::Stop),
     ]);
     let current_time = ctx.current_time.clone();
-    ctx.run().await.unwrap();
+    ctx.run("Hi").await.unwrap();
 
     let messages = ctx.output.context_messages();
 
@@ -64,11 +64,11 @@ async fn test_rendered_user_message() {
 
 #[tokio::test]
 async fn test_attempt_completion_content() {
-    let mut ctx = TestContext::init_forge_task("Hi").mock_assistant_responses(vec![
+    let mut ctx = TestContext::default().mock_assistant_responses(vec![
         ChatCompletionMessage::assistant(Content::full("Hello!")).finish_reason(FinishReason::Stop),
     ]);
 
-    ctx.run().await.unwrap();
+    ctx.run("Hi").await.unwrap();
     let response_len = ctx.output.chat_responses.len();
 
     assert_eq!(response_len, 2, "Response length should be 2");
@@ -96,7 +96,7 @@ async fn test_attempt_completion_with_task() {
         ToolCallFull::new("fs_read").arguments(ToolCallArguments::from(json!({"path": "abc.txt"})));
     let tool_result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("Greetings")));
 
-    let mut ctx = TestContext::init_forge_task("Read a file")
+    let mut ctx = TestContext::default()
         .mock_tool_call_responses(vec![(tool_call.clone().into(), tool_result)])
         .mock_assistant_responses(vec![
             // First message, issues a tool call
@@ -109,7 +109,7 @@ async fn test_attempt_completion_with_task() {
             ChatCompletionMessage::assistant("Im done!"),
         ]);
 
-    ctx.run().await.unwrap();
+    ctx.run("Read a file").await.unwrap();
 
     let tool_call_error_count = ctx
         .output
@@ -129,7 +129,7 @@ async fn test_attempt_completion_triggers_session_summary() {
     let attempt_completion_result = ToolResult::new("attempt_completion")
         .output(Ok(ToolOutput::text("Task completed successfully")));
 
-    let mut ctx = TestContext::init_forge_task("Complete the task")
+    let mut ctx = TestContext::default()
         .mock_tool_call_responses(vec![(
             attempt_completion_call.clone().into(),
             attempt_completion_result,
@@ -139,7 +139,7 @@ async fn test_attempt_completion_triggers_session_summary() {
                 .tool_calls(vec![attempt_completion_call.into()]),
         ]);
 
-    ctx.run().await.unwrap();
+    ctx.run("Complete the task").await.unwrap();
 
     let chat_complete_count = ctx
         .output
@@ -162,14 +162,14 @@ async fn test_followup_does_not_trigger_session_summary() {
     let followup_result =
         ToolResult::new("followup").output(Ok(ToolOutput::text("Follow-up question sent")));
 
-    let mut ctx = TestContext::init_forge_task("Ask a follow-up question")
+    let mut ctx = TestContext::default()
         .mock_tool_call_responses(vec![(followup_call.clone().into(), followup_result)])
         .mock_assistant_responses(vec![
             ChatCompletionMessage::assistant("I need more information")
                 .tool_calls(vec![followup_call.into()]),
         ]);
 
-    ctx.run().await.unwrap();
+    ctx.run("Ask a follow-up question").await.unwrap();
 
     let has_chat_complete = ctx
         .output
@@ -186,7 +186,7 @@ async fn test_followup_does_not_trigger_session_summary() {
 
 #[tokio::test]
 async fn test_empty_responses() {
-    let mut ctx = TestContext::init_forge_task("Read a file").mock_assistant_responses(vec![
+    let mut ctx = TestContext::default().mock_assistant_responses(vec![
         // Empty response 1
         ChatCompletionMessage::assistant(""),
         // Empty response 2
@@ -199,7 +199,7 @@ async fn test_empty_responses() {
 
     ctx.env.retry_config.max_retry_attempts = 3;
 
-    let _ = ctx.run().await;
+    let _ = ctx.run("Read a file").await;
 
     let retry_attempts = ctx
         .output
@@ -223,7 +223,7 @@ async fn test_tool_call_start_end_responses_for_non_agent_tools() {
     let attempt_completion_result =
         ToolResult::new("attempt_completion").output(Ok(ToolOutput::text("Task completed")));
 
-    let mut ctx = TestContext::init_forge_task("Read a file")
+    let mut ctx = TestContext::default()
         .mock_tool_call_responses(vec![
             (tool_call.clone().into(), tool_result.clone()),
             (
@@ -238,7 +238,7 @@ async fn test_tool_call_start_end_responses_for_non_agent_tools() {
                 .tool_calls(vec![attempt_completion_call.into()]),
         ]);
 
-    ctx.run().await.unwrap();
+    ctx.run("Read a file").await.unwrap();
 
     let chat_responses: Vec<_> = ctx
         .output
@@ -305,7 +305,7 @@ async fn test_no_tool_call_start_end_responses_for_agent_tools() {
     let attempt_completion_result =
         ToolResult::new("attempt_completion").output(Ok(ToolOutput::text("Task completed")));
 
-    let mut ctx = TestContext::init_forge_task("Analyze code")
+    let mut ctx = TestContext::default()
         .mock_tool_call_responses(vec![
             (agent_tool_call.clone().into(), agent_tool_result.clone()),
             (
@@ -320,7 +320,7 @@ async fn test_no_tool_call_start_end_responses_for_agent_tools() {
                 .tool_calls(vec![attempt_completion_call.into()]),
         ]);
 
-    ctx.run().await.unwrap();
+    ctx.run("Analyze code").await.unwrap();
 
     let chat_responses: Vec<_> = ctx
         .output
@@ -368,7 +368,7 @@ async fn test_mixed_agent_and_non_agent_tool_calls() {
     let attempt_completion_result =
         ToolResult::new("attempt_completion").output(Ok(ToolOutput::text("Task completed")));
 
-    let mut ctx = TestContext::init_forge_task("Read file and analyze")
+    let mut ctx = TestContext::default()
         .mock_tool_call_responses(vec![
             (fs_tool_call.clone().into(), fs_tool_result.clone()),
             (agent_tool_call.clone().into(), agent_tool_result.clone()),
@@ -384,7 +384,7 @@ async fn test_mixed_agent_and_non_agent_tool_calls() {
                 .tool_calls(vec![attempt_completion_call.into()]),
         ]);
 
-    ctx.run().await.unwrap();
+    ctx.run("Read file and analyze").await.unwrap();
 
     let chat_responses: Vec<_> = ctx
         .output
@@ -454,17 +454,16 @@ async fn test_mixed_agent_and_non_agent_tool_calls() {
 #[tokio::test]
 async fn test_reasoning_should_be_in_context() {
     let reasoning_content = "Thinking .....";
-    let mut ctx =
-        TestContext::init_forge_task("Solve a complex problem").mock_assistant_responses(vec![
-            ChatCompletionMessage::assistant(Content::full(reasoning_content))
-                .finish_reason(FinishReason::Stop),
-        ]);
+    let mut ctx = TestContext::default().mock_assistant_responses(vec![
+        ChatCompletionMessage::assistant(Content::full(reasoning_content))
+            .finish_reason(FinishReason::Stop),
+    ]);
 
     // Update the agent to set the reasoning.
     ctx.agent = ctx
         .agent
         .reasoning(ReasoningConfig::default().effort(forge_domain::Effort::High));
-    ctx.run().await.unwrap();
+    ctx.run("Solve a complex problem").await.unwrap();
 
     let conversation = ctx.output.conversation_history.last().unwrap();
     let context = conversation.context.as_ref().unwrap();
@@ -474,11 +473,10 @@ async fn test_reasoning_should_be_in_context() {
 #[tokio::test]
 async fn test_reasoning_not_supported_when_disabled() {
     let reasoning_content = "Thinking .....";
-    let mut ctx =
-        TestContext::init_forge_task("Solve a complex problem").mock_assistant_responses(vec![
-            ChatCompletionMessage::assistant(Content::full(reasoning_content))
-                .finish_reason(FinishReason::Stop),
-        ]);
+    let mut ctx = TestContext::default().mock_assistant_responses(vec![
+        ChatCompletionMessage::assistant(Content::full(reasoning_content))
+            .finish_reason(FinishReason::Stop),
+    ]);
 
     // Update the agent to set the reasoning.
     ctx.agent = ctx.agent.reasoning(
@@ -486,7 +484,7 @@ async fn test_reasoning_not_supported_when_disabled() {
             .effort(forge_domain::Effort::High)
             .enabled(false), // disable the reasoning explicitly
     );
-    ctx.run().await.unwrap();
+    ctx.run("Solve a complex problem").await.unwrap();
 
     let conversation = ctx.output.conversation_history.last().unwrap();
     let context = conversation.context.as_ref().unwrap();
@@ -499,7 +497,7 @@ async fn test_multiple_consecutive_tool_calls() {
         ToolCallFull::new("fs_read").arguments(ToolCallArguments::from(json!({"path": "abc.txt"})));
     let tool_result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("Greetings")));
 
-    let mut ctx = TestContext::init_forge_task("Read a file")
+    let mut ctx = TestContext::default()
         .mock_tool_call_responses(vec![
             (tool_call.clone(), tool_result.clone()),
             (tool_call.clone(), tool_result.clone()),
@@ -517,7 +515,7 @@ async fn test_multiple_consecutive_tool_calls() {
             )),
         ]);
 
-    let _ = ctx.run().await;
+    let _ = ctx.run("Read a file").await;
 
     let retry_attempts = ctx
         .output

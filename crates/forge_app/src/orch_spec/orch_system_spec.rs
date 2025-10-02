@@ -5,20 +5,20 @@ use crate::orch_spec::orch_runner::TestContext;
 
 #[tokio::test]
 async fn test_system_prompt() {
-    let mut ctx = TestContext::init_forge_task("This is a test")
+    let mut ctx = TestContext::default()
         .workflow(Workflow::default())
         .mock_assistant_responses(vec![ChatCompletionMessage::assistant(Content::full(
             "Sure",
         ))]);
 
-    ctx.run().await.unwrap();
+    ctx.run("This is a test").await.unwrap();
     let system_messages = ctx.output.system_messages().unwrap().join("\n\n");
     assert_snapshot!(system_messages);
 }
 
 #[tokio::test]
 async fn test_system_prompt_tool_supported() {
-    let mut ctx = TestContext::init_forge_task("This is a test")
+    let mut ctx = TestContext::default()
         .workflow(
             Workflow::default()
                 .tool_supported(true)
@@ -32,7 +32,7 @@ async fn test_system_prompt_tool_supported() {
             "Sure",
         ))]);
 
-    ctx.run().await.unwrap();
+    ctx.run("This is a test").await.unwrap();
 
     let system_messages = ctx.output.system_messages().unwrap().join("\n\n");
     assert_snapshot!(system_messages);

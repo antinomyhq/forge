@@ -25,7 +25,6 @@ const USER_PROMPT: &'static str = r#"
 #[derive(Setters)]
 #[setters(into)]
 pub struct TestContext {
-    pub event: Event,
     pub mock_tool_call_responses: Vec<(ToolCallFull, ToolResult)>,
     pub mock_assistant_responses: Vec<ChatCompletionMessage>,
     pub workflow: Workflow,
@@ -42,14 +41,9 @@ pub struct TestContext {
     pub tools: Vec<ToolDefinition>,
 }
 
-impl TestContext {
-    pub fn init_forge_task(task: &str) -> Self {
-        Self::from_event(Event::new("forge/user_task_init", Some(task)))
-    }
-
-    pub fn from_event(event: Event) -> Self {
+impl Default for TestContext {
+    fn default() -> Self {
         Self {
-            event,
             model: ModelId::new("openai/gpt-1"),
             output: TestOutput::default(),
             current_time: Local::now(),
@@ -106,9 +100,16 @@ impl TestContext {
             ],
         }
     }
+}
 
-    pub async fn run(&mut self) -> anyhow::Result<()> {
-        Runner::run(self).await
+impl TestContext {
+    pub async fn run(&mut self, event: impl AsRef<str>) -> anyhow::Result<()> {
+        self.run_event(Event::new("forge", Some(event.as_ref())))
+            .await
+    }
+
+    pub async fn run_event(&mut self, event: impl Into<Event>) -> anyhow::Result<()> {
+        Runner::run(self, event.into()).await
     }
 }
 
