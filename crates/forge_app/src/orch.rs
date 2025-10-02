@@ -12,6 +12,7 @@ use tracing::{debug, info, warn};
 use crate::agent::AgentService;
 use crate::compact::Compactor;
 use crate::title_generator::TitleGenerator;
+use crate::user_prompt::UserPromptService;
 
 #[derive(Clone, Setters)]
 #[setters(into, strip_option)]
@@ -23,11 +24,11 @@ pub struct Orchestrator<S> {
     tool_definitions: Vec<ToolDefinition>,
     models: Vec<Model>,
     files: Vec<String>,
-    current_time: chrono::DateTime<chrono::Local>,
     custom_instructions: Vec<String>,
     agent: Agent,
     event: Event,
     error_tracker: ToolErrorTracker,
+    user_prompt_service: UserPromptService<S>,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -40,10 +41,15 @@ impl<S: AgentService> Orchestrator<S> {
         event: Event,
     ) -> Self {
         Self {
+            user_prompt_service: UserPromptService::new(
+                services.clone(),
+                agent.clone(),
+                event.clone(),
+                current_time,
+            ),
             conversation,
             environment,
             services,
-            current_time,
             agent,
             event,
             sender: Default::default(),
@@ -281,7 +287,7 @@ impl<S: AgentService> Orchestrator<S> {
         context = self.set_system_prompt(context).await?;
 
         // Render user prompts
-        context = self.set_user_prompt(context).await?;
+        context = self.user_prompt_service.set_user_prompt(context).await?;
 
         // Create agent reference for the rest of the method
         let agent = &self.agent;
@@ -599,41 +605,5 @@ impl<S: AgentService> Orchestrator<S> {
         self.services
             .render("{{> forge-partial-tool-required.md}}", &ctx)
             .await
-    }
-
-    async fn set_user_prompt(&self, mut context: Context) -> anyhow::Result<Context> {
-        let agent = &self.agent;
-        let event = &self.event;
-        let content = if let Some(user_prompt) = &agent.user_prompt
-            && event.value.is_some()
-        {
-            let mut event_context = EventContext::new(event.clone())
-                .current_date(self.current_time.format("%Y-%m-%d").to_string());
-
-            // Check if context already contains user messages to determine if it's feedback
-            let has_user_messages = context.messages.iter().any(|msg| msg.has_role(Role::User));
-
-            if has_user_messages {
-                event_context = event_context.into_feedback();
-            } else {
-                event_context = event_context.into_task();
-            }
-
-            debug!(event_context = ?event_context, "Event context");
-            Some(
-                self.services
-                    .render(user_prompt.template.as_str(), &event_context)
-                    .await?,
-            )
-        } else {
-            // Use the raw event value as content if no user_prompt is provided
-            event.value.as_ref().map(|v| v.to_string())
-        };
-
-        if let Some(content) = content {
-            context = context.add_message(ContextMessage::user(content, agent.model.clone()));
-        }
-
-        Ok(context)
     }
 }
