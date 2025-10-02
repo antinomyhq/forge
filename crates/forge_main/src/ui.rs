@@ -430,10 +430,28 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
+        // Find the maximum provider ID length for consistent padding
+        let max_id_length = providers
+            .iter()
+            .map(|provider| provider.id.to_string().len())
+            .max()
+            .unwrap_or(0);
+
         let output = providers
-            .into_iter()
-            .map(CliProvider)
-            .map(|provider| provider.to_string())
+            .iter()
+            .map(|provider| {
+                let domain = provider
+                    .url
+                    .domain()
+                    .map(|d| format!("[{}]", d))
+                    .unwrap_or_default();
+                format!(
+                    "{:<width$} {}",
+                    provider.id.to_string(),
+                    domain,
+                    width = max_id_length
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n");
 
@@ -450,10 +468,47 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
+        // Find the maximum model ID length for consistent padding
+        let max_id_length = models
+            .iter()
+            .map(|model| model.id.to_string().len())
+            .max()
+            .unwrap_or(0);
+
         let output = models
-            .into_iter()
-            .map(CliModel)
-            .map(|model| model.to_string())
+            .iter()
+            .map(|model| {
+                let mut info_parts = Vec::new();
+
+                // Add context length if available
+                if let Some(limit) = model.context_length {
+                    if limit >= 1_000_000 {
+                        info_parts.push(format!("{}M", limit / 1_000_000));
+                    } else if limit >= 1000 {
+                        info_parts.push(format!("{}k", limit / 1000));
+                    } else {
+                        info_parts.push(format!("{limit}"));
+                    }
+                }
+
+                // Add tools support indicator if explicitly supported
+                if model.tools_supported == Some(true) {
+                    info_parts.push("🛠️".to_string());
+                }
+
+                let info = if !info_parts.is_empty() {
+                    format!("[ {} ]", info_parts.join(" "))
+                } else {
+                    String::new()
+                };
+
+                format!(
+                    "{:<width$} {}",
+                    model.id.to_string(),
+                    info,
+                    width = max_id_length
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n");
 
