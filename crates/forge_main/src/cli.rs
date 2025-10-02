@@ -104,6 +104,12 @@ pub enum TopLevelCommand {
     /// Lists all the agents
     ShowAgents,
 
+    /// Lists all the providers
+    ShowProviders,
+
+    /// Lists all the models
+    ShowModels,
+
     /// Configuration management commands
     Config(ConfigCommandGroup),
 }

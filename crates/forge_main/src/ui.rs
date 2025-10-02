@@ -371,6 +371,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_show_agents().await?;
                 return Ok(());
             }
+            TopLevelCommand::ShowProviders => {
+                self.on_show_providers().await?;
+                return Ok(());
+            }
+            TopLevelCommand::ShowModels => {
+                self.on_show_models().await?;
+                return Ok(());
+            }
             TopLevelCommand::Config(_) => {
                 // Config commands are handled in main.rs before UI initialization
                 // This case should not be reached
@@ -406,6 +414,46 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     width = max_id_length
                 )
             })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        println!("{}", output);
+
+        Ok(())
+    }
+
+    /// Lists all the providers
+    async fn on_show_providers(&self) -> anyhow::Result<()> {
+        let providers = self.api.providers().await?;
+
+        if providers.is_empty() {
+            return Ok(());
+        }
+
+        let output = providers
+            .into_iter()
+            .map(CliProvider)
+            .map(|provider| provider.to_string())
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        println!("{}", output);
+
+        Ok(())
+    }
+
+    /// Lists all the models
+    async fn on_show_models(&mut self) -> anyhow::Result<()> {
+        let models = self.get_models().await?;
+
+        if models.is_empty() {
+            return Ok(());
+        }
+
+        let output = models
+            .into_iter()
+            .map(CliModel)
+            .map(|model| model.to_string())
             .collect::<Vec<_>>()
             .join("\n");
 
