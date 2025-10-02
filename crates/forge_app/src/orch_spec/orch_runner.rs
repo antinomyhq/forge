@@ -2,7 +2,8 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use forge_domain::{
-    ChatCompletionMessage, ChatResponse, Conversation, ConversationId, Event, ToolCallFull, ToolErrorTracker, ToolResult
+    ChatCompletionMessage, ChatResponse, Conversation, ConversationId, Event, ToolCallFull,
+    ToolErrorTracker, ToolResult,
 };
 use handlebars::{Handlebars, no_escape};
 use rust_embed::Embed;

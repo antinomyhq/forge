@@ -1,7 +1,9 @@
-use crate::agent::AgentService;
-use forge_domain::*;
 use std::sync::Arc;
+
+use forge_domain::*;
 use tracing::debug;
+
+use crate::agent::AgentService;
 
 /// Service responsible for setting user prompts in the conversation context
 #[derive(Clone)]
@@ -23,7 +25,8 @@ impl<S> UserPromptService<S> {
         Self { services: service, agent, event, current_time }
     }
 
-    /// Sets the user prompt in the context based on agent configuration and event data
+    /// Sets the user prompt in the context based on agent configuration and
+    /// event data
     pub async fn set_user_prompt(&self, mut context: Context) -> anyhow::Result<Context>
     where
         S: AgentService,
