@@ -7,8 +7,7 @@ use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId,
-    EVENT_USER_TASK_UPDATE, Event, InterruptionReason, Model, ModelId, Provider, ToolName,
-    Workflow,
+    Event, InterruptionReason, Model, ModelId, Provider, ToolName, Workflow,
 };
 use forge_app::utils::truncate_key;
 use forge_display::MarkdownFormat;
@@ -140,18 +139,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.writeln_title(TitleFormat::action(format!("{name} {title}")))?;
 
         Ok(())
-    }
-
-    async fn create_task_event<V: Into<Value>>(
-        &self,
-        content: Option<V>,
-        event_name: &str,
-    ) -> anyhow::Result<Event> {
-        let operating_agent = self.api.get_operating_agent().await.unwrap_or_default();
-        Ok(Event::new(
-            format!("{operating_agent}/{event_name}"),
-            content,
-        ))
     }
 
     pub fn init(cli: Cli, f: F) -> Result<Self> {
@@ -812,7 +799,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn init_conversation(&mut self) -> Result<ConversationId> {
         let mut is_new = false;
         let id = if self.cli.is_interactive() {
-            self.init_conversation_interactive().await?
+            self.init_conversation_interactive(&mut is_new).await?
         } else {
             self.init_conversation_headless(&mut is_new).await?
         };
@@ -828,7 +815,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(id)
     }
 
-    async fn init_conversation_interactive(&mut self) -> Result<ConversationId, anyhow::Error> {
+    async fn init_conversation_interactive(
+        &mut self,
+        is_new: &mut bool,
+    ) -> Result<ConversationId, anyhow::Error> {
         Ok(if let Some(id) = self.state.conversation_id {
             id
         } else if let Some(ref path) = self.cli.conversation {
@@ -841,6 +831,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         } else {
             let conversation = Conversation::generate();
             let id = conversation.id;
+            *is_new = true;
             self.api.upsert_conversation(conversation).await?;
             id
         })
@@ -980,8 +971,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let conversation_id = self.init_conversation().await?;
 
         // Create a ChatRequest with the appropriate event type
-        let event = self.create_task_event(content, EVENT_USER_TASK_UPDATE)
-            .await?;
+        let operating_agent = self.api.get_operating_agent().await.unwrap_or_default();
+        let event = Event::new(format!("{operating_agent}"), content);
 
         // Create the chat request with the event
         let chat = ChatRequest::new(event, conversation_id);

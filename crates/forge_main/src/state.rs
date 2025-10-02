@@ -14,9 +14,6 @@ pub struct UIState {
 
 impl UIState {
     pub fn new(env: Environment) -> Self {
-        Self {
-            cwd: env.cwd,
-            conversation_id: Default::default(),
-        }
+        Self { cwd: env.cwd, conversation_id: Default::default() }
     }
 }
