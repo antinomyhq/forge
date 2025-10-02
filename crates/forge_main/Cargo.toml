@@ -11,6 +11,7 @@ path = "src/main.rs"
 [dependencies]
 clap.workspace = true
 console.workspace = true
+forge_app.workspace = true
 forge_api.workspace = true
 forge_domain.workspace = true
 forge_walker.workspace = true
@@ -21,7 +22,6 @@ forge_spinner.workspace = true
 inquire.workspace = true
 
 merge.workspace = true
-
 forge_fs.workspace = true
 tokio.workspace = true
 tokio-stream.workspace = true

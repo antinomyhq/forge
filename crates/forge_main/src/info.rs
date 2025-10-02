@@ -6,6 +6,7 @@ use colored::Colorize;
 use forge_api::{Conversation, Environment, LoginInfo, Metrics, Usage, UserUsage};
 use forge_tracker::VERSION;
 use num_format::{Locale, ToFormattedString};
+use forge_app::utils::truncate_key;
 
 use crate::model::ForgeCommandManager;
 
@@ -303,15 +304,6 @@ impl From<&LoginInfo> for Info {
         info = info.add_key_value("Key", truncate_key(&login_info.api_key_masked));
 
         info
-    }
-}
-
-// FIXME: move to a util file
-pub fn truncate_key(key: &str) -> String {
-    if key.len() <= 20 {
-        key.to_string()
-    } else {
-        format!("{}...{}", &key[..=12], &key[key.len() - 4..])
     }
 }
 

@@ -1298,6 +1298,7 @@ dependencies = [
  "convert_case 0.8.0",
  "derive_setters",
  "forge_api",
+ "forge_app",
  "forge_display",
  "forge_domain",
  "forge_fs",
