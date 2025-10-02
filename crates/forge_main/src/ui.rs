@@ -427,35 +427,20 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_info(&mut self) -> anyhow::Result<()> {
         let mut info = Info::from(&self.api.environment());
 
-        // Execute async operations in parallel
-        let conversation_future = async {
-            if let Some(conversation_id) = &self.state.conversation_id {
-                self.api.conversation(conversation_id).await.ok().flatten()
-            } else {
-                None
-            }
-        };
-
-        let login_future = self.api.get_login_info();
-        let operating_agent_future = self.api.get_operating_agent();
-        let operating_model_future = self.api.get_operating_model();
-        let provider_future = self.api.get_provider();
-
-        let (conversation_result, key_info, operating_agent, operating_model, provider_result) = tokio::join!(
-            conversation_future,
-            login_future,
-            operating_agent_future,
-            operating_model_future,
-            provider_future
-        );
+        // Execute async operations sequentially
+        let conversation_id = &self.init_conversation().await?;
+        let conversation = self.api.conversation(conversation_id).await.ok().flatten();
+        let key_info = self.api.get_login_info().await;
+        let operating_agent = self.api.get_operating_agent().await;
+        let operating_model = self.api.get_operating_model().await;
+        let provider_result = self.api.get_provider().await;
 
         // Add conversation information if available
-        if let Some(conversation) = conversation_result {
+        if let Some(conversation) = conversation {
             info = info.extend(Info::from(&conversation));
         }
 
         info = info.add_title("AGENT");
-        // Add agent information if available [under Conversation]
         if let Some(agent) = operating_agent {
             info = info.add_key_value("ID", agent.as_str().to_uppercase());
         }
@@ -1169,10 +1154,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .ok_or(anyhow::anyhow!("Conversation not found: {conversation_id}"))?;
 
         let info = Info::default().extend(&conversation);
-
-        // if let Ok(Some(usage)) = self.api.user_usage().await {
-        //     info = info.extend(Info::from(&usage));
-        // }
 
         self.writeln(info)?;
 
