@@ -26,6 +26,7 @@ use crate::env::{get_agent_from_env, get_conversation_id_from_env};
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
+use crate::prompt::ForgePrompt;
 use crate::select::ForgeSelect;
 use crate::state::UIState;
 use crate::title_display::TitleDisplayExt;
@@ -128,7 +129,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Reset is_first to true when switching agents
         self.state.is_first = true;
-        self.state.operating_agent = agent.id.clone();
 
         // Update the app config with the new operating agent.
         self.api.set_operating_agent(agent.id.clone()).await?;
@@ -144,12 +144,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    fn create_task_event<V: Into<Value>>(
+    async fn create_task_event<V: Into<Value>>(
         &self,
         content: Option<V>,
         event_name: &str,
     ) -> anyhow::Result<Event> {
-        let operating_agent = &self.state.operating_agent;
+        let operating_agent = self.api.get_operating_agent().await.unwrap_or_default();
         Ok(Event::new(
             format!("{operating_agent}/{event_name}"),
             content,
@@ -176,7 +176,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn prompt(&self) -> Result<Command> {
         // Prompt the user for input
-        self.console.prompt(self.state.clone().into()).await
+        let agent_id = self.api.get_operating_agent().await.unwrap_or_default();
+        let forge_prompt = ForgePrompt {
+            cwd: self.state.cwd.clone(),
+            usage: Some(self.state.usage.clone()),
+            model: self.state.model.clone(),
+            agent_id,
+        };
+        self.console.prompt(forge_prompt).await
     }
 
     pub async fn run(&mut self) {
@@ -420,12 +427,19 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         };
 
         let login_future = self.api.get_login_info();
+        let operating_agent_future = self.api.get_operating_agent();
 
-        let (conversation_result, key_info) = tokio::join!(conversation_future, login_future);
+        let (conversation_result, key_info, operating_agent) =
+            tokio::join!(conversation_future, login_future, operating_agent_future);
 
         // Add conversation information if available
         if let Some(conversation) = conversation_result {
             info = info.extend(Info::from(&conversation));
+        }
+
+        // Add agent information if available [under Conversation]
+        if let Some(agent) = operating_agent {
+            info = info.add_key_value("Agent", agent.as_str().to_uppercase());
         }
 
         // Add user information if available
@@ -444,9 +458,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn agent_tools(&self) -> anyhow::Result<Vec<ToolName>> {
-        let agent_id = &self.state.operating_agent;
+        let agent_id = self.api.get_operating_agent().await.unwrap_or_default();
         let agents = self.api.get_agents().await?;
-        let agent = agents.into_iter().find(|agent| &agent.id == agent_id);
+        let agent = agents.into_iter().find(|agent| agent.id == agent_id);
         Ok(agent
             .and_then(|agent| agent.tools.clone())
             .into_iter()
@@ -786,7 +800,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             self.api.set_operating_agent(agent_id).await?;
         }
 
-        let id = match self.state.conversation_id {
+        match self.state.conversation_id {
             Some(ref id) => Ok(*id),
             None => {
                 let mut new_conversation = false;
@@ -836,13 +850,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 }
                 Ok(conversation.id)
             }
-        };
-
-        if let Some(ref agent) = self.api.get_operating_agent().await {
-            self.state.operating_agent = AgentId::new(agent)
         }
-
-        id
     }
 
     /// Initialize the state of the UI
@@ -903,14 +911,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         // Get the operating agent with fallback to default
-        let agent = operating_agent_result.unwrap_or_default();
+        let _agent = operating_agent_result.unwrap_or_default();
 
         // Finalize UI state initialization by registering commands and setting up the
         // state
         self.command.register_all(&base_workflow);
         let operating_model = self.api.get_operating_model().await;
         self.state =
-            UIState::new(self.api.environment(), agent, operating_model.clone()).provider(provider);
+            UIState::new(self.api.environment(), operating_model.clone()).provider(provider);
         self.update_model(operating_model);
 
         Ok(workflow)
@@ -958,9 +966,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Create a ChatRequest with the appropriate event type
         let event = if self.state.is_first {
             self.state.is_first = false;
-            self.create_task_event(content, EVENT_USER_TASK_INIT)?
+            self.create_task_event(content, EVENT_USER_TASK_INIT)
+                .await?
         } else {
-            self.create_task_event(content, EVENT_USER_TASK_UPDATE)?
+            self.create_task_event(content, EVENT_USER_TASK_UPDATE)
+                .await?
         };
 
         // Create the chat request with the event
