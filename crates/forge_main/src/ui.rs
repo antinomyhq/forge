@@ -806,10 +806,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Initializes and returns a conversation ID for the current session.
     ///
     /// Handles conversation setup for both interactive and headless modes:
-    /// - **Interactive**: Reuses existing conversation, loads from file, or creates new
+    /// - **Interactive**: Reuses existing conversation, loads from file, or
+    ///   creates new
     /// - **Headless**: Uses environment variables or generates new conversation
     ///
-    /// Displays initialization status and updates UI state with the conversation ID.
+    /// Displays initialization status and updates UI state with the
+    /// conversation ID.
     async fn init_conversation(&mut self) -> Result<ConversationId> {
         let mut is_new = false;
         let id = if self.cli.is_interactive() {
