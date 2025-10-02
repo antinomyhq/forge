@@ -96,13 +96,6 @@ impl From<&UIState> for Info {
     fn from(value: &UIState) -> Self {
         let mut info = Info::new().add_title("AGENT");
 
-        // Note: operating_agent is now retrieved from API, not stored in UIState
-        // This implementation no longer includes agent name
-
-        if let Some(model) = &value.model {
-            info = info.add_key_value("Model", model);
-        }
-
         if let Some(provider) = &value.provider {
             info = info.add_key_value("Provider (URL)", provider.to_base_url());
             if let Some(ref api_key) = provider.key {

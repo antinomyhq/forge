@@ -177,10 +177,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn prompt(&self) -> Result<Command> {
         // Prompt the user for input
         let agent_id = self.api.get_operating_agent().await.unwrap_or_default();
+        let model = self.api.get_operating_model().await;
         let forge_prompt = ForgePrompt {
             cwd: self.state.cwd.clone(),
             usage: Some(self.state.usage.clone()),
-            model: self.state.model.clone(),
+            model,
             agent_id,
         };
         self.console.prompt(forge_prompt).await
@@ -428,9 +429,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         let login_future = self.api.get_login_info();
         let operating_agent_future = self.api.get_operating_agent();
+        let operating_model_future = self.api.get_operating_model();
 
-        let (conversation_result, key_info, operating_agent) =
-            tokio::join!(conversation_future, login_future, operating_agent_future);
+        let (conversation_result, key_info, operating_agent, operating_model) =
+            tokio::join!(conversation_future, login_future, operating_agent_future, operating_model_future);
 
         // Add conversation information if available
         if let Some(conversation) = conversation_result {
@@ -440,6 +442,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Add agent information if available [under Conversation]
         if let Some(agent) = operating_agent {
             info = info.add_key_value("Agent", agent.as_str().to_uppercase());
+        }
+
+        // Add model information if available
+        if let Some(model) = operating_model {
+            info = info.add_key_value("Model", model);
         }
 
         // Add user information if available
@@ -675,9 +682,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         models.sort_by(|a, b| a.0.name.cmp(&b.0.name));
 
         // Find the index of the current model
-        let starting_cursor = self
-            .state
-            .model
+        let current_model = self.api.get_operating_model().await;
+        let starting_cursor = current_model
             .as_ref()
             .and_then(|current| models.iter().position(|m| &m.0.id == current))
             .unwrap_or(0);
@@ -765,7 +771,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         )))?;
 
         // Check if the current model is available for the new provider
-        if let Some(current_model) = self.state.model.clone() {
+        let current_model = self.api.get_operating_model().await;
+        if let Some(current_model) = current_model {
             let models = self.get_models().await?;
             let model_available = models.iter().any(|m| m.id == current_model);
 
@@ -885,7 +892,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let get_agents_fut = self.api.get_agents();
         let get_operating_agent_fut = self.api.get_operating_agent();
 
-        let (write_workflow_result, agents_result, operating_agent_result) =
+        let (write_workflow_result, agents_result, _operating_agent_result) =
             tokio::join!(write_workflow_fut, get_agents_fut, get_operating_agent_fut);
 
         // Handle workflow write result first as it's critical for the system state
@@ -915,7 +922,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.command.register_all(&base_workflow);
         let operating_model = self.api.get_operating_model().await;
         self.state =
-            UIState::new(self.api.environment(), operating_model.clone()).provider(provider);
+            UIState::new(self.api.environment()).provider(provider);
         self.update_model(operating_model);
 
         Ok(workflow)
@@ -1171,7 +1178,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         if let Some(ref model) = model {
             tracker::set_model(model.to_string());
         }
-        self.state.model = model;
     }
 
     async fn on_custom_event(&mut self, event: Event) -> Result<()> {
