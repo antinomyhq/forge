@@ -69,17 +69,17 @@ function forge-completion() {
         # Extract the text after the colon for filtering
         local filter_text="${LBUFFER#:}"
         
-        # Get available commands from forge show-agents
-        local command_output
-        command_output=$($_FORGE_BIN show-agents 2>/dev/null)
+        # Create a list of available commands including providers and models
+        local commands="providers\nmodels\n"
+        commands+="$($_FORGE_BIN show-agents 2>/dev/null)"
         
-        if [[ $? -eq 0 && -n "$command_output" ]]; then
+        if [[ -n "$commands" ]]; then
             # Use fzf for interactive selection with prefilled filter
             local selected
             if [[ -n "$filter_text" ]]; then
-                selected=$(echo "$command_output" | _forge_fzf --nth=1 --query "$filter_text" --prompt="Agent ❯ ")
+                selected=$(echo "$commands" | _forge_fzf --nth=1 --query "$filter_text" --prompt="Command ❯ ")
             else
-                selected=$(echo "$command_output" | _forge_fzf --nth=1 --prompt="Agent ❯ ")
+                selected=$(echo "$commands" | _forge_fzf --nth=1 --prompt="Command ❯ ")
             fi
             
             if [[ -n "$selected" ]]; then
@@ -148,6 +148,64 @@ function forge-accept-line() {
         
         # Run forge info
         $_FORGE_BIN info
+        
+        BUFFER=""
+        CURSOR=${#BUFFER}
+        zle reset-prompt
+        return 0
+    fi
+    
+    # Handle providers command specially
+    if [[ "$user_action" == "providers" ]]; then
+        # Execute provider selection in a subshell to avoid ZLE context issues
+        (
+            echo
+            local providers_output
+            providers_output=$($_FORGE_BIN show-providers 2>/dev/null)
+            
+            if [[ -n "$providers_output" ]]; then
+                local selected_provider
+                selected_provider=$(echo "$providers_output" | _forge_fzf --prompt="Provider ❯ ")
+                
+                if [[ -n "$selected_provider" ]]; then
+                    # Extract just the provider name (first word before any description)
+                    local provider_name="${selected_provider%% *}"
+                    echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Setting provider to: ${provider_name}\033[0m"
+                    $_FORGE_BIN config set --provider "$provider_name"
+                fi
+            else
+                echo "\033[31m✗\033[0m Failed to get providers list"
+            fi
+        )
+        
+        BUFFER=""
+        CURSOR=${#BUFFER}
+        zle reset-prompt
+        return 0
+    fi
+    
+    # Handle models command specially
+    if [[ "$user_action" == "models" ]]; then
+        # Execute model selection in a subshell to avoid ZLE context issues
+        (
+            echo
+            local models_output
+            models_output=$($_FORGE_BIN show-models 2>/dev/null)
+            
+            if [[ -n "$models_output" ]]; then
+                local selected_model
+                selected_model=$(echo "$models_output" | _forge_fzf --prompt="Model ❯ ")
+                
+                if [[ -n "$selected_model" ]]; then
+                    # Extract just the model name (first word before any description)
+                    local model_name="${selected_model%% *}"
+                    echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Setting model to: ${model_name}\033[0m"
+                    $_FORGE_BIN config set --model "$model_name"
+                fi
+            else
+                echo "\033[31m✗\033[0m Failed to get models list"
+            fi
+        )
         
         BUFFER=""
         CURSOR=${#BUFFER}
