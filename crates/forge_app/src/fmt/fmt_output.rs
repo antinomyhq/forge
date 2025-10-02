@@ -106,7 +106,6 @@ mod tests {
                 start_line: None,
                 end_line: None,
                 show_line_numbers: true,
-                explanation: Some("Test explanation".to_string()),
             },
             output: ReadOutput {
                 content: Content::File("Hello, world!".to_string()),
@@ -131,7 +130,6 @@ mod tests {
                 start_line: Some(2),
                 end_line: Some(4),
                 show_line_numbers: true,
-                explanation: Some("Test explanation".to_string()),
             },
             output: ReadOutput {
                 content: Content::File("Line 1\nLine 2\nLine 3".to_string()),
@@ -155,7 +153,6 @@ mod tests {
                 path: "/home/user/project/new_file.txt".to_string(),
                 content: "New file content".to_string(),
                 overwrite: false,
-                explanation: Some("Create new file".to_string()),
             },
             output: FsCreateOutput {
                 path: "/home/user/project/new_file.txt".to_string(),
@@ -178,7 +175,6 @@ mod tests {
                 path: "/home/user/project/existing_file.txt".to_string(),
                 content: "new content".to_string(),
                 overwrite: true,
-                explanation: Some("Overwrite existing file".to_string()),
             },
             output: FsCreateOutput {
                 path: "/home/user/project/existing_file.txt".to_string(),
@@ -201,7 +197,6 @@ mod tests {
                 path: "/home/user/project/file.txt".to_string(),
                 content: "File content".to_string(),
                 overwrite: false,
-                explanation: Some("Create file".to_string()),
             },
             output: FsCreateOutput {
                 path: "/home/user/project/file.txt".to_string(),
@@ -220,10 +215,7 @@ mod tests {
     #[test]
     fn test_fs_remove() {
         let fixture = ToolOperation::FsRemove {
-            input: forge_domain::FSRemove {
-                path: "/home/user/project/file.txt".to_string(),
-                explanation: Some("Remove file".to_string()),
-            },
+            input: forge_domain::FSRemove { path: "/home/user/project/file.txt".to_string() },
             output: FsRemoveOutput { content: "".to_string() },
         };
         let env = fixture_environment();
@@ -243,7 +235,6 @@ mod tests {
                 file_pattern: None,
                 max_search_lines: None,
                 start_index: None,
-                explanation: Some("Search for Hello".to_string()),
             },
             output: Some(SearchResult {
                 matches: vec![
@@ -286,7 +277,6 @@ mod tests {
                 file_pattern: None,
                 max_search_lines: None,
                 start_index: None,
-                explanation: Some("Search for nonexistent".to_string()),
             },
             output: Some(SearchResult {
                 matches: vec![Match {
@@ -314,7 +304,6 @@ mod tests {
                 file_pattern: None,
                 max_search_lines: None,
                 start_index: None,
-                explanation: Some("Search test".to_string()),
             },
             output: None,
         };
@@ -334,7 +323,6 @@ mod tests {
                 search: Some("Hello world".to_string()),
                 content: "Hello universe".to_string(),
                 operation: PatchOperation::Replace,
-                explanation: Some("Replace text".to_string()),
             },
             output: PatchOutput {
                 warning: None,
@@ -356,7 +344,6 @@ mod tests {
                 search: Some("line2".to_string()),
                 content: "new line\nline2".to_string(),
                 operation: PatchOperation::Replace,
-                explanation: Some("Add new line".to_string()),
             },
             output: PatchOutput {
                 warning: Some("Large file modification".to_string()),
@@ -378,10 +365,7 @@ mod tests {
     #[test]
     fn test_fs_undo() {
         let fixture = ToolOperation::FsUndo {
-            input: forge_domain::FSUndo {
-                path: "/home/user/project/test.txt".to_string(),
-                explanation: Some("Undo changes".to_string()),
-            },
+            input: forge_domain::FSUndo { path: "/home/user/project/test.txt".to_string() },
             output: FsUndoOutput {
                 before_undo: Some("ABC".to_string()),
                 after_undo: Some("PQR".to_string()),
@@ -401,7 +385,6 @@ mod tests {
             input: forge_domain::NetFetch {
                 url: "https://example.com".to_string(),
                 raw: Some(false),
-                explanation: Some("Fetch example website".to_string()),
             },
             output: HttpResponse {
                 content: "# Example Website\n\nThis is content.".to_string(),
@@ -424,7 +407,6 @@ mod tests {
             input: forge_domain::NetFetch {
                 url: "https://example.com/notfound".to_string(),
                 raw: Some(true),
-                explanation: Some("Fetch non-existent page".to_string()),
             },
             output: HttpResponse {
                 content: "Not Found".to_string(),
@@ -548,7 +530,6 @@ mod tests {
                 content:
                     "# Test Plan\n\n## Task 1\n- Do something\n\n## Task 2\n- Do something else"
                         .to_string(),
-                explanation: Some("Create test plan".to_string()),
             },
             output: crate::PlanCreateOutput {
                 path: PathBuf::from("plans/2024-08-11-test-plan-v1.md"),
