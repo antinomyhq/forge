@@ -10,6 +10,7 @@ use forge_api::{
     EVENT_USER_TASK_UPDATE, Event, InterruptionReason, Model, ModelId, Provider, ToolName,
     Workflow,
 };
+use forge_app::utils::truncate_key;
 use forge_display::MarkdownFormat;
 use forge_domain::{ChatResponseContent, McpConfig, McpServerConfig, Scope, TitleFormat};
 use forge_fs::ForgeFS;
@@ -24,7 +25,6 @@ use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
 use crate::conversation_selector::ConversationSelector;
 use crate::env::{get_agent_from_env, get_conversation_id_from_env};
 use crate::info::Info;
-use forge_app::utils::truncate_key;
 use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
 use crate::prompt::ForgePrompt;
@@ -818,60 +818,97 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.on_chat(chat).await
     }
 
+    /// Initializes and returns a conversation ID for the current session.
+    ///
+    /// Handles conversation setup for both interactive and headless modes:
+    /// - **Interactive**: Reuses existing conversation, loads from file, or creates new
+    /// - **Headless**: Uses environment variables or generates new conversation
+    ///
+    /// Displays initialization status and updates UI state with the conversation ID.
     async fn init_conversation(&mut self) -> Result<ConversationId> {
-        if let Some(agent_id) = get_agent_from_env()
-            && !self.cli.is_interactive()
-        {
-            self.api.set_operating_agent(agent_id).await?;
+        let mut is_new = false;
+        let id = if self.cli.is_interactive() {
+            self.init_conversation_interactive().await?
+        } else {
+            self.init_conversation_headless(&mut is_new).await?
+        };
+
+        // Print if the state is being reinitialized
+        if self.state.conversation_id.is_none() {
+            self.print_conversation_status(is_new, id).await?;
         }
 
-        match self.state.conversation_id {
-            Some(ref id) => Ok(*id),
-            None => {
-                let mut new_conversation = false;
-                self.spinner.start(Some("Initializing"))?;
+        // Always set the conversation id in state
+        self.state.conversation_id = Some(id);
 
-                // We need to try and get the conversation ID first before fetching the model
-                let conversation = if let Some(ref path) = self.cli.conversation {
-                    let conversation: Conversation =
-                        serde_json::from_str(ForgeFS::read_utf8(path.as_os_str()).await?.as_str())
-                            .context("Failed to parse Conversation")?;
-                    conversation
-                } else if let Some(conversation_id) = get_conversation_id_from_env() {
-                    // Check if conversation with this ID already exists
-                    if let Some(conversation) = self.api.conversation(&conversation_id).await? {
-                        conversation
-                    } else {
-                        // Conversation doesn't exist, create a new one with this ID
-                        new_conversation = true;
-                        Conversation::new(conversation_id)
-                    }
-                } else {
-                    new_conversation = true;
-                    Conversation::generate()
-                };
+        Ok(id)
+    }
 
-                self.api.upsert_conversation(conversation.clone()).await?;
-                self.state.conversation_id = Some(conversation.id);
-                self.spinner.stop(None)?;
+    async fn init_conversation_interactive(&mut self) -> Result<ConversationId, anyhow::Error> {
+        Ok(if let Some(id) = self.state.conversation_id {
+            id
+        } else if let Some(ref path) = self.cli.conversation {
+            let conversation: Conversation =
+                serde_json::from_str(ForgeFS::read_utf8(path.as_os_str()).await?.as_str())
+                    .context("Failed to parse Conversation")?;
+            let id = conversation.id;
+            self.api.upsert_conversation(conversation).await?;
+            id
+        } else {
+            let conversation = Conversation::generate();
+            let id = conversation.id;
+            self.api.upsert_conversation(conversation).await?;
+            id
+        })
+    }
 
-                let mut sub_title = conversation.id.into_string();
-                if let Some(ref agent) = self.api.get_operating_agent().await {
-                    sub_title.push_str(format!(" [via {agent}]").as_str());
-                }
-
-                if new_conversation {
-                    self.writeln_title(
-                        TitleFormat::debug("Initialize".to_string()).sub_title(sub_title),
-                    )?;
-                } else {
-                    self.writeln_title(
-                        TitleFormat::debug("Continue".to_string()).sub_title(sub_title),
-                    )?;
-                }
-                Ok(conversation.id)
+    async fn init_conversation_headless(
+        &mut self,
+        is_new: &mut bool,
+    ) -> Result<ConversationId, anyhow::Error> {
+        Ok(if let Some(id) = self.state.conversation_id {
+            id
+        } else {
+            if let Some(agent_id) = get_agent_from_env() {
+                self.api.set_operating_agent(agent_id).await?;
             }
+            if let Some(id) = get_conversation_id_from_env() {
+                match self.api.conversation(&id).await? {
+                    Some(conversation) => conversation.id,
+                    None => {
+                        let conversation = Conversation::new(id);
+                        let id = conversation.id;
+                        self.api.upsert_conversation(conversation).await?;
+                        *is_new = true;
+                        id
+                    }
+                }
+            } else {
+                let conversation = Conversation::generate();
+                let id = conversation.id;
+                self.api.upsert_conversation(conversation).await?;
+                *is_new = true;
+                id
+            }
+        })
+    }
+
+    async fn print_conversation_status(
+        &mut self,
+        new_conversation: bool,
+        id: ConversationId,
+    ) -> Result<(), anyhow::Error> {
+        let mut sub_title = id.into_string();
+        if let Some(ref agent) = self.api.get_operating_agent().await {
+            sub_title.push_str(format!(" [via {agent}]").as_str());
         }
+        let title = if new_conversation {
+            TitleFormat::debug("Initialize".to_string()).sub_title(sub_title)
+        } else {
+            TitleFormat::debug("Continue".to_string()).sub_title(sub_title)
+        };
+        self.writeln_title(title)?;
+        Ok(())
     }
 
     /// Initialize the state of the UI
