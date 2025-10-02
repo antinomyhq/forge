@@ -607,8 +607,18 @@ impl<S: AgentService> Orchestrator<S> {
         let content = if let Some(user_prompt) = &agent.user_prompt
             && event.value.is_some()
         {
-            let event_context = EventContext::new(event.clone())
+            let mut event_context = EventContext::new(event.clone())
                 .current_date(self.current_time.format("%Y-%m-%d").to_string());
+
+            // Check if context already contains user messages to determine if it's feedback
+            let has_user_messages = context.messages.iter().any(|msg| msg.has_role(Role::User));
+
+            if has_user_messages {
+                event_context = event_context.into_feedback();
+            } else {
+                event_context = event_context.into_task();
+            }
+
             debug!(event_context = ?event_context, "Event context");
             Some(
                 self.services
