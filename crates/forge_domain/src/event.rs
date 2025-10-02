@@ -53,7 +53,13 @@ impl EventContext {
     /// name. This should be used when the context already contains user
     /// messages.
     pub fn into_feedback(mut self) -> Self {
-        self.event.name = format!("{}/{}", self.event.name, EVENT_USER_TASK_UPDATE);
+        if !self
+            .event
+            .name
+            .ends_with(&format!("/{}", EVENT_USER_TASK_UPDATE))
+        {
+            self.event.name = format!("{}/{}", self.event.name, EVENT_USER_TASK_UPDATE);
+        }
         self
     }
 
@@ -61,7 +67,13 @@ impl EventContext {
     /// name. This should be used when this is a new task without prior user
     /// messages.
     pub fn into_task(mut self) -> Self {
-        self.event.name = format!("{}/{}", self.event.name, EVENT_USER_TASK_INIT);
+        if !self
+            .event
+            .name
+            .ends_with(&format!("/{}", EVENT_USER_TASK_INIT))
+        {
+            self.event.name = format!("{}/{}", self.event.name, EVENT_USER_TASK_INIT);
+        }
         self
     }
 }
@@ -115,6 +127,28 @@ mod tests {
         let context = EventContext::new(event);
 
         let task_context = context.into_task();
+
+        assert_eq!(task_context.event.name, "test_event/user_task_init");
+    }
+
+    #[test]
+    fn test_into_feedback_prevents_duplicate_suffix() {
+        let event = Event::new("test_event", None::<String>);
+        let context = EventContext::new(event);
+
+        // Call into_feedback twice
+        let feedback_context = context.into_feedback().into_feedback();
+
+        assert_eq!(feedback_context.event.name, "test_event/user_task_update");
+    }
+
+    #[test]
+    fn test_into_task_prevents_duplicate_suffix() {
+        let event = Event::new("test_event", None::<String>);
+        let context = EventContext::new(event);
+
+        // Call into_task twice
+        let task_context = context.into_task().into_task();
 
         assert_eq!(task_context.event.name, "test_event/user_task_init");
     }
