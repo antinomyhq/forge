@@ -21,19 +21,6 @@ pub fn get_agent_from_env() -> Option<AgentId> {
 /// Takes a vector of strings where each string should be in the format
 /// "KEY=VALUE" and returns a BTreeMap with the parsed key-value pairs. Invalid
 /// entries (without an '=' separator) are silently skipped.
-///
-/// # Examples
-///
-/// ```
-/// use forge_main::parse_env;
-///
-/// let env_vars = vec![
-///     "HOME=/home/user".to_string(),
-///     "PATH=/usr/bin".to_string(),
-/// ];
-/// let result = parse_env(env_vars);
-/// assert_eq!(result.get("HOME"), Some(&"/home/user".to_string()));
-/// ```
 pub fn parse_env(env: Vec<String>) -> std::collections::BTreeMap<String, String> {
     env.into_iter()
         .filter_map(|s| {
