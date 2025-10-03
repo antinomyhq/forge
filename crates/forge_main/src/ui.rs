@@ -21,6 +21,7 @@ use serde_json::Value;
 use tokio_stream::StreamExt;
 
 use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
+use crate::cli_format::format_columns;
 use crate::config::ConfigManager;
 use crate::conversation_selector::ConversationSelector;
 use crate::env::{get_agent_from_env, get_conversation_id_from_env};
@@ -379,6 +380,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_show_models().await?;
                 return Ok(());
             }
+            TopLevelCommand::ShowCommands => {
+                self.on_show_commands().await?;
+                return Ok(());
+            }
             TopLevelCommand::Config(config_group) => {
                 let config_manager = ConfigManager::new(&*self.api);
                 config_manager
@@ -398,28 +403,22 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
-        // Find the maximum agent ID length for consistent padding
-        let max_id_length = agents
-            .iter()
-            .map(|agent| agent.id.as_str().len())
-            .max()
-            .unwrap_or(0);
-
-        let output = agents
+        let items: Vec<(String, String)> = agents
             .iter()
             .map(|agent| {
-                let title = agent.title.as_deref().unwrap_or("<Missing agent.title>");
-                format!(
-                    "{:<width$} {}",
-                    agent.id.as_str(),
-                    title.lines().collect::<Vec<_>>().join(" "),
-                    width = max_id_length
-                )
+                let id = agent.id.as_str().to_string();
+                let title = agent
+                    .title
+                    .as_deref()
+                    .unwrap_or("<Missing agent.title>")
+                    .lines()
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                (id, title)
             })
-            .collect::<Vec<_>>()
-            .join("\n");
+            .collect();
 
-        println!("{}", output);
+        format_columns(items);
 
         Ok(())
     }
@@ -432,32 +431,20 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
-        // Find the maximum provider ID length for consistent padding
-        let max_id_length = providers
-            .iter()
-            .map(|provider| provider.id.to_string().len())
-            .max()
-            .unwrap_or(0);
-
-        let output = providers
+        let items: Vec<(String, String)> = providers
             .iter()
             .map(|provider| {
+                let id = provider.id.to_string();
                 let domain = provider
                     .url
                     .domain()
                     .map(|d| format!("[{}]", d))
                     .unwrap_or_default();
-                format!(
-                    "{:<width$} {}",
-                    provider.id.to_string(),
-                    domain,
-                    width = max_id_length
-                )
+                (id, domain)
             })
-            .collect::<Vec<_>>()
-            .join("\n");
+            .collect();
 
-        println!("{}", output);
+        format_columns(items);
 
         Ok(())
     }
@@ -470,16 +457,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
-        // Find the maximum model ID length for consistent padding
-        let max_id_length = models
-            .iter()
-            .map(|model| model.id.to_string().len())
-            .max()
-            .unwrap_or(0);
-
-        let output = models
+        let items: Vec<(String, String)> = models
             .iter()
             .map(|model| {
+                let id = model.id.to_string();
                 let mut info_parts = Vec::new();
 
                 // Add context length if available
@@ -504,17 +485,39 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     String::new()
                 };
 
-                format!(
-                    "{:<width$} {}",
-                    model.id.to_string(),
-                    info,
-                    width = max_id_length
-                )
+                (id, info)
             })
-            .collect::<Vec<_>>()
-            .join("\n");
+            .collect();
 
-        println!("{}", output);
+        format_columns(items);
+
+        Ok(())
+    }
+
+    /// Lists all the commands
+    async fn on_show_commands(&self) -> anyhow::Result<()> {
+        // Define base commands with their descriptions
+        let mut commands: Vec<(String, String)> = vec![
+            ("info".to_string(), "Print session information".to_string()),
+            ("provider".to_string(), "Switch the providers".to_string()),
+            ("model".to_string(), "Switch the models".to_string()),
+            ("reset".to_string(), "Reset current session".to_string()),
+        ];
+
+        // Fetch agents and add them to the commands list
+        let agents = self.api.get_agents().await?;
+        for agent in agents {
+            let title = agent
+                .title
+                .as_deref()
+                .unwrap_or("<Missing agent.title>")
+                .lines()
+                .collect::<Vec<_>>()
+                .join(" ");
+            commands.push((agent.id.to_string(), title));
+        }
+
+        format_columns(commands);
 
         Ok(())
     }
@@ -1362,6 +1365,3 @@ fn parse_env(env: Vec<String>) -> BTreeMap<String, String> {
         })
         .collect()
 }
-
-#[cfg(test)]
-mod tests {}

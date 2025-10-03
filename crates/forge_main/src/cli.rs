@@ -110,6 +110,9 @@ pub enum TopLevelCommand {
     /// Lists all the models
     ShowModels,
 
+    /// Lists all the commands
+    ShowCommands,
+
     /// Configuration management commands
     Config(ConfigCommandGroup),
 }
