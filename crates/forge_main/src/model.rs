@@ -2,13 +2,36 @@ use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
 use colored::Colorize;
-use forge_api::{Model, Provider, Workflow};
+use forge_api::{Event, Model, Provider, Workflow};
 use forge_domain::Agent;
+use serde::Deserialize;
+use serde_json::Value;
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumProperty};
 
 use crate::info::Info;
-use crate::ui::PartialEvent;
+
+/// Represents a partial event structure used for CLI event dispatching
+///
+/// This is an intermediate structure for parsing event JSON from the CLI
+/// before converting it to a full Event type.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Default)]
+pub struct PartialEvent {
+    pub name: String,
+    pub value: Value,
+}
+
+impl PartialEvent {
+    pub fn new<V: Into<Value>>(name: impl ToString, value: V) -> Self {
+        Self { name: name.to_string(), value: value.into() }
+    }
+}
+
+impl From<PartialEvent> for Event {
+    fn from(value: PartialEvent) -> Self {
+        Event::new(value.name, Some(value.value))
+    }
+}
 
 /// Wrapper for displaying models in selection menus
 ///

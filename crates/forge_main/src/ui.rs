@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::fmt::Display;
 use std::sync::Arc;
 
@@ -16,18 +15,16 @@ use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
 use merge::Merge;
-use serde::Deserialize;
-use serde_json::Value;
 use tokio_stream::StreamExt;
 
 use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
 use crate::cli_format::format_columns;
 use crate::config::ConfigManager;
 use crate::conversation_selector::ConversationSelector;
-use crate::env::{get_agent_from_env, get_conversation_id_from_env};
+use crate::env::{get_agent_from_env, get_conversation_id_from_env, parse_env};
 use crate::info::Info;
 use crate::input::Console;
-use crate::model::{CliModel, CliProvider, Command, ForgeCommandManager};
+use crate::model::{CliModel, CliProvider, Command, ForgeCommandManager, PartialEvent};
 use crate::prompt::ForgePrompt;
 use crate::select::ForgeSelect;
 use crate::state::UIState;
@@ -37,24 +34,6 @@ use crate::{TRACKER, banner, tracker};
 
 // Configuration constants
 const MAX_CONVERSATIONS_TO_SHOW: usize = 20;
-
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Default)]
-pub struct PartialEvent {
-    pub name: String,
-    pub value: Value,
-}
-
-impl PartialEvent {
-    pub fn new<V: Into<Value>>(name: impl ToString, value: V) -> Self {
-        Self { name: name.to_string(), value: value.into() }
-    }
-}
-
-impl From<PartialEvent> for Event {
-    fn from(value: PartialEvent) -> Self {
-        Event::new(value.name, Some(value.value))
-    }
-}
 
 pub struct UI<A, F: Fn() -> A> {
     markdown: MarkdownFormat,
@@ -503,6 +482,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ("model".to_string(), "Switch the models".to_string()),
             ("reset".to_string(), "Reset current session".to_string()),
         ];
+
 
         // Fetch agents and add them to the commands list
         let agents = self.api.get_agents().await?;
@@ -1351,17 +1331,4 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         });
     }
-}
-
-fn parse_env(env: Vec<String>) -> BTreeMap<String, String> {
-    env.into_iter()
-        .filter_map(|s| {
-            let mut parts = s.splitn(2, '=');
-            if let (Some(key), Some(value)) = (parts.next(), parts.next()) {
-                Some((key.to_string(), value.to_string()))
-            } else {
-                None
-            }
-        })
-        .collect()
 }
