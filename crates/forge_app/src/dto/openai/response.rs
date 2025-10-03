@@ -518,7 +518,6 @@ mod tests {
             completion_tokens: 50,
             total_tokens: 150,
             cost: Some(0.001),
-            is_byok: None,
             prompt_tokens_details: None,
             cost_details: Some(CostDetails {
                 upstream_inference_cost: Some(0.005),
@@ -536,7 +535,6 @@ mod tests {
             completion_tokens: 50,
             total_tokens: 150,
             cost: None,
-            is_byok: None,
             prompt_tokens_details: None,
             cost_details: Some(CostDetails {
                 upstream_inference_cost: Some(0.005),
@@ -554,7 +552,6 @@ mod tests {
             completion_tokens: 50,
             total_tokens: 150,
             cost: None,
-            is_byok: None,
             prompt_tokens_details: None,
             cost_details: Some(CostDetails {
                 upstream_inference_cost: None,
@@ -564,6 +561,23 @@ mod tests {
         };
 
         let actual: Usage = fixture_partial_sum.into();
+        assert_eq!(actual.cost, Some(0.005));
+         
+         // Priority 4: when upstream_inference_cost is 0 then compute it from other parameters.
+        let fixture = ResponseUsage {
+            prompt_tokens: 100,
+            completion_tokens: 50,
+            total_tokens: 150,
+            cost: None,
+            prompt_tokens_details: None,
+            cost_details: Some(CostDetails {
+                upstream_inference_cost: Some(0.0),
+                upstream_inference_prompt_cost: Some(0.003),
+                upstream_inference_completions_cost: Some(0.002),
+            }),
+        };
+
+        let actual: Usage = fixture.into();
         assert_eq!(actual.cost, Some(0.005));
     }
 }
