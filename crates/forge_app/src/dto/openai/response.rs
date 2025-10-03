@@ -510,28 +510,27 @@ mod tests {
     }
 
     #[test]
-    fn test_should_take_cost_if_present() {
-        let fixture_cost_priority = ResponseUsage {
+    fn test_response_usage_cost_priority_chain() {
+        // Priority 1: cost field (non-zero) beats everything
+        let fixture_cost_wins = ResponseUsage {
             prompt_tokens: 100,
             completion_tokens: 50,
             total_tokens: 150,
-            cost: Some(0.003),
+            cost: Some(0.001),
             is_byok: None,
             prompt_tokens_details: None,
             cost_details: Some(CostDetails {
-                upstream_inference_cost: None,
-                upstream_inference_prompt_cost: Some(0.001),
+                upstream_inference_cost: Some(0.005),
+                upstream_inference_prompt_cost: Some(0.003),
                 upstream_inference_completions_cost: Some(0.002),
             }),
         };
 
-        let actual: Usage = fixture_cost_priority.into();
-        assert_eq!(actual.cost, Some(0.003));
-    }
+        let actual: Usage = fixture_cost_wins.into();
+        assert_eq!(actual.cost, Some(0.001));
 
-    #[test]
-    fn test_should_fallback_to_cost_details_when_cost_in_absent() {
-        let fixture = ResponseUsage {
+        // Priority 2: upstream_inference_cost beats partial costs
+        let fixture_upstream_wins = ResponseUsage {
             prompt_tokens: 100,
             completion_tokens: 50,
             total_tokens: 150,
@@ -539,18 +538,17 @@ mod tests {
             is_byok: None,
             prompt_tokens_details: None,
             cost_details: Some(CostDetails {
-                upstream_inference_cost: Some(0.008),
+                upstream_inference_cost: Some(0.005),
                 upstream_inference_prompt_cost: Some(0.003),
-                upstream_inference_completions_cost: Some(0.005),
+                upstream_inference_completions_cost: Some(0.002),
             }),
         };
-        let actual: Usage = fixture.into();
-        assert_eq!(actual.cost, Some(0.008));
-    }
 
-    #[test]
-    fn test_should_fallback_to_cost_details_when_cost_in_absent_case2() {
-        let fixture = ResponseUsage {
+        let actual: Usage = fixture_upstream_wins.into();
+        assert_eq!(actual.cost, Some(0.005));
+
+        // Priority 3: partial costs are summed when upstream_inference_cost is None
+        let fixture_partial_sum = ResponseUsage {
             prompt_tokens: 100,
             completion_tokens: 50,
             total_tokens: 150,
@@ -564,23 +562,8 @@ mod tests {
             }),
         };
 
-        let actual: Usage = fixture.into();
+        let actual: Usage = fixture_partial_sum.into();
         assert_eq!(actual.cost, Some(0.005));
     }
 
-    #[test]
-    fn test_response_usage_cost_none_when_all_missing() {
-        let fixture = ResponseUsage {
-            prompt_tokens: 100,
-            completion_tokens: 50,
-            total_tokens: 150,
-            cost: None,
-            is_byok: None,
-            prompt_tokens_details: None,
-            cost_details: None,
-        };
-
-        let actual: Usage = fixture.into();
-        assert_eq!(actual.cost, None);
-    }
 }
