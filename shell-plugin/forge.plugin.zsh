@@ -61,6 +61,32 @@ function _forge_select_and_set_config() {
     )
 }
 
+
+# Helper function to handle session commands that require an active conversation
+function _forge_handle_session_command() {
+    local subcommand="$1"
+    shift  # Remove first argument, remaining args become extra parameters
+    
+    echo
+    
+    # Check if FORGE_CONVERSATION_ID is set
+    if [[ -z "$FORGE_CONVERSATION_ID" ]]; then
+        echo "\033[31m✗\033[0m No active conversation. Start a conversation first or use :list to see existing ones"
+        BUFFER=""
+        CURSOR=${#BUFFER}
+        zle reset-prompt
+        return 0
+    fi
+    
+    # Execute the session command with conversation ID and any extra arguments
+    $_FORGE_BIN session --id "$FORGE_CONVERSATION_ID" "$subcommand" "$@"
+    
+    BUFFER=""
+    CURSOR=${#BUFFER}
+    zle reset-prompt
+    return 0
+}
+
 # Store conversation ID in a temporary variable (local to plugin)
 export FORGE_CONVERSATION_ID=""
 export FORGE_ACTIVE_AGENT="forge"
@@ -188,71 +214,24 @@ function forge-accept-line() {
     
     # Handle dump command specially  
     if [[ "$user_action" == "dump" ]]; then
-        echo
-        
-        # Check if FORGE_CONVERSATION_ID is set
-        if [[ -z "$FORGE_CONVERSATION_ID" ]]; then
-            echo "\033[31m✗\033[0m No active conversation. Start a conversation first or use :list to see existing ones"
-            BUFFER=""
-            CURSOR=${#BUFFER}
-            zle reset-prompt
-            return 0
-        fi
-        
-        # Check if input_text is "html" for HTML format
+        # Pass "html" as extra argument if specified, otherwise pass nothing
         if [[ "$input_text" == "html" ]]; then
-            $_FORGE_BIN session --id "$FORGE_CONVERSATION_ID" dump html
+            _forge_handle_session_command "dump" "html"
         else
-            $_FORGE_BIN session --id "$FORGE_CONVERSATION_ID" dump
+            _forge_handle_session_command "dump"
         fi
-        
-        BUFFER=""
-        CURSOR=${#BUFFER}
-        zle reset-prompt
         return 0
     fi
     
     # Handle compact command specially
     if [[ "$user_action" == "compact" ]]; then
-        echo
-        
-        # Check if FORGE_CONVERSATION_ID is set
-        if [[ -z "$FORGE_CONVERSATION_ID" ]]; then
-            echo "\033[31m✗\033[0m No active conversation. Start a conversation first or use :list to see existing ones"
-            BUFFER=""
-            CURSOR=${#BUFFER}
-            zle reset-prompt
-            return 0
-        fi
-        
-        # Execute compact command with the conversation ID
-        $_FORGE_BIN session --id "$FORGE_CONVERSATION_ID" compact
-        
-        BUFFER=""
-        CURSOR=${#BUFFER}
-        zle reset-prompt
+        _forge_handle_session_command "compact"
         return 0
     fi
     
     # Handle retry command specially
     if [[ "$user_action" == "retry" ]]; then
-        echo
-        
-        # Check if FORGE_CONVERSATION_ID is set
-        if [[ -z "$FORGE_CONVERSATION_ID" ]]; then
-            echo "\033[31m✗\033[0m No active conversation. Start a conversation first or use :list to see existing ones"
-            BUFFER=""
-            CURSOR=${#BUFFER}
-            zle reset-prompt
-            return 0
-        fi
-        
-        # Execute retry command with the conversation ID
-        $_FORGE_BIN session --id "$FORGE_CONVERSATION_ID" retry
-        
-        BUFFER=""
-        CURSOR=${#BUFFER}
-        zle reset-prompt
+        _forge_handle_session_command "retry"
         return 0
     fi
     
