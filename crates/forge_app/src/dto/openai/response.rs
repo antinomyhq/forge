@@ -46,12 +46,6 @@ pub struct CostDetails {
     pub upstream_inference_completions_cost: Option<f64>,
 }
 
-//  "cost_details": {
-//             "upstream_inference_cost": null,
-//             "upstream_inference_prompt_cost": 0.004041,
-//             "upstream_inference_completions_cost": 0.0000704
-//         },
-
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct PromptTokenDetails {
     pub cached_tokens: usize,
