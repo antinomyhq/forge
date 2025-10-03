@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::fmt::Display;
 use std::sync::Arc;
 
@@ -16,16 +15,16 @@ use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
 use merge::Merge;
-use serde::Deserialize;
-use serde_json::Value;
 use tokio_stream::StreamExt;
 
 use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
+use crate::cli_format::format_columns;
+use crate::config::ConfigManager;
 use crate::conversation_selector::ConversationSelector;
-use crate::env::{get_agent_from_env, get_conversation_id_from_env};
+use crate::env::{get_agent_from_env, get_conversation_id_from_env, parse_env};
 use crate::info::Info;
 use crate::input::Console;
-use crate::model::{Command, ForgeCommandManager};
+use crate::model::{CliModel, CliProvider, Command, ForgeCommandManager, PartialEvent};
 use crate::prompt::ForgePrompt;
 use crate::select::ForgeSelect;
 use crate::state::UIState;
@@ -35,24 +34,6 @@ use crate::{TRACKER, banner, tracker};
 
 // Configuration constants
 const MAX_CONVERSATIONS_TO_SHOW: usize = 20;
-
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Default)]
-pub struct PartialEvent {
-    pub name: String,
-    pub value: Value,
-}
-
-impl PartialEvent {
-    pub fn new<V: Into<Value>>(name: impl ToString, value: V) -> Self {
-        Self { name: name.to_string(), value: value.into() }
-    }
-}
-
-impl From<PartialEvent> for Event {
-    fn from(value: PartialEvent) -> Self {
-        Event::new(value.name, Some(value.value))
-    }
-}
 
 pub struct UI<A, F: Fn() -> A> {
     markdown: MarkdownFormat,
@@ -370,6 +351,25 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_show_agents().await?;
                 return Ok(());
             }
+            TopLevelCommand::ShowProviders => {
+                self.on_show_providers().await?;
+                return Ok(());
+            }
+            TopLevelCommand::ShowModels => {
+                self.on_show_models().await?;
+                return Ok(());
+            }
+            TopLevelCommand::ShowCommands => {
+                self.on_show_commands().await?;
+                return Ok(());
+            }
+            TopLevelCommand::Config(config_group) => {
+                let config_manager = ConfigManager::new(self.api.clone());
+                config_manager
+                    .handle_command(config_group.command.clone())
+                    .await?;
+                return Ok(());
+            }
         }
         Ok(())
     }
@@ -382,28 +382,125 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
-        // Find the maximum agent ID length for consistent padding
-        let max_id_length = agents
-            .iter()
-            .map(|agent| agent.id.as_str().len())
-            .max()
-            .unwrap_or(0);
-
-        let output = agents
+        let items: Vec<(String, String)> = agents
             .iter()
             .map(|agent| {
-                let title = agent.title.as_deref().unwrap_or("<Missing agent.title>");
-                format!(
-                    "{:<width$} {}",
-                    agent.id.as_str(),
-                    title.lines().collect::<Vec<_>>().join(" "),
-                    width = max_id_length
-                )
+                let id = agent.id.as_str().to_string();
+                let title = agent
+                    .title
+                    .as_deref()
+                    .unwrap_or("<Missing agent.title>")
+                    .lines()
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                (id, title)
             })
-            .collect::<Vec<_>>()
-            .join("\n");
+            .collect();
 
-        println!("{}", output);
+        format_columns(items);
+
+        Ok(())
+    }
+
+    /// Lists all the providers
+    async fn on_show_providers(&self) -> anyhow::Result<()> {
+        let providers = self.api.providers().await?;
+
+        if providers.is_empty() {
+            return Ok(());
+        }
+
+        let items: Vec<(String, String)> = providers
+            .iter()
+            .map(|provider| {
+                let id = provider.id.to_string();
+                let domain = provider
+                    .url
+                    .domain()
+                    .map(|d| format!("[{}]", d))
+                    .unwrap_or_default();
+                (id, domain)
+            })
+            .collect();
+
+        format_columns(items);
+
+        Ok(())
+    }
+
+    /// Lists all the models
+    async fn on_show_models(&mut self) -> anyhow::Result<()> {
+        let models = self.get_models().await?;
+
+        if models.is_empty() {
+            return Ok(());
+        }
+
+        let items: Vec<(String, String)> = models
+            .iter()
+            .map(|model| {
+                let id = model.id.to_string();
+                let mut info_parts = Vec::new();
+
+                // Add context length if available
+                if let Some(limit) = model.context_length {
+                    if limit >= 1_000_000 {
+                        info_parts.push(format!("{}M", limit / 1_000_000));
+                    } else if limit >= 1000 {
+                        info_parts.push(format!("{}k", limit / 1000));
+                    } else {
+                        info_parts.push(format!("{limit}"));
+                    }
+                }
+
+                // Add tools support indicator if explicitly supported
+                if model.tools_supported == Some(true) {
+                    info_parts.push("🛠️".to_string());
+                }
+
+                let info = if !info_parts.is_empty() {
+                    format!("[ {} ]", info_parts.join(" "))
+                } else {
+                    String::new()
+                };
+
+                (id, info)
+            })
+            .collect();
+
+        format_columns(items);
+
+        Ok(())
+    }
+
+    /// Lists all the commands
+    async fn on_show_commands(&self) -> anyhow::Result<()> {
+        // Define base commands with their descriptions
+        let mut commands: Vec<(String, String)> = vec![
+            ("info".to_string(), "Print session information".to_string()),
+            ("provider".to_string(), "Switch the providers".to_string()),
+            ("model".to_string(), "Switch the models".to_string()),
+            ("reset".to_string(), "Reset current session".to_string()),
+        ];
+
+        // Add alias commands
+        commands.push(("ask".to_string(), "Alias for agent SAGE".to_string()));
+        commands.push(("plan".to_string(), "Alias for agent MUSE".to_string()));
+
+        // Fetch agents and add them to the commands list
+        let agents = self.api.get_agents().await?;
+        for agent in agents {
+            let title = agent
+                .title
+                .as_deref()
+                .unwrap_or("<Missing agent.title>")
+                .lines()
+                .collect::<Vec<_>>()
+                .join(" ");
+            commands.push((agent.id.to_string(), title));
+        }
+
+        format_columns(commands);
 
         Ok(())
     }
@@ -1240,189 +1337,5 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 tracker::login(user_info.auth_provider_id.into_string());
             }
         });
-    }
-}
-
-fn parse_env(env: Vec<String>) -> BTreeMap<String, String> {
-    env.into_iter()
-        .filter_map(|s| {
-            let mut parts = s.splitn(2, '=');
-            if let (Some(key), Some(value)) = (parts.next(), parts.next()) {
-                Some((key.to_string(), value.to_string()))
-            } else {
-                None
-            }
-        })
-        .collect()
-}
-
-struct CliModel(Model);
-
-impl Display for CliModel {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0.id)?;
-
-        let mut info_parts = Vec::new();
-
-        // Add context length if available
-        if let Some(limit) = self.0.context_length {
-            if limit >= 1_000_000 {
-                info_parts.push(format!("{}M", limit / 1_000_000));
-            } else if limit >= 1000 {
-                info_parts.push(format!("{}k", limit / 1000));
-            } else {
-                info_parts.push(format!("{limit}"));
-            }
-        }
-
-        // Add tools support indicator if explicitly supported
-        if self.0.tools_supported == Some(true) {
-            info_parts.push("🛠️".to_string());
-        }
-
-        // Only show brackets if we have info to display
-        if !info_parts.is_empty() {
-            let info = format!("[ {} ]", info_parts.join(" "));
-            write!(f, " {}", info.dimmed())?;
-        }
-
-        Ok(())
-    }
-}
-
-struct CliProvider(Provider);
-
-impl Display for CliProvider {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = self.0.id.to_string();
-        write!(f, "{}", name)?;
-        if let Some(domain) = self.0.url.domain() {
-            write!(f, " [{}]", domain)?;
-        }
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use console::strip_ansi_codes;
-    use forge_domain::{Model, ModelId};
-    use pretty_assertions::assert_eq;
-
-    use super::*;
-
-    fn create_model_fixture(
-        id: &str,
-        context_length: Option<u64>,
-        tools_supported: Option<bool>,
-    ) -> Model {
-        Model {
-            id: ModelId::new(id),
-            name: None,
-            description: None,
-            context_length,
-            tools_supported,
-            supports_parallel_tool_calls: None,
-            supports_reasoning: None,
-        }
-    }
-
-    #[test]
-    fn test_cli_model_display_with_context_and_tools() {
-        let fixture = create_model_fixture("gpt-4", Some(128000), Some(true));
-        let formatted = format!("{}", CliModel(fixture));
-        let actual = strip_ansi_codes(&formatted);
-        let expected = "gpt-4 [ 128k 🛠️ ]";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_cli_model_display_with_large_context() {
-        let fixture = create_model_fixture("claude-3", Some(2000000), Some(true));
-        let formatted = format!("{}", CliModel(fixture));
-        let actual = strip_ansi_codes(&formatted);
-        let expected = "claude-3 [ 2M 🛠️ ]";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_cli_model_display_with_small_context() {
-        let fixture = create_model_fixture("small-model", Some(512), Some(false));
-        let formatted = format!("{}", CliModel(fixture));
-        let actual = strip_ansi_codes(&formatted);
-        let expected = "small-model [ 512 ]";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_cli_model_display_with_context_only() {
-        let fixture = create_model_fixture("text-model", Some(4096), Some(false));
-        let formatted = format!("{}", CliModel(fixture));
-        let actual = strip_ansi_codes(&formatted);
-        let expected = "text-model [ 4k ]";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_cli_model_display_with_tools_only() {
-        let fixture = create_model_fixture("tool-model", None, Some(true));
-        let formatted = format!("{}", CliModel(fixture));
-        let actual = strip_ansi_codes(&formatted);
-        let expected = "tool-model [ 🛠️ ]";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_cli_model_display_empty_context_and_no_tools() {
-        let fixture = create_model_fixture("basic-model", None, Some(false));
-        let formatted = format!("{}", CliModel(fixture));
-        let actual = strip_ansi_codes(&formatted);
-        let expected = "basic-model";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_cli_model_display_empty_context_and_none_tools() {
-        let fixture = create_model_fixture("unknown-model", None, None);
-        let formatted = format!("{}", CliModel(fixture));
-        let actual = strip_ansi_codes(&formatted);
-        let expected = "unknown-model";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_cli_model_display_exact_thousands() {
-        let fixture = create_model_fixture("exact-k", Some(8000), Some(true));
-        let formatted = format!("{}", CliModel(fixture));
-        let actual = strip_ansi_codes(&formatted);
-        let expected = "exact-k [ 8k 🛠️ ]";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_cli_model_display_exact_millions() {
-        let fixture = create_model_fixture("exact-m", Some(1000000), Some(true));
-        let formatted = format!("{}", CliModel(fixture));
-        let actual = strip_ansi_codes(&formatted);
-        let expected = "exact-m [ 1M 🛠️ ]";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_cli_model_display_edge_case_999() {
-        let fixture = create_model_fixture("edge-999", Some(999), None);
-        let formatted = format!("{}", CliModel(fixture));
-        let actual = strip_ansi_codes(&formatted);
-        let expected = "edge-999 [ 999 ]";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_cli_model_display_edge_case_1001() {
-        let fixture = create_model_fixture("edge-1001", Some(1001), None);
-        let formatted = format!("{}", CliModel(fixture));
-        let actual = strip_ansi_codes(&formatted);
-        let expected = "edge-1001 [ 1k ]";
-        assert_eq!(actual, expected);
     }
 }

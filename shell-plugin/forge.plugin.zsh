@@ -5,11 +5,14 @@
 
 # Configuration: Change these variables to customize the forge command and special characters
 # Using typeset to keep variables local to plugin scope and prevent public exposure
-typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
+typeset -h _FORGE_BIN="${FORGE_BIN:-cargo run --quiet --}"
 typeset -h _FORGE_CONVERSATION_PATTERN=":"
 
 # Detect fd command - Ubuntu/Debian use 'fdfind', others use 'fd'
 typeset -h _FORGE_FD_CMD="$(command -v fdfind 2>/dev/null || command -v fd 2>/dev/null || echo 'fd')"
+
+# Cache the commands list once at plugin load time
+typeset -h _FORGE_COMMANDS="$($_FORGE_BIN show-commands 2>/dev/null)"
 
 # Style tagged files
 ZSH_HIGHLIGHT_PATTERNS+=('@\[[^]]#\]' 'fg=cyan,bold')
@@ -33,6 +36,29 @@ function _forge_fzf() {
 function _forge_print_agent_message() {
     local agent_name="${1:-${FORGE_ACTIVE_AGENT}}"
     echo "\033[33m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] \033[1;37m${agent_name:u}\033[0m \033[90mis now the active agent\033[0m"
+}
+
+# Helper function to select and set config values with fzf
+function _forge_select_and_set_config() {
+    local show_command="$1"
+    local config_flag="$2"
+    local prompt_text="$3"
+    
+    (
+        echo
+        local output
+        output=$($_FORGE_BIN "$show_command" 2>/dev/null)
+        
+        if [[ -n "$output" ]]; then
+            local selected
+            selected=$(echo "$output" | _forge_fzf --prompt="$prompt_text ❯ ")
+            
+            if [[ -n "$selected" ]]; then
+                local name="${selected%% *}"
+                $_FORGE_BIN config set "--$config_flag" "$name"
+            fi
+        fi
+    )
 }
 
 # Store conversation ID in a temporary variable (local to plugin)
@@ -69,17 +95,14 @@ function forge-completion() {
         # Extract the text after the colon for filtering
         local filter_text="${LBUFFER#:}"
         
-        # Get available commands from forge show-agents
-        local command_output
-        command_output=$($_FORGE_BIN show-agents 2>/dev/null)
-        
-        if [[ $? -eq 0 && -n "$command_output" ]]; then
+        # Use the cached commands list
+        if [[ -n "$_FORGE_COMMANDS" ]]; then
             # Use fzf for interactive selection with prefilled filter
             local selected
             if [[ -n "$filter_text" ]]; then
-                selected=$(echo "$command_output" | _forge_fzf --nth=1 --query "$filter_text" --prompt="Agent ❯ ")
+                selected=$(echo "$_FORGE_COMMANDS" | _forge_fzf --nth=1 --query "$filter_text" --prompt="Command ❯ ")
             else
-                selected=$(echo "$command_output" | _forge_fzf --nth=1 --prompt="Agent ❯ ")
+                selected=$(echo "$_FORGE_COMMANDS" | _forge_fzf --nth=1 --prompt="Command ❯ ")
             fi
             
             if [[ -n "$selected" ]]; then
@@ -125,6 +148,14 @@ function forge-accept-line() {
     # Add the original command to history before transformation
     print -s -- "$original_buffer"
     
+
+    # Handle aliases - convert to their actual agent names
+    if [[ "$user_action" == "ask" ]]; then
+        user_action="sage"
+    elif [[ "$user_action" == "plan" ]]; then
+        user_action="muse"
+    fi
+    
     # Handle reset command specially
     if [[ "$user_action" == "reset" || "$user_action" == "r" ]]; then
         echo
@@ -155,7 +186,40 @@ function forge-accept-line() {
         return 0
     fi
     
+    # Handle providers command specially
+    if [[ "$user_action" == "provider" ]]; then
+        _forge_select_and_set_config "show-providers" "provider" "Provider"
+        BUFFER=""
+        CURSOR=${#BUFFER}
+        zle reset-prompt
+        return 0
+    fi
+    
+    # Handle models command specially
+    if [[ "$user_action" == "model" ]]; then
+        _forge_select_and_set_config "show-models" "model" "Model"
+        BUFFER=""
+        CURSOR=${#BUFFER}
+        zle reset-prompt
+        return 0
+    fi
+    
     # Check if input_text is empty - just set the active agent
+    
+    # Validate that the command exists in show-commands (if user_action is provided)
+    if [[ -n "$user_action" ]]; then
+        if [[ -n "$_FORGE_COMMANDS" ]]; then
+            # Check if the user_action is in the list of valid commands
+            if ! echo "$_FORGE_COMMANDS" | grep -q "^${user_action}\b"; then
+                echo
+                echo "\033[31m⏺\033[0m \033[90m[$(date '+%H:%M:%S')]\033[0m \033[1;31mERROR:\033[0m Command '\033[1m${user_action}\033[0m' not found"
+                BUFFER=""
+                CURSOR=${#BUFFER}
+                zle reset-prompt
+                return 0
+            fi
+        fi
+    fi
     if [[ -z "$input_text" ]]; then
         echo
         FORGE_ACTIVE_AGENT="${user_action:-${FORGE_ACTIVE_AGENT}}"

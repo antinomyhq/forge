@@ -9,6 +9,7 @@ path = "src/main.rs"
 
 
 [dependencies]
+thiserror = { workspace = true }
 clap.workspace = true
 console.workspace = true
 forge_app.workspace = true
@@ -50,6 +51,7 @@ open.workspace = true
 humantime.workspace = true
 num-format.workspace = true
 atty = "0.2"
+url.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
