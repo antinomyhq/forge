@@ -5,7 +5,7 @@
 
 # Configuration: Change these variables to customize the forge command and special characters
 # Using typeset to keep variables local to plugin scope and prevent public exposure
-typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
+typeset -h _FORGE_BIN="${FORGE_BIN:-cargo run --quiet --}"
 typeset -h _FORGE_CONVERSATION_PATTERN=":"
 
 # Detect fd command - Ubuntu/Debian use 'fdfind', others use 'fd'
@@ -172,13 +172,24 @@ function forge-accept-line() {
             providers_output=$($_FORGE_BIN show-providers 2>/dev/null)
             
             if [[ -n "$providers_output" ]]; then
+                # Get current provider
+                local current_provider
+                current_provider=$($_FORGE_BIN config get --field provider 2>/dev/null | tail -1 | sed 's/.*Provider //')
+                
+                # Create prompt with current provider
+                local prompt_text="Provider ❯ "
+                if [[ -n "$current_provider" ]]; then
+                    prompt_text="Provider [Current: ${current_provider}] ❯ "
+                fi
+                
                 local selected_provider
-                selected_provider=$(echo "$providers_output" | _forge_fzf --prompt="Provider ❯ ")
+                selected_provider=$(echo "$providers_output" | _forge_fzf --prompt="$prompt_text")
                 
                 if [[ -n "$selected_provider" ]]; then
                     # Extract just the provider name (first word before any description)
                     local provider_name="${selected_provider%% *}"
                     $_FORGE_BIN config set --provider "$provider_name"
+                    echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Provider set to \033[1m${provider_name}\033[0m"
                 fi
             else
                 echo "\033[31m✗\033[0m Failed to get providers list"
@@ -200,13 +211,24 @@ function forge-accept-line() {
             models_output=$($_FORGE_BIN show-models 2>/dev/null)
             
             if [[ -n "$models_output" ]]; then
+                # Get current model
+                local current_model
+                current_model=$($_FORGE_BIN config get --field model 2>/dev/null | tail -1 | sed 's/.*Model //')
+                
+                # Create prompt with current model
+                local prompt_text="Model ❯ "
+                if [[ -n "$current_model" ]]; then
+                    prompt_text="Model [Current: ${current_model}] ❯ "
+                fi
+                
                 local selected_model
-                selected_model=$(echo "$models_output" | _forge_fzf --prompt="Model ❯ ")
+                selected_model=$(echo "$models_output" | _forge_fzf --prompt="$prompt_text")
                 
                 if [[ -n "$selected_model" ]]; then
                     # Extract just the model name (first word before any description)
                     local model_name="${selected_model%% *}"
                     $_FORGE_BIN config set --model "$model_name"
+                    echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Model set to \033[1m${model_name}\033[0m"
                 fi
             else
                 echo "\033[31m✗\033[0m Failed to get models list"
