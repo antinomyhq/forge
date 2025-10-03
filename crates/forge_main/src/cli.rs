@@ -65,13 +65,6 @@ pub struct Cli {
     #[arg(long, default_value_t = false)]
     pub generate_conversation_id: bool,
 
-    /// Display the banner and exit.
-    ///
-    /// When enabled, displays the forge banner with version and helpful
-    /// information, then exits. Useful for shell plugin integrations.
-    #[arg(long, default_value_t = false)]
-    pub banner: bool,
-
     /// Top-level subcommands
     #[command(subcommand)]
     pub subcommands: Option<TopLevelCommand>,
@@ -119,6 +112,9 @@ pub enum TopLevelCommand {
 
     /// Lists all the commands
     ShowCommands,
+
+    /// Display the banner with version and helpful information
+    ShowBanner,
 
     /// Configuration management commands
     Config(ConfigCommandGroup),

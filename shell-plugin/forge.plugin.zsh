@@ -164,7 +164,7 @@ function forge-accept-line() {
         fi
         
         # Show banner
-        $_FORGE_BIN --banner
+        $_FORGE_BIN show-banner
         
         _forge_print_agent_message "FORGE"
         

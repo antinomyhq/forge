@@ -363,6 +363,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_show_commands().await?;
                 return Ok(());
             }
+            TopLevelCommand::ShowBanner => {
+                banner::display(true)?;
+                return Ok(());
+            }
             TopLevelCommand::Config(config_group) => {
                 let config_manager = ConfigManager::new(self.api.clone());
                 config_manager
