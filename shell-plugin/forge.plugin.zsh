@@ -213,6 +213,28 @@ function forge-accept-line() {
         return 0
     fi
     
+    # Handle compact command specially
+    if [[ "$user_action" == "compact" ]]; then
+        echo
+        
+        # Check if FORGE_CONVERSATION_ID is set
+        if [[ -z "$FORGE_CONVERSATION_ID" ]]; then
+            echo "\033[31m✗\033[0m No active conversation. Start a conversation first or use :list to see existing ones"
+            BUFFER=""
+            CURSOR=${#BUFFER}
+            zle reset-prompt
+            return 0
+        fi
+        
+        # Execute compact command with the conversation ID
+        $_FORGE_BIN session --id "$FORGE_CONVERSATION_ID" compact
+        
+        BUFFER=""
+        CURSOR=${#BUFFER}
+        zle reset-prompt
+        return 0
+    fi
+    
     # Handle retry command specially
     if [[ "$user_action" == "retry" ]]; then
         echo
@@ -257,8 +279,8 @@ function forge-accept-line() {
             selected_conversation=$(echo "$conversations_output" | _forge_fzf --prompt="$prompt_text")
             
             if [[ -n "$selected_conversation" ]]; then
-                # Extract the conversation ID (first word before any description/metadata)
-                local conversation_id="${selected_conversation%% *}"
+                # Strip ANSI codes first, then extract the last field (UUID)
+                local conversation_id=$(echo "$selected_conversation" | sed 's/\x1b\[[0-9;]*m//g' | sed 's/\x1b\[K//g' | awk '{print $NF}' | tr -d '\n')
                 
                 # Set the selected conversation as active (in parent shell)
                 FORGE_CONVERSATION_ID="$conversation_id"

@@ -419,6 +419,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 // Restore original conversation ID
                 self.state.conversation_id = original_id;
             }
+            Some(SessionCommand::Compact) => {
+                // Set the conversation ID temporarily to compact it
+                let original_id = self.state.conversation_id;
+                self.state.conversation_id = Some(conversation_id);
+
+                self.spinner.start(Some("Compacting"))?;
+                self.on_compaction().await?;
+
+                // Restore original conversation ID
+                self.state.conversation_id = original_id;
+            }
             Some(SessionCommand::Retry) => {
                 // Set the conversation ID and retry last message
                 let original_id = self.state.conversation_id;
@@ -566,6 +577,19 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ("provider".to_string(), "Switch the providers".to_string()),
             ("model".to_string(), "Switch the models".to_string()),
             ("reset".to_string(), "Reset current session".to_string()),
+            (
+                "dump".to_string(),
+                "Save conversation as JSON or HTML (use /dump html for HTML format)".to_string(),
+            ),
+            (
+                "conversation".to_string(),
+                "List all conversations for the active workspace".to_string(),
+            ),
+            ("retry".to_string(), "Retry the last command".to_string()),
+            (
+                "compact".to_string(),
+                "Compact the conversation context".to_string(),
+            ),
         ];
 
         // Add alias commands

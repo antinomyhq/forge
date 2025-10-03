@@ -292,6 +292,9 @@ pub enum SessionCommand {
     /// Dump conversation as JSON or HTML
     Dump(SessionDumpArgs),
 
+    /// Compact the conversation context
+    Compact,
+
     /// Retry the last command without modifying context
     Retry,
 }
@@ -538,6 +541,23 @@ mod tests {
         };
         assert_eq!(id, Some("def456".to_string()));
         assert_eq!(has_subcommand, false); // No subcommand means resume
+    }
+
+    #[test]
+    fn test_session_compact_with_id() {
+        let fixture = Cli::parse_from(["forge", "session", "--id", "abc123", "compact"]);
+        let (id, command) = match fixture.subcommands {
+            Some(TopLevelCommand::Session(session)) => {
+                let command = match session.command {
+                    Some(SessionCommand::Compact) => "compact",
+                    _ => "other",
+                };
+                (session.id, command)
+            }
+            _ => (None, "none"),
+        };
+        assert_eq!(id, Some("abc123".to_string()));
+        assert_eq!(command, "compact");
     }
 
     #[test]
