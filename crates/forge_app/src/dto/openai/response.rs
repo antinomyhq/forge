@@ -562,8 +562,9 @@ mod tests {
 
         let actual: Usage = fixture_partial_sum.into();
         assert_eq!(actual.cost, Some(0.005));
-         
-         // Priority 4: when upstream_inference_cost is 0 then compute it from other parameters.
+
+        // Priority 4: when upstream_inference_cost is 0 then compute it from other
+        // parameters.
         let fixture = ResponseUsage {
             prompt_tokens: 100,
             completion_tokens: 50,
