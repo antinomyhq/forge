@@ -22,6 +22,9 @@ on:
     - opened
     - reopened
     - synchronize
+    - labeled
+    - unlabeled
+    - closed
     branches:
     - main
   push:

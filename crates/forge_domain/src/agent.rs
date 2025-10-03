@@ -12,8 +12,8 @@ use crate::merge::Key;
 use crate::temperature::Temperature;
 use crate::template::Template;
 use crate::{
-    Context, EVENT_USER_TASK_INIT, EVENT_USER_TASK_UPDATE, Error, EventContext, MaxTokens, ModelId,
-    Result, SystemContext, ToolDefinition, ToolName, TopK, TopP, Workflow,
+    Context, Error, EventContext, MaxTokens, ModelId, Result, SystemContext, ToolDefinition,
+    ToolName, TopK, TopP, Workflow,
 };
 
 // Unique identifier for an agent
@@ -419,8 +419,7 @@ impl Agent {
 
         // Add base subscription
         let id = agent.id.clone();
-        agent.add_subscription(format!("{id}/{EVENT_USER_TASK_INIT}"));
-        agent.add_subscription(format!("{id}/{EVENT_USER_TASK_UPDATE}"));
+        agent.add_subscription(format!("{id}"));
 
         agent
     }

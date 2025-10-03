@@ -6,10 +6,10 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, EVENT_USER_TASK_INIT,
-    EVENT_USER_TASK_UPDATE, Event, InterruptionReason, Model, ModelId, Provider, ToolName,
-    Workflow,
+    API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
+    InterruptionReason, Model, ModelId, Provider, ToolName, Workflow,
 };
+use forge_app::utils::truncate_key;
 use forge_display::MarkdownFormat;
 use forge_domain::{ChatResponseContent, McpConfig, McpServerConfig, Scope, TitleFormat};
 use forge_fs::ForgeFS;
@@ -26,6 +26,7 @@ use crate::env::{get_agent_from_env, get_conversation_id_from_env};
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{Command, ForgeCommandManager};
+use crate::prompt::ForgePrompt;
 use crate::select::ForgeSelect;
 use crate::state::UIState;
 use crate::title_display::TitleDisplayExt;
@@ -126,10 +127,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             self.api.upsert_conversation(conversation).await?;
         }
 
-        // Reset is_first to true when switching agents
-        self.state.is_first = true;
-        self.state.operating_agent = agent.id.clone();
-
         // Update the app config with the new operating agent.
         self.api.set_operating_agent(agent.id.clone()).await?;
         let name = agent.id.as_str().to_case(Case::UpperSnake).bold();
@@ -142,18 +139,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.writeln_title(TitleFormat::action(format!("{name} {title}")))?;
 
         Ok(())
-    }
-
-    fn create_task_event<V: Into<Value>>(
-        &self,
-        content: Option<V>,
-        event_name: &str,
-    ) -> anyhow::Result<Event> {
-        let operating_agent = &self.state.operating_agent;
-        Ok(Event::new(
-            format!("{operating_agent}/{event_name}"),
-            content,
-        ))
     }
 
     pub fn init(cli: Cli, f: F) -> Result<Self> {
@@ -175,8 +160,24 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn prompt(&self) -> Result<Command> {
+        // Get usage from current conversation if available
+        let usage = if let Some(conversation_id) = &self.state.conversation_id {
+            self.api
+                .conversation(conversation_id)
+                .await
+                .ok()
+                .flatten()
+                .and_then(|conv| conv.context)
+                .and_then(|ctx| ctx.usage)
+        } else {
+            None
+        };
+
         // Prompt the user for input
-        self.console.prompt(self.state.clone().into()).await
+        let agent_id = self.api.get_operating_agent().await.unwrap_or_default();
+        let model = self.api.get_operating_model().await;
+        let forge_prompt = ForgePrompt { cwd: self.state.cwd.clone(), usage, model, agent_id };
+        self.console.prompt(forge_prompt).await
     }
 
     pub async fn run(&mut self) {
@@ -408,24 +409,37 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn on_info(&mut self) -> anyhow::Result<()> {
-        let mut info = Info::from(&self.api.environment()).extend(Info::from(&self.state));
+        let mut info = Info::from(&self.api.environment());
 
-        // Execute async operations in parallel
-        let conversation_future = async {
-            if let Some(conversation_id) = &self.state.conversation_id {
-                self.api.conversation(conversation_id).await.ok().flatten()
-            } else {
-                None
-            }
-        };
-
-        let login_future = self.api.get_login_info();
-
-        let (conversation_result, key_info) = tokio::join!(conversation_future, login_future);
+        // Execute async operations sequentially
+        let conversation_id = &self.init_conversation().await?;
+        let conversation = self.api.conversation(conversation_id).await.ok().flatten();
+        let key_info = self.api.get_login_info().await;
+        let operating_agent = self.api.get_operating_agent().await;
+        let operating_model = self.api.get_operating_model().await;
+        let provider_result = self.api.get_provider().await;
 
         // Add conversation information if available
-        if let Some(conversation) = conversation_result {
+        if let Some(conversation) = conversation {
             info = info.extend(Info::from(&conversation));
+        }
+
+        info = info.add_title("AGENT");
+        if let Some(agent) = operating_agent {
+            info = info.add_key_value("ID", agent.as_str().to_uppercase());
+        }
+
+        // Add model information if available
+        if let Some(model) = operating_model {
+            info = info.add_key_value("Model", model);
+        }
+
+        // Add provider information if available
+        if let Ok(provider) = provider_result {
+            info = info.add_key_value("Provider (URL)", provider.to_base_url());
+            if let Some(ref api_key) = provider.key {
+                info = info.add_key_value("API Key", truncate_key(api_key));
+            }
         }
 
         // Add user information if available
@@ -444,9 +458,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn agent_tools(&self) -> anyhow::Result<Vec<ToolName>> {
-        let agent_id = &self.state.operating_agent;
+        let agent_id = self.api.get_operating_agent().await.unwrap_or_default();
         let agents = self.api.get_agents().await?;
-        let agent = agents.into_iter().find(|agent| &agent.id == agent_id);
+        let agent = agents.into_iter().find(|agent| agent.id == agent_id);
         Ok(agent
             .and_then(|agent| agent.tools.clone())
             .into_iter()
@@ -471,10 +485,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         if let Some(conversation) = ConversationSelector::select_conversation(&conversations)? {
             self.state.conversation_id = Some(conversation.id);
-            self.state.usage = conversation
-                .context
-                .and_then(|ctx| ctx.usage)
-                .unwrap_or(self.state.usage.clone());
         }
         Ok(())
     }
@@ -600,8 +610,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         .and_then(|v| v.auth_provider_id)
                         .unwrap_or_default(),
                 );
-                let provider = self.api.get_provider().await?;
-                self.state.provider = Some(provider);
             }
             Command::Logout => {
                 self.spinner.start(Some("Logging out"))?;
@@ -661,9 +669,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         models.sort_by(|a, b| a.0.name.cmp(&b.0.name));
 
         // Find the index of the current model
-        let starting_cursor = self
-            .state
-            .model
+        let current_model = self.api.get_operating_model().await;
+        let starting_cursor = current_model
             .as_ref()
             .and_then(|current| models.iter().position(|m| &m.0.id == current))
             .unwrap_or(0);
@@ -751,7 +758,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         )))?;
 
         // Check if the current model is available for the new provider
-        if let Some(current_model) = self.state.model.clone() {
+        let current_model = self.api.get_operating_model().await;
+        if let Some(current_model) = current_model {
             let models = self.get_models().await?;
             let model_available = models.iter().any(|m| m.id == current_model);
 
@@ -779,79 +787,121 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.on_chat(chat).await
     }
 
+    /// Initializes and returns a conversation ID for the current session.
+    ///
+    /// Handles conversation setup for both interactive and headless modes:
+    /// - **Interactive**: Reuses existing conversation, loads from file, or
+    ///   creates new
+    /// - **Headless**: Uses environment variables or generates new conversation
+    ///
+    /// Displays initialization status and updates UI state with the
+    /// conversation ID.
     async fn init_conversation(&mut self) -> Result<ConversationId> {
-        if let Some(agent_id) = get_agent_from_env()
-            && !self.cli.is_interactive()
-        {
-            self.api.set_operating_agent(agent_id).await?;
-        }
-
-        let id = match self.state.conversation_id {
-            Some(ref id) => Ok(*id),
-            None => {
-                let mut new_conversation = false;
-                self.spinner.start(Some("Initializing"))?;
-
-                // We need to try and get the conversation ID first before fetching the model
-                let conversation = if let Some(ref path) = self.cli.conversation {
-                    let conversation: Conversation =
-                        serde_json::from_str(ForgeFS::read_utf8(path.as_os_str()).await?.as_str())
-                            .context("Failed to parse Conversation")?;
-                    conversation
-                } else if let Some(conversation_id) = get_conversation_id_from_env() {
-                    // Check if conversation with this ID already exists
-                    if let Some(conversation) = self.api.conversation(&conversation_id).await? {
-                        conversation
-                    } else {
-                        // Conversation doesn't exist, create a new one with this ID
-                        new_conversation = true;
-                        Conversation::new(conversation_id)
-                    }
-                } else {
-                    new_conversation = true;
-                    Conversation::generate()
-                };
-
-                self.api.upsert_conversation(conversation.clone()).await?;
-                self.state.conversation_id = Some(conversation.id);
-                self.state.usage = conversation
-                    .context
-                    .and_then(|ctx| ctx.usage)
-                    .unwrap_or(self.state.usage.clone());
-                self.spinner.stop(None)?;
-
-                let mut sub_title = conversation.id.into_string();
-                if let Some(ref agent) = self.api.get_operating_agent().await {
-                    sub_title.push_str(format!(" [via {agent}]").as_str());
-                }
-
-                if new_conversation {
-                    self.writeln_title(
-                        TitleFormat::debug("Initialize".to_string()).sub_title(sub_title),
-                    )?;
-                } else {
-                    self.writeln_title(
-                        TitleFormat::debug("Continue".to_string()).sub_title(sub_title),
-                    )?;
-                }
-                Ok(conversation.id)
-            }
+        let mut is_new = false;
+        let id = if self.cli.is_interactive() {
+            self.init_conversation_interactive(&mut is_new).await?
+        } else {
+            self.init_conversation_headless(&mut is_new).await?
         };
 
-        if let Some(ref agent) = self.api.get_operating_agent().await {
-            self.state.operating_agent = AgentId::new(agent)
+        // Print if the state is being reinitialized
+        if self.state.conversation_id.is_none() {
+            self.print_conversation_status(is_new, id).await?;
         }
 
-        id
+        // Always set the conversation id in state
+        self.state.conversation_id = Some(id);
+
+        Ok(id)
+    }
+
+    async fn init_conversation_interactive(
+        &mut self,
+        is_new: &mut bool,
+    ) -> Result<ConversationId, anyhow::Error> {
+        Ok(if let Some(id) = self.state.conversation_id {
+            id
+        } else if let Some(ref path) = self.cli.conversation {
+            let conversation: Conversation =
+                serde_json::from_str(ForgeFS::read_utf8(path.as_os_str()).await?.as_str())
+                    .context("Failed to parse Conversation")?;
+            let id = conversation.id;
+            self.api.upsert_conversation(conversation).await?;
+            id
+        } else {
+            let conversation = Conversation::generate();
+            let id = conversation.id;
+            *is_new = true;
+            self.api.upsert_conversation(conversation).await?;
+            id
+        })
+    }
+
+    async fn init_conversation_headless(
+        &mut self,
+        is_new: &mut bool,
+    ) -> Result<ConversationId, anyhow::Error> {
+        Ok(if let Some(id) = self.state.conversation_id {
+            id
+        } else {
+            if let Some(agent_id) = get_agent_from_env() {
+                self.api.set_operating_agent(agent_id).await?;
+            }
+            if let Some(id) = get_conversation_id_from_env() {
+                match self.api.conversation(&id).await? {
+                    Some(conversation) => conversation.id,
+                    None => {
+                        let conversation = Conversation::new(id);
+                        let id = conversation.id;
+                        self.api.upsert_conversation(conversation).await?;
+                        *is_new = true;
+                        id
+                    }
+                }
+            } else {
+                let conversation = Conversation::generate();
+                let id = conversation.id;
+                self.api.upsert_conversation(conversation).await?;
+                *is_new = true;
+                id
+            }
+        })
+    }
+
+    async fn print_conversation_status(
+        &mut self,
+        new_conversation: bool,
+        id: ConversationId,
+    ) -> Result<(), anyhow::Error> {
+        let mut title = if new_conversation {
+            "Initialize".to_string()
+        } else {
+            "Continue".to_string()
+        };
+
+        title.push_str(format!(" {}", id.into_string()).as_str());
+
+        let mut sub_title = String::new();
+        sub_title.push('[');
+
+        if let Some(ref agent) = self.api.get_operating_agent().await {
+            sub_title.push_str(format!("via {}", agent).as_str());
+        }
+
+        if let Some(ref model) = self.api.get_operating_model().await {
+            sub_title.push_str(format!("/{}", model.as_str()).as_str());
+        }
+
+        sub_title.push(']');
+
+        self.writeln_title(TitleFormat::debug(title).sub_title(sub_title.bold().to_string()))?;
+        Ok(())
     }
 
     /// Initialize the state of the UI
     async fn init_state(&mut self, first: bool) -> Result<Workflow> {
         // Run the independent initialization tasks in parallel for better performance
-        let (provider, workflow) = tokio::try_join!(
-            self.init_provider(),
-            self.api.read_workflow(self.cli.workflow.as_deref())
-        )?;
+        let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
 
         // Ensure we have a model selected before proceeding with initialization
         if self.api.get_operating_model().await.is_none() {
@@ -877,7 +927,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let get_agents_fut = self.api.get_agents();
         let get_operating_agent_fut = self.api.get_operating_agent();
 
-        let (write_workflow_result, agents_result, operating_agent_result) =
+        let (write_workflow_result, agents_result, _operating_agent_result) =
             tokio::join!(write_workflow_fut, get_agents_fut, get_operating_agent_fut);
 
         // Handle workflow write result first as it's critical for the system state
@@ -902,39 +952,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         }
 
-        // Get the operating agent with fallback to default
-        let agent = operating_agent_result.unwrap_or_default();
-
         // Finalize UI state initialization by registering commands and setting up the
         // state
         self.command.register_all(&base_workflow);
         let operating_model = self.api.get_operating_model().await;
-        self.state =
-            UIState::new(self.api.environment(), agent, operating_model.clone()).provider(provider);
+        self.state = UIState::new(self.api.environment());
         self.update_model(operating_model);
 
         Ok(workflow)
     }
 
-    async fn init_provider(&self) -> Result<Provider> {
-        self.api.get_provider().await
-        // match self.api.provider().await {
-        //     // Use the forge key if available in the config.
-        //     Ok(provider) => Ok(provider),
-        //     Err(_) => {
-        //         // If no key is available, start the login flow.
-        //         // self.login().await?;
-        //         let config: AppConfig = self.api.app_config().await?;
-        //         tracker::login(
-        //             config
-        //                 .key_info
-        //                 .and_then(|v| v.auth_provider_id)
-        //                 .unwrap_or_default(),
-        //         );
-        //         self.api.provider().await
-        //     }
-        // }
-    }
     async fn login(&mut self) -> Result<()> {
         let auth = self.api.init_login().await?;
         open::that(auth.auth_url.as_str()).ok();
@@ -956,12 +983,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let conversation_id = self.init_conversation().await?;
 
         // Create a ChatRequest with the appropriate event type
-        let event = if self.state.is_first {
-            self.state.is_first = false;
-            self.create_task_event(content, EVENT_USER_TASK_INIT)?
-        } else {
-            self.create_task_event(content, EVENT_USER_TASK_UPDATE)?
-        };
+        let operating_agent = self.api.get_operating_agent().await.unwrap_or_default();
+        let event = Event::new(format!("{operating_agent}"), content);
 
         // Create the chat request with the event
         let chat = ChatRequest::new(event, conversation_id);
@@ -1068,10 +1091,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     return Ok(());
                 }
             }
-            ChatResponse::Usage(usage) => {
-                // Accumulate all metrics (tokens + cost) instead of overwriting
-                self.state.usage = self.state.usage.clone().accumulate(&usage);
-            }
+            ChatResponse::Usage(_) => {}
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 if !self.api.environment().retry_config.suppress_retry_errors {
                     self.spinner.start(Some("Retrying"))?;
@@ -1129,11 +1149,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .await?
             .ok_or(anyhow::anyhow!("Conversation not found: {conversation_id}"))?;
 
-        let info = Info::default().extend(&conversation).extend(&self.state);
-
-        // if let Ok(Some(usage)) = self.api.user_usage().await {
-        //     info = info.extend(Info::from(&usage));
-        // }
+        let info = Info::default().extend(&conversation);
 
         self.writeln(info)?;
 
@@ -1164,7 +1180,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         if let Some(ref model) = model {
             tracker::set_model(model.to_string());
         }
-        self.state.model = model;
     }
 
     async fn on_custom_event(&mut self, event: Event) -> Result<()> {
@@ -1183,7 +1198,26 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn on_usage(&mut self) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Usage"))?;
-        let mut info: Info = (&self.state.usage).into();
+
+        // Get usage from current conversation if available
+        let conversation_usage = if let Some(conversation_id) = &self.state.conversation_id {
+            self.api
+                .conversation(conversation_id)
+                .await
+                .ok()
+                .flatten()
+                .and_then(|conv| conv.context)
+                .and_then(|ctx| ctx.usage)
+        } else {
+            None
+        };
+
+        let mut info = if let Some(usage) = conversation_usage {
+            Info::from(&usage)
+        } else {
+            Info::new()
+        };
+
         if let Ok(Some(user_usage)) = self.api.user_usage().await {
             info = info.extend(Info::from(&user_usage));
         }

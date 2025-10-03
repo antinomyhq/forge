@@ -4,11 +4,11 @@ use std::time::Duration;
 
 use colored::Colorize;
 use forge_api::{Conversation, Environment, LoginInfo, Metrics, Usage, UserUsage};
+use forge_app::utils::truncate_key;
 use forge_tracker::VERSION;
 use num_format::{Locale, ToFormattedString};
 
 use crate::model::ForgeCommandManager;
-use crate::state::UIState;
 
 #[derive(Debug, PartialEq)]
 pub enum Section {
@@ -87,29 +87,6 @@ impl From<&Environment> for Info {
             .add_key_value("Working Directory", format_path_for_display(env, &env.cwd))
             .add_key_value("Shell", &env.shell)
             .add_key_value("Git Branch", branch_info);
-
-        info
-    }
-}
-
-impl From<&UIState> for Info {
-    fn from(value: &UIState) -> Self {
-        let mut info = Info::new().add_title("AGENT");
-
-        info = info.add_key_value("Name", value.operating_agent.as_str().to_uppercase());
-
-        if let Some(model) = &value.model {
-            info = info.add_key_value("Model", model);
-        }
-
-        if let Some(provider) = &value.provider {
-            info = info.add_key_value("Provider (URL)", provider.to_base_url());
-            if let Some(ref api_key) = provider.key {
-                info = info.add_key_value("API Key", truncate_key(api_key));
-            }
-        }
-
-        info = info.extend(&value.usage);
 
         info
     }
@@ -330,14 +307,6 @@ impl From<&LoginInfo> for Info {
     }
 }
 
-fn truncate_key(key: &str) -> String {
-    if key.len() <= 20 {
-        key.to_string()
-    } else {
-        format!("{}...{}", &key[..=12], &key[key.len() - 4..])
-    }
-}
-
 impl From<&UserUsage> for Info {
     fn from(user_usage: &UserUsage) -> Self {
         let usage = &user_usage.usage;
@@ -415,10 +384,15 @@ impl From<&Conversation> for Info {
 
         // Insert metrics information
         if !conversation.metrics.files_changed.is_empty() {
-            info.extend(&conversation.metrics)
-        } else {
-            info
+            info = info.extend(&conversation.metrics);
         }
+
+        // Insert token usage
+        if let Some(usage) = conversation.context.as_ref().and_then(|c| c.usage.as_ref()) {
+            info = info.extend(usage);
+        }
+
+        info
     }
 }
 
