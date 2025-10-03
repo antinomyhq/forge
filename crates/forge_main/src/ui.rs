@@ -909,6 +909,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .map(CliProvider)
             .collect::<Vec<_>>();
 
+        if providers.is_empty() {
+            return Err(anyhow::anyhow!("No AI provider API keys configured"));
+        }
+
         // Sort the providers by their display names in ascending order
         providers.sort_by_key(|a| a.to_string());
 
