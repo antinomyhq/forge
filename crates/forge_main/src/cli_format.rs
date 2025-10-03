@@ -82,7 +82,9 @@ impl<S1: AsRef<str>, S2: AsRef<str>, S3: AsRef<str>> ColumnRow for (S1, S2, S3) 
 }
 
 // Implement for 4-column tuples
-impl<S1: AsRef<str>, S2: AsRef<str>, S3: AsRef<str>, S4: AsRef<str>> ColumnRow for (S1, S2, S3, S4) {
+impl<S1: AsRef<str>, S2: AsRef<str>, S3: AsRef<str>, S4: AsRef<str>> ColumnRow
+    for (S1, S2, S3, S4)
+{
     fn column_count(&self) -> usize {
         4
     }
@@ -111,7 +113,9 @@ impl<S1: AsRef<str>, S2: AsRef<str>, S3: AsRef<str>, S4: AsRef<str>> ColumnRow f
 }
 
 // Implement for 5-column tuples
-impl<S1: AsRef<str>, S2: AsRef<str>, S3: AsRef<str>, S4: AsRef<str>, S5: AsRef<str>> ColumnRow for (S1, S2, S3, S4, S5) {
+impl<S1: AsRef<str>, S2: AsRef<str>, S3: AsRef<str>, S4: AsRef<str>, S5: AsRef<str>> ColumnRow
+    for (S1, S2, S3, S4, S5)
+{
     fn column_count(&self) -> usize {
         5
     }

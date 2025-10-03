@@ -671,7 +671,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-        async fn on_show_conversations(&mut self) -> anyhow::Result<()> {
+    async fn on_show_conversations(&mut self) -> anyhow::Result<()> {
         let conversations = self
             .api
             .list_conversations(Some(MAX_CONVERSATIONS_TO_SHOW))
