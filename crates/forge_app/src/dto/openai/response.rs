@@ -565,5 +565,4 @@ mod tests {
         let actual: Usage = fixture_partial_sum.into();
         assert_eq!(actual.cost, Some(0.005));
     }
-
 }
