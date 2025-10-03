@@ -70,7 +70,7 @@ function forge-completion() {
         local filter_text="${LBUFFER#:}"
         
         # Create a list of available commands including providers and models
-        local commands="providers\nmodels\n"
+        local commands="provider\nmodel\ninfo\nreset\n"
         commands+="$($_FORGE_BIN show-agents 2>/dev/null)"
         
         if [[ -n "$commands" ]]; then
@@ -156,7 +156,7 @@ function forge-accept-line() {
     fi
     
     # Handle providers command specially
-    if [[ "$user_action" == "providers" ]]; then
+    if [[ "$user_action" == "provider" ]]; then
         # Execute provider selection in a subshell to avoid ZLE context issues
         (
             echo
@@ -185,7 +185,7 @@ function forge-accept-line() {
     fi
     
     # Handle models command specially
-    if [[ "$user_action" == "models" ]]; then
+    if [[ "$user_action" == "model" ]]; then
         # Execute model selection in a subshell to avoid ZLE context issues
         (
             echo
