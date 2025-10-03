@@ -34,7 +34,6 @@ pub struct ResponseUsage {
     pub completion_tokens: usize,
     pub total_tokens: usize,
     pub cost: Option<f64>,
-    pub is_byok: Option<bool>,
     pub prompt_tokens_details: Option<PromptTokenDetails>,
     pub cost_details: Option<CostDetails>,
 }
