@@ -483,6 +483,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ("reset".to_string(), "Reset current session".to_string()),
         ];
 
+        // Add alias commands
+        commands.push(("ask".to_string(), "Alias for agent SAGE".to_string()));
+        commands.push(("plan".to_string(), "Alias for agent MUSE".to_string()));
 
         // Fetch agents and add them to the commands list
         let agents = self.api.get_agents().await?;

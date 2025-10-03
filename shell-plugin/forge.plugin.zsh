@@ -124,6 +124,14 @@ function forge-accept-line() {
     # Add the original command to history before transformation
     print -s -- "$original_buffer"
     
+
+    # Handle aliases - convert to their actual agent names
+    if [[ "$user_action" == "ask" ]]; then
+        user_action="sage"
+    elif [[ "$user_action" == "plan" ]]; then
+        user_action="muse"
+    fi
+    
     # Handle reset command specially
     if [[ "$user_action" == "reset" || "$user_action" == "r" ]]; then
         echo
