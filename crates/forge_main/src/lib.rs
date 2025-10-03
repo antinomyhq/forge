@@ -20,7 +20,7 @@ mod ui;
 mod update;
 
 pub use cli::Cli;
-pub use config::handle_config_command;
+pub use config::ConfigManager;
 use lazy_static::lazy_static;
 pub use sandbox::Sandbox;
 pub use title_display::*;

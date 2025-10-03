@@ -21,7 +21,7 @@ use serde_json::Value;
 use tokio_stream::StreamExt;
 
 use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
-use crate::config::handle_config_command;
+use crate::config::ConfigManager;
 use crate::conversation_selector::ConversationSelector;
 use crate::env::{get_agent_from_env, get_conversation_id_from_env};
 use crate::info::Info;
@@ -380,7 +380,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 return Ok(());
             }
             TopLevelCommand::Config(config_group) => {
-                handle_config_command(&*self.api, config_group.command.clone()).await?;
+                let config_manager = ConfigManager::new(&*self.api);
+                config_manager
+                    .handle_command(config_group.command.clone())
+                    .await?;
                 return Ok(());
             }
         }

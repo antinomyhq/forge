@@ -7,156 +7,172 @@ use super::display::{display_all_config, display_single_field, display_success};
 use super::error::{ConfigError, Result as ConfigResult};
 use crate::cli::{ConfigCommand, ConfigGetArgs, ConfigSetArgs};
 
-/// Handle config command
-pub async fn handle_config_command<A: API>(api: &A, command: ConfigCommand) -> Result<()> {
-    match command {
-        ConfigCommand::Set(args) => handle_config_set(api, args).await?,
-        ConfigCommand::Get(args) => handle_config_get(api, args).await?,
-    }
-    Ok(())
+/// Configuration manager that handles all config operations
+pub struct ConfigManager<'a, A> {
+    api: &'a A,
 }
 
-/// Handle config set command
-async fn handle_config_set<A: API>(api: &A, args: ConfigSetArgs) -> ConfigResult<()> {
-    if args.has_any_field() {
-        // Non-interactive mode: set specified values
-        handle_non_interactive_set(api, args).await
-    } else {
+impl<'a, A: API> ConfigManager<'a, A> {
+    /// Create a new ConfigManager with the given API reference
+    pub fn new(api: &'a A) -> Self {
+        Self { api }
+    }
+
+    /// Handle config command
+    pub async fn handle_command(&self, command: ConfigCommand) -> Result<()> {
+        match command {
+            ConfigCommand::Set(args) => self.handle_set(args).await?,
+            ConfigCommand::Get(args) => self.handle_get(args).await?,
+        }
         Ok(())
     }
-}
 
-/// Handle non-interactive config set
-async fn handle_non_interactive_set<A: API>(api: &A, args: ConfigSetArgs) -> ConfigResult<()> {
-    // Set provider if specified
-    if let Some(provider_str) = args.provider {
-        let provider_id = validate_provider(api, &provider_str).await?;
-        api.set_provider(provider_id).await?;
-        display_success("Provider set", &provider_str);
-    }
-
-    // Set agent if specified
-    if let Some(agent_str) = args.agent {
-        let agent_id = validate_agent(api, &agent_str).await?;
-        api.set_operating_agent(agent_id.clone()).await?;
-        display_success("Agent set", agent_id.as_str());
-    }
-
-    // Set model if specified
-    if let Some(model_str) = args.model {
-        let model_id = validate_model(api, &model_str).await?;
-        api.set_operating_model(model_id.clone()).await?;
-        display_success("Model set", model_id.as_str());
-    }
-
-    Ok(())
-}
-
-/// Handle config get command
-async fn handle_config_get<A: API>(api: &A, args: ConfigGetArgs) -> ConfigResult<()> {
-    if let Some(field) = args.field {
-        // Get specific field
-        match field.to_lowercase().as_str() {
-            "agent" => {
-                let agent = api
-                    .get_operating_agent()
-                    .await
-                    .map(|a| a.as_str().to_string());
-                display_single_field("agent", agent);
-            }
-            "model" => {
-                let model = api
-                    .get_operating_model()
-                    .await
-                    .map(|m| m.as_str().to_string());
-                display_single_field("model", model);
-            }
-            "provider" => {
-                let provider = api.get_provider().await.ok().map(|p| p.id.to_string());
-                display_single_field("provider", provider);
-            }
-            _ => {
-                return Err(ConfigError::InvalidField { field: field.clone() });
-            }
-        }
-    } else {
-        // Get all configuration
-        let agent = api
-            .get_operating_agent()
-            .await
-            .map(|a| a.as_str().to_string());
-        let model = api
-            .get_operating_model()
-            .await
-            .map(|m| m.as_str().to_string());
-        let provider = api.get_provider().await.ok().map(|p| p.id.to_string());
-
-        display_all_config(agent, model, provider);
-    }
-
-    Ok(())
-}
-
-/// Validate agent exists
-async fn validate_agent<A: API>(api: &A, agent_str: &str) -> ConfigResult<AgentId> {
-    let agents = api.get_agents().await?;
-    let agent_id = AgentId::new(agent_str);
-
-    if agents.iter().any(|a| a.id == agent_id) {
-        Ok(agent_id)
-    } else {
-        let available: Vec<_> = agents.iter().map(|a| a.id.as_str()).collect();
-        Err(ConfigError::AgentNotFound {
-            agent: agent_str.to_string(),
-            available: available.join(", "),
-        })
-    }
-}
-
-/// Validate model exists
-async fn validate_model<A: API>(api: &A, model_str: &str) -> ConfigResult<ModelId> {
-    let models = api.models().await?;
-    let model_id = ModelId::new(model_str);
-
-    if models.iter().any(|m| m.id == model_id) {
-        Ok(model_id)
-    } else {
-        // Show first 10 models as suggestions
-        let available: Vec<_> = models.iter().take(10).map(|m| m.id.as_str()).collect();
-        let suggestion = if models.len() > 10 {
-            format!("{} (and {} more)", available.join(", "), models.len() - 10)
+    /// Handle config set command
+    async fn handle_set(&self, args: ConfigSetArgs) -> ConfigResult<()> {
+        if args.has_any_field() {
+            // Non-interactive mode: set specified values
+            self.handle_non_interactive_set(args).await
         } else {
-            available.join(", ")
-        };
-
-        Err(ConfigError::ModelNotFound { model: model_str.to_string(), available: suggestion })
+            Ok(())
+        }
     }
-}
 
-/// Validate provider exists and has API key
-async fn validate_provider<A: API>(api: &A, provider_str: &str) -> ConfigResult<ProviderId> {
-    // Parse provider ID from string
-    let provider_id = ProviderId::from_str(provider_str).with_context(|| {
-        format!(
-            "Invalid provider: '{}'. Valid providers are: {}",
-            provider_str,
-            get_valid_provider_names().join(", ")
-        )
-    })?;
+    /// Handle non-interactive config set
+    async fn handle_non_interactive_set(&self, args: ConfigSetArgs) -> ConfigResult<()> {
+        // Set provider if specified
+        if let Some(provider_str) = args.provider {
+            let provider_id = self.validate_provider(&provider_str).await?;
+            self.api.set_provider(provider_id).await?;
+            display_success("Provider set", &provider_str);
+        }
 
-    // Check if provider has valid API key
-    let providers = api.providers().await?;
-    if providers.iter().any(|p| p.id == provider_id) {
-        Ok(provider_id)
-    } else {
-        Err(ConfigError::ProviderNotAvailable {
-            provider: provider_str.to_string(),
-            available: providers
-                .iter()
-                .map(|p| p.id.to_string())
-                .collect::<Vec<_>>()
-                .join(", "),
-        })
+        // Set agent if specified
+        if let Some(agent_str) = args.agent {
+            let agent_id = self.validate_agent(&agent_str).await?;
+            self.api.set_operating_agent(agent_id.clone()).await?;
+            display_success("Agent set", agent_id.as_str());
+        }
+
+        // Set model if specified
+        if let Some(model_str) = args.model {
+            let model_id = self.validate_model(&model_str).await?;
+            self.api.set_operating_model(model_id.clone()).await?;
+            display_success("Model set", model_id.as_str());
+        }
+
+        Ok(())
+    }
+
+    /// Handle config get command
+    async fn handle_get(&self, args: ConfigGetArgs) -> ConfigResult<()> {
+        if let Some(field) = args.field {
+            // Get specific field
+            match field.to_lowercase().as_str() {
+                "agent" => {
+                    let agent = self
+                        .api
+                        .get_operating_agent()
+                        .await
+                        .map(|a| a.as_str().to_string());
+                    display_single_field("agent", agent);
+                }
+                "model" => {
+                    let model = self
+                        .api
+                        .get_operating_model()
+                        .await
+                        .map(|m| m.as_str().to_string());
+                    display_single_field("model", model);
+                }
+                "provider" => {
+                    let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
+                    display_single_field("provider", provider);
+                }
+                _ => {
+                    return Err(ConfigError::InvalidField { field: field.clone() });
+                }
+            }
+        } else {
+            // Get all configuration
+            let agent = self
+                .api
+                .get_operating_agent()
+                .await
+                .map(|a| a.as_str().to_string());
+            let model = self
+                .api
+                .get_operating_model()
+                .await
+                .map(|m| m.as_str().to_string());
+            let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
+
+            display_all_config(agent, model, provider);
+        }
+
+        Ok(())
+    }
+
+    /// Validate agent exists
+    async fn validate_agent(&self, agent_str: &str) -> ConfigResult<AgentId> {
+        let agents = self.api.get_agents().await?;
+        let agent_id = AgentId::new(agent_str);
+
+        if agents.iter().any(|a| a.id == agent_id) {
+            Ok(agent_id)
+        } else {
+            let available: Vec<_> = agents.iter().map(|a| a.id.as_str()).collect();
+            Err(ConfigError::AgentNotFound {
+                agent: agent_str.to_string(),
+                available: available.join(", "),
+            })
+        }
+    }
+
+    /// Validate model exists
+    async fn validate_model(&self, model_str: &str) -> ConfigResult<ModelId> {
+        let models = self.api.models().await?;
+        let model_id = ModelId::new(model_str);
+
+        if models.iter().any(|m| m.id == model_id) {
+            Ok(model_id)
+        } else {
+            // Show first 10 models as suggestions
+            let available: Vec<_> = models.iter().take(10).map(|m| m.id.as_str()).collect();
+            let suggestion = if models.len() > 10 {
+                format!("{} (and {} more)", available.join(", "), models.len() - 10)
+            } else {
+                available.join(", ")
+            };
+
+            Err(ConfigError::ModelNotFound { model: model_str.to_string(), available: suggestion })
+        }
+    }
+
+    /// Validate provider exists and has API key
+    async fn validate_provider(&self, provider_str: &str) -> ConfigResult<ProviderId> {
+        // Parse provider ID from string
+        let provider_id = ProviderId::from_str(provider_str).with_context(|| {
+            format!(
+                "Invalid provider: '{}'. Valid providers are: {}",
+                provider_str,
+                get_valid_provider_names().join(", ")
+            )
+        })?;
+
+        // Check if provider has valid API key
+        let providers = self.api.providers().await?;
+        if providers.iter().any(|p| p.id == provider_id) {
+            Ok(provider_id)
+        } else {
+            Err(ConfigError::ProviderNotAvailable {
+                provider: provider_str.to_string(),
+                available: providers
+                    .iter()
+                    .map(|p| p.id.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            })
+        }
     }
 }
 
