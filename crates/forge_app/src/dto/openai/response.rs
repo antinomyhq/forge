@@ -47,15 +47,17 @@ pub struct CostDetails {
 
 impl CostDetails {
     fn total_cost(&self) -> Option<f64> {
-        self.upstream_inference_cost.or_else(|| {
-            match (
-                self.upstream_inference_prompt_cost,
-                self.upstream_inference_completions_cost,
-            ) {
-                (None, None) => None,
-                (p, c) => Some(p.unwrap_or(0.0) + c.unwrap_or(0.0)),
-            }
-        })
+        self.upstream_inference_cost
+            .filter(|&cost| cost != 0.0)
+            .or_else(|| {
+                match (
+                    self.upstream_inference_prompt_cost,
+                    self.upstream_inference_completions_cost,
+                ) {
+                    (None, None) => None,
+                    (p, c) => Some(p.unwrap_or(0.0) + c.unwrap_or(0.0)),
+                }
+            })
     }
 }
 
