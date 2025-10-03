@@ -16,7 +16,7 @@ mod title_display;
 mod tools_display;
 pub mod tracker;
 mod ui;
-mod ui_components;
+
 mod update;
 
 pub use cli::Cli;

@@ -25,12 +25,11 @@ use crate::conversation_selector::ConversationSelector;
 use crate::env::{get_agent_from_env, get_conversation_id_from_env};
 use crate::info::Info;
 use crate::input::Console;
-use crate::model::{Command, ForgeCommandManager};
+use crate::model::{CliModel, CliProvider, Command, ForgeCommandManager};
 use crate::prompt::ForgePrompt;
 use crate::select::ForgeSelect;
 use crate::state::UIState;
 use crate::title_display::TitleDisplayExt;
-use crate::ui_components::{CliModel, CliProvider};
 use crate::update::on_update;
 use crate::{TRACKER, banner, tracker};
 
