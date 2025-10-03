@@ -708,11 +708,19 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Format conversations as 3-column output: <id> <title> <time_ago>
         let items: Vec<(String, String, String)> = conversations
             .into_iter()
+            .filter(|conv| conv.title.is_some() && conv.context.is_some())
             .map(|conv| {
-                let title = conv.title.as_deref().unwrap_or("<untitled>");
+                let title = conv.title.as_deref().unwrap();
+                let title = if title.len() > 30 {
+                    format!("{}...", &title[..30])
+                } else {
+                    title.to_string()
+                };
 
                 // Format time using humantime library (same as conversation_selector.rs)
-                let duration = chrono::Utc::now().signed_duration_since(conv.metadata.created_at);
+                let duration = chrono::Utc::now().signed_duration_since(
+                    conv.metadata.updated_at.unwrap_or(conv.metadata.created_at),
+                );
                 let duration =
                     std::time::Duration::from_secs((duration.num_minutes() * 60).max(0) as u64);
                 let time_ago = if duration.is_zero() {
