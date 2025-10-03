@@ -185,6 +185,95 @@ function forge-accept-line() {
         zle reset-prompt
         return 0
     fi
+
+    
+    # Handle dump command specially  
+    if [[ "$user_action" == "dump" ]]; then
+        echo
+        
+        # Check if FORGE_CONVERSATION_ID is set
+        if [[ -z "$FORGE_CONVERSATION_ID" ]]; then
+            echo "\033[31m✗\033[0m No active conversation. Start a conversation first or use :list to see existing ones"
+            BUFFER=""
+            CURSOR=${#BUFFER}
+            zle reset-prompt
+            return 0
+        fi
+        
+        # Check if input_text is "html" for HTML format
+        if [[ "$input_text" == "html" ]]; then
+            $_FORGE_BIN session --id "$FORGE_CONVERSATION_ID" dump html
+        else
+            $_FORGE_BIN session --id "$FORGE_CONVERSATION_ID" dump
+        fi
+        
+        BUFFER=""
+        CURSOR=${#BUFFER}
+        zle reset-prompt
+        return 0
+    fi
+    
+    # Handle retry command specially
+    if [[ "$user_action" == "retry" ]]; then
+        echo
+        
+        # Check if FORGE_CONVERSATION_ID is set
+        if [[ -z "$FORGE_CONVERSATION_ID" ]]; then
+            echo "\033[31m✗\033[0m No active conversation. Start a conversation first or use :list to see existing ones"
+            BUFFER=""
+            CURSOR=${#BUFFER}
+            zle reset-prompt
+            return 0
+        fi
+        
+        # Execute retry command with the conversation ID
+        $_FORGE_BIN session --id "$FORGE_CONVERSATION_ID" retry
+        
+        BUFFER=""
+        CURSOR=${#BUFFER}
+        zle reset-prompt
+        return 0
+    fi
+    
+    # Handle list/conversations command specially
+    if [[ "$user_action" == "conversation" ]]; then
+        echo
+        
+        # Get conversations list
+        local conversations_output
+        conversations_output=$($_FORGE_BIN session --list 2>/dev/null)
+        
+        if [[ -n "$conversations_output" ]]; then
+            # Get current conversation ID if set
+            local current_id="$FORGE_CONVERSATION_ID"
+            
+            # Create prompt with current conversation
+            local prompt_text="Conversation ❯ "
+            if [[ -n "$current_id" ]]; then
+                prompt_text="Conversation [Current: ${current_id}] ❯ "
+            fi
+            
+            local selected_conversation
+            selected_conversation=$(echo "$conversations_output" | _forge_fzf --prompt="$prompt_text")
+            
+            if [[ -n "$selected_conversation" ]]; then
+                # Extract the conversation ID (first word before any description/metadata)
+                local conversation_id="${selected_conversation%% *}"
+                
+                # Set the selected conversation as active (in parent shell)
+                FORGE_CONVERSATION_ID="$conversation_id"
+                
+                echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Switched to conversation \033[1m${conversation_id}\033[0m"
+            fi
+        else
+            echo "\033[31m✗\033[0m No conversations found"
+        fi
+        
+        BUFFER=""
+        CURSOR=${#BUFFER}
+        zle reset-prompt
+        return 0
+    fi
     
     # Handle providers command specially
     if [[ "$user_action" == "provider" ]]; then

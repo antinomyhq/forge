@@ -370,11 +370,96 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .await?;
                 return Ok(());
             }
+
+            TopLevelCommand::Session(session_group) => {
+                self.handle_session_command(session_group).await?;
+                return Ok(());
+            }
         }
         Ok(())
     }
 
-    /// Lists all the agents
+    async fn handle_session_command(
+        &mut self,
+        session_group: crate::cli::SessionCommandGroup,
+    ) -> anyhow::Result<()> {
+        use forge_domain::ConversationId;
+
+        use crate::cli::SessionCommand;
+
+        // Handle list command
+        if session_group.list {
+            self.on_show_conversations().await?;
+            return Ok(());
+        }
+
+        // For all other commands, id is required
+        let id_str = session_group.id.ok_or_else(|| {
+            anyhow::anyhow!(
+                "Error: --id is required for this command. Use 'forge session --list' to see available conversations."
+            )
+        })?;
+
+        // Parse conversation ID from the string
+        let conversation_id = ConversationId::parse(&id_str)
+            .context(format!("Invalid conversation ID: {}", id_str))?;
+
+        // Validate that the conversation exists
+        self.validate_session_exists(&conversation_id).await?;
+
+        match session_group.command {
+            Some(SessionCommand::Dump(dump_args)) => {
+                // Set the conversation ID temporarily to dump it
+                let original_id = self.state.conversation_id;
+                self.state.conversation_id = Some(conversation_id);
+
+                self.spinner.start(Some("Dumping"))?;
+                self.on_dump(dump_args.format).await?;
+
+                // Restore original conversation ID
+                self.state.conversation_id = original_id;
+            }
+            Some(SessionCommand::Retry) => {
+                // Set the conversation ID and retry last message
+                let original_id = self.state.conversation_id;
+                self.state.conversation_id = Some(conversation_id);
+
+                self.spinner.start(None)?;
+                self.on_message(None).await?;
+
+                // Restore original conversation ID
+                self.state.conversation_id = original_id;
+            }
+            None => {
+                // Resume session - set conversation ID and enter interactive mode
+                self.state.conversation_id = Some(conversation_id);
+                self.writeln_title(TitleFormat::info(format!(
+                    "Resumed conversation: {}",
+                    id_str
+                )))?;
+                // Interactive mode will be handled by the main loop
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn validate_session_exists(
+        &self,
+        conversation_id: &ConversationId,
+    ) -> anyhow::Result<()> {
+        let conversation = self.api.conversation(conversation_id).await?;
+
+        if conversation.is_none() {
+            anyhow::bail!(
+                "Conversation '{}' not found. Use 'forge session list' to see available conversations.",
+                conversation_id
+            );
+        }
+
+        Ok(())
+    }
+
     async fn on_show_agents(&self) -> anyhow::Result<()> {
         let agents = self.api.get_agents().await?;
 
@@ -583,6 +668,37 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         if let Some(conversation) = ConversationSelector::select_conversation(&conversations)? {
             self.state.conversation_id = Some(conversation.id);
         }
+        Ok(())
+    }
+
+    async fn on_show_conversations(&mut self) -> anyhow::Result<()> {
+        let conversations = self
+            .api
+            .list_conversations(Some(MAX_CONVERSATIONS_TO_SHOW))
+            .await?;
+
+        if conversations.is_empty() {
+            return Ok(());
+        }
+
+        // Output conversations in a format suitable for fzf selection
+        // Format: <id> - <title> [<human_readable_time>]
+        for conv in conversations {
+            let title = conv.title.as_deref().unwrap_or("<untitled>");
+
+            // Format time using humantime library (same as conversation_selector.rs)
+            let duration = chrono::Utc::now().signed_duration_since(conv.metadata.created_at);
+            let duration =
+                std::time::Duration::from_secs((duration.num_minutes() * 60).max(0) as u64);
+            let time_ago = if duration.is_zero() {
+                "now".to_string()
+            } else {
+                format!("{} ago", humantime::format_duration(duration))
+            };
+
+            println!("{} - {} [{}]", conv.id, title, time_ago);
+        }
+
         Ok(())
     }
 

@@ -115,6 +115,9 @@ pub enum TopLevelCommand {
 
     /// Configuration management commands
     Config(ConfigCommandGroup),
+
+    /// Session management commands (dump, retry, resume, list)
+    Session(SessionCommandGroup),
 }
 
 /// Group of MCP-related commands
@@ -265,6 +268,38 @@ pub struct ConfigGetArgs {
     /// shows all.
     #[arg(long)]
     pub field: Option<String>,
+}
+
+/// Group of Session-related commands
+#[derive(Parser, Debug, Clone)]
+pub struct SessionCommandGroup {
+    /// Session/conversation ID to operate on (required for dump, retry, and
+    /// resume)
+    #[arg(long, short = 'i', required_unless_present = "list")]
+    pub id: Option<String>,
+
+    /// Session subcommand
+    #[command(subcommand)]
+    pub command: Option<SessionCommand>,
+
+    /// List all conversations (doesn't require --id)
+    #[arg(long)]
+    pub list: bool,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum SessionCommand {
+    /// Dump conversation as JSON or HTML
+    Dump(SessionDumpArgs),
+
+    /// Retry the last command without modifying context
+    Retry,
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct SessionDumpArgs {
+    /// Output format: "html" for HTML, omit for JSON (default)
+    pub format: Option<String>,
 }
 
 #[cfg(test)]
@@ -431,5 +466,91 @@ mod tests {
         let actual = fixture.has_any_field();
         let expected = false;
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_session_dump_json_with_id() {
+        let fixture = Cli::parse_from(["forge", "session", "--id", "abc123", "dump"]);
+        let (id, format) = match fixture.subcommands {
+            Some(TopLevelCommand::Session(session)) => {
+                let format = match session.command {
+                    Some(SessionCommand::Dump(args)) => args.format,
+                    _ => None,
+                };
+                (session.id, format)
+            }
+            _ => (None, None),
+        };
+        assert_eq!(id, Some("abc123".to_string()));
+        assert_eq!(format, None); // JSON is default
+    }
+
+    #[test]
+    fn test_session_dump_html_with_id() {
+        let fixture = Cli::parse_from(["forge", "session", "--id", "abc123", "dump", "html"]);
+        let (id, format) = match fixture.subcommands {
+            Some(TopLevelCommand::Session(session)) => {
+                let format = match session.command {
+                    Some(SessionCommand::Dump(args)) => args.format,
+                    _ => None,
+                };
+                (session.id, format)
+            }
+            _ => (None, None),
+        };
+        assert_eq!(id, Some("abc123".to_string()));
+        assert_eq!(format, Some("html".to_string()));
+    }
+
+    #[test]
+    fn test_session_retry_with_id() {
+        let fixture = Cli::parse_from(["forge", "session", "--id", "xyz789", "retry"]);
+        let (id, is_retry) = match fixture.subcommands {
+            Some(TopLevelCommand::Session(session)) => {
+                let is_retry = matches!(session.command, Some(SessionCommand::Retry));
+                (session.id, is_retry)
+            }
+            _ => (None, false),
+        };
+        assert_eq!(id, Some("xyz789".to_string()));
+        assert_eq!(is_retry, true);
+    }
+
+    #[test]
+    fn test_session_list_no_id_required() {
+        let fixture = Cli::parse_from(["forge", "session", "--list"]);
+        let is_list = match fixture.subcommands {
+            Some(TopLevelCommand::Session(session)) => session.list,
+            _ => false,
+        };
+        assert_eq!(is_list, true);
+    }
+
+    #[test]
+    fn test_session_resume_with_id_no_subcommand() {
+        let fixture = Cli::parse_from(["forge", "session", "--id", "def456"]);
+        let (id, has_subcommand) = match fixture.subcommands {
+            Some(TopLevelCommand::Session(session)) => {
+                let has_subcommand = session.command.is_some();
+                (session.id, has_subcommand)
+            }
+            _ => (None, true),
+        };
+        assert_eq!(id, Some("def456".to_string()));
+        assert_eq!(has_subcommand, false); // No subcommand means resume
+    }
+
+    #[test]
+    fn test_session_dump_without_id_fails() {
+        // This should fail because --id is required
+        let result = Cli::try_parse_from(["forge", "session", "dump"]);
+        assert!(result.is_err(), "Expected error when --id is not provided");
+    }
+
+    #[test]
+    fn test_session_retry_without_id_fails() {
+        // This should fail because --id is required
+        let result = Cli::try_parse_from(["forge", "session", "retry"]);
+        assert!(result.is_err(), "Expected error when --id is not provided");
     }
 }
