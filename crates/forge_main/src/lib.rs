@@ -1,4 +1,4 @@
-mod banner;
+pub mod banner;
 mod cli;
 mod cli_format;
 mod completer;

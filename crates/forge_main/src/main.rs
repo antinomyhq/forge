@@ -28,6 +28,12 @@ async fn main() -> Result<()> {
     // Initialize and run the UI
     let mut cli = Cli::parse();
 
+    // Handle banner flag if specified
+    if cli.banner {
+        forge_main::banner::display(true)?;
+        return Ok(());
+    }
+
     // Check if there's piped input and no explicit prompt was provided
     if cli.prompt.is_none() && !atty::is(atty::Stream::Stdin) {
         let mut stdin_content = String::new();

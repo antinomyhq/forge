@@ -156,12 +156,15 @@ function forge-accept-line() {
         user_action="muse"
     fi
     
-    # Handle reset command specially
-    if [[ "$user_action" == "reset" || "$user_action" == "r" ]]; then
+    # Handle new command specially
+    if [[ "$user_action" == "new" || "$user_action" == "n" ]]; then
         echo
         if [[ -n "$FORGE_CONVERSATION_ID" ]]; then
             echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Reset ${FORGE_CONVERSATION_ID}\033[0m"
         fi
+        
+        # Show banner
+        $_FORGE_BIN --banner
         
         _forge_print_agent_message "FORGE"
         

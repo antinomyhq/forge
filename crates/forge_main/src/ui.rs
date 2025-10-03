@@ -71,7 +71,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Displays banner only if user is in interactive mode.
     fn display_banner(&self) -> Result<()> {
         if self.cli.is_interactive() {
-            banner::display()?;
+            banner::display(false)?;
         }
         Ok(())
     }
@@ -576,7 +576,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ("info".to_string(), "Print session information".to_string()),
             ("provider".to_string(), "Switch the providers".to_string()),
             ("model".to_string(), "Switch the models".to_string()),
-            ("reset".to_string(), "Reset current session".to_string()),
+            ("new".to_string(), "Start new conversation".to_string()),
             (
                 "dump".to_string(),
                 "Save conversation as JSON or HTML (use /dump html for HTML format)".to_string(),
