@@ -46,6 +46,20 @@ pub struct CostDetails {
     pub upstream_inference_completions_cost: Option<f64>,
 }
 
+impl CostDetails {
+    fn total_cost(&self) -> Option<f64> {
+        self.upstream_inference_cost.or_else(|| {
+            match (
+                self.upstream_inference_prompt_cost,
+                self.upstream_inference_completions_cost,
+            ) {
+                (None, None) => None,
+                (p, c) => Some(p.unwrap_or(0.0) + c.unwrap_or(0.0)),
+            }
+        })
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct PromptTokenDetails {
     pub cached_tokens: usize,
@@ -113,28 +127,16 @@ pub struct FunctionCall {
 
 impl From<ResponseUsage> for Usage {
     fn from(usage: ResponseUsage) -> Self {
-        // When cost is 0 and cost_details is present, use upstream_inference_cost
-        let cost = if usage.cost.unwrap_or(0.0) == 0.0 {
-            if let Some(details) = usage.cost_details.as_ref() {
-                if let Some(inference_cost) = details.upstream_inference_cost {
-                    Some(inference_cost)
-                } else {
-                    match (
-                        details.upstream_inference_prompt_cost,
-                        details.upstream_inference_completions_cost,
-                    ) {
-                        (Some(prompt), Some(completion)) => Some(prompt + completion),
-                        (Some(prompt), None) => Some(prompt),
-                        (None, Some(completion)) => Some(completion),
-                        (None, None) => usage.cost,
-                    }
-                }
-            } else {
-                usage.cost
-            }
-        } else {
-            usage.cost
-        };
+        let cost = usage
+            .cost
+            .filter(|&c| c != 0.0)
+            .or_else(|| {
+                usage
+                    .cost_details
+                    .as_ref()
+                    .and_then(CostDetails::total_cost)
+            })
+            .or(usage.cost);
 
         Usage {
             prompt_tokens: TokenCount::Actual(usage.prompt_tokens),
