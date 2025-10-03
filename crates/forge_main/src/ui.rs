@@ -700,7 +700,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Err(anyhow::anyhow!(
                 "No AI providers are configured. Please add at least one provider API key to your .env file.\n\
                 For example:\n\
-                  OPENROUTER_API_KEY=<your_key>\n\
+                  OPENAI_API_KEY=<your_key>\n\
                   ANTHROPIC_API_KEY=<your_key>"
             ));
         }
