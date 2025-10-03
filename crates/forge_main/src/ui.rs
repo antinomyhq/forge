@@ -671,7 +671,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn on_show_conversations(&mut self) -> anyhow::Result<()> {
+        async fn on_show_conversations(&mut self) -> anyhow::Result<()> {
         let conversations = self
             .api
             .list_conversations(Some(MAX_CONVERSATIONS_TO_SHOW))
@@ -681,23 +681,27 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
-        // Output conversations in a format suitable for fzf selection
-        // Format: <id> - <title> [<human_readable_time>]
-        for conv in conversations {
-            let title = conv.title.as_deref().unwrap_or("<untitled>");
+        // Format conversations as 3-column output: <id> <title> <time_ago>
+        let items: Vec<(String, String, String)> = conversations
+            .into_iter()
+            .map(|conv| {
+                let title = conv.title.as_deref().unwrap_or("<untitled>");
 
-            // Format time using humantime library (same as conversation_selector.rs)
-            let duration = chrono::Utc::now().signed_duration_since(conv.metadata.created_at);
-            let duration =
-                std::time::Duration::from_secs((duration.num_minutes() * 60).max(0) as u64);
-            let time_ago = if duration.is_zero() {
-                "now".to_string()
-            } else {
-                format!("{} ago", humantime::format_duration(duration))
-            };
+                // Format time using humantime library (same as conversation_selector.rs)
+                let duration = chrono::Utc::now().signed_duration_since(conv.metadata.created_at);
+                let duration =
+                    std::time::Duration::from_secs((duration.num_minutes() * 60).max(0) as u64);
+                let time_ago = if duration.is_zero() {
+                    "now".to_string()
+                } else {
+                    format!("{} ago", humantime::format_duration(duration))
+                };
 
-            println!("{} - {} [{}]", conv.id, title, time_ago);
-        }
+                (title.to_string(), time_ago, conv.id.to_string())
+            })
+            .collect();
+
+        format_columns(items);
 
         Ok(())
     }
