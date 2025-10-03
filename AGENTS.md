@@ -89,6 +89,11 @@ Always verify changes by running tests and linting the codebase
    cargo +nightly fmt --all && cargo +nightly clippy --fix --allow-staged --allow-dirty --workspace;
    ```
 
+3. **Build Guidelines**:
+   - **NEVER** run `cargo build --release` unless absolutely necessary (e.g., performance testing, creating binaries for distribution)
+   - For verification, use `cargo check` (fastest), `cargo insta test`, or `cargo build` (debug mode)
+   - Release builds take significantly longer and are rarely needed for development verification
+
 ## Writing Domain Types
 
 - Use `derive_setters` to derive setters and use the `strip_option` and the `into` attributes on the struct types.
