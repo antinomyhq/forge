@@ -697,12 +697,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .collect::<Vec<_>>();
 
         if providers.is_empty() {
-            return Err(anyhow::anyhow!(
-                "No AI providers are configured. Please add at least one provider API key to your .env file.\n\
-                For example:\n\
-                  OPENAI_API_KEY=<your_key>\n\
-                  ANTHROPIC_API_KEY=<your_key>"
-            ));
+            return Err(anyhow::anyhow!("No AI provider API keys configured"));
         }
 
         // Sort the providers by their display names in ascending order
