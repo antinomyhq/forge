@@ -169,8 +169,7 @@ function forge-accept-line() {
                 
                 if [[ -n "$selected_provider" ]]; then
                     # Extract just the provider name (first word before any description)
-                    local provider_name="${selected_provider%% *}"
-                    echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Setting provider to: ${provider_name}\033[0m"
+                    local provider_name="${selected_provider%% *}"                    
                     $_FORGE_BIN config set --provider "$provider_name"
                 fi
             else
@@ -199,7 +198,6 @@ function forge-accept-line() {
                 if [[ -n "$selected_model" ]]; then
                     # Extract just the model name (first word before any description)
                     local model_name="${selected_model%% *}"
-                    echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Setting model to: ${model_name}\033[0m"
                     $_FORGE_BIN config set --model "$model_name"
                 fi
             else
