@@ -70,8 +70,7 @@ function forge-completion() {
         local filter_text="${LBUFFER#:}"
         
         # Create a list of available commands including providers and models
-        local commands="provider\nmodel\ninfo\nreset\n"
-        commands+="$($_FORGE_BIN show-agents 2>/dev/null)"
+        local commands="$($_FORGE_BIN show-commands 2>/dev/null)"
         
         if [[ -n "$commands" ]]; then
             # Use fzf for interactive selection with prefilled filter
@@ -169,7 +168,7 @@ function forge-accept-line() {
                 
                 if [[ -n "$selected_provider" ]]; then
                     # Extract just the provider name (first word before any description)
-                    local provider_name="${selected_provider%% *}"                    
+                    local provider_name="${selected_provider%% *}"
                     $_FORGE_BIN config set --provider "$provider_name"
                 fi
             else
