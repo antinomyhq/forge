@@ -4,21 +4,6 @@
 /// and the second element is the right column. Automatically calculates
 /// the maximum width of the first column and aligns all rows consistently,
 /// then prints the result to stdout.
-///
-/// # Examples
-///
-/// ```
-/// use forge_main::format_columns;
-///
-/// let items = vec![
-///     ("cmd1", "Description 1"),
-///     ("longer-cmd", "Description 2"),
-/// ];
-/// format_columns(items);
-/// // Prints:
-/// // cmd1        Description 1
-/// // longer-cmd  Description 2
-/// ```
 pub fn format_columns<S1: AsRef<str>, S2: AsRef<str>>(items: Vec<(S1, S2)>) {
     if items.is_empty() {
         return;
