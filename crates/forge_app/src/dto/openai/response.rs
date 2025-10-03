@@ -508,4 +508,79 @@ mod tests {
         let completion_result = ChatCompletionMessage::try_from(response);
         assert!(completion_result.is_ok());
     }
+
+    #[test]
+    fn test_should_take_cost_if_present() {
+        let fixture_cost_priority = ResponseUsage {
+            prompt_tokens: 100,
+            completion_tokens: 50,
+            total_tokens: 150,
+            cost: Some(0.003),
+            is_byok: None,
+            prompt_tokens_details: None,
+            cost_details: Some(CostDetails {
+                upstream_inference_cost: None,
+                upstream_inference_prompt_cost: Some(0.001),
+                upstream_inference_completions_cost: Some(0.002),
+            }),
+        };
+
+        let actual: Usage = fixture_cost_priority.into();
+        assert_eq!(actual.cost, Some(0.003));
+    }
+
+    #[test]
+    fn test_should_fallback_to_cost_details_when_cost_in_absent() {
+        let fixture = ResponseUsage {
+            prompt_tokens: 100,
+            completion_tokens: 50,
+            total_tokens: 150,
+            cost: None,
+            is_byok: None,
+            prompt_tokens_details: None,
+            cost_details: Some(CostDetails {
+                upstream_inference_cost: Some(0.008),
+                upstream_inference_prompt_cost: Some(0.003),
+                upstream_inference_completions_cost: Some(0.005),
+            }),
+        };
+        let actual: Usage = fixture.into();
+        assert_eq!(actual.cost, Some(0.008));
+    }
+
+    #[test]
+    fn test_should_fallback_to_cost_details_when_cost_in_absent_case2() {
+        let fixture = ResponseUsage {
+            prompt_tokens: 100,
+            completion_tokens: 50,
+            total_tokens: 150,
+            cost: None,
+            is_byok: None,
+            prompt_tokens_details: None,
+            cost_details: Some(CostDetails {
+                upstream_inference_cost: None,
+                upstream_inference_prompt_cost: Some(0.003),
+                upstream_inference_completions_cost: Some(0.002),
+            }),
+        };
+
+        let actual: Usage = fixture.into();
+        assert_eq!(actual.cost, Some(0.005));
+    }
+
+    #[test]
+    fn test_response_usage_cost_none_when_all_missing() {
+        let fixture = ResponseUsage {
+            prompt_tokens: 100,
+            completion_tokens: 50,
+            total_tokens: 150,
+            cost: None,
+            is_byok: None,
+            prompt_tokens_details: None,
+            cost_details: None,
+        };
+
+        let actual: Usage = fixture.into();
+        assert_eq!(actual.cost, None);
+    }
 }
