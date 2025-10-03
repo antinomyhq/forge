@@ -34,8 +34,23 @@ pub struct ResponseUsage {
     pub completion_tokens: usize,
     pub total_tokens: usize,
     pub cost: Option<f64>,
+    pub is_byok: Option<bool>,
     pub prompt_tokens_details: Option<PromptTokenDetails>,
+    pub cost_details: Option<CostDetails>,
 }
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct CostDetails {
+    pub upstream_inference_cost: Option<f64>,
+    pub upstream_inference_prompt_cost: Option<f64>,
+    pub upstream_inference_completions_cost: Option<f64>,
+}
+
+//  "cost_details": {
+//             "upstream_inference_cost": null,
+//             "upstream_inference_prompt_cost": 0.004041,
+//             "upstream_inference_completions_cost": 0.0000704
+//         },
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct PromptTokenDetails {
@@ -104,6 +119,29 @@ pub struct FunctionCall {
 
 impl From<ResponseUsage> for Usage {
     fn from(usage: ResponseUsage) -> Self {
+        // When cost is 0 and cost_details is present, use upstream_inference_cost
+        let cost = if usage.cost.unwrap_or(0.0) == 0.0 {
+            if let Some(details) = usage.cost_details.as_ref() {
+                if let Some(inference_cost) = details.upstream_inference_cost {
+                    Some(inference_cost)
+                } else {
+                    match (
+                        details.upstream_inference_prompt_cost,
+                        details.upstream_inference_completions_cost,
+                    ) {
+                        (Some(prompt), Some(completion)) => Some(prompt + completion),
+                        (Some(prompt), None) => Some(prompt),
+                        (None, Some(completion)) => Some(completion),
+                        (None, None) => usage.cost,
+                    }
+                }
+            } else {
+                usage.cost
+            }
+        } else {
+            usage.cost
+        };
+
         Usage {
             prompt_tokens: TokenCount::Actual(usage.prompt_tokens),
             completion_tokens: TokenCount::Actual(usage.completion_tokens),
@@ -112,7 +150,7 @@ impl From<ResponseUsage> for Usage {
                 .prompt_tokens_details
                 .map(|token_details| TokenCount::Actual(token_details.cached_tokens))
                 .unwrap_or_default(),
-            cost: usage.cost,
+            cost,
         }
     }
 }
