@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_api::{API, AgentId, ModelId, ProviderId};
@@ -8,13 +9,13 @@ use super::error::{ConfigError, Result as ConfigResult};
 use crate::cli::{ConfigCommand, ConfigGetArgs, ConfigSetArgs};
 
 /// Configuration manager that handles all config operations
-pub struct ConfigManager<'a, A> {
-    api: &'a A,
+pub struct ConfigManager<A> {
+    api: Arc<A>,
 }
 
-impl<'a, A: API> ConfigManager<'a, A> {
+impl<A: API> ConfigManager<A> {
     /// Create a new ConfigManager with the given API reference
-    pub fn new(api: &'a A) -> Self {
+    pub fn new(api: Arc<A>) -> Self {
         Self { api }
     }
 

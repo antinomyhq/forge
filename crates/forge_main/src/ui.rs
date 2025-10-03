@@ -364,7 +364,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 return Ok(());
             }
             TopLevelCommand::Config(config_group) => {
-                let config_manager = ConfigManager::new(&*self.api);
+                let config_manager = ConfigManager::new(self.api.clone());
                 config_manager
                     .handle_command(config_group.command.clone())
                     .await?;
