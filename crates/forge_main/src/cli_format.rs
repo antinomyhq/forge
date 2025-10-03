@@ -1,202 +1,106 @@
 /// Formats and prints a list of items into aligned columns for CLI output.
 ///
-/// Takes a vector of tuples with upto 5 string-like elements.
+/// Takes a vector of items that can be converted to rows (Vec<String>).
 /// Automatically calculates the maximum width for each column and aligns
 /// all rows consistently, then prints the result to stdout.
 pub fn format_columns<T>(items: Vec<T>)
 where
-    T: ColumnRow,
+    T: ToRow,
 {
     if items.is_empty() {
         return;
     }
 
-    // Get the number of columns and calculate max widths
-    let column_count = items[0].column_count();
+    // Convert all items to rows
+    let rows: Vec<Vec<String>> = items.into_iter().map(|item| item.to_row()).collect();
+
+    if rows.is_empty() {
+        return;
+    }
+
+    // Get the number of columns from the first row
+    let column_count = rows[0].len();
     let mut max_widths = vec![0; column_count];
 
     // Calculate maximum width for each column
-    for item in &items {
-        for (i, width) in item.column_widths().into_iter().enumerate() {
-            max_widths[i] = max_widths[i].max(width);
+    for row in &rows {
+        for (i, col) in row.iter().enumerate() {
+            max_widths[i] = max_widths[i].max(col.len());
         }
     }
 
     // Format and print each row
-    for item in items {
-        item.print_row(&max_widths);
+    for row in rows {
+        print_row(&row, &max_widths);
     }
 }
 
-/// Trait for types that can be formatted as columns
-pub trait ColumnRow {
-    fn column_count(&self) -> usize;
-    fn column_widths(&self) -> Vec<usize>;
-    fn print_row(&self, max_widths: &[usize]);
-}
-
-// Implement for 2-column tuples (backward compatibility)
-impl<S1: AsRef<str>, S2: AsRef<str>> ColumnRow for (S1, S2) {
-    fn column_count(&self) -> usize {
-        2
-    }
-
-    fn column_widths(&self) -> Vec<usize> {
-        vec![self.0.as_ref().len(), self.1.as_ref().len()]
-    }
-
-    fn print_row(&self, max_widths: &[usize]) {
-        println!(
-            "{:<width1$} {}",
-            self.0.as_ref(),
-            self.1.as_ref(),
-            width1 = max_widths[0]
-        );
-    }
-}
-
-// Implement for 3-column tuples
-impl<S1: AsRef<str>, S2: AsRef<str>, S3: AsRef<str>> ColumnRow for (S1, S2, S3) {
-    fn column_count(&self) -> usize {
-        3
-    }
-
-    fn column_widths(&self) -> Vec<usize> {
-        vec![
-            self.0.as_ref().len(),
-            self.1.as_ref().len(),
-            self.2.as_ref().len(),
-        ]
-    }
-
-    fn print_row(&self, max_widths: &[usize]) {
-        println!(
-            "{:<width1$} {:<width2$} {}",
-            self.0.as_ref(),
-            self.1.as_ref(),
-            self.2.as_ref(),
-            width1 = max_widths[0],
-            width2 = max_widths[1]
-        );
-    }
-}
-
-// Implement for 4-column tuples
-impl<S1: AsRef<str>, S2: AsRef<str>, S3: AsRef<str>, S4: AsRef<str>> ColumnRow
-    for (S1, S2, S3, S4)
-{
-    fn column_count(&self) -> usize {
-        4
-    }
-
-    fn column_widths(&self) -> Vec<usize> {
-        vec![
-            self.0.as_ref().len(),
-            self.1.as_ref().len(),
-            self.2.as_ref().len(),
-            self.3.as_ref().len(),
-        ]
-    }
-
-    fn print_row(&self, max_widths: &[usize]) {
-        println!(
-            "{:<width1$} {:<width2$} {:<width3$} {}",
-            self.0.as_ref(),
-            self.1.as_ref(),
-            self.2.as_ref(),
-            self.3.as_ref(),
-            width1 = max_widths[0],
-            width2 = max_widths[1],
-            width3 = max_widths[2]
-        );
-    }
-}
-
-// Implement for 5-column tuples
-impl<S1: AsRef<str>, S2: AsRef<str>, S3: AsRef<str>, S4: AsRef<str>, S5: AsRef<str>> ColumnRow
-    for (S1, S2, S3, S4, S5)
-{
-    fn column_count(&self) -> usize {
-        5
-    }
-
-    fn column_widths(&self) -> Vec<usize> {
-        vec![
-            self.0.as_ref().len(),
-            self.1.as_ref().len(),
-            self.2.as_ref().len(),
-            self.3.as_ref().len(),
-            self.4.as_ref().len(),
-        ]
-    }
-
-    fn print_row(&self, max_widths: &[usize]) {
-        println!(
-            "{:<width1$} {:<width2$} {:<width3$} {:<width4$} {}",
-            self.0.as_ref(),
-            self.1.as_ref(),
-            self.2.as_ref(),
-            self.3.as_ref(),
-            self.4.as_ref(),
-            width1 = max_widths[0],
-            width2 = max_widths[1],
-            width3 = max_widths[2],
-            width4 = max_widths[3]
-        );
-    }
-}
-
-// Implement for Vec<String> to support dynamic column counts
-impl ColumnRow for Vec<String> {
-    fn column_count(&self) -> usize {
-        self.len()
-    }
-
-    fn column_widths(&self) -> Vec<usize> {
-        self.iter().map(|s| s.len()).collect()
-    }
-
-    fn print_row(&self, max_widths: &[usize]) {
-        let mut formatted = String::new();
-        for (i, (col, &width)) in self.iter().zip(max_widths).enumerate() {
-            if i > 0 {
-                formatted.push(' ');
-            }
-            if i == max_widths.len() - 1 {
-                // Last column: no padding
-                formatted.push_str(col);
-            } else {
-                formatted.push_str(&format!("{:<width$}", col, width = width));
-            }
+/// Prints a single row with proper column alignment.
+fn print_row(row: &[String], max_widths: &[usize]) {
+    let mut formatted = String::new();
+    for (i, (col, &width)) in row.iter().zip(max_widths).enumerate() {
+        if i > 0 {
+            formatted.push(' ');
         }
-        println!("{}", formatted);
+        if i == max_widths.len() - 1 {
+            // Last column: no padding
+            formatted.push_str(col);
+        } else {
+            formatted.push_str(&format!("{:<width$}", col, width = width));
+        }
+    }
+    println!("{}", formatted);
+}
+
+/// Trait for types that can be converted to a row of strings.
+pub trait ToRow {
+    fn to_row(self) -> Vec<String>;
+}
+
+// Implementations for tuples with generic ToString types
+
+impl<T1: ToString, T2: ToString> ToRow for (T1, T2) {
+    fn to_row(self) -> Vec<String> {
+        vec![self.0.to_string(), self.1.to_string()]
     }
 }
 
-// Implement for Vec<&str> to support dynamic column counts
-impl ColumnRow for Vec<&str> {
-    fn column_count(&self) -> usize {
-        self.len()
+impl<T1: ToString, T2: ToString, T3: ToString> ToRow for (T1, T2, T3) {
+    fn to_row(self) -> Vec<String> {
+        vec![self.0.to_string(), self.1.to_string(), self.2.to_string()]
     }
+}
 
-    fn column_widths(&self) -> Vec<usize> {
-        self.iter().map(|s| s.len()).collect()
+impl<T1: ToString, T2: ToString, T3: ToString, T4: ToString> ToRow for (T1, T2, T3, T4) {
+    fn to_row(self) -> Vec<String> {
+        vec![
+            self.0.to_string(),
+            self.1.to_string(),
+            self.2.to_string(),
+            self.3.to_string(),
+        ]
     }
+}
 
-    fn print_row(&self, max_widths: &[usize]) {
-        let mut formatted = String::new();
-        for (i, (col, &width)) in self.iter().zip(max_widths).enumerate() {
-            if i > 0 {
-                formatted.push(' ');
-            }
-            if i == max_widths.len() - 1 {
-                // Last column: no padding
-                formatted.push_str(col);
-            } else {
-                formatted.push_str(&format!("{:<width$}", col, width = width));
-            }
-        }
-        println!("{}", formatted);
+impl<T1: ToString, T2: ToString, T3: ToString, T4: ToString, T5: ToString> ToRow
+    for (T1, T2, T3, T4, T5)
+{
+    fn to_row(self) -> Vec<String> {
+        vec![
+            self.0.to_string(),
+            self.1.to_string(),
+            self.2.to_string(),
+            self.3.to_string(),
+            self.4.to_string(),
+        ]
+    }
+}
+
+// Implementations for Vec types
+
+impl<T: ToString> ToRow for Vec<T> {
+    fn to_row(self) -> Vec<String> {
+        self.into_iter().map(|s| s.to_string()).collect()
     }
 }
 
@@ -258,6 +162,26 @@ mod tests {
             vec!["1", "item1", "active"],
             vec!["2", "long-item-name", "inactive"],
         ];
+        format_columns(items);
+    }
+
+    #[test]
+    fn test_format_columns_vec_vec_string() {
+        let items: Vec<Vec<String>> = vec![
+            vec!["id".to_string(), "name".to_string(), "status".to_string()],
+            vec!["1".to_string(), "item1".to_string(), "active".to_string()],
+            vec![
+                "2".to_string(),
+                "long-item-name".to_string(),
+                "inactive".to_string(),
+            ],
+        ];
+        format_columns(items);
+    }
+
+    #[test]
+    fn test_format_columns_with_numbers() {
+        let items = vec![(1, "First item"), (2, "Second item"), (100, "Third item")];
         format_columns(items);
     }
 }
