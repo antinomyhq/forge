@@ -38,6 +38,29 @@ function _forge_print_agent_message() {
     echo "\033[33m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] \033[1;37m${agent_name:u}\033[0m \033[90mis now the active agent\033[0m"
 }
 
+# Helper function to select and set config values with fzf
+function _forge_select_and_set_config() {
+    local show_command="$1"
+    local config_flag="$2"
+    local prompt_text="$3"
+    
+    (
+        echo
+        local output
+        output=$($_FORGE_BIN "$show_command" 2>/dev/null)
+        
+        if [[ -n "$output" ]]; then
+            local selected
+            selected=$(echo "$output" | _forge_fzf --prompt="$prompt_text ❯ ")
+            
+            if [[ -n "$selected" ]]; then
+                local name="${selected%% *}"
+                $_FORGE_BIN config set "--$config_flag" "$name"
+            fi
+        fi
+    )
+}
+
 # Store conversation ID in a temporary variable (local to plugin)
 export FORGE_CONVERSATION_ID=""
 export FORGE_ACTIVE_AGENT="forge"
@@ -165,37 +188,7 @@ function forge-accept-line() {
     
     # Handle providers command specially
     if [[ "$user_action" == "provider" ]]; then
-        # Execute provider selection in a subshell to avoid ZLE context issues
-        (
-            echo
-            local providers_output
-            providers_output=$($_FORGE_BIN show-providers 2>/dev/null)
-            
-            if [[ -n "$providers_output" ]]; then
-                # Get current provider
-                local current_provider
-                current_provider=$($_FORGE_BIN config get --field provider 2>/dev/null | tail -1 | sed 's/.*Provider //')
-                
-                # Create prompt with current provider
-                local prompt_text="Provider ❯ "
-                if [[ -n "$current_provider" ]]; then
-                    prompt_text="Provider [Current: ${current_provider}] ❯ "
-                fi
-                
-                local selected_provider
-                selected_provider=$(echo "$providers_output" | _forge_fzf --prompt="$prompt_text")
-                
-                if [[ -n "$selected_provider" ]]; then
-                    # Extract just the provider name (first word before any description)
-                    local provider_name="${selected_provider%% *}"
-                    $_FORGE_BIN config set --provider "$provider_name"
-                    echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Provider set to \033[1m${provider_name}\033[0m"
-                fi
-            else
-                echo "\033[31m✗\033[0m Failed to get providers list"
-            fi
-        )
-        
+        _forge_select_and_set_config "show-providers" "provider" "Provider"
         BUFFER=""
         CURSOR=${#BUFFER}
         zle reset-prompt
@@ -204,37 +197,7 @@ function forge-accept-line() {
     
     # Handle models command specially
     if [[ "$user_action" == "model" ]]; then
-        # Execute model selection in a subshell to avoid ZLE context issues
-        (
-            echo
-            local models_output
-            models_output=$($_FORGE_BIN show-models 2>/dev/null)
-            
-            if [[ -n "$models_output" ]]; then
-                # Get current model
-                local current_model
-                current_model=$($_FORGE_BIN config get --field model 2>/dev/null | tail -1 | sed 's/.*Model //')
-                
-                # Create prompt with current model
-                local prompt_text="Model ❯ "
-                if [[ -n "$current_model" ]]; then
-                    prompt_text="Model [Current: ${current_model}] ❯ "
-                fi
-                
-                local selected_model
-                selected_model=$(echo "$models_output" | _forge_fzf --prompt="$prompt_text")
-                
-                if [[ -n "$selected_model" ]]; then
-                    # Extract just the model name (first word before any description)
-                    local model_name="${selected_model%% *}"
-                    $_FORGE_BIN config set --model "$model_name"
-                    echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Model set to \033[1m${model_name}\033[0m"
-                fi
-            else
-                echo "\033[31m✗\033[0m Failed to get models list"
-            fi
-        )
-        
+        _forge_select_and_set_config "show-models" "model" "Model"
         BUFFER=""
         CURSOR=${#BUFFER}
         zle reset-prompt
