@@ -292,7 +292,7 @@ function forge-accept-line() {
     fi
     
     # Handle tools command specially
-    if [[ "$user_action" == "tool" ]]; then
+    if [[ "$user_action" == "tools" ]]; then
         echo
         $_FORGE_BIN show-tools "${FORGE_ACTIVE_AGENT}"
         BUFFER=""

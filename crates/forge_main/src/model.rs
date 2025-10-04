@@ -181,7 +181,7 @@ impl ForgeCommandManager {
                 | "update"
                 | "dump"
                 | "model"
-                | "tool"
+                | "tools"
                 | "login"
                 | "logout"
                 | "retry"
@@ -355,7 +355,7 @@ impl ForgeCommandManager {
             "/help" => Ok(Command::Help),
             "/model" => Ok(Command::Model),
             "/provider" => Ok(Command::Provider),
-            "/tool" => Ok(Command::Tool),
+            "/tools" => Ok(Command::Tools),
             "/agent" => Ok(Command::Agent),
             "/login" => Ok(Command::Login),
             "/logout" => Ok(Command::Logout),
@@ -460,9 +460,9 @@ pub enum Command {
     #[strum(props(usage = "Switch to a different provider"))]
     Provider,
     /// List all available tools with their descriptions and schema
-    /// This can be triggered with the '/tool' command.
+    /// This can be triggered with the '/tools' command.
     #[strum(props(usage = "List all available tools with their descriptions and schema"))]
-    Tool,
+    Tools,
     /// Handles custom command defined in workflow file.
     Custom(PartialEvent),
     /// Executes a native shell command.
@@ -511,7 +511,7 @@ impl Command {
             Command::Dump(_) => "dump",
             Command::Model => "model",
             Command::Provider => "provider",
-            Command::Tool => "tool",
+            Command::Tools => "tools",
             Command::Custom(event) => &event.name,
             Command::Shell(_) => "!shell",
             Command::Agent => "agent",
@@ -1041,11 +1041,11 @@ mod tests {
         let fixture = ForgeCommandManager::default();
 
         // Execute
-        let result = fixture.parse("/tool").unwrap();
+        let result = fixture.parse("/tools").unwrap();
 
         // Verify
         match result {
-            Command::Tool => {
+            Command::Tools => {
                 // Command parsed correctly
             }
             _ => panic!("Expected Tool command, got {result:?}"),

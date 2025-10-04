@@ -599,7 +599,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 "Compact the conversation context".to_string(),
             ),
             (
-                "tool".to_string(),
+                "tools".to_string(),
                 "List all available tools with their descriptions and schema".to_string(),
             ),
         ];
@@ -809,7 +809,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 let info = Info::from(self.command.as_ref());
                 self.writeln(info)?;
             }
-            Command::Tool => {
+            Command::Tools => {
                 self.spinner.start(Some("Loading"))?;
                 use crate::tools_display::format_tools;
                 let all_tools = self.api.tools().await?;
