@@ -177,10 +177,9 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
     }
 
     async fn get_active_model(&self) -> anyhow::Result<ModelId> {
-        let app_config = self.infra.get_app_config().await?;
-        if let Some(provider_id) = app_config.provider
-            && let Some(model_id) = app_config.model.get(&provider_id)
-        {
+        let provider_id = self.get_active_provider().await?.id;
+
+        if let Some(model_id) = self.infra.get_app_config().await?.model.get(&provider_id) {
             return Ok(model_id.clone());
         }
 
