@@ -1,62 +1,69 @@
 [
   {
-    "id": "OpenRouter",
+    "id": "forge",
+    "api_key_vars": "FORGE_API_KEY",
+    "url_param_vars": [],
+    "response_type": "OpenAI",
+    "url": "https://antinomy.ai/api/v1/"
+  },
+  {
+    "id": "open_router",
     "api_key_vars": "OPENROUTER_API_KEY",
     "url_param_vars": [],
     "response_type": "OpenAI",
     "url": "https://openrouter.ai/api/v1/"
   },
   {
-    "id": "Requesty",
+    "id": "requesty",
     "api_key_vars": "REQUESTY_API_KEY",
     "url_param_vars": [],
     "response_type": "OpenAI",
     "url": "https://router.requesty.ai/v1/"
   },
   {
-    "id": "Xai",
+    "id": "xai",
     "api_key_vars": "XAI_API_KEY",
     "url_param_vars": [],
     "response_type": "OpenAI",
     "url": "https://api.x.ai/v1/"
   },
   {
-    "id": "OpenAI",
+    "id": "openai",
     "api_key_vars": "OPENAI_API_KEY",
     "url_param_vars": [],
     "response_type": "OpenAI",
     "url": "https://api.openai.com/v1/"
   },
   {
-    "id": "Anthropic",
+    "id": "anthropic",
     "api_key_vars": "ANTHROPIC_API_KEY",
     "url_param_vars": [],
     "response_type": "Anthropic",
     "url": "https://api.anthropic.com/v1/"
   },
   {
-    "id": "Cerebras",
+    "id": "cerebras",
     "api_key_vars": "CEREBRAS_API_KEY",
     "url_param_vars": [],
     "response_type": "OpenAI",
     "url": "https://api.cerebras.ai/v1/"
   },
   {
-    "id": "Zai",
+    "id": "zai",
     "api_key_vars": "ZAI_API_KEY",
     "url_param_vars": [],
     "response_type": "OpenAI",
     "url": "https://api.z.ai/api/paas/v4/"
   },
   {
-    "id": "ZaiCoding",
+    "id": "zai_coding",
     "api_key_vars": "ZAI_CODING_API_KEY",
     "url_param_vars": [],
     "response_type": "OpenAI",
     "url": "https://api.z.ai/api/coding/paas/v4/"
   },
   {
-    "id": "VertexAi",
+    "id": "vertex_ai",
     "api_key_vars": "VERTEX_AI_AUTH_TOKEN",
     "url_param_vars": ["PROJECT_ID", "LOCATION"],
     "response_type": "OpenAI",

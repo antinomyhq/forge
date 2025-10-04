@@ -21,8 +21,10 @@ use url::Url;
     PartialOrd,
     Ord,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum ProviderId {
     Forge,
+    #[serde(rename = "openai")]
     OpenAI,
     OpenRouter,
     Requesty,
