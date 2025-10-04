@@ -1,6 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use forge_domain::{Agent, ToolDefinition};
+use globset::Glob;
 
 /// Service that resolves tool definitions for agents based on their configured
 /// tool list
@@ -15,26 +16,32 @@ impl ToolResolver {
     }
 
     /// Resolves the tool definitions for a specific agent by filtering
-    /// based on the agent's configured tool list. Filters and deduplicates
-    /// tool definitions based on agent's tools configuration. Returns only
-    /// the tool definitions that are specified in the agent's tools list.
-    /// Maintains deduplication to avoid duplicate tool definitions.
+    /// based on the agent's configured tool list. Supports both exact matches
+    /// and glob patterns (e.g., "fs_*" matches "fs_read", "fs_write").
+    /// Filters and deduplicates tool definitions based on agent's tools
+    /// configuration. Returns only the tool definitions that are specified
+    /// in the agent's tools list. Maintains deduplication to avoid
+    /// duplicate tool definitions.
     pub fn resolve(&self, agent: &Agent) -> Vec<ToolDefinition> {
-        // Create a map for efficient tool definition lookup by name
-        let tool_definitions_map: HashMap<_, _> = self
-            .all_tool_definitions
+        // Build glob matchers from unique agent tools
+        let matchers: Vec<_> = agent
+            .tools
             .iter()
-            .map(|tool| (&tool.name, tool))
+            .flatten()
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .filter_map(|pattern| Glob::new(pattern.as_str()).ok())
+            .map(|glob| glob.compile_matcher())
             .collect();
 
-        // Deduplicate agent tools before processing
-        let unique_agent_tools: HashSet<_> = agent.tools.iter().flatten().collect();
-
-        // Filter and collect tool definitions based on agent's tool list
-        unique_agent_tools
+        // Match tools against all patterns and deduplicate
+        self.all_tool_definitions
             .iter()
-            .flat_map(|tool| tool_definitions_map.get(*tool))
-            .cloned()
+            .filter(|tool| {
+                matchers
+                    .iter()
+                    .any(|matcher| matcher.is_match(tool.name.as_str()))
+            })
             .cloned()
             .collect()
     }
@@ -129,6 +136,131 @@ mod tests {
         let mut expected = vec![
             ToolDefinition::new("read").description("Read Tool"),
             ToolDefinition::new("write").description("Write Tool"),
+        ];
+
+        // Sort both vectors by tool name for deterministic comparison
+        actual.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+        expected.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_resolve_with_glob_pattern_wildcard() {
+        let all_tool_definitions = vec![
+            ToolDefinition::new("fs_read").description("Read Tool"),
+            ToolDefinition::new("fs_write").description("Write Tool"),
+            ToolDefinition::new("fs_search").description("Search Tool"),
+            ToolDefinition::new("net_fetch").description("Fetch Tool"),
+        ];
+
+        let tool_resolver = ToolResolver::new(all_tool_definitions);
+
+        let fixture = Agent::new(AgentId::new("test-agent")).tools(vec![ToolName::new("fs_*")]);
+
+        let mut actual = tool_resolver.resolve(&fixture);
+        let mut expected = vec![
+            ToolDefinition::new("fs_read").description("Read Tool"),
+            ToolDefinition::new("fs_write").description("Write Tool"),
+            ToolDefinition::new("fs_search").description("Search Tool"),
+        ];
+
+        // Sort both vectors by tool name for deterministic comparison
+        actual.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+        expected.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_resolve_with_glob_pattern_no_matches() {
+        let all_tool_definitions = vec![
+            ToolDefinition::new("read").description("Read Tool"),
+            ToolDefinition::new("write").description("Write Tool"),
+        ];
+
+        let tool_resolver = ToolResolver::new(all_tool_definitions);
+
+        let fixture = Agent::new(AgentId::new("test-agent")).tools(vec![ToolName::new("fs_*")]);
+
+        let actual = tool_resolver.resolve(&fixture);
+        let expected: Vec<ToolDefinition> = vec![];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_resolve_with_mixed_exact_and_glob() {
+        let all_tool_definitions = vec![
+            ToolDefinition::new("fs_read").description("FS Read Tool"),
+            ToolDefinition::new("fs_write").description("FS Write Tool"),
+            ToolDefinition::new("net_fetch").description("Net Fetch Tool"),
+            ToolDefinition::new("shell").description("Shell Tool"),
+        ];
+
+        let tool_resolver = ToolResolver::new(all_tool_definitions);
+
+        let fixture = Agent::new(AgentId::new("test-agent"))
+            .tools(vec![ToolName::new("fs_*"), ToolName::new("shell")]);
+
+        let mut actual = tool_resolver.resolve(&fixture);
+        let mut expected = vec![
+            ToolDefinition::new("fs_read").description("FS Read Tool"),
+            ToolDefinition::new("fs_write").description("FS Write Tool"),
+            ToolDefinition::new("shell").description("Shell Tool"),
+        ];
+
+        // Sort both vectors by tool name for deterministic comparison
+        actual.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+        expected.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_resolve_with_question_mark_wildcard() {
+        let all_tool_definitions = vec![
+            ToolDefinition::new("read1").description("Read 1 Tool"),
+            ToolDefinition::new("read2").description("Read 2 Tool"),
+            ToolDefinition::new("read10").description("Read 10 Tool"),
+        ];
+
+        let tool_resolver = ToolResolver::new(all_tool_definitions);
+
+        let fixture = Agent::new(AgentId::new("test-agent")).tools(vec![ToolName::new("read?")]);
+
+        let mut actual = tool_resolver.resolve(&fixture);
+        let mut expected = vec![
+            ToolDefinition::new("read1").description("Read 1 Tool"),
+            ToolDefinition::new("read2").description("Read 2 Tool"),
+        ];
+
+        // Sort both vectors by tool name for deterministic comparison
+        actual.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+        expected.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_resolve_with_overlapping_glob_patterns() {
+        let all_tool_definitions = vec![
+            ToolDefinition::new("fs_read").description("FS Read Tool"),
+            ToolDefinition::new("fs_write").description("FS Write Tool"),
+        ];
+
+        let tool_resolver = ToolResolver::new(all_tool_definitions);
+
+        let fixture = Agent::new(AgentId::new("test-agent")).tools(vec![
+            ToolName::new("fs_*"),
+            ToolName::new("fs_read"),
+            ToolName::new("*_read"),
+        ]);
+
+        let mut actual = tool_resolver.resolve(&fixture);
+        let mut expected = vec![
+            ToolDefinition::new("fs_read").description("FS Read Tool"),
+            ToolDefinition::new("fs_write").description("FS Write Tool"),
         ];
 
         // Sort both vectors by tool name for deterministic comparison

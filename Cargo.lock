@@ -1132,6 +1132,7 @@ dependencies = [
  "forge_stream",
  "forge_template",
  "futures",
+ "globset",
  "handlebars",
  "insta",
  "merge 0.2.0",
