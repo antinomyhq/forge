@@ -22,6 +22,11 @@ impl ToolsOverview {
     pub fn new() -> Self {
         ToolsOverview { system: Vec::new(), agents: Vec::new(), mcp: HashMap::new() }
     }
+
+    // Creates a flat list of all tool definitions
+    pub fn into_vec(self) -> Vec<ToolDefinition> {
+        self.into()
+    }
 }
 
 impl Default for ToolsOverview {
