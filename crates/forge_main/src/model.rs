@@ -182,7 +182,6 @@ impl ForgeCommandManager {
                 | "dump"
                 | "model"
                 | "tool"
-                | "tools"
                 | "login"
                 | "logout"
                 | "retry"
