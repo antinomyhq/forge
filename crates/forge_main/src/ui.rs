@@ -365,6 +365,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_show_commands().await?;
                 return Ok(());
             }
+            TopLevelCommand::ShowTools { agent } => {
+                self.on_show_tools(agent).await?;
+                return Ok(());
+            }
             TopLevelCommand::ShowBanner => {
                 banner::display(true)?;
                 return Ok(());
@@ -596,6 +600,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 "compact".to_string(),
                 "Compact the conversation context".to_string(),
             ),
+            (
+                "tools".to_string(),
+                "List all available tools with their descriptions and schema".to_string(),
+            ),
         ];
 
         // Add alias commands
@@ -621,10 +629,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     /// Displays available tools for the current agent
-    async fn on_show_tools(&mut self) -> anyhow::Result<()> {
+    async fn on_show_tools(&mut self, agent_id: AgentId) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading"))?;
         let all_tools = self.api.tools().await?;
-        let agent_id = self.api.get_operating_agent().await.unwrap_or_default();
         let agents = self.api.get_agents().await?;
         let agent = agents.into_iter().find(|agent| agent.id == agent_id);
         let agent_tools = if let Some(agent) = agent {
@@ -797,7 +804,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.writeln(info)?;
             }
             Command::Tools => {
-                self.on_show_tools().await?;
+                if let Some(agent_id) = self.api.get_operating_agent().await {
+                    self.on_show_tools(agent_id).await?;
+                }
             }
             Command::Update => {
                 on_update(self.api.clone(), None).await;
