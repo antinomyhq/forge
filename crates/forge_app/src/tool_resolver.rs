@@ -23,7 +23,8 @@ impl ToolResolver {
     /// in the agent's tools list. Automatically includes `attempt_completion`
     /// tool as it's required for all agents. Maintains deduplication to avoid
     /// duplicate tool definitions. Returns tools sorted alphabetically by name.
-    pub fn resolve(&self, agent: &Agent) -> Vec<ToolDefinition> {
+    /// Returns references to avoid unnecessary cloning.
+    pub fn resolve<'a>(&'a self, agent: &Agent) -> Vec<&'a ToolDefinition> {
         let matchers = self.build_matchers(agent);
         let mut resolved = self.match_tools(&matchers);
         self.ensure_attempt_completion(&mut resolved);
@@ -47,7 +48,7 @@ impl ToolResolver {
     }
 
     /// Matches tool definitions against glob patterns
-    fn match_tools(&self, matchers: &[globset::GlobMatcher]) -> Vec<ToolDefinition> {
+    fn match_tools<'a>(&'a self, matchers: &[globset::GlobMatcher]) -> Vec<&'a ToolDefinition> {
         self.all_tool_definitions
             .iter()
             .filter(|tool| {
@@ -55,12 +56,11 @@ impl ToolResolver {
                     .iter()
                     .any(|matcher| matcher.is_match(tool.name.as_str()))
             })
-            .cloned()
             .collect()
     }
 
     /// Ensures attempt_completion tool is always included in the resolved tools
-    fn ensure_attempt_completion(&self, resolved: &mut Vec<ToolDefinition>) {
+    fn ensure_attempt_completion<'a>(&'a self, resolved: &mut Vec<&'a ToolDefinition>) {
         let attempt_completion_name = ToolsDiscriminants::AttemptCompletion.name();
 
         if resolved
@@ -75,18 +75,18 @@ impl ToolResolver {
             .iter()
             .find(|tool| tool.name == attempt_completion_name)
         {
-            resolved.push(attempt_completion.clone());
+            resolved.push(attempt_completion);
         }
     }
 
     /// Deduplicates tool definitions by name, keeping the first occurrence
-    fn dedupe_tools(&self, resolved: &mut Vec<ToolDefinition>) {
+    fn dedupe_tools(&self, resolved: &mut Vec<&ToolDefinition>) {
         let mut seen = HashSet::new();
-        resolved.retain(|tool| seen.insert(tool.name.clone()));
+        resolved.retain(|tool| seen.insert(&tool.name));
     }
 
     /// Sorts tool definitions alphabetically by name
-    fn sort_tools(&self, resolved: &mut [ToolDefinition]) {
+    fn sort_tools(&self, resolved: &mut [&ToolDefinition]) {
         resolved.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
     }
 }
@@ -113,8 +113,8 @@ mod tests {
 
         let actual = tool_resolver.resolve(&fixture);
         let expected = vec![
-            ToolDefinition::new("read").description("Read Tool"),
-            ToolDefinition::new("search").description("Search Tool"),
+            &tool_resolver.all_tool_definitions[0], // read
+            &tool_resolver.all_tool_definitions[2], // search
         ];
 
         assert_eq!(actual, expected);
@@ -132,7 +132,7 @@ mod tests {
         let fixture = Agent::new(AgentId::new("test-agent"));
 
         let actual = tool_resolver.resolve(&fixture);
-        let expected: Vec<ToolDefinition> = vec![];
+        let expected: Vec<&ToolDefinition> = vec![];
 
         assert_eq!(actual, expected);
     }
@@ -152,7 +152,7 @@ mod tests {
         ]);
 
         let actual = tool_resolver.resolve(&fixture);
-        let expected: Vec<ToolDefinition> = vec![];
+        let expected: Vec<&ToolDefinition> = vec![];
 
         assert_eq!(actual, expected);
     }
@@ -174,8 +174,8 @@ mod tests {
 
         let actual = tool_resolver.resolve(&fixture);
         let expected = vec![
-            ToolDefinition::new("read").description("Read Tool"),
-            ToolDefinition::new("write").description("Write Tool"),
+            &tool_resolver.all_tool_definitions[0], // read
+            &tool_resolver.all_tool_definitions[1], // write
         ];
 
         assert_eq!(actual, expected);
@@ -196,9 +196,9 @@ mod tests {
 
         let actual = tool_resolver.resolve(&fixture);
         let expected = vec![
-            ToolDefinition::new("fs_read").description("Read Tool"),
-            ToolDefinition::new("fs_search").description("Search Tool"),
-            ToolDefinition::new("fs_write").description("Write Tool"),
+            &tool_resolver.all_tool_definitions[0], // fs_read
+            &tool_resolver.all_tool_definitions[2], // fs_search
+            &tool_resolver.all_tool_definitions[1], // fs_write
         ];
 
         assert_eq!(actual, expected);
@@ -216,7 +216,7 @@ mod tests {
         let fixture = Agent::new(AgentId::new("test-agent")).tools(vec![ToolName::new("fs_*")]);
 
         let actual = tool_resolver.resolve(&fixture);
-        let expected: Vec<ToolDefinition> = vec![];
+        let expected: Vec<&ToolDefinition> = vec![];
 
         assert_eq!(actual, expected);
     }
@@ -237,9 +237,9 @@ mod tests {
 
         let actual = tool_resolver.resolve(&fixture);
         let expected = vec![
-            ToolDefinition::new("fs_read").description("FS Read Tool"),
-            ToolDefinition::new("fs_write").description("FS Write Tool"),
-            ToolDefinition::new("shell").description("Shell Tool"),
+            &tool_resolver.all_tool_definitions[0], // fs_read
+            &tool_resolver.all_tool_definitions[1], // fs_write
+            &tool_resolver.all_tool_definitions[3], // shell
         ];
 
         assert_eq!(actual, expected);
@@ -259,8 +259,8 @@ mod tests {
 
         let actual = tool_resolver.resolve(&fixture);
         let expected = vec![
-            ToolDefinition::new("read1").description("Read 1 Tool"),
-            ToolDefinition::new("read2").description("Read 2 Tool"),
+            &tool_resolver.all_tool_definitions[0], // read1
+            &tool_resolver.all_tool_definitions[1], // read2
         ];
 
         assert_eq!(actual, expected);
@@ -283,8 +283,8 @@ mod tests {
 
         let actual = tool_resolver.resolve(&fixture);
         let expected = vec![
-            ToolDefinition::new("fs_read").description("FS Read Tool"),
-            ToolDefinition::new("fs_write").description("FS Write Tool"),
+            &tool_resolver.all_tool_definitions[0], // fs_read
+            &tool_resolver.all_tool_definitions[1], // fs_write
         ];
 
         assert_eq!(actual, expected);
@@ -304,8 +304,8 @@ mod tests {
 
         let actual = tool_resolver.resolve(&fixture);
         let expected = vec![
-            ToolDefinition::new("attempt_completion").description("Completion Tool"),
-            ToolDefinition::new("read").description("Read Tool"),
+            &tool_resolver.all_tool_definitions[2], // attempt_completion
+            &tool_resolver.all_tool_definitions[0], // read
         ];
 
         assert_eq!(actual, expected);
@@ -327,8 +327,8 @@ mod tests {
 
         let actual = tool_resolver.resolve(&fixture);
         let expected = vec![
-            ToolDefinition::new("attempt_completion").description("Completion Tool"),
-            ToolDefinition::new("read").description("Read Tool"),
+            &tool_resolver.all_tool_definitions[1], // attempt_completion
+            &tool_resolver.all_tool_definitions[0], // read
         ];
 
         assert_eq!(actual, expected);

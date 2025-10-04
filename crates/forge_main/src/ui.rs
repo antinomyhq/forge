@@ -786,7 +786,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     resolver
                         .resolve(&agent)
                         .into_iter()
-                        .map(|def| def.name)
+                        .map(|def| def.name.clone())
                         .collect()
                 } else {
                     Vec::new()

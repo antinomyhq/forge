@@ -110,7 +110,8 @@ impl<S: Services> ForgeApp<S> {
         // Get system and mcp tool definitions and resolve them for the agent
         let all_tool_definitions = self.tool_registry.list().await?;
         let tool_resolver = ToolResolver::new(all_tool_definitions);
-        let tool_definitions = tool_resolver.resolve(&agent);
+        let tool_definitions: Vec<ToolDefinition> =
+            tool_resolver.resolve(&agent).into_iter().cloned().collect();
         let max_tool_failure_per_turn = agent.max_tool_failure_per_turn.unwrap_or(3);
 
         // Create the orchestrator with all necessary dependencies
