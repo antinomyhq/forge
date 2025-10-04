@@ -362,9 +362,6 @@ impl ForgeCommandManager {
             "/logout" => Ok(Command::Logout),
             "/retry" => Ok(Command::Retry),
             "/conversations" | "/list" => Ok(Command::Conversations),
-            "/tools" => Err(anyhow::anyhow!(
-                "The '/tools' command has been renamed to '/tool'. Please use '/tool' instead."
-            )),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
