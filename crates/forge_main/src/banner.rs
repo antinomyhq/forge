@@ -31,7 +31,7 @@ pub fn display(cli_mode: bool) -> io::Result<()> {
         // Interactive mode: show all commands
         vec![
             ("New conversation:", "/new"),
-            ("Get started:", "/info, /usage, /help, /conversations"),
+            ("Get started:", "/info, /usage, /help, /conversation"),
             ("Switch model:", "/model"),
             ("Switch agent:", "/forge or /muse or /agent"),
             ("Update:", "/update"),
