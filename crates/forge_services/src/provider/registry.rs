@@ -1,94 +1,134 @@
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use forge_app::ProviderRegistry;
 use forge_app::domain::{AgentId, ModelId};
 use forge_app::dto::{Provider, ProviderId, ProviderResponse};
+use handlebars::Handlebars;
+use serde::Deserialize;
 use strum::IntoEnumIterator;
 use url::Url;
 
 use crate::{AppConfigRepository, EnvironmentInfra, ProviderError};
 
+#[derive(Debug, Deserialize)]
+struct ProviderConfig {
+    id: ProviderId,
+    api_key_vars: String,
+    url_param_vars: Vec<String>,
+    response_type: ProviderResponse,
+    url: String,
+}
+
+static HANDLEBARS: OnceLock<Handlebars<'static>> = OnceLock::new();
+static PROVIDER_CONFIGS: OnceLock<Vec<ProviderConfig>> = OnceLock::new();
+
+fn get_handlebars() -> &'static Handlebars<'static> {
+    HANDLEBARS.get_or_init(|| {
+        let mut hb = Handlebars::new();
+        // Register the 'eq' helper for equality comparisons
+        hb.register_helper(
+            "eq",
+            Box::new(
+                |h: &handlebars::Helper,
+                 _r: &Handlebars,
+                 _: &handlebars::Context,
+                 _rc: &mut handlebars::RenderContext,
+                 out: &mut dyn handlebars::Output|
+                 -> handlebars::HelperResult {
+                    let param0 = h.param(0).and_then(|v| v.value().as_str());
+                    let param1 = h.param(1).and_then(|v| v.value().as_str());
+                    out.write(if param0 == param1 { "true" } else { "" })?;
+                    Ok(())
+                },
+            ),
+        );
+        hb
+    })
+}
+
+fn get_provider_configs() -> &'static Vec<ProviderConfig> {
+    PROVIDER_CONFIGS.get_or_init(|| {
+        let json_str = include_str!("models.json");
+        serde_json::from_str(json_str)
+            .map_err(|e| anyhow::anyhow!("Failed to parse provider configs: {}", e))
+            .unwrap()
+    })
+}
+
 pub struct ForgeProviderRegistry<F> {
     infra: Arc<F>,
+    handlebars: &'static Handlebars<'static>,
 }
 
 impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        Self { infra }
+        Self { infra, handlebars: get_handlebars() }
     }
 
     fn provider_from_id(&self, id: forge_app::dto::ProviderId) -> anyhow::Result<Provider> {
-        // First, match provider_id to get environment variable name and provider config
-        let (env_var_name, api, url) = match id {
-            ProviderId::OpenRouter => (
-                "OPENROUTER_API_KEY",
-                ProviderResponse::OpenAI,
-                Url::parse(Provider::OPEN_ROUTER_URL).unwrap(),
-            ),
-            ProviderId::Requesty => (
-                "REQUESTY_API_KEY",
-                ProviderResponse::OpenAI,
-                Url::parse(Provider::REQUESTY_URL).unwrap(),
-            ),
-            ProviderId::Xai => (
-                "XAI_API_KEY",
-                ProviderResponse::OpenAI,
-                Url::parse(Provider::XAI_URL).unwrap(),
-            ),
+        // Handle special cases first
+        if id == ProviderId::Forge {
+            // Forge provider isn't typically configured via env vars in the registry
+            return Err(ProviderError::provider_not_available(ProviderId::Forge).into());
+        }
+
+        // Load provider config from JSON
+        let configs = get_provider_configs();
+        let config = configs
+            .iter()
+            .find(|c| c.id == id)
+            .ok_or_else(|| anyhow::anyhow!("Provider config not found for id: {:?}", id))?;
+
+        // Check API key environment variable
+        let api_key = self
+            .infra
+            .get_env_var(&config.api_key_vars)
+            .ok_or_else(|| ProviderError::env_var_not_found(id, &config.api_key_vars))?;
+
+        // Check URL parameter environment variables and build template data
+        let mut template_data = std::collections::HashMap::new();
+        for env_var in &config.url_param_vars {
+            if let Some(value) = self.infra.get_env_var(env_var) {
+                // Convert env var names to handlebars-friendly variable names
+                let key_name = env_var.to_lowercase().replace('_', "");
+                template_data.insert(key_name, value);
+            } else {
+                return Err(ProviderError::env_var_not_found(id, env_var).into());
+            }
+        }
+
+        // Render URL using handlebars (always render, no need to check for template
+        // syntax)
+        let url = self
+            .handlebars
+            .render_template(&config.url, &template_data)
+            .map_err(|e| anyhow::anyhow!("Failed to render URL template for {}: {}", id, e))?;
+
+        // Handle URL overrides for OpenAI and Anthropic (preserve existing behavior)
+        let final_url = match id {
             ProviderId::OpenAI => {
-                let url = match self.provider_url() {
-                    Some((ProviderResponse::OpenAI, url)) => url,
-                    _ => Url::parse(Provider::OPENAI_URL).unwrap(),
-                };
-
-                ("OPENAI_API_KEY", ProviderResponse::OpenAI, url)
-            }
-            ProviderId::Anthropic => {
-                let url = match self.provider_url() {
-                    Some((ProviderResponse::Anthropic, url)) => url,
-                    _ => Url::parse(Provider::ANTHROPIC_URL).unwrap(),
-                };
-
-                ("ANTHROPIC_API_KEY", ProviderResponse::Anthropic, url)
-            }
-            ProviderId::Cerebras => (
-                "CEREBRAS_API_KEY",
-                ProviderResponse::OpenAI,
-                Url::parse(Provider::CEREBRAS_URL).unwrap(),
-            ),
-            ProviderId::Zai => (
-                "ZAI_API_KEY",
-                ProviderResponse::OpenAI,
-                Url::parse(Provider::ZAI_URL).unwrap(),
-            ),
-            ProviderId::ZaiCoding => (
-                "ZAI_CODING_API_KEY",
-                ProviderResponse::OpenAI,
-                Url::parse(Provider::ZAI_CODING_URL).unwrap(),
-            ),
-            ProviderId::VertexAi => {
-                if let Some(auth_token) = self.infra.get_env_var("VERTEX_AI_AUTH_TOKEN") {
-                    return resolve_vertex_env_provider(&auth_token, self.infra.as_ref());
+                if let Some((ProviderResponse::OpenAI, override_url)) = self.provider_url() {
+                    override_url
                 } else {
-                    return Err(ProviderError::env_var_not_found(
-                        ProviderId::VertexAi,
-                        "VERTEX_AI_AUTH_TOKEN",
-                    )
-                    .into());
+                    Url::parse(&url)?
                 }
             }
-            ProviderId::Forge => {
-                // Forge provider isn't typically configured via env vars in the registry
-                return Err(ProviderError::provider_not_available(ProviderId::Forge).into());
+            ProviderId::Anthropic => {
+                if let Some((ProviderResponse::Anthropic, override_url)) = self.provider_url() {
+                    override_url
+                } else {
+                    Url::parse(&url)?
+                }
             }
+            _ => Url::parse(&url)?,
         };
 
-        // Get the API key and create provider using field assignment
-        if let Some(api_key) = self.infra.get_env_var(env_var_name) {
-            Ok(Provider { id, response: api, url, key: Some(api_key) })
-        } else {
-            Err(ProviderError::env_var_not_found(id, env_var_name).into())
-        }
+        Ok(Provider {
+            id,
+            response: config.response_type.clone(),
+            url: final_url,
+            key: Some(api_key),
+        })
     }
 
     async fn get_first_available_provider(&self) -> anyhow::Result<Provider> {
@@ -193,19 +233,80 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
     }
 }
 
-fn resolve_vertex_env_provider<F: EnvironmentInfra>(
-    key: &str,
-    env: &F,
-) -> anyhow::Result<Provider> {
-    let project_id = env.get_env_var("PROJECT_ID").ok_or_else(|| {
-        ProviderError::vertex_ai_config(
-            "PROJECT_ID is missing. Please set the PROJECT_ID environment variable.",
-        )
-    })?;
-    let location = env.get_env_var("LOCATION").ok_or_else(|| {
-        ProviderError::vertex_ai_config(
-            "LOCATION is missing. Please set the LOCATION environment variable.",
-        )
-    })?;
-    Provider::vertex_ai(key, &project_id, &location)
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    #[test]
+    fn test_load_provider_configs() {
+        let configs = get_provider_configs();
+        assert!(!configs.is_empty());
+
+        // Test that OpenRouter config is loaded correctly
+        let openrouter_config = configs
+            .iter()
+            .find(|c| c.id == ProviderId::OpenRouter)
+            .unwrap();
+        assert_eq!(openrouter_config.api_key_vars, "OPENROUTER_API_KEY");
+        assert_eq!(openrouter_config.url_param_vars, Vec::<String>::new());
+        assert_eq!(openrouter_config.response_type, ProviderResponse::OpenAI);
+        assert_eq!(openrouter_config.url, "https://openrouter.ai/api/v1/");
+    }
+
+    #[test]
+    fn test_find_provider_config() {
+        let configs = get_provider_configs();
+        let config = configs
+            .iter()
+            .find(|c| c.id == ProviderId::OpenRouter)
+            .unwrap();
+        assert_eq!(config.id, ProviderId::OpenRouter);
+        assert_eq!(config.api_key_vars, "OPENROUTER_API_KEY");
+        assert_eq!(config.url_param_vars, Vec::<String>::new());
+        assert_eq!(config.response_type, ProviderResponse::OpenAI);
+        assert_eq!(config.url, "https://openrouter.ai/api/v1/");
+    }
+
+    #[test]
+    fn test_vertex_ai_config() {
+        let configs = get_provider_configs();
+        let config = configs
+            .iter()
+            .find(|c| c.id == ProviderId::VertexAi)
+            .unwrap();
+        assert_eq!(config.id, ProviderId::VertexAi);
+        assert_eq!(config.api_key_vars, "VERTEX_AI_AUTH_TOKEN");
+        assert_eq!(
+            config.url_param_vars,
+            vec!["PROJECT_ID".to_string(), "LOCATION".to_string()]
+        );
+        assert_eq!(config.response_type, ProviderResponse::OpenAI);
+        assert!(config.url.contains("{{"));
+        assert!(config.url.contains("}}"));
+    }
+
+    #[test]
+    fn test_handlebars_url_rendering() {
+        let handlebars = Handlebars::new();
+        let template = "{{#if (eq location \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{project_id}}/locations/{{location}}/endpoints/openapi/{{else}}https://{{location}}-aiplatform.googleapis.com/v1/projects/{{project_id}}/locations/{{location}}/endpoints/openapi/{{/if}}";
+
+        let mut data = std::collections::HashMap::new();
+        data.insert("project_id".to_string(), "test-project".to_string());
+        data.insert("location".to_string(), "global".to_string());
+
+        let result = handlebars.render_template(template, &data).unwrap();
+        assert_eq!(
+            result,
+            "https://aiplatform.googleapis.com/v1/projects/test-project/locations/global/endpoints/openapi/"
+        );
+
+        data.insert("location".to_string(), "us-central1".to_string());
+        let result = handlebars.render_template(template, &data).unwrap();
+        assert_eq!(
+            result,
+            "https://us-central1-aiplatform.googleapis.com/v1/projects/test-project/locations/us-central1/endpoints/openapi/"
+        );
+    }
 }

@@ -1,0 +1,65 @@
+[
+  {
+    "id": "OpenRouter",
+    "api_key_vars": "OPENROUTER_API_KEY",
+    "url_param_vars": [],
+    "response_type": "OpenAI",
+    "url": "https://openrouter.ai/api/v1/"
+  },
+  {
+    "id": "Requesty",
+    "api_key_vars": "REQUESTY_API_KEY",
+    "url_param_vars": [],
+    "response_type": "OpenAI",
+    "url": "https://router.requesty.ai/v1/"
+  },
+  {
+    "id": "Xai",
+    "api_key_vars": "XAI_API_KEY",
+    "url_param_vars": [],
+    "response_type": "OpenAI",
+    "url": "https://api.x.ai/v1/"
+  },
+  {
+    "id": "OpenAI",
+    "api_key_vars": "OPENAI_API_KEY",
+    "url_param_vars": [],
+    "response_type": "OpenAI",
+    "url": "https://api.openai.com/v1/"
+  },
+  {
+    "id": "Anthropic",
+    "api_key_vars": "ANTHROPIC_API_KEY",
+    "url_param_vars": [],
+    "response_type": "Anthropic",
+    "url": "https://api.anthropic.com/v1/"
+  },
+  {
+    "id": "Cerebras",
+    "api_key_vars": "CEREBRAS_API_KEY",
+    "url_param_vars": [],
+    "response_type": "OpenAI",
+    "url": "https://api.cerebras.ai/v1/"
+  },
+  {
+    "id": "Zai",
+    "api_key_vars": "ZAI_API_KEY",
+    "url_param_vars": [],
+    "response_type": "OpenAI",
+    "url": "https://api.z.ai/api/paas/v4/"
+  },
+  {
+    "id": "ZaiCoding",
+    "api_key_vars": "ZAI_CODING_API_KEY",
+    "url_param_vars": [],
+    "response_type": "OpenAI",
+    "url": "https://api.z.ai/api/coding/paas/v4/"
+  },
+  {
+    "id": "VertexAi",
+    "api_key_vars": "VERTEX_AI_AUTH_TOKEN",
+    "url_param_vars": ["PROJECT_ID", "LOCATION"],
+    "response_type": "OpenAI",
+    "url": "{{#if (eq location \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{project_id}}/locations/{{location}}/endpoints/openapi/{{else}}https://{{location}}-aiplatform.googleapis.com/v1/projects/{{project_id}}/locations/{{location}}/endpoints/openapi/{{/if}}"
+  }
+]
