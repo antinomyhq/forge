@@ -1,0 +1,17 @@
+{
+  "id": "vision-model",
+  "name": "Vision Model",
+  "attachment": true,
+  "reasoning": false,
+  "temperature": true,
+  "tool_call": true,
+  "modalities": {
+    "input": ["text", "image", "audio"],
+    "output": ["text", "image"]
+  },
+  "open_weights": false,
+  "limit": {
+    "context": 100000,
+    "output": 8192
+  }
+}

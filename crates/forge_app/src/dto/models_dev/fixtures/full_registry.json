@@ -1,0 +1,56 @@
+{
+  "test-provider": {
+    "id": "test-provider",
+    "env": ["TEST_API_KEY"],
+    "npm": "@ai-sdk/test",
+    "api": "https://api.test.com/v1",
+    "name": "Test Provider",
+    "doc": "https://docs.test.com",
+    "models": {
+      "test-model-1": {
+        "id": "test-model-1",
+        "name": "Test Model 1",
+        "attachment": true,
+        "reasoning": true,
+        "temperature": true,
+        "tool_call": true,
+        "knowledge": "2024-10",
+        "release_date": "2024-01-01",
+        "last_updated": "2024-06-01",
+        "modalities": {
+          "input": ["text", "image"],
+          "output": ["text"]
+        },
+        "open_weights": false,
+        "cost": {
+          "input": 2.5,
+          "output": 10.0,
+          "cache_read": 0.25,
+          "cache_write": 1.25,
+          "reasoning": 15.0
+        },
+        "limit": {
+          "context": 128000,
+          "output": 4096
+        }
+      },
+      "test-model-2": {
+        "id": "test-model-2",
+        "name": "Test Model 2",
+        "attachment": false,
+        "reasoning": false,
+        "temperature": false,
+        "tool_call": false,
+        "modalities": {
+          "input": ["text"],
+          "output": ["text"]
+        },
+        "open_weights": true,
+        "limit": {
+          "context": 8192,
+          "output": 2048
+        }
+      }
+    }
+  }
+}
