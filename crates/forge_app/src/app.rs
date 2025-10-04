@@ -11,6 +11,7 @@ use crate::dto::{InitAuth, ToolsOverview};
 use crate::orch::Orchestrator;
 use crate::services::{CustomInstructionsService, TemplateService};
 use crate::tool_registry::ToolRegistry;
+use crate::tool_resolver::ToolResolver;
 use crate::{
     AgentLoaderService, AttachmentService, ConversationService, EnvironmentService,
     FileDiscoveryService, McpService, ProviderRegistry, ProviderService, Services, Walker,
@@ -109,9 +110,10 @@ impl<S: Services> ForgeApp<S> {
             .find(|agent| agent.has_subscription(&chat.event.name))
             .ok_or(crate::Error::UnsubscribedEvent(chat.event.name.to_owned()))?;
 
-        // Get system and mcp tool definitions
+        // Get system and mcp tool definitions and resolve them for the agent
         let all_tool_definitions = self.tool_registry.list().await?;
-        let tool_definitions = agent.resolve_tool_definitions(&all_tool_definitions);
+        let tool_resolver = ToolResolver::new(all_tool_definitions);
+        let tool_definitions = tool_resolver.resolve(&agent);
         let max_tool_failure_per_turn = agent.max_tool_failure_per_turn.unwrap_or(3);
 
         // Create the orchestrator with all necessary dependencies
