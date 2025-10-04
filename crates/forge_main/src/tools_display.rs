@@ -37,8 +37,7 @@ pub fn format_tools(agent_tools: &[ToolName], overview: &ToolsOverview) -> Info 
             info = info.add_title(title);
 
             for tool in tools {
-                // MCP tools are always available if they're in the list
-                info = info.add_key(format!("[✓] {}", tool.name.as_str()));
+                info = info.add_key(format!("{} {}", checkbox(&tool.name), tool.name));
             }
         }
     }

@@ -291,6 +291,16 @@ function forge-accept-line() {
         return 0
     fi
     
+    # Handle tools command specially
+    if [[ "$user_action" == "tools" ]]; then
+        echo
+        $_FORGE_BIN show-tools "${FORGE_ACTIVE_AGENT}"
+        BUFFER=""
+        CURSOR=${#BUFFER}
+        zle reset-prompt
+        return 0
+    fi
+    
     # Check if input_text is empty - just set the active agent
     
     # Validate that the command exists in show-commands (if user_action is provided)

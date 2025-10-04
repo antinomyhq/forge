@@ -22,6 +22,17 @@ impl ToolsOverview {
     pub fn new() -> Self {
         ToolsOverview { system: Vec::new(), agents: Vec::new(), mcp: HashMap::new() }
     }
+
+    // Creates a flat list of all tool definitions
+    pub fn as_vec(&self) -> Vec<&ToolDefinition> {
+        let mut tools = Vec::new();
+        tools.extend(&self.system);
+        tools.extend(&self.agents);
+        for server_tools in self.mcp.values() {
+            tools.extend(server_tools);
+        }
+        tools
+    }
 }
 
 impl Default for ToolsOverview {
@@ -31,13 +42,7 @@ impl Default for ToolsOverview {
 }
 
 impl From<ToolsOverview> for Vec<ToolDefinition> {
-    fn from(val: ToolsOverview) -> Self {
-        let mut tools = Vec::new();
-        tools.extend(val.system);
-        tools.extend(val.agents);
-        for server_tools in val.mcp.into_values() {
-            tools.extend(server_tools);
-        }
-        tools
+    fn from(value: ToolsOverview) -> Self {
+        value.as_vec().into_iter().cloned().collect()
     }
 }

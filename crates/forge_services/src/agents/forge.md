@@ -14,6 +14,7 @@ tools:
   - search
   - undo
   - sage
+  - mcp_*
 user_prompt: |-
   {{#if (eq event.name 'forge/user_task_update')}}
   <feedback>{{event.value}}</feedback>

@@ -8,6 +8,7 @@ tools:
   - search
   - plan
   - sage
+  - mcp_*
 user_prompt: |-
   {{#if (eq event.name 'muse/user_task_update')}}
   <feedback>{{event.value}}</feedback>

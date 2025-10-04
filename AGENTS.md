@@ -41,10 +41,6 @@ This document contains guidelines and best practices for AI agents working with 
 
 - Test should always be written in the same file as the source code.
 
-- We use `insta` to run tests:
-  ```
-  cargo insta test --accept --unreferenced=delete
-  ```
 - Use `new`, Default and derive_setters::Setters to create `actual`, `expected` and specially `fixtures`. For eg:
   Good
   User::default().age(12).is_happy(true).name("John")
@@ -81,7 +77,7 @@ Always verify changes by running tests and linting the codebase
 1. Run crate specific tests to ensure they pass.
 
    ```
-   cargo insta test --accept --unreferenced=delete
+   cargo insta test
    ```
 
 2. Lint and format the codebase.
@@ -231,25 +227,4 @@ impl<R: UserRepository, C: Cache, L: Logger> BadUserService<R, C, L> {
 
 // BAD: Usage becomes cumbersome
 let service = BadUserService::<PostgresRepo, RedisCache, FileLogger>::new(...);
-```
-
-### Recommended Patterns
-
-```rust,ignore
-pub struct UserService<I> {
-    infra: I,
-}
-
-impl<I> UserService<I> {
-    // GOOD: Constructor without type bounds - cleaner and more flexible
-    pub fn new(infra: I) -> Self { ... }
-}
-
-impl<I: UserRepository + Cache + Logger> UserService<I> {
-    // Business logic methods have the type bounds where needed
-    pub fn create_user(&self, email: &str, name: &str) -> Result<User> { ... }
-}
-
-// GOOD: Clean usage
-let service = UserService::new(combined_infra);
 ```

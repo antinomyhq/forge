@@ -1034,4 +1034,21 @@ mod tests {
                 .contains("not a valid agent command")
         );
     }
+
+    #[test]
+    fn test_parse_tool_command() {
+        // Setup
+        let fixture = ForgeCommandManager::default();
+
+        // Execute
+        let result = fixture.parse("/tools").unwrap();
+
+        // Verify
+        match result {
+            Command::Tools => {
+                // Command parsed correctly
+            }
+            _ => panic!("Expected Tool command, got {result:?}"),
+        }
+    }
 }
