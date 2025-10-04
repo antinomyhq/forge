@@ -360,7 +360,7 @@ impl ForgeCommandManager {
             "/login" => Ok(Command::Login),
             "/logout" => Ok(Command::Logout),
             "/retry" => Ok(Command::Retry),
-            "/conversation" | "/list" => Ok(Command::Conversations),
+            "/conversation" | "/conversations" => Ok(Command::Conversations),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
