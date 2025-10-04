@@ -27,6 +27,7 @@ pub use agent::*;
 pub use app::*;
 pub use error::*;
 pub use services::*;
+pub use tool_resolver::*;
 pub use user::*;
 pub use walker::*;
 pub mod domain {

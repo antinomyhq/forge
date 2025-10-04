@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::collections::HashMap;
 
 use derive_more::derive::Display;
 use derive_setters::Setters;
@@ -295,25 +294,6 @@ impl Agent {
                 .iter()
                 .any(|subscription| event_name.as_ref().eq(subscription))
         })
-    }
-
-    pub fn extend_mcp_tools(self, mcp_tools: &HashMap<String, Vec<ToolDefinition>>) -> Self {
-        let mut agent = self;
-        // Insert all the MCP tool names
-        if !mcp_tools.is_empty() {
-            if let Some(ref mut tools) = agent.tools {
-                tools.extend(mcp_tools.values().flatten().map(|tool| tool.name.clone()));
-            } else {
-                agent.tools = Some(
-                    mcp_tools
-                        .values()
-                        .flatten()
-                        .map(|tool| tool.name.clone())
-                        .collect::<Vec<_>>(),
-                );
-            }
-        }
-        agent
     }
 
     /// Helper to prepare agents with workflow settings

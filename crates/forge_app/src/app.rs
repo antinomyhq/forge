@@ -14,8 +14,7 @@ use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
 use crate::{
     AgentLoaderService, AttachmentService, ConversationService, EnvironmentService,
-    FileDiscoveryService, McpService, ProviderRegistry, ProviderService, Services, Walker,
-    WorkflowService,
+    FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker, WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -98,14 +97,12 @@ impl<S: Services> ForgeApp<S> {
         // Prepare agents with user configuration and subscriptions
         let agents = services.get_agents().await?;
         let model = services.get_active_model().await?;
-        let mcp_tools = self.services.mcp_service().list().await?;
         let agent = agents
             .into_iter()
             .map(|agent| {
                 agent
                     .set_model_deeply(model.clone())
                     .apply_workflow_config(&workflow)
-                    .extend_mcp_tools(&mcp_tools)
             })
             .find(|agent| agent.has_subscription(&chat.event.name))
             .ok_or(crate::Error::UnsubscribedEvent(chat.event.name.to_owned()))?;

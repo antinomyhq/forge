@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use forge_domain::{Agent, ToolDefinition};
+use forge_domain::{Agent, ToolDefinition, ToolsDiscriminants};
 use globset::Glob;
 
 /// Service that resolves tool definitions for agents based on their configured
@@ -20,11 +20,20 @@ impl ToolResolver {
     /// and glob patterns (e.g., "fs_*" matches "fs_read", "fs_write").
     /// Filters and deduplicates tool definitions based on agent's tools
     /// configuration. Returns only the tool definitions that are specified
-    /// in the agent's tools list. Maintains deduplication to avoid
+    /// in the agent's tools list. Automatically includes `attempt_completion`
+    /// tool as it's required for all agents. Maintains deduplication to avoid
     /// duplicate tool definitions.
     pub fn resolve(&self, agent: &Agent) -> Vec<ToolDefinition> {
-        // Build glob matchers from unique agent tools
-        let matchers: Vec<_> = agent
+        let matchers = self.build_matchers(agent);
+        let mut resolved = self.match_tools(&matchers);
+        self.ensure_attempt_completion(&mut resolved);
+        resolved
+    }
+
+    /// Builds glob matchers from the agent's tool patterns, deduplicating
+    /// patterns
+    fn build_matchers(&self, agent: &Agent) -> Vec<globset::GlobMatcher> {
+        agent
             .tools
             .iter()
             .flatten()
@@ -32,9 +41,11 @@ impl ToolResolver {
             .into_iter()
             .filter_map(|pattern| Glob::new(pattern.as_str()).ok())
             .map(|glob| glob.compile_matcher())
-            .collect();
+            .collect()
+    }
 
-        // Match tools against all patterns and deduplicate
+    /// Matches tool definitions against glob patterns
+    fn match_tools(&self, matchers: &[globset::GlobMatcher]) -> Vec<ToolDefinition> {
         self.all_tool_definitions
             .iter()
             .filter(|tool| {
@@ -44,6 +55,26 @@ impl ToolResolver {
             })
             .cloned()
             .collect()
+    }
+
+    /// Ensures attempt_completion tool is always included in the resolved tools
+    fn ensure_attempt_completion(&self, resolved: &mut Vec<ToolDefinition>) {
+        let attempt_completion_name = ToolsDiscriminants::AttemptCompletion.name();
+
+        if resolved
+            .iter()
+            .any(|tool| tool.name == attempt_completion_name)
+        {
+            return;
+        }
+
+        if let Some(attempt_completion) = self
+            .all_tool_definitions
+            .iter()
+            .find(|tool| tool.name == attempt_completion_name)
+        {
+            resolved.push(attempt_completion.clone());
+        }
     }
 }
 
@@ -261,6 +292,58 @@ mod tests {
         let mut expected = vec![
             ToolDefinition::new("fs_read").description("FS Read Tool"),
             ToolDefinition::new("fs_write").description("FS Write Tool"),
+        ];
+
+        // Sort both vectors by tool name for deterministic comparison
+        actual.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+        expected.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_resolve_always_includes_attempt_completion() {
+        let all_tool_definitions = vec![
+            ToolDefinition::new("read").description("Read Tool"),
+            ToolDefinition::new("write").description("Write Tool"),
+            ToolDefinition::new("attempt_completion").description("Completion Tool"),
+        ];
+
+        let tool_resolver = ToolResolver::new(all_tool_definitions);
+
+        let fixture = Agent::new(AgentId::new("test-agent")).tools(vec![ToolName::new("read")]);
+
+        let mut actual = tool_resolver.resolve(&fixture);
+        let mut expected = vec![
+            ToolDefinition::new("read").description("Read Tool"),
+            ToolDefinition::new("attempt_completion").description("Completion Tool"),
+        ];
+
+        // Sort both vectors by tool name for deterministic comparison
+        actual.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+        expected.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_resolve_does_not_duplicate_attempt_completion() {
+        let all_tool_definitions = vec![
+            ToolDefinition::new("read").description("Read Tool"),
+            ToolDefinition::new("attempt_completion").description("Completion Tool"),
+        ];
+
+        let tool_resolver = ToolResolver::new(all_tool_definitions);
+
+        let fixture = Agent::new(AgentId::new("test-agent")).tools(vec![
+            ToolName::new("read"),
+            ToolName::new("attempt_completion"),
+        ]);
+
+        let mut actual = tool_resolver.resolve(&fixture);
+        let mut expected = vec![
+            ToolDefinition::new("read").description("Read Tool"),
+            ToolDefinition::new("attempt_completion").description("Completion Tool"),
         ];
 
         // Sort both vectors by tool name for deterministic comparison

@@ -6,7 +6,7 @@ use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
-    InterruptionReason, Model, ModelId, Provider, ToolName, Workflow,
+    InterruptionReason, Model, ModelId, Provider, Workflow,
 };
 use forge_app::utils::truncate_key;
 use forge_display::MarkdownFormat;
@@ -667,17 +667,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn agent_tools(&self) -> anyhow::Result<Vec<ToolName>> {
-        let agent_id = self.api.get_operating_agent().await.unwrap_or_default();
-        let agents = self.api.get_agents().await?;
-        let agent = agents.into_iter().find(|agent| agent.id == agent_id);
-        Ok(agent
-            .and_then(|agent| agent.tools.clone())
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>())
-    }
-
     async fn list_conversations(&mut self) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Conversations"))?;
         let conversations = self
@@ -783,9 +772,26 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
             Command::Tools => {
                 self.spinner.start(Some("Loading"))?;
+                use forge_app::ToolResolver;
+
                 use crate::tools_display::format_tools;
+
                 let all_tools = self.api.tools().await?;
-                let agent_tools = self.agent_tools().await?;
+                let agent_id = self.api.get_operating_agent().await.unwrap_or_default();
+                let agents = self.api.get_agents().await?;
+                let agent = agents.into_iter().find(|agent| agent.id == agent_id);
+
+                let agent_tools = if let Some(agent) = agent {
+                    let resolver = ToolResolver::new(all_tools.clone().into());
+                    resolver
+                        .resolve(&agent)
+                        .into_iter()
+                        .map(|def| def.name)
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+
                 let info = format_tools(&agent_tools, &all_tools);
                 self.writeln(info)?;
             }
