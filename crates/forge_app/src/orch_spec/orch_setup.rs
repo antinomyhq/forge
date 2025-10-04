@@ -12,10 +12,19 @@ use url::Url;
 
 use crate::orch_spec::orch_runner::Runner;
 
+// User prompt
+const USER_PROMPT: &'static str = r#"
+{{#if (eq event.name 'forge/user_task_update')}}
+  <feedback>{{event.value}}</feedback>
+  {{else}}
+  <task>{{event.value}}</task>
+  {{/if}}
+  <system_date>{{current_date}}</system_date>
+"#;
+
 #[derive(Setters)]
 #[setters(into)]
 pub struct TestContext {
-    pub event: Event,
     pub mock_tool_call_responses: Vec<(ToolCallFull, ToolResult)>,
     pub mock_assistant_responses: Vec<ChatCompletionMessage>,
     pub workflow: Workflow,
@@ -24,6 +33,7 @@ pub struct TestContext {
     pub env: Environment,
     pub current_time: DateTime<Local>,
     pub title: Option<String>,
+    pub model: ModelId,
 
     // Final output of the test is store in the context
     pub output: TestOutput,
@@ -31,21 +41,15 @@ pub struct TestContext {
     pub tools: Vec<ToolDefinition>,
 }
 
-impl TestContext {
-    pub fn init_forge_task(task: &str) -> Self {
-        Self::from_event(Event::new("forge/user_task_init", Some(task)))
-    }
-
-    pub fn from_event(event: Event) -> Self {
+impl Default for TestContext {
+    fn default() -> Self {
         Self {
-            event,
+            model: ModelId::new("openai/gpt-1"),
             output: TestOutput::default(),
             current_time: Local::now(),
             mock_assistant_responses: Default::default(),
             mock_tool_call_responses: Default::default(),
-            workflow: Workflow::new()
-                .model(ModelId::new("openai/gpt-1"))
-                .tool_supported(true),
+            workflow: Workflow::new().tool_supported(true),
             templates: Default::default(),
             files: Default::default(),
             env: Environment {
@@ -83,6 +87,7 @@ impl TestContext {
             title: Some("test-conversation".into()),
             agent: Agent::new(AgentId::new("forge"))
                 .system_prompt(Template::new("You are Forge"))
+                .user_prompt(Template::new(USER_PROMPT))
                 .tools(vec![
                     ("fs_read").into(),
                     ("fs_write").into(),
@@ -95,9 +100,16 @@ impl TestContext {
             ],
         }
     }
+}
 
-    pub async fn run(&mut self) -> anyhow::Result<()> {
-        Runner::run(self).await
+impl TestContext {
+    pub async fn run(&mut self, event: impl AsRef<str>) -> anyhow::Result<()> {
+        self.run_event(Event::new("forge", Some(event.as_ref())))
+            .await
+    }
+
+    pub async fn run_event(&mut self, event: impl Into<Event>) -> anyhow::Result<()> {
+        Runner::run(self, event.into()).await
     }
 }
 

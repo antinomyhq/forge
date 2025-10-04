@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use forge_domain::ConversationId;
 
 #[derive(Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
@@ -60,18 +59,11 @@ pub struct Cli {
     /// Generate a new conversation ID and exit.
     ///
     /// When enabled, generates a new unique conversation ID and prints it to
-    /// stdout. This ID can be used with --resume --conversation-id to
-    /// manage multiple terminal sessions with separate conversation
+    /// stdout. This ID can be used with the FORGE_CONVERSATION_ID environment
+    /// variable to manage multiple terminal sessions with separate conversation
     /// contexts.
     #[arg(long, default_value_t = false)]
     pub generate_conversation_id: bool,
-
-    /// Resume an existing conversation by providing its conversation ID.
-    ///
-    /// The conversation ID must be a valid UUID format. You can generate a new
-    /// conversation ID using --generate-conversation-id.
-    #[arg(long, value_parser = parse_conversation_id)]
-    pub resume: Option<ConversationId>,
 
     /// Top-level subcommands
     #[command(subcommand)]
@@ -91,10 +83,6 @@ pub struct Cli {
     pub sandbox: Option<String>,
 }
 
-fn parse_conversation_id(s: &str) -> std::result::Result<ConversationId, String> {
-    ConversationId::parse(s).map_err(|e| e.to_string())
-}
-
 impl Cli {
     /// Checks if user is in is_interactive
     pub fn is_interactive(&self) -> bool {
@@ -110,20 +98,29 @@ pub enum TopLevelCommand {
     Mcp(McpCommandGroup),
     /// Print information about the environment
     Info,
-    /// Generate shell prompt completion scripts
-    Term(TerminalArgs),
-}
+    /// Generate ZSH shell prompt completion scripts
+    GenerateZSHPrompt,
 
-#[derive(clap::Args, Debug, Clone)]
-pub struct TerminalArgs {
-    /// Generate shell prompt completion script
-    #[arg(short, long)]
-    pub generate_prompt: ShellType,
-}
+    /// Lists all the agents
+    ShowAgents,
 
-#[derive(clap::ValueEnum, Debug, Clone, Copy)]
-pub enum ShellType {
-    Zsh,
+    /// Lists all the providers
+    ShowProviders,
+
+    /// Lists all the models
+    ShowModels,
+
+    /// Lists all the commands
+    ShowCommands,
+
+    /// Display the banner with version and helpful information
+    ShowBanner,
+
+    /// Configuration management commands
+    Config(ConfigCommandGroup),
+
+    /// Session management commands (dump, retry, resume, list)
+    Session(SessionCommandGroup),
 }
 
 /// Group of MCP-related commands
@@ -227,4 +224,356 @@ impl From<Scope> for forge_domain::Scope {
 pub enum Transport {
     Stdio,
     Sse,
+}
+
+/// Group of Config-related commands
+#[derive(Parser, Debug, Clone)]
+pub struct ConfigCommandGroup {
+    /// Subcommands under `config`
+    #[command(subcommand)]
+    pub command: ConfigCommand,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum ConfigCommand {
+    /// Set configuration values
+    Set(ConfigSetArgs),
+
+    /// Get configuration values
+    Get(ConfigGetArgs),
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct ConfigSetArgs {
+    /// Agent to set as active
+    #[arg(long)]
+    pub agent: Option<String>,
+
+    /// Model to set as active
+    #[arg(long)]
+    pub model: Option<String>,
+
+    /// Provider to set as active
+    #[arg(long)]
+    pub provider: Option<String>,
+}
+
+impl ConfigSetArgs {
+    /// Check if any field is set (non-interactive mode)
+    pub fn has_any_field(&self) -> bool {
+        self.agent.is_some() || self.model.is_some() || self.provider.is_some()
+    }
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct ConfigGetArgs {
+    /// Specific field to get (agent, model, or provider). If not specified,
+    /// shows all.
+    #[arg(long)]
+    pub field: Option<String>,
+}
+
+/// Group of Session-related commands
+#[derive(Parser, Debug, Clone)]
+pub struct SessionCommandGroup {
+    /// Session/conversation ID to operate on (required for dump, retry, and
+    /// resume)
+    #[arg(long, short = 'i', required_unless_present = "list")]
+    pub id: Option<String>,
+
+    /// Session subcommand
+    #[command(subcommand)]
+    pub command: Option<SessionCommand>,
+
+    /// List all conversations (doesn't require --id)
+    #[arg(long)]
+    pub list: bool,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum SessionCommand {
+    /// Dump conversation as JSON or HTML
+    Dump(SessionDumpArgs),
+
+    /// Compact the conversation context
+    Compact,
+
+    /// Retry the last command without modifying context
+    Retry,
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct SessionDumpArgs {
+    /// Output format: "html" for HTML, omit for JSON (default)
+    pub format: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use clap::Parser;
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    #[test]
+    fn test_config_set_with_agent() {
+        let fixture = Cli::parse_from(["forge", "config", "set", "--agent", "muse"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Config(config)) => match config.command {
+                ConfigCommand::Set(args) => args.agent,
+                _ => None,
+            },
+            _ => None,
+        };
+        let expected = Some("muse".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_config_set_with_model() {
+        let fixture = Cli::parse_from([
+            "forge",
+            "config",
+            "set",
+            "--model",
+            "anthropic/claude-sonnet-4",
+        ]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Config(config)) => match config.command {
+                ConfigCommand::Set(args) => args.model,
+                _ => None,
+            },
+            _ => None,
+        };
+        let expected = Some("anthropic/claude-sonnet-4".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_config_set_with_provider() {
+        let fixture = Cli::parse_from(["forge", "config", "set", "--provider", "OpenAI"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Config(config)) => match config.command {
+                ConfigCommand::Set(args) => args.provider,
+                _ => None,
+            },
+            _ => None,
+        };
+        let expected = Some("OpenAI".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_config_set_with_multiple_fields() {
+        let fixture = Cli::parse_from([
+            "forge",
+            "config",
+            "set",
+            "--agent",
+            "sage",
+            "--model",
+            "gpt-4",
+            "--provider",
+            "OpenAI",
+        ]);
+        let (agent, model, provider) = match fixture.subcommands {
+            Some(TopLevelCommand::Config(config)) => match config.command {
+                ConfigCommand::Set(args) => (args.agent, args.model, args.provider),
+                _ => (None, None, None),
+            },
+            _ => (None, None, None),
+        };
+        assert_eq!(agent, Some("sage".to_string()));
+        assert_eq!(model, Some("gpt-4".to_string()));
+        assert_eq!(provider, Some("OpenAI".to_string()));
+    }
+
+    #[test]
+    fn test_config_set_no_fields() {
+        let fixture = Cli::parse_from(["forge", "config", "set"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Config(config)) => match config.command {
+                ConfigCommand::Set(args) => args.has_any_field(),
+                _ => true,
+            },
+            _ => true,
+        };
+        let expected = false;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_config_get_all() {
+        let fixture = Cli::parse_from(["forge", "config", "get"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Config(config)) => match config.command {
+                ConfigCommand::Get(args) => args.field,
+                _ => Some("invalid".to_string()),
+            },
+            _ => Some("invalid".to_string()),
+        };
+        let expected = None;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_config_get_specific_field() {
+        let fixture = Cli::parse_from(["forge", "config", "get", "--field", "model"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Config(config)) => match config.command {
+                ConfigCommand::Get(args) => args.field,
+                _ => None,
+            },
+            _ => None,
+        };
+        let expected = Some("model".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_config_set_args_has_any_field_with_agent() {
+        let fixture = ConfigSetArgs {
+            agent: Some("forge".to_string()),
+            model: None,
+            provider: None,
+        };
+        let actual = fixture.has_any_field();
+        let expected = true;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_config_set_args_has_any_field_with_model() {
+        let fixture = ConfigSetArgs {
+            agent: None,
+            model: Some("gpt-4".to_string()),
+            provider: None,
+        };
+        let actual = fixture.has_any_field();
+        let expected = true;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_config_set_args_has_any_field_with_provider() {
+        let fixture = ConfigSetArgs {
+            agent: None,
+            model: None,
+            provider: Some("OpenAI".to_string()),
+        };
+        let actual = fixture.has_any_field();
+        let expected = true;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_config_set_args_has_no_field() {
+        let fixture = ConfigSetArgs { agent: None, model: None, provider: None };
+        let actual = fixture.has_any_field();
+        let expected = false;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_session_dump_json_with_id() {
+        let fixture = Cli::parse_from(["forge", "session", "--id", "abc123", "dump"]);
+        let (id, format) = match fixture.subcommands {
+            Some(TopLevelCommand::Session(session)) => {
+                let format = match session.command {
+                    Some(SessionCommand::Dump(args)) => args.format,
+                    _ => None,
+                };
+                (session.id, format)
+            }
+            _ => (None, None),
+        };
+        assert_eq!(id, Some("abc123".to_string()));
+        assert_eq!(format, None); // JSON is default
+    }
+
+    #[test]
+    fn test_session_dump_html_with_id() {
+        let fixture = Cli::parse_from(["forge", "session", "--id", "abc123", "dump", "html"]);
+        let (id, format) = match fixture.subcommands {
+            Some(TopLevelCommand::Session(session)) => {
+                let format = match session.command {
+                    Some(SessionCommand::Dump(args)) => args.format,
+                    _ => None,
+                };
+                (session.id, format)
+            }
+            _ => (None, None),
+        };
+        assert_eq!(id, Some("abc123".to_string()));
+        assert_eq!(format, Some("html".to_string()));
+    }
+
+    #[test]
+    fn test_session_retry_with_id() {
+        let fixture = Cli::parse_from(["forge", "session", "--id", "xyz789", "retry"]);
+        let (id, is_retry) = match fixture.subcommands {
+            Some(TopLevelCommand::Session(session)) => {
+                let is_retry = matches!(session.command, Some(SessionCommand::Retry));
+                (session.id, is_retry)
+            }
+            _ => (None, false),
+        };
+        assert_eq!(id, Some("xyz789".to_string()));
+        assert_eq!(is_retry, true);
+    }
+
+    #[test]
+    fn test_session_list_no_id_required() {
+        let fixture = Cli::parse_from(["forge", "session", "--list"]);
+        let is_list = match fixture.subcommands {
+            Some(TopLevelCommand::Session(session)) => session.list,
+            _ => false,
+        };
+        assert_eq!(is_list, true);
+    }
+
+    #[test]
+    fn test_session_resume_with_id_no_subcommand() {
+        let fixture = Cli::parse_from(["forge", "session", "--id", "def456"]);
+        let (id, has_subcommand) = match fixture.subcommands {
+            Some(TopLevelCommand::Session(session)) => {
+                let has_subcommand = session.command.is_some();
+                (session.id, has_subcommand)
+            }
+            _ => (None, true),
+        };
+        assert_eq!(id, Some("def456".to_string()));
+        assert_eq!(has_subcommand, false); // No subcommand means resume
+    }
+
+    #[test]
+    fn test_session_compact_with_id() {
+        let fixture = Cli::parse_from(["forge", "session", "--id", "abc123", "compact"]);
+        let (id, command) = match fixture.subcommands {
+            Some(TopLevelCommand::Session(session)) => {
+                let command = match session.command {
+                    Some(SessionCommand::Compact) => "compact",
+                    _ => "other",
+                };
+                (session.id, command)
+            }
+            _ => (None, "none"),
+        };
+        assert_eq!(id, Some("abc123".to_string()));
+        assert_eq!(command, "compact");
+    }
+
+    #[test]
+    fn test_session_dump_without_id_fails() {
+        // This should fail because --id is required
+        let result = Cli::try_parse_from(["forge", "session", "dump"]);
+        assert!(result.is_err(), "Expected error when --id is not provided");
+    }
+
+    #[test]
+    fn test_session_retry_without_id_fails() {
+        // This should fail because --id is required
+        let result = Cli::try_parse_from(["forge", "session", "retry"]);
+        assert!(result.is_err(), "Expected error when --id is not provided");
+    }
 }

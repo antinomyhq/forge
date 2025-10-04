@@ -4,11 +4,11 @@ use std::time::Duration;
 
 use colored::Colorize;
 use forge_api::{Conversation, Environment, LoginInfo, Metrics, Usage, UserUsage};
+use forge_app::utils::truncate_key;
 use forge_tracker::VERSION;
 use num_format::{Locale, ToFormattedString};
 
 use crate::model::ForgeCommandManager;
-use crate::state::UIState;
 
 #[derive(Debug, PartialEq)]
 pub enum Section {
@@ -47,8 +47,8 @@ impl Info {
         self
     }
 
-    pub fn extend(mut self, other: Info) -> Self {
-        self.sections.extend(other.sections);
+    pub fn extend(mut self, other: impl Into<Info>) -> Self {
+        self.sections.extend(other.into().sections);
         self
     }
 }
@@ -87,27 +87,6 @@ impl From<&Environment> for Info {
             .add_key_value("Working Directory", format_path_for_display(env, &env.cwd))
             .add_key_value("Shell", &env.shell)
             .add_key_value("Git Branch", branch_info);
-
-        info
-    }
-}
-
-impl From<&UIState> for Info {
-    fn from(value: &UIState) -> Self {
-        let mut info = Info::new().add_title("MODEL");
-
-        if let Some(model) = &value.model {
-            info = info.add_key_value("Current", model);
-        }
-
-        if let Some(provider) = &value.provider {
-            info = info.add_key_value("Provider (URL)", provider.to_base_url());
-            if let Some(api_key) = &provider.key() {
-                info = info.add_key_value("API Key", truncate_key(api_key));
-            }
-        }
-
-        info = info.extend(get_usage(value));
 
         info
     }
@@ -167,40 +146,36 @@ impl From<&Metrics> for Info {
     }
 }
 
-pub fn get_usage(state: &UIState) -> Info {
-    let cache_percentage = calculate_cache_percentage(&state.usage);
-    let cached_display = if cache_percentage > 0 {
-        format!(
-            "{} [{}%]",
-            state.usage.cached_tokens.to_formatted_string(&Locale::en),
-            cache_percentage
-        )
-    } else {
-        state.usage.cached_tokens.to_formatted_string(&Locale::en)
-    };
+impl From<&Usage> for Info {
+    fn from(value: &Usage) -> Self {
+        let cache_percentage = calculate_cache_percentage(value);
+        let cached_display = if cache_percentage > 0 {
+            format!(
+                "{} [{}%]",
+                value.cached_tokens.to_formatted_string(&Locale::en),
+                cache_percentage
+            )
+        } else {
+            value.cached_tokens.to_formatted_string(&Locale::en)
+        };
 
-    let mut usage = Info::new()
-        .add_title("TOKEN USAGE")
-        .add_key_value(
-            "Input Tokens",
-            state.usage.prompt_tokens.to_formatted_string(&Locale::en),
-        )
-        .add_key_value("Cached Tokens", cached_display)
-        .add_key_value(
-            "Output Tokens",
-            state
-                .usage
-                .completion_tokens
-                .to_formatted_string(&Locale::en),
-        );
+        let mut usage_info = Info::new()
+            .add_title("TOKEN USAGE")
+            .add_key_value(
+                "Input Tokens",
+                value.prompt_tokens.to_formatted_string(&Locale::en),
+            )
+            .add_key_value("Cached Tokens", cached_display)
+            .add_key_value(
+                "Output Tokens",
+                value.completion_tokens.to_formatted_string(&Locale::en),
+            );
 
-    let is_forge_provider = state.provider.as_ref().is_some_and(|p| p.is_forge());
-    if let Some(cost) = state.usage.cost.as_ref()
-        && !is_forge_provider
-    {
-        usage = usage.add_key_value("Cost", format!("${cost:.4}"));
+        if let Some(cost) = value.cost.as_ref() {
+            usage_info = usage_info.add_key_value("Cost", format!("${cost:.4}"));
+        }
+        usage_info
     }
-    usage
 }
 
 fn calculate_cache_percentage(usage: &Usage) -> u8 {
@@ -332,14 +307,6 @@ impl From<&LoginInfo> for Info {
     }
 }
 
-fn truncate_key(key: &str) -> String {
-    if key.len() <= 20 {
-        key.to_string()
-    } else {
-        format!("{}...{}", &key[..=12], &key[key.len() - 4..])
-    }
-}
-
 impl From<&UserUsage> for Info {
     fn from(user_usage: &UserUsage) -> Self {
         let usage = &user_usage.usage;
@@ -416,7 +383,16 @@ impl From<&Conversation> for Info {
         }
 
         // Insert metrics information
-        info.extend(Info::from(&conversation.metrics))
+        if !conversation.metrics.files_changed.is_empty() {
+            info = info.extend(&conversation.metrics);
+        }
+
+        // Insert token usage
+        if let Some(usage) = conversation.context.as_ref().and_then(|c| c.usage.as_ref()) {
+            info = info.extend(usage);
+        }
+
+        info
     }
 }
 

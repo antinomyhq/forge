@@ -1,12 +1,93 @@
+use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
-use forge_api::{Model, Workflow};
+use colored::Colorize;
+use forge_api::{Event, Model, Provider, Workflow};
 use forge_domain::Agent;
+use serde::Deserialize;
+use serde_json::Value;
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumProperty};
 
 use crate::info::Info;
-use crate::ui::PartialEvent;
+
+/// Represents a partial event structure used for CLI event dispatching
+///
+/// This is an intermediate structure for parsing event JSON from the CLI
+/// before converting it to a full Event type.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Default)]
+pub struct PartialEvent {
+    pub name: String,
+    pub value: Value,
+}
+
+impl PartialEvent {
+    pub fn new<V: Into<Value>>(name: impl ToString, value: V) -> Self {
+        Self { name: name.to_string(), value: value.into() }
+    }
+}
+
+impl From<PartialEvent> for Event {
+    fn from(value: PartialEvent) -> Self {
+        Event::new(value.name, Some(value.value))
+    }
+}
+
+/// Wrapper for displaying models in selection menus
+///
+/// This component provides consistent formatting for model selection across
+/// the application, showing model ID with contextual information like
+/// context length and tools support.
+pub struct CliModel(pub Model);
+
+impl Display for CliModel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.id)?;
+
+        let mut info_parts = Vec::new();
+
+        // Add context length if available
+        if let Some(limit) = self.0.context_length {
+            if limit >= 1_000_000 {
+                info_parts.push(format!("{}M", limit / 1_000_000));
+            } else if limit >= 1000 {
+                info_parts.push(format!("{}k", limit / 1000));
+            } else {
+                info_parts.push(format!("{limit}"));
+            }
+        }
+
+        // Add tools support indicator if explicitly supported
+        if self.0.tools_supported == Some(true) {
+            info_parts.push("🛠️".to_string());
+        }
+
+        // Only show brackets if we have info to display
+        if !info_parts.is_empty() {
+            let info = format!("[ {} ]", info_parts.join(" "));
+            write!(f, " {}", info.dimmed())?;
+        }
+
+        Ok(())
+    }
+}
+
+/// Wrapper for displaying providers in selection menus
+///
+/// This component provides consistent formatting for provider selection across
+/// the application, showing provider ID with domain information.
+pub struct CliProvider(pub Provider);
+
+impl Display for CliProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = self.0.id.to_string();
+        write!(f, "{}", name)?;
+        if let Some(domain) = self.0.url.domain() {
+            write!(f, " [{}]", domain)?;
+        }
+        Ok(())
+    }
+}
 
 /// Result of agent command registration
 #[derive(Debug, Clone)]
@@ -87,25 +168,25 @@ impl ForgeCommandManager {
     fn is_reserved_command(name: &str) -> bool {
         matches!(
             name,
-            "/agent"
-                | "/forge"
-                | "/muse"
-                | "/sage"
-                | "/help"
-                | "/compact"
-                | "/new"
-                | "/info"
-                | "/usage"
-                | "/exit"
-                | "/update"
-                | "/dump"
-                | "/model"
-                | "/tools"
-                | "/login"
-                | "/logout"
-                | "/retry"
-                | "/conversations"
-                | "/list"
+            "agent"
+                | "forge"
+                | "muse"
+                | "sage"
+                | "help"
+                | "compact"
+                | "new"
+                | "info"
+                | "usage"
+                | "exit"
+                | "update"
+                | "dump"
+                | "model"
+                | "tools"
+                | "login"
+                | "logout"
+                | "retry"
+                | "conversations"
+                | "list"
         )
     }
 
@@ -131,7 +212,7 @@ impl ForgeCommandManager {
         commands.sort_by(|a, b| a.name.cmp(&b.name));
 
         commands.extend(workflow.commands.clone().into_iter().map(|cmd| {
-            let name = format!("/{}", cmd.name);
+            let name = cmd.name.clone();
             let description = format!("⚙ {}", cmd.description);
             let value = cmd.prompt.clone();
 
@@ -148,14 +229,14 @@ impl ForgeCommandManager {
         let mut result =
             AgentCommandRegistrationResult { registered_count: 0, skipped_conflicts: Vec::new() };
 
-        // Remove existing agent commands (commands starting with "/agent-")
-        guard.retain(|cmd| !cmd.name.starts_with("/agent-"));
+        // Remove existing agent commands (commands starting with "agent-")
+        guard.retain(|cmd| !cmd.name.starts_with("agent-"));
 
         // Add new agent commands
         for agent in agents {
             let agent_id_str = agent.id.as_str();
             let sanitized_id = Self::sanitize_agent_id(agent_id_str);
-            let command_name = format!("/agent-{}", sanitized_id);
+            let command_name = format!("agent-{}", sanitized_id);
 
             // Skip if it would conflict with reserved commands
             if Self::is_reserved_command(&command_name) {
@@ -273,6 +354,7 @@ impl ForgeCommandManager {
             "/sage" => Ok(Command::Sage),
             "/help" => Ok(Command::Help),
             "/model" => Ok(Command::Model),
+            "/provider" => Ok(Command::Provider),
             "/tools" => Ok(Command::Tools),
             "/agent" => Ok(Command::Agent),
             "/login" => Ok(Command::Login),
@@ -285,7 +367,8 @@ impl ForgeCommandManager {
                 if let Some(command) = parts.first() {
                     // Check if it's an agent command pattern (/agent-*)
                     if command.starts_with("/agent-") {
-                        if let Some(found_command) = self.find(command) {
+                        let command_name = command.strip_prefix('/').unwrap();
+                        if let Some(found_command) = self.find(command_name) {
                             // Extract the agent ID from the command value
                             if let Some(agent_id) = &found_command.value {
                                 return Ok(Command::AgentSwitch(agent_id.clone()));
@@ -295,11 +378,12 @@ impl ForgeCommandManager {
                     }
 
                     // Handle custom workflow commands
-                    if let Some(command) = self.find(command) {
+                    let command_name = command.strip_prefix('/').unwrap_or(command);
+                    if let Some(command) = self.find(command_name) {
                         let value = self.extract_command_value(&command, &parts[1..]);
 
                         Ok(Command::Custom(PartialEvent::new(
-                            command.name.clone().strip_prefix('/').unwrap().to_string(),
+                            command.name.clone(),
                             value.unwrap_or_default(),
                         )))
                     } else {
@@ -371,6 +455,10 @@ pub enum Command {
     /// This can be triggered with the '/model' command.
     #[strum(props(usage = "Switch to a different model"))]
     Model,
+    /// Switch or select the active provider
+    /// This can be triggered with the '/provider' command.
+    #[strum(props(usage = "Switch to a different provider"))]
+    Provider,
     /// List all available tools with their descriptions and schema
     /// This can be triggered with the '/tools' command.
     #[strum(props(usage = "List all available tools with their descriptions and schema"))]
@@ -409,27 +497,28 @@ pub enum Command {
 impl Command {
     pub fn name(&self) -> &str {
         match self {
-            Command::Compact => "/compact",
-            Command::New => "/new",
-            Command::Message(_) => "/message",
-            Command::Update => "/update",
-            Command::Info => "/info",
-            Command::Usage => "/usage",
-            Command::Exit => "/exit",
-            Command::Forge => "/forge",
-            Command::Muse => "/muse",
-            Command::Sage => "/sage",
-            Command::Help => "/help",
-            Command::Dump(_) => "/dump",
-            Command::Model => "/model",
-            Command::Tools => "/tools",
+            Command::Compact => "compact",
+            Command::New => "new",
+            Command::Message(_) => "message",
+            Command::Update => "update",
+            Command::Info => "info",
+            Command::Usage => "usage",
+            Command::Exit => "exit",
+            Command::Forge => "forge",
+            Command::Muse => "muse",
+            Command::Sage => "sage",
+            Command::Help => "help",
+            Command::Dump(_) => "dump",
+            Command::Model => "model",
+            Command::Provider => "provider",
+            Command::Tools => "tools",
             Command::Custom(event) => &event.name,
             Command::Shell(_) => "!shell",
-            Command::Agent => "/agent",
-            Command::Login => "/login",
-            Command::Logout => "/logout",
-            Command::Retry => "/retry",
-            Command::Conversations => "/conversations",
+            Command::Agent => "agent",
+            Command::Login => "login",
+            Command::Logout => "logout",
+            Command::Retry => "retry",
+            Command::Conversations => "conversations",
             Command::AgentSwitch(agent_id) => agent_id,
         }
     }
@@ -442,6 +531,11 @@ impl Command {
 
 #[cfg(test)]
 mod tests {
+    use console::strip_ansi_codes;
+    use forge_api::{ModelId, ProviderId, ProviderResponse};
+    use pretty_assertions::assert_eq;
+    use url::Url;
+
     use super::*;
 
     #[test]
@@ -663,7 +757,7 @@ mod tests {
         let commands = manager.list();
 
         // The list command should be included
-        let contains_list = commands.iter().any(|cmd| cmd.name == "/conversations");
+        let contains_list = commands.iter().any(|cmd| cmd.name == "conversations");
         assert!(
             contains_list,
             "Conversations command should be in default commands"
@@ -709,11 +803,11 @@ mod tests {
     #[test]
     fn test_is_reserved_command() {
         // Test reserved commands
-        assert!(ForgeCommandManager::is_reserved_command("/agent"));
-        assert!(ForgeCommandManager::is_reserved_command("/forge"));
-        assert!(ForgeCommandManager::is_reserved_command("/muse"));
-        assert!(!ForgeCommandManager::is_reserved_command("/agent-custom"));
-        assert!(!ForgeCommandManager::is_reserved_command("/custom"));
+        assert!(ForgeCommandManager::is_reserved_command("agent"));
+        assert!(ForgeCommandManager::is_reserved_command("forge"));
+        assert!(ForgeCommandManager::is_reserved_command("muse"));
+        assert!(!ForgeCommandManager::is_reserved_command("agent-custom"));
+        assert!(!ForgeCommandManager::is_reserved_command("custom"));
     }
 
     #[test]
@@ -738,20 +832,16 @@ mod tests {
         let commands = fixture.list();
         let agent_commands: Vec<_> = commands
             .iter()
-            .filter(|cmd| cmd.name.starts_with("/agent-"))
+            .filter(|cmd| cmd.name.starts_with("agent-"))
             .collect();
 
         assert_eq!(agent_commands.len(), 2);
         assert!(
             agent_commands
                 .iter()
-                .any(|cmd| cmd.name == "/agent-test-agent")
+                .any(|cmd| cmd.name == "agent-test-agent")
         );
-        assert!(
-            agent_commands
-                .iter()
-                .any(|cmd| cmd.name == "/agent-another")
-        );
+        assert!(agent_commands.iter().any(|cmd| cmd.name == "agent-another"));
     }
 
     #[test]
@@ -771,6 +861,160 @@ mod tests {
             Command::AgentSwitch(agent_id) => assert_eq!(agent_id, "test-agent"),
             _ => panic!("Expected AgentSwitch command, got {actual:?}"),
         }
+    }
+
+    fn create_model_fixture(
+        id: &str,
+        context_length: Option<u64>,
+        tools_supported: Option<bool>,
+    ) -> Model {
+        Model {
+            id: ModelId::new(id),
+            name: None,
+            description: None,
+            context_length,
+            tools_supported,
+            supports_parallel_tool_calls: None,
+            supports_reasoning: None,
+        }
+    }
+
+    #[test]
+    fn test_cli_model_display_with_context_and_tools() {
+        let fixture = create_model_fixture("gpt-4", Some(128000), Some(true));
+        let formatted = format!("{}", CliModel(fixture));
+        let actual = strip_ansi_codes(&formatted);
+        let expected = "gpt-4 [ 128k 🛠️ ]";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_model_display_with_large_context() {
+        let fixture = create_model_fixture("claude-3", Some(2000000), Some(true));
+        let formatted = format!("{}", CliModel(fixture));
+        let actual = strip_ansi_codes(&formatted);
+        let expected = "claude-3 [ 2M 🛠️ ]";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_model_display_with_small_context() {
+        let fixture = create_model_fixture("small-model", Some(512), Some(false));
+        let formatted = format!("{}", CliModel(fixture));
+        let actual = strip_ansi_codes(&formatted);
+        let expected = "small-model [ 512 ]";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_model_display_with_context_only() {
+        let fixture = create_model_fixture("text-model", Some(4096), Some(false));
+        let formatted = format!("{}", CliModel(fixture));
+        let actual = strip_ansi_codes(&formatted);
+        let expected = "text-model [ 4k ]";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_model_display_with_tools_only() {
+        let fixture = create_model_fixture("tool-model", None, Some(true));
+        let formatted = format!("{}", CliModel(fixture));
+        let actual = strip_ansi_codes(&formatted);
+        let expected = "tool-model [ 🛠️ ]";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_model_display_empty_context_and_no_tools() {
+        let fixture = create_model_fixture("basic-model", None, Some(false));
+        let formatted = format!("{}", CliModel(fixture));
+        let actual = strip_ansi_codes(&formatted);
+        let expected = "basic-model";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_model_display_empty_context_and_none_tools() {
+        let fixture = create_model_fixture("unknown-model", None, None);
+        let formatted = format!("{}", CliModel(fixture));
+        let actual = strip_ansi_codes(&formatted);
+        let expected = "unknown-model";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_model_display_exact_thousands() {
+        let fixture = create_model_fixture("exact-k", Some(8000), Some(true));
+        let formatted = format!("{}", CliModel(fixture));
+        let actual = strip_ansi_codes(&formatted);
+        let expected = "exact-k [ 8k 🛠️ ]";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_model_display_exact_millions() {
+        let fixture = create_model_fixture("exact-m", Some(1000000), Some(true));
+        let formatted = format!("{}", CliModel(fixture));
+        let actual = strip_ansi_codes(&formatted);
+        let expected = "exact-m [ 1M 🛠️ ]";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_model_display_edge_case_999() {
+        let fixture = create_model_fixture("edge-999", Some(999), None);
+        let formatted = format!("{}", CliModel(fixture));
+        let actual = strip_ansi_codes(&formatted);
+        let expected = "edge-999 [ 999 ]";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_model_display_edge_case_1001() {
+        let fixture = create_model_fixture("edge-1001", Some(1001), None);
+        let formatted = format!("{}", CliModel(fixture));
+        let actual = strip_ansi_codes(&formatted);
+        let expected = "edge-1001 [ 1k ]";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_provider_display_minimal() {
+        let fixture = Provider {
+            id: ProviderId::OpenAI,
+            response: ProviderResponse::OpenAI,
+            url: Url::parse("https://api.openai.com/v1/").unwrap(),
+            key: None,
+        };
+        let actual = format!("{}", CliProvider(fixture));
+        let expected = "OpenAI [api.openai.com]";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_provider_display_with_subdomain() {
+        let fixture = Provider {
+            id: ProviderId::OpenRouter,
+            response: ProviderResponse::OpenAI,
+            url: Url::parse("https://openrouter.ai/api/v1/").unwrap(),
+            key: None,
+        };
+        let actual = format!("{}", CliProvider(fixture));
+        let expected = "OpenRouter [openrouter.ai]";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_provider_display_no_domain() {
+        let fixture = Provider {
+            id: ProviderId::Forge,
+            response: ProviderResponse::OpenAI,
+            url: Url::parse("http://localhost:8080/").unwrap(),
+            key: None,
+        };
+        let actual = format!("{}", CliProvider(fixture));
+        let expected = "Forge [localhost]";
+        assert_eq!(actual, expected);
     }
 
     #[test]

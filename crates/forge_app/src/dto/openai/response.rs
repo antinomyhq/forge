@@ -10,6 +10,15 @@ use super::tool_choice::FunctionType;
 use crate::dto::openai::ReasoningDetail;
 use crate::dto::openai::error::{Error, ErrorResponse};
 
+/// Epsilon for floating point comparison to handle near-zero costs
+const COST_EPSILON: f64 = 1e-9;
+
+/// Checks if a cost value is non-zero considering floating point precision
+#[inline]
+fn is_non_zero_cost(cost: &f64) -> bool {
+    cost.abs() > COST_EPSILON
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(untagged)]
 pub enum Response {
@@ -35,6 +44,33 @@ pub struct ResponseUsage {
     pub total_tokens: usize,
     pub cost: Option<f64>,
     pub prompt_tokens_details: Option<PromptTokenDetails>,
+    pub cost_details: Option<CostDetails>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct CostDetails {
+    pub upstream_inference_cost: Option<f64>,
+    pub upstream_inference_prompt_cost: Option<f64>,
+    pub upstream_inference_completions_cost: Option<f64>,
+}
+
+impl CostDetails {
+    fn total_cost(&self) -> Option<f64> {
+        self.upstream_inference_cost
+            .filter(is_non_zero_cost)
+            .or({
+                match (
+                    self.upstream_inference_prompt_cost,
+                    self.upstream_inference_completions_cost,
+                ) {
+                    (None, None) => None,
+                    (Some(p), None) => Some(p),
+                    (None, Some(c)) => Some(c),
+                    (Some(p), Some(c)) => Some(p + c),
+                }
+            })
+            .filter(is_non_zero_cost)
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -104,6 +140,17 @@ pub struct FunctionCall {
 
 impl From<ResponseUsage> for Usage {
     fn from(usage: ResponseUsage) -> Self {
+        let cost = usage
+            .cost
+            .filter(is_non_zero_cost)
+            .or_else(|| {
+                usage
+                    .cost_details
+                    .as_ref()
+                    .and_then(CostDetails::total_cost)
+            })
+            .filter(is_non_zero_cost);
+
         Usage {
             prompt_tokens: TokenCount::Actual(usage.prompt_tokens),
             completion_tokens: TokenCount::Actual(usage.completion_tokens),
@@ -112,7 +159,7 @@ impl From<ResponseUsage> for Usage {
                 .prompt_tokens_details
                 .map(|token_details| TokenCount::Actual(token_details.cached_tokens))
                 .unwrap_or_default(),
-            cost: usage.cost,
+            cost,
         }
     }
 }
@@ -473,5 +520,115 @@ mod tests {
         let response = actual.unwrap();
         let completion_result = ChatCompletionMessage::try_from(response);
         assert!(completion_result.is_ok());
+    }
+
+    #[test]
+    fn test_response_usage_cost_priority_chain() {
+        // Priority 1: cost field (non-zero) beats everything
+        let fixture_cost_wins = ResponseUsage {
+            prompt_tokens: 100,
+            completion_tokens: 50,
+            total_tokens: 150,
+            cost: Some(0.001),
+            prompt_tokens_details: None,
+            cost_details: Some(CostDetails {
+                upstream_inference_cost: Some(0.005),
+                upstream_inference_prompt_cost: Some(0.003),
+                upstream_inference_completions_cost: Some(0.002),
+            }),
+        };
+
+        let actual: Usage = fixture_cost_wins.into();
+        assert_eq!(actual.cost, Some(0.001));
+
+        // Priority 2: upstream_inference_cost beats partial costs
+        let fixture_upstream_wins = ResponseUsage {
+            prompt_tokens: 100,
+            completion_tokens: 50,
+            total_tokens: 150,
+            cost: None,
+            prompt_tokens_details: None,
+            cost_details: Some(CostDetails {
+                upstream_inference_cost: Some(0.005),
+                upstream_inference_prompt_cost: Some(0.003),
+                upstream_inference_completions_cost: Some(0.002),
+            }),
+        };
+
+        let actual: Usage = fixture_upstream_wins.into();
+        assert_eq!(actual.cost, Some(0.005));
+
+        // Priority 3: partial costs are summed when upstream_inference_cost is None
+        let fixture_partial_sum = ResponseUsage {
+            prompt_tokens: 100,
+            completion_tokens: 50,
+            total_tokens: 150,
+            cost: None,
+            prompt_tokens_details: None,
+            cost_details: Some(CostDetails {
+                upstream_inference_cost: None,
+                upstream_inference_prompt_cost: Some(0.003),
+                upstream_inference_completions_cost: Some(0.002),
+            }),
+        };
+
+        let actual: Usage = fixture_partial_sum.into();
+        assert_eq!(actual.cost, Some(0.005));
+
+        // Priority 4: when upstream_inference_cost is 0 then compute it from other
+        // parameters.
+        let fixture = ResponseUsage {
+            prompt_tokens: 100,
+            completion_tokens: 50,
+            total_tokens: 150,
+            cost: None,
+            prompt_tokens_details: None,
+            cost_details: Some(CostDetails {
+                upstream_inference_cost: Some(0.0),
+                upstream_inference_prompt_cost: Some(0.003),
+                upstream_inference_completions_cost: Some(0.002),
+            }),
+        };
+
+        let actual: Usage = fixture.into();
+        assert_eq!(actual.cost, Some(0.005));
+    }
+
+    #[test]
+    fn test_zero_cost_should_fallback_to_cost_details() {
+        let fixture = ResponseUsage {
+            prompt_tokens: 100,
+            completion_tokens: 50,
+            total_tokens: 150,
+            cost: Some(0.0),
+            prompt_tokens_details: None,
+            cost_details: Some(CostDetails {
+                upstream_inference_cost: Some(0.005),
+                upstream_inference_prompt_cost: None,
+                upstream_inference_completions_cost: None,
+            }),
+        };
+
+        let actual: Usage = fixture.into();
+        assert_eq!(actual.cost, Some(0.005));
+    }
+
+    #[test]
+    fn test_near_zero_cost_should_fallback_to_cost_details() {
+        let fixture = ResponseUsage {
+            prompt_tokens: 100,
+            completion_tokens: 50,
+            total_tokens: 150,
+            cost: Some(1e-10),
+            prompt_tokens_details: None,
+            cost_details: Some(CostDetails {
+                upstream_inference_cost: Some(0.005),
+                upstream_inference_prompt_cost: None,
+                upstream_inference_completions_cost: None,
+            }),
+        };
+
+        let actual: Usage = fixture.into();
+        assert_eq!(actual.cost, Some(0.005));
     }
 }

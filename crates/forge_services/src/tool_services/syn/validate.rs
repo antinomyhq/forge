@@ -14,7 +14,7 @@ pub enum Error {
     Language(#[from] LanguageError),
     /// Failed to parse the content
     #[error(
-        "Syntax error found in file with extension {extension}. Hint: Please retry in raw mode without HTML-encoding angle brackets."
+        "Syntax validation failed for {file_path} ({extension}): The file was written successfully but contains syntax errors. Suggestion: Review and fix the syntax issues, or retry with properly escaped characters if HTML encoding was used."
     )]
     Parse {
         file_path: String,
@@ -184,7 +184,7 @@ mod tests {
         let error = validate(&path, "fn main() { let x = ").unwrap();
         assert_eq!(
             error.to_string(),
-            "Syntax error found in file with extension rs. Hint: Please retry in raw mode without HTML-encoding angle brackets."
+            "Syntax validation failed for test.rs (rs): The file was written successfully but contains syntax errors. Suggestion: Review and fix the syntax issues, or retry with properly escaped characters if HTML encoding was used."
         );
     }
 }

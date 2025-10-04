@@ -12,9 +12,9 @@ use crate::orch::Orchestrator;
 use crate::services::{CustomInstructionsService, TemplateService};
 use crate::tool_registry::ToolRegistry;
 use crate::{
-    AgentLoaderService, AppConfigService, AttachmentService, ConversationService,
-    EnvironmentService, FileDiscoveryService, McpService, ProviderRegistry, ProviderService,
-    Services, Walker, WorkflowService,
+    AgentLoaderService, AttachmentService, ConversationService, EnvironmentService,
+    FileDiscoveryService, McpService, ProviderRegistry, ProviderService, Services, Walker,
+    WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -51,9 +51,8 @@ impl<S: Services> ForgeApp<S> {
             .unwrap_or_default()
             .expect("conversation for the request should've been created at this point.");
 
-        let config = services.get_app_config().await.unwrap_or_default();
         let provider = services
-            .get_provider(config)
+            .get_active_provider()
             .await
             .context("Failed to get provider")?;
         let models = services.models(provider).await?;
@@ -73,6 +72,7 @@ impl<S: Services> ForgeApp<S> {
             .collect_files(walker)
             .await?
             .into_iter()
+            .filter(|f| !f.is_dir)
             .map(|f| f.path)
             .collect::<Vec<_>>();
 
@@ -96,12 +96,13 @@ impl<S: Services> ForgeApp<S> {
 
         // Prepare agents with user configuration and subscriptions
         let agents = services.get_agents().await?;
-
+        let model = services.get_active_model().await?;
         let mcp_tools = self.services.mcp_service().list().await?;
         let agent = agents
             .into_iter()
             .map(|agent| {
                 agent
+                    .set_model_deeply(model.clone())
                     .apply_workflow_config(&workflow)
                     .extend_mcp_tools(&mcp_tools)
             })

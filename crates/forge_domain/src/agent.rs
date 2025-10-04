@@ -12,8 +12,8 @@ use crate::merge::Key;
 use crate::temperature::Temperature;
 use crate::template::Template;
 use crate::{
-    Context, EVENT_USER_TASK_INIT, EVENT_USER_TASK_UPDATE, Error, EventContext, MaxTokens, ModelId,
-    Result, SystemContext, ToolDefinition, ToolName, TopK, TopP, Workflow,
+    Context, Error, EventContext, MaxTokens, ModelId, Result, SystemContext, ToolDefinition,
+    ToolName, TopK, TopP, Workflow,
 };
 
 // Unique identifier for an agent
@@ -419,21 +419,23 @@ impl Agent {
 
         // Add base subscription
         let id = agent.id.clone();
-        agent.add_subscription(format!("{id}/{EVENT_USER_TASK_INIT}"));
-        agent.add_subscription(format!("{id}/{EVENT_USER_TASK_UPDATE}"));
+        agent.add_subscription(format!("{id}"));
 
-        // Set model for agent
-        if let Some(ref model) = workflow.model {
-            if agent.model.is_none() {
-                agent.model = Some(model.clone());
-            }
-            if let Some(ref mut compact) = agent.compact
-                && compact.model.is_none()
-            {
-                compact.model = Some(model.clone());
-            }
-        }
         agent
+    }
+
+    /// Sets the model in the agent and its compaction configuration
+    pub fn set_model_deeply(mut self, model: ModelId) -> Self {
+        // Set model for agent
+        if self.model.is_none() {
+            self.model = Some(model.clone());
+        }
+        if let Some(ref mut compact) = self.compact
+            && compact.model.is_none()
+        {
+            compact.model = Some(model.clone());
+        }
+        self
     }
 }
 

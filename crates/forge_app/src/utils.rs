@@ -32,6 +32,25 @@ pub fn format_display_path(path: &Path, cwd: &Path) -> String {
     }
 }
 
+/// Truncates a key string for display purposes
+///
+/// If the key length is 20 characters or less, returns it unchanged.
+/// Otherwise, shows the first 13 characters and last 4 characters with "..." in
+/// between.
+///
+/// # Arguments
+/// * `key` - The key string to truncate
+///
+/// # Returns
+/// * A truncated version of the key for safe display
+pub fn truncate_key(key: &str) -> String {
+    if key.len() <= 20 {
+        key.to_string()
+    } else {
+        format!("{}...{}", &key[..=12], &key[key.len() - 4..])
+    }
+}
+
 pub fn format_match(matched: &Match, base_dir: &Path) -> String {
     match &matched.result {
         Some(MatchResult::Error(err)) => format!("Error reading {}: {}", matched.path, err),

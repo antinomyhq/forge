@@ -55,18 +55,30 @@ pub struct Usage {
 
 impl From<Usage> for forge_domain::Usage {
     fn from(usage: Usage) -> Self {
-        let prompt_tokens = usage
-            .input_tokens
-            .map(TokenCount::Actual)
-            .unwrap_or_default();
+        // Anthropic token breakdown:
+        // - input_tokens: tokens NOT from cache (billed at full price)
+        // - cache_creation_input_tokens: tokens written to cache (billed at full price
+        //   + write cost)
+        // - cache_read_input_tokens: tokens read from cache (billed at 90% discount)
+        // Total input = input_tokens + cache_creation_input_tokens +
+        // cache_read_input_tokens
+
+        let input_tokens = usage.input_tokens.unwrap_or_default();
+        let cache_creation = usage.cache_creation_input_tokens.unwrap_or_default();
+        let cache_read = usage.cache_read_input_tokens.unwrap_or_default();
+
+        // prompt_tokens should include ALL input tokens
+        let prompt_tokens = TokenCount::Actual(input_tokens + cache_creation + cache_read);
+
         let completion_tokens = usage
             .output_tokens
             .map(TokenCount::Actual)
             .unwrap_or_default();
-        let cached_tokens = usage
-            .cache_creation_input_tokens
-            .map(TokenCount::Actual)
-            .unwrap_or_default();
+
+        // cached_tokens represents tokens that benefited from caching
+        // This includes both cache creation and cache reads
+        let cached_tokens = TokenCount::Actual(cache_read);
+
         let total_tokens = prompt_tokens.clone() + completion_tokens.clone();
 
         forge_domain::Usage {
@@ -408,5 +420,88 @@ mod tests {
         let response = serde_json::from_str::<ListModelResponse>(input);
         assert!(response.is_ok());
         assert!(response.unwrap().data.len() == 2);
+    }
+
+    #[test]
+    fn test_usage_conversion_with_cache_read_tokens() {
+        use forge_domain::TokenCount;
+
+        // Simulate a response with cache reads
+        let fixture = Usage {
+            input_tokens: Some(100),
+            output_tokens: Some(50),
+            cache_creation_input_tokens: Some(200),
+            cache_read_input_tokens: Some(300),
+        };
+
+        let actual: forge_domain::Usage = fixture.into();
+
+        // prompt_tokens should include ALL input tokens
+        let expected_prompt = TokenCount::Actual(100 + 200 + 300);
+        assert_eq!(actual.prompt_tokens, expected_prompt);
+
+        // cached_tokens should only include cache reads (tokens that benefited from
+        // caching)
+        let expected_cached = TokenCount::Actual(300);
+        assert_eq!(actual.cached_tokens, expected_cached);
+
+        // completion_tokens should be output tokens
+        let expected_completion = TokenCount::Actual(50);
+        assert_eq!(actual.completion_tokens, expected_completion);
+
+        // total_tokens should be prompt + completion
+        let expected_total = TokenCount::Actual(600 + 50);
+        assert_eq!(actual.total_tokens, expected_total);
+    }
+
+    #[test]
+    fn test_usage_conversion_without_cache() {
+        use forge_domain::TokenCount;
+
+        let fixture = Usage {
+            input_tokens: Some(100),
+            output_tokens: Some(50),
+            cache_creation_input_tokens: None,
+            cache_read_input_tokens: None,
+        };
+
+        let actual: forge_domain::Usage = fixture.into();
+
+        let expected_prompt = TokenCount::Actual(100);
+        assert_eq!(actual.prompt_tokens, expected_prompt);
+
+        let expected_cached = TokenCount::Actual(0);
+        assert_eq!(actual.cached_tokens, expected_cached);
+
+        let expected_completion = TokenCount::Actual(50);
+        assert_eq!(actual.completion_tokens, expected_completion);
+
+        let expected_total = TokenCount::Actual(150);
+        assert_eq!(actual.total_tokens, expected_total);
+    }
+
+    #[test]
+    fn test_usage_conversion_cache_read_only() {
+        use forge_domain::TokenCount;
+
+        // Scenario: All tokens came from cache (cache hit)
+        let fixture = Usage {
+            input_tokens: Some(0),
+            output_tokens: Some(50),
+            cache_creation_input_tokens: Some(0),
+            cache_read_input_tokens: Some(500),
+        };
+
+        let actual: forge_domain::Usage = fixture.into();
+
+        let expected_prompt = TokenCount::Actual(500);
+        assert_eq!(actual.prompt_tokens, expected_prompt);
+
+        let expected_cached = TokenCount::Actual(500);
+        assert_eq!(actual.cached_tokens, expected_cached);
+
+        // Cache percentage should be 100%
+        let cache_percentage = (*actual.cached_tokens * 100) / *actual.prompt_tokens;
+        assert_eq!(cache_percentage, 100);
     }
 }
