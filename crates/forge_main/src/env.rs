@@ -37,6 +37,7 @@ pub fn parse_env(env: Vec<String>) -> std::collections::BTreeMap<String, String>
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
+    use serial_test::serial;
 
     use super::*;
 
@@ -85,6 +86,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_get_agent_from_env_with_value() {
         let fixture_env_value = "sage";
         unsafe {
@@ -101,6 +103,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_get_agent_from_env_not_set() {
         unsafe {
             std::env::remove_var(FORGE_ACTIVE_AGENT);

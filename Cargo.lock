@@ -1307,6 +1307,7 @@ dependencies = [
  "reedline",
  "serde",
  "serde_json",
+ "serial_test",
  "strum 0.27.2",
  "strum_macros 0.27.2",
  "tempfile",
