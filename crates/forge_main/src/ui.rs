@@ -618,6 +618,35 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
+    /// Displays available tools for the current agent
+    async fn on_show_tools(&mut self) -> anyhow::Result<()> {
+        self.spinner.start(Some("Loading"))?;
+        use forge_app::ToolResolver;
+
+        use crate::tools_display::format_tools;
+
+        let all_tools = self.api.tools().await?;
+        let agent_id = self.api.get_operating_agent().await.unwrap_or_default();
+        let agents = self.api.get_agents().await?;
+        let agent = agents.into_iter().find(|agent| agent.id == agent_id);
+
+        let agent_tools = if let Some(agent) = agent {
+            let resolver = ToolResolver::new(all_tools.clone().into());
+            resolver
+                .resolve(&agent)
+                .into_iter()
+                .map(|def| def.name.clone())
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        let info = format_tools(&agent_tools, &all_tools);
+        self.writeln(info)?;
+
+        Ok(())
+    }
+
     async fn on_info(&mut self) -> anyhow::Result<()> {
         let mut info = Info::from(&self.api.environment());
 
@@ -771,29 +800,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.writeln(info)?;
             }
             Command::Tools => {
-                self.spinner.start(Some("Loading"))?;
-                use forge_app::ToolResolver;
-
-                use crate::tools_display::format_tools;
-
-                let all_tools = self.api.tools().await?;
-                let agent_id = self.api.get_operating_agent().await.unwrap_or_default();
-                let agents = self.api.get_agents().await?;
-                let agent = agents.into_iter().find(|agent| agent.id == agent_id);
-
-                let agent_tools = if let Some(agent) = agent {
-                    let resolver = ToolResolver::new(all_tools.clone().into());
-                    resolver
-                        .resolve(&agent)
-                        .into_iter()
-                        .map(|def| def.name.clone())
-                        .collect()
-                } else {
-                    Vec::new()
-                };
-
-                let info = format_tools(&agent_tools, &all_tools);
-                self.writeln(info)?;
+                self.on_show_tools().await?;
             }
             Command::Update => {
                 on_update(self.api.clone(), None).await;
