@@ -22,11 +22,12 @@ impl ToolResolver {
     /// configuration. Returns only the tool definitions that are specified
     /// in the agent's tools list. Automatically includes `attempt_completion`
     /// tool as it's required for all agents. Maintains deduplication to avoid
-    /// duplicate tool definitions.
+    /// duplicate tool definitions. Returns tools sorted alphabetically by name.
     pub fn resolve(&self, agent: &Agent) -> Vec<ToolDefinition> {
         let matchers = self.build_matchers(agent);
         let mut resolved = self.match_tools(&matchers);
         self.ensure_attempt_completion(&mut resolved);
+        self.sort_tools(&mut resolved);
         resolved
     }
 
@@ -76,6 +77,11 @@ impl ToolResolver {
             resolved.push(attempt_completion.clone());
         }
     }
+
+    /// Sorts tool definitions alphabetically by name
+    fn sort_tools(&self, resolved: &mut [ToolDefinition]) {
+        resolved.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+    }
 }
 
 #[cfg(test)]
@@ -98,15 +104,11 @@ mod tests {
         let fixture = Agent::new(AgentId::new("test-agent"))
             .tools(vec![ToolName::new("read"), ToolName::new("search")]);
 
-        let mut actual = tool_resolver.resolve(&fixture);
-        let mut expected = vec![
+        let actual = tool_resolver.resolve(&fixture);
+        let expected = vec![
             ToolDefinition::new("read").description("Read Tool"),
             ToolDefinition::new("search").description("Search Tool"),
         ];
-
-        // Sort both vectors by tool name for deterministic comparison
-        actual.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
-        expected.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
 
         assert_eq!(actual, expected);
     }
@@ -163,15 +165,11 @@ mod tests {
             ToolName::new("write"),
         ]);
 
-        let mut actual = tool_resolver.resolve(&fixture);
-        let mut expected = vec![
+        let actual = tool_resolver.resolve(&fixture);
+        let expected = vec![
             ToolDefinition::new("read").description("Read Tool"),
             ToolDefinition::new("write").description("Write Tool"),
         ];
-
-        // Sort both vectors by tool name for deterministic comparison
-        actual.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
-        expected.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
 
         assert_eq!(actual, expected);
     }
@@ -189,16 +187,12 @@ mod tests {
 
         let fixture = Agent::new(AgentId::new("test-agent")).tools(vec![ToolName::new("fs_*")]);
 
-        let mut actual = tool_resolver.resolve(&fixture);
-        let mut expected = vec![
+        let actual = tool_resolver.resolve(&fixture);
+        let expected = vec![
             ToolDefinition::new("fs_read").description("Read Tool"),
-            ToolDefinition::new("fs_write").description("Write Tool"),
             ToolDefinition::new("fs_search").description("Search Tool"),
+            ToolDefinition::new("fs_write").description("Write Tool"),
         ];
-
-        // Sort both vectors by tool name for deterministic comparison
-        actual.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
-        expected.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
 
         assert_eq!(actual, expected);
     }
@@ -234,16 +228,12 @@ mod tests {
         let fixture = Agent::new(AgentId::new("test-agent"))
             .tools(vec![ToolName::new("fs_*"), ToolName::new("shell")]);
 
-        let mut actual = tool_resolver.resolve(&fixture);
-        let mut expected = vec![
+        let actual = tool_resolver.resolve(&fixture);
+        let expected = vec![
             ToolDefinition::new("fs_read").description("FS Read Tool"),
             ToolDefinition::new("fs_write").description("FS Write Tool"),
             ToolDefinition::new("shell").description("Shell Tool"),
         ];
-
-        // Sort both vectors by tool name for deterministic comparison
-        actual.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
-        expected.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
 
         assert_eq!(actual, expected);
     }
@@ -260,15 +250,11 @@ mod tests {
 
         let fixture = Agent::new(AgentId::new("test-agent")).tools(vec![ToolName::new("read?")]);
 
-        let mut actual = tool_resolver.resolve(&fixture);
-        let mut expected = vec![
+        let actual = tool_resolver.resolve(&fixture);
+        let expected = vec![
             ToolDefinition::new("read1").description("Read 1 Tool"),
             ToolDefinition::new("read2").description("Read 2 Tool"),
         ];
-
-        // Sort both vectors by tool name for deterministic comparison
-        actual.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
-        expected.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
 
         assert_eq!(actual, expected);
     }
@@ -288,15 +274,11 @@ mod tests {
             ToolName::new("*_read"),
         ]);
 
-        let mut actual = tool_resolver.resolve(&fixture);
-        let mut expected = vec![
+        let actual = tool_resolver.resolve(&fixture);
+        let expected = vec![
             ToolDefinition::new("fs_read").description("FS Read Tool"),
             ToolDefinition::new("fs_write").description("FS Write Tool"),
         ];
-
-        // Sort both vectors by tool name for deterministic comparison
-        actual.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
-        expected.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
 
         assert_eq!(actual, expected);
     }
@@ -313,15 +295,11 @@ mod tests {
 
         let fixture = Agent::new(AgentId::new("test-agent")).tools(vec![ToolName::new("read")]);
 
-        let mut actual = tool_resolver.resolve(&fixture);
-        let mut expected = vec![
-            ToolDefinition::new("read").description("Read Tool"),
+        let actual = tool_resolver.resolve(&fixture);
+        let expected = vec![
             ToolDefinition::new("attempt_completion").description("Completion Tool"),
+            ToolDefinition::new("read").description("Read Tool"),
         ];
-
-        // Sort both vectors by tool name for deterministic comparison
-        actual.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
-        expected.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
 
         assert_eq!(actual, expected);
     }
@@ -340,15 +318,11 @@ mod tests {
             ToolName::new("attempt_completion"),
         ]);
 
-        let mut actual = tool_resolver.resolve(&fixture);
-        let mut expected = vec![
-            ToolDefinition::new("read").description("Read Tool"),
+        let actual = tool_resolver.resolve(&fixture);
+        let expected = vec![
             ToolDefinition::new("attempt_completion").description("Completion Tool"),
+            ToolDefinition::new("read").description("Read Tool"),
         ];
-
-        // Sort both vectors by tool name for deterministic comparison
-        actual.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
-        expected.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
 
         assert_eq!(actual, expected);
     }
