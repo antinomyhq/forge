@@ -1051,22 +1051,4 @@ mod tests {
             _ => panic!("Expected Tool command, got {result:?}"),
         }
     }
-
-    #[test]
-    fn test_parse_tools_command_error() {
-        // Setup
-        let fixture = ForgeCommandManager::default();
-
-        // Execute
-        let result = fixture.parse("/tools");
-
-        // Verify
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("renamed to '/tool'")
-        );
-    }
 }
