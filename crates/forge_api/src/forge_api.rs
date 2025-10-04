@@ -50,7 +50,11 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
     async fn models(&self) -> Result<Vec<Model>> {
         Ok(self
             .services
-            .models(self.get_provider().await.context("User is not logged in")?)
+            .models(
+                self.get_provider()
+                    .await
+                    .context("Failed to fetch models")?,
+            )
             .await?)
     }
     async fn get_agents(&self) -> Result<Vec<Agent>> {

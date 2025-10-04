@@ -21,8 +21,10 @@ use url::Url;
     PartialOrd,
     Ord,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum ProviderId {
     Forge,
+    #[serde(rename = "openai")]
     OpenAI,
     OpenRouter,
     Requesty,
@@ -51,92 +53,81 @@ pub struct Provider {
 }
 
 impl Provider {
-    pub const OPEN_ROUTER_URL: &str = "https://openrouter.ai/api/v1/";
-    pub const REQUESTY_URL: &str = "https://router.requesty.ai/v1/";
-    pub const XAI_URL: &str = "https://api.x.ai/v1/";
-    pub const OPENAI_URL: &str = "https://api.openai.com/v1/";
-    pub const ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/";
-    pub const FORGE_URL: &str = "https://antinomy.ai/api/v1/";
-    pub const ZAI_URL: &str = "https://api.z.ai/api/paas/v4/";
-    pub const ZAI_CODING_URL: &str = "https://api.z.ai/api/coding/paas/v4/";
-    pub const CEREBRAS_URL: &str = "https://api.cerebras.ai/v1/";
-
     pub fn forge(key: &str) -> Provider {
         Provider {
             id: ProviderId::Forge,
             response: ProviderResponse::OpenAI,
-            url: Url::parse(Self::FORGE_URL).unwrap(),
+            url: Url::parse("https://antinomy.ai/api/v1/").unwrap(),
             key: Some(key.into()),
         }
     }
 
-    pub fn openai(key: &str) -> Provider {
-        Provider {
-            id: ProviderId::OpenAI,
-            response: ProviderResponse::OpenAI,
-            url: Url::parse(Self::OPENAI_URL).unwrap(),
-            key: Some(key.into()),
-        }
-    }
-
-    pub fn open_router(key: &str) -> Provider {
-        Provider {
-            id: ProviderId::OpenRouter,
-            response: ProviderResponse::OpenAI,
-            url: Url::parse(Self::OPEN_ROUTER_URL).unwrap(),
-            key: Some(key.into()),
-        }
-    }
-
-    pub fn requesty(key: &str) -> Provider {
-        Provider {
-            id: ProviderId::Requesty,
-            response: ProviderResponse::OpenAI,
-            url: Url::parse(Self::REQUESTY_URL).unwrap(),
-            key: Some(key.into()),
-        }
-    }
-
+    /// Test helper for creating a ZAI provider
     pub fn zai(key: &str) -> Provider {
         Provider {
             id: ProviderId::Zai,
             response: ProviderResponse::OpenAI,
-            url: Url::parse(Self::ZAI_URL).unwrap(),
+            url: Url::parse("https://api.z.ai/api/paas/v4/").unwrap(),
             key: Some(key.into()),
         }
     }
+
+    /// Test helper for creating a ZAI Coding provider
     pub fn zai_coding(key: &str) -> Provider {
         Provider {
             id: ProviderId::ZaiCoding,
             response: ProviderResponse::OpenAI,
-            url: Url::parse(Self::ZAI_CODING_URL).unwrap(),
+            url: Url::parse("https://api.z.ai/api/coding/v1/").unwrap(),
             key: Some(key.into()),
         }
     }
 
-    pub fn cerebras(key: &str) -> Provider {
+    /// Test helper for creating an OpenAI provider
+    pub fn openai(key: &str) -> Provider {
         Provider {
-            id: ProviderId::Cerebras,
+            id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
-            url: Url::parse(Self::CEREBRAS_URL).unwrap(),
+            url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some(key.into()),
         }
     }
 
+    /// Test helper for creating an XAI provider
     pub fn xai(key: &str) -> Provider {
         Provider {
             id: ProviderId::Xai,
             response: ProviderResponse::OpenAI,
-            url: Url::parse(Self::XAI_URL).unwrap(),
+            url: Url::parse("https://api.x.ai/v1/").unwrap(),
             key: Some(key.into()),
         }
     }
 
+    /// Test helper for creating a Requesty provider
+    pub fn requesty(key: &str) -> Provider {
+        Provider {
+            id: ProviderId::Requesty,
+            response: ProviderResponse::OpenAI,
+            url: Url::parse("https://api.requesty.ai/v1/").unwrap(),
+            key: Some(key.into()),
+        }
+    }
+
+    /// Test helper for creating an OpenRouter provider
+    pub fn open_router(key: &str) -> Provider {
+        Provider {
+            id: ProviderId::OpenRouter,
+            response: ProviderResponse::OpenAI,
+            url: Url::parse("https://openrouter.ai/api/v1/").unwrap(),
+            key: Some(key.into()),
+        }
+    }
+
+    /// Test helper for creating an Anthropic provider
     pub fn anthropic(key: &str) -> Provider {
         Provider {
             id: ProviderId::Anthropic,
             response: ProviderResponse::Anthropic,
-            url: Url::parse(Self::ANTHROPIC_URL).unwrap(),
+            url: Url::parse("https://api.anthropic.com/v1/").unwrap(),
             key: Some(key.into()),
         }
     }
@@ -172,7 +163,7 @@ impl Provider {
         match &self.response {
             ProviderResponse::OpenAI => {
                 if self.id == ProviderId::ZaiCoding {
-                    let base_url = Url::parse(Self::ZAI_URL).unwrap();
+                    let base_url = Url::parse("https://api.z.ai/api/paas/v4/").unwrap();
                     base_url.join("models").unwrap()
                 } else {
                     self.url.join("models").unwrap()
@@ -217,7 +208,7 @@ mod tests {
     fn test_zai_coding_to_base_url() {
         let fixture = Provider::zai_coding("test_key");
         let actual = fixture.to_base_url();
-        let expected = Url::parse(Provider::ZAI_CODING_URL).unwrap();
+        let expected = Url::parse("https://api.z.ai/api/coding/v1/").unwrap();
         assert_eq!(actual, expected);
     }
 
@@ -225,7 +216,7 @@ mod tests {
     fn test_zai_coding_to_model_url() {
         let fixture = Provider::zai_coding("test_key");
         let actual = fixture.model_url();
-        let expected = Url::parse(Provider::ZAI_URL)
+        let expected = Url::parse("https://api.z.ai/api/paas/v4/")
             .unwrap()
             .join("models")
             .unwrap();
@@ -236,7 +227,7 @@ mod tests {
     fn test_regular_zai_to_base_url() {
         let fixture = Provider::zai("test_key");
         let actual = fixture.to_base_url();
-        let expected = Url::parse(Provider::ZAI_URL).unwrap();
+        let expected = Url::parse("https://api.z.ai/api/paas/v4/").unwrap();
         assert_eq!(actual, expected);
     }
 
@@ -244,7 +235,7 @@ mod tests {
     fn test_regular_zai_to_model_url() {
         let fixture = Provider::zai("test_key");
         let actual = fixture.model_url();
-        let expected = Url::parse(Provider::ZAI_URL)
+        let expected = Url::parse("https://api.z.ai/api/paas/v4/")
             .unwrap()
             .join("models")
             .unwrap();
