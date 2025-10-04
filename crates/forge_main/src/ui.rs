@@ -598,7 +598,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 "compact".to_string(),
                 "Compact the conversation context".to_string(),
             ),
-            ("tool".to_string(), "List all available tools with their descriptions and schema".to_string()),
+            (
+                "tool".to_string(),
+                "List all available tools with their descriptions and schema".to_string(),
+            ),
         ];
 
         // Add alias commands
