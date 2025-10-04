@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use forge_domain::{
-    ChatCompletionMessage, ChatResponse, Conversation, ConversationId, ToolCallFull,
+    ChatCompletionMessage, ChatResponse, Conversation, ConversationId, Event, ToolCallFull,
     ToolErrorTracker, ToolResult,
 };
 use handlebars::{Handlebars, no_escape};
@@ -54,7 +54,7 @@ impl Runner {
         self.conversation_history.lock().await.clone()
     }
 
-    pub async fn run(setup: &mut TestContext) -> anyhow::Result<()> {
+    pub async fn run(setup: &mut TestContext, event: Event) -> anyhow::Result<()> {
         const LIMIT: usize = 1024;
         let (tx, mut rx) = tokio::sync::mpsc::channel::<anyhow::Result<ChatResponse>>(LIMIT);
         let handle = tokio::spawn(async move {
@@ -72,7 +72,6 @@ impl Runner {
         let conversation = Conversation::new(ConversationId::generate()).title(setup.title.clone());
 
         let agent = setup.agent.clone();
-        let event = setup.event.clone();
         let system_tools = setup.tools.clone();
 
         let orch = Orchestrator::new(

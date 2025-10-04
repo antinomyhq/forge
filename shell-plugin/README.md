@@ -82,19 +82,20 @@ The plugin automatically manages conversation IDs to maintain context across rel
 
 ### Session Management
 
-#### Resetting Sessions
+#### Starting New Sessions
 
-Clear the current conversation context:
+Clear the current conversation context and start fresh:
 
 ```bash
-:reset
+:new
 # or use the alias
-:r
+:n
 ```
 
 This will:
 
 - Clear the current conversation ID
+- Show the banner with helpful information
 - Reset the session state
 - Display a confirmation message with timestamp
 
@@ -120,7 +121,7 @@ The plugin automatically displays session information including:
 
 - Conversation ID when starting new sessions
 - Active agent information
-- Reset confirmations with timestamps
+- New session confirmations with timestamps
 
 ## Syntax Highlighting
 
@@ -137,16 +138,13 @@ Customize the plugin behavior by setting these variables before loading the plug
 ```bash
 # Custom forge binary location
 export FORGE_BIN="/path/to/custom/forge"
-
-# Custom reset command (default: "reset")
-export FORGE_RESET_COMMAND="clear"
 ```
 
 ### Available Configuration Variables
 
 - `FORGE_BIN`: Path to the forge executable (default: `forge`)
 - Internal pattern matching for conversation syntax (`:`)
-- Reset command keyword (default: `reset`)
+- New session command keyword: `:new` or `:n`
 
 ## Advanced Features
 
@@ -188,6 +186,6 @@ All transformed commands are properly saved to ZSH history, allowing you to:
 : What are the best practices for error handling?
 : Show me an example with @[src/errors.rs]
 :info
-:reset
+:new
 : New conversation starts here
 ```

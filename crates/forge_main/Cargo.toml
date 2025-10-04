@@ -9,8 +9,10 @@ path = "src/main.rs"
 
 
 [dependencies]
+thiserror = { workspace = true }
 clap.workspace = true
 console.workspace = true
+forge_app.workspace = true
 forge_api.workspace = true
 forge_domain.workspace = true
 forge_walker.workspace = true
@@ -21,7 +23,6 @@ forge_spinner.workspace = true
 inquire.workspace = true
 
 merge.workspace = true
-
 forge_fs.workspace = true
 tokio.workspace = true
 tokio-stream.workspace = true
@@ -50,6 +51,7 @@ open.workspace = true
 humantime.workspace = true
 num-format.workspace = true
 atty = "0.2"
+url.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }

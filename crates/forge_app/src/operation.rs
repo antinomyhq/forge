@@ -590,7 +590,6 @@ mod tests {
                 start_line: None,
                 end_line: None,
                 show_line_numbers: true,
-                explanation: Some("Test explanation".to_string()),
             },
             output: ReadOutput {
                 content: Content::File("Hello, world!\nThis is a test file.".to_string()),
@@ -620,7 +619,6 @@ mod tests {
                 start_line: None,
                 end_line: None,
                 show_line_numbers: true,
-                explanation: Some("Test explanation".to_string()),
             },
             output: ReadOutput {
                 content: Content::File("struct Foo<T>{ name: T }".to_string()),
@@ -650,7 +648,6 @@ mod tests {
                 start_line: Some(2),
                 end_line: Some(3),
                 show_line_numbers: true,
-                explanation: Some("Test explanation".to_string()),
             },
             output: ReadOutput {
                 content: Content::File("Line 1\nLine 2\nLine 3".to_string()),
@@ -680,7 +677,6 @@ mod tests {
                 start_line: None,
                 end_line: None,
                 show_line_numbers: true,
-                explanation: Some("Test explanation".to_string()),
             },
             output: ReadOutput {
                 content: Content::File("Truncated content".to_string()),
@@ -711,7 +707,6 @@ mod tests {
                 path: "/home/user/new_file.txt".to_string(),
                 content: "Hello, world!".to_string(),
                 overwrite: false,
-                explanation: Some("Creating a new file".to_string()),
             },
             output: FsCreateOutput {
                 path: "/home/user/new_file.txt".to_string(),
@@ -739,7 +734,6 @@ mod tests {
                 path: "/home/user/existing_file.txt".to_string(),
                 content: "New content for the file".to_string(),
                 overwrite: true,
-                explanation: Some("Overwriting existing file".to_string()),
             },
             output: FsCreateOutput {
                 path: "/home/user/existing_file.txt".to_string(),
@@ -1038,7 +1032,6 @@ mod tests {
                 start_index: Some(6),
                 max_search_lines: Some(30), // This will be limited by env.max_search_lines (25)
                 file_pattern: Some("*.txt".to_string()),
-                explanation: Some("Testing truncated search output".to_string()),
             },
             output: Some(SearchResult { matches }),
         };
@@ -1077,7 +1070,6 @@ mod tests {
                 start_index: Some(6),
                 max_search_lines: Some(30), // This will be limited by env.max_search_lines (25)
                 file_pattern: Some("*.txt".to_string()),
-                explanation: Some("Testing truncated search output".to_string()),
             },
             output: Some(SearchResult { matches }),
         };
@@ -1118,7 +1110,6 @@ mod tests {
                 start_index: Some(6),
                 max_search_lines: Some(30), // This will be limited by env.max_search_lines (20)
                 file_pattern: Some("*.txt".to_string()),
-                explanation: Some("Testing truncated search output".to_string()),
             },
             output: Some(SearchResult { matches }),
         };
@@ -1164,7 +1155,6 @@ mod tests {
                 start_index: Some(6),
                 max_search_lines: Some(30), // This will be limited by env.max_search_lines (20)
                 file_pattern: Some("*.txt".to_string()),
-                explanation: Some("Testing truncated search output".to_string()),
             },
             output: Some(SearchResult { matches }),
         };
@@ -1194,7 +1184,6 @@ mod tests {
                 start_index: None,
                 max_search_lines: None,
                 file_pattern: None,
-                explanation: Some("Testing search with no matches".to_string()),
             },
             output: None,
         };
@@ -1218,7 +1207,6 @@ mod tests {
                 path: "/home/user/file_with_warning.txt".to_string(),
                 content: "Content with warning".to_string(),
                 overwrite: false,
-                explanation: Some("Creating file with warning".to_string()),
             },
             output: FsCreateOutput {
                 path: "/home/user/file_with_warning.txt".to_string(),
@@ -1242,10 +1230,7 @@ mod tests {
     #[test]
     fn test_fs_remove_success() {
         let fixture = ToolOperation::FsRemove {
-            input: forge_domain::FSRemove {
-                path: "/home/user/file_to_delete.txt".to_string(),
-                explanation: Some("Removing unnecessary file".to_string()),
-            },
+            input: forge_domain::FSRemove { path: "/home/user/file_to_delete.txt".to_string() },
             output: FsRemoveOutput { content: "content".to_string() },
         };
 
@@ -1270,7 +1255,6 @@ mod tests {
                 start_index: None,
                 max_search_lines: None,
                 file_pattern: Some("*.txt".to_string()),
-                explanation: Some("Searching for Hello pattern".to_string()),
             },
             output: Some(SearchResult {
                 matches: vec![
@@ -1313,7 +1297,6 @@ mod tests {
                 start_index: None,
                 max_search_lines: None,
                 file_pattern: None,
-                explanation: Some("Searching for non-existent pattern".to_string()),
             },
             output: None,
         };
@@ -1338,7 +1321,6 @@ mod tests {
                 search: Some("world".to_string()),
                 operation: forge_domain::PatchOperation::Replace,
                 content: "universe".to_string(),
-                explanation: Some("Replacing world with universe".to_string()),
             },
             output: PatchOutput {
                 warning: None,
@@ -1367,7 +1349,6 @@ mod tests {
                 search: Some("line1".to_string()),
                 operation: forge_domain::PatchOperation::Append,
                 content: "\nnew line".to_string(),
-                explanation: Some("Adding new line after line1".to_string()),
             },
             output: PatchOutput {
                 warning: Some("Large file modification".to_string()),
@@ -1391,10 +1372,7 @@ mod tests {
     #[test]
     fn test_fs_undo_no_changes() {
         let fixture = ToolOperation::FsUndo {
-            input: forge_domain::FSUndo {
-                path: "/home/user/unchanged_file.txt".to_string(),
-                explanation: Some("Attempting to undo file with no changes".to_string()),
-            },
+            input: forge_domain::FSUndo { path: "/home/user/unchanged_file.txt".to_string() },
             output: FsUndoOutput { before_undo: None, after_undo: None },
         };
 
@@ -1413,10 +1391,7 @@ mod tests {
     #[test]
     fn test_fs_undo_file_created() {
         let fixture = ToolOperation::FsUndo {
-            input: forge_domain::FSUndo {
-                path: "/home/user/new_file.txt".to_string(),
-                explanation: Some("Undoing operation resulted in file creation".to_string()),
-            },
+            input: forge_domain::FSUndo { path: "/home/user/new_file.txt".to_string() },
             output: FsUndoOutput {
                 before_undo: None,
                 after_undo: Some("New file content\nLine 2\nLine 3".to_string()),
@@ -1438,10 +1413,7 @@ mod tests {
     #[test]
     fn test_fs_undo_file_removed() {
         let fixture = ToolOperation::FsUndo {
-            input: forge_domain::FSUndo {
-                path: "/home/user/deleted_file.txt".to_string(),
-                explanation: Some("Undoing operation resulted in file removal".to_string()),
-            },
+            input: forge_domain::FSUndo { path: "/home/user/deleted_file.txt".to_string() },
             output: FsUndoOutput {
                 before_undo: Some(
                     "Original file content\nThat was deleted\nDuring undo".to_string(),
@@ -1465,10 +1437,7 @@ mod tests {
     #[test]
     fn test_fs_undo_file_restored() {
         let fixture = ToolOperation::FsUndo {
-            input: forge_domain::FSUndo {
-                path: "/home/user/restored_file.txt".to_string(),
-                explanation: Some("Reverting changes to restore previous state".to_string()),
-            },
+            input: forge_domain::FSUndo { path: "/home/user/restored_file.txt".to_string() },
             output: FsUndoOutput {
                 before_undo: Some("Original content\nBefore changes".to_string()),
                 after_undo: Some("Modified content\nAfter restoration".to_string()),
@@ -1490,10 +1459,7 @@ mod tests {
     #[test]
     fn test_fs_undo_success() {
         let fixture = ToolOperation::FsUndo {
-            input: forge_domain::FSUndo {
-                path: "/home/user/test.txt".to_string(),
-                explanation: Some("Reverting changes to test file".to_string()),
-            },
+            input: forge_domain::FSUndo { path: "/home/user/test.txt".to_string() },
             output: FsUndoOutput {
                 before_undo: Some("ABC".to_string()),
                 after_undo: Some("PQR".to_string()),
@@ -1518,7 +1484,6 @@ mod tests {
             input: forge_domain::NetFetch {
                 url: "https://example.com".to_string(),
                 raw: Some(false),
-                explanation: Some("Fetching content from example website".to_string()),
             },
             output: HttpResponse {
                 content: "# Example Website\n\nThis is some content from a website.".to_string(),
@@ -1553,7 +1518,6 @@ mod tests {
             input: forge_domain::NetFetch {
                 url: "https://example.com/large-page".to_string(),
                 raw: Some(false),
-                explanation: Some("Fetching large content that will be truncated".to_string()),
             },
             output: HttpResponse {
                 content: long_content,

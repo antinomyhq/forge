@@ -5,20 +5,42 @@ use forge_tracker::VERSION;
 
 const BANNER: &str = include_str!("banner");
 
-pub fn display() -> io::Result<()> {
+/// Displays the banner with version and command tips.
+///
+/// # Arguments
+///
+/// * `cli_mode` - If true, shows CLI-relevant commands with `:` prefix. If
+///   false, shows all interactive commands with `/` prefix.
+pub fn display(cli_mode: bool) -> io::Result<()> {
     let mut banner = BANNER.to_string();
 
-    // Define the labels as tuples of (key, value)
+    // Always show version
+    let version_label = ("Version:", VERSION);
 
-    let labels = [
-        ("Version:", VERSION),
-        ("New conversation:", "/new"),
-        ("Get started:", "/info, /usage, /help, /conversations"),
-        ("Switch model:", "/model"),
-        ("Switch agent:", "/forge or /muse or /agent"),
-        ("Update:", "/update"),
-        ("Quit:", "/exit or <CTRL+D>"),
-    ];
+    // Build tips based on mode
+    let tips: Vec<(&str, &str)> = if cli_mode {
+        // CLI mode: only show relevant commands
+        vec![
+            ("New conversation:", ":new"),
+            ("Get started:", ":info, :conversation"),
+            ("Switch model:", ":model"),
+            ("Switch provider:", ":provider"),
+            ("Switch agent:", ":<agent_name> e.g. :forge or :muse"),
+        ]
+    } else {
+        // Interactive mode: show all commands
+        vec![
+            ("New conversation:", "/new"),
+            ("Get started:", "/info, /usage, /help, /conversations"),
+            ("Switch model:", "/model"),
+            ("Switch agent:", "/forge or /muse or /agent"),
+            ("Update:", "/update"),
+            ("Quit:", "/exit or <CTRL+D>"),
+        ]
+    };
+
+    // Build labels array with version and tips
+    let labels: Vec<(&str, &str)> = std::iter::once(version_label).chain(tips).collect();
 
     // Calculate the width of the longest label key for alignment
     let max_width = labels.iter().map(|(key, _)| key.len()).max().unwrap_or(0);

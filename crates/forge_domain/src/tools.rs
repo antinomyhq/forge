@@ -59,10 +59,6 @@ pub struct AgentInput {
     /// requirements to enable the agent to understand and execute the work
     /// accurately.
     pub tasks: Vec<String>,
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -97,10 +93,6 @@ pub struct FSRead {
     /// will end at this line position.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_line: Option<i32>,
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
 }
 
 /// Use it to create a new file at a specified path with the provided content.
@@ -125,10 +117,6 @@ pub struct FSWrite {
     #[serde(default)]
     #[serde(skip_serializing_if = "is_default")]
     pub overwrite: bool,
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
 }
 
 /// Recursively searches directories for files by content (regex) and/or name
@@ -163,10 +151,6 @@ pub struct FSSearch {
     /// If not provided, it will search all files (*).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_pattern: Option<String>,
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
 }
 
 /// Request to remove a file at the specified path. Use this when you need to
@@ -176,10 +160,6 @@ pub struct FSSearch {
 pub struct FSRemove {
     /// The path of the file to remove (absolute path required)
     pub path: String,
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
 }
 
 /// Operation types that can be performed on matched text
@@ -270,11 +250,6 @@ pub struct FSPatch {
     /// The content to use for the operation (replacement text, line to
     /// prepend/append, or target line for swap operations)
     pub content: String,
-
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
 }
 
 /// Reverts the most recent file operation (create/modify/delete) on a specific
@@ -284,10 +259,6 @@ pub struct FSPatch {
 pub struct FSUndo {
     /// The absolute path of the file to revert to its previous state.
     pub path: String,
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
 }
 
 /// Executes shell commands with safety measures using restricted bash (rbash).
@@ -317,11 +288,6 @@ pub struct Shell {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub env: Option<Vec<String>>,
-
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
 }
 
 /// Input type for the net fetch tool
@@ -334,11 +300,6 @@ pub struct NetFetch {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub raw: Option<bool>,
-
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
 }
 
 /// Use this tool when you encounter ambiguities, need clarification, or require
@@ -374,11 +335,6 @@ pub struct Followup {
     /// Fifth option to choose from
     #[serde(skip_serializing_if = "Option::is_none")]
     pub option5: Option<String>,
-
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
 }
 
 /// After each tool use, the user will respond with the result of
@@ -415,11 +371,6 @@ pub struct PlanCreate {
     /// The content to write to the plan file. This should be the complete
     /// plan content in markdown format.
     pub content: String,
-
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
 }
 
 fn default_raw() -> Option<bool> {
@@ -441,10 +392,6 @@ pub struct FetchInput {
     /// Get raw content without any markdown conversion (default: false)
     #[serde(default = "default_raw")]
     pub raw: Option<bool>,
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
 }
 /// Request to list files and directories within the specified directory. If
 /// recursive is true, it will list all files and directories recursively. If
@@ -459,10 +406,6 @@ pub struct FSListInput {
     /// Whether to list files recursively. Use true for recursive listing, false
     /// or omit for top-level only.
     pub recursive: Option<bool>,
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
 }
 
 /// Request to retrieve detailed metadata about a file or directory at the
@@ -474,10 +417,6 @@ pub struct FSListInput {
 pub struct FSFileInfoInput {
     /// The path of the file or directory to inspect (absolute path required)
     pub path: String,
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -488,10 +427,6 @@ pub struct UndoInput {
     /// original path it had before deletion. The system requires a prior
     /// snapshot for this path.
     pub path: String,
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
 }
 
 /// Input for the select tool
@@ -519,10 +454,6 @@ pub struct SelectInput {
     /// option can be selected
     #[schemars(default)]
     pub multiple: Option<bool>,
-    /// One sentence explanation as to why this specific tool is being used, and
-    /// how it contributes to the goal.
-    #[serde(default)]
-    pub explanation: Option<String>,
 }
 
 /// Helper function to check if a value equals its default value
@@ -786,7 +717,6 @@ mod tests {
             start_index: None,
             max_search_lines: None,
             file_pattern: None,
-            explanation: None,
         });
 
         let operation = search_with_regex
@@ -817,7 +747,6 @@ mod tests {
             start_index: None,
             max_search_lines: None,
             file_pattern: None,
-            explanation: None,
         });
 
         let operation = search_without_regex
@@ -845,7 +774,6 @@ mod tests {
             start_index: None,
             max_search_lines: None,
             file_pattern: Some("*.rs".to_string()),
-            explanation: None,
         });
 
         let operation = search_with_pattern
@@ -876,7 +804,6 @@ mod tests {
             start_index: None,
             max_search_lines: None,
             file_pattern: Some("*.rs".to_string()),
-            explanation: None,
         });
 
         let operation = search_with_both

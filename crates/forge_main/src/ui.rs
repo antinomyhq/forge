@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::fmt::Display;
 use std::sync::Arc;
 
@@ -6,26 +5,27 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, EVENT_USER_TASK_INIT,
-    EVENT_USER_TASK_UPDATE, Event, InterruptionReason, Model, ModelId, Provider, ToolName,
-    Workflow,
+    API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
+    InterruptionReason, Model, ModelId, Provider, ToolName, Workflow,
 };
+use forge_app::utils::truncate_key;
 use forge_display::MarkdownFormat;
 use forge_domain::{ChatResponseContent, McpConfig, McpServerConfig, Scope, TitleFormat};
 use forge_fs::ForgeFS;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
 use merge::Merge;
-use serde::Deserialize;
-use serde_json::Value;
 use tokio_stream::StreamExt;
 
 use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
+use crate::cli_format::format_columns;
+use crate::config::ConfigManager;
 use crate::conversation_selector::ConversationSelector;
-use crate::env::{get_agent_from_env, get_conversation_id_from_env};
+use crate::env::{get_agent_from_env, get_conversation_id_from_env, parse_env};
 use crate::info::Info;
 use crate::input::Console;
-use crate::model::{Command, ForgeCommandManager};
+use crate::model::{CliModel, CliProvider, Command, ForgeCommandManager, PartialEvent};
+use crate::prompt::ForgePrompt;
 use crate::select::ForgeSelect;
 use crate::state::UIState;
 use crate::title_display::TitleDisplayExt;
@@ -34,24 +34,6 @@ use crate::{TRACKER, banner, tracker};
 
 // Configuration constants
 const MAX_CONVERSATIONS_TO_SHOW: usize = 20;
-
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Default)]
-pub struct PartialEvent {
-    pub name: String,
-    pub value: Value,
-}
-
-impl PartialEvent {
-    pub fn new<V: Into<Value>>(name: impl ToString, value: V) -> Self {
-        Self { name: name.to_string(), value: value.into() }
-    }
-}
-
-impl From<PartialEvent> for Event {
-    fn from(value: PartialEvent) -> Self {
-        Event::new(value.name, Some(value.value))
-    }
-}
 
 pub struct UI<A, F: Fn() -> A> {
     markdown: MarkdownFormat,
@@ -89,7 +71,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Displays banner only if user is in interactive mode.
     fn display_banner(&self) -> Result<()> {
         if self.cli.is_interactive() {
-            banner::display()?;
+            banner::display(false)?;
         }
         Ok(())
     }
@@ -126,10 +108,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             self.api.upsert_conversation(conversation).await?;
         }
 
-        // Reset is_first to true when switching agents
-        self.state.is_first = true;
-        self.state.operating_agent = agent.id.clone();
-
         // Update the app config with the new operating agent.
         self.api.set_operating_agent(agent.id.clone()).await?;
         let name = agent.id.as_str().to_case(Case::UpperSnake).bold();
@@ -142,18 +120,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.writeln_title(TitleFormat::action(format!("{name} {title}")))?;
 
         Ok(())
-    }
-
-    fn create_task_event<V: Into<Value>>(
-        &self,
-        content: Option<V>,
-        event_name: &str,
-    ) -> anyhow::Result<Event> {
-        let operating_agent = &self.state.operating_agent;
-        Ok(Event::new(
-            format!("{operating_agent}/{event_name}"),
-            content,
-        ))
     }
 
     pub fn init(cli: Cli, f: F) -> Result<Self> {
@@ -175,8 +141,24 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn prompt(&self) -> Result<Command> {
+        // Get usage from current conversation if available
+        let usage = if let Some(conversation_id) = &self.state.conversation_id {
+            self.api
+                .conversation(conversation_id)
+                .await
+                .ok()
+                .flatten()
+                .and_then(|conv| conv.context)
+                .and_then(|ctx| ctx.usage)
+        } else {
+            None
+        };
+
         // Prompt the user for input
-        self.console.prompt(self.state.clone().into()).await
+        let agent_id = self.api.get_operating_agent().await.unwrap_or_default();
+        let model = self.api.get_operating_model().await;
+        let forge_prompt = ForgePrompt { cwd: self.state.cwd.clone(), usage, model, agent_id };
+        self.console.prompt(forge_prompt).await
     }
 
     pub async fn run(&mut self) {
@@ -369,11 +351,130 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_show_agents().await?;
                 return Ok(());
             }
+            TopLevelCommand::ShowProviders => {
+                self.on_show_providers().await?;
+                return Ok(());
+            }
+            TopLevelCommand::ShowModels => {
+                self.on_show_models().await?;
+                return Ok(());
+            }
+            TopLevelCommand::ShowCommands => {
+                self.on_show_commands().await?;
+                return Ok(());
+            }
+            TopLevelCommand::ShowBanner => {
+                banner::display(true)?;
+                return Ok(());
+            }
+            TopLevelCommand::Config(config_group) => {
+                let config_manager = ConfigManager::new(self.api.clone());
+                config_manager
+                    .handle_command(config_group.command.clone())
+                    .await?;
+                return Ok(());
+            }
+
+            TopLevelCommand::Session(session_group) => {
+                self.handle_session_command(session_group).await?;
+                return Ok(());
+            }
         }
         Ok(())
     }
 
-    /// Lists all the agents
+    async fn handle_session_command(
+        &mut self,
+        session_group: crate::cli::SessionCommandGroup,
+    ) -> anyhow::Result<()> {
+        use forge_domain::ConversationId;
+
+        use crate::cli::SessionCommand;
+
+        // Handle list command
+        if session_group.list {
+            self.on_show_conversations().await?;
+            return Ok(());
+        }
+
+        // For all other commands, id is required
+        let id_str = session_group.id.ok_or_else(|| {
+            anyhow::anyhow!(
+                "Error: --id is required for this command. Use 'forge session --list' to see available conversations."
+            )
+        })?;
+
+        // Parse conversation ID from the string
+        let conversation_id = ConversationId::parse(&id_str)
+            .context(format!("Invalid conversation ID: {}", id_str))?;
+
+        // Validate that the conversation exists
+        self.validate_session_exists(&conversation_id).await?;
+
+        match session_group.command {
+            Some(SessionCommand::Dump(dump_args)) => {
+                // Set the conversation ID temporarily to dump it
+                let original_id = self.state.conversation_id;
+                self.state.conversation_id = Some(conversation_id);
+
+                self.spinner.start(Some("Dumping"))?;
+                self.on_dump(dump_args.format).await?;
+
+                // Restore original conversation ID
+                self.state.conversation_id = original_id;
+            }
+            Some(SessionCommand::Compact) => {
+                // Set the conversation ID temporarily to compact it
+                let original_id = self.state.conversation_id;
+                self.state.conversation_id = Some(conversation_id);
+
+                self.spinner.start(Some("Compacting"))?;
+                self.on_compaction().await?;
+
+                // Restore original conversation ID
+                self.state.conversation_id = original_id;
+            }
+            Some(SessionCommand::Retry) => {
+                // Set the conversation ID and retry last message
+                let original_id = self.state.conversation_id;
+                self.state.conversation_id = Some(conversation_id);
+
+                self.spinner.start(None)?;
+                self.on_message(None).await?;
+
+                // Restore original conversation ID
+                self.state.conversation_id = original_id;
+            }
+            None => {
+                // Resume session - set conversation ID and enter interactive mode
+                self.state.conversation_id = Some(conversation_id);
+                self.writeln_title(TitleFormat::info(format!(
+                    "Resumed conversation: {}",
+                    id_str
+                )))?;
+                // Interactive mode will be handled by the main loop
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn validate_session_exists(
+        &self,
+        conversation_id: &ConversationId,
+    ) -> anyhow::Result<()> {
+        let conversation = self.api.conversation(conversation_id).await?;
+
+        if conversation.is_none() {
+            anyhow::bail!(
+                "Conversation '{}' not found. Use 'forge session list' to see available conversations.",
+                conversation_id
+            );
+        }
+
+        Ok(())
+    }
+
     async fn on_show_agents(&self) -> anyhow::Result<()> {
         let agents = self.api.get_agents().await?;
 
@@ -381,51 +482,174 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
-        // Find the maximum agent ID length for consistent padding
-        let max_id_length = agents
-            .iter()
-            .map(|agent| agent.id.as_str().len())
-            .max()
-            .unwrap_or(0);
-
-        let output = agents
+        let items: Vec<(String, String)> = agents
             .iter()
             .map(|agent| {
-                let title = agent.title.as_deref().unwrap_or("<Missing agent.title>");
-                format!(
-                    "{:<width$} {}",
-                    agent.id.as_str(),
-                    title.lines().collect::<Vec<_>>().join(" "),
-                    width = max_id_length
-                )
+                let id = agent.id.as_str().to_string();
+                let title = agent
+                    .title
+                    .as_deref()
+                    .unwrap_or("<Missing agent.title>")
+                    .lines()
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                (id, title)
             })
-            .collect::<Vec<_>>()
-            .join("\n");
+            .collect();
 
-        println!("{}", output);
+        format_columns(items);
+
+        Ok(())
+    }
+
+    /// Lists all the providers
+    async fn on_show_providers(&self) -> anyhow::Result<()> {
+        let providers = self.api.providers().await?;
+
+        if providers.is_empty() {
+            return Ok(());
+        }
+
+        let items: Vec<(String, String)> = providers
+            .iter()
+            .map(|provider| {
+                let id = provider.id.to_string();
+                let domain = provider
+                    .url
+                    .domain()
+                    .map(|d| format!("[{}]", d))
+                    .unwrap_or_default();
+                (id, domain)
+            })
+            .collect();
+
+        format_columns(items);
+
+        Ok(())
+    }
+
+    /// Lists all the models
+    async fn on_show_models(&mut self) -> anyhow::Result<()> {
+        let models = self.get_models().await?;
+
+        if models.is_empty() {
+            return Ok(());
+        }
+
+        let items: Vec<(String, String)> = models
+            .iter()
+            .map(|model| {
+                let id = model.id.to_string();
+                let mut info_parts = Vec::new();
+
+                // Add context length if available
+                if let Some(limit) = model.context_length {
+                    if limit >= 1_000_000 {
+                        info_parts.push(format!("{}M", limit / 1_000_000));
+                    } else if limit >= 1000 {
+                        info_parts.push(format!("{}k", limit / 1000));
+                    } else {
+                        info_parts.push(format!("{limit}"));
+                    }
+                }
+
+                // Add tools support indicator if explicitly supported
+                if model.tools_supported == Some(true) {
+                    info_parts.push("🛠️".to_string());
+                }
+
+                let info = if !info_parts.is_empty() {
+                    format!("[ {} ]", info_parts.join(" "))
+                } else {
+                    String::new()
+                };
+
+                (id, info)
+            })
+            .collect();
+
+        format_columns(items);
+
+        Ok(())
+    }
+
+    /// Lists all the commands
+    async fn on_show_commands(&self) -> anyhow::Result<()> {
+        // Define base commands with their descriptions
+        let mut commands: Vec<(String, String)> = vec![
+            ("info".to_string(), "Print session information".to_string()),
+            ("provider".to_string(), "Switch the providers".to_string()),
+            ("model".to_string(), "Switch the models".to_string()),
+            ("new".to_string(), "Start new conversation".to_string()),
+            (
+                "dump".to_string(),
+                "Save conversation as JSON or HTML (use /dump html for HTML format)".to_string(),
+            ),
+            (
+                "conversation".to_string(),
+                "List all conversations for the active workspace".to_string(),
+            ),
+            ("retry".to_string(), "Retry the last command".to_string()),
+            (
+                "compact".to_string(),
+                "Compact the conversation context".to_string(),
+            ),
+        ];
+
+        // Add alias commands
+        commands.push(("ask".to_string(), "Alias for agent SAGE".to_string()));
+        commands.push(("plan".to_string(), "Alias for agent MUSE".to_string()));
+
+        // Fetch agents and add them to the commands list
+        let agents = self.api.get_agents().await?;
+        for agent in agents {
+            let title = agent
+                .title
+                .as_deref()
+                .unwrap_or("<Missing agent.title>")
+                .lines()
+                .collect::<Vec<_>>()
+                .join(" ");
+            commands.push((agent.id.to_string(), title));
+        }
+
+        format_columns(commands);
 
         Ok(())
     }
 
     async fn on_info(&mut self) -> anyhow::Result<()> {
-        let mut info = Info::from(&self.api.environment()).extend(Info::from(&self.state));
+        let mut info = Info::from(&self.api.environment());
 
-        // Execute async operations in parallel
-        let conversation_future = async {
-            if let Some(conversation_id) = &self.state.conversation_id {
-                self.api.conversation(conversation_id).await.ok().flatten()
-            } else {
-                None
-            }
-        };
-
-        let login_future = self.api.get_login_info();
-
-        let (conversation_result, key_info) = tokio::join!(conversation_future, login_future);
+        // Execute async operations sequentially
+        let conversation_id = &self.init_conversation().await?;
+        let conversation = self.api.conversation(conversation_id).await.ok().flatten();
+        let key_info = self.api.get_login_info().await;
+        let operating_agent = self.api.get_operating_agent().await;
+        let operating_model = self.api.get_operating_model().await;
+        let provider_result = self.api.get_provider().await;
 
         // Add conversation information if available
-        if let Some(conversation) = conversation_result {
+        if let Some(conversation) = conversation {
             info = info.extend(Info::from(&conversation));
+        }
+
+        info = info.add_title("AGENT");
+        if let Some(agent) = operating_agent {
+            info = info.add_key_value("ID", agent.as_str().to_uppercase());
+        }
+
+        // Add model information if available
+        if let Some(model) = operating_model {
+            info = info.add_key_value("Model", model);
+        }
+
+        // Add provider information if available
+        if let Ok(provider) = provider_result {
+            info = info.add_key_value("Provider (URL)", provider.to_base_url());
+            if let Some(ref api_key) = provider.key {
+                info = info.add_key_value("API Key", truncate_key(api_key));
+            }
         }
 
         // Add user information if available
@@ -444,9 +668,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn agent_tools(&self) -> anyhow::Result<Vec<ToolName>> {
-        let agent_id = &self.state.operating_agent;
+        let agent_id = self.api.get_operating_agent().await.unwrap_or_default();
         let agents = self.api.get_agents().await?;
-        let agent = agents.into_iter().find(|agent| &agent.id == agent_id);
+        let agent = agents.into_iter().find(|agent| agent.id == agent_id);
         Ok(agent
             .and_then(|agent| agent.tools.clone())
             .into_iter()
@@ -471,11 +695,50 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         if let Some(conversation) = ConversationSelector::select_conversation(&conversations)? {
             self.state.conversation_id = Some(conversation.id);
-            self.state.usage = conversation
-                .context
-                .and_then(|ctx| ctx.usage)
-                .unwrap_or(self.state.usage.clone());
         }
+        Ok(())
+    }
+
+    async fn on_show_conversations(&mut self) -> anyhow::Result<()> {
+        let conversations = self
+            .api
+            .list_conversations(Some(MAX_CONVERSATIONS_TO_SHOW))
+            .await?;
+
+        if conversations.is_empty() {
+            return Ok(());
+        }
+
+        // Format conversations as 3-column output: <id> <title> <time_ago>
+        let items: Vec<(String, String, String)> = conversations
+            .into_iter()
+            .filter(|conv| conv.title.is_some() && conv.context.is_some())
+            .map(|conv| {
+                let title = conv.title.as_deref().unwrap();
+                let title = if title.len() > 30 {
+                    format!("{}...", &title[..30])
+                } else {
+                    title.to_string()
+                };
+
+                // Format time using humantime library (same as conversation_selector.rs)
+                let duration = chrono::Utc::now().signed_duration_since(
+                    conv.metadata.updated_at.unwrap_or(conv.metadata.created_at),
+                );
+                let duration =
+                    std::time::Duration::from_secs((duration.num_minutes() * 60).max(0) as u64);
+                let time_ago = if duration.is_zero() {
+                    "now".to_string()
+                } else {
+                    format!("{} ago", humantime::format_duration(duration))
+                };
+
+                (title.to_string(), time_ago, conv.id.to_string())
+            })
+            .collect();
+
+        format_columns(items);
+
         Ok(())
     }
 
@@ -600,8 +863,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         .and_then(|v| v.auth_provider_id)
                         .unwrap_or_default(),
                 );
-                let provider = self.api.get_provider().await?;
-                self.state.provider = Some(provider);
             }
             Command::Logout => {
                 self.spinner.start(Some("Logging out"))?;
@@ -661,9 +922,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         models.sort_by(|a, b| a.0.name.cmp(&b.0.name));
 
         // Find the index of the current model
-        let starting_cursor = self
-            .state
-            .model
+        let current_model = self.api.get_operating_model().await;
+        let starting_cursor = current_model
             .as_ref()
             .and_then(|current| models.iter().position(|m| &m.0.id == current))
             .unwrap_or(0);
@@ -688,6 +948,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .into_iter()
             .map(CliProvider)
             .collect::<Vec<_>>();
+
+        if providers.is_empty() {
+            return Err(anyhow::anyhow!("No AI provider API keys configured"));
+        }
 
         // Sort the providers by their display names in ascending order
         providers.sort_by_key(|a| a.to_string());
@@ -751,7 +1015,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         )))?;
 
         // Check if the current model is available for the new provider
-        if let Some(current_model) = self.state.model.clone() {
+        let current_model = self.api.get_operating_model().await;
+        if let Some(current_model) = current_model {
             let models = self.get_models().await?;
             let model_available = models.iter().any(|m| m.id == current_model);
 
@@ -779,79 +1044,121 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.on_chat(chat).await
     }
 
+    /// Initializes and returns a conversation ID for the current session.
+    ///
+    /// Handles conversation setup for both interactive and headless modes:
+    /// - **Interactive**: Reuses existing conversation, loads from file, or
+    ///   creates new
+    /// - **Headless**: Uses environment variables or generates new conversation
+    ///
+    /// Displays initialization status and updates UI state with the
+    /// conversation ID.
     async fn init_conversation(&mut self) -> Result<ConversationId> {
-        if let Some(agent_id) = get_agent_from_env()
-            && !self.cli.is_interactive()
-        {
-            self.api.set_operating_agent(agent_id).await?;
-        }
-
-        let id = match self.state.conversation_id {
-            Some(ref id) => Ok(*id),
-            None => {
-                let mut new_conversation = false;
-                self.spinner.start(Some("Initializing"))?;
-
-                // We need to try and get the conversation ID first before fetching the model
-                let conversation = if let Some(ref path) = self.cli.conversation {
-                    let conversation: Conversation =
-                        serde_json::from_str(ForgeFS::read_utf8(path.as_os_str()).await?.as_str())
-                            .context("Failed to parse Conversation")?;
-                    conversation
-                } else if let Some(conversation_id) = get_conversation_id_from_env() {
-                    // Check if conversation with this ID already exists
-                    if let Some(conversation) = self.api.conversation(&conversation_id).await? {
-                        conversation
-                    } else {
-                        // Conversation doesn't exist, create a new one with this ID
-                        new_conversation = true;
-                        Conversation::new(conversation_id)
-                    }
-                } else {
-                    new_conversation = true;
-                    Conversation::generate()
-                };
-
-                self.api.upsert_conversation(conversation.clone()).await?;
-                self.state.conversation_id = Some(conversation.id);
-                self.state.usage = conversation
-                    .context
-                    .and_then(|ctx| ctx.usage)
-                    .unwrap_or(self.state.usage.clone());
-                self.spinner.stop(None)?;
-
-                let mut sub_title = conversation.id.into_string();
-                if let Some(ref agent) = self.api.get_operating_agent().await {
-                    sub_title.push_str(format!(" [via {agent}]").as_str());
-                }
-
-                if new_conversation {
-                    self.writeln_title(
-                        TitleFormat::debug("Initialize".to_string()).sub_title(sub_title),
-                    )?;
-                } else {
-                    self.writeln_title(
-                        TitleFormat::debug("Continue".to_string()).sub_title(sub_title),
-                    )?;
-                }
-                Ok(conversation.id)
-            }
+        let mut is_new = false;
+        let id = if self.cli.is_interactive() {
+            self.init_conversation_interactive(&mut is_new).await?
+        } else {
+            self.init_conversation_headless(&mut is_new).await?
         };
 
-        if let Some(ref agent) = self.api.get_operating_agent().await {
-            self.state.operating_agent = AgentId::new(agent)
+        // Print if the state is being reinitialized
+        if self.state.conversation_id.is_none() {
+            self.print_conversation_status(is_new, id).await?;
         }
 
-        id
+        // Always set the conversation id in state
+        self.state.conversation_id = Some(id);
+
+        Ok(id)
+    }
+
+    async fn init_conversation_interactive(
+        &mut self,
+        is_new: &mut bool,
+    ) -> Result<ConversationId, anyhow::Error> {
+        Ok(if let Some(id) = self.state.conversation_id {
+            id
+        } else if let Some(ref path) = self.cli.conversation {
+            let conversation: Conversation =
+                serde_json::from_str(ForgeFS::read_utf8(path.as_os_str()).await?.as_str())
+                    .context("Failed to parse Conversation")?;
+            let id = conversation.id;
+            self.api.upsert_conversation(conversation).await?;
+            id
+        } else {
+            let conversation = Conversation::generate();
+            let id = conversation.id;
+            *is_new = true;
+            self.api.upsert_conversation(conversation).await?;
+            id
+        })
+    }
+
+    async fn init_conversation_headless(
+        &mut self,
+        is_new: &mut bool,
+    ) -> Result<ConversationId, anyhow::Error> {
+        Ok(if let Some(id) = self.state.conversation_id {
+            id
+        } else {
+            if let Some(agent_id) = get_agent_from_env() {
+                self.api.set_operating_agent(agent_id).await?;
+            }
+            if let Some(id) = get_conversation_id_from_env() {
+                match self.api.conversation(&id).await? {
+                    Some(conversation) => conversation.id,
+                    None => {
+                        let conversation = Conversation::new(id);
+                        let id = conversation.id;
+                        self.api.upsert_conversation(conversation).await?;
+                        *is_new = true;
+                        id
+                    }
+                }
+            } else {
+                let conversation = Conversation::generate();
+                let id = conversation.id;
+                self.api.upsert_conversation(conversation).await?;
+                *is_new = true;
+                id
+            }
+        })
+    }
+
+    async fn print_conversation_status(
+        &mut self,
+        new_conversation: bool,
+        id: ConversationId,
+    ) -> Result<(), anyhow::Error> {
+        let mut title = if new_conversation {
+            "Initialize".to_string()
+        } else {
+            "Continue".to_string()
+        };
+
+        title.push_str(format!(" {}", id.into_string()).as_str());
+
+        let mut sub_title = String::new();
+        sub_title.push('[');
+
+        if let Some(ref agent) = self.api.get_operating_agent().await {
+            sub_title.push_str(format!("via {}", agent).as_str());
+        }
+
+        if let Some(ref model) = self.api.get_operating_model().await {
+            sub_title.push_str(format!("/{}", model.as_str()).as_str());
+        }
+
+        sub_title.push(']');
+
+        self.writeln_title(TitleFormat::debug(title).sub_title(sub_title.bold().to_string()))?;
+        Ok(())
     }
 
     /// Initialize the state of the UI
     async fn init_state(&mut self, first: bool) -> Result<Workflow> {
         // Run the independent initialization tasks in parallel for better performance
-        let (provider, workflow) = tokio::try_join!(
-            self.init_provider(),
-            self.api.read_workflow(self.cli.workflow.as_deref())
-        )?;
+        let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
 
         // Ensure we have a model selected before proceeding with initialization
         if self.api.get_operating_model().await.is_none() {
@@ -877,7 +1184,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let get_agents_fut = self.api.get_agents();
         let get_operating_agent_fut = self.api.get_operating_agent();
 
-        let (write_workflow_result, agents_result, operating_agent_result) =
+        let (write_workflow_result, agents_result, _operating_agent_result) =
             tokio::join!(write_workflow_fut, get_agents_fut, get_operating_agent_fut);
 
         // Handle workflow write result first as it's critical for the system state
@@ -902,39 +1209,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         }
 
-        // Get the operating agent with fallback to default
-        let agent = operating_agent_result.unwrap_or_default();
-
         // Finalize UI state initialization by registering commands and setting up the
         // state
         self.command.register_all(&base_workflow);
         let operating_model = self.api.get_operating_model().await;
-        self.state =
-            UIState::new(self.api.environment(), agent, operating_model.clone()).provider(provider);
+        self.state = UIState::new(self.api.environment());
         self.update_model(operating_model);
 
         Ok(workflow)
     }
 
-    async fn init_provider(&self) -> Result<Provider> {
-        self.api.get_provider().await
-        // match self.api.provider().await {
-        //     // Use the forge key if available in the config.
-        //     Ok(provider) => Ok(provider),
-        //     Err(_) => {
-        //         // If no key is available, start the login flow.
-        //         // self.login().await?;
-        //         let config: AppConfig = self.api.app_config().await?;
-        //         tracker::login(
-        //             config
-        //                 .key_info
-        //                 .and_then(|v| v.auth_provider_id)
-        //                 .unwrap_or_default(),
-        //         );
-        //         self.api.provider().await
-        //     }
-        // }
-    }
     async fn login(&mut self) -> Result<()> {
         let auth = self.api.init_login().await?;
         open::that(auth.auth_url.as_str()).ok();
@@ -956,12 +1240,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let conversation_id = self.init_conversation().await?;
 
         // Create a ChatRequest with the appropriate event type
-        let event = if self.state.is_first {
-            self.state.is_first = false;
-            self.create_task_event(content, EVENT_USER_TASK_INIT)?
-        } else {
-            self.create_task_event(content, EVENT_USER_TASK_UPDATE)?
-        };
+        let operating_agent = self.api.get_operating_agent().await.unwrap_or_default();
+        let event = Event::new(format!("{operating_agent}"), content);
 
         // Create the chat request with the event
         let chat = ChatRequest::new(event, conversation_id);
@@ -1068,10 +1348,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     return Ok(());
                 }
             }
-            ChatResponse::Usage(usage) => {
-                // Accumulate all metrics (tokens + cost) instead of overwriting
-                self.state.usage = self.state.usage.clone().accumulate(&usage);
-            }
+            ChatResponse::Usage(_) => {}
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 if !self.api.environment().retry_config.suppress_retry_errors {
                     self.spinner.start(Some("Retrying"))?;
@@ -1129,11 +1406,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .await?
             .ok_or(anyhow::anyhow!("Conversation not found: {conversation_id}"))?;
 
-        let info = Info::default().extend(&conversation).extend(&self.state);
-
-        // if let Ok(Some(usage)) = self.api.user_usage().await {
-        //     info = info.extend(Info::from(&usage));
-        // }
+        let info = Info::default().extend(&conversation);
 
         self.writeln(info)?;
 
@@ -1164,7 +1437,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         if let Some(ref model) = model {
             tracker::set_model(model.to_string());
         }
-        self.state.model = model;
     }
 
     async fn on_custom_event(&mut self, event: Event) -> Result<()> {
@@ -1183,7 +1455,26 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn on_usage(&mut self) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Usage"))?;
-        let mut info: Info = (&self.state.usage).into();
+
+        // Get usage from current conversation if available
+        let conversation_usage = if let Some(conversation_id) = &self.state.conversation_id {
+            self.api
+                .conversation(conversation_id)
+                .await
+                .ok()
+                .flatten()
+                .and_then(|conv| conv.context)
+                .and_then(|ctx| ctx.usage)
+        } else {
+            None
+        };
+
+        let mut info = if let Some(usage) = conversation_usage {
+            Info::from(&usage)
+        } else {
+            Info::new()
+        };
+
         if let Ok(Some(user_usage)) = self.api.user_usage().await {
             info = info.extend(Info::from(&user_usage));
         }
@@ -1202,189 +1493,5 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 tracker::login(user_info.auth_provider_id.into_string());
             }
         });
-    }
-}
-
-fn parse_env(env: Vec<String>) -> BTreeMap<String, String> {
-    env.into_iter()
-        .filter_map(|s| {
-            let mut parts = s.splitn(2, '=');
-            if let (Some(key), Some(value)) = (parts.next(), parts.next()) {
-                Some((key.to_string(), value.to_string()))
-            } else {
-                None
-            }
-        })
-        .collect()
-}
-
-struct CliModel(Model);
-
-impl Display for CliModel {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0.id)?;
-
-        let mut info_parts = Vec::new();
-
-        // Add context length if available
-        if let Some(limit) = self.0.context_length {
-            if limit >= 1_000_000 {
-                info_parts.push(format!("{}M", limit / 1_000_000));
-            } else if limit >= 1000 {
-                info_parts.push(format!("{}k", limit / 1000));
-            } else {
-                info_parts.push(format!("{limit}"));
-            }
-        }
-
-        // Add tools support indicator if explicitly supported
-        if self.0.tools_supported == Some(true) {
-            info_parts.push("🛠️".to_string());
-        }
-
-        // Only show brackets if we have info to display
-        if !info_parts.is_empty() {
-            let info = format!("[ {} ]", info_parts.join(" "));
-            write!(f, " {}", info.dimmed())?;
-        }
-
-        Ok(())
-    }
-}
-
-struct CliProvider(Provider);
-
-impl Display for CliProvider {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = self.0.id.to_string();
-        write!(f, "{}", name)?;
-        if let Some(domain) = self.0.url.domain() {
-            write!(f, " [{}]", domain)?;
-        }
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use console::strip_ansi_codes;
-    use forge_domain::{Model, ModelId};
-    use pretty_assertions::assert_eq;
-
-    use super::*;
-
-    fn create_model_fixture(
-        id: &str,
-        context_length: Option<u64>,
-        tools_supported: Option<bool>,
-    ) -> Model {
-        Model {
-            id: ModelId::new(id),
-            name: None,
-            description: None,
-            context_length,
-            tools_supported,
-            supports_parallel_tool_calls: None,
-            supports_reasoning: None,
-        }
-    }
-
-    #[test]
-    fn test_cli_model_display_with_context_and_tools() {
-        let fixture = create_model_fixture("gpt-4", Some(128000), Some(true));
-        let formatted = format!("{}", CliModel(fixture));
-        let actual = strip_ansi_codes(&formatted);
-        let expected = "gpt-4 [ 128k 🛠️ ]";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_cli_model_display_with_large_context() {
-        let fixture = create_model_fixture("claude-3", Some(2000000), Some(true));
-        let formatted = format!("{}", CliModel(fixture));
-        let actual = strip_ansi_codes(&formatted);
-        let expected = "claude-3 [ 2M 🛠️ ]";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_cli_model_display_with_small_context() {
-        let fixture = create_model_fixture("small-model", Some(512), Some(false));
-        let formatted = format!("{}", CliModel(fixture));
-        let actual = strip_ansi_codes(&formatted);
-        let expected = "small-model [ 512 ]";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_cli_model_display_with_context_only() {
-        let fixture = create_model_fixture("text-model", Some(4096), Some(false));
-        let formatted = format!("{}", CliModel(fixture));
-        let actual = strip_ansi_codes(&formatted);
-        let expected = "text-model [ 4k ]";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_cli_model_display_with_tools_only() {
-        let fixture = create_model_fixture("tool-model", None, Some(true));
-        let formatted = format!("{}", CliModel(fixture));
-        let actual = strip_ansi_codes(&formatted);
-        let expected = "tool-model [ 🛠️ ]";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_cli_model_display_empty_context_and_no_tools() {
-        let fixture = create_model_fixture("basic-model", None, Some(false));
-        let formatted = format!("{}", CliModel(fixture));
-        let actual = strip_ansi_codes(&formatted);
-        let expected = "basic-model";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_cli_model_display_empty_context_and_none_tools() {
-        let fixture = create_model_fixture("unknown-model", None, None);
-        let formatted = format!("{}", CliModel(fixture));
-        let actual = strip_ansi_codes(&formatted);
-        let expected = "unknown-model";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_cli_model_display_exact_thousands() {
-        let fixture = create_model_fixture("exact-k", Some(8000), Some(true));
-        let formatted = format!("{}", CliModel(fixture));
-        let actual = strip_ansi_codes(&formatted);
-        let expected = "exact-k [ 8k 🛠️ ]";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_cli_model_display_exact_millions() {
-        let fixture = create_model_fixture("exact-m", Some(1000000), Some(true));
-        let formatted = format!("{}", CliModel(fixture));
-        let actual = strip_ansi_codes(&formatted);
-        let expected = "exact-m [ 1M 🛠️ ]";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_cli_model_display_edge_case_999() {
-        let fixture = create_model_fixture("edge-999", Some(999), None);
-        let formatted = format!("{}", CliModel(fixture));
-        let actual = strip_ansi_codes(&formatted);
-        let expected = "edge-999 [ 999 ]";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_cli_model_display_edge_case_1001() {
-        let fixture = create_model_fixture("edge-1001", Some(1001), None);
-        let formatted = format!("{}", CliModel(fixture));
-        let actual = strip_ansi_codes(&formatted);
-        let expected = "edge-1001 [ 1k ]";
-        assert_eq!(actual, expected);
     }
 }
