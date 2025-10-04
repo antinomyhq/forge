@@ -113,6 +113,9 @@ pub enum TopLevelCommand {
     /// Lists all the commands
     ShowCommands,
 
+    /// Lists all the tools
+    ShowTools,
+
     /// Display the banner with version and helpful information
     ShowBanner,
 
@@ -575,5 +578,15 @@ mod tests {
         // This should fail because --id is required
         let result = Cli::try_parse_from(["forge", "session", "retry"]);
         assert!(result.is_err(), "Expected error when --id is not provided");
+    }
+
+    #[test]
+    fn test_show_tools_command() {
+        let fixture = Cli::parse_from(["forge", "show-tools"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::ShowTools) => true,
+            _ => false,
+        };
+        assert!(actual, "Expected ShowTools subcommand");
     }
 }

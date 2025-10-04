@@ -181,6 +181,7 @@ impl ForgeCommandManager {
                 | "update"
                 | "dump"
                 | "model"
+                | "tool"
                 | "tools"
                 | "login"
                 | "logout"
@@ -355,12 +356,15 @@ impl ForgeCommandManager {
             "/help" => Ok(Command::Help),
             "/model" => Ok(Command::Model),
             "/provider" => Ok(Command::Provider),
-            "/tools" => Ok(Command::Tools),
+            "/tool" => Ok(Command::Tool),
             "/agent" => Ok(Command::Agent),
             "/login" => Ok(Command::Login),
             "/logout" => Ok(Command::Logout),
             "/retry" => Ok(Command::Retry),
             "/conversations" | "/list" => Ok(Command::Conversations),
+            "/tools" => Err(anyhow::anyhow!(
+                "The '/tools' command has been renamed to '/tool'. Please use '/tool' instead."
+            )),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -460,9 +464,9 @@ pub enum Command {
     #[strum(props(usage = "Switch to a different provider"))]
     Provider,
     /// List all available tools with their descriptions and schema
-    /// This can be triggered with the '/tools' command.
+    /// This can be triggered with the '/tool' command.
     #[strum(props(usage = "List all available tools with their descriptions and schema"))]
-    Tools,
+    Tool,
     /// Handles custom command defined in workflow file.
     Custom(PartialEvent),
     /// Executes a native shell command.
@@ -511,7 +515,7 @@ impl Command {
             Command::Dump(_) => "dump",
             Command::Model => "model",
             Command::Provider => "provider",
-            Command::Tools => "tools",
+            Command::Tool => "tool",
             Command::Custom(event) => &event.name,
             Command::Shell(_) => "!shell",
             Command::Agent => "agent",
@@ -1032,6 +1036,41 @@ mod tests {
                 .unwrap_err()
                 .to_string()
                 .contains("not a valid agent command")
+        );
+    }
+
+    #[test]
+    fn test_parse_tool_command() {
+        // Setup
+        let fixture = ForgeCommandManager::default();
+
+        // Execute
+        let result = fixture.parse("/tool").unwrap();
+
+        // Verify
+        match result {
+            Command::Tool => {
+                // Command parsed correctly
+            }
+            _ => panic!("Expected Tool command, got {result:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_tools_command_error() {
+        // Setup
+        let fixture = ForgeCommandManager::default();
+
+        // Execute
+        let result = fixture.parse("/tools");
+
+        // Verify
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("renamed to '/tool'")
         );
     }
 }

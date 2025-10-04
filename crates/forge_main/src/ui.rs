@@ -363,6 +363,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_show_commands().await?;
                 return Ok(());
             }
+            TopLevelCommand::ShowTools => {
+                self.on_show_tools().await?;
+                return Ok(());
+            }
             TopLevelCommand::ShowBanner => {
                 banner::display(true)?;
                 return Ok(());
@@ -594,6 +598,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 "compact".to_string(),
                 "Compact the conversation context".to_string(),
             ),
+            ("tool".to_string(), "List all available tools with their descriptions and schema".to_string()),
         ];
 
         // Add alias commands
@@ -614,6 +619,18 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         format_columns(commands);
+
+        Ok(())
+    }
+
+    /// Lists all the tools
+    async fn on_show_tools(&mut self) -> anyhow::Result<()> {
+        self.spinner.start(Some("Loading"))?;
+        use crate::tools_display::format_tools;
+        let all_tools = self.api.tools().await?;
+        let agent_tools = self.agent_tools().await?;
+        let info = format_tools(&agent_tools, &all_tools);
+        self.writeln(info)?;
 
         Ok(())
     }
@@ -781,7 +798,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 let info = Info::from(self.command.as_ref());
                 self.writeln(info)?;
             }
-            Command::Tools => {
+            Command::Tool => {
                 self.spinner.start(Some("Loading"))?;
                 use crate::tools_display::format_tools;
                 let all_tools = self.api.tools().await?;
