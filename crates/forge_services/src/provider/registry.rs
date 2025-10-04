@@ -158,19 +158,26 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
 
     async fn get_active_model(&self) -> anyhow::Result<ModelId> {
         let app_config = self.infra.get_app_config().await?;
-        if let Some(model_id) = app_config.active_model {
-            return Ok(model_id);
+        if let Some(provider_id) = app_config.active_provider
+            && let Some(model_id) = app_config.provider_model.get(&provider_id)
+        {
+            return Ok(model_id.clone());
         }
 
-        // No active model set, throw an error
+        // No active model set for the active provider, throw an error
         Err(forge_app::Error::NoActiveModel.into())
     }
 
     async fn set_active_model(&self, model: ModelId) -> anyhow::Result<()> {
-        self.update(|config| {
-            config.active_model = Some(model.clone());
-        })
-        .await
+        let app_config = self.infra.get_app_config().await?;
+        if let Some(provider_id) = app_config.active_provider {
+            self.update(|config| {
+                config.provider_model.insert(provider_id, model.clone());
+            })
+            .await
+        } else {
+            Err(forge_app::Error::NoActiveProvider.into())
+        }
     }
 
     async fn get_active_agent(&self) -> anyhow::Result<Option<AgentId>> {

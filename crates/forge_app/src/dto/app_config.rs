@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use derive_more::From;
 use forge_domain::{AgentId, ModelId};
 use serde::{Deserialize, Serialize};
@@ -20,8 +22,8 @@ pub struct AppConfig {
     pub active_agent: Option<AgentId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_provider: Option<ProviderId>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub active_model: Option<ModelId>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub provider_model: HashMap<ProviderId, ModelId>,
 }
 
 #[derive(Clone, Serialize, Deserialize, From, Debug, PartialEq)]
