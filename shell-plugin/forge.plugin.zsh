@@ -294,7 +294,7 @@ function forge-accept-line() {
     # Handle tools command specially
     if [[ "$user_action" == "tool" ]]; then
         echo
-        $_FORGE_BIN show-tools
+        $_FORGE_BIN show-tools "${FORGE_ACTIVE_AGENT}"
         BUFFER=""
         CURSOR=${#BUFFER}
         zle reset-prompt

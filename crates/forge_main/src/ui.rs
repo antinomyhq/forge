@@ -363,8 +363,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_show_commands().await?;
                 return Ok(());
             }
-            TopLevelCommand::ShowTools => {
-                self.on_show_tools().await?;
+            TopLevelCommand::ShowTools { agent } => {
+                self.on_show_tools(agent).await?;
                 return Ok(());
             }
             TopLevelCommand::ShowBanner => {
@@ -627,11 +627,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     /// Lists all the tools
-    async fn on_show_tools(&mut self) -> anyhow::Result<()> {
+    async fn on_show_tools(&mut self, agent: AgentId) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading"))?;
         use crate::tools_display::format_tools;
         let all_tools = self.api.tools().await?;
-        let agent_tools = self.agent_tools().await?;
+
+        let agent_tools = self.agent_tools_for_id(&agent).await?;
         let info = format_tools(&agent_tools, &all_tools);
         self.writeln(info)?;
 
@@ -689,8 +690,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn agent_tools(&self) -> anyhow::Result<Vec<ToolName>> {
         let agent_id = self.api.get_operating_agent().await.unwrap_or_default();
+        self.agent_tools_for_id(&agent_id).await
+    }
+
+    async fn agent_tools_for_id(
+        &self,
+        agent_id: &forge_api::AgentId,
+    ) -> anyhow::Result<Vec<ToolName>> {
         let agents = self.api.get_agents().await?;
-        let agent = agents.into_iter().find(|agent| agent.id == agent_id);
+        let agent = agents.into_iter().find(|agent| agent.id == *agent_id);
         Ok(agent
             .and_then(|agent| agent.tools.clone())
             .into_iter()

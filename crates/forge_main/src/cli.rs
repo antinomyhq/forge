@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
+use forge_domain::AgentId;
 
 #[derive(Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
@@ -113,8 +114,11 @@ pub enum TopLevelCommand {
     /// Lists all the commands
     ShowCommands,
 
-    /// Lists all the tools
-    ShowTools,
+    /// Lists all the tools for a specific agent
+    ShowTools {
+        /// Agent ID to show tools for
+        agent: AgentId,
+    },
 
     /// Display the banner with version and helpful information
     ShowBanner,
@@ -581,12 +585,13 @@ mod tests {
     }
 
     #[test]
-    fn test_show_tools_command() {
-        let fixture = Cli::parse_from(["forge", "show-tools"]);
+    fn test_show_tools_command_with_agent() {
+        let fixture = Cli::parse_from(["forge", "show-tools", "sage"]);
         let actual = match fixture.subcommands {
-            Some(TopLevelCommand::ShowTools) => true,
-            _ => false,
+            Some(TopLevelCommand::ShowTools { agent }) => agent,
+            _ => AgentId::default(),
         };
-        assert!(actual, "Expected ShowTools subcommand");
+        let expected = AgentId::new("sage");
+        assert_eq!(actual, expected);
     }
 }
