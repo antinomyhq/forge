@@ -8,6 +8,7 @@ use forge_api::{
     API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
     InterruptionReason, Model, ModelId, Provider, Workflow,
 };
+use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
 use forge_display::MarkdownFormat;
 use forge_domain::{ChatResponseContent, McpConfig, McpServerConfig, Scope, TitleFormat};
@@ -29,6 +30,7 @@ use crate::prompt::ForgePrompt;
 use crate::select::ForgeSelect;
 use crate::state::UIState;
 use crate::title_display::TitleDisplayExt;
+use crate::tools_display::format_tools;
 use crate::update::on_update;
 use crate::{TRACKER, banner, tracker};
 
@@ -621,15 +623,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Displays available tools for the current agent
     async fn on_show_tools(&mut self) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading"))?;
-        use forge_app::ToolResolver;
-
-        use crate::tools_display::format_tools;
-
         let all_tools = self.api.tools().await?;
         let agent_id = self.api.get_operating_agent().await.unwrap_or_default();
         let agents = self.api.get_agents().await?;
         let agent = agents.into_iter().find(|agent| agent.id == agent_id);
-
         let agent_tools = if let Some(agent) = agent {
             let resolver = ToolResolver::new(all_tools.clone().into());
             resolver
