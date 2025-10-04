@@ -5,7 +5,7 @@ use forge_app::domain::{AgentId, ModelId};
 use forge_app::dto::{Provider, ProviderId, ProviderResponse};
 use handlebars::Handlebars;
 use serde::Deserialize;
-use strum::IntoEnumIterator;
+use tokio::sync::OnceCell;
 use url::Url;
 
 use crate::{AppConfigRepository, EnvironmentInfra, ProviderError};
@@ -38,32 +38,51 @@ fn get_provider_configs() -> &'static Vec<ProviderConfig> {
 pub struct ForgeProviderRegistry<F> {
     infra: Arc<F>,
     handlebars: &'static Handlebars<'static>,
+    providers: OnceCell<Vec<Provider>>,
 }
 
 impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        Self { infra, handlebars: get_handlebars() }
+        Self {
+            infra,
+            handlebars: get_handlebars(),
+            providers: OnceCell::new(),
+        }
     }
 
-    fn provider_from_id(&self, id: forge_app::dto::ProviderId) -> anyhow::Result<Provider> {
-        // Handle special cases first
-        if id == ProviderId::Forge {
-            // Forge provider isn't typically configured via env vars in the registry
-            return Err(ProviderError::provider_not_available(ProviderId::Forge).into());
-        }
+    async fn get_providers(&self) -> &Vec<Provider> {
+        self.providers
+            .get_or_init(|| async { self.init_providers() })
+            .await
+    }
 
-        // Load provider config from JSON
+    fn init_providers(&self) -> Vec<Provider> {
         let configs = get_provider_configs();
-        let config = configs
-            .iter()
-            .find(|c| c.id == id)
-            .ok_or_else(|| anyhow::anyhow!("Provider config not found for id: {:?}", id))?;
+        let provider_url_override = self.provider_url();
 
+        configs
+            .iter()
+            .filter_map(|config| {
+                // Skip Forge provider as it's handled specially
+                if config.id == ProviderId::Forge {
+                    return None;
+                }
+                self.create_provider(config, provider_url_override.clone())
+                    .ok()
+            })
+            .collect()
+    }
+
+    fn create_provider(
+        &self,
+        config: &ProviderConfig,
+        provider_url_override: Option<(ProviderResponse, Url)>,
+    ) -> anyhow::Result<Provider> {
         // Check API key environment variable
         let api_key = self
             .infra
             .get_env_var(&config.api_key_vars)
-            .ok_or_else(|| ProviderError::env_var_not_found(id, &config.api_key_vars))?;
+            .ok_or_else(|| ProviderError::env_var_not_found(config.id, &config.api_key_vars))?;
 
         // Check URL parameter environment variables and build template data
         let mut template_data = std::collections::HashMap::new();
@@ -73,28 +92,29 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
                 let key_name = env_var.to_lowercase().replace('_', "");
                 template_data.insert(key_name, value);
             } else {
-                return Err(ProviderError::env_var_not_found(id, env_var).into());
+                return Err(ProviderError::env_var_not_found(config.id, env_var).into());
             }
         }
 
-        // Render URL using handlebars (always render, no need to check for template
-        // syntax)
+        // Render URL using handlebars
         let url = self
             .handlebars
             .render_template(&config.url, &template_data)
-            .map_err(|e| anyhow::anyhow!("Failed to render URL template for {}: {}", id, e))?;
+            .map_err(|e| {
+                anyhow::anyhow!("Failed to render URL template for {}: {}", config.id, e)
+            })?;
 
         // Handle URL overrides for OpenAI and Anthropic (preserve existing behavior)
-        let final_url = match id {
+        let final_url = match config.id {
             ProviderId::OpenAI => {
-                if let Some((ProviderResponse::OpenAI, override_url)) = self.provider_url() {
+                if let Some((ProviderResponse::OpenAI, override_url)) = provider_url_override {
                     override_url
                 } else {
                     Url::parse(&url)?
                 }
             }
             ProviderId::Anthropic => {
-                if let Some((ProviderResponse::Anthropic, override_url)) = self.provider_url() {
+                if let Some((ProviderResponse::Anthropic, override_url)) = provider_url_override {
                     override_url
                 } else {
                     Url::parse(&url)?
@@ -104,16 +124,32 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
         };
 
         Ok(Provider {
-            id,
+            id: config.id,
             response: config.response_type.clone(),
             url: final_url,
             key: Some(api_key),
         })
     }
 
+    async fn provider_from_id(&self, id: forge_app::dto::ProviderId) -> anyhow::Result<Provider> {
+        // Handle special cases first
+        if id == ProviderId::Forge {
+            // Forge provider isn't typically configured via env vars in the registry
+            return Err(ProviderError::provider_not_available(ProviderId::Forge).into());
+        }
+
+        // Look up provider from cached providers
+        self.get_providers()
+            .await
+            .iter()
+            .find(|p| p.id == id)
+            .cloned()
+            .ok_or_else(|| ProviderError::provider_not_available(id).into())
+    }
+
     async fn get_first_available_provider(&self) -> anyhow::Result<Provider> {
-        self.get_all_providers()
-            .await?
+        self.get_providers()
+            .await
             .first()
             .cloned()
             .ok_or_else(|| forge_app::Error::NoActiveProvider.into())
@@ -151,7 +187,7 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
     async fn get_active_provider(&self) -> anyhow::Result<Provider> {
         let app_config = self.infra.get_app_config().await?;
         if let Some(provider_id) = app_config.provider {
-            return self.provider_from_id(provider_id);
+            return self.provider_from_id(provider_id).await;
         }
 
         // No active provider set, try to find the first available one
@@ -166,14 +202,7 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
     }
 
     async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
-        // Define all provider IDs in order of preference
-
-        let mut providers = ProviderId::iter().collect::<Vec<_>>();
-        providers.sort();
-        Ok(providers
-            .iter()
-            .filter_map(|id| self.provider_from_id(*id).ok())
-            .collect::<Vec<_>>())
+        Ok(self.get_providers().await.clone())
     }
 
     async fn get_active_model(&self) -> anyhow::Result<ModelId> {
