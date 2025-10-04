@@ -23,27 +23,7 @@ static HANDLEBARS: OnceLock<Handlebars<'static>> = OnceLock::new();
 static PROVIDER_CONFIGS: OnceLock<Vec<ProviderConfig>> = OnceLock::new();
 
 fn get_handlebars() -> &'static Handlebars<'static> {
-    HANDLEBARS.get_or_init(|| {
-        let mut hb = Handlebars::new();
-        // Register the 'eq' helper for equality comparisons
-        hb.register_helper(
-            "eq",
-            Box::new(
-                |h: &handlebars::Helper,
-                 _r: &Handlebars,
-                 _: &handlebars::Context,
-                 _rc: &mut handlebars::RenderContext,
-                 out: &mut dyn handlebars::Output|
-                 -> handlebars::HelperResult {
-                    let param0 = h.param(0).and_then(|v| v.value().as_str());
-                    let param1 = h.param(1).and_then(|v| v.value().as_str());
-                    out.write(if param0 == param1 { "true" } else { "" })?;
-                    Ok(())
-                },
-            ),
-        );
-        hb
-    })
+    HANDLEBARS.get_or_init(Handlebars::new)
 }
 
 fn get_provider_configs() -> &'static Vec<ProviderConfig> {
@@ -170,7 +150,7 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
 impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProviderRegistry<F> {
     async fn get_active_provider(&self) -> anyhow::Result<Provider> {
         let app_config = self.infra.get_app_config().await?;
-        if let Some(provider_id) = app_config.active_provider {
+        if let Some(provider_id) = app_config.provider {
             return self.provider_from_id(provider_id);
         }
 
@@ -180,7 +160,7 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
 
     async fn set_active_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
         self.update(|config| {
-            config.active_provider = Some(provider_id);
+            config.provider = Some(provider_id);
         })
         .await
     }
@@ -198,8 +178,8 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
 
     async fn get_active_model(&self) -> anyhow::Result<ModelId> {
         let app_config = self.infra.get_app_config().await?;
-        if let Some(provider_id) = app_config.active_provider
-            && let Some(model_id) = app_config.provider_model.get(&provider_id)
+        if let Some(provider_id) = app_config.provider
+            && let Some(model_id) = app_config.model.get(&provider_id)
         {
             return Ok(model_id.clone());
         }
@@ -209,25 +189,21 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
     }
 
     async fn set_active_model(&self, model: ModelId) -> anyhow::Result<()> {
-        let app_config = self.infra.get_app_config().await?;
-        if let Some(provider_id) = app_config.active_provider {
-            self.update(|config| {
-                config.provider_model.insert(provider_id, model.clone());
-            })
-            .await
-        } else {
-            Err(forge_app::Error::NoActiveProvider.into())
-        }
+        let provider_id = self.get_active_provider().await?.id;
+        self.update(|config| {
+            config.model.insert(provider_id, model.clone());
+        })
+        .await
     }
 
     async fn get_active_agent(&self) -> anyhow::Result<Option<AgentId>> {
         let app_config = self.infra.get_app_config().await?;
-        Ok(app_config.active_agent)
+        Ok(app_config.agent)
     }
 
     async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()> {
         self.update(|config| {
-            config.active_agent = Some(agent_id);
+            config.agent = Some(agent_id);
         })
         .await
     }

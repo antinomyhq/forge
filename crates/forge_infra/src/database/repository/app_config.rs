@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use anyhow::Context as _;
 use forge_app::dto::AppConfig;
 use forge_fs::ForgeFS;
 use forge_services::AppConfigRepository;
@@ -25,7 +26,10 @@ impl AppConfigRepositoryImpl {
             return Ok(default_config);
         }
 
-        let content = ForgeFS::read_utf8(&self.config_path).await?;
+        let path = &self.config_path;
+        let content = ForgeFS::read_utf8(&path)
+            .await
+            .with_context(|| format!("Failed to read app config: {}", path.display()))?;
         Ok(serde_json::from_str(&content)?)
     }
 
