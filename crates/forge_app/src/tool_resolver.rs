@@ -27,6 +27,7 @@ impl ToolResolver {
         let matchers = self.build_matchers(agent);
         let mut resolved = self.match_tools(&matchers);
         self.ensure_attempt_completion(&mut resolved);
+        self.dedupe_tools(&mut resolved);
         self.sort_tools(&mut resolved);
         resolved
     }
@@ -76,6 +77,12 @@ impl ToolResolver {
         {
             resolved.push(attempt_completion.clone());
         }
+    }
+
+    /// Deduplicates tool definitions by name, keeping the first occurrence
+    fn dedupe_tools(&self, resolved: &mut Vec<ToolDefinition>) {
+        let mut seen = HashSet::new();
+        resolved.retain(|tool| seen.insert(tool.name.clone()));
     }
 
     /// Sorts tool definitions alphabetically by name
