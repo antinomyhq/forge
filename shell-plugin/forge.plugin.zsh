@@ -203,11 +203,9 @@ function forge-accept-line() {
         echo
         
         # Run forge info
-        $_FORGE_BIN info
-        
-        BUFFER=""
+        BUFFER="$_FORGE_BIN info"
         CURSOR=${#BUFFER}
-        zle reset-prompt
+        zle accept-line
         return 0
     fi
 
