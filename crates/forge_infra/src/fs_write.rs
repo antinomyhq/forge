@@ -34,7 +34,7 @@ impl<S: SnapshotInfra> FileWriterInfra for ForgeFileWriteService<S> {
         capture_snapshot: bool,
     ) -> anyhow::Result<()> {
         self.create_parent_dirs(path).await?;
-        if forge_fs::ForgeFS::exists(path) && capture_snapshot {
+        if capture_snapshot {
             let _ = self.snaps.create_snapshot(path).await?;
         }
 
