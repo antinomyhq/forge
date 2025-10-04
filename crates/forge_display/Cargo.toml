@@ -11,6 +11,8 @@ similar.workspace = true
 console.workspace = true
 regex.workspace = true
 termimad.workspace = true
+syntect = "5.2"
+lazy-regex = "3.0"
 
 [dev-dependencies]
 insta.workspace = true

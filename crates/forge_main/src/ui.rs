@@ -10,10 +10,10 @@ use forge_api::{
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
-use forge_display::MarkdownFormat;
+use forge_display::{MarkdownRenderer, MarkdownWriter};
 use forge_domain::{ChatResponseContent, McpConfig, McpServerConfig, Scope, TitleFormat};
 use forge_fs::ForgeFS;
-use forge_spinner::SpinnerManager;
+use forge_spinner::{ForgeSpinner, SpinnerManager, StdoutWriter, WriterWrapper};
 use forge_tracker::ToolCallPayload;
 use merge::Merge;
 use tokio_stream::StreamExt;
@@ -38,14 +38,14 @@ use crate::{TRACKER, banner, tracker};
 const MAX_CONVERSATIONS_TO_SHOW: usize = 20;
 
 pub struct UI<A, F: Fn() -> A> {
-    markdown: MarkdownFormat,
+    markdown: MarkdownWriter<'static>,
     state: UIState,
     api: Arc<F::Output>,
     new_api: Arc<F>,
     console: Console,
     command: Arc<ForgeCommandManager>,
     cli: Cli,
-    spinner: SpinnerManager,
+    spinner: SpinnerManager<StdoutWriter, ForgeSpinner>,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
 }
@@ -129,6 +129,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let api = Arc::new(f());
         let env = api.environment();
         let command = Arc::new(ForgeCommandManager::default());
+        let writer = Arc::new(std::sync::Mutex::new(WriterWrapper::new(StdoutWriter)));
+        let spinner = SpinnerManager::new(writer.clone(), ForgeSpinner::new());
+        let markdown =
+            MarkdownWriter::new(MarkdownRenderer::default(), Box::new(std::io::stdout()));
         Ok(Self {
             state: Default::default(),
             api,
@@ -136,8 +140,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             console: Console::new(env.clone(), command.clone()),
             cli,
             command,
-            spinner: SpinnerManager::new(),
-            markdown: MarkdownFormat::new(),
+            spinner,
+            markdown,
             _guard: forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?,
         })
     }
@@ -1275,14 +1279,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             match message {
                 Ok(message) => self.handle_chat_response(message).await?,
                 Err(err) => {
-                    self.spinner.stop(None)?;
                     return Err(err);
                 }
             }
         }
 
-        self.spinner.stop(None)?;
-
+        let _ = self.markdown.flush();
+        self.spinner.start(None)?;
         Ok(())
     }
 
@@ -1342,11 +1345,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 ChatResponseContent::Title(title) => self.writeln(title.display())?,
                 ChatResponseContent::PlainText(text) => self.writeln(text)?,
                 ChatResponseContent::Markdown(text) => {
-                    tracing::info!(message = %text, "Agent Response");
-                    self.writeln(self.markdown.render(&text))?;
+                    self.spinner.stop(None)?;
+                    self.markdown.add_chunk(&text);
                 }
             },
             ChatResponse::ToolCallStart(_) => {
+                let _ = self.spinner.write("\n");
                 self.spinner.stop(None)?;
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
@@ -1390,10 +1394,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.should_continue().await?;
             }
             ChatResponse::TaskReasoning { content } => {
-                if !content.trim().is_empty() {
-                    let rendered_content = self.markdown.render(&content);
-                    self.writeln(rendered_content.dimmed())?;
-                }
+                self.spinner.write(content.dimmed().to_string())?;
             }
             ChatResponse::TaskComplete => {
                 if let Some(conversation_id) = self.state.conversation_id {
@@ -1419,6 +1420,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn on_completion(&mut self, conversation_id: ConversationId) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Summary"))?;
+        let _ = self.markdown.flush();
         let conversation = self
             .api
             .conversation(&conversation_id)
@@ -1428,7 +1430,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let info = Info::default().extend(&conversation);
 
         self.writeln(info)?;
-
         self.spinner.stop(None)?;
 
         // Only prompt for new conversation if in interactive mode

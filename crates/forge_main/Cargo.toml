@@ -58,4 +58,3 @@ tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
 insta.workspace = true
 pretty_assertions.workspace = true
 tempfile.workspace = true
-serial_test = "3.2"

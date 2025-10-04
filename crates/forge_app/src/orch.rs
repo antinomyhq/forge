@@ -230,8 +230,9 @@ impl<S: AgentService> Orchestrator<S> {
             .services
             .chat_agent(model_id, transformers.transform(context))
             .await?;
-
-        response.into_full(!tool_supported).await
+        response
+            .into_full(!tool_supported, self.sender.clone())
+            .await
     }
     /// Checks if compaction is needed and performs it if necessary
     async fn check_and_compact(&self, context: &Context) -> anyhow::Result<Option<Context>> {
@@ -404,7 +405,7 @@ impl<S: AgentService> Orchestrator<S> {
                     tool_calls,
                     content,
                     usage,
-                    reasoning,
+                    reasoning: _,
                     reasoning_details,
                     finish_reason,
                 },
@@ -462,29 +463,6 @@ impl<S: AgentService> Orchestrator<S> {
                 .iter()
                 .any(|call| Tools::should_yield(&call.name));
 
-            if !is_complete && has_tool_calls {
-                // If task is completed we would have already displayed a message so we can
-                // ignore the content that's collected from the stream
-                // NOTE: Important to send the content messages before the tool call happens
-                self.send(ChatResponse::TaskMessage {
-                    content: ChatResponseContent::Markdown(
-                        remove_tag_with_prefix(&content, "forge_")
-                            .as_str()
-                            .to_string(),
-                    ),
-                })
-                .await?;
-            }
-
-            if let Some(reasoning) = reasoning.as_ref()
-                && !is_complete
-                && context.is_reasoning_supported()
-            {
-                // If reasoning is present, send it as a separate message
-                self.send(ChatResponse::TaskReasoning { content: reasoning.to_string() })
-                    .await?;
-            }
-
             // Process tool calls and update context
             let mut tool_call_records = self.execute_tool_calls(&tool_calls, &tool_context).await?;
 
@@ -515,14 +493,6 @@ impl<S: AgentService> Orchestrator<S> {
                     // No tools were called in the previous turn nor were they called in this step;
                     // Means that this is conversation.
 
-                    self.send(ChatResponse::TaskMessage {
-                        content: ChatResponseContent::Markdown(
-                            remove_tag_with_prefix(&content, "forge_")
-                                .as_str()
-                                .to_string(),
-                        ),
-                    })
-                    .await?;
                     is_complete = true;
                     self.error_tracker
                         .succeed(&ToolsDiscriminants::AttemptCompletion.name());
