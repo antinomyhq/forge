@@ -157,6 +157,143 @@ function forge-completion() {
     zle expand-or-complete
 }
 
+# Action handler: Start a new conversation
+function _forge_action_new() {
+    echo
+    _forge_exec show-banner
+    _forge_print_agent_message "FORGE"
+    FORGE_CONVERSATION_ID=""
+    FORGE_ACTIVE_AGENT="forge"
+    _forge_reset
+}
+
+# Action handler: Show info
+function _forge_action_info() {
+    echo
+    _forge_exec info
+    _forge_reset
+}
+
+# Action handler: Dump conversation
+function _forge_action_dump() {
+    local input_text="$1"
+    if [[ "$input_text" == "html" ]]; then
+        _forge_handle_session_command "dump" "html"
+    else
+        _forge_handle_session_command "dump"
+    fi
+}
+
+# Action handler: Compact conversation
+function _forge_action_compact() {
+    _forge_handle_session_command "compact"
+}
+
+# Action handler: Retry last message
+function _forge_action_retry() {
+    _forge_handle_session_command "retry"
+}
+
+# Action handler: List/switch conversations
+function _forge_action_conversation() {
+    echo
+    
+    # Get conversations list
+    local conversations_output
+    conversations_output=$($_FORGE_BIN session --list 2>/dev/null)
+    
+    if [[ -n "$conversations_output" ]]; then
+        # Get current conversation ID if set
+        local current_id="$FORGE_CONVERSATION_ID"
+        
+        # Create prompt with current conversation
+        local prompt_text="Conversation ❯ "
+        if [[ -n "$current_id" ]]; then
+            prompt_text="Conversation [Current: ${current_id}] ❯ "
+        fi
+        
+        local selected_conversation
+        selected_conversation=$(echo "$conversations_output" | _forge_fzf --prompt="$prompt_text")
+        
+        if [[ -n "$selected_conversation" ]]; then
+            # Strip ANSI codes first, then extract the last field (UUID)
+            local conversation_id=$(echo "$selected_conversation" | sed 's/\x1b\[[0-9;]*m//g' | sed 's/\x1b\[K//g' | awk '{print $NF}' | tr -d '\n')
+            
+            # Set the selected conversation as active (in parent shell)
+            FORGE_CONVERSATION_ID="$conversation_id"
+            
+            echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Switched to conversation \033[1m${conversation_id}\033[0m"
+        fi
+    else
+        echo "\033[31m✗\033[0m No conversations found"
+    fi
+    
+    _forge_reset
+}
+
+# Action handler: Select provider
+function _forge_action_provider() {
+    _forge_select_and_set_config "show-providers" "provider" "Provider"
+    _forge_reset
+}
+
+# Action handler: Select model
+function _forge_action_model() {
+    _forge_select_and_set_config "show-models" "model" "Model"
+    _forge_reset
+}
+
+# Action handler: Show tools
+function _forge_action_tools() {
+    echo
+    _forge_exec show-tools "${FORGE_ACTIVE_AGENT}"
+    _forge_reset
+}
+
+# Action handler: Set active agent or execute command
+function _forge_action_default() {
+    local user_action="$1"
+    local input_text="$2"
+    
+    # Validate that the command exists in show-commands (if user_action is provided)
+    if [[ -n "$user_action" ]]; then
+        if [[ -n "$_FORGE_COMMANDS" ]]; then
+            # Check if the user_action is in the list of valid commands
+            if ! echo "$_FORGE_COMMANDS" | grep -q "^${user_action}\b"; then
+                echo
+                echo "\033[31m⏺\033[0m \033[90m[$(date '+%H:%M:%S')]\033[0m \033[1;31mERROR:\033[0m Command '\033[1m${user_action}\033[0m' not found"
+                _forge_reset
+                return 0
+            fi
+        fi
+    fi
+    
+    # If input_text is empty, just set the active agent
+    if [[ -z "$input_text" ]]; then
+        echo
+        FORGE_ACTIVE_AGENT="${user_action:-${FORGE_ACTIVE_AGENT}}"
+        _forge_print_agent_message
+        _forge_reset
+        return 0
+    fi
+    
+    # Generate conversation ID if needed (in parent shell context)
+    if [[ -z "$FORGE_CONVERSATION_ID" ]]; then
+        FORGE_CONVERSATION_ID=$($_FORGE_BIN --generate-conversation-id)
+    fi
+    
+    # Set the active agent for this execution
+    FORGE_ACTIVE_AGENT="${user_action:-${FORGE_ACTIVE_AGENT}}"
+    
+    echo
+    
+    # Execute the forge command directly with proper escaping
+    _forge_exec -p "$input_text"
+    
+    # Reset the prompt
+    _forge_reset
+}
+
 function forge-accept-line() {
     # Save the original command for history
     local original_buffer="$BUFFER"
@@ -183,158 +320,49 @@ function forge-accept-line() {
     # Add the original command to history before transformation
     print -s -- "$original_buffer"
     
-    
     # Handle aliases - convert to their actual agent names
-    if [[ "$user_action" == "ask" ]]; then
-        user_action="sage"
-        elif [[ "$user_action" == "plan" ]]; then
-        user_action="muse"
-    fi
+    case "$user_action" in
+        ask)
+            user_action="sage"
+        ;;
+        plan)
+            user_action="muse"
+        ;;
+    esac
     
-    # Handle new command specially
-    if [[ "$user_action" == "new" || "$user_action" == "n" ]]; then
-        echo
-        # Show banner
-        _forge_exec show-banner
-        
-        _forge_print_agent_message "FORGE"
-        
-        FORGE_CONVERSATION_ID=""
-        FORGE_ACTIVE_AGENT="forge"
-        _forge_reset
-        return 0
-    fi
-    
-    # Handle info command specially
-    if [[ "$user_action" == "info" || "$user_action" == "i" ]]; then
-        echo
-        _forge_exec info
-        _forge_reset
-        return 0
-    fi
-    
-    
-    # Handle dump command specially
-    if [[ "$user_action" == "dump" ]]; then
-        # Pass "html" as extra argument if specified, otherwise pass nothing
-        if [[ "$input_text" == "html" ]]; then
-            _forge_handle_session_command "dump" "html"
-        else
-            _forge_handle_session_command "dump"
-        fi
-        return 0
-    fi
-    
-    # Handle compact command specially
-    if [[ "$user_action" == "compact" ]]; then
-        _forge_handle_session_command "compact"
-        return 0
-    fi
-    
-    # Handle retry command specially
-    if [[ "$user_action" == "retry" ]]; then
-        _forge_handle_session_command "retry"
-        return 0
-    fi
-    
-    # Handle list/conversations command specially
-    if [[ "$user_action" == "conversation" ]]; then
-        echo
-        
-        # Get conversations list
-        local conversations_output
-        conversations_output=$($_FORGE_BIN session --list 2>/dev/null)
-        
-        if [[ -n "$conversations_output" ]]; then
-            # Get current conversation ID if set
-            local current_id="$FORGE_CONVERSATION_ID"
-            
-            # Create prompt with current conversation
-            local prompt_text="Conversation ❯ "
-            if [[ -n "$current_id" ]]; then
-                prompt_text="Conversation [Current: ${current_id}] ❯ "
-            fi
-            
-            local selected_conversation
-            selected_conversation=$(echo "$conversations_output" | _forge_fzf --prompt="$prompt_text")
-            
-            if [[ -n "$selected_conversation" ]]; then
-                # Strip ANSI codes first, then extract the last field (UUID)
-                local conversation_id=$(echo "$selected_conversation" | sed 's/\x1b\[[0-9;]*m//g' | sed 's/\x1b\[K//g' | awk '{print $NF}' | tr -d '\n')
-                
-                # Set the selected conversation as active (in parent shell)
-                FORGE_CONVERSATION_ID="$conversation_id"
-                
-                echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Switched to conversation \033[1m${conversation_id}\033[0m"
-            fi
-        else
-            echo "\033[31m✗\033[0m No conversations found"
-        fi
-        
-        _forge_reset
-        return 0
-    fi
-    
-    # Handle providers command specially
-    if [[ "$user_action" == "provider" ]]; then
-        _forge_select_and_set_config "show-providers" "provider" "Provider"
-        _forge_reset
-        return 0
-    fi
-    
-    # Handle models command specially
-    if [[ "$user_action" == "model" ]]; then
-        _forge_select_and_set_config "show-models" "model" "Model"
-        _forge_reset
-        return 0
-    fi
-    
-    # Handle tools command specially
-    if [[ "$user_action" == "tools" ]]; then
-        echo
-        _forge_exec show-tools "${FORGE_ACTIVE_AGENT}"
-        _forge_reset
-        return 0
-    fi
-    
-    # Check if input_text is empty - just set the active agent
-    
-    # Validate that the command exists in show-commands (if user_action is provided)
-    if [[ -n "$user_action" ]]; then
-        if [[ -n "$_FORGE_COMMANDS" ]]; then
-            # Check if the user_action is in the list of valid commands
-            if ! echo "$_FORGE_COMMANDS" | grep -q "^${user_action}\b"; then
-                echo
-                echo "\033[31m⏺\033[0m \033[90m[$(date '+%H:%M:%S')]\033[0m \033[1;31mERROR:\033[0m Command '\033[1m${user_action}\033[0m' not found"
-                _forge_reset
-                return 0
-            fi
-        fi
-    fi
-    if [[ -z "$input_text" ]]; then
-        echo
-        FORGE_ACTIVE_AGENT="${user_action:-${FORGE_ACTIVE_AGENT}}"
-        _forge_print_agent_message
-        _forge_reset
-        return 0
-    fi
-    
-    # Generate conversation ID if needed (in parent shell context)
-    if [[ -z "$FORGE_CONVERSATION_ID" ]]; then
-        FORGE_CONVERSATION_ID=$($_FORGE_BIN --generate-conversation-id)
-    fi
-    
-    # Set the active agent for this execution
-    FORGE_ACTIVE_AGENT="${user_action:-${FORGE_ACTIVE_AGENT}}"
-    
-    echo
-    
-    # Execute the forge command directly with proper escaping
-    _forge_exec -p "$input_text"
-    
-    # Reset the prompt
-    _forge_reset
-    return 0
+    # Dispatch to appropriate action handler using pattern matching
+    case "$user_action" in
+        new|n)
+            _forge_action_new
+        ;;
+        info|i)
+            _forge_action_info
+        ;;
+        dump)
+            _forge_action_dump "$input_text"
+        ;;
+        compact)
+            _forge_action_compact
+        ;;
+        retry)
+            _forge_action_retry
+        ;;
+        conversation)
+            _forge_action_conversation
+        ;;
+        provider)
+            _forge_action_provider
+        ;;
+        model)
+            _forge_action_model
+        ;;
+        tools)
+            _forge_action_tools
+        ;;
+        *)
+            _forge_action_default "$user_action" "$input_text"
+        ;;
+    esac
 }
 
 # Register ZLE widgets
