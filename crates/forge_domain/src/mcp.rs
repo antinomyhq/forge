@@ -90,7 +90,6 @@ impl Display for McpServerConfig {
 )]
 pub struct ServerName(String);
 
-// FIXME: Move to DTO
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Merge)]
 #[serde(rename_all = "camelCase")]
 pub struct McpConfig {
