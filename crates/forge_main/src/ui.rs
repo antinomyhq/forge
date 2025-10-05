@@ -371,9 +371,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         self.writeln_title(TitleFormat::info("✓ Cleared MCP tools cache"))?;
                     }
                     crate::cli::McpCacheCommand::Refresh => {
-                        self.writeln_title(TitleFormat::info("Refreshing MCP caches..."))?;
+                        self.spinner.start(Some("Reloading MCPs"))?;
                         self.api.reload_mcp().await?;
-                        self.writeln_title(TitleFormat::info("✓ Caches refreshed successfully"))?;
+                        self.writeln_title(TitleFormat::info("MCP reloaded"))?;
                     }
                 },
             },
