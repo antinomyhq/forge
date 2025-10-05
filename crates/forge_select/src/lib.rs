@@ -1,5 +1,5 @@
 use anyhow::Result;
-use console::strip_ansi_codes;
+use console::{strip_ansi_codes, style};
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Confirm, FuzzySelect, Input, MultiSelect};
 
@@ -25,9 +25,13 @@ pub struct SelectBuilderOwned<T> {
 }
 
 impl ForgeSelect {
-    /// Create a consistent theme for all select operations
+    /// Create a consistent theme for all select operations without prompt
+    /// suffix arrow
     fn default_theme() -> ColorfulTheme {
-        ColorfulTheme::default()
+        ColorfulTheme {
+            prompt_suffix: style("".to_string()),
+            ..ColorfulTheme::default()
+        }
     }
 
     /// Entry point for select operations with fuzzy search
