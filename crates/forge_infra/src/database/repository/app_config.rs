@@ -17,19 +17,26 @@ impl AppConfigRepositoryImpl {
         Self { config_path, cache: Arc::new(Mutex::new(None)) }
     }
 
+    async fn init_default(&self) -> anyhow::Result<AppConfig> {
+        let default_config = AppConfig::default();
+        let content = serde_json::to_string_pretty(&default_config)?;
+        ForgeFS::write(&self.config_path, content).await?;
+        Ok(default_config)
+    }
+
     async fn read(&self) -> anyhow::Result<AppConfig> {
         // Check if file exists, if not create with default config
         if !ForgeFS::exists(&self.config_path) {
-            let default_config = AppConfig::default();
-            let content = serde_json::to_string_pretty(&default_config)?;
-            ForgeFS::write(&self.config_path, content).await?;
-            return Ok(default_config);
+            return self.init_default().await;
         }
 
         let path = &self.config_path;
         let content = ForgeFS::read_utf8(&path)
             .await
             .with_context(|| format!("Failed to read app config: {}", path.display()))?;
+        if content.is_empty() {
+            return self.init_default().await;
+        }
         Ok(serde_json::from_str(&content)?)
     }
 
