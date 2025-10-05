@@ -3,6 +3,13 @@ use console::{strip_ansi_codes, style};
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Confirm, FuzzySelect, Input, MultiSelect};
 
+/// Check if a dialoguer error is an interrupted error (CTRL+C)
+fn is_interrupted_error(err: &dialoguer::Error) -> bool {
+    match err {
+        dialoguer::Error::IO(error) => error.kind() == std::io::ErrorKind::Interrupted,
+    }
+}
+
 /// Centralized dialoguer select functionality with consistent error handling
 pub struct ForgeSelect;
 
@@ -106,6 +113,16 @@ impl<T: 'static> SelectBuilder<T> {
     }
 
     /// Execute select prompt with fuzzy search
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(Some(T))` - User selected an option
+    /// - `Ok(None)` - No options available or user cancelled (CTRL+C)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the terminal interaction fails for reasons other
+    /// than user cancellation
     pub fn prompt(self) -> Result<Option<T>>
     where
         T: std::fmt::Display + Clone,
@@ -119,7 +136,11 @@ impl<T: 'static> SelectBuilder<T> {
                 confirm = confirm.default(default);
             }
 
-            let result = confirm.interact_opt().map_err(anyhow::Error::from)?;
+            let result = match confirm.interact_opt() {
+                Ok(value) => value,
+                Err(e) if is_interrupted_error(&e) => return Ok(None),
+                Err(e) => return Err(e.into()),
+            };
             // Safe cast since we checked the type
             return Ok(result.map(|b| unsafe { std::mem::transmute_copy(&b) }));
         }
@@ -152,7 +173,11 @@ impl<T: 'static> SelectBuilder<T> {
             select = select.with_initial_text(text);
         }
 
-        let idx_opt = select.interact_opt().map_err(anyhow::Error::from)?;
+        let idx_opt = match select.interact_opt() {
+            Ok(value) => value,
+            Err(e) if is_interrupted_error(&e) => return Ok(None),
+            Err(e) => return Err(e.into()),
+        };
         Ok(idx_opt.and_then(|idx| self.options.get(idx).cloned()))
     }
 }
@@ -171,6 +196,16 @@ impl<T> SelectBuilderOwned<T> {
     }
 
     /// Execute select prompt with fuzzy search and owned values
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(Some(T))` - User selected an option
+    /// - `Ok(None)` - No options available or user cancelled (CTRL+C)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the terminal interaction fails for reasons other
+    /// than user cancellation
     pub fn prompt(self) -> Result<Option<T>>
     where
         T: std::fmt::Display,
@@ -202,7 +237,11 @@ impl<T> SelectBuilderOwned<T> {
             select = select.with_initial_text(text);
         }
 
-        let idx_opt = select.interact_opt().map_err(anyhow::Error::from)?;
+        let idx_opt = match select.interact_opt() {
+            Ok(value) => value,
+            Err(e) if is_interrupted_error(&e) => return Ok(None),
+            Err(e) => return Err(e.into()),
+        };
         Ok(idx_opt.and_then(|idx| self.options.into_iter().nth(idx)))
     }
 }
@@ -228,6 +267,16 @@ impl InputBuilder {
     }
 
     /// Execute input prompt
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(Some(String))` - User provided input
+    /// - `Ok(None)` - User cancelled (CTRL+C)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the terminal interaction fails for reasons other
+    /// than user cancellation
     pub fn prompt(self) -> Result<Option<String>> {
         let theme = ForgeSelect::default_theme();
         let mut input = Input::with_theme(&theme)
@@ -240,7 +289,8 @@ impl InputBuilder {
 
         match input.interact_text() {
             Ok(value) => Ok(Some(value)),
-            Err(_) => Ok(None), // User interrupted or error
+            Err(e) if is_interrupted_error(&e) => Ok(None),
+            Err(e) => Err(e.into()),
         }
     }
 }
@@ -253,6 +303,16 @@ pub struct MultiSelectBuilder<T> {
 
 impl<T> MultiSelectBuilder<T> {
     /// Execute multi-select prompt
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(Some(Vec<T>))` - User selected one or more options
+    /// - `Ok(None)` - No options available or user cancelled (CTRL+C)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the terminal interaction fails for reasons other
+    /// than user cancellation
     pub fn prompt(self) -> Result<Option<Vec<T>>>
     where
         T: std::fmt::Display + Clone,
@@ -266,7 +326,11 @@ impl<T> MultiSelectBuilder<T> {
             .with_prompt(&self.message)
             .items(&self.options);
 
-        let indices_opt = multi_select.interact_opt().map_err(anyhow::Error::from)?;
+        let indices_opt = match multi_select.interact_opt() {
+            Ok(value) => value,
+            Err(e) if is_interrupted_error(&e) => return Ok(None),
+            Err(e) => return Err(e.into()),
+        };
 
         Ok(indices_opt.map(|indices| {
             indices
