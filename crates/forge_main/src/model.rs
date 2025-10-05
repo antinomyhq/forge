@@ -38,6 +38,7 @@ impl From<PartialEvent> for Event {
 /// This component provides consistent formatting for model selection across
 /// the application, showing model ID with contextual information like
 /// context length and tools support.
+#[derive(Clone)]
 pub struct CliModel(pub Model);
 
 impl Display for CliModel {
@@ -76,6 +77,7 @@ impl Display for CliModel {
 ///
 /// This component provides consistent formatting for provider selection across
 /// the application, showing provider ID with domain information.
+#[derive(Clone)]
 pub struct CliProvider(pub Provider);
 
 impl Display for CliProvider {

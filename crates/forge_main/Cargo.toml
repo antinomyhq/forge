@@ -20,7 +20,7 @@ forge_display.workspace = true
 forge_tracker.workspace = true
 
 forge_spinner.workspace = true
-inquire.workspace = true
+dialoguer.workspace = true
 
 merge.workspace = true
 forge_fs.workspace = true

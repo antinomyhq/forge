@@ -53,6 +53,7 @@ impl ConversationSelector {
 
         let max_title_length: usize = titles.clone().map(|s| s.len()).max().unwrap_or(0);
 
+        #[derive(Clone)]
         struct ConversationItem((String, Conversation));
         impl Display for ConversationItem {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

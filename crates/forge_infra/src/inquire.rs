@@ -1,7 +1,6 @@
 use anyhow::Result;
+use dialoguer::{theme::ColorfulTheme, Input, MultiSelect, Select};
 use forge_services::UserInfra;
-use inquire::ui::{RenderConfig, Styled};
-use inquire::{InquireError, MultiSelect, Select, Text};
 
 pub struct ForgeInquire;
 
@@ -16,23 +15,20 @@ impl ForgeInquire {
         Self
     }
 
-    fn render_config() -> RenderConfig<'static> {
-        RenderConfig::default()
-            .with_scroll_up_prefix(Styled::new("⇡"))
-            .with_scroll_down_prefix(Styled::new("⇣"))
-            .with_highlighted_option_prefix(Styled::new("➤"))
+    fn theme() -> ColorfulTheme {
+        ColorfulTheme::default()
     }
 
     async fn prompt<T, F>(&self, f: F) -> Result<Option<T>>
     where
-        F: FnOnce() -> std::result::Result<T, InquireError> + Send + 'static,
+        F: FnOnce() -> std::io::Result<T> + Send + 'static,
         T: Send + 'static,
     {
         let result = tokio::task::spawn_blocking(f).await?;
 
         match result {
             Ok(value) => Ok(Some(value)),
-            Err(InquireError::OperationCanceled | InquireError::OperationInterrupted) => Ok(None),
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => Ok(None),
             Err(e) => Err(e.into()),
         }
     }
@@ -43,10 +39,11 @@ impl UserInfra for ForgeInquire {
     async fn prompt_question(&self, question: &str) -> Result<Option<String>> {
         let question = question.to_string();
         self.prompt(move || {
-            Text::new(&question)
-                .with_render_config(Self::render_config())
-                .with_help_message("Press Enter to submit, ESC to cancel")
-                .prompt()
+            let result = Input::with_theme(&Self::theme())
+                .with_prompt(&question)
+                .allow_empty(true)
+                .interact_text()?;
+            Ok(result)
         })
         .await
     }
@@ -56,14 +53,22 @@ impl UserInfra for ForgeInquire {
         message: &str,
         options: Vec<T>,
     ) -> Result<Option<T>> {
+        if options.is_empty() {
+            return Ok(None);
+        }
+
         let message = message.to_string();
         self.prompt(move || {
-            Select::new(&message, options)
-                .with_render_config(Self::render_config())
-                .with_help_message("Use arrow keys to navigate, Enter to select, ESC to cancel")
-                .prompt()
+            let selection = Select::with_theme(&Self::theme())
+                .with_prompt(&message)
+                .items(&options)
+                .default(0)
+                .interact_opt()?;
+            
+            Ok(selection.map(|idx| options.into_iter().nth(idx).unwrap()))
         })
         .await
+        .map(|opt| opt.flatten())
     }
 
     async fn select_many<T: std::fmt::Display + Clone + Send + 'static>(
@@ -71,13 +76,25 @@ impl UserInfra for ForgeInquire {
         message: &str,
         options: Vec<T>,
     ) -> Result<Option<Vec<T>>> {
+        if options.is_empty() {
+            return Ok(None);
+        }
+
         let message = message.to_string();
         self.prompt(move || {
-            MultiSelect::new(&message, options)
-                .with_render_config(Self::render_config())
-                .with_help_message("Use arrow keys to navigate, Space to select/deselect, Enter to confirm, ESC to cancel")
-                .prompt()
+            let selections = MultiSelect::with_theme(&Self::theme())
+                .with_prompt(&message)
+                .items(&options)
+                .interact_opt()?;
+            
+            Ok(selections.map(|indices| {
+                indices
+                    .into_iter()
+                    .filter_map(|idx| options.get(idx).cloned())
+                    .collect()
+            }))
         })
         .await
+        .map(|opt| opt.flatten())
     }
 }

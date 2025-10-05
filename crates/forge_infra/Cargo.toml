@@ -18,7 +18,7 @@ reqwest.workspace = true
 
 bytes.workspace = true
 pretty_assertions.workspace = true
-inquire.workspace = true
+dialoguer.workspace = true
 tempfile.workspace = true
 rmcp.workspace = true
 tracing.workspace = true
