@@ -2,8 +2,9 @@ use std::collections::{HashMap, hash_map};
 use std::ops::Deref;
 
 use derive_more::From;
-use forge_domain::{ServerName, ToolDefinition};
 use serde::{Deserialize, Serialize};
+
+use crate::{ServerName, ToolDefinition};
 
 /// Cache for MCP tool definitions
 ///

@@ -1,8 +1,6 @@
 use derive_setters::Setters;
-use forge_domain::ToolDefinition;
+use forge_domain::{McpServers, ToolDefinition};
 use serde::{Deserialize, Serialize};
-
-use crate::dto::McpServers;
 
 /// A comprehensive view of all tools available in the environment,
 /// categorized by their source type for easier navigation and understanding.
