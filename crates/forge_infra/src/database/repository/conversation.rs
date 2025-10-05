@@ -115,7 +115,8 @@ impl ConversationRepository for ConversationRepositoryImpl {
         let workspace_id = self.wid.id() as i64;
         let mut query = conversations::table
             .filter(conversations::workspace_id.eq(&workspace_id))
-            .order(conversations::created_at.desc())
+            .filter(conversations::context.is_not_null())
+            .order(conversations::updated_at.desc())
             .into_boxed();
 
         if let Some(limit_value) = limit {
@@ -211,10 +212,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_all_conversations() -> anyhow::Result<()> {
+        let context1 = Context::default().messages(vec![ContextMessage::user("Hello", None)]);
+        let context2 = Context::default().messages(vec![ContextMessage::user("World", None)]);
         let conversation1 = Conversation::new(ConversationId::generate())
-            .title(Some("Test Conversation".to_string()));
+            .title(Some("Test Conversation".to_string()))
+            .context(Some(context1));
         let conversation2 = Conversation::new(ConversationId::generate())
-            .title(Some("Second Conversation".to_string()));
+            .title(Some("Second Conversation".to_string()))
+            .context(Some(context2));
         let repo = repository()?;
 
         repo.upsert_conversation(conversation1.clone()).await?;
@@ -230,9 +235,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_all_conversations_with_limit() -> anyhow::Result<()> {
+        let context1 = Context::default().messages(vec![ContextMessage::user("Hello", None)]);
+        let context2 = Context::default().messages(vec![ContextMessage::user("World", None)]);
         let conversation1 = Conversation::new(ConversationId::generate())
-            .title(Some("Test Conversation".to_string()));
-        let conversation2 = Conversation::new(ConversationId::generate());
+            .title(Some("Test Conversation".to_string()))
+            .context(Some(context1));
+        let conversation2 = Conversation::new(ConversationId::generate()).context(Some(context2));
         let repo = repository()?;
 
         repo.upsert_conversation(conversation1).await?;
