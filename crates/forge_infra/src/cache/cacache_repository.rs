@@ -252,7 +252,7 @@ mod tests {
     }
 
     fn test_cache_dir() -> PathBuf {
-        tempfile::tempdir().unwrap().into_path()
+        tempfile::tempdir().unwrap().keep()
     }
 
     #[tokio::test]
