@@ -126,7 +126,7 @@ impl<S: Services> ToolRegistry<S> {
         Ok(self.tools_overview().await?.into())
     }
     pub async fn tools_overview(&self) -> anyhow::Result<ToolsOverview> {
-        let mcp_tools = self.mcp_executor.services.list_cached().await?;
+        let mcp_tools = self.mcp_executor.services.list().await?;
         let agent_tools = self.agent_executor.agent_definitions().await?;
 
         let system_tools = Tools::iter()
