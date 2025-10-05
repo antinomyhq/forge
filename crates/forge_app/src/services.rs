@@ -193,14 +193,6 @@ pub trait McpService: Send + Sync {
     async fn refresh_cache(&self) -> anyhow::Result<()>;
 }
 
-/// Repository for MCP tool caches
-///
-/// This repository stores a unified cache for both user and local MCP tools.
-/// The cache is keyed by the config hash, which is computed from the merged
-/// user and local configurations.
-// Note: McpCacheRepository trait has been removed in favor of using
-// forge_services::CacheInfra<String, McpToolCache> directly for maximum
-// simplicity and reusability
 
 #[async_trait::async_trait]
 pub trait ConversationService: Send + Sync {
