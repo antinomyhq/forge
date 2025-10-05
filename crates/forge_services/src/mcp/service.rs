@@ -198,6 +198,12 @@ where
         // Prefix all tools
         let mcp_live = prefix_tool_names(mcp_live);
 
+        // Store in cache for future use
+        self.cache_repo
+            .cache_set(&config_hash, &mcp_live)
+            .await
+            .context("Failed to store MCP tools in cache")?;
+
         Ok(mcp_live.into())
     }
 
