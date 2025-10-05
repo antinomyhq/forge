@@ -32,6 +32,19 @@ function _forge_fzf() {
     fzf --cycle --select-1 --height 40% --reverse "$@"
 }
 
+# Helper function to execute forge commands consistently
+# This ensures proper handling of special characters and consistent output
+function _forge_exec() {
+    eval "$_FORGE_BIN $(printf '%q ' "$@")"
+}
+
+# Helper function to clear buffer and reset prompt
+function _forge_reset() {
+    BUFFER=""
+    CURSOR=${#BUFFER}
+    zle reset-prompt
+}
+
 # Helper function to print operating agent messages with consistent formatting
 function _forge_print_agent_message() {
     local agent_name="${1:-${FORGE_ACTIVE_AGENT}}"
@@ -55,7 +68,7 @@ function _forge_select_and_set_config() {
             
             if [[ -n "$selected" ]]; then
                 local name="${selected%% *}"
-                $_FORGE_BIN config set "--$config_flag" "$name"
+                _forge_exec config set "--$config_flag" "$name"
             fi
         fi
     )
@@ -72,18 +85,14 @@ function _forge_handle_session_command() {
     # Check if FORGE_CONVERSATION_ID is set
     if [[ -z "$FORGE_CONVERSATION_ID" ]]; then
         echo "\033[31m✗\033[0m No active conversation. Start a conversation first or use :list to see existing ones"
-        BUFFER=""
-        CURSOR=${#BUFFER}
-        zle reset-prompt
+        _forge_reset
         return 0
     fi
     
     # Execute the session command with conversation ID and any extra arguments
-    $_FORGE_BIN session --id "$FORGE_CONVERSATION_ID" "$subcommand" "$@"
+    _forge_exec session --id "$FORGE_CONVERSATION_ID" "$subcommand" "$@"
     
-    BUFFER=""
-    CURSOR=${#BUFFER}
-    zle reset-prompt
+    _forge_reset
     return 0
 }
 
@@ -174,11 +183,11 @@ function forge-accept-line() {
     # Add the original command to history before transformation
     print -s -- "$original_buffer"
     
-
+    
     # Handle aliases - convert to their actual agent names
     if [[ "$user_action" == "ask" ]]; then
         user_action="sage"
-    elif [[ "$user_action" == "plan" ]]; then
+        elif [[ "$user_action" == "plan" ]]; then
         user_action="muse"
     fi
     
@@ -186,31 +195,26 @@ function forge-accept-line() {
     if [[ "$user_action" == "new" || "$user_action" == "n" ]]; then
         echo
         # Show banner
-        $_FORGE_BIN show-banner
+        _forge_exec show-banner
         
         _forge_print_agent_message "FORGE"
         
         FORGE_CONVERSATION_ID=""
         FORGE_ACTIVE_AGENT="forge"
-        BUFFER=""
-        CURSOR=${#BUFFER}
-        zle reset-prompt
+        _forge_reset
         return 0
     fi
     
     # Handle info command specially
     if [[ "$user_action" == "info" || "$user_action" == "i" ]]; then
         echo
-        
-        # Run forge info
-        BUFFER="$_FORGE_BIN info"
-        CURSOR=${#BUFFER}
-        zle accept-line
+        _forge_exec info
+        _forge_reset
         return 0
     fi
-
     
-    # Handle dump command specially  
+    
+    # Handle dump command specially
     if [[ "$user_action" == "dump" ]]; then
         # Pass "html" as extra argument if specified, otherwise pass nothing
         if [[ "$input_text" == "html" ]]; then
@@ -267,37 +271,29 @@ function forge-accept-line() {
             echo "\033[31m✗\033[0m No conversations found"
         fi
         
-        BUFFER=""
-        CURSOR=${#BUFFER}
-        zle reset-prompt
+        _forge_reset
         return 0
     fi
     
     # Handle providers command specially
     if [[ "$user_action" == "provider" ]]; then
         _forge_select_and_set_config "show-providers" "provider" "Provider"
-        BUFFER=""
-        CURSOR=${#BUFFER}
-        zle reset-prompt
+        _forge_reset
         return 0
     fi
     
     # Handle models command specially
     if [[ "$user_action" == "model" ]]; then
         _forge_select_and_set_config "show-models" "model" "Model"
-        BUFFER=""
-        CURSOR=${#BUFFER}
-        zle reset-prompt
+        _forge_reset
         return 0
     fi
     
     # Handle tools command specially
     if [[ "$user_action" == "tools" ]]; then
         echo
-        $_FORGE_BIN show-tools "${FORGE_ACTIVE_AGENT}"
-        BUFFER=""
-        CURSOR=${#BUFFER}
-        zle reset-prompt
+        _forge_exec show-tools "${FORGE_ACTIVE_AGENT}"
+        _forge_reset
         return 0
     fi
     
@@ -310,9 +306,7 @@ function forge-accept-line() {
             if ! echo "$_FORGE_COMMANDS" | grep -q "^${user_action}\b"; then
                 echo
                 echo "\033[31m⏺\033[0m \033[90m[$(date '+%H:%M:%S')]\033[0m \033[1;31mERROR:\033[0m Command '\033[1m${user_action}\033[0m' not found"
-                BUFFER=""
-                CURSOR=${#BUFFER}
-                zle reset-prompt
+                _forge_reset
                 return 0
             fi
         fi
@@ -321,9 +315,7 @@ function forge-accept-line() {
         echo
         FORGE_ACTIVE_AGENT="${user_action:-${FORGE_ACTIVE_AGENT}}"
         _forge_print_agent_message
-        BUFFER=""
-        CURSOR=0
-        zle reset-prompt
+        _forge_reset
         return 0
     fi
     
@@ -335,15 +327,14 @@ function forge-accept-line() {
     # Set the active agent for this execution
     FORGE_ACTIVE_AGENT="${user_action:-${FORGE_ACTIVE_AGENT}}"
     
-    # Build and execute the forge command
-    local forge_cmd="$_FORGE_BIN"
-    local quoted_input=${input_text//\'/\'\\\'\'}
-    local full_command="$forge_cmd -p '$quoted_input'"
+    echo
     
-    # Set buffer to the transformed command and execute
-    BUFFER="$full_command"
-    zle accept-line
-    return
+    # Execute the forge command directly with proper escaping
+    _forge_exec -p "$input_text"
+    
+    # Reset the prompt
+    _forge_reset
+    return 0
 }
 
 # Register ZLE widgets
