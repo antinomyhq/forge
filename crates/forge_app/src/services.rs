@@ -193,7 +193,6 @@ pub trait McpService: Send + Sync {
     async fn refresh_cache(&self) -> anyhow::Result<()>;
 }
 
-
 #[async_trait::async_trait]
 pub trait ConversationService: Send + Sync {
     async fn find_conversation(&self, id: &ConversationId) -> anyhow::Result<Option<Conversation>>;
