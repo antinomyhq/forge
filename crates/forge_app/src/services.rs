@@ -17,7 +17,6 @@ use crate::Walker;
 use crate::dto::{InitAuth, LoginInfo, Provider, ProviderId};
 use crate::user::{User, UserUsage};
 
-
 #[derive(Debug)]
 pub struct ShellOutput {
     pub output: CommandOutput,
