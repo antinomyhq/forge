@@ -34,6 +34,7 @@ pub enum ProviderId {
     Xai,
     Anthropic,
     VertexAi,
+    BigModel,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
