@@ -144,7 +144,6 @@ pub trait McpConfigManager: Send + Sync {
 pub trait McpService: Send + Sync {
     async fn list(&self) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>>;
     async fn call(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput>;
-
     /// Refresh the MCP cache by fetching fresh data
     async fn reload_mcp(&self) -> anyhow::Result<()>;
 }
