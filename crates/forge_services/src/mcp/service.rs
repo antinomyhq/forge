@@ -14,12 +14,11 @@ use crate::mcp::tool::McpExecutor;
 use crate::{CacheRepository, McpClientInfra, McpServerInfra};
 
 #[derive(Clone)]
-pub struct ForgeMcpService<M, I, C, R> {
+pub struct ForgeMcpService<M, I, C> {
     tools: Arc<RwLock<HashMap<ToolName, ToolHolder<McpExecutor<C>>>>>,
     previous_config_hash: Arc<Mutex<String>>,
     manager: Arc<M>,
     infra: Arc<I>,
-    cache_repo: Arc<R>,
 }
 
 #[derive(Clone)]
@@ -29,19 +28,19 @@ struct ToolHolder<T> {
     server_name: String,
 }
 
-impl<M: McpConfigManager, I: McpServerInfra, C, R> ForgeMcpService<M, I, C, R>
+impl<M, I, C> ForgeMcpService<M, I, C>
 where
+    M: McpConfigManager,
+    I: McpServerInfra + CacheRepository,
     C: McpClientInfra + Clone,
     C: From<<I as McpServerInfra>::Client>,
-    R: CacheRepository,
 {
-    pub fn new(manager: Arc<M>, infra: Arc<I>, cache_repo: Arc<R>) -> Self {
+    pub fn new(manager: Arc<M>, infra: Arc<I>) -> Self {
         Self {
             tools: Default::default(),
             previous_config_hash: Arc::new(Mutex::new(String::new())),
             manager,
             infra,
-            cache_repo,
         }
     }
 
@@ -139,7 +138,7 @@ where
         // Check if cache is valid (exists and not expired)
         // Cache is valid, retrieve it
         if let Some(cache) = self
-            .cache_repo
+            .infra
             .cache_get::<String, McpServers>(&config_hash)
             .await?
         {
@@ -185,7 +184,7 @@ where
         let mcp_live = prefix_tool_names(mcp_live);
 
         // Store in cache for future use
-        self.cache_repo
+        self.infra
             .cache_set(&config_hash, &mcp_live)
             .await
             .context("Failed to store MCP tools in cache")?;
@@ -262,11 +261,11 @@ where
 }
 
 #[async_trait::async_trait]
-impl<M: McpConfigManager, I: McpServerInfra, C, R> McpService for ForgeMcpService<M, I, C, R>
+impl<M: McpConfigManager, I: McpServerInfra + CacheRepository, C> McpService
+    for ForgeMcpService<M, I, C>
 where
     C: McpClientInfra + Clone,
     C: From<<I as McpServerInfra>::Client>,
-    R: CacheRepository,
 {
     async fn get_mcp_servers(&self) -> anyhow::Result<McpServers> {
         self.list_cached().await

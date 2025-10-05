@@ -25,7 +25,7 @@ use crate::{
     FileRemoverInfra, FileWriterInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
 };
 
-type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client, F>;
+type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client>;
 type AuthService<F> = ForgeAuthService<F>;
 
 /// ForgeApp is the main application container that implements the App trait.
@@ -80,11 +80,7 @@ impl<
 {
     pub fn new(infra: Arc<F>) -> Self {
         let mcp_manager = Arc::new(ForgeMcpManager::new(infra.clone()));
-        let mcp_service = Arc::new(ForgeMcpService::new(
-            mcp_manager.clone(),
-            infra.clone(),
-            infra.clone(),
-        ));
+        let mcp_service = Arc::new(ForgeMcpService::new(mcp_manager.clone(), infra.clone()));
         let template_service = Arc::new(ForgeTemplateService::new(infra.clone()));
         let attachment_service = Arc::new(ForgeChatRequest::new(infra.clone()));
         let workflow_service = Arc::new(ForgeWorkflowService::new(infra.clone()));
