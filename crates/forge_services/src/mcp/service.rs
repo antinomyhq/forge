@@ -3,8 +3,9 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_app::domain::{
-    McpConfig, McpServerConfig, McpToolCache, ToolCallFull, ToolDefinition, ToolName, ToolOutput,
+    McpConfig, McpServerConfig, ToolCallFull, ToolDefinition, ToolName, ToolOutput,
 };
+use forge_app::dto::McpToolCache;
 use forge_app::{McpConfigManager, McpService};
 use tokio::sync::{Mutex, RwLock};
 
@@ -293,7 +294,9 @@ where
         &self.cache_repo
     }
 
-    async fn list(&self) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>> {
+    async fn get_all_mcps(
+        &self,
+    ) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>> {
         self.list().await
     }
 

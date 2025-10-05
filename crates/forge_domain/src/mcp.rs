@@ -9,8 +9,6 @@ use derive_setters::Setters;
 use merge::Merge;
 use serde::{Deserialize, Serialize};
 
-use crate::ToolDefinition;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Scope {
     Local,
@@ -121,26 +119,6 @@ impl McpConfig {
         let mut hasher = DefaultHasher::new();
         Hash::hash(self, &mut hasher);
         format!("{:x}", hasher.finish())
-    }
-}
-
-/// Cache for MCP tool definitions
-///
-/// Simplified cache structure that stores only the essential data.
-/// Validation and TTL checking are handled by the infrastructure layer
-/// using cacache's built-in metadata capabilities.
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct McpToolCache {
-    pub config_hash: String,
-    /// Tools mapped by server name
-    pub tools: BTreeMap<String, Vec<ToolDefinition>>,
-}
-
-impl McpToolCache {
-    /// Create a new cache entry
-    pub fn new(config_hash: String, tools: BTreeMap<String, Vec<ToolDefinition>>) -> Self {
-        Self { config_hash, tools }
     }
 }
 

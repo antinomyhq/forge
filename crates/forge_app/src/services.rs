@@ -150,7 +150,9 @@ pub trait McpService: Send + Sync {
     /// Get cache repository for direct access (e.g., for cache info, clearing)
     fn cache_repository(&self) -> &Self::McpCacheRepository;
 
-    async fn list(&self) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>>;
+    async fn get_all_mcps(
+        &self,
+    ) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>>;
     async fn list_cached(
         &self,
     ) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>>;
@@ -510,8 +512,10 @@ impl<I: Services> McpService for I {
         self.mcp_service().cache_repository()
     }
 
-    async fn list(&self) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>> {
-        self.mcp_service().list().await
+    async fn get_all_mcps(
+        &self,
+    ) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>> {
+        self.mcp_service().get_all_mcps().await
     }
 
     async fn list_cached(
