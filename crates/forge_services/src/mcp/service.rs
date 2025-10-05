@@ -9,7 +9,7 @@ use forge_app::{McpConfigManager, McpService};
 use tokio::sync::{Mutex, RwLock};
 
 use crate::mcp::tool::McpExecutor;
-use crate::{CacheInfra, McpClientInfra, McpServerInfra};
+use crate::{CacheRepository, McpClientInfra, McpServerInfra};
 
 #[derive(Clone)]
 pub struct ForgeMcpService<M, I, C, R> {
@@ -31,7 +31,7 @@ impl<M: McpConfigManager, I: McpServerInfra, C, R> ForgeMcpService<M, I, C, R>
 where
     C: McpClientInfra + Clone,
     C: From<<I as McpServerInfra>::Client>,
-    R: CacheInfra<String, McpToolCache>,
+    R: CacheRepository<String, McpToolCache>,
 {
     pub fn new(manager: Arc<M>, infra: Arc<I>, cache_repo: Arc<R>) -> Self {
         Self {
@@ -337,7 +337,7 @@ impl<M: McpConfigManager, I: McpServerInfra, C, R> McpService for ForgeMcpServic
 where
     C: McpClientInfra + Clone,
     C: From<<I as McpServerInfra>::Client>,
-    R: CacheInfra<String, McpToolCache>,
+    R: CacheRepository<String, McpToolCache>,
 {
     type McpCacheRepository = R;
 

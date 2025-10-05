@@ -111,7 +111,7 @@ impl Environment {
 
     /// Returns the path to the cache directory
     pub fn cache_dir(&self) -> PathBuf {
-        self.base_path.join(".cache")
+        self.base_path.join("cache")
     }
 
     pub fn workspace_id(&self) -> WorkspaceId {

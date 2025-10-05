@@ -39,7 +39,7 @@ impl<A, F> API for ForgeAPI<A, F>
 where
     A: Services,
     <A::McpService as forge_app::McpService>::McpCacheRepository:
-        forge_services::CacheInfra<String, forge_app::domain::McpToolCache>,
+        forge_services::CacheRepository<String, forge_app::domain::McpToolCache>,
     F: CommandInfra + AppConfigRepository,
 {
     async fn discover(&self) -> Result<Vec<File>> {

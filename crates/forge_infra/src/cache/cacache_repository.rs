@@ -116,7 +116,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<K, V> forge_services::CacheInfra<K, V> for CacacheRepository<K, V>
+impl<K, V> forge_services::CacheRepository<K, V> for CacacheRepository<K, V>
 where
     K: Hash + serde::Serialize + DeserializeOwned + Send + Sync + 'static,
     V: serde::Serialize + DeserializeOwned + Send + Sync + 'static,
@@ -234,7 +234,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use forge_services::CacheInfra;
+    use forge_services::CacheRepository;
     use pretty_assertions::assert_eq;
     use serde::{Deserialize, Serialize};
 

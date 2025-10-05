@@ -8,9 +8,10 @@ use forge_domain::{
 };
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
-    AppConfigRepository, CacheInfra, CommandInfra, ConversationRepository, DirectoryReaderInfra,
-    EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra,
-    FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
+    AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
+    DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
+    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra,
+    WalkerInfra,
 };
 use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
@@ -72,7 +73,10 @@ impl ForgeInfra {
             env.app_config().as_path().to_path_buf(),
         ));
 
-        let mcp_cache_repository = Arc::new(CacacheRepository::new(env.cache_dir(), Some(3600))); // 1 hour TTL
+        let mcp_cache_repository = Arc::new(CacacheRepository::new(
+            env.cache_dir().join("mcp_cache"),
+            Some(3600),
+        )); // 1 hour TTL
 
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
@@ -343,7 +347,7 @@ impl AppConfigRepository for ForgeInfra {
 // custom McpCacheRepository trait.
 
 #[async_trait::async_trait]
-impl CacheInfra<String, McpToolCache> for ForgeInfra {
+impl CacheRepository<String, McpToolCache> for ForgeInfra {
     async fn get(&self, key: &String) -> anyhow::Result<Option<McpToolCache>> {
         self.mcp_cache_repository.get(key).await
     }

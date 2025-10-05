@@ -8,7 +8,7 @@ use forge_app::domain::{McpConfig, Scope};
 use merge::Merge;
 
 use crate::{
-    CacheInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, McpServerInfra,
+    CacheRepository, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, McpServerInfra,
 };
 
 pub struct ForgeMcpManager<I, R> {
@@ -19,7 +19,7 @@ pub struct ForgeMcpManager<I, R> {
 impl<I, R> ForgeMcpManager<I, R>
 where
     I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra,
-    R: CacheInfra<String, forge_app::domain::McpToolCache>,
+    R: CacheRepository<String, forge_app::domain::McpToolCache>,
 {
     pub fn new(infra: Arc<I>, cache_repo: Arc<R>) -> Self {
         Self { infra, cache_repo }
@@ -43,7 +43,7 @@ where
 impl<I, R> McpConfigManager for ForgeMcpManager<I, R>
 where
     I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra + FileWriterInfra,
-    R: CacheInfra<String, forge_app::domain::McpToolCache>,
+    R: CacheRepository<String, forge_app::domain::McpToolCache>,
 {
     async fn read_mcp_config(&self) -> anyhow::Result<McpConfig> {
         let env = self.infra.get_environment();

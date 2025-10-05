@@ -238,7 +238,7 @@ pub trait DirectoryReaderInfra: Send + Sync {
 /// All operations return `anyhow::Result` for consistent error handling across
 /// the infrastructure layer.
 #[async_trait::async_trait]
-pub trait CacheInfra<K, V>: Send + Sync
+pub trait CacheRepository<K, V>: Send + Sync
 where
     K: Hash + serde::Serialize + DeserializeOwned + Send + Sync + 'static,
     V: serde::Serialize + DeserializeOwned + Send + Sync + 'static,
