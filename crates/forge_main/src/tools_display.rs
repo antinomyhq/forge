@@ -32,8 +32,8 @@ pub fn format_tools(agent_tools: &[ToolName], overview: &ToolsOverview) -> Info 
 
     // MCP tools section
     if !overview.mcp.is_empty() {
-        for (server_name, tools) in &overview.mcp {
-            let title = server_name.to_case(Case::UpperSnake);
+        for (server_name, tools) in overview.mcp.iter() {
+            let title = (*server_name).to_case(Case::UpperSnake);
             info = info.add_title(title);
 
             for tool in tools {

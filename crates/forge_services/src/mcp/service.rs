@@ -1,11 +1,12 @@
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::sync::Arc;
 
 use anyhow::Context;
 use forge_app::domain::{
-    McpConfig, McpServerConfig, ToolCallFull, ToolDefinition, ToolName, ToolOutput,
+    McpConfig, McpServerConfig, ServerName, ToolCallFull, ToolDefinition, ToolName, ToolOutput,
 };
-use forge_app::dto::McpToolCache;
+use forge_app::dto::McpServers;
 use forge_app::{McpConfigManager, McpService};
 use tokio::sync::{Mutex, RwLock};
 
@@ -48,7 +49,7 @@ where
         *self.previous_config_hash.lock().await != config.cache_key()
     }
 
-    async fn insert_clients(&self, server_name: &str, client: Arc<C>) -> anyhow::Result<()> {
+    async fn insert_clients(&self, server_name: &ServerName, client: Arc<C>) -> anyhow::Result<()> {
         let tools = client.list().await?;
 
         let mut tool_map = self.tools.write().await;
@@ -78,7 +79,11 @@ where
         Ok(())
     }
 
-    async fn connect(&self, server_name: &str, config: McpServerConfig) -> anyhow::Result<()> {
+    async fn connect(
+        &self,
+        server_name: &ServerName,
+        config: McpServerConfig,
+    ) -> anyhow::Result<()> {
         let client = self.infra.connect(config).await?;
         let client = Arc::new(C::from(client));
         self.insert_clients(server_name, client).await?;
@@ -120,7 +125,7 @@ where
     /// configs. If cache is valid (<24h old and hash matches), returns
     /// cached tools immediately. Otherwise, fetches from MCP servers and
     /// updates the cache.
-    async fn list_cached(&self) -> anyhow::Result<HashMap<String, Vec<ToolDefinition>>> {
+    async fn list_cached(&self) -> anyhow::Result<McpServers> {
         // Read current configs to compute merged hash
         let mcp_config = self.manager.read_mcp_config().await?;
 
@@ -136,7 +141,7 @@ where
             // Cache is valid, retrieve it
             if let Some(cache) = self
                 .cache_repo
-                .cache_get::<String, McpToolCache>(&config_hash)
+                .cache_get::<String, McpServers>(&config_hash)
                 .await?
             {
                 let age_seconds = self
@@ -148,10 +153,10 @@ where
                 tracing::debug!(
                     "Using cached MCP tools (age: {}s, {} servers, {} total tools)",
                     age_seconds,
-                    cache.tools.len(),
-                    cache.tools.values().map(|v| v.len()).sum::<usize>()
+                    cache.len(),
+                    cache.values().map(|v| v.len()).sum::<usize>()
                 );
-                return Ok(cache.tools.into_iter().collect());
+                return Ok(cache.clone());
             }
         }
 
@@ -164,57 +169,40 @@ where
         let mcp_live = if config {
             self.connect_and_list(&mcp_config).await?
         } else {
-            HashMap::new()
+            Default::default()
         };
 
         // Prefix tool names before caching to match internal registry format
-        let prefix_tool_names =
-            |tools: HashMap<String, Vec<ToolDefinition>>| -> HashMap<String, Vec<ToolDefinition>> {
-                tools
-                    .into_iter()
-                    .map(|(server_name, tools)| {
-                        let prefixed_tools = tools
-                            .into_iter()
-                            .map(|mut tool| {
-                                let generated_name = ToolName::new(format!(
-                                    "mcp_{server_name}_tool_{}",
-                                    tool.name.clone().into_sanitized()
-                                ));
-                                tool.name = generated_name;
-                                tool
-                            })
-                            .collect();
-                        (server_name, prefixed_tools)
-                    })
-                    .collect()
-            };
+        let prefix_tool_names = |tools: McpServers| -> HashMap<ServerName, Vec<ToolDefinition>> {
+            tools
+                .deref()
+                .iter()
+                .map(|(server_name, tools)| {
+                    let prefixed_tools = tools
+                        .iter()
+                        .cloned()
+                        .map(|mut tool| {
+                            let generated_name = ToolName::new(format!(
+                                "mcp_{server_name}_tool_{}",
+                                tool.name.clone().into_sanitized()
+                            ));
+                            tool.name = generated_name;
+                            tool
+                        })
+                        .collect();
+                    (server_name.to_owned(), prefixed_tools)
+                })
+                .collect()
+        };
 
         // Prefix all tools
         let mcp_live = prefix_tool_names(mcp_live);
 
-        // Cache the merged result if we have any tools
-        if !mcp_live.is_empty() {
-            let cache =
-                McpToolCache::new(config_hash.clone(), mcp_live.clone().into_iter().collect());
-            if let Err(e) = self.cache_repo.cache_set(&config_hash, &cache).await {
-                tracing::warn!("Failed to cache MCP tools: {}", e);
-            } else {
-                tracing::debug!(
-                    "Cached {} MCP servers with {} total tools",
-                    mcp_live.len(),
-                    mcp_live.values().map(|v| v.len()).sum::<usize>()
-                );
-            }
-        }
-
-        Ok(mcp_live.into_iter().collect())
+        Ok(mcp_live.into())
     }
 
     /// Connect to MCP servers in config and list their tools
-    async fn connect_and_list(
-        &self,
-        config: &McpConfig,
-    ) -> anyhow::Result<HashMap<String, Vec<ToolDefinition>>> {
+    async fn connect_and_list(&self, config: &McpConfig) -> anyhow::Result<McpServers> {
         let mut tools_by_server = HashMap::new();
 
         for (server_name, server_config) in config.mcp_servers.iter() {
@@ -240,10 +228,10 @@ where
             }
         }
 
-        Ok(tools_by_server)
+        Ok(tools_by_server.into())
     }
 
-    async fn list(&self) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>> {
+    async fn list(&self) -> anyhow::Result<McpServers> {
         self.init_mcp().await?;
 
         let tools = self.tools.read().await;
@@ -251,12 +239,12 @@ where
 
         for tool in tools.values() {
             grouped_tools
-                .entry(tool.server_name.clone())
+                .entry(ServerName::from(tool.server_name.clone()))
                 .or_insert_with(Vec::new)
                 .push(tool.definition.clone());
         }
 
-        Ok(grouped_tools)
+        Ok(grouped_tools.into())
     }
     async fn clear_tools(&self) {
         self.tools.write().await.clear()
@@ -288,7 +276,7 @@ where
     C: From<<I as McpServerInfra>::Client>,
     R: CacheRepository,
 {
-    async fn list(&self) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>> {
+    async fn list(&self) -> anyhow::Result<McpServers> {
         self.list_cached().await
     }
 

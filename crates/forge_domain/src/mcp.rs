@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 
+use derive_more::{Deref, Display, From};
 use derive_setters::Setters;
 use merge::Merge;
 use serde::{Deserialize, Serialize};
@@ -84,24 +85,30 @@ impl Display for McpServerConfig {
     }
 }
 
+#[derive(
+    Clone, Display, Serialize, Deserialize, Debug, PartialEq, Hash, Eq, From, PartialOrd, Ord, Deref,
+)]
+pub struct ServerName(String);
+
+// FIXME: Move to DTO
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Merge)]
 #[serde(rename_all = "camelCase")]
 pub struct McpConfig {
     #[serde(default)]
     #[merge(strategy = std::collections::BTreeMap::extend)]
-    pub mcp_servers: BTreeMap<String, McpServerConfig>,
+    pub mcp_servers: BTreeMap<ServerName, McpServerConfig>,
 }
 
 impl Deref for McpConfig {
-    type Target = BTreeMap<String, McpServerConfig>;
+    type Target = BTreeMap<ServerName, McpServerConfig>;
 
     fn deref(&self) -> &Self::Target {
         &self.mcp_servers
     }
 }
 
-impl From<BTreeMap<String, McpServerConfig>> for McpConfig {
-    fn from(mcp_servers: BTreeMap<String, McpServerConfig>) -> Self {
+impl From<BTreeMap<ServerName, McpServerConfig>> for McpConfig {
+    fn from(mcp_servers: BTreeMap<ServerName, McpServerConfig>) -> Self {
         Self { mcp_servers }
     }
 }
@@ -134,11 +141,11 @@ mod tests {
         let fixture1 = McpConfig {
             mcp_servers: BTreeMap::from([
                 (
-                    "server1".to_string(),
+                    "server1".to_string().into(),
                     McpServerConfig::new_sse("http://localhost:3000"),
                 ),
                 (
-                    "server2".to_string(),
+                    "server2".to_string().into(),
                     McpServerConfig::new_stdio("node", vec![], None),
                 ),
             ]),
@@ -147,11 +154,11 @@ mod tests {
         let fixture2 = McpConfig {
             mcp_servers: BTreeMap::from([
                 (
-                    "server1".to_string(),
+                    "server1".to_string().into(),
                     McpServerConfig::new_sse("http://localhost:3000"),
                 ),
                 (
-                    "server2".to_string(),
+                    "server2".to_string().into(),
                     McpServerConfig::new_stdio("node", vec![], None),
                 ),
             ]),
@@ -170,14 +177,14 @@ mod tests {
         // Create two different configs
         let fixture1 = McpConfig {
             mcp_servers: BTreeMap::from([(
-                "server1".to_string(),
+                "server1".to_string().into(),
                 McpServerConfig::new_sse("http://localhost:3000"),
             )]),
         };
 
         let fixture2 = McpConfig {
             mcp_servers: BTreeMap::from([(
-                "server1".to_string(),
+                "server1".to_string().into(),
                 McpServerConfig::new_sse("http://localhost:3001"),
             )]),
         };
@@ -195,16 +202,28 @@ mod tests {
         // Create config with servers in one order
         let fixture1 = McpConfig {
             mcp_servers: BTreeMap::from([
-                ("a_server".to_string(), McpServerConfig::new_sse("http://a")),
-                ("z_server".to_string(), McpServerConfig::new_sse("http://z")),
+                (
+                    "a_server".to_string().into(),
+                    McpServerConfig::new_sse("http://a"),
+                ),
+                (
+                    "z_server".to_string().into(),
+                    McpServerConfig::new_sse("http://z"),
+                ),
             ]),
         };
 
         // Create config with servers in different order (BTreeMap sorts by key)
         let fixture2 = McpConfig {
             mcp_servers: BTreeMap::from([
-                ("z_server".to_string(), McpServerConfig::new_sse("http://z")),
-                ("a_server".to_string(), McpServerConfig::new_sse("http://a")),
+                (
+                    "z_server".to_string().into(),
+                    McpServerConfig::new_sse("http://z"),
+                ),
+                (
+                    "a_server".to_string().into(),
+                    McpServerConfig::new_sse("http://a"),
+                ),
             ]),
         };
 

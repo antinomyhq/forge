@@ -1,8 +1,8 @@
-use std::collections::HashMap;
-
 use derive_setters::Setters;
 use forge_domain::ToolDefinition;
 use serde::{Deserialize, Serialize};
+
+use crate::dto::McpServers;
 
 /// A comprehensive view of all tools available in the environment,
 /// categorized by their source type for easier navigation and understanding.
@@ -14,13 +14,17 @@ pub struct ToolsOverview {
     /// Tools provided by registered agents
     pub agents: Vec<ToolDefinition>,
     /// Tools provided by MCP servers, grouped by server name
-    pub mcp: HashMap<String, Vec<ToolDefinition>>,
+    pub mcp: McpServers,
 }
 
 impl ToolsOverview {
     /// Create a new empty ToolsOverview
     pub fn new() -> Self {
-        ToolsOverview { system: Vec::new(), agents: Vec::new(), mcp: HashMap::new() }
+        ToolsOverview {
+            system: Vec::new(),
+            agents: Vec::new(),
+            mcp: McpServers::default(),
+        }
     }
 
     // Creates a flat list of all tool definitions
