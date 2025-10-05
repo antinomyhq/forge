@@ -161,82 +161,11 @@ impl forge_services::CacheRepository for CacacheRepository {
         Ok(())
     }
 
-    async fn cache_remove<K>(&self, key: &K) -> Result<()>
-    where
-        K: Hash + Sync,
-    {
-        let key_str = self.key_to_string(key)?;
-
-        // cacache::remove returns error if key doesn't exist, but we want to
-        // return Ok(()) regardless
-        match cacache::remove(&self.cache_dir, &key_str).await {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                let error_str = e.to_string();
-                if error_str.contains("not found") || error_str.contains("NotFound") {
-                    Ok(())
-                } else {
-                    Err(e).context("Failed to remove from cache")
-                }
-            }
-        }
-    }
-
     async fn cache_clear(&self) -> Result<()> {
         cacache::clear(&self.cache_dir)
             .await
             .context("Failed to clear cache")?;
         Ok(())
-    }
-
-    async fn cache_exists<K>(&self, key: &K) -> Result<bool>
-    where
-        K: Hash + Sync,
-    {
-        Ok(self.get_metadata(key).await?.is_some())
-    }
-
-    async fn cache_is_valid<K>(&self, key: &K) -> Result<bool>
-    where
-        K: Hash + Sync,
-    {
-        // Delegate to the struct method which has TTL logic
-        Self::is_valid(self, key).await
-    }
-
-    async fn cache_get_age<K>(&self, key: &K) -> Result<Option<u64>>
-    where
-        K: Hash + Sync,
-    {
-        // Delegate to the struct method
-        Self::get_age_seconds(self, key).await
-    }
-
-    async fn cache_size(&self) -> Result<u64> {
-        // Get cache directory size from cacache index
-        // This is an approximation - cacache doesn't expose total size directly
-        let cache_dir = self.cache_dir.clone();
-
-        let total_size = tokio::task::spawn_blocking(move || {
-            let mut size = 0u64;
-            for metadata in cacache::list_sync(&cache_dir).flatten() {
-                size += metadata.size as u64;
-            }
-            size
-        })
-        .await
-        .context("Failed to spawn blocking task")?;
-
-        Ok(total_size)
-    }
-
-    async fn cache_keys<K>(&self) -> Result<Vec<K>>
-    where
-        K: std::hash::Hash + Send,
-    {
-        // Since we hash the keys, we cannot reconstruct the original keys
-        // Return empty vector as per trait's default implementation
-        Ok(Vec::new())
     }
 }
 
@@ -288,57 +217,6 @@ mod tests {
         assert_eq!(result, Some(value));
     }
 
-    // TODO: Fix exists() implementation - metadata() doesn't seem to work as
-    // expected For now, we can check existence by trying to get() the value
-    #[tokio::test]
-    async fn test_exists() {
-        let cache_dir = test_cache_dir();
-        let cache = CacacheRepository::new(cache_dir, None);
-
-        let key = TestKey {
-            id: format!("test_{}", chrono::Utc::now().timestamp_millis()),
-        };
-        let value = TestValue { data: "hello".to_string(), count: 42 };
-
-        let exists_before = cache.cache_exists(&key).await.unwrap();
-        assert_eq!(exists_before, false);
-
-        cache.cache_set(&key, &value).await.unwrap();
-
-        // Also verify we can actually retrieve the value
-        let retrieved = cache.cache_get(&key).await.unwrap();
-        assert_eq!(retrieved, Some(value.clone()));
-
-        let exists_after = cache.cache_exists(&key).await.unwrap();
-        assert_eq!(exists_after, true);
-    }
-
-    #[tokio::test]
-    async fn test_remove() {
-        let cache_dir = test_cache_dir();
-        let cache = CacacheRepository::new(cache_dir, None);
-
-        let key = TestKey { id: "test".to_string() };
-        let value = TestValue { data: "hello".to_string(), count: 42 };
-
-        cache.cache_set(&key, &value).await.unwrap();
-        cache.cache_remove(&key).await.unwrap();
-
-        let result: Option<TestValue> = cache.cache_get(&key).await.unwrap();
-        assert_eq!(result, None);
-    }
-
-    #[tokio::test]
-    async fn test_remove_nonexistent() {
-        let cache_dir = test_cache_dir();
-        let cache = CacacheRepository::new(cache_dir, None);
-
-        let key = TestKey { id: "test".to_string() };
-
-        // Should not error when removing non-existent key
-        cache.cache_remove(&key).await.unwrap();
-    }
-
     #[tokio::test]
     async fn test_clear() {
         let cache_dir = test_cache_dir();
@@ -358,41 +236,5 @@ mod tests {
 
         assert_eq!(result1, None);
         assert_eq!(result2, None);
-    }
-
-    #[tokio::test]
-    async fn test_keys() {
-        let cache_dir = test_cache_dir();
-        let cache = CacacheRepository::new(cache_dir, None);
-
-        let key1 = TestKey { id: "test1".to_string() };
-        let key2 = TestKey { id: "test2".to_string() };
-        let value = TestValue { data: "hello".to_string(), count: 42 };
-
-        cache.cache_set(&key1, &value).await.unwrap();
-        cache.cache_set(&key2, &value).await.unwrap();
-
-        // Since we hash the keys, cache_keys() returns an empty vector
-        // as we cannot reconstruct the original keys
-        let keys: Vec<TestKey> = cache.cache_keys().await.unwrap();
-
-        assert_eq!(keys.len(), 0);
-    }
-
-    #[tokio::test]
-    async fn test_size() {
-        let cache_dir = test_cache_dir();
-        let cache = CacacheRepository::new(cache_dir, None);
-
-        let key = TestKey { id: "test".to_string() };
-        let value = TestValue { data: "hello world".to_string(), count: 42 };
-
-        let size_before = cache.cache_size().await.unwrap();
-        assert_eq!(size_before, 0);
-
-        cache.cache_set(&key, &value).await.unwrap();
-
-        let size_after = cache.cache_size().await.unwrap();
-        assert!(size_after > 0);
     }
 }

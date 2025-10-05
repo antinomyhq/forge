@@ -137,27 +137,13 @@ where
         tracing::debug!("Computed merged config hash: {}", config_hash);
 
         // Check if cache is valid (exists and not expired)
-        if self.cache_repo.cache_is_valid(&config_hash).await? {
-            // Cache is valid, retrieve it
-            if let Some(cache) = self
-                .cache_repo
-                .cache_get::<String, McpServers>(&config_hash)
-                .await?
-            {
-                let age_seconds = self
-                    .cache_repo
-                    .cache_get_age(&config_hash)
-                    .await?
-                    .unwrap_or(0);
-
-                tracing::debug!(
-                    "Using cached MCP tools (age: {}s, {} servers, {} total tools)",
-                    age_seconds,
-                    cache.len(),
-                    cache.values().map(|v| v.len()).sum::<usize>()
-                );
-                return Ok(cache.clone());
-            }
+        // Cache is valid, retrieve it
+        if let Some(cache) = self
+            .cache_repo
+            .cache_get::<String, McpServers>(&config_hash)
+            .await?
+        {
+            return Ok(cache.clone());
         }
 
         tracing::debug!("MCP cache invalid or expired, fetching from servers");

@@ -257,99 +257,10 @@ pub trait CacheRepository: Send + Sync {
         K: Hash + Sync,
         V: serde::Serialize + Sync;
 
-    /// Removes a value from the cache by its key.
-    ///
-    /// Returns `Ok(())` regardless of whether the key existed.
-    async fn cache_remove<K>(&self, key: &K) -> anyhow::Result<()>
-    where
-        K: Hash + Sync;
-
     /// Clears all entries from the cache.
     ///
     /// This operation removes all cached data. Use with caution.
     async fn cache_clear(&self) -> anyhow::Result<()>;
-
-    /// Checks if a key exists in the cache.
-    ///
-    /// Returns `Ok(true)` if the key exists, `Ok(false)` if it doesn't,
-    /// or an error if the operation fails.
-    async fn cache_exists<K>(&self, key: &K) -> anyhow::Result<bool>
-    where
-        K: Hash + Sync;
-
-    /// Checks if a cached entry is still valid based on TTL.
-    ///
-    /// Returns `Ok(true)` if the entry exists and hasn't expired,
-    /// `Ok(false)` if it doesn't exist or has expired.
-    /// Default implementation always returns `true` if the key exists.
-    async fn cache_is_valid<K>(&self, key: &K) -> anyhow::Result<bool>
-    where
-        K: Hash + Sync,
-    {
-        self.cache_exists(key).await
-    }
-
-    /// Gets the age of a cached entry in seconds.
-    ///
-    /// Returns `Ok(Some(age))` if the entry exists, `Ok(None)` if it doesn't.
-    /// Default implementation returns `None`.
-    async fn cache_get_age<K>(&self, _key: &K) -> anyhow::Result<Option<u64>>
-    where
-        K: Hash + Sync,
-    {
-        Ok(None)
-    }
-
-    /// Retrieves multiple values from the cache by their keys.
-    ///
-    /// Returns a vector of optional values in the same order as the input keys.
-    /// Missing keys result in `None` values in the output.
-    /// Default implementation calls `get` for each key sequentially.
-    async fn cache_get_many<K, V>(&self, keys: &[K]) -> anyhow::Result<Vec<Option<V>>>
-    where
-        K: Hash + Sync,
-        V: serde::Serialize + DeserializeOwned + Send,
-    {
-        let mut results = Vec::with_capacity(keys.len());
-        for key in keys {
-            results.push(self.cache_get(key).await?);
-        }
-        Ok(results)
-    }
-
-    /// Stores multiple key-value pairs in the cache.
-    ///
-    /// Default implementation calls `set` for each pair sequentially.
-    /// Implementations may override this for batch optimization.
-    async fn cache_set_many<K, V>(&self, entries: &[(K, V)]) -> anyhow::Result<()>
-    where
-        K: Hash + Sync,
-        V: serde::Serialize + Sync,
-    {
-        for (key, value) in entries {
-            self.cache_set(key, value).await?;
-        }
-        Ok(())
-    }
-
-    /// Returns the total size of the cache in bytes.
-    ///
-    /// Returns `Ok(0)` by default. Implementations should override
-    /// this if they track cache size.
-    async fn cache_size(&self) -> anyhow::Result<u64> {
-        Ok(0)
-    }
-
-    /// Returns all keys currently stored in the cache.
-    ///
-    /// Returns an empty vector by default. Implementations should override
-    /// this if they support key enumeration.
-    async fn cache_keys<K>(&self) -> anyhow::Result<Vec<K>>
-    where
-        K: Hash + Send,
-    {
-        Ok(Vec::new())
-    }
 }
 
 #[async_trait::async_trait]

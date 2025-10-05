@@ -362,46 +362,7 @@ impl CacheRepository for ForgeInfra {
         self.mcp_cache_repository.cache_set(key, value).await
     }
 
-    async fn cache_remove<K>(&self, key: &K) -> anyhow::Result<()>
-    where
-        K: std::hash::Hash + Sync,
-    {
-        self.mcp_cache_repository.cache_remove(key).await
-    }
-
     async fn cache_clear(&self) -> anyhow::Result<()> {
         self.mcp_cache_repository.cache_clear().await
-    }
-
-    async fn cache_exists<K>(&self, key: &K) -> anyhow::Result<bool>
-    where
-        K: std::hash::Hash + Sync,
-    {
-        self.mcp_cache_repository.cache_exists(key).await
-    }
-
-    async fn cache_is_valid<K>(&self, key: &K) -> anyhow::Result<bool>
-    where
-        K: std::hash::Hash + Sync,
-    {
-        self.mcp_cache_repository.is_valid(key).await
-    }
-
-    async fn cache_get_age<K>(&self, key: &K) -> anyhow::Result<Option<u64>>
-    where
-        K: std::hash::Hash + Sync,
-    {
-        self.mcp_cache_repository.get_age_seconds(key).await
-    }
-
-    async fn cache_size(&self) -> anyhow::Result<u64> {
-        self.mcp_cache_repository.cache_size().await
-    }
-
-    async fn cache_keys<K>(&self) -> anyhow::Result<Vec<K>>
-    where
-        K: std::hash::Hash + Send,
-    {
-        self.mcp_cache_repository.cache_keys().await
     }
 }
