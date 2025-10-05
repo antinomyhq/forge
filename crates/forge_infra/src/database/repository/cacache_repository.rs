@@ -30,55 +30,6 @@ impl CacacheRepository {
         Self { cache_dir, ttl_seconds }
     }
 
-    /// Check if a cached entry is still valid based on TTL (if configured).
-    ///
-    /// Returns true if:
-    /// - The entry exists AND
-    /// - Either no TTL is configured, or the entry is within the TTL period
-    pub async fn is_valid<K>(&self, key: &K) -> Result<bool>
-    where
-        K: Hash,
-    {
-        if let Some(metadata) = self.get_metadata(key).await? {
-            if let Some(ttl) = self.ttl_seconds {
-                let now = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_millis();
-
-                let age_ms = now.saturating_sub(metadata.time);
-                let age_seconds = age_ms / 1000;
-
-                Ok(age_seconds < ttl)
-            } else {
-                // No TTL configured, so it's always valid if it exists
-                Ok(true)
-            }
-        } else {
-            Ok(false)
-        }
-    }
-
-    /// Gets the age of a cached entry in seconds.
-    ///
-    /// Returns None if the entry doesn't exist.
-    pub async fn get_age_seconds<K>(&self, key: &K) -> Result<Option<u64>>
-    where
-        K: Hash,
-    {
-        if let Some(metadata) = self.get_metadata(key).await? {
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_millis();
-
-            let age_ms = now.saturating_sub(metadata.time);
-            Ok(Some((age_ms / 1000) as u64))
-        } else {
-            Ok(None)
-        }
-    }
-
     /// Converts a key to a deterministic cache key string using its hash value.
     fn key_to_string<K>(&self, key: &K) -> Result<String>
     where
@@ -90,31 +41,6 @@ impl CacacheRepository {
         let mut hasher = DefaultHasher::new();
         key.hash(&mut hasher);
         Ok(hasher.finish().to_string())
-    }
-
-    /// Gets the metadata for a cached entry, including timestamp.
-    ///
-    /// Returns None if the entry doesn't exist.
-    pub async fn get_metadata<K>(&self, key: &K) -> Result<Option<cacache::Metadata>>
-    where
-        K: Hash,
-    {
-        let key_str = self.key_to_string(key)?;
-
-        match cacache::metadata(&self.cache_dir, &key_str).await {
-            Ok(metadata) => {
-                // cacache::metadata returns Option<Metadata>
-                Ok(metadata)
-            }
-            Err(e) => {
-                let error_str = e.to_string();
-                if error_str.contains("not found") || error_str.contains("NotFound") {
-                    Ok(None)
-                } else {
-                    Err(e).context("Failed to read cache metadata")
-                }
-            }
-        }
     }
 }
 

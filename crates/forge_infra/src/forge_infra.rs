@@ -15,9 +15,9 @@ use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
 use reqwest_eventsource::EventSource;
 
-use crate::cache::CacacheRepository;
-use crate::database::repository::app_config::AppConfigRepositoryImpl;
-use crate::database::repository::conversation::ConversationRepositoryImpl;
+use crate::database::repository::CacacheRepository;
+use crate::database::repository::AppConfigRepositoryImpl;
+use crate::database::repository::ConversationRepositoryImpl;
 use crate::database::{DatabasePool, PoolConfig};
 use crate::env::ForgeEnvironmentInfra;
 use crate::executor::ForgeCommandExecutorService;
