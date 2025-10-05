@@ -16,7 +16,7 @@ use crate::dto::ToolsOverview;
 use crate::error::Error;
 use crate::mcp_executor::McpExecutor;
 use crate::tool_executor::ToolExecutor;
-use crate::{EnvironmentService, McpService, Services};
+use crate::{EnvironmentService, McpService, Services, ToolResolver};
 
 pub struct ToolRegistry<S> {
     tool_executor: ToolExecutor<S>,
@@ -146,22 +146,18 @@ impl<S> ToolRegistry<S> {
     /// # Validation Process
     /// Verifies the tool is supported by the agent specified in the context
     fn validate_tool_call(agent: &Agent, tool_name: &ToolName) -> Result<(), Error> {
-        let agent_tools: Vec<_> = agent
-            .tools
-            .iter()
-            .flat_map(|tools| tools.iter())
-            .map(|tool| tool.as_str())
-            .collect();
-
-        if !agent_tools.contains(&tool_name.as_str())
-            && *tool_name != ToolsDiscriminants::AttemptCompletion.name()
-        {
+        // Check if tool matches any pattern (supports globs like "mcp_*")
+        let matches = ToolResolver::is_allowed(agent, tool_name);
+        if !matches && *tool_name != ToolsDiscriminants::AttemptCompletion.name() {
             tracing::error!(tool_name = %tool_name, "No tool with name");
-
-            return Err(Error::NotAllowed {
-                name: tool_name.clone(),
-                supported_tools: agent_tools.join(", "),
-            });
+            let supported_tools = agent
+                .tools
+                .iter()
+                .flatten()
+                .map(|t| t.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(Error::NotAllowed { name: tool_name.clone(), supported_tools });
         }
         Ok(())
     }
@@ -172,6 +168,7 @@ mod tests {
     use forge_domain::{Agent, AgentId, ToolName, Tools, ToolsDiscriminants};
     use pretty_assertions::assert_eq;
 
+    use crate::error::Error;
     use crate::tool_registry::ToolRegistry;
 
     fn agent() -> Agent {
@@ -208,5 +205,177 @@ mod tests {
         );
 
         assert!(result.is_ok(), "Completion tool call should be valid");
+    }
+
+    #[test]
+    fn test_validate_tool_call_with_glob_pattern_wildcard() {
+        let fixture = Agent::new(AgentId::new("test_agent"))
+            .tools(vec![ToolName::new("mcp_*"), ToolName::new("read")]);
+
+        let actual = ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("mcp_foo"));
+
+        assert!(actual.is_ok());
+    }
+
+    #[test]
+    fn test_validate_tool_call_with_glob_pattern_multiple_tools() {
+        let fixture = Agent::new(AgentId::new("test_agent"))
+            .tools(vec![ToolName::new("mcp_*"), ToolName::new("read")]);
+
+        let actual_mcp_read =
+            ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("mcp_read"));
+        let actual_mcp_write =
+            ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("mcp_write"));
+        let actual_read = ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("read"));
+
+        assert!(actual_mcp_read.is_ok());
+        assert!(actual_mcp_write.is_ok());
+        assert!(actual_read.is_ok());
+    }
+
+    #[test]
+    fn test_validate_tool_call_with_glob_pattern_no_match() {
+        let fixture = Agent::new(AgentId::new("test_agent"))
+            .tools(vec![ToolName::new("mcp_*"), ToolName::new("read")]);
+
+        let actual = ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("write"));
+
+        let expected = Error::NotAllowed {
+            name: ToolName::new("write"),
+            supported_tools: "mcp_*, read".to_string(),
+        }
+        .to_string();
+
+        assert_eq!(actual.unwrap_err().to_string(), expected);
+    }
+
+    #[test]
+    fn test_validate_tool_call_with_glob_pattern_question_mark() {
+        let fixture = Agent::new(AgentId::new("test_agent"))
+            .tools(vec![ToolName::new("read?"), ToolName::new("write")]);
+
+        let actual_read1 =
+            ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("read1"));
+        let actual_readx =
+            ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("readx"));
+        let actual_read = ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("read"));
+
+        assert!(actual_read1.is_ok());
+        assert!(actual_readx.is_ok());
+        assert!(actual_read.is_err());
+    }
+
+    #[test]
+    fn test_validate_tool_call_with_glob_pattern_character_class() {
+        let fixture = Agent::new(AgentId::new("test_agent"))
+            .tools(vec![ToolName::new("tool_[abc]"), ToolName::new("write")]);
+
+        let actual_tool_a =
+            ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("tool_a"));
+        let actual_tool_b =
+            ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("tool_b"));
+        let actual_tool_c =
+            ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("tool_c"));
+        let actual_tool_d =
+            ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("tool_d"));
+
+        assert!(actual_tool_a.is_ok());
+        assert!(actual_tool_b.is_ok());
+        assert!(actual_tool_c.is_ok());
+        assert!(actual_tool_d.is_err());
+    }
+
+    #[test]
+    fn test_validate_tool_call_with_glob_pattern_double_wildcard() {
+        let fixture = Agent::new(AgentId::new("test_agent"))
+            .tools(vec![ToolName::new("**"), ToolName::new("read")]);
+
+        let actual_any_tool =
+            ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("any_tool_name"));
+        let actual_nested =
+            ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("nested/tool"));
+
+        assert!(actual_any_tool.is_ok());
+        assert!(actual_nested.is_ok());
+    }
+
+    #[test]
+    fn test_validate_tool_call_exact_match_with_special_chars() {
+        let fixture = Agent::new(AgentId::new("test_agent"))
+            .tools(vec![ToolName::new("tool_[special]"), ToolName::new("read")]);
+
+        let actual =
+            ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("tool_[special]"));
+
+        // The glob pattern "tool_[special]" will match "tool_s", "tool_p", etc., not
+        // the literal string So this test verifies that exact matching doesn't
+        // work when the pattern is a valid glob
+        assert!(actual.is_err());
+    }
+
+    #[test]
+    fn test_validate_tool_call_backward_compatibility_exact_match() {
+        let fixture = Agent::new(AgentId::new("test_agent")).tools(vec![
+            ToolName::new("read"),
+            ToolName::new("write"),
+            ToolName::new("search"),
+        ]);
+
+        let actual_read = ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("read"));
+        let actual_write =
+            ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("write"));
+        let actual_invalid =
+            ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("delete"));
+
+        assert!(actual_read.is_ok());
+        assert!(actual_write.is_ok());
+        assert!(actual_invalid.is_err());
+    }
+
+    #[test]
+    fn test_validate_tool_call_empty_tools_list() {
+        let fixture = Agent::new(AgentId::new("test_agent"));
+
+        let actual = ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("read"));
+
+        assert!(actual.is_err());
+    }
+
+    #[test]
+    fn test_validate_tool_call_attempt_completion_always_allowed() {
+        let fixture = Agent::new(AgentId::new("test_agent")).tools(vec![ToolName::new("read")]);
+
+        let actual = ToolRegistry::<()>::validate_tool_call(
+            &fixture,
+            &ToolsDiscriminants::AttemptCompletion.name(),
+        );
+
+        assert!(actual.is_ok());
+    }
+
+    #[test]
+    fn test_validate_tool_call_attempt_completion_with_empty_tools() {
+        let fixture = Agent::new(AgentId::new("test_agent"));
+
+        let actual = ToolRegistry::<()>::validate_tool_call(
+            &fixture,
+            &ToolsDiscriminants::AttemptCompletion.name(),
+        );
+
+        assert!(actual.is_ok());
+    }
+
+    #[test]
+    fn test_validate_tool_call_glob_with_prefix_suffix() {
+        let fixture =
+            Agent::new(AgentId::new("test_agent")).tools(vec![ToolName::new("mcp_*_tool")]);
+
+        let actual_match =
+            ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("mcp_read_tool"));
+        let actual_no_match =
+            ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("mcp_read"));
+
+        assert!(actual_match.is_ok());
+        assert!(actual_no_match.is_err());
     }
 }
