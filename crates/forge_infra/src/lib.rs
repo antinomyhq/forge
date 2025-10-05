@@ -18,6 +18,6 @@ mod mcp_client;
 mod mcp_server;
 mod walker;
 
-pub use cache::{CacacheRepository, ForgeMcpCacheRepository};
+pub use cache::CacacheRepository;
 pub use executor::ForgeCommandExecutorService;
 pub use forge_infra::*;

@@ -3,13 +3,12 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_app::McpCacheRepository;
 use forge_domain::{
     CommandOutput, Conversation, ConversationId, Environment, McpServerConfig, McpToolCache,
 };
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
-    AppConfigRepository, CommandInfra, ConversationRepository, DirectoryReaderInfra,
+    AppConfigRepository, CacheInfra, CommandInfra, ConversationRepository, DirectoryReaderInfra,
     EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra,
     FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
 };
@@ -17,7 +16,7 @@ use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
 use reqwest_eventsource::EventSource;
 
-use crate::cache::ForgeMcpCacheRepository;
+use crate::cache::CacacheRepository;
 use crate::database::repository::app_config::AppConfigRepositoryImpl;
 use crate::database::repository::conversation::ConversationRepositoryImpl;
 use crate::database::{DatabasePool, PoolConfig};
@@ -55,7 +54,7 @@ pub struct ForgeInfra {
     http_service: Arc<ForgeHttpInfra>,
     conversation_repository: Arc<ConversationRepositoryImpl>,
     app_config_repository: Arc<AppConfigRepositoryImpl>,
-    mcp_cache_repository: Arc<ForgeMcpCacheRepository>,
+    mcp_cache_repository: Arc<CacacheRepository<String, McpToolCache>>,
 }
 
 impl ForgeInfra {
@@ -73,7 +72,7 @@ impl ForgeInfra {
             env.app_config().as_path().to_path_buf(),
         ));
 
-        let mcp_cache_repository = Arc::new(ForgeMcpCacheRepository::new(env.cache_dir()));
+        let mcp_cache_repository = Arc::new(CacacheRepository::new(env.cache_dir(), Some(3600))); // 1 hour TTL
 
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
@@ -338,27 +337,46 @@ impl AppConfigRepository for ForgeInfra {
     }
 }
 
+// Note: ForgeInfra implements CacheInfra<String, McpToolCache> directly
+// via delegation to mcp_cache_repository (CacacheRepository<String,
+// McpToolCache>). This provides a cleaner interface without the need for a
+// custom McpCacheRepository trait.
+
 #[async_trait::async_trait]
-impl McpCacheRepository for ForgeInfra {
-    async fn get_cache(&self, config_hash: &str) -> anyhow::Result<Option<McpToolCache>> {
-        self.mcp_cache_repository.get_cache(config_hash).await
+impl CacheInfra<String, McpToolCache> for ForgeInfra {
+    async fn get(&self, key: &String) -> anyhow::Result<Option<McpToolCache>> {
+        self.mcp_cache_repository.get(key).await
     }
 
-    async fn set_cache(&self, cache: McpToolCache) -> anyhow::Result<()> {
-        self.mcp_cache_repository.set_cache(cache).await
+    async fn set(&self, key: &String, value: &McpToolCache) -> anyhow::Result<()> {
+        self.mcp_cache_repository.set(key, value).await
     }
 
-    async fn clear_cache(&self) -> anyhow::Result<()> {
-        self.mcp_cache_repository.clear_cache().await
+    async fn remove(&self, key: &String) -> anyhow::Result<()> {
+        self.mcp_cache_repository.remove(key).await
     }
 
-    async fn is_cache_valid(&self, config_hash: &str) -> anyhow::Result<bool> {
-        self.mcp_cache_repository.is_cache_valid(config_hash).await
+    async fn clear(&self) -> anyhow::Result<()> {
+        self.mcp_cache_repository.clear().await
     }
 
-    async fn get_cache_age_seconds(&self, config_hash: &str) -> anyhow::Result<Option<u64>> {
-        self.mcp_cache_repository
-            .get_cache_age_seconds(config_hash)
-            .await
+    async fn exists(&self, key: &String) -> anyhow::Result<bool> {
+        self.mcp_cache_repository.exists(key).await
+    }
+
+    async fn is_valid(&self, key: &String) -> anyhow::Result<bool> {
+        self.mcp_cache_repository.is_valid(key).await
+    }
+
+    async fn get_age_seconds(&self, key: &String) -> anyhow::Result<Option<u64>> {
+        self.mcp_cache_repository.get_age_seconds(key).await
+    }
+
+    async fn size(&self) -> anyhow::Result<u64> {
+        self.mcp_cache_repository.size().await
+    }
+
+    async fn keys(&self) -> anyhow::Result<Vec<String>> {
+        self.mcp_cache_repository.keys().await
     }
 }

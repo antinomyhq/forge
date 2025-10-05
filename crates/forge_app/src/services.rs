@@ -4,8 +4,8 @@ use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation,
-    ConversationId, Environment, File, McpConfig, McpToolCache, Model, ModelId, PatchOperation,
-    ResultStream, Scope, ToolCallFull, ToolDefinition, ToolOutput, Workflow,
+    ConversationId, Environment, File, McpConfig, Model, ModelId, PatchOperation, ResultStream,
+    Scope, ToolCallFull, ToolDefinition, ToolOutput, Workflow,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -16,6 +16,33 @@ use url::Url;
 use crate::Walker;
 use crate::dto::{InitAuth, LoginInfo, Provider, ProviderId};
 use crate::user::{User, UserUsage};
+
+/// Information about MCP cache status
+///
+/// The cache is unified - it stores tools from both user and local configs
+/// combined into a single cache entry keyed by the merged config hash.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct McpCacheInfo {
+    /// Unified cache status (represents both user and local configs merged)
+    pub unified: CacheStatus,
+    /// Number of MCP servers configured
+    pub servers: usize,
+}
+
+/// Status of an MCP cache
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "status", rename_all = "lowercase")]
+pub enum CacheStatus {
+    Valid {
+        age: String,
+        tool_count: usize,
+        config_hash: String,
+    },
+    Invalid {
+        reason: String,
+    },
+    Missing,
+}
 
 #[derive(Debug)]
 pub struct ShellOutput {
@@ -142,11 +169,28 @@ pub trait McpConfigManager: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait McpService: Send + Sync {
+    /// MCP cache repository - generic cache that can store String ->
+    /// McpToolCache mappings This must implement CacheInfra<String,
+    /// McpToolCache> trait with TTL support
+    type McpCacheRepository: Send + Sync;
+
+    /// Get cache repository for direct access (e.g., for cache info, clearing)
+    fn cache_repository(&self) -> &Self::McpCacheRepository;
+
     async fn list(&self) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>>;
     async fn list_cached(
         &self,
     ) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>>;
     async fn call(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput>;
+
+    /// Get information about the MCP cache status
+    async fn get_cache_info(&self) -> anyhow::Result<McpCacheInfo>;
+
+    /// Clear the MCP cache
+    async fn clear_cache(&self) -> anyhow::Result<()>;
+
+    /// Refresh the MCP cache by fetching fresh data
+    async fn refresh_cache(&self) -> anyhow::Result<()>;
 }
 
 /// Repository for MCP tool caches
@@ -154,34 +198,9 @@ pub trait McpService: Send + Sync {
 /// This repository stores a unified cache for both user and local MCP tools.
 /// The cache is keyed by the config hash, which is computed from the merged
 /// user and local configurations.
-#[async_trait::async_trait]
-pub trait McpCacheRepository: Send + Sync {
-    /// Get cache for the specified config hash
-    ///
-    /// Returns the cached tools if they exist and match the provided hash.
-    async fn get_cache(&self, config_hash: &str) -> anyhow::Result<Option<McpToolCache>>;
-
-    /// Set cache for the specified config hash
-    ///
-    /// Stores the tools in the cache with the provided hash for future
-    /// retrieval.
-    async fn set_cache(&self, cache: McpToolCache) -> anyhow::Result<()>;
-
-    /// Clear all caches
-    ///
-    /// Removes all cached MCP tools.
-    async fn clear_cache(&self) -> anyhow::Result<()>;
-
-    /// Check if cache is valid based on TTL
-    ///
-    /// Returns true if cache exists and hasn't expired (< 1 hour old).
-    async fn is_cache_valid(&self, config_hash: &str) -> anyhow::Result<bool>;
-
-    /// Get cache age in seconds
-    ///
-    /// Returns None if cache doesn't exist.
-    async fn get_cache_age_seconds(&self, config_hash: &str) -> anyhow::Result<Option<u64>>;
-}
+// Note: McpCacheRepository trait has been removed in favor of using
+// forge_services::CacheInfra<String, McpToolCache> directly for maximum
+// simplicity and reusability
 
 #[async_trait::async_trait]
 pub trait ConversationService: Send + Sync {
@@ -434,7 +453,6 @@ pub trait Services: Send + Sync + 'static + Clone {
     type NetFetchService: NetFetchService;
     type ShellService: ShellService;
     type McpService: McpService;
-    type McpCacheRepository: McpCacheRepository;
     type AuthService: AuthService;
     type ProviderRegistry: ProviderRegistry;
     type AgentLoaderService: AgentLoaderService;
@@ -458,7 +476,6 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn net_fetch_service(&self) -> &Self::NetFetchService;
     fn shell_service(&self) -> &Self::ShellService;
     fn mcp_service(&self) -> &Self::McpService;
-    fn mcp_cache_repository(&self) -> &Self::McpCacheRepository;
     fn environment_service(&self) -> &Self::EnvironmentService;
     fn custom_instructions_service(&self) -> &Self::CustomInstructionsService;
     fn auth_service(&self) -> &Self::AuthService;
@@ -529,6 +546,12 @@ impl<I: Services> McpConfigManager for I {
 
 #[async_trait::async_trait]
 impl<I: Services> McpService for I {
+    type McpCacheRepository = <I::McpService as McpService>::McpCacheRepository;
+
+    fn cache_repository(&self) -> &Self::McpCacheRepository {
+        self.mcp_service().cache_repository()
+    }
+
     async fn list(&self) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>> {
         self.mcp_service().list().await
     }
@@ -541,6 +564,18 @@ impl<I: Services> McpService for I {
 
     async fn call(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput> {
         self.mcp_service().call(call).await
+    }
+
+    async fn get_cache_info(&self) -> anyhow::Result<McpCacheInfo> {
+        self.mcp_service().get_cache_info().await
+    }
+
+    async fn clear_cache(&self) -> anyhow::Result<()> {
+        self.mcp_service().clear_cache().await
+    }
+
+    async fn refresh_cache(&self) -> anyhow::Result<()> {
+        self.mcp_service().refresh_cache().await
     }
 }
 

@@ -5,11 +5,11 @@ use anyhow::Context;
 use forge_app::domain::{
     McpConfig, McpServerConfig, McpToolCache, ToolCallFull, ToolDefinition, ToolName, ToolOutput,
 };
-use forge_app::{McpCacheRepository, McpConfigManager, McpService};
+use forge_app::{McpConfigManager, McpService};
 use tokio::sync::{Mutex, RwLock};
 
 use crate::mcp::tool::McpExecutor;
-use crate::{McpClientInfra, McpServerInfra};
+use crate::{CacheInfra, McpClientInfra, McpServerInfra};
 
 #[derive(Clone)]
 pub struct ForgeMcpService<M, I, C, R> {
@@ -31,7 +31,7 @@ impl<M: McpConfigManager, I: McpServerInfra, C, R> ForgeMcpService<M, I, C, R>
 where
     C: McpClientInfra + Clone,
     C: From<<I as McpServerInfra>::Client>,
-    R: McpCacheRepository,
+    R: CacheInfra<String, McpToolCache>,
 {
     pub fn new(manager: Arc<M>, infra: Arc<I>, cache_repo: Arc<R>) -> Self {
         Self {
@@ -131,12 +131,12 @@ where
         tracing::debug!("Computed merged config hash: {}", config_hash);
 
         // Check if cache is valid (exists and not expired)
-        if self.cache_repo.is_cache_valid(&config_hash).await? {
+        if self.cache_repo.is_valid(&config_hash).await? {
             // Cache is valid, retrieve it
-            if let Some(cache) = self.cache_repo.get_cache(&config_hash).await? {
+            if let Some(cache) = self.cache_repo.get(&config_hash).await? {
                 let age_seconds = self
                     .cache_repo
-                    .get_cache_age_seconds(&config_hash)
+                    .get_age_seconds(&config_hash)
                     .await?
                     .unwrap_or(0);
 
@@ -191,7 +191,7 @@ where
         if !mcp_live.is_empty() {
             let cache =
                 McpToolCache::new(config_hash.clone(), mcp_live.clone().into_iter().collect());
-            if let Err(e) = self.cache_repo.set_cache(cache).await {
+            if let Err(e) = self.cache_repo.set(&config_hash, &cache).await {
                 tracing::warn!("Failed to cache MCP tools: {}", e);
             } else {
                 tracing::debug!(
@@ -267,6 +267,69 @@ where
 
         tool.executable.call_tool(call.arguments.parse()?).await
     }
+
+    /// Get information about the MCP cache status
+    async fn get_cache_info(&self) -> anyhow::Result<forge_app::McpCacheInfo> {
+        // Get current configs to compute merged hash
+        let mcp_config = self.manager.read_mcp_config().await?;
+
+        // Compute the unified hash
+        let config_hash = mcp_config.cache_key();
+
+        // Get the unified cache
+        let cache = self.cache_repo.get(&config_hash).await?;
+
+        let cache_status = match cache {
+            Some(cache) => {
+                // Check if cache is valid using infrastructure layer
+                let is_valid = self.cache_repo.is_valid(&config_hash).await?;
+                let age_seconds = self
+                    .cache_repo
+                    .get_age_seconds(&config_hash)
+                    .await?
+                    .unwrap_or(0);
+
+                let age = humantime::format_duration(std::time::Duration::from_secs(age_seconds))
+                    .to_string();
+                if is_valid {
+                    forge_app::CacheStatus::Valid {
+                        age,
+                        tool_count: cache.tools.values().map(|v| v.len()).sum(),
+                        config_hash: cache.config_hash,
+                    }
+                } else {
+                    // Check if config changed or just expired
+                    let reason = if cache.config_hash != config_hash {
+                        "Config changed".to_string()
+                    } else {
+                        format!("Cache expired (age: {}, TTL: 1h)", age)
+                    };
+                    forge_app::CacheStatus::Invalid { reason }
+                }
+            }
+            None => forge_app::CacheStatus::Missing,
+        };
+
+        Ok(
+            forge_app::McpCacheInfo {
+                unified: cache_status,
+                servers: mcp_config.mcp_servers.len(),
+            },
+        )
+    }
+
+    /// Clear the MCP cache
+    async fn clear_cache(&self) -> anyhow::Result<()> {
+        self.cache_repo.clear().await?;
+        Ok(())
+    }
+
+    /// Refresh the MCP cache by fetching fresh data
+    async fn refresh_cache(&self) -> anyhow::Result<()> {
+        // Fetch fresh tools by calling list() which connects to MCPs
+        let _tools = self.list().await?;
+        Ok(())
+    }
 }
 
 #[async_trait::async_trait]
@@ -274,8 +337,14 @@ impl<M: McpConfigManager, I: McpServerInfra, C, R> McpService for ForgeMcpServic
 where
     C: McpClientInfra + Clone,
     C: From<<I as McpServerInfra>::Client>,
-    R: McpCacheRepository,
+    R: CacheInfra<String, McpToolCache>,
 {
+    type McpCacheRepository = R;
+
+    fn cache_repository(&self) -> &Self::McpCacheRepository {
+        &self.cache_repo
+    }
+
     async fn list(&self) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>> {
         self.list().await
     }
@@ -288,5 +357,17 @@ where
 
     async fn call(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput> {
         self.call(call).await
+    }
+
+    async fn get_cache_info(&self) -> anyhow::Result<forge_app::McpCacheInfo> {
+        self.get_cache_info().await
+    }
+
+    async fn clear_cache(&self) -> anyhow::Result<()> {
+        self.clear_cache().await
+    }
+
+    async fn refresh_cache(&self) -> anyhow::Result<()> {
+        self.refresh_cache().await
     }
 }

@@ -5,15 +5,15 @@ use anyhow::{Context, Result};
 use forge_app::dto::{InitAuth, LoginInfo, Provider, ProviderId, ToolsOverview};
 use forge_app::{
     AgentLoaderService, AuthService, ConversationService, EnvironmentService, FileDiscoveryService,
-    ForgeApp, McpConfigManager, ProviderRegistry, ProviderService, Services, User, UserUsage,
-    Walker, WorkflowService,
+    ForgeApp, McpCacheInfo, McpConfigManager, McpService, ProviderRegistry, ProviderService,
+    Services, User, UserUsage, Walker, WorkflowService,
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
 use forge_services::{AppConfigRepository, CommandInfra, ForgeServices};
 use forge_stream::MpscStream;
 
-use crate::{API, CacheStatus, McpCacheInfo};
+use crate::API;
 
 pub struct ForgeAPI<S, F> {
     services: Arc<S>,
@@ -35,7 +35,13 @@ impl ForgeAPI<ForgeServices<ForgeInfra>, ForgeInfra> {
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> {
+impl<A, F> API for ForgeAPI<A, F>
+where
+    A: Services,
+    <A::McpService as forge_app::McpService>::McpCacheRepository:
+        forge_services::CacheInfra<String, forge_app::domain::McpToolCache>,
+    F: CommandInfra + AppConfigRepository,
+{
     async fn discover(&self) -> Result<Vec<File>> {
         let environment = self.services.get_environment();
         let config = Walker::unlimited().cwd(environment.cwd);
@@ -223,74 +229,14 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
     }
 
     async fn get_mcp_cache_info(&self) -> Result<McpCacheInfo> {
-        use forge_app::McpCacheRepository;
-        // Get current configs to compute merged hash
-        let mcp_config = self.services.mcp_config_manager().read_mcp_config().await?;
-
-        // Compute the unified hash
-        let config_hash = mcp_config.cache_key();
-
-        // Get the unified cache
-        let cache = self
-            .services
-            .mcp_cache_repository()
-            .get_cache(&config_hash)
-            .await?;
-
-        let cache_status = match cache {
-            Some(cache) => {
-                // Check if cache is valid using infrastructure layer
-                let is_valid = self
-                    .services
-                    .mcp_cache_repository()
-                    .is_cache_valid(&config_hash)
-                    .await?;
-                let age_seconds = self
-                    .services
-                    .mcp_cache_repository()
-                    .get_cache_age_seconds(&config_hash)
-                    .await?
-                    .unwrap_or(0);
-
-                let age = humantime::format_duration(std::time::Duration::from_secs(age_seconds))
-                    .to_string();
-                if is_valid {
-                    CacheStatus::Valid {
-                        age,
-                        tool_count: cache.tools.values().map(|v| v.len()).sum(),
-                        config_hash: cache.config_hash,
-                    }
-                } else {
-                    // Check if config changed or just expired
-                    let reason = if cache.config_hash != config_hash {
-                        "Config changed".to_string()
-                    } else {
-                        format!("Cache expired (age: {}, TTL: 1h)", age)
-                    };
-                    CacheStatus::Invalid { reason }
-                }
-            }
-            None => CacheStatus::Missing,
-        };
-
-        Ok(McpCacheInfo { unified: cache_status, servers: mcp_config.mcp_servers.len() })
+        self.services.mcp_service().get_cache_info().await
     }
 
     async fn clear_mcp_cache(&self) -> Result<()> {
-        use forge_app::McpCacheRepository;
-
-        // Since we have a unified cache, clearing any scope clears all
-        self.services.mcp_cache_repository().clear_cache().await?;
-
-        Ok(())
+        self.services.mcp_service().clear_cache().await
     }
 
     async fn refresh_mcp_cache(&self) -> Result<()> {
-        use forge_app::McpService;
-
-        // Fetch fresh tools by calling list() which connects to MCPs
-        let _tools = self.services.list().await?;
-
-        Ok(())
+        self.services.mcp_service().refresh_cache().await
     }
 }

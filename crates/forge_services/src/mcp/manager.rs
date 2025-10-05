@@ -3,11 +3,13 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use bytes::Bytes;
+use forge_app::McpConfigManager;
 use forge_app::domain::{McpConfig, Scope};
-use forge_app::{McpCacheRepository, McpConfigManager};
 use merge::Merge;
 
-use crate::{EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, McpServerInfra};
+use crate::{
+    CacheInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, McpServerInfra,
+};
 
 pub struct ForgeMcpManager<I, R> {
     infra: Arc<I>,
@@ -17,7 +19,7 @@ pub struct ForgeMcpManager<I, R> {
 impl<I, R> ForgeMcpManager<I, R>
 where
     I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra,
-    R: McpCacheRepository,
+    R: CacheInfra<String, forge_app::domain::McpToolCache>,
 {
     pub fn new(infra: Arc<I>, cache_repo: Arc<R>) -> Self {
         Self { infra, cache_repo }
@@ -41,7 +43,7 @@ where
 impl<I, R> McpConfigManager for ForgeMcpManager<I, R>
 where
     I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra + FileWriterInfra,
-    R: McpCacheRepository,
+    R: CacheInfra<String, forge_app::domain::McpToolCache>,
 {
     async fn read_mcp_config(&self) -> anyhow::Result<McpConfig> {
         let env = self.infra.get_environment();
@@ -76,7 +78,7 @@ where
 
         // Clear the unified cache to force refresh on next use
         // Since we now use a merged hash, clearing any scope invalidates the cache
-        self.cache_repo.clear_cache().await?;
+        self.cache_repo.clear().await?;
 
         Ok(())
     }

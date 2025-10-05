@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use forge_app::{McpCacheRepository, Services};
+use forge_app::Services;
 
 use crate::agent_loader::AgentLoaderService as ForgeAgentLoaderService;
 use crate::attachment::ForgeChatRequest;
@@ -20,7 +20,7 @@ use crate::tool_services::{
 };
 use crate::workflow::ForgeWorkflowService;
 use crate::{
-    AppConfigRepository, CommandInfra, ConversationRepository, DirectoryReaderInfra,
+    AppConfigRepository, CacheInfra, CommandInfra, ConversationRepository, DirectoryReaderInfra,
     EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra,
     FileWriterInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
 };
@@ -36,7 +36,6 @@ type AuthService<F> = ForgeAuthService<F>;
 ///   environment, file reading, vector indexing, and embedding.
 #[derive(Clone)]
 pub struct ForgeServices<F: HttpInfra + EnvironmentInfra + McpServerInfra + WalkerInfra> {
-    infra: Arc<F>,
     chat_service: Arc<ForgeProviderService<F>>,
     conversation_service: Arc<ForgeConversationService<F>>,
     template_service: Arc<ForgeTemplateService<F>>,
@@ -76,7 +75,7 @@ impl<
         + UserInfra
         + ConversationRepository
         + AppConfigRepository
-        + McpCacheRepository,
+        + CacheInfra<String, forge_app::domain::McpToolCache>,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -111,7 +110,6 @@ impl<
         let policy_service = ForgePolicyService::new(infra.clone());
 
         Self {
-            infra,
             conversation_service,
             attachment_service,
             template_service,
@@ -156,7 +154,7 @@ impl<
         + WalkerInfra
         + ConversationRepository
         + AppConfigRepository
-        + McpCacheRepository
+        + CacheInfra<String, forge_app::domain::McpToolCache>
         + Clone,
 > Services for ForgeServices<F>
 {
@@ -180,7 +178,6 @@ impl<
     type NetFetchService = ForgeFetch;
     type ShellService = ForgeShell<F>;
     type McpService = McpService<F>;
-    type McpCacheRepository = F;
     type AuthService = AuthService<F>;
     type ProviderRegistry = ForgeProviderRegistry<F>;
     type AgentLoaderService = ForgeAgentLoaderService<F>;
@@ -263,10 +260,6 @@ impl<
 
     fn mcp_service(&self) -> &Self::McpService {
         &self.mcp_service
-    }
-
-    fn mcp_cache_repository(&self) -> &Self::McpCacheRepository {
-        self.infra.as_ref()
     }
 
     fn auth_service(&self) -> &Self::AuthService {

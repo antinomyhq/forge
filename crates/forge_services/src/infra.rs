@@ -271,6 +271,23 @@ where
     /// or an error if the operation fails.
     async fn exists(&self, key: &K) -> anyhow::Result<bool>;
 
+    /// Checks if a cached entry is still valid based on TTL.
+    ///
+    /// Returns `Ok(true)` if the entry exists and hasn't expired,
+    /// `Ok(false)` if it doesn't exist or has expired.
+    /// Default implementation always returns `true` if the key exists.
+    async fn is_valid(&self, key: &K) -> anyhow::Result<bool> {
+        self.exists(key).await
+    }
+
+    /// Gets the age of a cached entry in seconds.
+    ///
+    /// Returns `Ok(Some(age))` if the entry exists, `Ok(None)` if it doesn't.
+    /// Default implementation returns `None`.
+    async fn get_age_seconds(&self, _key: &K) -> anyhow::Result<Option<u64>> {
+        Ok(None)
+    }
+
     /// Retrieves multiple values from the cache by their keys.
     ///
     /// Returns a vector of optional values in the same order as the input keys.
