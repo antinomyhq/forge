@@ -16,7 +16,7 @@ use crate::{CacheRepository, McpClientInfra, McpServerInfra};
 #[derive(Clone)]
 pub struct ForgeMcpService<M, I, C> {
     tools: Arc<RwLock<HashMap<ToolName, ToolHolder<McpExecutor<C>>>>>,
-    previous_config_hash: Arc<Mutex<String>>,
+    previous_config_hash: Arc<Mutex<u64>>,
     manager: Arc<M>,
     infra: Arc<I>,
 }
@@ -38,7 +38,7 @@ where
     pub fn new(manager: Arc<M>, infra: Arc<I>) -> Self {
         Self {
             tools: Default::default(),
-            previous_config_hash: Arc::new(Mutex::new(String::new())),
+            previous_config_hash: Arc::new(Mutex::new(Default::default())),
             manager,
             infra,
         }
@@ -137,11 +137,7 @@ where
 
         // Check if cache is valid (exists and not expired)
         // Cache is valid, retrieve it
-        if let Some(cache) = self
-            .infra
-            .cache_get::<String, McpServers>(&config_hash)
-            .await?
-        {
+        if let Some(cache) = self.infra.cache_get::<_, McpServers>(&config_hash).await? {
             return Ok(cache.clone());
         }
 

@@ -113,18 +113,18 @@ impl From<BTreeMap<ServerName, McpServerConfig>> for McpConfig {
 }
 
 impl McpConfig {
-    /// Compute a deterministic string identifier for this config
+    /// Compute a deterministic u64 identifier for this config
     ///
     /// Uses Rust's built-in `Hash` trait (derived) to compute a stable hash
-    /// and converts it to a hex string for use as a cache key.
+    /// and converts it to a hex u64 for use as a cache key.
     /// BTreeMap ensures consistent ordering regardless of insertion order.
-    pub fn cache_key(&self) -> String {
+    pub fn cache_key(&self) -> u64 {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
 
         let mut hasher = DefaultHasher::new();
         Hash::hash(self, &mut hasher);
-        format!("{:x}", hasher.finish())
+        hasher.finish()
     }
 }
 
