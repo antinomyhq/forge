@@ -142,8 +142,8 @@ pub trait McpConfigManager: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait McpService: Send + Sync {
-    async fn list(&self) -> anyhow::Result<McpServers>;
-    async fn call(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput>;
+    async fn get_mcp_servers(&self) -> anyhow::Result<McpServers>;
+    async fn execute_mcp(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput>;
     /// Refresh the MCP cache by fetching fresh data
     async fn reload_mcp(&self) -> anyhow::Result<()>;
 }
@@ -492,12 +492,12 @@ impl<I: Services> McpConfigManager for I {
 
 #[async_trait::async_trait]
 impl<I: Services> McpService for I {
-    async fn list(&self) -> anyhow::Result<McpServers> {
-        self.mcp_service().list().await
+    async fn get_mcp_servers(&self) -> anyhow::Result<McpServers> {
+        self.mcp_service().get_mcp_servers().await
     }
 
-    async fn call(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput> {
-        self.mcp_service().call(call).await
+    async fn execute_mcp(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput> {
+        self.mcp_service().execute_mcp(call).await
     }
 
     async fn reload_mcp(&self) -> anyhow::Result<()> {

@@ -268,11 +268,11 @@ where
     C: From<<I as McpServerInfra>::Client>,
     R: CacheRepository,
 {
-    async fn list(&self) -> anyhow::Result<McpServers> {
+    async fn get_mcp_servers(&self) -> anyhow::Result<McpServers> {
         self.list_cached().await
     }
 
-    async fn call(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput> {
+    async fn execute_mcp(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput> {
         self.call(call).await
     }
 
