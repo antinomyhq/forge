@@ -126,5 +126,5 @@ pub trait API: Sync + Send {
     async fn clear_mcp_cache(&self) -> Result<()>;
 
     /// Refresh MCP caches by fetching fresh data
-    async fn refresh_mcp_cache(&self) -> Result<()>;
+    async fn reload_mcp(&self) -> Result<()>;
 }

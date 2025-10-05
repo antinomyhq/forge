@@ -38,8 +38,6 @@ impl ForgeAPI<ForgeServices<ForgeInfra>, ForgeInfra> {
 impl<A, F> API for ForgeAPI<A, F>
 where
     A: Services,
-    <A::McpService as forge_app::McpService>::McpCacheRepository:
-        forge_services::CacheRepository<String, forge_app::domain::McpToolCache>,
     F: CommandInfra + AppConfigRepository,
 {
     async fn discover(&self) -> Result<Vec<File>> {
@@ -236,7 +234,7 @@ where
         self.services.mcp_service().clear_cache().await
     }
 
-    async fn refresh_mcp_cache(&self) -> Result<()> {
-        self.services.mcp_service().refresh_cache().await
+    async fn reload_mcp(&self) -> Result<()> {
+        self.services.mcp_service().reload_mcp().await
     }
 }

@@ -131,12 +131,12 @@ where
         tracing::debug!("Computed merged config hash: {}", config_hash);
 
         // Check if cache is valid (exists and not expired)
-        if self.cache_repo.is_valid(&config_hash).await? {
+        if self.cache_repo.cache_is_valid(&config_hash).await? {
             // Cache is valid, retrieve it
-            if let Some(cache) = self.cache_repo.get(&config_hash).await? {
+            if let Some(cache) = self.cache_repo.cache_get(&config_hash).await? {
                 let age_seconds = self
                     .cache_repo
-                    .get_age_seconds(&config_hash)
+                    .cache_get_age(&config_hash)
                     .await?
                     .unwrap_or(0);
 
@@ -191,7 +191,7 @@ where
         if !mcp_live.is_empty() {
             let cache =
                 McpToolCache::new(config_hash.clone(), mcp_live.clone().into_iter().collect());
-            if let Err(e) = self.cache_repo.set(&config_hash, &cache).await {
+            if let Err(e) = self.cache_repo.cache_set(&config_hash, &cache).await {
                 tracing::warn!("Failed to cache MCP tools: {}", e);
             } else {
                 tracing::debug!(
@@ -277,15 +277,15 @@ where
         let config_hash = mcp_config.cache_key();
 
         // Get the unified cache
-        let cache = self.cache_repo.get(&config_hash).await?;
+        let cache = self.cache_repo.cache_get(&config_hash).await?;
 
         let cache_status = match cache {
             Some(cache) => {
                 // Check if cache is valid using infrastructure layer
-                let is_valid = self.cache_repo.is_valid(&config_hash).await?;
+                let is_valid = self.cache_repo.cache_is_valid(&config_hash).await?;
                 let age_seconds = self
                     .cache_repo
-                    .get_age_seconds(&config_hash)
+                    .cache_get_age(&config_hash)
                     .await?
                     .unwrap_or(0);
 
@@ -320,7 +320,7 @@ where
 
     /// Clear the MCP cache
     async fn clear_cache(&self) -> anyhow::Result<()> {
-        self.cache_repo.clear().await?;
+        self.cache_repo.cache_clear().await?;
         Ok(())
     }
 
@@ -367,7 +367,7 @@ where
         self.clear_cache().await
     }
 
-    async fn refresh_cache(&self) -> anyhow::Result<()> {
+    async fn reload_mcp(&self) -> anyhow::Result<()> {
         self.refresh_cache().await
     }
 }

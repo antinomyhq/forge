@@ -20,12 +20,12 @@ use crate::tool_services::{
 };
 use crate::workflow::ForgeWorkflowService;
 use crate::{
-    AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository, DirectoryReaderInfra,
-    EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra,
-    FileWriterInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
+    AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
+    DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
+    FileRemoverInfra, FileWriterInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
 };
 
-type McpService<F> = ForgeMcpService<ForgeMcpManager<F, F>, F, <F as McpServerInfra>::Client, F>;
+type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client, F>;
 type AuthService<F> = ForgeAuthService<F>;
 
 /// ForgeApp is the main application container that implements the App trait.
@@ -42,7 +42,7 @@ pub struct ForgeServices<F: HttpInfra + EnvironmentInfra + McpServerInfra + Walk
     attachment_service: Arc<ForgeChatRequest<F>>,
     workflow_service: Arc<ForgeWorkflowService<F>>,
     discovery_service: Arc<ForgeDiscoveryService<F>>,
-    mcp_manager: Arc<ForgeMcpManager<F, F>>,
+    mcp_manager: Arc<ForgeMcpManager<F>>,
     file_create_service: Arc<ForgeFsCreate<F>>,
     plan_create_service: Arc<ForgePlanCreate<F>>,
     file_read_service: Arc<ForgeFsRead<F>>,
@@ -79,7 +79,7 @@ impl<
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
-        let mcp_manager = Arc::new(ForgeMcpManager::new(infra.clone(), infra.clone()));
+        let mcp_manager = Arc::new(ForgeMcpManager::new(infra.clone()));
         let mcp_service = Arc::new(ForgeMcpService::new(
             mcp_manager.clone(),
             infra.clone(),
@@ -166,7 +166,7 @@ impl<
     type CustomInstructionsService = ForgeCustomInstructionsService<F>;
     type WorkflowService = ForgeWorkflowService<F>;
     type FileDiscoveryService = ForgeDiscoveryService<F>;
-    type McpConfigManager = ForgeMcpManager<F, F>;
+    type McpConfigManager = ForgeMcpManager<F>;
     type FsCreateService = ForgeFsCreate<F>;
     type PlanCreateService = ForgePlanCreate<F>;
     type FsPatchService = ForgeFsPatch<F>;

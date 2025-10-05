@@ -190,7 +190,7 @@ pub trait McpService: Send + Sync {
     async fn clear_cache(&self) -> anyhow::Result<()>;
 
     /// Refresh the MCP cache by fetching fresh data
-    async fn refresh_cache(&self) -> anyhow::Result<()>;
+    async fn reload_mcp(&self) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -565,8 +565,8 @@ impl<I: Services> McpService for I {
         self.mcp_service().clear_cache().await
     }
 
-    async fn refresh_cache(&self) -> anyhow::Result<()> {
-        self.mcp_service().refresh_cache().await
+    async fn reload_mcp(&self) -> anyhow::Result<()> {
+        self.mcp_service().reload_mcp().await
     }
 }
 

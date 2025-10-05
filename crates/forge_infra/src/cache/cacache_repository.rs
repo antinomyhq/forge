@@ -121,7 +121,7 @@ where
     K: Hash + serde::Serialize + DeserializeOwned + Send + Sync + 'static,
     V: serde::Serialize + DeserializeOwned + Send + Sync + 'static,
 {
-    async fn get(&self, key: &K) -> Result<Option<V>> {
+    async fn cache_get(&self, key: &K) -> Result<Option<V>> {
         let key_str = self.key_to_string(key)?;
 
         match cacache::read(&self.cache_dir, &key_str).await {
@@ -143,7 +143,7 @@ where
         }
     }
 
-    async fn set(&self, key: &K, value: &V) -> Result<()> {
+    async fn cache_set(&self, key: &K, value: &V) -> Result<()> {
         let key_str = self.key_to_string(key)?;
         let data = serde_json::to_vec(value).context("Failed to serialize value for caching")?;
 
@@ -154,7 +154,7 @@ where
         Ok(())
     }
 
-    async fn remove(&self, key: &K) -> Result<()> {
+    async fn cache_remove(&self, key: &K) -> Result<()> {
         let key_str = self.key_to_string(key)?;
 
         // cacache::remove returns error if key doesn't exist, but we want to
@@ -172,28 +172,28 @@ where
         }
     }
 
-    async fn clear(&self) -> Result<()> {
+    async fn cache_clear(&self) -> Result<()> {
         cacache::clear(&self.cache_dir)
             .await
             .context("Failed to clear cache")?;
         Ok(())
     }
 
-    async fn exists(&self, key: &K) -> Result<bool> {
-        Ok(self.get(key).await?.is_some())
+    async fn cache_exists(&self, key: &K) -> Result<bool> {
+        Ok(self.cache_get(key).await?.is_some())
     }
 
-    async fn is_valid(&self, key: &K) -> Result<bool> {
+    async fn cache_is_valid(&self, key: &K) -> Result<bool> {
         // Delegate to the struct method which has TTL logic
         Self::is_valid(self, key).await
     }
 
-    async fn get_age_seconds(&self, key: &K) -> Result<Option<u64>> {
+    async fn cache_get_age(&self, key: &K) -> Result<Option<u64>> {
         // Delegate to the struct method
         Self::get_age_seconds(self, key).await
     }
 
-    async fn size(&self) -> Result<u64> {
+    async fn cache_size(&self) -> Result<u64> {
         // Get cache directory size from cacache index
         // This is an approximation - cacache doesn't expose total size directly
         let cache_dir = self.cache_dir.clone();
@@ -211,7 +211,7 @@ where
         Ok(total_size)
     }
 
-    async fn keys(&self) -> Result<Vec<K>> {
+    async fn cache_keys(&self) -> Result<Vec<K>> {
         // Use sync API since cacache doesn't have async list
         let cache_dir = self.cache_dir.clone();
 
@@ -261,7 +261,7 @@ mod tests {
         let cache: CacacheRepository<TestKey, TestValue> = CacacheRepository::new(cache_dir, None);
 
         let key = TestKey { id: "test".to_string() };
-        let result = cache.get(&key).await.unwrap();
+        let result = cache.cache_get(&key).await.unwrap();
 
         assert_eq!(result, None);
     }
@@ -274,8 +274,8 @@ mod tests {
         let key = TestKey { id: "test".to_string() };
         let value = TestValue { data: "hello".to_string(), count: 42 };
 
-        cache.set(&key, &value).await.unwrap();
-        let result = cache.get(&key).await.unwrap();
+        cache.cache_set(&key, &value).await.unwrap();
+        let result = cache.cache_get(&key).await.unwrap();
 
         assert_eq!(result, Some(value));
     }
@@ -292,16 +292,16 @@ mod tests {
         };
         let value = TestValue { data: "hello".to_string(), count: 42 };
 
-        let exists_before = cache.exists(&key).await.unwrap();
+        let exists_before = cache.cache_exists(&key).await.unwrap();
         assert_eq!(exists_before, false);
 
-        cache.set(&key, &value).await.unwrap();
+        cache.cache_set(&key, &value).await.unwrap();
 
         // Also verify we can actually retrieve the value
-        let retrieved = cache.get(&key).await.unwrap();
+        let retrieved = cache.cache_get(&key).await.unwrap();
         assert_eq!(retrieved, Some(value.clone()));
 
-        let exists_after = cache.exists(&key).await.unwrap();
+        let exists_after = cache.cache_exists(&key).await.unwrap();
         assert_eq!(exists_after, true);
     }
 
@@ -313,10 +313,10 @@ mod tests {
         let key = TestKey { id: "test".to_string() };
         let value = TestValue { data: "hello".to_string(), count: 42 };
 
-        cache.set(&key, &value).await.unwrap();
-        cache.remove(&key).await.unwrap();
+        cache.cache_set(&key, &value).await.unwrap();
+        cache.cache_remove(&key).await.unwrap();
 
-        let result = cache.get(&key).await.unwrap();
+        let result = cache.cache_get(&key).await.unwrap();
         assert_eq!(result, None);
     }
 
@@ -328,7 +328,7 @@ mod tests {
         let key = TestKey { id: "test".to_string() };
 
         // Should not error when removing non-existent key
-        cache.remove(&key).await.unwrap();
+        cache.cache_remove(&key).await.unwrap();
     }
 
     #[tokio::test]
@@ -340,13 +340,13 @@ mod tests {
         let key2 = TestKey { id: "test2".to_string() };
         let value = TestValue { data: "hello".to_string(), count: 42 };
 
-        cache.set(&key1, &value).await.unwrap();
-        cache.set(&key2, &value).await.unwrap();
+        cache.cache_set(&key1, &value).await.unwrap();
+        cache.cache_set(&key2, &value).await.unwrap();
 
-        cache.clear().await.unwrap();
+        cache.cache_clear().await.unwrap();
 
-        let result1 = cache.get(&key1).await.unwrap();
-        let result2 = cache.get(&key2).await.unwrap();
+        let result1 = cache.cache_get(&key1).await.unwrap();
+        let result2 = cache.cache_get(&key2).await.unwrap();
 
         assert_eq!(result1, None);
         assert_eq!(result2, None);
@@ -361,10 +361,10 @@ mod tests {
         let key2 = TestKey { id: "test2".to_string() };
         let value = TestValue { data: "hello".to_string(), count: 42 };
 
-        cache.set(&key1, &value).await.unwrap();
-        cache.set(&key2, &value).await.unwrap();
+        cache.cache_set(&key1, &value).await.unwrap();
+        cache.cache_set(&key2, &value).await.unwrap();
 
-        let keys = cache.keys().await.unwrap();
+        let keys = cache.cache_keys().await.unwrap();
 
         assert_eq!(keys.len(), 2);
         assert!(keys.contains(&key1));
@@ -379,12 +379,12 @@ mod tests {
         let key = TestKey { id: "test".to_string() };
         let value = TestValue { data: "hello world".to_string(), count: 42 };
 
-        let size_before = cache.size().await.unwrap();
+        let size_before = cache.cache_size().await.unwrap();
         assert_eq!(size_before, 0);
 
-        cache.set(&key, &value).await.unwrap();
+        cache.cache_set(&key, &value).await.unwrap();
 
-        let size_after = cache.size().await.unwrap();
+        let size_after = cache.cache_size().await.unwrap();
         assert!(size_after > 0);
     }
 }

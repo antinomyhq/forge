@@ -348,39 +348,39 @@ impl AppConfigRepository for ForgeInfra {
 
 #[async_trait::async_trait]
 impl CacheRepository<String, McpToolCache> for ForgeInfra {
-    async fn get(&self, key: &String) -> anyhow::Result<Option<McpToolCache>> {
-        self.mcp_cache_repository.get(key).await
+    async fn cache_get(&self, key: &String) -> anyhow::Result<Option<McpToolCache>> {
+        self.mcp_cache_repository.cache_get(key).await
     }
 
-    async fn set(&self, key: &String, value: &McpToolCache) -> anyhow::Result<()> {
-        self.mcp_cache_repository.set(key, value).await
+    async fn cache_set(&self, key: &String, value: &McpToolCache) -> anyhow::Result<()> {
+        self.mcp_cache_repository.cache_set(key, value).await
     }
 
-    async fn remove(&self, key: &String) -> anyhow::Result<()> {
-        self.mcp_cache_repository.remove(key).await
+    async fn cache_remove(&self, key: &String) -> anyhow::Result<()> {
+        self.mcp_cache_repository.cache_remove(key).await
     }
 
-    async fn clear(&self) -> anyhow::Result<()> {
-        self.mcp_cache_repository.clear().await
+    async fn cache_clear(&self) -> anyhow::Result<()> {
+        self.mcp_cache_repository.cache_clear().await
     }
 
-    async fn exists(&self, key: &String) -> anyhow::Result<bool> {
-        self.mcp_cache_repository.exists(key).await
+    async fn cache_exists(&self, key: &String) -> anyhow::Result<bool> {
+        self.mcp_cache_repository.cache_exists(key).await
     }
 
-    async fn is_valid(&self, key: &String) -> anyhow::Result<bool> {
+    async fn cache_is_valid(&self, key: &String) -> anyhow::Result<bool> {
         self.mcp_cache_repository.is_valid(key).await
     }
 
-    async fn get_age_seconds(&self, key: &String) -> anyhow::Result<Option<u64>> {
+    async fn cache_get_age(&self, key: &String) -> anyhow::Result<Option<u64>> {
         self.mcp_cache_repository.get_age_seconds(key).await
     }
 
-    async fn size(&self) -> anyhow::Result<u64> {
-        self.mcp_cache_repository.size().await
+    async fn cache_size(&self) -> anyhow::Result<u64> {
+        self.mcp_cache_repository.cache_size().await
     }
 
-    async fn keys(&self) -> anyhow::Result<Vec<String>> {
-        self.mcp_cache_repository.keys().await
+    async fn cache_keys(&self) -> anyhow::Result<Vec<String>> {
+        self.mcp_cache_repository.cache_keys().await
     }
 }

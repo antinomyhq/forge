@@ -8,21 +8,24 @@ use forge_app::domain::{McpConfig, Scope};
 use merge::Merge;
 
 use crate::{
-    CacheRepository, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, McpServerInfra,
+    CacheRepository, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
+    McpServerInfra,
 };
 
-pub struct ForgeMcpManager<I, R> {
+pub struct ForgeMcpManager<I> {
     infra: Arc<I>,
-    cache_repo: Arc<R>,
 }
 
-impl<I, R> ForgeMcpManager<I, R>
+impl<I> ForgeMcpManager<I>
 where
-    I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra,
-    R: CacheRepository<String, forge_app::domain::McpToolCache>,
+    I: McpServerInfra
+        + FileReaderInfra
+        + FileInfoInfra
+        + EnvironmentInfra
+        + CacheRepository<String, forge_app::domain::McpToolCache>,
 {
-    pub fn new(infra: Arc<I>, cache_repo: Arc<R>) -> Self {
-        Self { infra, cache_repo }
+    pub fn new(infra: Arc<I>) -> Self {
+        Self { infra }
     }
 
     async fn read_config(&self, path: &Path) -> anyhow::Result<McpConfig> {
@@ -40,10 +43,14 @@ where
 }
 
 #[async_trait::async_trait]
-impl<I, R> McpConfigManager for ForgeMcpManager<I, R>
+impl<I> McpConfigManager for ForgeMcpManager<I>
 where
-    I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra + FileWriterInfra,
-    R: CacheRepository<String, forge_app::domain::McpToolCache>,
+    I: McpServerInfra
+        + FileReaderInfra
+        + FileInfoInfra
+        + EnvironmentInfra
+        + FileWriterInfra
+        + CacheRepository<String, forge_app::domain::McpToolCache>,
 {
     async fn read_mcp_config(&self) -> anyhow::Result<McpConfig> {
         let env = self.infra.get_environment();
@@ -78,7 +85,7 @@ where
 
         // Clear the unified cache to force refresh on next use
         // Since we now use a merged hash, clearing any scope invalidates the cache
-        self.cache_repo.clear().await?;
+        self.infra.cache_clear().await?;
 
         Ok(())
     }

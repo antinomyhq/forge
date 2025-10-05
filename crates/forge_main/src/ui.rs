@@ -372,7 +372,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     }
                     crate::cli::McpCacheCommand::Refresh => {
                         self.writeln_title(TitleFormat::info("Refreshing MCP caches..."))?;
-                        self.api.refresh_mcp_cache().await?;
+                        self.api.reload_mcp().await?;
                         self.writeln_title(TitleFormat::info("✓ Caches refreshed successfully"))?;
                     }
                 },
