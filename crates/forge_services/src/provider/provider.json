@@ -63,6 +63,13 @@
     "url": "https://api.z.ai/api/coding/paas/v4/"
   },
   {
+    "id": "big_model",
+    "api_key_vars": "BIG_MODEL_API_KEY",
+    "url_param_vars": [],
+    "response_type": "OpenAI",
+    "url": "https://open.bigmodel.cn/api/paas/v4/"
+  },
+  {
     "id": "vertex_ai",
     "api_key_vars": "VERTEX_AI_AUTH_TOKEN",
     "url_param_vars": ["PROJECT_ID", "LOCATION"],
