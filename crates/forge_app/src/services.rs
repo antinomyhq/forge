@@ -142,14 +142,6 @@ pub trait McpConfigManager: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait McpService: Send + Sync {
-    /// MCP cache repository - generic cache that can store String ->
-    /// McpToolCache mappings This must implement CacheInfra<String,
-    /// McpToolCache> trait with TTL support
-    type McpCacheRepository: Send + Sync;
-
-    /// Get cache repository for direct access (e.g., for cache info, clearing)
-    fn cache_repository(&self) -> &Self::McpCacheRepository;
-
     async fn get_all_mcps(
         &self,
     ) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>>;
@@ -506,12 +498,6 @@ impl<I: Services> McpConfigManager for I {
 
 #[async_trait::async_trait]
 impl<I: Services> McpService for I {
-    type McpCacheRepository = <I::McpService as McpService>::McpCacheRepository;
-
-    fn cache_repository(&self) -> &Self::McpCacheRepository {
-        self.mcp_service().cache_repository()
-    }
-
     async fn get_all_mcps(
         &self,
     ) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>> {

@@ -288,11 +288,6 @@ where
     C: From<<I as McpServerInfra>::Client>,
     R: CacheRepository,
 {
-    type McpCacheRepository = R;
-
-    fn cache_repository(&self) -> &Self::McpCacheRepository {
-        &self.cache_repo
-    }
 
     async fn get_all_mcps(
         &self,
