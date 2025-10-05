@@ -75,7 +75,7 @@ impl<
         + UserInfra
         + ConversationRepository
         + AppConfigRepository
-        + CacheRepository<String, forge_app::domain::McpToolCache>,
+        + CacheRepository,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -154,7 +154,7 @@ impl<
         + WalkerInfra
         + ConversationRepository
         + AppConfigRepository
-        + CacheRepository<String, forge_app::domain::McpToolCache>
+        + CacheRepository
         + Clone,
 > Services for ForgeServices<F>
 {

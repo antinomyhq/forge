@@ -238,27 +238,31 @@ pub trait DirectoryReaderInfra: Send + Sync {
 /// All operations return `anyhow::Result` for consistent error handling across
 /// the infrastructure layer.
 #[async_trait::async_trait]
-pub trait CacheRepository<K, V>: Send + Sync
-where
-    K: Hash + serde::Serialize + DeserializeOwned + Send + Sync + 'static,
-    V: serde::Serialize + DeserializeOwned + Send + Sync + 'static,
-{
+pub trait CacheRepository: Send + Sync {
     /// Retrieves a value from the cache by its key.
     ///
     /// Returns `Ok(Some(value))` if the key exists in the cache,
     /// `Ok(None)` if the key doesn't exist, or an error if the operation fails.
-    async fn cache_get(&self, key: &K) -> anyhow::Result<Option<V>>;
+    async fn cache_get<K, V>(&self, key: &K) -> anyhow::Result<Option<V>>
+    where
+        K: Hash + Sync,
+        V: serde::Serialize + DeserializeOwned + Send;
 
     /// Stores a value in the cache with the given key.
     ///
     /// If the key already exists, the value is overwritten.
     /// Uses content-addressable storage for integrity verification.
-    async fn cache_set(&self, key: &K, value: &V) -> anyhow::Result<()>;
+    async fn cache_set<K, V>(&self, key: &K, value: &V) -> anyhow::Result<()>
+    where
+        K: Hash + Sync,
+        V: serde::Serialize + Sync;
 
     /// Removes a value from the cache by its key.
     ///
     /// Returns `Ok(())` regardless of whether the key existed.
-    async fn cache_remove(&self, key: &K) -> anyhow::Result<()>;
+    async fn cache_remove<K>(&self, key: &K) -> anyhow::Result<()>
+    where
+        K: Hash + Sync;
 
     /// Clears all entries from the cache.
     ///
@@ -269,14 +273,19 @@ where
     ///
     /// Returns `Ok(true)` if the key exists, `Ok(false)` if it doesn't,
     /// or an error if the operation fails.
-    async fn cache_exists(&self, key: &K) -> anyhow::Result<bool>;
+    async fn cache_exists<K>(&self, key: &K) -> anyhow::Result<bool>
+    where
+        K: Hash + Sync;
 
     /// Checks if a cached entry is still valid based on TTL.
     ///
     /// Returns `Ok(true)` if the entry exists and hasn't expired,
     /// `Ok(false)` if it doesn't exist or has expired.
     /// Default implementation always returns `true` if the key exists.
-    async fn cache_is_valid(&self, key: &K) -> anyhow::Result<bool> {
+    async fn cache_is_valid<K>(&self, key: &K) -> anyhow::Result<bool>
+    where
+        K: Hash + Sync,
+    {
         self.cache_exists(key).await
     }
 
@@ -284,7 +293,10 @@ where
     ///
     /// Returns `Ok(Some(age))` if the entry exists, `Ok(None)` if it doesn't.
     /// Default implementation returns `None`.
-    async fn cache_get_age(&self, _key: &K) -> anyhow::Result<Option<u64>> {
+    async fn cache_get_age<K>(&self, _key: &K) -> anyhow::Result<Option<u64>>
+    where
+        K: Hash + Sync,
+    {
         Ok(None)
     }
 
@@ -293,7 +305,11 @@ where
     /// Returns a vector of optional values in the same order as the input keys.
     /// Missing keys result in `None` values in the output.
     /// Default implementation calls `get` for each key sequentially.
-    async fn cache_get_many(&self, keys: &[K]) -> anyhow::Result<Vec<Option<V>>> {
+    async fn cache_get_many<K, V>(&self, keys: &[K]) -> anyhow::Result<Vec<Option<V>>>
+    where
+        K: Hash + Sync,
+        V: serde::Serialize + DeserializeOwned + Send,
+    {
         let mut results = Vec::with_capacity(keys.len());
         for key in keys {
             results.push(self.cache_get(key).await?);
@@ -305,10 +321,10 @@ where
     ///
     /// Default implementation calls `set` for each pair sequentially.
     /// Implementations may override this for batch optimization.
-    async fn cache_set_many(&self, entries: &[(K, V)]) -> anyhow::Result<()>
+    async fn cache_set_many<K, V>(&self, entries: &[(K, V)]) -> anyhow::Result<()>
     where
-        K: Clone,
-        V: Clone,
+        K: Hash + Sync,
+        V: serde::Serialize + Sync,
     {
         for (key, value) in entries {
             self.cache_set(key, value).await?;
@@ -328,7 +344,10 @@ where
     ///
     /// Returns an empty vector by default. Implementations should override
     /// this if they support key enumeration.
-    async fn cache_keys(&self) -> anyhow::Result<Vec<K>> {
+    async fn cache_keys<K>(&self) -> anyhow::Result<Vec<K>>
+    where
+        K: Hash + Send,
+    {
         Ok(Vec::new())
     }
 }

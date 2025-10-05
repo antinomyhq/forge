@@ -18,11 +18,7 @@ pub struct ForgeMcpManager<I> {
 
 impl<I> ForgeMcpManager<I>
 where
-    I: McpServerInfra
-        + FileReaderInfra
-        + FileInfoInfra
-        + EnvironmentInfra
-        + CacheRepository<String, forge_app::domain::McpToolCache>,
+    I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra + CacheRepository,
 {
     pub fn new(infra: Arc<I>) -> Self {
         Self { infra }
@@ -50,7 +46,7 @@ where
         + FileInfoInfra
         + EnvironmentInfra
         + FileWriterInfra
-        + CacheRepository<String, forge_app::domain::McpToolCache>,
+        + CacheRepository,
 {
     async fn read_mcp_config(&self) -> anyhow::Result<McpConfig> {
         let env = self.infra.get_environment();

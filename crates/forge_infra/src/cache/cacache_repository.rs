@@ -1,5 +1,4 @@
 use std::hash::Hash;
-use std::marker::PhantomData;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
@@ -11,21 +10,12 @@ use serde::de::DeserializeOwned;
 /// key-value caching with content verification. Keys are serialized to
 /// deterministic strings using serde_json, and values are stored as JSON
 /// using serde_json for maximum compatibility.
-///
-/// Type parameters:
-/// - `K`: Key type, must be Hash + Serialize + DeserializeOwned
-/// - `V`: Value type, must be Serialize + DeserializeOwned
-pub struct CacacheRepository<K, V> {
+pub struct CacacheRepository {
     cache_dir: PathBuf,
     ttl_seconds: Option<u128>,
-    _phantom: PhantomData<(K, V)>,
 }
 
-impl<K, V> CacacheRepository<K, V>
-where
-    K: Hash + serde::Serialize + DeserializeOwned + Send + Sync + 'static,
-    V: serde::Serialize + DeserializeOwned + Send + Sync + 'static,
-{
+impl CacacheRepository {
     /// Creates a new cache repository with the specified cache directory.
     ///
     /// The directory will be created if it doesn't exist. All cache data
@@ -37,7 +27,7 @@ where
     /// * `ttl_seconds` - Optional TTL in seconds. If provided, entries older
     ///   than this will be considered expired.
     pub fn new(cache_dir: PathBuf, ttl_seconds: Option<u128>) -> Self {
-        Self { cache_dir, ttl_seconds, _phantom: PhantomData }
+        Self { cache_dir, ttl_seconds }
     }
 
     /// Check if a cached entry is still valid based on TTL (if configured).
@@ -45,7 +35,10 @@ where
     /// Returns true if:
     /// - The entry exists AND
     /// - Either no TTL is configured, or the entry is within the TTL period
-    pub async fn is_valid(&self, key: &K) -> Result<bool> {
+    pub async fn is_valid<K>(&self, key: &K) -> Result<bool>
+    where
+        K: Hash,
+    {
         if let Some(metadata) = self.get_metadata(key).await? {
             if let Some(ttl) = self.ttl_seconds {
                 let now = std::time::SystemTime::now()
@@ -69,7 +62,10 @@ where
     /// Gets the age of a cached entry in seconds.
     ///
     /// Returns None if the entry doesn't exist.
-    pub async fn get_age_seconds(&self, key: &K) -> Result<Option<u64>> {
+    pub async fn get_age_seconds<K>(&self, key: &K) -> Result<Option<u64>>
+    where
+        K: Hash,
+    {
         if let Some(metadata) = self.get_metadata(key).await? {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -83,19 +79,26 @@ where
         }
     }
 
-    /// Converts a key to a deterministic cache key string.
-    ///
-    /// Uses serde_json for deterministic serialization. For complex keys,
-    /// consider implementing a custom key type that provides better
-    /// determinism.
-    fn key_to_string(&self, key: &K) -> Result<String> {
-        serde_json::to_string(key).context("Failed to serialize cache key")
+    /// Converts a key to a deterministic cache key string using its hash value.
+    fn key_to_string<K>(&self, key: &K) -> Result<String>
+    where
+        K: Hash,
+    {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::Hasher;
+
+        let mut hasher = DefaultHasher::new();
+        key.hash(&mut hasher);
+        Ok(hasher.finish().to_string())
     }
 
     /// Gets the metadata for a cached entry, including timestamp.
     ///
     /// Returns None if the entry doesn't exist.
-    pub async fn get_metadata(&self, key: &K) -> Result<Option<cacache::Metadata>> {
+    pub async fn get_metadata<K>(&self, key: &K) -> Result<Option<cacache::Metadata>>
+    where
+        K: Hash,
+    {
         let key_str = self.key_to_string(key)?;
 
         match cacache::metadata(&self.cache_dir, &key_str).await {
@@ -116,12 +119,12 @@ where
 }
 
 #[async_trait::async_trait]
-impl<K, V> forge_services::CacheRepository<K, V> for CacacheRepository<K, V>
-where
-    K: Hash + serde::Serialize + DeserializeOwned + Send + Sync + 'static,
-    V: serde::Serialize + DeserializeOwned + Send + Sync + 'static,
-{
-    async fn cache_get(&self, key: &K) -> Result<Option<V>> {
+impl forge_services::CacheRepository for CacacheRepository {
+    async fn cache_get<K, V>(&self, key: &K) -> Result<Option<V>>
+    where
+        K: Hash + Sync,
+        V: serde::Serialize + DeserializeOwned + Send,
+    {
         let key_str = self.key_to_string(key)?;
 
         match cacache::read(&self.cache_dir, &key_str).await {
@@ -143,7 +146,11 @@ where
         }
     }
 
-    async fn cache_set(&self, key: &K, value: &V) -> Result<()> {
+    async fn cache_set<K, V>(&self, key: &K, value: &V) -> Result<()>
+    where
+        K: Hash + Sync,
+        V: serde::Serialize + Sync,
+    {
         let key_str = self.key_to_string(key)?;
         let data = serde_json::to_vec(value).context("Failed to serialize value for caching")?;
 
@@ -154,7 +161,10 @@ where
         Ok(())
     }
 
-    async fn cache_remove(&self, key: &K) -> Result<()> {
+    async fn cache_remove<K>(&self, key: &K) -> Result<()>
+    where
+        K: Hash + Sync,
+    {
         let key_str = self.key_to_string(key)?;
 
         // cacache::remove returns error if key doesn't exist, but we want to
@@ -179,16 +189,25 @@ where
         Ok(())
     }
 
-    async fn cache_exists(&self, key: &K) -> Result<bool> {
-        Ok(self.cache_get(key).await?.is_some())
+    async fn cache_exists<K>(&self, key: &K) -> Result<bool>
+    where
+        K: Hash + Sync,
+    {
+        Ok(self.get_metadata(key).await?.is_some())
     }
 
-    async fn cache_is_valid(&self, key: &K) -> Result<bool> {
+    async fn cache_is_valid<K>(&self, key: &K) -> Result<bool>
+    where
+        K: Hash + Sync,
+    {
         // Delegate to the struct method which has TTL logic
         Self::is_valid(self, key).await
     }
 
-    async fn cache_get_age(&self, key: &K) -> Result<Option<u64>> {
+    async fn cache_get_age<K>(&self, key: &K) -> Result<Option<u64>>
+    where
+        K: Hash + Sync,
+    {
         // Delegate to the struct method
         Self::get_age_seconds(self, key).await
     }
@@ -211,24 +230,13 @@ where
         Ok(total_size)
     }
 
-    async fn cache_keys(&self) -> Result<Vec<K>> {
-        // Use sync API since cacache doesn't have async list
-        let cache_dir = self.cache_dir.clone();
-
-        let keys = tokio::task::spawn_blocking(move || {
-            let mut result = Vec::new();
-            for metadata in cacache::list_sync(&cache_dir).flatten() {
-                // Try to deserialize the key back from string
-                if let Ok(key) = serde_json::from_str::<K>(&metadata.key) {
-                    result.push(key);
-                }
-            }
-            result
-        })
-        .await
-        .context("Failed to spawn blocking task")?;
-
-        Ok(keys)
+    async fn cache_keys<K>(&self) -> Result<Vec<K>>
+    where
+        K: std::hash::Hash + Send,
+    {
+        // Since we hash the keys, we cannot reconstruct the original keys
+        // Return empty vector as per trait's default implementation
+        Ok(Vec::new())
     }
 }
 
@@ -258,10 +266,10 @@ mod tests {
     #[tokio::test]
     async fn test_get_nonexistent_key() {
         let cache_dir = test_cache_dir();
-        let cache: CacacheRepository<TestKey, TestValue> = CacacheRepository::new(cache_dir, None);
+        let cache = CacacheRepository::new(cache_dir, None);
 
         let key = TestKey { id: "test".to_string() };
-        let result = cache.cache_get(&key).await.unwrap();
+        let result: Option<TestValue> = cache.cache_get(&key).await.unwrap();
 
         assert_eq!(result, None);
     }
@@ -269,13 +277,13 @@ mod tests {
     #[tokio::test]
     async fn test_set_and_get() {
         let cache_dir = test_cache_dir();
-        let cache: CacacheRepository<TestKey, TestValue> = CacacheRepository::new(cache_dir, None);
+        let cache = CacacheRepository::new(cache_dir, None);
 
         let key = TestKey { id: "test".to_string() };
         let value = TestValue { data: "hello".to_string(), count: 42 };
 
         cache.cache_set(&key, &value).await.unwrap();
-        let result = cache.cache_get(&key).await.unwrap();
+        let result: Option<TestValue> = cache.cache_get(&key).await.unwrap();
 
         assert_eq!(result, Some(value));
     }
@@ -285,7 +293,7 @@ mod tests {
     #[tokio::test]
     async fn test_exists() {
         let cache_dir = test_cache_dir();
-        let cache: CacacheRepository<TestKey, TestValue> = CacacheRepository::new(cache_dir, None);
+        let cache = CacacheRepository::new(cache_dir, None);
 
         let key = TestKey {
             id: format!("test_{}", chrono::Utc::now().timestamp_millis()),
@@ -308,7 +316,7 @@ mod tests {
     #[tokio::test]
     async fn test_remove() {
         let cache_dir = test_cache_dir();
-        let cache: CacacheRepository<TestKey, TestValue> = CacacheRepository::new(cache_dir, None);
+        let cache = CacacheRepository::new(cache_dir, None);
 
         let key = TestKey { id: "test".to_string() };
         let value = TestValue { data: "hello".to_string(), count: 42 };
@@ -316,14 +324,14 @@ mod tests {
         cache.cache_set(&key, &value).await.unwrap();
         cache.cache_remove(&key).await.unwrap();
 
-        let result = cache.cache_get(&key).await.unwrap();
+        let result: Option<TestValue> = cache.cache_get(&key).await.unwrap();
         assert_eq!(result, None);
     }
 
     #[tokio::test]
     async fn test_remove_nonexistent() {
         let cache_dir = test_cache_dir();
-        let cache: CacacheRepository<TestKey, TestValue> = CacacheRepository::new(cache_dir, None);
+        let cache = CacacheRepository::new(cache_dir, None);
 
         let key = TestKey { id: "test".to_string() };
 
@@ -334,7 +342,7 @@ mod tests {
     #[tokio::test]
     async fn test_clear() {
         let cache_dir = test_cache_dir();
-        let cache: CacacheRepository<TestKey, TestValue> = CacacheRepository::new(cache_dir, None);
+        let cache = CacacheRepository::new(cache_dir, None);
 
         let key1 = TestKey { id: "test1".to_string() };
         let key2 = TestKey { id: "test2".to_string() };
@@ -345,8 +353,8 @@ mod tests {
 
         cache.cache_clear().await.unwrap();
 
-        let result1 = cache.cache_get(&key1).await.unwrap();
-        let result2 = cache.cache_get(&key2).await.unwrap();
+        let result1: Option<TestValue> = cache.cache_get(&key1).await.unwrap();
+        let result2: Option<TestValue> = cache.cache_get(&key2).await.unwrap();
 
         assert_eq!(result1, None);
         assert_eq!(result2, None);
@@ -355,7 +363,7 @@ mod tests {
     #[tokio::test]
     async fn test_keys() {
         let cache_dir = test_cache_dir();
-        let cache: CacacheRepository<TestKey, TestValue> = CacacheRepository::new(cache_dir, None);
+        let cache = CacacheRepository::new(cache_dir, None);
 
         let key1 = TestKey { id: "test1".to_string() };
         let key2 = TestKey { id: "test2".to_string() };
@@ -364,17 +372,17 @@ mod tests {
         cache.cache_set(&key1, &value).await.unwrap();
         cache.cache_set(&key2, &value).await.unwrap();
 
-        let keys = cache.cache_keys().await.unwrap();
+        // Since we hash the keys, cache_keys() returns an empty vector
+        // as we cannot reconstruct the original keys
+        let keys: Vec<TestKey> = cache.cache_keys().await.unwrap();
 
-        assert_eq!(keys.len(), 2);
-        assert!(keys.contains(&key1));
-        assert!(keys.contains(&key2));
+        assert_eq!(keys.len(), 0);
     }
 
     #[tokio::test]
     async fn test_size() {
         let cache_dir = test_cache_dir();
-        let cache: CacacheRepository<TestKey, TestValue> = CacacheRepository::new(cache_dir, None);
+        let cache = CacacheRepository::new(cache_dir, None);
 
         let key = TestKey { id: "test".to_string() };
         let value = TestValue { data: "hello world".to_string(), count: 42 };

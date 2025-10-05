@@ -31,7 +31,7 @@ impl<M: McpConfigManager, I: McpServerInfra, C, R> ForgeMcpService<M, I, C, R>
 where
     C: McpClientInfra + Clone,
     C: From<<I as McpServerInfra>::Client>,
-    R: CacheRepository<String, McpToolCache>,
+    R: CacheRepository,
 {
     pub fn new(manager: Arc<M>, infra: Arc<I>, cache_repo: Arc<R>) -> Self {
         Self {
@@ -133,7 +133,11 @@ where
         // Check if cache is valid (exists and not expired)
         if self.cache_repo.cache_is_valid(&config_hash).await? {
             // Cache is valid, retrieve it
-            if let Some(cache) = self.cache_repo.cache_get(&config_hash).await? {
+            if let Some(cache) = self
+                .cache_repo
+                .cache_get::<String, McpToolCache>(&config_hash)
+                .await?
+            {
                 let age_seconds = self
                     .cache_repo
                     .cache_get_age(&config_hash)
@@ -281,7 +285,7 @@ impl<M: McpConfigManager, I: McpServerInfra, C, R> McpService for ForgeMcpServic
 where
     C: McpClientInfra + Clone,
     C: From<<I as McpServerInfra>::Client>,
-    R: CacheRepository<String, McpToolCache>,
+    R: CacheRepository,
 {
     type McpCacheRepository = R;
 

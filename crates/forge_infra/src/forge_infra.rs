@@ -3,9 +3,7 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_domain::{
-    CommandOutput, Conversation, ConversationId, Environment, McpServerConfig, McpToolCache,
-};
+use forge_domain::{CommandOutput, Conversation, ConversationId, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
     AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
@@ -55,7 +53,7 @@ pub struct ForgeInfra {
     http_service: Arc<ForgeHttpInfra>,
     conversation_repository: Arc<ConversationRepositoryImpl>,
     app_config_repository: Arc<AppConfigRepositoryImpl>,
-    mcp_cache_repository: Arc<CacacheRepository<String, McpToolCache>>,
+    mcp_cache_repository: Arc<CacacheRepository>,
 }
 
 impl ForgeInfra {
@@ -347,16 +345,27 @@ impl AppConfigRepository for ForgeInfra {
 // custom McpCacheRepository trait.
 
 #[async_trait::async_trait]
-impl CacheRepository<String, McpToolCache> for ForgeInfra {
-    async fn cache_get(&self, key: &String) -> anyhow::Result<Option<McpToolCache>> {
+impl CacheRepository for ForgeInfra {
+    async fn cache_get<K, V>(&self, key: &K) -> anyhow::Result<Option<V>>
+    where
+        K: std::hash::Hash + Sync,
+        V: serde::Serialize + serde::de::DeserializeOwned + Send,
+    {
         self.mcp_cache_repository.cache_get(key).await
     }
 
-    async fn cache_set(&self, key: &String, value: &McpToolCache) -> anyhow::Result<()> {
+    async fn cache_set<K, V>(&self, key: &K, value: &V) -> anyhow::Result<()>
+    where
+        K: std::hash::Hash + Sync,
+        V: serde::Serialize + Sync,
+    {
         self.mcp_cache_repository.cache_set(key, value).await
     }
 
-    async fn cache_remove(&self, key: &String) -> anyhow::Result<()> {
+    async fn cache_remove<K>(&self, key: &K) -> anyhow::Result<()>
+    where
+        K: std::hash::Hash + Sync,
+    {
         self.mcp_cache_repository.cache_remove(key).await
     }
 
@@ -364,15 +373,24 @@ impl CacheRepository<String, McpToolCache> for ForgeInfra {
         self.mcp_cache_repository.cache_clear().await
     }
 
-    async fn cache_exists(&self, key: &String) -> anyhow::Result<bool> {
+    async fn cache_exists<K>(&self, key: &K) -> anyhow::Result<bool>
+    where
+        K: std::hash::Hash + Sync,
+    {
         self.mcp_cache_repository.cache_exists(key).await
     }
 
-    async fn cache_is_valid(&self, key: &String) -> anyhow::Result<bool> {
+    async fn cache_is_valid<K>(&self, key: &K) -> anyhow::Result<bool>
+    where
+        K: std::hash::Hash + Sync,
+    {
         self.mcp_cache_repository.is_valid(key).await
     }
 
-    async fn cache_get_age(&self, key: &String) -> anyhow::Result<Option<u64>> {
+    async fn cache_get_age<K>(&self, key: &K) -> anyhow::Result<Option<u64>>
+    where
+        K: std::hash::Hash + Sync,
+    {
         self.mcp_cache_repository.get_age_seconds(key).await
     }
 
@@ -380,7 +398,10 @@ impl CacheRepository<String, McpToolCache> for ForgeInfra {
         self.mcp_cache_repository.cache_size().await
     }
 
-    async fn cache_keys(&self) -> anyhow::Result<Vec<String>> {
+    async fn cache_keys<K>(&self) -> anyhow::Result<Vec<K>>
+    where
+        K: std::hash::Hash + Send,
+    {
         self.mcp_cache_repository.cache_keys().await
     }
 }
