@@ -715,7 +715,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
-        if let Some(conversation) = ConversationSelector::select_conversation(&conversations)? {
+        if let Some(conversation) = ConversationSelector::select_conversation(&conversations).await? {
             self.state.conversation_id = Some(conversation.id);
         }
         Ok(())

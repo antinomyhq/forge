@@ -2,6 +2,7 @@ use std::fmt::Display;
 
 use anyhow::Result;
 use chrono::Utc;
+use colored::Colorize;
 use forge_api::Conversation;
 use forge_select::ForgeSelect;
 
@@ -12,7 +13,9 @@ impl ConversationSelector {
     /// Select a conversation from the provided list
     ///
     /// Returns the selected conversation ID, or None if no selection was made
-    pub fn select_conversation(conversations: &[Conversation]) -> Result<Option<Conversation>> {
+    pub async fn select_conversation(
+        conversations: &[Conversation],
+    ) -> Result<Option<Conversation>> {
         if conversations.is_empty() {
             return Ok(None);
         }
@@ -61,15 +64,17 @@ impl ConversationSelector {
 
         let conversations = dates
             .zip(titles)
-            .map(|(date, title)| format!("{:<max_title_length$} {}", title, date))
+            .map(|(date, title)| format!("{:<max_title_length$} {}", title.bold(), date.dimmed()))
             .zip(conversation_iter.cloned())
             .map(ConversationItem)
             .collect::<Vec<_>>();
 
-        if let Some(selected) =
+        if let Some(selected) = tokio::task::spawn_blocking(|| {
             ForgeSelect::select("Select the conversation to resume:", conversations)
                 .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
-                .prompt()?
+                .prompt()
+        })
+        .await??
         {
             Ok(Some(selected.0.1))
         } else {
@@ -98,10 +103,10 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_select_conversation_empty_list() {
+    #[tokio::test]
+    async fn test_select_conversation_empty_list() {
         let conversations = vec![];
-        let result = ConversationSelector::select_conversation(&conversations).unwrap();
+        let result = ConversationSelector::select_conversation(&conversations).await.unwrap();
         assert!(result.is_none());
     }
 
