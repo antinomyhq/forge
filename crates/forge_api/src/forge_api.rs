@@ -35,8 +35,7 @@ impl ForgeAPI<ForgeServices<ForgeInfra>, ForgeInfra> {
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F>
-{
+impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> {
     async fn discover(&self) -> Result<Vec<File>> {
         let environment = self.services.get_environment();
         let config = Walker::unlimited().cwd(environment.cwd);
