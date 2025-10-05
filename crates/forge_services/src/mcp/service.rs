@@ -288,9 +288,7 @@ where
     C: From<<I as McpServerInfra>::Client>,
     R: CacheRepository,
 {
-    async fn list(
-        &self,
-    ) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>> {
+    async fn list(&self) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>> {
         self.list_cached().await
     }
 
