@@ -106,7 +106,9 @@ mod tests {
     #[tokio::test]
     async fn test_select_conversation_empty_list() {
         let conversations = vec![];
-        let result = ConversationSelector::select_conversation(&conversations).await.unwrap();
+        let result = ConversationSelector::select_conversation(&conversations)
+            .await
+            .unwrap();
         assert!(result.is_none());
     }
 
