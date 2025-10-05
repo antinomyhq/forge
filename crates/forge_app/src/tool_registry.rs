@@ -145,7 +145,6 @@ impl<S> ToolRegistry<S> {
     ///
     /// # Validation Process
     /// Verifies the tool is supported by the agent specified in the context
-    /// Supports glob patterns like "mcp_*" for matching tool names
     fn validate_tool_call(agent: &Agent, tool_name: &ToolName) -> Result<(), Error> {
         // Check if tool matches any pattern (supports globs like "mcp_*")
         let matches = ToolResolver::is_allowed(agent, tool_name);
