@@ -1,8 +1,17 @@
 use std::hash::Hash;
 use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
+
+/// Wrapper for cached values with timestamp for TTL validation
+#[derive(Serialize, Deserialize)]
+struct CachedEntry<V> {
+    value: V,
+    timestamp: u128,
+}
 
 /// Generic content-addressable cache repository using cacache.
 ///
@@ -42,6 +51,24 @@ impl CacacheRepository {
         key.hash(&mut hasher);
         Ok(hasher.finish().to_string())
     }
+
+    /// Gets the current Unix timestamp in seconds
+    fn get_current_timestamp() -> u128 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("System time before UNIX epoch")
+            .as_secs() as u128
+    }
+
+    /// Checks if a cached entry has expired based on TTL
+    fn is_expired(&self, timestamp: u128) -> bool {
+        if let Some(ttl) = self.ttl_seconds {
+            let current = Self::get_current_timestamp();
+            current.saturating_sub(timestamp) > ttl
+        } else {
+            false
+        }
+    }
 }
 
 #[async_trait::async_trait]
@@ -55,9 +82,15 @@ impl forge_services::CacheRepository for CacacheRepository {
 
         match cacache::read(&self.cache_dir, &key_str).await {
             Ok(data) => {
-                let value: V =
-                    serde_json::from_slice(&data).context("Failed to deserialize cached value")?;
-                Ok(Some(value))
+                let entry: CachedEntry<V> =
+                    serde_json::from_slice(&data).context("Failed to deserialize cached entry")?;
+
+                // Check if entry has expired
+                if self.is_expired(entry.timestamp) {
+                    Ok(None)
+                } else {
+                    Ok(Some(entry.value))
+                }
             }
             Err(e) => {
                 // Check if error is NotFound by converting to string and checking message
@@ -78,7 +111,10 @@ impl forge_services::CacheRepository for CacacheRepository {
         V: serde::Serialize + Sync,
     {
         let key_str = self.key_to_string(key)?;
-        let data = serde_json::to_vec(value).context("Failed to serialize value for caching")?;
+
+        let entry = CachedEntry { value, timestamp: Self::get_current_timestamp() };
+
+        let data = serde_json::to_vec(&entry).context("Failed to serialize entry for caching")?;
 
         cacache::write(&self.cache_dir, &key_str, data)
             .await
@@ -162,5 +198,58 @@ mod tests {
 
         assert_eq!(result1, None);
         assert_eq!(result2, None);
+    }
+
+    #[tokio::test]
+    async fn test_ttl_not_expired() {
+        let cache_dir = test_cache_dir();
+        let cache = CacacheRepository::new(cache_dir, Some(60)); // 60 seconds TTL
+
+        let key = TestKey { id: "test".to_string() };
+        let value = TestValue { data: "hello".to_string(), count: 42 };
+
+        cache.cache_set(&key, &value).await.unwrap();
+
+        // Immediately retrieve - should not be expired
+        let result: Option<TestValue> = cache.cache_get(&key).await.unwrap();
+
+        assert_eq!(result, Some(value));
+    }
+
+    #[tokio::test]
+    async fn test_ttl_expired() {
+        let cache_dir = test_cache_dir();
+        let cache = CacacheRepository::new(cache_dir, Some(1)); // 1 second TTL
+
+        let key = TestKey { id: "test".to_string() };
+        let value = TestValue { data: "hello".to_string(), count: 42 };
+
+        cache.cache_set(&key, &value).await.unwrap();
+
+        // Wait for TTL to expire
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+        let result: Option<TestValue> = cache.cache_get(&key).await.unwrap();
+
+        assert_eq!(result, None);
+    }
+
+    #[tokio::test]
+    async fn test_ttl_none_never_expires() {
+        let cache_dir = test_cache_dir();
+        let cache = CacacheRepository::new(cache_dir, None); // No TTL
+
+        let key = TestKey { id: "test".to_string() };
+        let value = TestValue { data: "hello".to_string(), count: 42 };
+
+        cache.cache_set(&key, &value).await.unwrap();
+
+        // Wait a bit
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+        // Should still be available
+        let result: Option<TestValue> = cache.cache_get(&key).await.unwrap();
+
+        assert_eq!(result, Some(value));
     }
 }
