@@ -15,9 +15,6 @@ use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
 use reqwest_eventsource::EventSource;
 
-use crate::database::repository::{
-    AppConfigRepositoryImpl, CacacheRepository, ConversationRepositoryImpl,
-};
 use crate::database::{DatabasePool, PoolConfig};
 use crate::env::ForgeEnvironmentInfra;
 use crate::executor::ForgeCommandExecutorService;
@@ -32,6 +29,7 @@ use crate::http::ForgeHttpInfra;
 use crate::inquire::ForgeInquire;
 use crate::mcp_client::ForgeMcpClient;
 use crate::mcp_server::ForgeMcpServer;
+use crate::repository::{AppConfigRepositoryImpl, CacacheRepository, ConversationRepositoryImpl};
 use crate::walker::ForgeWalkerService;
 
 #[derive(Clone)]
