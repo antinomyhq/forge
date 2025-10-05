@@ -4,8 +4,8 @@ use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation,
-    ConversationId, Environment, File, McpConfig, Model, ModelId, PatchOperation, ResultStream,
-    Scope, ToolCallFull, ToolDefinition, ToolOutput, Workflow,
+    ConversationId, Environment, File, McpConfig, McpServers, Model, ModelId, PatchOperation,
+    ResultStream, Scope, ToolCallFull, ToolOutput, Workflow,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -142,8 +142,10 @@ pub trait McpConfigManager: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait McpService: Send + Sync {
-    async fn list(&self) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>>;
-    async fn call(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput>;
+    async fn get_mcp_servers(&self) -> anyhow::Result<McpServers>;
+    async fn execute_mcp(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput>;
+    /// Refresh the MCP cache by fetching fresh data
+    async fn reload_mcp(&self) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -490,12 +492,16 @@ impl<I: Services> McpConfigManager for I {
 
 #[async_trait::async_trait]
 impl<I: Services> McpService for I {
-    async fn list(&self) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>> {
-        self.mcp_service().list().await
+    async fn get_mcp_servers(&self) -> anyhow::Result<McpServers> {
+        self.mcp_service().get_mcp_servers().await
     }
 
-    async fn call(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput> {
-        self.mcp_service().call(call).await
+    async fn execute_mcp(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput> {
+        self.mcp_service().execute_mcp(call).await
+    }
+
+    async fn reload_mcp(&self) -> anyhow::Result<()> {
+        self.mcp_service().reload_mcp().await
     }
 }
 

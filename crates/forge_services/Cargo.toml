@@ -25,10 +25,8 @@ anyhow.workspace = true
 futures.workspace = true
 reqwest.workspace = true
 regex.workspace = true
-
-
+humantime.workspace = true
 thiserror.workspace = true
-
 tree-sitter.workspace = true
 html2md.workspace = true
 glob.workspace = true
@@ -48,17 +46,13 @@ base64.workspace = true
 strum_macros.workspace = true
 strum.workspace = true
 bytes.workspace = true
-
 serde_yml.workspace = true
 gray_matter.workspace = true
 merge.workspace = true
 strip-ansi-escapes.workspace = true
-
 forge_app.workspace = true
-
 url.workspace = true
 reqwest-eventsource.workspace = true
-
 lazy_static = "1.5.0"
 
 [dev-dependencies]

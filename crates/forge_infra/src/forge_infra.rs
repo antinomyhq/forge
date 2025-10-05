@@ -6,16 +6,15 @@ use bytes::Bytes;
 use forge_domain::{CommandOutput, Conversation, ConversationId, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
-    AppConfigRepository, CommandInfra, ConversationRepository, DirectoryReaderInfra,
-    EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra,
-    FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
+    AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
+    DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
+    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra,
+    WalkerInfra,
 };
 use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
 use reqwest_eventsource::EventSource;
 
-use crate::database::repository::app_config::AppConfigRepositoryImpl;
-use crate::database::repository::conversation::ConversationRepositoryImpl;
 use crate::database::{DatabasePool, PoolConfig};
 use crate::env::ForgeEnvironmentInfra;
 use crate::executor::ForgeCommandExecutorService;
@@ -30,6 +29,7 @@ use crate::http::ForgeHttpInfra;
 use crate::inquire::ForgeInquire;
 use crate::mcp_client::ForgeMcpClient;
 use crate::mcp_server::ForgeMcpServer;
+use crate::repository::{AppConfigRepositoryImpl, CacacheRepository, ConversationRepositoryImpl};
 use crate::walker::ForgeWalkerService;
 
 #[derive(Clone)]
@@ -51,6 +51,7 @@ pub struct ForgeInfra {
     http_service: Arc<ForgeHttpInfra>,
     conversation_repository: Arc<ConversationRepositoryImpl>,
     app_config_repository: Arc<AppConfigRepositoryImpl>,
+    mcp_cache_repository: Arc<CacacheRepository>,
 }
 
 impl ForgeInfra {
@@ -67,6 +68,11 @@ impl ForgeInfra {
         let app_config_repository = Arc::new(AppConfigRepositoryImpl::new(
             env.app_config().as_path().to_path_buf(),
         ));
+
+        let mcp_cache_repository = Arc::new(CacacheRepository::new(
+            env.cache_dir().join("mcp_cache"),
+            Some(3600),
+        )); // 1 hour TTL
 
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
@@ -89,6 +95,7 @@ impl ForgeInfra {
             http_service,
             conversation_repository,
             app_config_repository,
+            mcp_cache_repository,
         }
     }
 }
@@ -327,5 +334,33 @@ impl AppConfigRepository for ForgeInfra {
 
     async fn set_app_config(&self, config: &forge_app::dto::AppConfig) -> anyhow::Result<()> {
         self.app_config_repository.set_app_config(config).await
+    }
+}
+
+// Note: ForgeInfra implements CacheInfra<String, McpToolCache> directly
+// via delegation to mcp_cache_repository (CacacheRepository<String,
+// McpToolCache>). This provides a cleaner interface without the need for a
+// custom McpCacheRepository trait.
+
+#[async_trait::async_trait]
+impl CacheRepository for ForgeInfra {
+    async fn cache_get<K, V>(&self, key: &K) -> anyhow::Result<Option<V>>
+    where
+        K: std::hash::Hash + Sync,
+        V: serde::Serialize + serde::de::DeserializeOwned + Send,
+    {
+        self.mcp_cache_repository.cache_get(key).await
+    }
+
+    async fn cache_set<K, V>(&self, key: &K, value: &V) -> anyhow::Result<()>
+    where
+        K: std::hash::Hash + Sync,
+        V: serde::Serialize + Sync,
+    {
+        self.mcp_cache_repository.cache_set(key, value).await
+    }
+
+    async fn cache_clear(&self) -> anyhow::Result<()> {
+        self.mcp_cache_repository.cache_clear().await
     }
 }

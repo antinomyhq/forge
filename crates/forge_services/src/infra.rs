@@ -1,3 +1,4 @@
+use std::hash::Hash;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
@@ -11,6 +12,7 @@ use forge_snaps::Snapshot;
 use reqwest::Response;
 use reqwest::header::HeaderMap;
 use reqwest_eventsource::EventSource;
+use serde::de::DeserializeOwned;
 use url::Url;
 
 /// Infrastructure trait for accessing environment configuration and system
@@ -220,6 +222,45 @@ pub trait DirectoryReaderInfra: Send + Sync {
         directory: &Path,
         pattern: Option<&str>, // Optional glob pattern like "*.md"
     ) -> anyhow::Result<Vec<(PathBuf, String)>>;
+}
+
+/// Generic cache infrastructure trait for content-addressable storage.
+///
+/// This trait provides an abstraction over caching operations with support for
+/// arbitrary key and value types. Keys must be hashable and serializable, while
+/// values must be serializable. The trait is designed to work with
+/// content-addressable storage systems like cacache.
+///
+/// Type parameters:
+/// - `K`: Key type with bounds for hashing and serialization
+/// - `V`: Value type with bounds for serialization
+///
+/// All operations return `anyhow::Result` for consistent error handling across
+/// the infrastructure layer.
+#[async_trait::async_trait]
+pub trait CacheRepository: Send + Sync {
+    /// Retrieves a value from the cache by its key.
+    ///
+    /// Returns `Ok(Some(value))` if the key exists in the cache,
+    /// `Ok(None)` if the key doesn't exist, or an error if the operation fails.
+    async fn cache_get<K, V>(&self, key: &K) -> anyhow::Result<Option<V>>
+    where
+        K: Hash + Sync,
+        V: serde::Serialize + DeserializeOwned + Send;
+
+    /// Stores a value in the cache with the given key.
+    ///
+    /// If the key already exists, the value is overwritten.
+    /// Uses content-addressable storage for integrity verification.
+    async fn cache_set<K, V>(&self, key: &K, value: &V) -> anyhow::Result<()>
+    where
+        K: Hash + Sync,
+        V: serde::Serialize + Sync;
+
+    /// Clears all entries from the cache.
+    ///
+    /// This operation removes all cached data. Use with caution.
+    async fn cache_clear(&self) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]

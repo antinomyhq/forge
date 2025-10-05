@@ -118,4 +118,7 @@ pub trait API: Sync + Send {
 
     /// Sets the operating model
     async fn set_operating_model(&self, model_id: ModelId) -> anyhow::Result<()>;
+
+    /// Refresh MCP caches by fetching fresh data
+    async fn reload_mcp(&self) -> Result<()>;
 }

@@ -15,6 +15,7 @@ mod http;
 mod inquire;
 mod mcp_client;
 mod mcp_server;
+mod repository;
 mod walker;
 
 pub use executor::ForgeCommandExecutorService;

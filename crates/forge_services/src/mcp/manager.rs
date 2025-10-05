@@ -7,13 +7,19 @@ use forge_app::McpConfigManager;
 use forge_app::domain::{McpConfig, Scope};
 use merge::Merge;
 
-use crate::{EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, McpServerInfra};
+use crate::{
+    CacheRepository, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
+    McpServerInfra,
+};
 
 pub struct ForgeMcpManager<I> {
     infra: Arc<I>,
 }
 
-impl<I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra> ForgeMcpManager<I> {
+impl<I> ForgeMcpManager<I>
+where
+    I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra + CacheRepository,
+{
     pub fn new(infra: Arc<I>) -> Self {
         Self { infra }
     }
@@ -22,6 +28,7 @@ impl<I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra> For
         let config = self.infra.read_utf8(path).await?;
         Ok(serde_json::from_str(&config)?)
     }
+
     async fn config_path(&self, scope: &Scope) -> anyhow::Result<PathBuf> {
         let env = self.infra.get_environment();
         match scope {
@@ -32,8 +39,14 @@ impl<I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra> For
 }
 
 #[async_trait::async_trait]
-impl<I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra + FileWriterInfra>
-    McpConfigManager for ForgeMcpManager<I>
+impl<I> McpConfigManager for ForgeMcpManager<I>
+where
+    I: McpServerInfra
+        + FileReaderInfra
+        + FileInfoInfra
+        + EnvironmentInfra
+        + FileWriterInfra
+        + CacheRepository,
 {
     async fn read_mcp_config(&self) -> anyhow::Result<McpConfig> {
         let env = self.infra.get_environment();
@@ -57,12 +70,19 @@ impl<I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra + Fi
     }
 
     async fn write_mcp_config(&self, config: &McpConfig, scope: &Scope) -> anyhow::Result<()> {
+        // Write config
         self.infra
             .write(
                 self.config_path(scope).await?.as_path(),
                 Bytes::from(serde_json::to_string(config)?),
                 true,
             )
-            .await
+            .await?;
+
+        // Clear the unified cache to force refresh on next use
+        // Since we now use a merged hash, clearing any scope invalidates the cache
+        self.infra.cache_clear().await?;
+
+        Ok(())
     }
 }

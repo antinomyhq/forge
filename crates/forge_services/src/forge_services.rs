@@ -20,9 +20,9 @@ use crate::tool_services::{
 };
 use crate::workflow::ForgeWorkflowService;
 use crate::{
-    AppConfigRepository, CommandInfra, ConversationRepository, DirectoryReaderInfra,
-    EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra,
-    FileWriterInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
+    AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
+    DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
+    FileRemoverInfra, FileWriterInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
 };
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client>;
@@ -74,7 +74,8 @@ impl<
         + CommandInfra
         + UserInfra
         + ConversationRepository
-        + AppConfigRepository,
+        + AppConfigRepository
+        + CacheRepository,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -149,6 +150,7 @@ impl<
         + WalkerInfra
         + ConversationRepository
         + AppConfigRepository
+        + CacheRepository
         + Clone,
 > Services for ForgeServices<F>
 {

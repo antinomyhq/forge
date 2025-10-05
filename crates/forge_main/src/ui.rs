@@ -6,7 +6,7 @@ use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
-    InterruptionReason, Model, ModelId, Provider, Workflow,
+    InterruptionReason, Model, ModelId, Provider, ServerName, Workflow,
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
@@ -281,7 +281,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     // Command/URL already set in the constructor
 
                     self.update_mcp_config(&scope, |config| {
-                        config.mcp_servers.insert(name.to_string(), server);
+                        config.mcp_servers.insert(name.to_string().into(), server);
                     })
                     .await?;
 
@@ -300,22 +300,22 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     self.writeln(output)?;
                 }
                 McpCommand::Remove(rm) => {
-                    let name = rm.name.clone();
+                    let name = ServerName::from(rm.name);
                     let scope: Scope = rm.scope.into();
 
                     self.update_mcp_config(&scope, |config| {
-                        config.mcp_servers.remove(name.as_str());
+                        config.mcp_servers.remove(&name);
                     })
                     .await?;
 
                     self.writeln_title(TitleFormat::info(format!("Removed server: {name}")))?;
                 }
                 McpCommand::Get(val) => {
-                    let name = val.name.clone();
+                    let name = ServerName::from(val.name);
                     let config = self.api.read_mcp_config().await?;
                     let server = config
                         .mcp_servers
-                        .get(name.as_str())
+                        .get(&name)
                         .ok_or(anyhow::anyhow!("Server not found"))?;
 
                     let mut output = String::new();
@@ -326,9 +326,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     let server = serde_json::from_str::<McpServerConfig>(add_json.json.as_str())
                         .context("Failed to parse JSON")?;
                     let scope: Scope = add_json.scope.into();
-                    let name = add_json.name.clone();
+                    let name = ServerName::from(add_json.name.clone());
                     self.update_mcp_config(&scope, |config| {
-                        config.mcp_servers.insert(name.clone(), server);
+                        config.mcp_servers.insert(name, server);
                     })
                     .await?;
 
@@ -337,6 +337,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         add_json.name
                     )))?;
                 }
+                McpCommand::Cache(cache_args) => match cache_args.command {
+                    crate::cli::McpCacheCommand::Refresh => {
+                        self.spinner.start(Some("Reloading MCPs"))?;
+                        self.api.reload_mcp().await?;
+                        self.writeln_title(TitleFormat::info("MCP reloaded"))?;
+                    }
+                },
             },
             TopLevelCommand::Info => {
                 // Make sure to init model

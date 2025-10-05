@@ -23,11 +23,13 @@ pub struct ToolRegistry<S> {
     agent_executor: AgentExecutor<S>,
     mcp_executor: McpExecutor<S>,
     tool_timeout: Duration,
+    services: Arc<S>,
 }
 
 impl<S: Services> ToolRegistry<S> {
     pub fn new(services: Arc<S>) -> Self {
         Self {
+            services: services.clone(),
             tool_executor: ToolExecutor::new(services.clone()),
             agent_executor: AgentExecutor::new(services.clone()),
             mcp_executor: McpExecutor::new(services.clone()),
@@ -126,7 +128,7 @@ impl<S: Services> ToolRegistry<S> {
         Ok(self.tools_overview().await?.into())
     }
     pub async fn tools_overview(&self) -> anyhow::Result<ToolsOverview> {
-        let mcp_tools = self.mcp_executor.services.list().await?;
+        let mcp_tools = self.services.get_mcp_servers().await?;
         let agent_tools = self.agent_executor.agent_definitions().await?;
 
         let system_tools = Tools::iter()

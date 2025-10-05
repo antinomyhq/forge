@@ -5,8 +5,8 @@ use anyhow::{Context, Result};
 use forge_app::dto::{InitAuth, LoginInfo, Provider, ProviderId, ToolsOverview};
 use forge_app::{
     AgentLoaderService, AuthService, ConversationService, EnvironmentService, FileDiscoveryService,
-    ForgeApp, McpConfigManager, ProviderRegistry, ProviderService, Services, User, UserUsage,
-    Walker, WorkflowService,
+    ForgeApp, McpConfigManager, McpService, ProviderRegistry, ProviderService, Services, User,
+    UserUsage, Walker, WorkflowService,
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
@@ -220,5 +220,9 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
 
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {
         self.services.auth_service().get_auth_token().await
+    }
+
+    async fn reload_mcp(&self) -> Result<()> {
+        self.services.mcp_service().reload_mcp().await
     }
 }

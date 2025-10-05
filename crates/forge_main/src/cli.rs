@@ -154,6 +154,9 @@ pub enum McpCommand {
 
     /// Add a server in JSON format
     AddJson(McpAddJsonArgs),
+
+    /// Cache management commands
+    Cache(McpCacheArgs),
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -208,6 +211,19 @@ pub struct McpAddJsonArgs {
 
     /// JSON string containing the server configuration
     pub json: String,
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct McpCacheArgs {
+    /// Cache subcommand
+    #[command(subcommand)]
+    pub command: McpCacheCommand,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum McpCacheCommand {
+    /// Rebuild caches by fetching fresh data from MCPs
+    Refresh,
 }
 
 #[derive(Copy, Clone, Debug, ValueEnum, Default)]
