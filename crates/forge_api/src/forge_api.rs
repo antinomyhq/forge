@@ -13,7 +13,7 @@ use forge_infra::ForgeInfra;
 use forge_services::{AppConfigRepository, CommandInfra, ForgeServices};
 use forge_stream::MpscStream;
 
-use crate::API;
+use crate::{API, CacheStatus, McpCacheInfo};
 
 pub struct ForgeAPI<S, F> {
     services: Arc<S>,
@@ -220,5 +220,77 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
 
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {
         self.services.auth_service().get_auth_token().await
+    }
+
+    async fn get_mcp_cache_info(&self) -> Result<McpCacheInfo> {
+        use forge_app::McpCacheRepository;
+        // Get current configs to compute merged hash
+        let mcp_config = self.services.mcp_config_manager().read_mcp_config().await?;
+
+        // Compute the unified hash
+        let config_hash = mcp_config.cache_key();
+
+        // Get the unified cache
+        let cache = self
+            .services
+            .mcp_cache_repository()
+            .get_cache(&config_hash)
+            .await?;
+
+        let cache_status = match cache {
+            Some(cache) => {
+                // Check if cache is valid using infrastructure layer
+                let is_valid = self
+                    .services
+                    .mcp_cache_repository()
+                    .is_cache_valid(&config_hash)
+                    .await?;
+                let age_seconds = self
+                    .services
+                    .mcp_cache_repository()
+                    .get_cache_age_seconds(&config_hash)
+                    .await?
+                    .unwrap_or(0);
+
+                let age = humantime::format_duration(std::time::Duration::from_secs(age_seconds))
+                    .to_string();
+                if is_valid {
+                    CacheStatus::Valid {
+                        age,
+                        tool_count: cache.tools.values().map(|v| v.len()).sum(),
+                        config_hash: cache.config_hash,
+                    }
+                } else {
+                    // Check if config changed or just expired
+                    let reason = if cache.config_hash != config_hash {
+                        "Config changed".to_string()
+                    } else {
+                        format!("Cache expired (age: {}, TTL: 1h)", age)
+                    };
+                    CacheStatus::Invalid { reason }
+                }
+            }
+            None => CacheStatus::Missing,
+        };
+
+        Ok(McpCacheInfo { unified: cache_status, servers: mcp_config.mcp_servers.len() })
+    }
+
+    async fn clear_mcp_cache(&self) -> Result<()> {
+        use forge_app::McpCacheRepository;
+
+        // Since we have a unified cache, clearing any scope clears all
+        self.services.mcp_cache_repository().clear_cache().await?;
+
+        Ok(())
+    }
+
+    async fn refresh_mcp_cache(&self) -> Result<()> {
+        use forge_app::McpService;
+
+        // Fetch fresh tools by calling list() which connects to MCPs
+        let _tools = self.services.list().await?;
+
+        Ok(())
     }
 }

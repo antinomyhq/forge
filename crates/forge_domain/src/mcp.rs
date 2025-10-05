@@ -9,6 +9,8 @@ use derive_setters::Setters;
 use merge::Merge;
 use serde::{Deserialize, Serialize};
 
+use crate::ToolDefinition;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Scope {
     Local,
@@ -103,5 +105,134 @@ impl Deref for McpConfig {
 impl From<BTreeMap<String, McpServerConfig>> for McpConfig {
     fn from(mcp_servers: BTreeMap<String, McpServerConfig>) -> Self {
         Self { mcp_servers }
+    }
+}
+
+impl McpConfig {
+    /// Compute a deterministic string identifier for this config
+    ///
+    /// Uses Rust's built-in `Hash` trait (derived) to compute a stable hash
+    /// and converts it to a hex string for use as a cache key.
+    /// BTreeMap ensures consistent ordering regardless of insertion order.
+    pub fn cache_key(&self) -> String {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+        Hash::hash(self, &mut hasher);
+        format!("{:x}", hasher.finish())
+    }
+}
+
+/// Cache for MCP tool definitions
+///
+/// Simplified cache structure that stores only the essential data.
+/// Validation and TTL checking are handled by the infrastructure layer
+/// using cacache's built-in metadata capabilities.
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct McpToolCache {
+    pub config_hash: String,
+    /// Tools mapped by server name
+    pub tools: BTreeMap<String, Vec<ToolDefinition>>,
+}
+
+impl McpToolCache {
+    /// Create a new cache entry
+    pub fn new(config_hash: String, tools: BTreeMap<String, Vec<ToolDefinition>>) -> Self {
+        Self { config_hash, tools }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mcp_config_hash_consistency() {
+        use pretty_assertions::assert_eq;
+
+        // Create two identical configs
+        let fixture1 = McpConfig {
+            mcp_servers: BTreeMap::from([
+                (
+                    "server1".to_string(),
+                    McpServerConfig::new_sse("http://localhost:3000"),
+                ),
+                (
+                    "server2".to_string(),
+                    McpServerConfig::new_stdio("node", vec![], None),
+                ),
+            ]),
+        };
+
+        let fixture2 = McpConfig {
+            mcp_servers: BTreeMap::from([
+                (
+                    "server1".to_string(),
+                    McpServerConfig::new_sse("http://localhost:3000"),
+                ),
+                (
+                    "server2".to_string(),
+                    McpServerConfig::new_stdio("node", vec![], None),
+                ),
+            ]),
+        };
+
+        // Hashes should be identical
+        let actual = fixture1.cache_key();
+        let expected = fixture2.cache_key();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_mcp_config_hash_different_configs() {
+        use pretty_assertions::assert_ne;
+
+        // Create two different configs
+        let fixture1 = McpConfig {
+            mcp_servers: BTreeMap::from([(
+                "server1".to_string(),
+                McpServerConfig::new_sse("http://localhost:3000"),
+            )]),
+        };
+
+        let fixture2 = McpConfig {
+            mcp_servers: BTreeMap::from([(
+                "server1".to_string(),
+                McpServerConfig::new_sse("http://localhost:3001"),
+            )]),
+        };
+
+        // Hashes should be different
+        let actual = fixture1.cache_key();
+        let expected = fixture2.cache_key();
+        assert_ne!(actual, expected);
+    }
+
+    #[test]
+    fn test_mcp_config_hash_insertion_order_independent() {
+        use pretty_assertions::assert_eq;
+
+        // Create config with servers in one order
+        let fixture1 = McpConfig {
+            mcp_servers: BTreeMap::from([
+                ("a_server".to_string(), McpServerConfig::new_sse("http://a")),
+                ("z_server".to_string(), McpServerConfig::new_sse("http://z")),
+            ]),
+        };
+
+        // Create config with servers in different order (BTreeMap sorts by key)
+        let fixture2 = McpConfig {
+            mcp_servers: BTreeMap::from([
+                ("z_server".to_string(), McpServerConfig::new_sse("http://z")),
+                ("a_server".to_string(), McpServerConfig::new_sse("http://a")),
+            ]),
+        };
+
+        // Hashes should be identical because BTreeMap maintains sorted order
+        let actual = fixture1.cache_key();
+        let expected = fixture2.cache_key();
+        assert_eq!(actual, expected);
     }
 }

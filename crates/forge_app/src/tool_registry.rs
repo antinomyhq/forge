@@ -126,7 +126,7 @@ impl<S: Services> ToolRegistry<S> {
         Ok(self.tools_overview().await?.into())
     }
     pub async fn tools_overview(&self) -> anyhow::Result<ToolsOverview> {
-        let mcp_tools = self.mcp_executor.services.list().await?;
+        let mcp_tools = self.mcp_executor.services.list_cached().await?;
         let agent_tools = self.agent_executor.agent_definitions().await?;
 
         let system_tools = Tools::iter()
@@ -145,22 +145,32 @@ impl<S> ToolRegistry<S> {
     ///
     /// # Validation Process
     /// Verifies the tool is supported by the agent specified in the context
+    /// Supports glob patterns like "mcp_*" for matching tool names
     fn validate_tool_call(agent: &Agent, tool_name: &ToolName) -> Result<(), Error> {
-        let agent_tools: Vec<_> = agent
-            .tools
-            .iter()
-            .flat_map(|tools| tools.iter())
-            .map(|tool| tool.as_str())
-            .collect();
+        let agent_tools: Vec<_> = agent.tools.iter().flat_map(|tools| tools.iter()).collect();
 
-        if !agent_tools.contains(&tool_name.as_str())
-            && *tool_name != ToolsDiscriminants::AttemptCompletion.name()
-        {
+        // Check if tool matches any of the agent's tool patterns (supports globs)
+        let tool_matches = agent_tools.iter().any(|pattern| {
+            // Use glob matching like ToolResolver does
+            if let Ok(glob) = globset::Glob::new(pattern.as_str()) {
+                let matcher = glob.compile_matcher();
+                matcher.is_match(tool_name.as_str())
+            } else {
+                // Fallback to exact string match if pattern is not a valid glob
+                pattern.as_str() == tool_name.as_str()
+            }
+        });
+
+        if !tool_matches && *tool_name != ToolsDiscriminants::AttemptCompletion.name() {
             tracing::error!(tool_name = %tool_name, "No tool with name");
 
             return Err(Error::NotAllowed {
                 name: tool_name.clone(),
-                supported_tools: agent_tools.join(", "),
+                supported_tools: agent_tools
+                    .iter()
+                    .map(|t| t.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", "),
             });
         }
         Ok(())

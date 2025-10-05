@@ -3,25 +3,31 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use bytes::Bytes;
-use forge_app::McpConfigManager;
 use forge_app::domain::{McpConfig, Scope};
+use forge_app::{McpCacheRepository, McpConfigManager};
 use merge::Merge;
 
 use crate::{EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, McpServerInfra};
 
-pub struct ForgeMcpManager<I> {
+pub struct ForgeMcpManager<I, R> {
     infra: Arc<I>,
+    cache_repo: Arc<R>,
 }
 
-impl<I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra> ForgeMcpManager<I> {
-    pub fn new(infra: Arc<I>) -> Self {
-        Self { infra }
+impl<I, R> ForgeMcpManager<I, R>
+where
+    I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra,
+    R: McpCacheRepository,
+{
+    pub fn new(infra: Arc<I>, cache_repo: Arc<R>) -> Self {
+        Self { infra, cache_repo }
     }
 
     async fn read_config(&self, path: &Path) -> anyhow::Result<McpConfig> {
         let config = self.infra.read_utf8(path).await?;
         Ok(serde_json::from_str(&config)?)
     }
+
     async fn config_path(&self, scope: &Scope) -> anyhow::Result<PathBuf> {
         let env = self.infra.get_environment();
         match scope {
@@ -32,8 +38,10 @@ impl<I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra> For
 }
 
 #[async_trait::async_trait]
-impl<I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra + FileWriterInfra>
-    McpConfigManager for ForgeMcpManager<I>
+impl<I, R> McpConfigManager for ForgeMcpManager<I, R>
+where
+    I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra + FileWriterInfra,
+    R: McpCacheRepository,
 {
     async fn read_mcp_config(&self) -> anyhow::Result<McpConfig> {
         let env = self.infra.get_environment();
@@ -57,12 +65,19 @@ impl<I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra + Fi
     }
 
     async fn write_mcp_config(&self, config: &McpConfig, scope: &Scope) -> anyhow::Result<()> {
+        // Write config
         self.infra
             .write(
                 self.config_path(scope).await?.as_path(),
                 Bytes::from(serde_json::to_string(config)?),
                 true,
             )
-            .await
+            .await?;
+
+        // Clear the unified cache to force refresh on next use
+        // Since we now use a merged hash, clearing any scope invalidates the cache
+        self.cache_repo.clear_cache().await?;
+
+        Ok(())
     }
 }

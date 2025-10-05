@@ -1,3 +1,4 @@
+use std::hash::Hash;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
@@ -11,6 +12,7 @@ use forge_snaps::Snapshot;
 use reqwest::Response;
 use reqwest::header::HeaderMap;
 use reqwest_eventsource::EventSource;
+use serde::de::DeserializeOwned;
 use url::Url;
 
 /// Infrastructure trait for accessing environment configuration and system
@@ -220,6 +222,98 @@ pub trait DirectoryReaderInfra: Send + Sync {
         directory: &Path,
         pattern: Option<&str>, // Optional glob pattern like "*.md"
     ) -> anyhow::Result<Vec<(PathBuf, String)>>;
+}
+
+/// Generic cache infrastructure trait for content-addressable storage.
+///
+/// This trait provides an abstraction over caching operations with support for
+/// arbitrary key and value types. Keys must be hashable and serializable, while
+/// values must be serializable. The trait is designed to work with
+/// content-addressable storage systems like cacache.
+///
+/// Type parameters:
+/// - `K`: Key type with bounds for hashing and serialization
+/// - `V`: Value type with bounds for serialization
+///
+/// All operations return `anyhow::Result` for consistent error handling across
+/// the infrastructure layer.
+#[async_trait::async_trait]
+pub trait CacheInfra<K, V>: Send + Sync
+where
+    K: Hash + serde::Serialize + DeserializeOwned + Send + Sync + 'static,
+    V: serde::Serialize + DeserializeOwned + Send + Sync + 'static,
+{
+    /// Retrieves a value from the cache by its key.
+    ///
+    /// Returns `Ok(Some(value))` if the key exists in the cache,
+    /// `Ok(None)` if the key doesn't exist, or an error if the operation fails.
+    async fn get(&self, key: &K) -> anyhow::Result<Option<V>>;
+
+    /// Stores a value in the cache with the given key.
+    ///
+    /// If the key already exists, the value is overwritten.
+    /// Uses content-addressable storage for integrity verification.
+    async fn set(&self, key: &K, value: &V) -> anyhow::Result<()>;
+
+    /// Removes a value from the cache by its key.
+    ///
+    /// Returns `Ok(())` regardless of whether the key existed.
+    async fn remove(&self, key: &K) -> anyhow::Result<()>;
+
+    /// Clears all entries from the cache.
+    ///
+    /// This operation removes all cached data. Use with caution.
+    async fn clear(&self) -> anyhow::Result<()>;
+
+    /// Checks if a key exists in the cache.
+    ///
+    /// Returns `Ok(true)` if the key exists, `Ok(false)` if it doesn't,
+    /// or an error if the operation fails.
+    async fn exists(&self, key: &K) -> anyhow::Result<bool>;
+
+    /// Retrieves multiple values from the cache by their keys.
+    ///
+    /// Returns a vector of optional values in the same order as the input keys.
+    /// Missing keys result in `None` values in the output.
+    /// Default implementation calls `get` for each key sequentially.
+    async fn get_many(&self, keys: &[K]) -> anyhow::Result<Vec<Option<V>>> {
+        let mut results = Vec::with_capacity(keys.len());
+        for key in keys {
+            results.push(self.get(key).await?);
+        }
+        Ok(results)
+    }
+
+    /// Stores multiple key-value pairs in the cache.
+    ///
+    /// Default implementation calls `set` for each pair sequentially.
+    /// Implementations may override this for batch optimization.
+    async fn set_many(&self, entries: &[(K, V)]) -> anyhow::Result<()>
+    where
+        K: Clone,
+        V: Clone,
+    {
+        for (key, value) in entries {
+            self.set(key, value).await?;
+        }
+        Ok(())
+    }
+
+    /// Returns the total size of the cache in bytes.
+    ///
+    /// Returns `Ok(0)` by default. Implementations should override
+    /// this if they track cache size.
+    async fn size(&self) -> anyhow::Result<u64> {
+        Ok(0)
+    }
+
+    /// Returns all keys currently stored in the cache.
+    ///
+    /// Returns an empty vector by default. Implementations should override
+    /// this if they support key enumeration.
+    async fn keys(&self) -> anyhow::Result<Vec<K>> {
+        Ok(Vec::new())
+    }
 }
 
 #[async_trait::async_trait]

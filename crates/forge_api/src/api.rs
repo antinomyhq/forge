@@ -8,6 +8,32 @@ use forge_stream::MpscStream;
 
 use crate::*;
 
+/// Information about MCP cache status
+///
+/// The cache is unified - it stores tools from both user and local configs
+/// combined into a single cache entry keyed by the merged config hash.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct McpCacheInfo {
+    /// Unified cache status (represents both user and local configs merged)
+    pub unified: CacheStatus,
+    /// Number of MCP servers configured
+    pub servers: usize,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "status", rename_all = "lowercase")]
+pub enum CacheStatus {
+    Valid {
+        age: String,
+        tool_count: usize,
+        config_hash: String,
+    },
+    Invalid {
+        reason: String,
+    },
+    Missing,
+}
+
 #[async_trait::async_trait]
 pub trait API: Sync + Send {
     /// Provides a list of files in the current working directory for auto
@@ -118,4 +144,13 @@ pub trait API: Sync + Send {
 
     /// Sets the operating model
     async fn set_operating_model(&self, model_id: ModelId) -> anyhow::Result<()>;
+
+    /// Get MCP cache information (age, tool count)
+    async fn get_mcp_cache_info(&self) -> Result<McpCacheInfo>;
+
+    /// Clear MCP caches (user, local, or both)
+    async fn clear_mcp_cache(&self) -> Result<()>;
+
+    /// Refresh MCP caches by fetching fresh data
+    async fn refresh_mcp_cache(&self) -> Result<()>;
 }

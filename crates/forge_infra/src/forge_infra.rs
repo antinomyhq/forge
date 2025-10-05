@@ -3,7 +3,10 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_domain::{CommandOutput, Conversation, ConversationId, Environment, McpServerConfig};
+use forge_app::McpCacheRepository;
+use forge_domain::{
+    CommandOutput, Conversation, ConversationId, Environment, McpServerConfig, McpToolCache,
+};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
     AppConfigRepository, CommandInfra, ConversationRepository, DirectoryReaderInfra,
@@ -14,6 +17,7 @@ use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
 use reqwest_eventsource::EventSource;
 
+use crate::cache::ForgeMcpCacheRepository;
 use crate::database::repository::app_config::AppConfigRepositoryImpl;
 use crate::database::repository::conversation::ConversationRepositoryImpl;
 use crate::database::{DatabasePool, PoolConfig};
@@ -51,6 +55,7 @@ pub struct ForgeInfra {
     http_service: Arc<ForgeHttpInfra>,
     conversation_repository: Arc<ConversationRepositoryImpl>,
     app_config_repository: Arc<AppConfigRepositoryImpl>,
+    mcp_cache_repository: Arc<ForgeMcpCacheRepository>,
 }
 
 impl ForgeInfra {
@@ -67,6 +72,8 @@ impl ForgeInfra {
         let app_config_repository = Arc::new(AppConfigRepositoryImpl::new(
             env.app_config().as_path().to_path_buf(),
         ));
+
+        let mcp_cache_repository = Arc::new(ForgeMcpCacheRepository::new(env.cache_dir()));
 
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
@@ -89,6 +96,7 @@ impl ForgeInfra {
             http_service,
             conversation_repository,
             app_config_repository,
+            mcp_cache_repository,
         }
     }
 }
@@ -327,5 +335,30 @@ impl AppConfigRepository for ForgeInfra {
 
     async fn set_app_config(&self, config: &forge_app::dto::AppConfig) -> anyhow::Result<()> {
         self.app_config_repository.set_app_config(config).await
+    }
+}
+
+#[async_trait::async_trait]
+impl McpCacheRepository for ForgeInfra {
+    async fn get_cache(&self, config_hash: &str) -> anyhow::Result<Option<McpToolCache>> {
+        self.mcp_cache_repository.get_cache(config_hash).await
+    }
+
+    async fn set_cache(&self, cache: McpToolCache) -> anyhow::Result<()> {
+        self.mcp_cache_repository.set_cache(cache).await
+    }
+
+    async fn clear_cache(&self) -> anyhow::Result<()> {
+        self.mcp_cache_repository.clear_cache().await
+    }
+
+    async fn is_cache_valid(&self, config_hash: &str) -> anyhow::Result<bool> {
+        self.mcp_cache_repository.is_cache_valid(config_hash).await
+    }
+
+    async fn get_cache_age_seconds(&self, config_hash: &str) -> anyhow::Result<Option<u64>> {
+        self.mcp_cache_repository
+            .get_cache_age_seconds(config_hash)
+            .await
     }
 }

@@ -11,7 +11,7 @@ pub fn format_tools(agent_tools: &[ToolName], overview: &ToolsOverview) -> Info 
     let mut info = Info::new();
     let agent_tools = agent_tools.iter().collect::<HashSet<_>>();
     let checkbox = |tool_name: &ToolName| -> &str {
-        if agent_tools.contains(&tool_name) {
+        if agent_tools.contains(tool_name) {
             "[✓]"
         } else {
             "[ ]"
