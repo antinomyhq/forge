@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use forge_domain::{Agent, ToolDefinition, ToolsDiscriminants};
+use forge_domain::{Agent, ToolDefinition, ToolName, ToolsDiscriminants};
 use globset::Glob;
 
 /// Service that resolves tool definitions for agents based on their configured
@@ -25,7 +25,7 @@ impl ToolResolver {
     /// duplicate tool definitions. Returns tools sorted alphabetically by name.
     /// Returns references to avoid unnecessary cloning.
     pub fn resolve<'a>(&'a self, agent: &Agent) -> Vec<&'a ToolDefinition> {
-        let matchers = self.build_matchers(agent);
+        let matchers = Self::build_matchers(agent);
         let mut resolved = self.match_tools(&matchers);
         self.ensure_attempt_completion(&mut resolved);
         self.dedupe_tools(&mut resolved);
@@ -33,9 +33,19 @@ impl ToolResolver {
         resolved
     }
 
+    fn is_allowed_pattern(matchers: &[globset::GlobMatcher], tool_name: &ToolName) -> bool {
+        matchers
+            .iter()
+            .any(|pattern| pattern.is_match(tool_name.as_str()))
+    }
+
+    pub fn is_allowed(agent: &Agent, tool_name: &ToolName) -> bool {
+        Self::is_allowed_pattern(&Self::build_matchers(agent), tool_name)
+    }
+
     /// Builds glob matchers from the agent's tool patterns, deduplicating
     /// patterns
-    fn build_matchers(&self, agent: &Agent) -> Vec<globset::GlobMatcher> {
+    fn build_matchers(agent: &Agent) -> Vec<globset::GlobMatcher> {
         agent
             .tools
             .iter()
@@ -51,11 +61,7 @@ impl ToolResolver {
     fn match_tools<'a>(&'a self, matchers: &[globset::GlobMatcher]) -> Vec<&'a ToolDefinition> {
         self.all_tool_definitions
             .iter()
-            .filter(|tool| {
-                matchers
-                    .iter()
-                    .any(|matcher| matcher.is_match(tool.name.as_str()))
-            })
+            .filter(|tool| Self::is_allowed_pattern(matchers, &tool.name))
             .collect()
     }
 

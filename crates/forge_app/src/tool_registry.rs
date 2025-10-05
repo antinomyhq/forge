@@ -16,7 +16,7 @@ use crate::dto::ToolsOverview;
 use crate::error::Error;
 use crate::mcp_executor::McpExecutor;
 use crate::tool_executor::ToolExecutor;
-use crate::{EnvironmentService, McpService, Services};
+use crate::{EnvironmentService, McpService, Services, ToolResolver};
 
 pub struct ToolRegistry<S> {
     tool_executor: ToolExecutor<S>,
@@ -146,25 +146,18 @@ impl<S> ToolRegistry<S> {
     /// # Validation Process
     /// Verifies the tool is supported by the agent specified in the context
     fn validate_tool_call(agent: &Agent, tool_name: &ToolName) -> Result<(), Error> {
-        let agent_tools = agent.tools.iter().flat_map(|tools| tools.iter());
-
         // Check if tool matches any pattern (supports globs like "mcp_*")
-        let matches = agent_tools.clone().any(|pattern| {
-            globset::Glob::new(pattern.as_str())
-                .ok()
-                .map(|g| g.compile_matcher().is_match(tool_name.as_str()))
-                .unwrap_or(pattern.as_str() == tool_name.as_str())
-        });
-
+        let matches = ToolResolver::is_allowed(agent, tool_name);
         if !matches && *tool_name != ToolsDiscriminants::AttemptCompletion.name() {
             tracing::error!(tool_name = %tool_name, "No tool with name");
-            return Err(Error::NotAllowed {
-                name: tool_name.clone(),
-                supported_tools: agent_tools
-                    .map(|t| t.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            });
+            let supported_tools = agent
+                .tools
+                .iter()
+                .flatten()
+                .map(|t| t.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(Error::NotAllowed { name: tool_name.clone(), supported_tools });
         }
         Ok(())
     }
