@@ -6,7 +6,7 @@ use crate::dto::McpServers;
 
 /// A comprehensive view of all tools available in the environment,
 /// categorized by their source type for easier navigation and understanding.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Setters)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Setters)]
 #[setters(into, strip_option)]
 pub struct ToolsOverview {
     /// System tools provided by the Forge environment
@@ -20,11 +20,7 @@ pub struct ToolsOverview {
 impl ToolsOverview {
     /// Create a new empty ToolsOverview
     pub fn new() -> Self {
-        ToolsOverview {
-            system: Vec::new(),
-            agents: Vec::new(),
-            mcp: McpServers::default(),
-        }
+        ToolsOverview::default()
     }
 
     // Creates a flat list of all tool definitions
@@ -36,12 +32,6 @@ impl ToolsOverview {
             tools.extend(server_tools);
         }
         tools
-    }
-}
-
-impl Default for ToolsOverview {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
