@@ -1,17 +1,19 @@
 use anyhow::Result;
+use console::strip_ansi_codes;
 use dialoguer::theme::ColorfulTheme;
-use dialoguer::{Confirm, Input, MultiSelect, Select};
+use dialoguer::{Confirm, FuzzySelect, Input, MultiSelect};
 
 /// Centralized dialoguer select functionality with consistent error handling
 pub struct ForgeSelect;
 
-/// Builder for select prompts
+/// Builder for select prompts with fuzzy search
 pub struct SelectBuilder<T> {
     message: String,
     options: Vec<T>,
     starting_cursor: Option<usize>,
     default: Option<bool>,
     help_message: Option<&'static str>,
+    initial_text: Option<String>,
 }
 
 /// Builder for select prompts that takes ownership (doesn't require Clone)
@@ -19,6 +21,7 @@ pub struct SelectBuilderOwned<T> {
     message: String,
     options: Vec<T>,
     starting_cursor: Option<usize>,
+    initial_text: Option<String>,
 }
 
 impl ForgeSelect {
@@ -27,7 +30,7 @@ impl ForgeSelect {
         ColorfulTheme::default()
     }
 
-    /// Entry point for select operations
+    /// Entry point for select operations with fuzzy search
     pub fn select<T>(message: impl Into<String>, options: Vec<T>) -> SelectBuilder<T> {
         SelectBuilder {
             message: message.into(),
@@ -35,13 +38,19 @@ impl ForgeSelect {
             starting_cursor: None,
             default: None,
             help_message: None,
+            initial_text: None,
         }
     }
 
     /// Entry point for select operations with owned values (doesn't require
     /// Clone)
     pub fn select_owned<T>(message: impl Into<String>, options: Vec<T>) -> SelectBuilderOwned<T> {
-        SelectBuilderOwned { message: message.into(), options, starting_cursor: None }
+        SelectBuilderOwned {
+            message: message.into(),
+            options,
+            starting_cursor: None,
+            initial_text: None,
+        }
     }
 
     /// Convenience method for confirm (yes/no)
@@ -52,6 +61,7 @@ impl ForgeSelect {
             starting_cursor: None,
             default: None,
             help_message: None,
+            initial_text: None,
         }
     }
 
@@ -85,7 +95,13 @@ impl<T: 'static> SelectBuilder<T> {
         self
     }
 
-    /// Execute select prompt
+    /// Set initial search text for fuzzy search
+    pub fn with_initial_text(mut self, text: impl Into<String>) -> Self {
+        self.initial_text = Some(text.into());
+        self
+    }
+
+    /// Execute select prompt with fuzzy search
     pub fn prompt(self) -> Result<Option<T>>
     where
         T: std::fmt::Display + Clone,
@@ -104,20 +120,32 @@ impl<T: 'static> SelectBuilder<T> {
             return Ok(result.map(|b| unsafe { std::mem::transmute_copy(&b) }));
         }
 
-        // Regular select
+        // FuzzySelect for regular options
         if self.options.is_empty() {
             return Ok(None);
         }
 
         let theme = ForgeSelect::default_theme();
-        let mut select = Select::with_theme(&theme)
+
+        // Strip ANSI codes from display strings for better fuzzy search experience
+        let display_options: Vec<String> = self
+            .options
+            .iter()
+            .map(|item| strip_ansi_codes(&item.to_string()).to_string())
+            .collect();
+
+        let mut select = FuzzySelect::with_theme(&theme)
             .with_prompt(&self.message)
-            .items(&self.options);
+            .items(&display_options);
 
         if let Some(cursor) = self.starting_cursor {
             select = select.default(cursor);
         } else {
             select = select.default(0);
+        }
+
+        if let Some(text) = self.initial_text {
+            select = select.with_initial_text(text);
         }
 
         let idx_opt = select.interact_opt().map_err(anyhow::Error::from)?;
@@ -132,7 +160,13 @@ impl<T> SelectBuilderOwned<T> {
         self
     }
 
-    /// Execute select prompt with owned values
+    /// Set initial search text for fuzzy search
+    pub fn with_initial_text(mut self, text: impl Into<String>) -> Self {
+        self.initial_text = Some(text.into());
+        self
+    }
+
+    /// Execute select prompt with fuzzy search and owned values
     pub fn prompt(self) -> Result<Option<T>>
     where
         T: std::fmt::Display,
@@ -142,14 +176,26 @@ impl<T> SelectBuilderOwned<T> {
         }
 
         let theme = ForgeSelect::default_theme();
-        let mut select = Select::with_theme(&theme)
+
+        // Strip ANSI codes from display strings for better fuzzy search experience
+        let display_options: Vec<String> = self
+            .options
+            .iter()
+            .map(|item| strip_ansi_codes(&item.to_string()).to_string())
+            .collect();
+
+        let mut select = FuzzySelect::with_theme(&theme)
             .with_prompt(&self.message)
-            .items(&self.options);
+            .items(&display_options);
 
         if let Some(cursor) = self.starting_cursor {
             select = select.default(cursor);
         } else {
             select = select.default(0);
+        }
+
+        if let Some(text) = self.initial_text {
+            select = select.with_initial_text(text);
         }
 
         let idx_opt = select.interact_opt().map_err(anyhow::Error::from)?;
@@ -259,5 +305,30 @@ mod tests {
         let builder = ForgeSelect::multi_select("Select options:", vec!["a", "b", "c"]);
         assert_eq!(builder.message, "Select options:");
         assert_eq!(builder.options, vec!["a", "b", "c"]);
+    }
+
+    #[test]
+    fn test_select_builder_with_initial_text() {
+        let builder =
+            ForgeSelect::select("Test", vec!["apple", "banana", "cherry"]).with_initial_text("app");
+        assert_eq!(builder.initial_text, Some("app".to_string()));
+    }
+
+    #[test]
+    fn test_select_owned_builder_with_initial_text() {
+        let builder = ForgeSelect::select_owned("Test", vec!["apple", "banana", "cherry"])
+            .with_initial_text("ban");
+        assert_eq!(builder.initial_text, Some("ban".to_string()));
+    }
+
+    #[test]
+    fn test_ansi_stripping() {
+        let options = vec!["\x1b[1mBold\x1b[0m", "\x1b[31mRed\x1b[0m"];
+        let display: Vec<String> = options
+            .iter()
+            .map(|s| strip_ansi_codes(s).to_string())
+            .collect();
+
+        assert_eq!(display, vec!["Bold", "Red"]);
     }
 }

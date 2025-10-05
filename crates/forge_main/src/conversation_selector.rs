@@ -2,7 +2,6 @@ use std::fmt::Display;
 
 use anyhow::Result;
 use chrono::Utc;
-use colored::Colorize;
 use forge_api::Conversation;
 use forge_select::ForgeSelect;
 
@@ -62,7 +61,7 @@ impl ConversationSelector {
 
         let conversations = dates
             .zip(titles)
-            .map(|(date, title)| format!("{:<max_title_length$} {}", title.bold(), date.dimmed()))
+            .map(|(date, title)| format!("{:<max_title_length$} {}", title, date))
             .zip(conversation_iter.cloned())
             .map(ConversationItem)
             .collect::<Vec<_>>();

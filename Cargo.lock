@@ -792,6 +792,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25f104b501bf2364e78d0d3974cbc774f738f5865306ed128e1e0d7499c0ad96"
 dependencies = [
  "console 0.16.1",
+ "fuzzy-matcher",
  "shell-words",
  "tempfile",
  "zeroize",
@@ -1321,6 +1322,7 @@ name = "forge_select"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "console 0.16.1",
  "dialoguer",
  "pretty_assertions",
 ]
@@ -1580,6 +1582,15 @@ dependencies = [
  "pin-project-lite",
  "pin-utils",
  "slab",
+]
+
+[[package]]
+name = "fuzzy-matcher"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54614a3312934d066701a80f20f15fa3b56d67ac7722b39eea5b4c9dd1d66c94"
+dependencies = [
+ "thread_local",
 ]
 
 [[package]]
