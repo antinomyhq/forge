@@ -180,11 +180,7 @@ where
     }
 
     async fn exists(&self, key: &K) -> Result<bool> {
-        let key_str = self.key_to_string(key)?;
-
-        // Try to read metadata; if it succeeds, the key exists
-        // cacache returns an error if the key doesn't exist
-        Ok(cacache::metadata(&self.cache_dir, &key_str).await.is_ok())
+        Ok(self.get(key).await?.is_some())
     }
 
     async fn is_valid(&self, key: &K) -> Result<bool> {
@@ -287,7 +283,6 @@ mod tests {
     // TODO: Fix exists() implementation - metadata() doesn't seem to work as
     // expected For now, we can check existence by trying to get() the value
     #[tokio::test]
-    #[ignore]
     async fn test_exists() {
         let cache_dir = test_cache_dir();
         let cache: CacacheRepository<TestKey, TestValue> = CacacheRepository::new(cache_dir, None);
