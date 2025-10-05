@@ -183,12 +183,6 @@ pub trait McpService: Send + Sync {
     ) -> anyhow::Result<std::collections::HashMap<String, Vec<ToolDefinition>>>;
     async fn call(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput>;
 
-    /// Get information about the MCP cache status
-    async fn get_cache_info(&self) -> anyhow::Result<McpCacheInfo>;
-
-    /// Clear the MCP cache
-    async fn clear_cache(&self) -> anyhow::Result<()>;
-
     /// Refresh the MCP cache by fetching fresh data
     async fn reload_mcp(&self) -> anyhow::Result<()>;
 }
@@ -555,14 +549,6 @@ impl<I: Services> McpService for I {
 
     async fn call(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput> {
         self.mcp_service().call(call).await
-    }
-
-    async fn get_cache_info(&self) -> anyhow::Result<McpCacheInfo> {
-        self.mcp_service().get_cache_info().await
-    }
-
-    async fn clear_cache(&self) -> anyhow::Result<()> {
-        self.mcp_service().clear_cache().await
     }
 
     async fn reload_mcp(&self) -> anyhow::Result<()> {

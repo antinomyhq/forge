@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, CacheStatus, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
+    API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
     InterruptionReason, Model, ModelId, Provider, Workflow,
 };
 use forge_app::ToolResolver;
@@ -338,38 +338,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     )))?;
                 }
                 McpCommand::Cache(cache_args) => match cache_args.command {
-                    crate::cli::McpCacheCommand::Info => {
-                        let info = self.api.get_mcp_cache_info().await?;
-
-                        // Display unified cache info
-                        self.writeln_title(TitleFormat::info("MCP Tools Cache (Unified)"))?;
-                        self.writeln(format!("  Configuration: {} server(s)", info.servers))?;
-
-                        match info.unified {
-                            CacheStatus::Valid { age, tool_count, config_hash } => {
-                                self.writeln("  Status: ✓ Valid".to_string())?;
-                                self.writeln(format!("  Age: {}", age))?;
-                                self.writeln(format!("  Total Tools: {}", tool_count))?;
-                                self.writeln(format!("  Config Hash: {}...", &config_hash[..8]))?;
-                            }
-                            CacheStatus::Invalid { reason } => {
-                                self.writeln("  Status: ✗ Invalid".to_string())?;
-                                self.writeln(format!("  Reason: {}", reason))?;
-                            }
-                            CacheStatus::Missing => {
-                                self.writeln("  Status: - Not Cached".to_string())?;
-                                self.writeln(
-                                    "  Run 'forge mcp cache refresh' to populate cache".to_string(),
-                                )?;
-                            }
-                        }
-                    }
-                    crate::cli::McpCacheCommand::Clear => {
-                        // Clear unified cache
-                        self.api.clear_mcp_cache().await?;
-
-                        self.writeln_title(TitleFormat::info("✓ Cleared MCP tools cache"))?;
-                    }
                     crate::cli::McpCacheCommand::Refresh => {
                         self.spinner.start(Some("Reloading MCPs"))?;
                         self.api.reload_mcp().await?;

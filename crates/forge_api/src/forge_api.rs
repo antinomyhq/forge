@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use forge_app::dto::{InitAuth, LoginInfo, Provider, ProviderId, ToolsOverview};
 use forge_app::{
     AgentLoaderService, AuthService, ConversationService, EnvironmentService, FileDiscoveryService,
-    ForgeApp, McpCacheInfo, McpConfigManager, McpService, ProviderRegistry, ProviderService,
+    ForgeApp, McpConfigManager, McpService, ProviderRegistry, ProviderService,
     Services, User, UserUsage, Walker, WorkflowService,
 };
 use forge_domain::*;
@@ -224,14 +224,6 @@ where
 
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {
         self.services.auth_service().get_auth_token().await
-    }
-
-    async fn get_mcp_cache_info(&self) -> Result<McpCacheInfo> {
-        self.services.mcp_service().get_cache_info().await
-    }
-
-    async fn clear_mcp_cache(&self) -> Result<()> {
-        self.services.mcp_service().clear_cache().await
     }
 
     async fn reload_mcp(&self) -> Result<()> {

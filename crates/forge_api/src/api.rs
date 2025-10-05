@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use forge_app::dto::{InitAuth, ProviderId, ToolsOverview};
-use forge_app::{McpCacheInfo, User, UserUsage};
+use forge_app::{User, UserUsage};
 use forge_domain::{AgentId, ModelId};
 use forge_stream::MpscStream;
 
@@ -118,12 +118,6 @@ pub trait API: Sync + Send {
 
     /// Sets the operating model
     async fn set_operating_model(&self, model_id: ModelId) -> anyhow::Result<()>;
-
-    /// Get MCP cache information (age, tool count)
-    async fn get_mcp_cache_info(&self) -> Result<McpCacheInfo>;
-
-    /// Clear MCP caches (user, local, or both)
-    async fn clear_mcp_cache(&self) -> Result<()>;
 
     /// Refresh MCP caches by fetching fresh data
     async fn reload_mcp(&self) -> Result<()>;

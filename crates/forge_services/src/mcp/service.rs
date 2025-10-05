@@ -268,62 +268,6 @@ where
         tool.executable.call_tool(call.arguments.parse()?).await
     }
 
-    /// Get information about the MCP cache status
-    async fn get_cache_info(&self) -> anyhow::Result<forge_app::McpCacheInfo> {
-        // Get current configs to compute merged hash
-        let mcp_config = self.manager.read_mcp_config().await?;
-
-        // Compute the unified hash
-        let config_hash = mcp_config.cache_key();
-
-        // Get the unified cache
-        let cache = self.cache_repo.cache_get(&config_hash).await?;
-
-        let cache_status = match cache {
-            Some(cache) => {
-                // Check if cache is valid using infrastructure layer
-                let is_valid = self.cache_repo.cache_is_valid(&config_hash).await?;
-                let age_seconds = self
-                    .cache_repo
-                    .cache_get_age(&config_hash)
-                    .await?
-                    .unwrap_or(0);
-
-                let age = humantime::format_duration(std::time::Duration::from_secs(age_seconds))
-                    .to_string();
-                if is_valid {
-                    forge_app::CacheStatus::Valid {
-                        age,
-                        tool_count: cache.tools.values().map(|v| v.len()).sum(),
-                        config_hash: cache.config_hash,
-                    }
-                } else {
-                    // Check if config changed or just expired
-                    let reason = if cache.config_hash != config_hash {
-                        "Config changed".to_string()
-                    } else {
-                        format!("Cache expired (age: {}, TTL: 1h)", age)
-                    };
-                    forge_app::CacheStatus::Invalid { reason }
-                }
-            }
-            None => forge_app::CacheStatus::Missing,
-        };
-
-        Ok(
-            forge_app::McpCacheInfo {
-                unified: cache_status,
-                servers: mcp_config.mcp_servers.len(),
-            },
-        )
-    }
-
-    /// Clear the MCP cache
-    async fn clear_cache(&self) -> anyhow::Result<()> {
-        self.cache_repo.cache_clear().await?;
-        Ok(())
-    }
-
     /// Refresh the MCP cache by fetching fresh data
     async fn refresh_cache(&self) -> anyhow::Result<()> {
         // Fetch fresh tools by calling list() which connects to MCPs
@@ -357,14 +301,6 @@ where
 
     async fn call(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput> {
         self.call(call).await
-    }
-
-    async fn get_cache_info(&self) -> anyhow::Result<forge_app::McpCacheInfo> {
-        self.get_cache_info().await
-    }
-
-    async fn clear_cache(&self) -> anyhow::Result<()> {
-        self.clear_cache().await
     }
 
     async fn reload_mcp(&self) -> anyhow::Result<()> {

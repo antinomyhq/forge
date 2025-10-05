@@ -222,14 +222,8 @@ pub struct McpCacheArgs {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum McpCacheCommand {
-    /// Show cache status (age, tool count)
-    Info,
-
     /// Rebuild caches by fetching fresh data from MCPs
     Refresh,
-
-    /// Clear cache (clears the unified cache for all MCP tools)
-    Clear,
 }
 
 #[derive(Copy, Clone, Debug, ValueEnum, Default)]
