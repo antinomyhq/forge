@@ -11,7 +11,6 @@ mod input;
 mod model;
 mod prompt;
 mod sandbox;
-mod select;
 mod state;
 mod title_display;
 mod tools_display;

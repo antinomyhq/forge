@@ -23,7 +23,7 @@ async fn execute_update_command(api: Arc<impl API>) {
         }
         Ok(output) => {
             if output.success() {
-                let answer = crate::select::ForgeSelect::confirm(
+                let answer = forge_select::ForgeSelect::confirm(
                     "You need to close forge to complete update. Do you want to close it now?",
                 )
                 .with_default(true)
@@ -44,7 +44,7 @@ async fn execute_update_command(api: Arc<impl API>) {
 }
 
 async fn confirm_update(version: Version) -> bool {
-    let answer = crate::select::ForgeSelect::confirm(format!(
+    let answer = forge_select::ForgeSelect::confirm(format!(
         "Confirm upgrade from {} -> {} (latest)?",
         VERSION.to_string().bold().white(),
         version.to_string().bold().white()

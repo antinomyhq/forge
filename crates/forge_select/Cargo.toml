@@ -1,0 +1,11 @@
+[package]
+name = "forge_select"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow.workspace = true
+dialoguer.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true

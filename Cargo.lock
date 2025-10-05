@@ -1234,7 +1234,6 @@ dependencies = [
  "backon",
  "bytes",
  "chrono",
- "dialoguer",
  "diesel",
  "diesel_migrations",
  "dirs",
@@ -1242,6 +1241,7 @@ dependencies = [
  "forge_app",
  "forge_domain",
  "forge_fs",
+ "forge_select",
  "forge_services",
  "forge_snaps",
  "forge_walker",
@@ -1283,12 +1283,12 @@ dependencies = [
  "console 0.16.1",
  "convert_case 0.8.0",
  "derive_setters",
- "dialoguer",
  "forge_api",
  "forge_app",
  "forge_display",
  "forge_domain",
  "forge_fs",
+ "forge_select",
  "forge_spinner",
  "forge_tracker",
  "forge_walker",
@@ -1314,6 +1314,15 @@ dependencies = [
  "tracing",
  "update-informer",
  "url",
+]
+
+[[package]]
+name = "forge_select"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "dialoguer",
+ "pretty_assertions",
 ]
 
 [[package]]

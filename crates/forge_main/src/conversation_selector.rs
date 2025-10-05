@@ -4,8 +4,7 @@ use anyhow::Result;
 use chrono::Utc;
 use colored::Colorize;
 use forge_api::Conversation;
-
-use crate::select::ForgeSelect;
+use forge_select::ForgeSelect;
 
 /// Logic for selecting conversations from a list
 pub struct ConversationSelector;
