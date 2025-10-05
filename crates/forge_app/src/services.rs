@@ -17,32 +17,6 @@ use crate::Walker;
 use crate::dto::{InitAuth, LoginInfo, Provider, ProviderId};
 use crate::user::{User, UserUsage};
 
-/// Information about MCP cache status
-///
-/// The cache is unified - it stores tools from both user and local configs
-/// combined into a single cache entry keyed by the merged config hash.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct McpCacheInfo {
-    /// Unified cache status (represents both user and local configs merged)
-    pub unified: CacheStatus,
-    /// Number of MCP servers configured
-    pub servers: usize,
-}
-
-/// Status of an MCP cache
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(tag = "status", rename_all = "lowercase")]
-pub enum CacheStatus {
-    Valid {
-        age: String,
-        tool_count: usize,
-        config_hash: String,
-    },
-    Invalid {
-        reason: String,
-    },
-    Missing,
-}
 
 #[derive(Debug)]
 pub struct ShellOutput {
