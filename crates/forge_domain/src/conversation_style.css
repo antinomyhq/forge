@@ -107,3 +107,63 @@ th {
 img {
   max-width: 100%;
 }
+
+/* Reasoning styles */
+.reasoning-section {
+  margin: 12px 0;
+  padding: 16px;
+  background-color: #f0f4f8;
+  border-left: 4px solid #7c3aed;
+  border-radius: 4px;
+}
+
+.reasoning-content {
+  margin-bottom: 12px;
+}
+
+.reasoning-content strong {
+  color: #7c3aed;
+  font-weight: 600;
+}
+
+.reasoning-content pre {
+  margin-top: 8px;
+  padding: 12px;
+  background-color: #faf5ff;
+  border: 1px solid #e9d5ff;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-size: 0.95em;
+  color: #6b7280;
+  font-style: italic;
+  line-height: 1.6;
+}
+
+.main-content {
+  margin: 12px 0;
+}
+
+.main-content strong {
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.main-content pre {
+  margin-top: 8px;
+  padding: 12px;
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-size: 0.95em;
+  color: #1f2937;
+  line-height: 1.6;
+}
+
+.reasoning-indicator {
+  margin-left: 8px;
+  color: #7c3aed;
+  font-size: 0.9em;
+}
