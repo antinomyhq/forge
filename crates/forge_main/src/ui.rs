@@ -6,12 +6,12 @@ use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
-    InterruptionReason, Model, ModelId, Provider, ServerName, Workflow,
+    InterruptionReason, Model, ModelId, Provider, Workflow,
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
 use forge_display::MarkdownFormat;
-use forge_domain::{ChatResponseContent, McpConfig, McpServerConfig, Scope, TitleFormat};
+use forge_domain::{ChatResponseContent, McpConfig, Scope, TitleFormat};
 use forge_fs::ForgeFS;
 use forge_select::ForgeSelect;
 use forge_spinner::SpinnerManager;
@@ -19,7 +19,10 @@ use forge_tracker::ToolCallPayload;
 use merge::Merge;
 use tokio_stream::StreamExt;
 
-use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
+use crate::cli::{
+    Cli, CompletionCommand, ListCommand, McpCommand, SessionCommand, ShowCommand, TopLevelCommand,
+    Transport, WorkflowCommand,
+};
 use crate::cli_format::format_columns;
 use crate::config::ConfigManager;
 use crate::conversation_selector::ConversationSelector;
@@ -178,12 +181,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return self.handle_subcommands(mcp).await;
         }
 
-        // Handle --generate-conversation-id flag
-        if self.cli.generate_conversation_id {
-            return self.handle_generate_conversation_id().await;
-        }
-
-        // // Display the banner in dimmed colors since we're in interactive mode
+        // Display the banner in dimmed colors since we're in interactive mode
         self.display_banner()?;
         self.init_state(true).await?;
         self.trace_user();
@@ -265,20 +263,93 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn handle_subcommands(&mut self, subcommand: TopLevelCommand) -> anyhow::Result<()> {
         match subcommand {
+            TopLevelCommand::List(list_group) => {
+                match list_group.command {
+                    ListCommand::Agents => {
+                        self.on_show_agents().await?;
+                    }
+                    ListCommand::Providers => {
+                        self.on_show_providers().await?;
+                    }
+                    ListCommand::Models => {
+                        self.on_show_models().await?;
+                    }
+                    ListCommand::Commands => {
+                        self.on_show_commands().await?;
+                    }
+                    ListCommand::Tools { agent } => {
+                        self.on_show_tools(agent).await?;
+                    }
+                }
+                return Ok(());
+            }
+            TopLevelCommand::Completion(completion_group) => {
+                match completion_group.command {
+                    CompletionCommand::Zsh => {
+                        self.on_zsh_prompt().await?;
+                    }
+                    CompletionCommand::Bash => {
+                        // TODO: Implement bash completion
+                        self.writeln("Bash completion not yet implemented")?;
+                    }
+                    CompletionCommand::Fish => {
+                        // TODO: Implement fish completion
+                        self.writeln("Fish completion not yet implemented")?;
+                    }
+                    CompletionCommand::Powershell => {
+                        // TODO: Implement powershell completion
+                        self.writeln("PowerShell completion not yet implemented")?;
+                    }
+                }
+                return Ok(());
+            }
+            TopLevelCommand::Workflow(workflow_group) => {
+                match workflow_group.command {
+                    WorkflowCommand::Run { file } => {
+                        self.cli.workflow = Some(file);
+                        // Continue to workflow handling in main loop
+                    }
+                    WorkflowCommand::Dispatch { file, event } => {
+                        self.cli.workflow = Some(file);
+                        self.cli.event = Some(event);
+                        // Continue to workflow handling in main loop
+                    }
+                    WorkflowCommand::Validate { file: _ } => {
+                        self.spinner.start(Some("Validating workflow"))?;
+                        // TODO: Add workflow validation logic
+                        self.spinner
+                            .stop(Some("Workflow validation not yet implemented".to_string()))?;
+                        return Ok(());
+                    }
+                }
+            }
             TopLevelCommand::Mcp(mcp_command) => match mcp_command.command {
                 McpCommand::Add(add) => {
                     let name = add.name;
-                    let scope: Scope = add.scope.into();
-                    // Create the appropriate server type based on transport
-                    let server = match add.transport {
-                        Transport::Stdio => McpServerConfig::new_stdio(
-                            add.command_or_url.clone(),
-                            add.args.clone(),
-                            Some(parse_env(add.env.clone())),
-                        ),
-                        Transport::Sse => McpServerConfig::new_sse(add.command_or_url.clone()),
+                    let scope: forge_domain::Scope = add.scope.into();
+
+                    // Create the appropriate server type based on input
+                    let server = if let Some(json_str) = add.json {
+                        // Parse JSON configuration
+                        serde_json::from_str::<forge_domain::McpServerConfig>(json_str.as_str())
+                            .context("Failed to parse JSON")?
+                    } else {
+                        // Create server from command_or_url and args
+                        let command_or_url = add.command_or_url.ok_or_else(|| {
+                            anyhow::anyhow!("Either --json or command_or_url is required")
+                        })?;
+
+                        match add.transport {
+                            Transport::Stdio => forge_domain::McpServerConfig::new_stdio(
+                                command_or_url.clone(),
+                                add.args.clone(),
+                                Some(parse_env(add.env.clone())),
+                            ),
+                            Transport::Sse => {
+                                forge_domain::McpServerConfig::new_sse(command_or_url.clone())
+                            }
+                        }
                     };
-                    // Command/URL already set in the constructor
 
                     self.update_mcp_config(&scope, |config| {
                         config.mcp_servers.insert(name.to_string().into(), server);
@@ -300,8 +371,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     self.writeln(output)?;
                 }
                 McpCommand::Remove(rm) => {
-                    let name = ServerName::from(rm.name);
-                    let scope: Scope = rm.scope.into();
+                    let name = forge_api::ServerName::from(rm.name);
+                    let scope: forge_domain::Scope = rm.scope.into();
 
                     self.update_mcp_config(&scope, |config| {
                         config.mcp_servers.remove(&name);
@@ -310,8 +381,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                     self.writeln_title(TitleFormat::info(format!("Removed server: {name}")))?;
                 }
-                McpCommand::Get(val) => {
-                    let name = ServerName::from(val.name);
+                McpCommand::Show(val) => {
+                    let name = forge_api::ServerName::from(val.name);
                     let config = self.api.read_mcp_config().await?;
                     let server = config
                         .mcp_servers
@@ -321,21 +392,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     let mut output = String::new();
                     output.push_str(&format!("{name}: {server}"));
                     self.writeln_title(TitleFormat::info(output))?;
-                }
-                McpCommand::AddJson(add_json) => {
-                    let server = serde_json::from_str::<McpServerConfig>(add_json.json.as_str())
-                        .context("Failed to parse JSON")?;
-                    let scope: Scope = add_json.scope.into();
-                    let name = ServerName::from(add_json.name.clone());
-                    self.update_mcp_config(&scope, |config| {
-                        config.mcp_servers.insert(name, server);
-                    })
-                    .await?;
-
-                    self.writeln_title(TitleFormat::info(format!(
-                        "Added server: {}",
-                        add_json.name
-                    )))?;
                 }
                 McpCommand::Cache(cache_args) => match cache_args.command {
                     crate::cli::McpCacheCommand::Refresh => {
@@ -352,34 +408,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_info().await?;
                 return Ok(());
             }
-            TopLevelCommand::GenerateZSHPrompt => {
-                self.on_zsh_prompt().await?;
-                return Ok(());
-            }
-            TopLevelCommand::ShowAgents => {
-                self.on_show_agents().await?;
-                return Ok(());
-            }
-            TopLevelCommand::ShowProviders => {
-                self.on_show_providers().await?;
-                return Ok(());
-            }
-            TopLevelCommand::ShowModels => {
-                self.on_show_models().await?;
-                return Ok(());
-            }
-            TopLevelCommand::ShowCommands => {
-                self.on_show_commands().await?;
-                return Ok(());
-            }
-            TopLevelCommand::ShowTools { agent } => {
-                self.on_show_tools(agent).await?;
-                return Ok(());
-            }
-            TopLevelCommand::ShowBanner => {
-                banner::display(true)?;
-                return Ok(());
-            }
+            TopLevelCommand::Show(show_group) => match show_group.command {
+                ShowCommand::Banner => {
+                    banner::display(true)?;
+                    return Ok(());
+                }
+            },
             TopLevelCommand::Config(config_group) => {
                 let config_manager = ConfigManager::new(self.api.clone());
                 config_manager
@@ -402,69 +436,63 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     ) -> anyhow::Result<()> {
         use forge_domain::ConversationId;
 
-        use crate::cli::SessionCommand;
-
-        // Handle list command
-        if session_group.list {
-            self.on_show_conversations().await?;
-            return Ok(());
-        }
-
-        // For all other commands, id is required
-        let id_str = session_group.id.ok_or_else(|| {
-            anyhow::anyhow!(
-                "Error: --id is required for this command. Use 'forge session --list' to see available conversations."
-            )
-        })?;
-
-        // Parse conversation ID from the string
-        let conversation_id = ConversationId::parse(&id_str)
-            .context(format!("Invalid conversation ID: {}", id_str))?;
-
-        // Validate that the conversation exists
-        self.validate_session_exists(&conversation_id).await?;
-
         match session_group.command {
-            Some(SessionCommand::Dump(dump_args)) => {
-                // Set the conversation ID temporarily to dump it
+            SessionCommand::List => {
+                self.on_show_conversations().await?;
+            }
+            SessionCommand::New => {
+                self.handle_generate_conversation_id().await?;
+            }
+            SessionCommand::Dump { id, format } => {
+                let conversation_id = ConversationId::parse(&id)
+                    .context(format!("Invalid conversation ID: {}", id))?;
+
+                self.validate_session_exists(&conversation_id).await?;
+
                 let original_id = self.state.conversation_id;
                 self.state.conversation_id = Some(conversation_id);
 
                 self.spinner.start(Some("Dumping"))?;
-                self.on_dump(dump_args.format).await?;
+                self.on_dump(format).await?;
 
-                // Restore original conversation ID
                 self.state.conversation_id = original_id;
             }
-            Some(SessionCommand::Compact) => {
-                // Set the conversation ID temporarily to compact it
+            SessionCommand::Compact { id } => {
+                let conversation_id = ConversationId::parse(&id)
+                    .context(format!("Invalid conversation ID: {}", id))?;
+
+                self.validate_session_exists(&conversation_id).await?;
+
                 let original_id = self.state.conversation_id;
                 self.state.conversation_id = Some(conversation_id);
 
                 self.spinner.start(Some("Compacting"))?;
                 self.on_compaction().await?;
 
-                // Restore original conversation ID
                 self.state.conversation_id = original_id;
             }
-            Some(SessionCommand::Retry) => {
-                // Set the conversation ID and retry last message
+            SessionCommand::Retry { id } => {
+                let conversation_id = ConversationId::parse(&id)
+                    .context(format!("Invalid conversation ID: {}", id))?;
+
+                self.validate_session_exists(&conversation_id).await?;
+
                 let original_id = self.state.conversation_id;
                 self.state.conversation_id = Some(conversation_id);
 
                 self.spinner.start(None)?;
                 self.on_message(None).await?;
 
-                // Restore original conversation ID
                 self.state.conversation_id = original_id;
             }
-            None => {
-                // Resume session - set conversation ID and enter interactive mode
+            SessionCommand::Resume { id } => {
+                let conversation_id = ConversationId::parse(&id)
+                    .context(format!("Invalid conversation ID: {}", id))?;
+
+                self.validate_session_exists(&conversation_id).await?;
+
                 self.state.conversation_id = Some(conversation_id);
-                self.writeln_title(TitleFormat::info(format!(
-                    "Resumed conversation: {}",
-                    id_str
-                )))?;
+                self.writeln_title(TitleFormat::info(format!("Resumed conversation: {}", id)))?;
                 // Interactive mode will be handled by the main loop
             }
         }
