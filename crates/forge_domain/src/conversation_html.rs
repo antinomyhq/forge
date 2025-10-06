@@ -112,41 +112,42 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                         );
 
                         // Add tool calls if any
-                        
 
                         if let Some(tool_calls) = &content_message.tool_calls {
-                                if !tool_calls.is_empty() {
-                                    message_with_content.append(Element::new("div").append(
-                                        tool_calls.iter().map(|tool_call| {
-                                            Element::new("div.tool-call")
-                                                .append(
-                                                    Element::new("p").append(
-                                                        Element::new("strong")
-                                                            .text(tool_call.name.to_string()),
-                                                    ),
-                                                )
-                                                .append(tool_call.call_id.as_ref().map(|call_id| {
-                                                    Element::new("p")
-                                                        .append(Element::new("strong").text("ID: "))
-                                                        .text(call_id.as_str())
-                                                }))
-                                                .append(Element::new("p").append(
+                            if !tool_calls.is_empty() {
+                                message_with_content.append(Element::new("div").append(
+                                    tool_calls.iter().map(|tool_call| {
+                                        Element::new("div.tool-call")
+                                            .append(
+                                                Element::new("p").append(
+                                                    Element::new("strong")
+                                                        .text(tool_call.name.to_string()),
+                                                ),
+                                            )
+                                            .append(tool_call.call_id.as_ref().map(|call_id| {
+                                                Element::new("p")
+                                                    .append(Element::new("strong").text("ID: "))
+                                                    .text(call_id.as_str())
+                                            }))
+                                            .append(
+                                                Element::new("p").append(
                                                     Element::new("strong").text("Arguments: "),
-                                                ))
-                                                .append(
-                                                    Element::new("pre").text(
-                                                        to_string_pretty(&tool_call.arguments)
-                                                            .unwrap_or_default(),
-                                                    ),
-                                                )
-                                        }),
-                                    ))
-                                } else {
-                                    message_with_content
-                                }
+                                                ),
+                                            )
+                                            .append(
+                                                Element::new("pre").text(
+                                                    to_string_pretty(&tool_call.arguments)
+                                                        .unwrap_or_default(),
+                                                ),
+                                            )
+                                    }),
+                                ))
                             } else {
                                 message_with_content
                             }
+                        } else {
+                            message_with_content
+                        }
                     }
                     ContextMessage::Tool(tool_result) => {
                         // Tool Message
@@ -300,7 +301,7 @@ mod tests {
         assert!(actual.contains("reasoning-content"));
         assert!(actual.contains("🧠 Reasoning:"));
         assert!(actual.contains("This is my reasoning process"));
-        
+
         // Verify main content is displayed separately
         assert!(actual.contains("main-content"));
         assert!(actual.contains("Response:"));
