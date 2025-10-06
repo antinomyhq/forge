@@ -68,14 +68,12 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
 
                         // Add reasoning indicator if reasoning details are present
 
-                        if let Some(reasoning_details) = &content_message.reasoning_details {
-                            if !reasoning_details.is_empty() {
+                        if let Some(reasoning_details) = &content_message.reasoning_details
+                            && !reasoning_details.is_empty() {
                                 header = header.append(
                                     Element::new("span.reasoning-indicator").text(" 🧠 Reasoning"),
                                 );
                             }
-                        }
-
 
                         let message_div =
                             Element::new(format!("details.message-card.message-{role_lowercase}"))
