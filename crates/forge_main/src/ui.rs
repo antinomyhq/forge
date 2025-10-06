@@ -287,17 +287,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                     self.writeln_title(TitleFormat::info(format!("Added MCP server '{name}'")))?;
                 }
-                McpCommand::List => {
+                McpCommand::List(list) => {
                     let mcp_servers = self.api.read_mcp_config().await?;
-                    if mcp_servers.is_empty() {
+                    let list = mcp_servers.display(list.detailed);
+                    if list.is_empty() {
                         self.writeln_title(TitleFormat::error("No MCP servers found"))?;
+                    } else {
+                        self.writeln(list)?;
                     }
-
-                    let mut output = String::new();
-                    for (name, server) in mcp_servers.mcp_servers {
-                        output.push_str(&format!("{name}: {server}"));
-                    }
-                    self.writeln(output)?;
                 }
                 McpCommand::Remove(rm) => {
                     let name = ServerName::from(rm.name);
