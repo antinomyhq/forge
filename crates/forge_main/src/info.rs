@@ -421,7 +421,8 @@ impl From<&McpConfig> for Info {
                     lines.join("\n")
                 }
                 McpServerConfig::Sse(sse) => {
-                    format!("transport: sse\n  url: {}", sse.url)
+                    format!("{INDENT}transport: sse\n{INDENT}url: {}", sse.url)
+                }
                 }
             };
             info = info.add_key_value(name.to_string(), format!("\n{value}"));
