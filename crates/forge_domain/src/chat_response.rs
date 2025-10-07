@@ -54,6 +54,25 @@ pub enum ChatResponse {
     Interrupt { reason: InterruptionReason },
 }
 
+impl ChatResponse {
+    /// Returns `true` if the response contains no meaningful content.
+    ///
+    /// A response is considered empty if it's a `TaskMessage` or
+    /// `TaskReasoning` with empty string content. All other variants are
+    /// considered non-empty.
+    pub fn is_empty(&self) -> bool {
+        match self {
+            ChatResponse::TaskMessage { content } => match content {
+                ChatResponseContent::Title(_) => false,
+                ChatResponseContent::PlainText(content) => content.trim().is_empty(),
+                ChatResponseContent::Markdown(content) => content.trim().is_empty(),
+            },
+            ChatResponse::TaskReasoning { content } => content.trim().is_empty(),
+            _ => false,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum InterruptionReason {
     MaxToolFailurePerTurnLimitReached {
