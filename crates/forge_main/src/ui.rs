@@ -813,9 +813,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.writeln(info)?;
             }
             Command::Tools => {
-                if let Some(agent_id) = self.api.get_operating_agent().await {
-                    self.on_show_tools(agent_id).await?;
-                }
+                let agent_id = self.api.get_operating_agent().await.unwrap_or_default();
+                self.on_show_tools(agent_id).await?;
             }
             Command::Update => {
                 on_update(self.api.clone(), None).await;
