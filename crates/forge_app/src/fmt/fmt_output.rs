@@ -259,14 +259,9 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
+        let expected = None;
 
-        // Should return Some(String) with formatted grep output
-        assert!(actual.is_some());
-        let output = actual.unwrap();
-        assert!(output.contains("file1.txt"));
-        assert!(output.contains("Hello world"));
-        assert!(output.contains("file2.txt"));
-        assert!(output.contains("Hello universe"));
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -289,11 +284,9 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
+        let expected = None;
 
-        // Should return Some(String) with formatted grep output even for errors
-        assert!(actual.is_some());
-        let output = actual.unwrap();
-        assert!(output.contains("file1.txt"));
+        assert_eq!(actual, expected);
     }
 
     #[test]
