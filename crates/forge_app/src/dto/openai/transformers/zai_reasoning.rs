@@ -29,15 +29,16 @@ impl Transformer for SetZaiThinking {
     fn transform(&mut self, mut request: Self::Value) -> Self::Value {
         // Check if reasoning config exists and has enabled field set
         if let Some(reasoning) = request.reasoning.take()
-            && let Some(enabled) = reasoning.enabled {
-                request.thinking = Some(ThinkingConfig {
-                    r#type: if enabled {
-                        ThinkingType::Enabled
-                    } else {
-                        ThinkingType::Disabled
-                    },
-                });
-            }
+            && let Some(enabled) = reasoning.enabled
+        {
+            request.thinking = Some(ThinkingConfig {
+                r#type: if enabled {
+                    ThinkingType::Enabled
+                } else {
+                    ThinkingType::Disabled
+                },
+            });
+        }
 
         request
     }
