@@ -288,12 +288,22 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     self.writeln_title(TitleFormat::info(format!("Added MCP server '{name}'")))?;
                 }
                 McpCommand::List(list) => {
-                    let mcp_servers = self.api.read_mcp_config().await?;
-                    let list = mcp_servers.display(list.detailed);
-                    if list.is_empty() {
+                    let mcp_config = self.api.read_mcp_config().await?;
+
+                    if mcp_config.is_empty() {
                         self.writeln_title(TitleFormat::error("No MCP servers found"))?;
+                    } else if list.detailed {
+                        // Detailed view: use Info formatting
+                        let info = Info::from(&mcp_config);
+                        self.writeln(info)?;
                     } else {
-                        self.writeln(list)?;
+                        let names = mcp_config
+                            .mcp_servers
+                            .keys()
+                            .map(|name| name.to_string())
+                            .collect::<Vec<_>>()
+                            .join("\n");
+                        self.writeln(names)?;
                     }
                 }
                 McpCommand::Remove(rm) => {
@@ -315,9 +325,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         .get(&name)
                         .ok_or(anyhow::anyhow!("Server not found"))?;
 
-                    let mut output = String::new();
-                    output.push_str(&format!("{name}: {server}"));
-                    self.writeln_title(TitleFormat::info(output))?;
+                    // Create a single-entry config for Info formatting
+                    use std::collections::BTreeMap;
+                    let mut map = BTreeMap::new();
+                    map.insert(name.clone(), server.clone());
+                    let single_config = McpConfig::from(map);
+                    let info = Info::from(&single_config);
+                    self.writeln(info)?;
                 }
                 McpCommand::AddJson(add_json) => {
                     let server = serde_json::from_str::<McpServerConfig>(add_json.json.as_str())

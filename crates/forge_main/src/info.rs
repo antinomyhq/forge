@@ -5,6 +5,7 @@ use std::time::Duration;
 use colored::Colorize;
 use forge_api::{Conversation, Environment, LoginInfo, Metrics, Usage, UserUsage};
 use forge_app::utils::truncate_key;
+use forge_domain::{McpConfig, McpServerConfig};
 use forge_tracker::VERSION;
 use num_format::{Locale, ToFormattedString};
 
@@ -390,6 +391,40 @@ impl From<&Conversation> for Info {
         // Insert token usage
         if let Some(usage) = conversation.context.as_ref().and_then(|c| c.usage.as_ref()) {
             info = info.extend(usage);
+        }
+
+        info
+    }
+}
+
+impl From<&McpConfig> for Info {
+    fn from(config: &McpConfig) -> Self {
+        const INDENT: &str = "    ";
+        let mut info = Info::new();
+
+        for (name, server_config) in &config.mcp_servers {
+            let value = match server_config {
+                McpServerConfig::Stdio(stdio) => {
+                    let mut lines = vec![
+                        format!("{INDENT}transport: stdio"),
+                        format!("{INDENT}command: {}", stdio.command),
+                    ];
+                    if !stdio.args.is_empty() {
+                        lines.push(format!("{INDENT}args: [{}]", stdio.args.join(", ")));
+                    }
+                    if !stdio.env.is_empty() {
+                        lines.push(format!("{INDENT}env:"));
+                        for key in stdio.env.keys() {
+                            lines.push(format!("{INDENT}{INDENT}{key}: [REDACTED]"));
+                        }
+                    }
+                    lines.join("\n")
+                }
+                McpServerConfig::Sse(sse) => {
+                    format!("transport: sse\n  url: {}", sse.url)
+                }
+            };
+            info = info.add_key_value(name.to_string(), format!("\n{value}"));
         }
 
         info

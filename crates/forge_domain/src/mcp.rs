@@ -2,15 +2,12 @@
 //! Follows the design specifications of Claude's [.mcp.json](https://docs.anthropic.com/en/docs/claude-code/tutorials#set-up-model-context-protocol-mcp)
 
 use std::collections::BTreeMap;
-use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 
 use derive_more::{Deref, Display, From};
 use derive_setters::Setters;
 use merge::Merge;
 use serde::{Deserialize, Serialize};
-
-const INDENT: &str = "  ";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Scope {
@@ -64,31 +61,6 @@ pub struct McpSseServer {
     pub url: String,
 }
 
-impl Display for McpServerConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut output = String::new();
-        match self {
-            McpServerConfig::Stdio(stdio) => {
-                output.push_str("command: ");
-                stdio.args.iter().for_each(|arg| {
-                    output.push_str(&format!("{arg} "));
-                });
-                if !stdio.env.is_empty() {
-                    output.push_str("\nenv: ");
-                    stdio.env.iter().for_each(|(key, _)| {
-                        output.push_str(&format!("{INDENT}{key}=[REDACTED]\n"));
-                    });
-                }
-            }
-            McpServerConfig::Sse(sse) => {
-                output.push_str(&format!("url: {} ", sse.url));
-            }
-        }
-
-        write!(f, "{}", output.trim())
-    }
-}
-
 #[derive(
     Clone, Display, Serialize, Deserialize, Debug, PartialEq, Hash, Eq, From, PartialOrd, Ord, Deref,
 )]
@@ -130,34 +102,6 @@ impl McpConfig {
         Hash::hash(self, &mut hasher);
         hasher.finish()
     }
-
-    pub fn display(&self, detailed: bool) -> String {
-        let mut out = String::new();
-        if self.is_empty() {
-            return out;
-        }
-
-        if !detailed {
-            self.mcp_servers.keys().for_each(|key| {
-                out.push_str(&format!("{key}\n"));
-            });
-            return out.trim().to_string();
-        }
-        self.mcp_servers.iter().for_each(|(name, config)| {
-            out.push_str(&format!("{name}:\n"));
-            out.push_str(&format!("{}\n", indent(config)));
-        });
-
-        out.trim().to_string()
-    }
-}
-
-fn indent(in_: impl ToString) -> String {
-    in_.to_string()
-        .lines()
-        .map(|v| format!("{INDENT}{v}"))
-        .collect::<Vec<_>>()
-        .join("\n")
 }
 
 #[cfg(test)]
