@@ -77,6 +77,17 @@ impl<S: AgentService> Compactor<S> {
             .generate_summary_for_sequence(compact, sequence_messages)
             .await?;
 
+        // Accumulate the usage from the summarization call into the context
+        context.usage = Some(
+            context
+                .usage
+                .take()
+                .unwrap_or_default()
+                .accumulate(&summary.usage),
+        );
+
+        let summary = summary.content;
+
         info!(
             summary = %summary,
             sequence_start = sequence.0,
@@ -102,11 +113,12 @@ impl<S: AgentService> Compactor<S> {
     }
 
     /// Generate a summary for a specific sequence of assistant messages.
+    /// Returns ChatCompletionMessageFull with extracted summary content
     async fn generate_summary_for_sequence(
         &self,
         compact: &Compact,
         messages: &[ContextMessage],
-    ) -> anyhow::Result<String> {
+    ) -> anyhow::Result<ChatCompletionMessageFull> {
         // Start with the original sequence context to preserve message structure
         let mut context = messages
             .iter()
@@ -148,17 +160,20 @@ impl<S: AgentService> Compactor<S> {
             .await
     }
 
-    /// Collects the content from a streaming ChatCompletionMessage response.
+    /// Collects the content from a streaming ChatCompletionMessage response and
+    /// extracts summary content from the specified tag
     async fn collect_completion_stream_content(
         &self,
         compact: &Compact,
         stream: impl Stream<Item = anyhow::Result<ChatCompletionMessage>>
         + std::marker::Unpin
         + ResultStreamExt<anyhow::Error>,
-    ) -> anyhow::Result<String> {
-        let ChatCompletionMessageFull { content, .. } = stream.into_full(false).await?;
+    ) -> anyhow::Result<ChatCompletionMessageFull> {
+        let mut response = stream.into_full(false).await?;
+
+        // Extract content from summary tag if present
         if let Some(extracted) = extract_tag_content(
-            &content,
+            &response.content,
             compact
                 .summary_tag
                 .as_ref()
@@ -166,9 +181,104 @@ impl<S: AgentService> Compactor<S> {
                 .unwrap_or_default()
                 .as_str(),
         ) {
-            return Ok(extracted.to_string());
+            response.content = extracted.to_string();
         }
 
-        Ok(content)
+        Ok(response)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use forge_domain::{ChatCompletionMessage, Content, FinishReason, ModelId, TokenCount, Usage};
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    struct MockService {
+        response: ChatCompletionMessageFull,
+    }
+
+    impl MockService {
+        fn with_usage(cost: f64) -> Self {
+            Self {
+                response: ChatCompletionMessageFull {
+                    content: "Summary".to_string(),
+                    usage: Usage {
+                        prompt_tokens: TokenCount::Actual(100),
+                        completion_tokens: TokenCount::Actual(50),
+                        total_tokens: TokenCount::Actual(150),
+                        cached_tokens: TokenCount::Actual(0),
+                        cost: Some(cost),
+                    },
+                    tool_calls: vec![],
+                    reasoning: None,
+                    reasoning_details: None,
+                    finish_reason: Some(FinishReason::Stop),
+                },
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl AgentService for MockService {
+        async fn chat_agent(
+            &self,
+            _: &ModelId,
+            _: Context,
+        ) -> forge_domain::ResultStream<ChatCompletionMessage, anyhow::Error> {
+            let msg = ChatCompletionMessage::default()
+                .content(Content::full(self.response.content.clone()))
+                .usage(self.response.usage.clone())
+                .finish_reason(FinishReason::Stop);
+            Ok(Box::pin(tokio_stream::iter(std::iter::once(Ok(msg)))))
+        }
+
+        async fn call(
+            &self,
+            _: &forge_domain::Agent,
+            _: &forge_domain::ToolCallContext,
+            _: forge_domain::ToolCallFull,
+        ) -> forge_domain::ToolResult {
+            unimplemented!()
+        }
+
+        async fn render(
+            &self,
+            _: &str,
+            _: &(impl serde::Serialize + Sync),
+        ) -> anyhow::Result<String> {
+            Ok("Summary frame".to_string())
+        }
+
+        async fn update(&self, _: forge_domain::Conversation) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
+
+    fn usage(cost: f64) -> Usage {
+        Usage {
+            prompt_tokens: TokenCount::Actual(200),
+            completion_tokens: TokenCount::Actual(100),
+            total_tokens: TokenCount::Actual(300),
+            cached_tokens: TokenCount::Actual(0),
+            cost: Some(cost),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_compress_single_sequence_accumulates_usage() {
+        let compactor = Compactor::new(Arc::new(MockService::with_usage(0.005)));
+        let context = Context::default()
+            .add_message(ContextMessage::user("M1", None))
+            .add_message(ContextMessage::assistant("R1", None, None))
+            .usage(usage(0.010));
+
+        let actual = compactor
+            .compress_single_sequence(&Compact::new().model(ModelId::new("m")), context, (0, 1))
+            .await
+            .unwrap();
+
+        assert_eq!(actual.usage.unwrap().cost, Some(0.015));
     }
 }

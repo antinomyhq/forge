@@ -18,6 +18,7 @@ use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
 use merge::Merge;
 use tokio_stream::StreamExt;
+use tracing::debug;
 
 use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
 use crate::cli_format::format_columns;
@@ -824,9 +825,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.writeln(info)?;
             }
             Command::Tools => {
-                if let Some(agent_id) = self.api.get_operating_agent().await {
-                    self.on_show_tools(agent_id).await?;
-                }
+                let agent_id = self.api.get_operating_agent().await.unwrap_or_default();
+                self.on_show_tools(agent_id).await?;
             }
             Command::Update => {
                 on_update(self.api.clone(), None).await;
@@ -1357,6 +1357,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn handle_chat_response(&mut self, message: ChatResponse) -> Result<()> {
+        debug!(chat_response = ?message, "Chat Response");
+        if message.is_empty() {
+            return Ok(());
+        }
+
         match message {
             ChatResponse::TaskMessage { content } => match content {
                 ChatResponseContent::Title(title) => self.writeln(title.display())?,

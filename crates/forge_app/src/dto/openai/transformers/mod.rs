@@ -5,5 +5,6 @@ mod pipeline;
 mod set_cache;
 mod tool_choice;
 mod when_model;
+mod zai_reasoning;
 
 pub use pipeline::ProviderPipeline;

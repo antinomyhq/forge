@@ -5,7 +5,7 @@
 
 # Configuration: Change these variables to customize the forge command and special characters
 # Using typeset to keep variables local to plugin scope and prevent public exposure
-typeset -h _FORGE_BIN="${FORGE_BIN:-cargo run --quiet --}"
+typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
 typeset -h _FORGE_CONVERSATION_PATTERN=":"
 
 # Detect fd command - Ubuntu/Debian use 'fdfind', others use 'fd'

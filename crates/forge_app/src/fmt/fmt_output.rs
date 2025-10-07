@@ -1,9 +1,9 @@
-use forge_display::{DiffFormat, GrepFormat};
+use forge_display::DiffFormat;
 use forge_domain::{ChatResponseContent, Environment, TitleFormat};
 
 use crate::fmt::content::FormatContent;
 use crate::operation::ToolOperation;
-use crate::utils::{format_display_path, format_match};
+use crate::utils::format_display_path;
 
 impl FormatContent for ToolOperation {
     fn to_content(&self, env: &Environment) -> Option<ChatResponseContent> {
@@ -11,18 +11,19 @@ impl FormatContent for ToolOperation {
             ToolOperation::FsRead { input: _, output: _ } => None,
             ToolOperation::FsCreate { input: _, output: _ } => None,
             ToolOperation::FsRemove { input: _, output: _ } => None,
-            ToolOperation::FsSearch { input: _, output } => output.as_ref().map(|result| {
-                ChatResponseContent::PlainText(
-                    GrepFormat::new(
-                        result
-                            .matches
-                            .iter()
-                            .map(|matched| format_match(matched, env.cwd.as_path()))
-                            .collect::<Vec<_>>(),
-                    )
-                    .format(),
-                )
-            }),
+            ToolOperation::FsSearch { input: _, output: _ } => None,
+            // ToolOperation::FsSearch { input: _, output } => output.as_ref().map(|result| {
+            //     ChatResponseContent::PlainText(
+            //         GrepFormat::new(
+            //             result
+            //                 .matches
+            //                 .iter()
+            //                 .map(|matched| format_match(matched, env.cwd.as_path()))
+            //                 .collect::<Vec<_>>(),
+            //         )
+            //         .format(),
+            //     )
+            // }),
             ToolOperation::FsPatch { input: _, output } => Some(ChatResponseContent::PlainText(
                 DiffFormat::format(&output.before, &output.after)
                     .diff()
@@ -258,14 +259,9 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
+        let expected = None;
 
-        // Should return Some(String) with formatted grep output
-        assert!(actual.is_some());
-        let output = actual.unwrap();
-        assert!(output.contains("file1.txt"));
-        assert!(output.contains("Hello world"));
-        assert!(output.contains("file2.txt"));
-        assert!(output.contains("Hello universe"));
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -288,11 +284,9 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
+        let expected = None;
 
-        // Should return Some(String) with formatted grep output even for errors
-        assert!(actual.is_some());
-        let output = actual.unwrap();
-        assert!(output.contains("file1.txt"));
+        assert_eq!(actual, expected);
     }
 
     #[test]

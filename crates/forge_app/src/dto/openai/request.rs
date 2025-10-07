@@ -167,6 +167,28 @@ pub struct ProviderPreferences {
     // Define fields as necessary
 }
 
+/// Z.ai-specific thinking type
+///
+/// Represents the state of thinking for z.ai providers
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum ThinkingType {
+    Enabled,
+    Disabled,
+}
+
+/// Z.ai-specific thinking configuration structure
+///
+/// Z.ai uses a different format than standard OpenAI reasoning configuration.
+/// This struct represents z.ai's thinking format: `{"type": "enabled"}` or
+/// `{"type": "disabled"}`
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct ThinkingConfig {
+    /// Type of thinking configuration - enabled or disabled
+    #[serde(rename = "type")]
+    pub r#type: ThinkingType,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone, Setters, Default)]
 #[setters(strip_option)]
 pub struct Request {
@@ -230,6 +252,8 @@ pub struct Request {
     pub reasoning: Option<forge_domain::ReasoningConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_completion_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking: Option<ThinkingConfig>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
@@ -341,6 +365,7 @@ impl From<Context> for Request {
             session_id: context.conversation_id.map(|id| id.to_string()),
             reasoning: context.reasoning,
             max_completion_tokens: Default::default(),
+            thinking: Default::default(),
         }
     }
 }
