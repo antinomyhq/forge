@@ -987,6 +987,8 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: None,
+            model_url: None,
+            chat_url: None,
         };
         let actual = format!("{}", CliProvider(fixture));
         let expected = "OpenAI [api.openai.com]";
@@ -1000,6 +1002,8 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://openrouter.ai/api/v1/").unwrap(),
             key: None,
+            model_url: None,
+            chat_url: None,
         };
         let actual = format!("{}", CliProvider(fixture));
         let expected = "OpenRouter [openrouter.ai]";
@@ -1013,6 +1017,8 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("http://localhost:8080/").unwrap(),
             key: None,
+            model_url: None,
+            chat_url: None,
         };
         let actual = format!("{}", CliProvider(fixture));
         let expected = "Forge [localhost]";

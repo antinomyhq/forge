@@ -76,4 +76,14 @@
     "response_type": "OpenAI",
     "url": "{{#if (eq location \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{project_id}}/locations/{{location}}/endpoints/openapi/{{else}}https://{{location}}-aiplatform.googleapis.com/v1/projects/{{project_id}}/locations/{{location}}/endpoints/openapi/{{/if}}"
   }
+,
+  {
+    "id": "azure",
+    "api_key_vars": "AZURE_API_KEY",
+    "url_param_vars": ["AZURE_RESOURCE_NAME", "AZURE_DEPLOYMENT_NAME", "AZURE_API_VERSION"],
+    "response_type": "OpenAI",
+    "url": "https://{{azureresourcename}}.openai.azure.com/openai/",
+    "chat_url": "https://{{azureresourcename}}.openai.azure.com/openai/deployments/{{azuredeploymentname}}/chat/completions?api-version={{azureapiversion}}",
+    "model_url": "https://{{azureresourcename}}.openai.azure.com/openai/models?api-version={{azureapiversion}}"
+  }
 ]

@@ -68,7 +68,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         let mut pipeline = ProviderPipeline::new(&self.provider);
         request = pipeline.transform(request);
 
-        let url = join_url(self.provider.to_base_url().as_str(), "chat/completions")?;
+        let url = self.provider.chat_completion_url();
         let headers = create_headers(self.get_headers_with_request(&request));
 
         info!(
@@ -241,6 +241,8 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: reqwest::Url::parse(base_url)?,
             key: Some("test-api-key".to_string()),
+            model_url: None,
+            chat_url: None,
         };
 
         Ok(OpenAIProvider::new(

@@ -17,6 +17,10 @@ struct ProviderConfig {
     url_param_vars: Vec<String>,
     response_type: ProviderResponse,
     url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    model_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    chat_url: Option<String>,
 }
 
 static HANDLEBARS: OnceLock<Handlebars<'static>> = OnceLock::new();
@@ -123,11 +127,49 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
             _ => Url::parse(&url)?,
         };
 
+        // Render optional model_url if present
+        let model_url = if let Some(model_url_template) = &config.model_url {
+            Some(Url::parse(
+                &self
+                    .handlebars
+                    .render_template(model_url_template, &template_data)
+                    .map_err(|e| {
+                        anyhow::anyhow!(
+                            "Failed to render model_url template for {}: {}",
+                            config.id,
+                            e
+                        )
+                    })?,
+            )?)
+        } else {
+            None
+        };
+
+        // Render optional chat_url if present
+        let chat_url = if let Some(chat_url_template) = &config.chat_url {
+            Some(Url::parse(
+                &self
+                    .handlebars
+                    .render_template(chat_url_template, &template_data)
+                    .map_err(|e| {
+                        anyhow::anyhow!(
+                            "Failed to render chat_url template for {}: {}",
+                            config.id,
+                            e
+                        )
+                    })?,
+            )?)
+        } else {
+            None
+        };
+
         Ok(Provider {
             id: config.id,
             response: config.response_type.clone(),
             url: final_url,
             key: Some(api_key),
+            model_url,
+            chat_url,
         })
     }
 
@@ -311,6 +353,193 @@ mod tests {
         assert_eq!(
             result,
             "https://us-central1-aiplatform.googleapis.com/v1/projects/test-project/locations/us-central1/endpoints/openapi/"
+        );
+    }
+
+    #[test]
+    fn test_azure_config() {
+        let configs = get_provider_configs();
+        let config = configs.iter().find(|c| c.id == ProviderId::Azure).unwrap();
+        assert_eq!(config.id, ProviderId::Azure);
+        assert_eq!(config.api_key_vars, "AZURE_API_KEY");
+        assert_eq!(
+            config.url_param_vars,
+            vec![
+                "AZURE_RESOURCE_NAME".to_string(),
+                "AZURE_DEPLOYMENT_NAME".to_string(),
+                "AZURE_API_VERSION".to_string()
+            ]
+        );
+        assert_eq!(config.response_type, ProviderResponse::OpenAI);
+
+        // Check base URL
+        assert!(config.url.contains("{{"));
+        assert!(config.url.contains("}}"));
+        assert!(config.url.contains("openai.azure.com"));
+
+        // Check chat_url exists and contains expected elements
+        let chat_url = config
+            .chat_url
+            .as_ref()
+            .expect("chat_url should be present");
+        assert!(chat_url.contains("api-version"));
+        assert!(chat_url.contains("deployments"));
+        assert!(chat_url.contains("chat/completions"));
+
+        // Check model_url exists and contains expected elements
+        let model_url = config
+            .model_url
+            .as_ref()
+            .expect("model_url should be present");
+        assert!(model_url.contains("api-version"));
+        assert!(model_url.contains("/models"));
+    }
+
+    #[test]
+    fn test_azure_url_rendering() {
+        let handlebars = Handlebars::new();
+        let mut data = std::collections::HashMap::new();
+        data.insert("azureresourcename".to_string(), "my-resource".to_string());
+        data.insert("azuredeploymentname".to_string(), "gpt-4".to_string());
+        data.insert(
+            "azureapiversion".to_string(),
+            "2024-02-15-preview".to_string(),
+        );
+
+        // Test base URL
+        let base_template = "https://{{azureresourcename}}.openai.azure.com/openai/";
+        let base_result = handlebars.render_template(base_template, &data).unwrap();
+        assert_eq!(base_result, "https://my-resource.openai.azure.com/openai/");
+
+        // Test chat completion URL
+        let chat_template = "https://{{azureresourcename}}.openai.azure.com/openai/deployments/{{azuredeploymentname}}/chat/completions?api-version={{azureapiversion}}";
+        let chat_result = handlebars.render_template(chat_template, &data).unwrap();
+        assert_eq!(
+            chat_result,
+            "https://my-resource.openai.azure.com/openai/deployments/gpt-4/chat/completions?api-version=2024-02-15-preview"
+        );
+
+        // Test model URL
+        let model_template = "https://{{azureresourcename}}.openai.azure.com/openai/models?api-version={{azureapiversion}}";
+        let model_result = handlebars.render_template(model_template, &data).unwrap();
+        assert_eq!(
+            model_result,
+            "https://my-resource.openai.azure.com/openai/models?api-version=2024-02-15-preview"
+        );
+    }
+
+    #[test]
+    fn test_create_azure_provider_with_handlebars_urls() {
+        use std::collections::HashMap;
+        use std::sync::Arc;
+
+        use forge_app::domain::Environment;
+
+        // Mock infrastructure that provides environment variables
+        struct MockInfra {
+            env_vars: HashMap<String, String>,
+        }
+
+        impl EnvironmentInfra for MockInfra {
+            fn get_environment(&self) -> Environment {
+                // Return a minimal Environment for testing
+                Environment {
+                    os: "test".to_string(),
+                    pid: 1,
+                    cwd: std::path::PathBuf::from("/test"),
+                    home: None,
+                    shell: "test".to_string(),
+                    base_path: std::path::PathBuf::from("/test"),
+                    forge_api_url: Url::parse("https://test.com").unwrap(),
+                    retry_config: Default::default(),
+                    max_search_lines: 100,
+                    max_search_result_bytes: 1000,
+                    fetch_truncation_limit: 1000,
+                    stdout_max_prefix_length: 100,
+                    stdout_max_suffix_length: 100,
+                    stdout_max_line_length: 500,
+                    max_read_size: 2000,
+                    http: Default::default(),
+                    max_file_size: 100000,
+                    tool_timeout: 300,
+                    auto_open_dump: false,
+                    custom_history_path: None,
+                }
+            }
+
+            fn get_env_var(&self, key: &str) -> Option<String> {
+                self.env_vars.get(key).cloned()
+            }
+        }
+
+        #[async_trait::async_trait]
+        impl AppConfigRepository for MockInfra {
+            async fn get_app_config(&self) -> anyhow::Result<forge_app::dto::AppConfig> {
+                Ok(forge_app::dto::AppConfig::default())
+            }
+
+            async fn set_app_config(
+                &self,
+                _config: &forge_app::dto::AppConfig,
+            ) -> anyhow::Result<()> {
+                Ok(())
+            }
+        }
+
+        // Setup environment variables
+        let mut env_vars = HashMap::new();
+        env_vars.insert("AZURE_API_KEY".to_string(), "test-key-123".to_string());
+        env_vars.insert(
+            "AZURE_RESOURCE_NAME".to_string(),
+            "my-test-resource".to_string(),
+        );
+        env_vars.insert(
+            "AZURE_DEPLOYMENT_NAME".to_string(),
+            "gpt-4-deployment".to_string(),
+        );
+        env_vars.insert(
+            "AZURE_API_VERSION".to_string(),
+            "2024-02-01-preview".to_string(),
+        );
+
+        let infra = Arc::new(MockInfra { env_vars });
+        let registry = ForgeProviderRegistry::new(infra);
+
+        // Get Azure config
+        let configs = get_provider_configs();
+        let azure_config = configs
+            .iter()
+            .find(|c| c.id == ProviderId::Azure)
+            .expect("Azure config should exist");
+
+        // Create provider using the registry's create_provider method
+        let provider = registry
+            .create_provider(azure_config, None)
+            .expect("Should create Azure provider");
+
+        // Verify all URLs are correctly rendered
+        assert_eq!(provider.id, ProviderId::Azure);
+        assert_eq!(provider.key, Some("test-key-123".to_string()));
+
+        // Check base URL
+        let base_url = provider.to_base_url();
+        assert_eq!(
+            base_url.as_str(),
+            "https://my-test-resource.openai.azure.com/openai/"
+        );
+
+        // Check chat completion URL
+        let chat_url = provider.chat_completion_url();
+        assert_eq!(
+            chat_url.as_str(),
+            "https://my-test-resource.openai.azure.com/openai/deployments/gpt-4-deployment/chat/completions?api-version=2024-02-01-preview"
+        );
+
+        // Check model URL
+        let model_url = provider.model_url();
+        assert_eq!(
+            model_url.as_str(),
+            "https://my-test-resource.openai.azure.com/openai/models?api-version=2024-02-01-preview"
         );
     }
 }

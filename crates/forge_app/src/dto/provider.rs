@@ -35,6 +35,7 @@ pub enum ProviderId {
     Anthropic,
     VertexAi,
     BigModel,
+    Azure,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -51,6 +52,12 @@ pub struct Provider {
     pub response: ProviderResponse,
     pub url: Url,
     pub key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[setters(skip)]
+    pub model_url: Option<Url>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[setters(skip)]
+    pub chat_url: Option<Url>,
 }
 
 impl Provider {
@@ -60,6 +67,8 @@ impl Provider {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://antinomy.ai/api/v1/").unwrap(),
             key: Some(key.into()),
+            model_url: None,
+            chat_url: None,
         }
     }
 
@@ -70,6 +79,8 @@ impl Provider {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/paas/v4/").unwrap(),
             key: Some(key.into()),
+            model_url: None,
+            chat_url: None,
         }
     }
 
@@ -80,6 +91,8 @@ impl Provider {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/coding/v1/").unwrap(),
             key: Some(key.into()),
+            model_url: None,
+            chat_url: None,
         }
     }
 
@@ -90,6 +103,8 @@ impl Provider {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/").unwrap(),
             key: Some(key.into()),
+            model_url: None,
+            chat_url: None,
         }
     }
 
@@ -100,6 +115,8 @@ impl Provider {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.x.ai/v1/").unwrap(),
             key: Some(key.into()),
+            model_url: None,
+            chat_url: None,
         }
     }
 
@@ -110,6 +127,8 @@ impl Provider {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.requesty.ai/v1/").unwrap(),
             key: Some(key.into()),
+            model_url: None,
+            chat_url: None,
         }
     }
 
@@ -120,6 +139,8 @@ impl Provider {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://openrouter.ai/api/v1/").unwrap(),
             key: Some(key.into()),
+            model_url: None,
+            chat_url: None,
         }
     }
 
@@ -130,6 +151,8 @@ impl Provider {
             response: ProviderResponse::Anthropic,
             url: Url::parse("https://api.anthropic.com/v1/").unwrap(),
             key: Some(key.into()),
+            model_url: None,
+            chat_url: None,
         }
     }
 
@@ -150,6 +173,34 @@ impl Provider {
             response: ProviderResponse::OpenAI,
             url: Url::parse(&url)?,
             key: Some(key.into()),
+            model_url: None,
+            chat_url: None,
+        })
+    }
+
+    pub fn azure(
+        key: &str,
+        resource_name: &str,
+        deployment_name: &str,
+        api_version: &str,
+    ) -> anyhow::Result<Provider> {
+        let base_url = format!("https://{}.openai.azure.com/openai/", resource_name);
+        let chat_url = format!(
+            "https://{}.openai.azure.com/openai/deployments/{}/chat/completions?api-version={}",
+            resource_name, deployment_name, api_version
+        );
+        let model_url = format!(
+            "https://{}.openai.azure.com/openai/models?api-version={}",
+            resource_name, api_version
+        );
+
+        Ok(Provider {
+            id: ProviderId::Azure,
+            response: ProviderResponse::OpenAI,
+            url: Url::parse(&base_url)?,
+            key: Some(key.into()),
+            model_url: Some(Url::parse(&model_url)?),
+            chat_url: Some(Url::parse(&chat_url)?),
         })
     }
 }
@@ -161,6 +212,12 @@ impl Provider {
     }
 
     pub fn model_url(&self) -> Url {
+        // If a specific model_url is provided, use it
+        if let Some(ref model_url) = self.model_url {
+            return model_url.clone();
+        }
+
+        // Otherwise, fall back to default behavior
         match &self.response {
             ProviderResponse::OpenAI => {
                 if self.id == ProviderId::ZaiCoding {
@@ -172,6 +229,17 @@ impl Provider {
             }
             ProviderResponse::Anthropic => self.url.join("models").unwrap(),
         }
+    }
+
+    pub fn chat_completion_url(&self) -> Url {
+        // If a specific chat_url is provided, use it
+        if let Some(ref chat_url) = self.chat_url {
+            return chat_url.clone();
+        }
+
+        // Otherwise, fall back to base_url/chat/completions for OpenAI-compatible
+        // providers
+        self.url.join("chat/completions").unwrap()
     }
 }
 
@@ -192,6 +260,8 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::from_str("https://api.x.ai/v1/").unwrap(),
             key: Some(fixture.to_string()),
+            model_url: None,
+            chat_url: None,
         };
         assert_eq!(actual, expected);
     }
@@ -265,5 +335,55 @@ mod tests {
         let actual = fixture.to_base_url();
         let expected = Url::parse("https://us-central1-aiplatform.googleapis.com/v1/projects/test_project/locations/us-central1/endpoints/openapi/").unwrap();
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_azure_provider() {
+        let fixture =
+            Provider::azure("test_key", "my-resource", "gpt-4", "2024-02-15-preview").unwrap();
+
+        // Check base URL
+        let actual = fixture.to_base_url();
+        let expected = Url::parse("https://my-resource.openai.azure.com/openai/").unwrap();
+        assert_eq!(actual, expected);
+
+        // Check chat completion URL
+        let actual_chat = fixture.chat_completion_url();
+        let expected_chat = Url::parse("https://my-resource.openai.azure.com/openai/deployments/gpt-4/chat/completions?api-version=2024-02-15-preview").unwrap();
+        assert_eq!(actual_chat, expected_chat);
+
+        // Check model URL
+        let actual_model = fixture.model_url();
+        let expected_model = Url::parse(
+            "https://my-resource.openai.azure.com/openai/models?api-version=2024-02-15-preview",
+        )
+        .unwrap();
+        assert_eq!(actual_model, expected_model);
+
+        assert_eq!(fixture.id, ProviderId::Azure);
+        assert_eq!(fixture.response, ProviderResponse::OpenAI);
+    }
+
+    #[test]
+    fn test_azure_provider_with_different_params() {
+        let fixture =
+            Provider::azure("another_key", "east-us", "gpt-35-turbo", "2023-05-15").unwrap();
+
+        // Check base URL
+        let actual = fixture.to_base_url();
+        let expected = Url::parse("https://east-us.openai.azure.com/openai/").unwrap();
+        assert_eq!(actual, expected);
+
+        // Check chat completion URL
+        let actual_chat = fixture.chat_completion_url();
+        let expected_chat = Url::parse("https://east-us.openai.azure.com/openai/deployments/gpt-35-turbo/chat/completions?api-version=2023-05-15").unwrap();
+        assert_eq!(actual_chat, expected_chat);
+
+        // Check model URL
+        let actual_model = fixture.model_url();
+        let expected_model =
+            Url::parse("https://east-us.openai.azure.com/openai/models?api-version=2023-05-15")
+                .unwrap();
+        assert_eq!(actual_model, expected_model);
     }
 }
