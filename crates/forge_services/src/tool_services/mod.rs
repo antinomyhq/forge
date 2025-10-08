@@ -1,3 +1,4 @@
+mod modification;
 mod fetch;
 mod followup;
 mod fs_create;
@@ -10,6 +11,7 @@ mod plan_create;
 mod shell;
 mod syn;
 
+pub use modification::*;
 pub use fetch::*;
 pub use followup::*;
 pub use fs_create::*;

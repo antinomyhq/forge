@@ -16,7 +16,7 @@ use crate::provider::{ForgeProviderRegistry, ForgeProviderService};
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead, ForgeFsRemove,
-    ForgeFsSearch, ForgeFsUndo, ForgePlanCreate, ForgeShell,
+    ForgeFsSearch, ForgeFsUndo, ForgeModificationService, ForgePlanCreate, ForgeShell,
 };
 use crate::workflow::ForgeWorkflowService;
 use crate::{
@@ -60,6 +60,7 @@ pub struct ForgeServices<F: HttpInfra + EnvironmentInfra + McpServerInfra + Walk
     provider_service: Arc<ForgeProviderRegistry<F>>,
     agent_loader_service: Arc<ForgeAgentLoaderService<F>>,
     policy_service: ForgePolicyService<F>,
+    modification_service: Arc<ForgeModificationService<F>>,
 }
 
 impl<
@@ -104,6 +105,7 @@ impl<
             Arc::new(ForgeCustomInstructionsService::new(infra.clone()));
         let agent_loader_service = Arc::new(ForgeAgentLoaderService::new(infra.clone()));
         let policy_service = ForgePolicyService::new(infra.clone());
+        let external_modification_service = Arc::new(ForgeModificationService::new(infra.clone()));
 
         Self {
             conversation_service,
@@ -130,6 +132,7 @@ impl<
             provider_service,
             agent_loader_service,
             policy_service,
+            modification_service: external_modification_service,
         }
     }
 }
@@ -178,6 +181,7 @@ impl<
     type ProviderRegistry = ForgeProviderRegistry<F>;
     type AgentLoaderService = ForgeAgentLoaderService<F>;
     type PolicyService = ForgePolicyService<F>;
+    type ExternalModificationService = ForgeModificationService<F>;
 
     fn provider_service(&self) -> &Self::ProviderService {
         &self.chat_service
@@ -271,5 +275,9 @@ impl<
 
     fn policy_service(&self) -> &Self::PolicyService {
         &self.policy_service
+    }
+
+    fn modification_service(&self) -> &Self::ExternalModificationService {
+        &self.modification_service
     }
 }

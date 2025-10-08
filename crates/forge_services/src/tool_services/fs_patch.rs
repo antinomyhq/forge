@@ -3,31 +3,14 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::domain::PatchOperation;
-use forge_app::{FsPatchService, PatchOutput};
+use forge_app::{ModificationService, FsPatchService, PatchOutput};
 use thiserror::Error;
 use tokio::fs;
 
 // No longer using dissimilar for fuzzy matching
+use crate::tool_services::ForgeModificationService;
 use crate::utils::assert_absolute_path;
 use crate::{FileReaderInfra, FileWriterInfra, SnapshotInfra, tool_services};
-
-/// Determines if a file has been modified externally by comparing current
-/// content with snapshot
-///
-/// # Arguments
-/// * `current` - Current file content as bytes
-/// * `snapshot` - Optional snapshot content as bytes
-///
-/// # Returns
-/// * `false` if snapshot is None (no snapshot = no external modification)
-/// * `true` if snapshot exists and differs from current content
-/// * `false` if snapshot exists and matches current content
-fn has_external_modification(current: &[u8], snapshot: Option<&[u8]>) -> bool {
-    match snapshot {
-        None => false,
-        Some(snap) => current != snap,
-    }
-}
 
 /// A match found in the source text. Represents a range in the source text that
 /// can be used for extraction or replacement operations. Stores the position
@@ -240,10 +223,8 @@ impl<F: FileWriterInfra + FileReaderInfra + SnapshotInfra> FsPatchService for Fo
         let old_content = current_content.clone();
 
         // Detect external modifications before patching
-        let current_content_bytes = self.0.read(path).await?;
-        let snapshot_content = self.0.get_latest_snapshot(path).await?;
-        let externally_modified =
-            has_external_modification(&current_content_bytes, snapshot_content.as_deref());
+        let modification_service = ForgeModificationService::new(self.0.clone());
+        let externally_modified = modification_service.detect(path).await?;
 
         // Apply the replacement
         current_content = apply_replacement(current_content, search, &operation, &content)?;

@@ -380,6 +380,24 @@ pub trait PolicyService: Send + Sync {
     ) -> anyhow::Result<PolicyDecision>;
 }
 
+#[async_trait::async_trait]
+pub trait ModificationService: Send + Sync {
+    /// Detects if a file has been modified externally by comparing current
+    /// content with snapshot
+    ///
+    /// # Arguments
+    /// * `path` - The file path to check
+    ///
+    /// # Returns
+    /// * `false` if snapshot is None (no snapshot = no external modification)
+    /// * `true` if snapshot exists and differs from current content
+    /// * `false` if snapshot exists and matches current content
+    ///
+    /// # Errors
+    /// Returns an error if reading the file or snapshot fails
+    async fn detect(&self, path: &Path) -> anyhow::Result<bool>;
+}
+
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
@@ -408,6 +426,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type ProviderRegistry: ProviderRegistry;
     type AgentLoaderService: AgentLoaderService;
     type PolicyService: PolicyService;
+    type ExternalModificationService: ModificationService;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn conversation_service(&self) -> &Self::ConversationService;
@@ -433,6 +452,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn provider_registry(&self) -> &Self::ProviderRegistry;
     fn agent_loader_service(&self) -> &Self::AgentLoaderService;
     fn policy_service(&self) -> &Self::PolicyService;
+    fn modification_service(&self) -> &Self::ExternalModificationService;
 }
 
 #[async_trait::async_trait]
@@ -792,5 +812,12 @@ impl<I: Services> PolicyService for I {
         self.policy_service()
             .check_operation_permission(operation)
             .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> ModificationService for I {
+    async fn detect(&self, path: &Path) -> anyhow::Result<bool> {
+        self.modification_service().detect(path).await
     }
 }

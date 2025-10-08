@@ -2,9 +2,10 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_app::{Content, FsReadService, ReadOutput};
+use forge_app::{Content, ModificationService, FsReadService, ReadOutput};
 
 use crate::range::resolve_range;
+use crate::tool_services::ForgeModificationService;
 use crate::utils::assert_absolute_path;
 use crate::{EnvironmentInfra, FileInfoInfra, FileReaderInfra as InfraFsReadService};
 
@@ -32,24 +33,6 @@ async fn assert_file_size<F: FileInfoInfra>(
         ));
     }
     Ok(())
-}
-
-/// Determines if a file has been modified externally by comparing current
-/// content with snapshot
-///
-/// # Arguments
-/// * `current` - Current file content as bytes
-/// * `snapshot` - Optional snapshot content as bytes
-///
-/// # Returns
-/// * `false` if snapshot is None (no snapshot = no external modification)
-/// * `true` if snapshot exists and differs from current content
-/// * `false` if snapshot exists and matches current content
-fn has_external_modification(current: &[u8], snapshot: Option<&[u8]>) -> bool {
-    match snapshot {
-        None => false,
-        Some(snap) => current != snap,
-    }
 }
 
 /// Reads file contents from the specified absolute path. Ideal for analyzing
@@ -95,16 +78,9 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService + crate::SnapshotI
             .await
             .with_context(|| format!("Failed to read file content from {}", path.display()))?;
 
-        // Read full file content for comparison with snapshot
-
-        let full_content = self.0.read(path).await?;
-
-        // Retrieve latest snapshot content for modification detection
-        let snapshot_content = self.0.get_latest_snapshot(path).await?;
-
-        // Determine if file has been modified externally
-        let externally_modified =
-            has_external_modification(&full_content, snapshot_content.as_deref());
+        // Detect external modifications
+        let modification_service = ForgeModificationService::new(self.0.clone());
+        let externally_modified = modification_service.detect(path).await?;
 
         Ok(ReadOutput {
             content: Content::File(content),
@@ -227,71 +203,5 @@ mod tests {
         let expected = "File size (16 bytes) exceeds the maximum allowed size of 5 bytes";
         assert!(actual.is_err());
         assert_eq!(actual.unwrap_err().to_string(), expected);
-    }
-
-    #[test]
-    fn test_has_external_modification_none_snapshot() {
-        let current = b"Hello, World!";
-        let snapshot = None;
-
-        let actual = has_external_modification(current, snapshot);
-        let expected = false;
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_has_external_modification_identical_content() {
-        let current = b"Hello, World!";
-        let snapshot = Some(b"Hello, World!".as_slice());
-
-        let actual = has_external_modification(current, snapshot);
-        let expected = false;
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_has_external_modification_different_content() {
-        let current = b"Hello, World!";
-        let snapshot = Some(b"Goodbye, World!".as_slice());
-
-        let actual = has_external_modification(current, snapshot);
-        let expected = true;
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_has_external_modification_empty_files() {
-        let current = b"";
-        let snapshot = Some(b"".as_slice());
-
-        let actual = has_external_modification(current, snapshot);
-        let expected = false;
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_has_external_modification_unicode_content() {
-        let current = "🚀 Hello, World! 🌍".as_bytes();
-        let snapshot = Some("🚀 Hello, World! 🌍".as_bytes());
-
-        let actual = has_external_modification(current, snapshot);
-        let expected = false;
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_has_external_modification_unicode_different() {
-        let current = "🚀 Hello, World! 🌍".as_bytes();
-        let snapshot = Some("🌍 Goodbye, World! 🚀".as_bytes());
-
-        let actual = has_external_modification(current, snapshot);
-        let expected = true;
-
-        assert_eq!(actual, expected);
     }
 }
