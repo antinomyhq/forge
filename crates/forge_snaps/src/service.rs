@@ -81,6 +81,37 @@ impl SnapshotService {
 
         Ok(())
     }
+
+    /// Retrieves the content of the most recent snapshot for the given file
+    /// path
+    ///
+    /// # Returns
+    /// - `Ok(Some(content))` if a snapshot exists
+    /// - `Ok(None)` if no snapshots exist for the file
+    ///
+    /// # Errors
+    /// Returns an error if reading the snapshot fails
+    pub async fn get_latest_snapshot(&self, path: PathBuf) -> Result<Option<Vec<u8>>> {
+        let snapshot = Snapshot::create(path)?;
+
+        // All the snaps for the path are stored in `snapshot.path_hash()` directory.
+        let snapshot_dir = self.snapshots_directory.join(snapshot.path_hash());
+
+        // Check if the `snapshot_dir` exists
+        if !ForgeFS::exists(&snapshot_dir) {
+            return Ok(None);
+        }
+
+        // Retrieve the latest snapshot path
+        let snapshot_path = match Self::find_recent_snapshot(&snapshot_dir).await? {
+            Some(path) => path,
+            None => return Ok(None),
+        };
+
+        // Read and return the content without modifying or deleting it
+        let content = ForgeFS::read(&snapshot_path).await?;
+        Ok(Some(content))
+    }
 }
 
 #[cfg(test)]
@@ -251,5 +282,77 @@ mod tests {
         assert_eq!(ctx.read_content().await?, "Initial content");
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_latest_snapshot_content_no_snapshots() {
+        let ctx = TestContext::new().await.unwrap();
+        ctx.write_content("test content").await.unwrap();
+
+        let actual = ctx
+            .service
+            .get_latest_snapshot(ctx.test_file.clone())
+            .await
+            .unwrap();
+        let expected = None;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_get_latest_snapshot_content_existing_snapshot() {
+        let ctx = TestContext::new().await.unwrap();
+        let fixture = "Hello, World!";
+        ctx.write_content(fixture).await.unwrap();
+        ctx.create_snapshot().await.unwrap();
+
+        let actual = ctx
+            .service
+            .get_latest_snapshot(ctx.test_file.clone())
+            .await
+            .unwrap();
+        let expected = Some(fixture.as_bytes().to_vec());
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_get_latest_snapshot_content_with_multiple_snapshots() {
+        let ctx = TestContext::new().await.unwrap();
+
+        ctx.write_content("Initial content").await.unwrap();
+        ctx.create_snapshot().await.unwrap();
+
+        ctx.write_content("Second content").await.unwrap();
+        ctx.create_snapshot().await.unwrap();
+
+        ctx.write_content("Third content").await.unwrap();
+        ctx.create_snapshot().await.unwrap();
+
+        let actual = ctx
+            .service
+            .get_latest_snapshot(ctx.test_file.clone())
+            .await
+            .unwrap();
+        let expected = Some("Third content".as_bytes().to_vec());
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_get_latest_snapshot_content_empty_file() {
+        let ctx = TestContext::new().await.unwrap();
+        let fixture = "";
+        ctx.write_content(fixture).await.unwrap();
+        ctx.create_snapshot().await.unwrap();
+
+        let actual = ctx
+            .service
+            .get_latest_snapshot(ctx.test_file.clone())
+            .await
+            .unwrap();
+        let expected = Some(Vec::new());
+
+        assert_eq!(actual, expected);
     }
 }
