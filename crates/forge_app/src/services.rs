@@ -28,6 +28,7 @@ pub struct PatchOutput {
     pub warning: Option<String>,
     pub before: String,
     pub after: String,
+    pub externally_modified: bool,
 }
 
 #[derive(Debug, Setters)]
@@ -37,6 +38,9 @@ pub struct ReadOutput {
     pub start_line: u64,
     pub end_line: u64,
     pub total_lines: u64,
+
+    /// Set to true if file was externally modified
+    pub externally_modified: bool,
 }
 
 #[derive(Debug)]
@@ -93,6 +97,7 @@ pub struct FsCreateOutput {
     // Set when the file already exists
     pub before: Option<String>,
     pub warning: Option<String>,
+    pub externally_modified: bool,
 }
 
 #[derive(Debug)]

@@ -225,16 +225,22 @@ impl ToolOperation {
         match self {
             ToolOperation::FsRead { input, output } => match &output.content {
                 Content::File(content) => {
-                    let elm = Element::new("file_content")
+                    let mut elm = Element::new("file_content")
                         .attr("path", input.path)
                         .attr(
                             "display_lines",
                             format!("{}-{}", output.start_line, output.end_line),
                         )
-                        .attr("total_lines", content.lines().count())
-                        .cdata(content);
+                        .attr("total_lines", content.lines().count());
 
-                    forge_domain::ToolOutput::text(elm)
+                    if output.externally_modified {
+                        elm = elm.attr(
+                            "info",
+                            "this file has been modified externally since the last operation",
+                        );
+                    }
+
+                    forge_domain::ToolOutput::text(elm.cdata(content))
                 }
             },
             ToolOperation::FsCreate { input, output } => {
@@ -264,6 +270,13 @@ impl ToolOperation {
                 elm = elm
                     .attr("path", input.path)
                     .attr("total_lines", input.content.lines().count());
+
+                if output.externally_modified {
+                    elm = elm.attr(
+                        "info",
+                        "this file has been modified externally since the last operation",
+                    );
+                }
 
                 if let Some(warning) = output.warning {
                     elm = elm.append(Element::new("warning").text(warning));
@@ -359,6 +372,13 @@ impl ToolOperation {
                     .attr("path", &input.path)
                     .attr("total_lines", output.after.lines().count())
                     .cdata(diff);
+
+                if output.externally_modified {
+                    elm = elm.attr(
+                        "info",
+                        "this file has been modified externally since the last operation",
+                    );
+                }
 
                 if let Some(warning) = &output.warning {
                     elm = elm.append(Element::new("warning").text(warning));
@@ -596,6 +616,7 @@ mod tests {
                 start_line: 1,
                 end_line: 2,
                 total_lines: 2,
+                externally_modified: false,
             },
         };
 
@@ -625,6 +646,7 @@ mod tests {
                 start_line: 1,
                 end_line: 1,
                 total_lines: 1,
+                externally_modified: false,
             },
         };
 
@@ -654,6 +676,7 @@ mod tests {
                 start_line: 2,
                 end_line: 3,
                 total_lines: 5,
+                externally_modified: false,
             },
         };
 
@@ -683,6 +706,7 @@ mod tests {
                 start_line: 1,
                 end_line: 100,
                 total_lines: 200,
+                externally_modified: false,
             },
         };
 
@@ -712,6 +736,7 @@ mod tests {
                 path: "/home/user/new_file.txt".to_string(),
                 before: None,
                 warning: None,
+                externally_modified: false,
             },
         };
 
@@ -739,6 +764,7 @@ mod tests {
                 path: "/home/user/existing_file.txt".to_string(),
                 before: Some("Old content".to_string()),
                 warning: None,
+                externally_modified: false,
             },
         };
 
@@ -1212,6 +1238,7 @@ mod tests {
                 path: "/home/user/file_with_warning.txt".to_string(),
                 before: None,
                 warning: Some("File created in non-standard location".to_string()),
+                externally_modified: false,
             },
         };
 
@@ -1326,6 +1353,7 @@ mod tests {
                 warning: None,
                 before: "Hello world\nThis is a test".to_string(),
                 after: "Hello universe\nThis is a test".to_string(),
+                externally_modified: false,
             },
         };
 
@@ -1354,6 +1382,7 @@ mod tests {
                 warning: Some("Large file modification".to_string()),
                 before: "line1\nline2".to_string(),
                 after: "line1\nnew line\nline2".to_string(),
+                externally_modified: false,
             },
         };
 

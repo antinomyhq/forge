@@ -113,6 +113,7 @@ mod tests {
                 start_line: 1,
                 end_line: 1,
                 total_lines: 5,
+                externally_modified: false,
             },
         };
         let env = fixture_environment();
@@ -137,6 +138,7 @@ mod tests {
                 start_line: 2,
                 end_line: 4,
                 total_lines: 10,
+                externally_modified: false,
             },
         };
         let env = fixture_environment();
@@ -159,6 +161,7 @@ mod tests {
                 path: "/home/user/project/new_file.txt".to_string(),
                 before: None,
                 warning: None,
+                externally_modified: false,
             },
         };
         let env = fixture_environment();
@@ -181,6 +184,7 @@ mod tests {
                 path: "/home/user/project/existing_file.txt".to_string(),
                 before: Some("old content".to_string()),
                 warning: None,
+                externally_modified: false,
             },
         };
         let env = fixture_environment();
@@ -203,6 +207,7 @@ mod tests {
                 path: "/home/user/project/file.txt".to_string(),
                 before: None,
                 warning: Some("File created outside project directory".to_string()),
+                externally_modified: false,
             },
         };
         let env = fixture_environment();
@@ -322,6 +327,7 @@ mod tests {
                 warning: None,
                 before: "Hello world\nThis is a test".to_string(),
                 after: "Hello universe\nThis is a test\nNew line".to_string(),
+                externally_modified: false,
             },
         };
         let env = fixture_environment();
@@ -343,6 +349,7 @@ mod tests {
                 warning: Some("Large file modification".to_string()),
                 before: "line1\nline2".to_string(),
                 after: "line1\nnew line\nline2".to_string(),
+                externally_modified: false,
             },
         };
         let env = fixture_environment();
