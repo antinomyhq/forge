@@ -8,5 +8,6 @@ mod provider;
 mod tools_overview;
 
 pub use app_config::*;
+pub use forge_domain::ProviderId;
 pub use provider::*;
 pub use tools_overview::*;

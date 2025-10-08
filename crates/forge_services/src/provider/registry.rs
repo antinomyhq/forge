@@ -235,6 +235,10 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
         })
         .await
     }
+
+    async fn provider_from_id(&self, provider_id: ProviderId) -> anyhow::Result<Provider> {
+        self.provider_from_id(provider_id).await
+    }
 }
 
 #[cfg(test)]

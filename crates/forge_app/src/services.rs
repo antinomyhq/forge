@@ -356,6 +356,7 @@ pub trait ProviderRegistry: Send + Sync {
     async fn set_active_model(&self, model: ModelId) -> anyhow::Result<()>;
     async fn get_active_agent(&self) -> anyhow::Result<Option<AgentId>>;
     async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()>;
+    async fn provider_from_id(&self, provider_id: ProviderId) -> anyhow::Result<Provider>;
 }
 
 #[async_trait::async_trait]
@@ -725,6 +726,10 @@ impl<I: Services> ProviderRegistry for I {
 
     async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()> {
         self.provider_registry().set_active_agent(agent_id).await
+    }
+
+    async fn provider_from_id(&self, provider_id: ProviderId) -> anyhow::Result<Provider> {
+        self.provider_registry().provider_from_id(provider_id).await
     }
 }
 

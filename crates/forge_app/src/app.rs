@@ -51,12 +51,6 @@ impl<S: Services> ForgeApp<S> {
             .unwrap_or_default()
             .expect("conversation for the request should've been created at this point.");
 
-        let provider = services
-            .get_active_provider()
-            .await
-            .context("Failed to get provider")?;
-        let models = services.models(provider).await?;
-
         // Discover files using the discovery service
         let workflow = self.services.read_merged(None).await.unwrap_or_default();
         let max_depth = workflow.max_walker_depth;
@@ -106,6 +100,12 @@ impl<S: Services> ForgeApp<S> {
             })
             .find(|agent| agent.has_subscription(&chat.event.name))
             .ok_or(crate::Error::UnsubscribedEvent(chat.event.name.to_owned()))?;
+
+        // Get provider for the agent (agent-specific or global)
+        let provider = crate::agent::resolve_provider_for_agent(&*services, &agent)
+            .await
+            .context("Failed to resolve provider for agent")?;
+        let models = services.models(provider).await?;
 
         // Get system and mcp tool definitions and resolve them for the agent
         let all_tool_definitions = self.tool_registry.list().await?;

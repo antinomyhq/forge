@@ -13,6 +13,7 @@ use crate::agent::AgentService;
 use crate::compact::Compactor;
 use crate::title_generator::TitleGenerator;
 use crate::user_prompt::UserPromptBuilder;
+use crate::{ProviderService, Services};
 
 #[derive(Clone, Setters)]
 #[setters(into, strip_option)]
@@ -31,7 +32,7 @@ pub struct Orchestrator<S> {
     user_prompt_service: UserPromptBuilder<S>,
 }
 
-impl<S: AgentService> Orchestrator<S> {
+impl<S: AgentService + Services> Orchestrator<S> {
     pub fn new(
         services: Arc<S>,
         environment: Environment,
@@ -226,9 +227,14 @@ impl<S: AgentService> Orchestrator<S> {
             .pipe(ImageHandling::new())
             .pipe(DropReasoningDetails.when(|_| !reasoning_supported))
             .pipe(ReasoningNormalizer.when(|_| reasoning_supported));
+
+        // Resolve provider for the agent (agent-specific or global)
+        let provider =
+            crate::agent::resolve_provider_for_agent(&*self.services, &self.agent).await?;
+
         let response = self
             .services
-            .chat_agent(model_id, transformers.transform(context))
+            .chat(model_id, transformers.transform(context), provider)
             .await?;
 
         response.into_full(!tool_supported).await
