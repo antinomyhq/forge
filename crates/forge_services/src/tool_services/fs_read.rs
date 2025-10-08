@@ -2,10 +2,9 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_app::{Content, ModificationService, FsReadService, ReadOutput};
+use forge_app::{Content, FsReadService, ReadOutput};
 
 use crate::range::resolve_range;
-use crate::tool_services::ForgeModificationService;
 use crate::utils::assert_absolute_path;
 use crate::{EnvironmentInfra, FileInfoInfra, FileReaderInfra as InfraFsReadService};
 
@@ -53,9 +52,7 @@ impl<F> ForgeFsRead<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService + crate::SnapshotInfra> FsReadService
-    for ForgeFsRead<F>
-{
+impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for ForgeFsRead<F> {
     async fn read(
         &self,
         path: String,
@@ -71,23 +68,18 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService + crate::SnapshotI
 
         let (start_line, end_line) = resolve_range(start_line, end_line, env.max_read_size);
 
-        // Read operation should happen only once
         let (content, file_info) = self
             .0
             .range_read_utf8(path, start_line, end_line)
             .await
             .with_context(|| format!("Failed to read file content from {}", path.display()))?;
 
-        // Detect external modifications
-        let modification_service = ForgeModificationService::new(self.0.clone());
-        let externally_modified = modification_service.detect(path).await?;
-
         Ok(ReadOutput {
             content: Content::File(content),
             start_line: file_info.start_line,
             end_line: file_info.end_line,
             total_lines: file_info.total_lines,
-            externally_modified,
+            externally_modified: Default::default(),
         })
     }
 }

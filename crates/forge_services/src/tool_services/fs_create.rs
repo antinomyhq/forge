@@ -3,14 +3,10 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use bytes::Bytes;
-use forge_app::{ModificationService, FsCreateOutput, FsCreateService};
+use forge_app::{FsCreateOutput, FsCreateService};
 
-use crate::tool_services::ForgeModificationService;
 use crate::utils::assert_absolute_path;
-use crate::{
-    FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, SnapshotInfra,
-    tool_services,
-};
+use crate::{FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, tool_services};
 
 /// Use it to create a new file at a specified path with the provided content.
 /// Always provide absolute paths for file locations. The tool
@@ -27,15 +23,8 @@ impl<F> ForgeFsCreate<F> {
 }
 
 #[async_trait::async_trait]
-impl<
-    F: FileDirectoryInfra
-        + FileInfoInfra
-        + FileReaderInfra
-        + FileWriterInfra
-        + SnapshotInfra
-        + Send
-        + Sync,
-> FsCreateService for ForgeFsCreate<F>
+impl<F: FileDirectoryInfra + FileInfoInfra + FileReaderInfra + FileWriterInfra + Send + Sync>
+    FsCreateService for ForgeFsCreate<F>
 {
     async fn create(
         &self,
@@ -75,15 +64,6 @@ impl<
             None
         };
 
-        // Detect external modifications before writing (only for existing files)
-        let externally_modified = if file_exists {
-            let modification_service = ForgeModificationService::new(self.0.clone());
-            modification_service.detect(path).await?
-        } else {
-            // New files can't be externally modified
-            false
-        };
-
         // Write file only after validation passes and directories are created
         self.0
             .write(path, Bytes::from(content), capture_snapshot)
@@ -93,7 +73,7 @@ impl<
             path: path.display().to_string(),
             before: old_content,
             warning: syntax_warning.map(|v| v.to_string()),
-            externally_modified,
+            externally_modified: Default::default(),
         })
     }
 }

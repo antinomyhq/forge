@@ -3,14 +3,13 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::domain::PatchOperation;
-use forge_app::{ModificationService, FsPatchService, PatchOutput};
+use forge_app::{FsPatchService, PatchOutput};
 use thiserror::Error;
 use tokio::fs;
 
 // No longer using dissimilar for fuzzy matching
-use crate::tool_services::ForgeModificationService;
 use crate::utils::assert_absolute_path;
-use crate::{FileReaderInfra, FileWriterInfra, SnapshotInfra, tool_services};
+use crate::{FileWriterInfra, tool_services};
 
 /// A match found in the source text. Represents a range in the source text that
 /// can be used for extraction or replacement operations. Stores the position
@@ -203,7 +202,7 @@ impl<F> ForgeFsPatch<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: FileWriterInfra + FileReaderInfra + SnapshotInfra> FsPatchService for ForgeFsPatch<F> {
+impl<F: FileWriterInfra> FsPatchService for ForgeFsPatch<F> {
     async fn patch(
         &self,
         input_path: String,
@@ -221,11 +220,6 @@ impl<F: FileWriterInfra + FileReaderInfra + SnapshotInfra> FsPatchService for Fo
             .map_err(Error::FileOperation)?;
         // Save the old content before modification for diff generation
         let old_content = current_content.clone();
-
-        // Detect external modifications before patching
-        let modification_service = ForgeModificationService::new(self.0.clone());
-        let externally_modified = modification_service.detect(path).await?;
-
         // Apply the replacement
         current_content = apply_replacement(current_content, search, &operation, &content)?;
 
@@ -238,7 +232,7 @@ impl<F: FileWriterInfra + FileReaderInfra + SnapshotInfra> FsPatchService for Fo
             warning: tool_services::syn::validate(path, &current_content).map(|e| e.to_string()),
             before: old_content,
             after: current_content,
-            externally_modified,
+            externally_modified: Default::default(),
         })
     }
 }
