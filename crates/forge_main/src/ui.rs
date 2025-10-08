@@ -737,7 +737,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         if let Some(conversation) =
             ConversationSelector::select_conversation(&conversations).await?
         {
-            self.state.conversation_id = Some(conversation.id.clone());
+            self.state.conversation_id = Some(conversation.id);
 
             // Display conversation summary
             self.display_conversation_summary(&conversation)?;
