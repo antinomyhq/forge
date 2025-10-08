@@ -29,4 +29,11 @@ impl SnapshotInfra for ForgeFileSnapshotService {
     async fn undo_snapshot(&self, file_path: &Path) -> Result<()> {
         self.inner.undo_snapshot(file_path.to_path_buf()).await
     }
+
+    // Retrieval
+    async fn get_latest_snapshot(&self, file_path: &Path) -> Result<Option<Vec<u8>>> {
+        self.inner
+            .get_latest_snapshot(file_path.to_path_buf())
+            .await
+    }
 }

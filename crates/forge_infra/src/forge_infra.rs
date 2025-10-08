@@ -180,6 +180,12 @@ impl SnapshotInfra for ForgeInfra {
     async fn undo_snapshot(&self, file_path: &Path) -> anyhow::Result<()> {
         self.file_snapshot_service.undo_snapshot(file_path).await
     }
+
+    async fn get_latest_snapshot(&self, file_path: &Path) -> anyhow::Result<Option<Vec<u8>>> {
+        self.file_snapshot_service
+            .get_latest_snapshot(file_path)
+            .await
+    }
 }
 
 #[async_trait::async_trait]

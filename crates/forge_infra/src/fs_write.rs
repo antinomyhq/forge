@@ -81,6 +81,10 @@ mod tests {
         async fn undo_snapshot(&self, _path: &Path) -> anyhow::Result<()> {
             Ok(())
         }
+
+        async fn get_latest_snapshot(&self, _: &Path) -> anyhow::Result<Option<Vec<u8>>> {
+            Ok(None)
+        }
     }
 
     fn create_test_service() -> ForgeFileWriteService<MockSnapshotService> {
