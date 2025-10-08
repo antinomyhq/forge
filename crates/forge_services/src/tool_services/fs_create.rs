@@ -6,7 +6,28 @@ use bytes::Bytes;
 use forge_app::{FsCreateOutput, FsCreateService};
 
 use crate::utils::assert_absolute_path;
-use crate::{FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, tool_services};
+use crate::{
+    FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, SnapshotInfra,
+    tool_services,
+};
+
+/// Determines if a file has been modified externally by comparing current
+/// content with snapshot
+///
+/// # Arguments
+/// * `current` - Current file content as bytes
+/// * `snapshot` - Optional snapshot content as bytes
+///
+/// # Returns
+/// * `false` if snapshot is None (no snapshot = no external modification)
+/// * `true` if snapshot exists and differs from current content
+/// * `false` if snapshot exists and matches current content
+fn has_external_modification(current: &[u8], snapshot: Option<&[u8]>) -> bool {
+    match snapshot {
+        None => false,
+        Some(snap) => current != snap,
+    }
+}
 
 /// Use it to create a new file at a specified path with the provided content.
 /// Always provide absolute paths for file locations. The tool
@@ -23,8 +44,15 @@ impl<F> ForgeFsCreate<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: FileDirectoryInfra + FileInfoInfra + FileReaderInfra + FileWriterInfra + Send + Sync>
-    FsCreateService for ForgeFsCreate<F>
+impl<
+    F: FileDirectoryInfra
+        + FileInfoInfra
+        + FileReaderInfra
+        + FileWriterInfra
+        + SnapshotInfra
+        + Send
+        + Sync,
+> FsCreateService for ForgeFsCreate<F>
 {
     async fn create(
         &self,
@@ -64,6 +92,21 @@ impl<F: FileDirectoryInfra + FileInfoInfra + FileReaderInfra + FileWriterInfra +
             None
         };
 
+        // Detect external modifications before writing (only for existing files)
+        let externally_modified = if file_exists {
+            // Read current file content as bytes
+            let current_content = self.0.read(path).await?;
+
+            // Retrieve latest snapshot content for modification detection
+            let snapshot_content = self.0.get_latest_snapshot(path).await?;
+
+            // Determine if file has been modified externally
+            has_external_modification(&current_content, snapshot_content.as_deref())
+        } else {
+            // New files can't be externally modified
+            false
+        };
+
         // Write file only after validation passes and directories are created
         self.0
             .write(path, Bytes::from(content), capture_snapshot)
@@ -73,6 +116,7 @@ impl<F: FileDirectoryInfra + FileInfoInfra + FileReaderInfra + FileWriterInfra +
             path: path.display().to_string(),
             before: old_content,
             warning: syntax_warning.map(|v| v.to_string()),
+            externally_modified,
         })
     }
 }

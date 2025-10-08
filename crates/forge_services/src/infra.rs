@@ -115,6 +115,17 @@ pub trait SnapshotInfra: Send + Sync {
 
     /// Restores the most recent snapshot for the given file path
     async fn undo_snapshot(&self, file_path: &Path) -> Result<()>;
+
+    /// Retrieves the content of the most recent snapshot for the given file
+    /// path
+    ///
+    /// # Returns
+    /// - `Ok(Some(content))` if a snapshot exists
+    /// - `Ok(None)` if no snapshots exist for the file
+    ///
+    /// # Errors
+    /// Returns an error if reading the snapshot fails
+    async fn get_latest_snapshot(&self, file_path: &Path) -> Result<Option<Vec<u8>>>;
 }
 
 /// Service for executing shell commands
