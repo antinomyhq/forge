@@ -421,6 +421,122 @@ impl Context {
             .sum::<usize>()
     }
 
+    /// Finds the last attempt completion in the conversation context.
+    ///
+    /// This method iterates through messages in reverse order to find the most
+    /// recent assistant message containing an attempt_completion tool call.
+    ///
+    /// # Returns
+    /// - `Some((AttemptCompletionInfo, usize))` with the completion info and
+    ///   message index
+    /// - `None` if no attempt completion exists in the context
+    fn find_last_attempt_completion(&self) -> Option<(crate::AttemptCompletionInfo, usize)> {
+        for (index, message) in self.messages.iter().enumerate().rev() {
+            if let ContextMessage::Text(text_message) = message
+                && text_message.role == Role::Assistant
+                && let Some(tool_calls) = &text_message.tool_calls
+            {
+                for tool_call in tool_calls {
+                    if crate::Tools::is_attempt_completion(&tool_call.name) {
+                        // Extract the "result" field from arguments
+                        if let Ok(parsed_args) = tool_call.arguments.parse()
+                            && let Some(result) = parsed_args.get("result")
+                            && let Some(result_str) = result.as_str()
+                        {
+                            return Some((
+                                crate::AttemptCompletionInfo { result: result_str.to_string() },
+                                index,
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Finds the user message that appears before a given message index.
+    ///
+    /// This method walks backward through messages from the given index to find
+    /// the first user message.
+    ///
+    /// # Arguments
+    /// * `message_index` - The index to start searching from
+    ///
+    /// # Returns
+    /// - `Some(&str)` containing the user message content
+    /// - `None` if no user message is found before the given index
+    pub fn find_user_message_before(&self, message_index: usize) -> Option<&str> {
+        for message in self.messages.iter().take(message_index).rev() {
+            if let ContextMessage::Text(text_message) = message
+                && text_message.role == Role::User
+            {
+                return Some(&text_message.content);
+            }
+        }
+        None
+    }
+
+    /// Detects if the conversation was interrupted before completion.
+    ///
+    /// A conversation is considered interrupted if:
+    /// - The last message is from the assistant without an attempt_completion
+    /// - The last message has incomplete tool calls
+    ///
+    /// # Returns
+    /// - `Some(InterruptionInfo)` if an interruption is detected
+    /// - `None` if the conversation appears complete or empty
+    pub fn detect_interruption(&self) -> Option<crate::InterruptionInfo> {
+        if let Some((_index, message)) = self
+            .messages
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(_, msg)| matches!(msg, ContextMessage::Text(_)))
+            && let ContextMessage::Text(text_message) = message
+            && text_message.role == Role::Assistant
+        {
+            // Check if this assistant message has attempt_completion
+            let has_attempt_completion = text_message
+                .tool_calls
+                .as_ref()
+                .map(|calls| {
+                    calls
+                        .iter()
+                        .any(|call| crate::Tools::is_attempt_completion(&call.name))
+                })
+                .unwrap_or(false);
+
+            if !has_attempt_completion {
+                return Some(crate::InterruptionInfo { reason: "User Interruption".to_string() });
+            }
+        }
+        None
+    }
+
+    /// Gets a comprehensive summary of the conversation state.
+    ///
+    /// This method orchestrates the extraction of:
+    /// - The last attempt completion (if any)
+    /// - The user message that preceded it
+    /// - Any detected interruptions
+    ///
+    /// # Returns
+    /// A `ConversationSummary` with all available information
+    pub fn get_summary(&self) -> crate::ConversationSummary {
+        let (completion, user_message) = self
+            .find_last_attempt_completion()
+            .map(|(comp, index)| {
+                let user_msg = self.find_user_message_before(index).map(|s| s.to_string());
+                (Some(comp), user_msg)
+            })
+            .unwrap_or((None, None));
+
+        let interruption = self.detect_interruption();
+
+        crate::ConversationSummary { user_message, completion, interruption }
+    }
+
     /// Checks if reasoning is enabled by user or not.
     pub fn is_reasoning_supported(&self) -> bool {
         self.reasoning.as_ref().is_some_and(|reasoning| {
@@ -821,5 +937,216 @@ mod tests {
             actual, expected,
             "Should not be supported when explicitly disabled, even with effort set"
         );
+    }
+
+    #[test]
+    fn test_get_summary_with_completion() {
+        let fixture = Context::default()
+            .add_message(ContextMessage::user("Please help me", None))
+            .add_message(ContextMessage::assistant(
+                "I'll help you",
+                None,
+                Some(vec![ToolCallFull {
+                    name: crate::ToolName::new("attempt_completion"),
+                    call_id: Some(crate::ToolCallId::new("call1")),
+                    arguments: crate::ToolCallArguments::from(serde_json::json!({
+                        "result": "Task completed successfully"
+                    })),
+                }]),
+            ));
+
+        let actual = fixture.get_summary();
+
+        assert!(actual.completion.is_some());
+        assert_eq!(
+            actual.completion.unwrap().result,
+            "Task completed successfully"
+        );
+        assert_eq!(actual.user_message, Some("Please help me".to_string()));
+    }
+
+    #[test]
+    fn test_get_summary_with_multiple_completions() {
+        let fixture = Context::default()
+            .add_message(ContextMessage::user("First task", None))
+            .add_message(ContextMessage::assistant(
+                "First response",
+                None,
+                Some(vec![ToolCallFull {
+                    name: crate::ToolName::new("attempt_completion"),
+                    call_id: Some(crate::ToolCallId::new("call1")),
+                    arguments: crate::ToolCallArguments::from(serde_json::json!({
+                        "result": "First completion"
+                    })),
+                }]),
+            ))
+            .add_message(ContextMessage::user("Second task", None))
+            .add_message(ContextMessage::assistant(
+                "Second response",
+                None,
+                Some(vec![ToolCallFull {
+                    name: crate::ToolName::new("attempt_completion"),
+                    call_id: Some(crate::ToolCallId::new("call2")),
+                    arguments: crate::ToolCallArguments::from(serde_json::json!({
+                        "result": "Second completion"
+                    })),
+                }]),
+            ));
+
+        let actual = fixture.get_summary();
+
+        assert!(actual.completion.is_some());
+        assert_eq!(actual.completion.unwrap().result, "Second completion");
+        assert_eq!(actual.user_message, Some("Second task".to_string()));
+    }
+
+    #[test]
+    fn test_get_summary_with_no_completion() {
+        let fixture = Context::default()
+            .add_message(ContextMessage::user("Help me", None))
+            .add_message(ContextMessage::assistant("I'm working on it", None, None));
+
+        let actual = fixture.get_summary();
+
+        assert!(actual.completion.is_none());
+        assert!(actual.interruption.is_some());
+    }
+
+    #[test]
+    fn test_find_last_attempt_completion_empty_context() {
+        let fixture = Context::default();
+
+        let actual = fixture.find_last_attempt_completion();
+
+        assert!(actual.is_none());
+    }
+
+    #[test]
+    fn test_find_user_message_before() {
+        let fixture = Context::default()
+            .add_message(ContextMessage::system("System message"))
+            .add_message(ContextMessage::user("User question", None))
+            .add_message(ContextMessage::assistant("Assistant answer", None, None));
+
+        let actual = fixture.find_user_message_before(2);
+
+        assert_eq!(actual, Some("User question"));
+    }
+
+    #[test]
+    fn test_find_user_message_before_with_multiple_users() {
+        let fixture = Context::default()
+            .add_message(ContextMessage::user("First question", None))
+            .add_message(ContextMessage::assistant("First answer", None, None))
+            .add_message(ContextMessage::user("Second question", None))
+            .add_message(ContextMessage::assistant("Second answer", None, None));
+
+        let actual = fixture.find_user_message_before(3);
+
+        assert_eq!(actual, Some("Second question"));
+    }
+
+    #[test]
+    fn test_find_user_message_before_no_user_message() {
+        let fixture = Context::default()
+            .add_message(ContextMessage::system("System only"))
+            .add_message(ContextMessage::assistant("Assistant only", None, None));
+
+        let actual = fixture.find_user_message_before(1);
+
+        assert!(actual.is_none());
+    }
+
+    #[test]
+    fn test_detect_interruption_with_incomplete_assistant_message() {
+        let fixture = Context::default()
+            .add_message(ContextMessage::user("Do something", None))
+            .add_message(ContextMessage::assistant("Working on it...", None, None));
+
+        let actual = fixture.detect_interruption();
+
+        assert!(actual.is_some());
+        assert_eq!(actual.unwrap().reason, "User Interruption");
+    }
+
+    #[test]
+    fn test_detect_interruption_with_completed_conversation() {
+        let fixture = Context::default()
+            .add_message(ContextMessage::user("Help me", None))
+            .add_message(ContextMessage::assistant(
+                "Done",
+                None,
+                Some(vec![ToolCallFull {
+                    name: crate::ToolName::new("attempt_completion"),
+                    call_id: Some(crate::ToolCallId::new("call1")),
+                    arguments: crate::ToolCallArguments::from(serde_json::json!({
+                        "result": "Completed"
+                    })),
+                }]),
+            ));
+
+        let actual = fixture.detect_interruption();
+
+        assert!(actual.is_none());
+    }
+
+    #[test]
+    fn test_detect_interruption_empty_context() {
+        let fixture = Context::default();
+
+        let actual = fixture.detect_interruption();
+
+        assert!(actual.is_none());
+    }
+
+    #[test]
+    fn test_get_summary_complete_conversation() {
+        let fixture = Context::default()
+            .add_message(ContextMessage::user("Create a file", None))
+            .add_message(ContextMessage::assistant(
+                "File created",
+                None,
+                Some(vec![ToolCallFull {
+                    name: crate::ToolName::new("attempt_completion"),
+                    call_id: Some(crate::ToolCallId::new("call1")),
+                    arguments: crate::ToolCallArguments::from(serde_json::json!({
+                        "result": "File test.txt created successfully"
+                    })),
+                }]),
+            ));
+
+        let actual = fixture.get_summary();
+
+        assert_eq!(actual.user_message, Some("Create a file".to_string()));
+        assert!(actual.completion.is_some());
+        assert_eq!(
+            actual.completion.as_ref().unwrap().result,
+            "File test.txt created successfully"
+        );
+        assert!(actual.interruption.is_none());
+    }
+
+    #[test]
+    fn test_get_summary_interrupted_conversation() {
+        let fixture = Context::default()
+            .add_message(ContextMessage::user("Do a long task", None))
+            .add_message(ContextMessage::assistant("Starting...", None, None));
+
+        let actual = fixture.get_summary();
+
+        assert!(actual.user_message.is_none());
+        assert!(actual.completion.is_none());
+        assert!(actual.interruption.is_some());
+    }
+
+    #[test]
+    fn test_get_summary_empty_context() {
+        let fixture = Context::default();
+
+        let actual = fixture.get_summary();
+
+        assert!(actual.user_message.is_none());
+        assert!(actual.completion.is_none());
+        assert!(actual.interruption.is_none());
     }
 }

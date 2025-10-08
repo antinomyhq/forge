@@ -411,6 +411,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
+        // Handle show summary command
+        if session_group.show_summary {
+            let id_str = session_group
+                .id
+                .ok_or_else(|| anyhow::anyhow!("Error: --id is required for --show-summary"))?;
+            let conversation_id = ConversationId::parse(&id_str)
+                .context(format!("Invalid conversation ID: {}", id_str))?;
+            self.on_show_summary(conversation_id).await?;
+            return Ok(());
+        }
+
         // For all other commands, id is required
         let id_str = session_group.id.ok_or_else(|| {
             anyhow::anyhow!(
@@ -726,8 +737,42 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         if let Some(conversation) =
             ConversationSelector::select_conversation(&conversations).await?
         {
-            self.state.conversation_id = Some(conversation.id);
+            self.state.conversation_id = Some(conversation.id.clone());
+
+            // Display conversation summary
+            self.display_conversation_summary(&conversation)?;
         }
+        Ok(())
+    }
+
+    /// Display conversation summary in REPL format
+    fn display_conversation_summary(
+        &mut self,
+        conversation: &forge_domain::Conversation,
+    ) -> anyhow::Result<()> {
+        use forge_domain::ConversationSummary;
+
+        let summary = conversation.get_summary();
+
+        match summary {
+            None => {
+                // Don't show anything for empty conversations
+            }
+            Some(ConversationSummary { user_message, completion, .. }) => {
+                // Display user message if available
+                if let Some(msg) = user_message {
+                    println!("\x1b[90mUser:\x1b[0m {}\n", msg);
+                }
+
+                // Display completion with markdown rendering
+                if let Some(comp) = completion {
+                    let rendered = self.markdown.render(&comp.result);
+                    println!("{}", rendered);
+                    println!(); // Empty line after completion
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -770,6 +815,46 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .collect();
 
         format_columns(items);
+
+        Ok(())
+    }
+
+    /// Display conversation summary with last completion and status
+    async fn on_show_summary(
+        &mut self,
+        conversation_id: forge_domain::ConversationId,
+    ) -> anyhow::Result<()> {
+        use forge_domain::ConversationSummary;
+
+        // Fetch the conversation
+        let conversation = self
+            .api
+            .conversation(&conversation_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Conversation not found: {}", conversation_id))?;
+
+        // Get summary
+        let summary = conversation.get_summary();
+
+        match summary {
+            None => {
+                // Output nothing for empty conversations - shell will handle
+                // fallback
+            }
+            Some(ConversationSummary { user_message, completion, .. }) => {
+                // Display user message if available
+                if let Some(msg) = user_message {
+                    println!("{}", msg);
+                    println!(); // Empty line separator
+                }
+
+                // Display completion with markdown rendering
+                if let Some(comp) = completion {
+                    let rendered = self.markdown.render(&comp.result);
+                    println!("{}", rendered);
+                }
+            }
+        }
 
         Ok(())
     }

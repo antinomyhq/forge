@@ -311,6 +311,10 @@ pub struct SessionCommandGroup {
     /// List all conversations (doesn't require --id)
     #[arg(long)]
     pub list: bool,
+
+    /// Show conversation summary with last completion and status
+    #[arg(long)]
+    pub show_summary: bool,
 }
 
 #[derive(Subcommand, Debug, Clone)]

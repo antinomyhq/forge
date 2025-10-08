@@ -195,6 +195,7 @@ function _forge_action_retry() {
 }
 
 # Action handler: List/switch conversations
+
 function _forge_action_conversation() {
     echo
     
@@ -222,7 +223,13 @@ function _forge_action_conversation() {
             # Set the selected conversation as active (in parent shell)
             FORGE_CONVERSATION_ID="$conversation_id"
             
-            echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Switched to conversation \033[1m${conversation_id}\033[0m"
+            # Show summary if enabled (default: true)
+            if [[ "${FORGE_SHOW_SUMMARY_ON_SWITCH:-true}" == "true" ]]; then
+                $_FORGE_BIN session --id "$conversation_id" --show-summary 2>/dev/null || \
+                    echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Switched to conversation \033[1m${conversation_id}\033[0m"
+            else
+                echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Switched to conversation \033[1m${conversation_id}\033[0m"
+            fi
         fi
     else
         echo "\033[31m✗\033[0m No conversations found"
