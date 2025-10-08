@@ -6,13 +6,6 @@ use forge_domain::AgentId;
 #[derive(Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
 pub struct Cli {
-    /// Path to a file containing initial commands to execute.
-    ///
-    /// The application will execute the commands from this file first,
-    /// then continue in interactive mode.
-    #[arg(long, short = 'c')]
-    pub command: Option<String>,
-
     /// Direct prompt to process without entering interactive mode.
     ///
     /// Allows running a single command directly from the command line.
@@ -20,114 +13,190 @@ pub struct Cli {
     #[arg(long, short = 'p')]
     pub prompt: Option<String>,
 
-    /// Enable verbose output mode.
+    /// Path to a file containing initial commands to execute.
     ///
-    /// When enabled, shows additional debugging information and tool execution
-    /// details.
-    #[arg(long, default_value_t = false)]
-    pub verbose: bool,
-
-    /// Enable restricted shell mode for enhanced security.
-    ///
-    /// Controls the shell execution environment:
-    /// - Default (false): Uses standard shells (bash on Unix/Mac, cmd on
-    ///   Windows)
-    /// - Restricted (true): Uses restricted shell (rbash) with limited
-    ///   capabilities
-    ///
-    /// The restricted mode provides additional security by preventing:
-    /// - Changing directories
-    /// - Setting/modifying environment variables
-    /// - Executing commands with absolute paths
-    /// - Modifying shell options
-    #[arg(long, default_value_t = false, short = 'r')]
-    pub restricted: bool,
-
-    /// Path to a file containing the workflow to execute.
-    #[arg(long, short = 'w')]
-    pub workflow: Option<PathBuf>,
-
-    /// Dispatch an event to the workflow.
-    /// For example: --event '{"name": "fix_issue", "value": "449"}'
-    #[arg(long, short = 'e')]
-    pub event: Option<String>,
+    /// The application will execute the commands from this file first,
+    /// then continue in interactive mode.
+    #[arg(long, short = 'c')]
+    pub command: Option<String>,
 
     /// Path to a file containing the conversation to execute.
     /// This file should be in JSON format.
     #[arg(long)]
     pub conversation: Option<PathBuf>,
 
-    /// Generate a new conversation ID and exit.
+    /// Working directory to set before starting forge.
     ///
-    /// When enabled, generates a new unique conversation ID and prints it to
-    /// stdout. This ID can be used with the FORGE_CONVERSATION_ID environment
-    /// variable to manage multiple terminal sessions with separate conversation
-    /// contexts.
+    /// If provided, the application will change to this directory before
+    /// starting. This allows running forge from a different directory.
+    #[arg(long, short = 'C')]
+    pub directory: Option<PathBuf>,
+
+    /// Create isolated git worktree for experimentation
+    #[arg(long)]
+    pub sandbox: Option<String>,
+
+    /// Enable verbose output mode.
     #[arg(long, default_value_t = false)]
-    pub generate_conversation_id: bool,
+    pub verbose: bool,
+
+    /// Use restricted shell (rbash) for enhanced security
+    #[arg(long, default_value_t = false, short = 'r')]
+    pub restricted: bool,
 
     /// Top-level subcommands
     #[command(subcommand)]
     pub subcommands: Option<TopLevelCommand>,
 
-    /// Working directory to set before starting forge.
-    ///
-    /// If provided, the application will change to this directory before
-    /// starting. This allows running forge from a different directory.
-    pub directory: Option<PathBuf>,
-    /// Create a new sandbox env and start forge in that directory.
-    ///
-    /// When specified, creates a new git worktree in the parent folder
-    /// (if it doesn't already exist) and then starts forge in that directory.
-    /// The worktree name will be used as the branch name.
-    #[arg(long)]
-    pub sandbox: Option<String>,
+    // Internal fields for workflow command handling
+    /// Path to a file containing the workflow to execute (internal use)
+    #[arg(skip)]
+    pub workflow: Option<PathBuf>,
+
+    /// Dispatch an event to the workflow (internal use)
+    #[arg(skip)]
+    pub event: Option<String>,
 }
 
 impl Cli {
     /// Checks if user is in is_interactive
     pub fn is_interactive(&self) -> bool {
-        self.prompt.is_none()
-            && self.event.is_none()
-            && self.command.is_none()
-            && self.subcommands.is_none()
+        self.prompt.is_none() && self.command.is_none() && self.subcommands.is_none()
     }
 }
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum TopLevelCommand {
-    Mcp(McpCommandGroup),
-    /// Print information about the environment
+    /// Generate shell completion scripts
+    Completion(CompletionCommandGroup),
+
+    /// List resources (agents, models, providers, commands, tools)
+    List(ListCommandGroup),
+
+    /// Show information and status (banner, config, environment)
+    Show(ShowCommandGroup),
+
+    /// Show current configuration, active model, and environment status
     Info,
-    /// Generate ZSH shell prompt completion scripts
-    GenerateZSHPrompt,
-
-    /// Lists all the agents
-    ShowAgents,
-
-    /// Lists all the providers
-    ShowProviders,
-
-    /// Lists all the models
-    ShowModels,
-
-    /// Lists all the commands
-    ShowCommands,
-
-    /// Lists all the tools for a specific agent
-    ShowTools {
-        /// Agent ID to show tools for
-        agent: AgentId,
-    },
-
-    /// Display the banner with version and helpful information
-    ShowBanner,
 
     /// Configuration management commands
     Config(ConfigCommandGroup),
 
     /// Session management commands (dump, retry, resume, list)
     Session(SessionCommandGroup),
+
+    /// Workflow management and execution
+    Workflow(WorkflowCommandGroup),
+
+    /// MCP server management commands
+    Mcp(McpCommandGroup),
+}
+
+/// Group of list-related commands
+#[derive(Parser, Debug, Clone)]
+pub struct ListCommandGroup {
+    #[command(subcommand)]
+    pub command: ListCommand,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum ListCommand {
+    /// List all available agents
+    ///
+    /// Example: forge list agents
+    Agents,
+
+    /// List all available providers
+    ///
+    /// Example: forge list providers
+    Providers,
+
+    /// List all available models
+    ///
+    /// Example: forge list models
+    Models,
+
+    /// List all available commands
+    ///
+    /// Example: forge list commands
+    Commands,
+
+    /// List all tools for a specific agent
+    ///
+    /// Example: forge list tools sage
+    Tools {
+        /// Agent ID to show tools for
+        agent: AgentId,
+    },
+}
+
+/// Group of show-related commands
+#[derive(Parser, Debug, Clone)]
+pub struct ShowCommandGroup {
+    #[command(subcommand)]
+    pub command: ShowCommand,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum ShowCommand {
+    /// Display the banner with version and helpful information
+    ///
+    /// Example: forge show banner
+    Banner,
+}
+
+/// Group of completion-related commands
+#[derive(Parser, Debug, Clone)]
+pub struct CompletionCommandGroup {
+    #[command(subcommand)]
+    pub command: CompletionCommand,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum CompletionCommand {
+    /// Generate ZSH completion script
+    Zsh,
+
+    /// Generate Bash completion script
+    Bash,
+
+    /// Generate Fish completion script
+    Fish,
+
+    /// Generate PowerShell completion script
+    Powershell,
+}
+
+/// Group of workflow-related commands
+#[derive(Parser, Debug, Clone)]
+pub struct WorkflowCommandGroup {
+    #[command(subcommand)]
+    pub command: WorkflowCommand,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum WorkflowCommand {
+    /// Execute a workflow from file
+    Run {
+        /// Path to workflow file
+        file: PathBuf,
+    },
+
+    /// Dispatch an event to a workflow
+    Dispatch {
+        /// Path to workflow file
+        file: PathBuf,
+
+        /// Event data as JSON string
+        /// Example: '{"name": "deploy", "env": "prod"}'
+        event: String,
+    },
+
+    /// Validate workflow file syntax
+    Validate {
+        /// Path to workflow file to validate
+        file: PathBuf,
+    },
 }
 
 /// Group of MCP-related commands
@@ -149,11 +218,8 @@ pub enum McpCommand {
     /// Remove a server
     Remove(McpRemoveArgs),
 
-    /// Get server details
-    Get(McpGetArgs),
-
-    /// Add a server in JSON format
-    AddJson(McpAddJsonArgs),
+    /// Show detailed configuration for a server
+    Show(McpShowArgs),
 
     /// Cache management commands
     Cache(McpCacheArgs),
@@ -176,8 +242,14 @@ pub struct McpAddArgs {
     /// Name of the server
     pub name: String,
 
+    /// JSON string containing full server configuration
+    /// When provided, other options (command_or_url, args) are ignored
+    #[arg(long, conflicts_with_all = &["command_or_url", "args"])]
+    pub json: Option<String>,
+
     /// URL or command for the MCP server
-    pub command_or_url: String,
+    #[arg(required_unless_present = "json")]
+    pub command_or_url: Option<String>,
 
     /// Additional arguments to pass to the server
     #[arg(short = 'a', long = "args")]
@@ -195,22 +267,9 @@ pub struct McpRemoveArgs {
 }
 
 #[derive(Parser, Debug, Clone)]
-pub struct McpGetArgs {
-    /// Name of the server to get details for
+pub struct McpShowArgs {
+    /// Name of the server to show details for
     pub name: String,
-}
-
-#[derive(Parser, Debug, Clone)]
-pub struct McpAddJsonArgs {
-    /// Configuration scope (local, user, or project)
-    #[arg(short = 's', long = "scope", default_value = "local")]
-    pub scope: Scope,
-
-    /// Name of the server
-    pub name: String,
-
-    /// JSON string containing the server configuration
-    pub json: String,
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -292,43 +351,62 @@ impl ConfigSetArgs {
 pub struct ConfigGetArgs {
     /// Specific field to get (agent, model, or provider). If not specified,
     /// shows all.
-    #[arg(long)]
     pub field: Option<String>,
 }
 
 /// Group of Session-related commands
 #[derive(Parser, Debug, Clone)]
 pub struct SessionCommandGroup {
-    /// Session/conversation ID to operate on (required for dump, retry, and
-    /// resume)
-    #[arg(long, short = 'i', required_unless_present = "list")]
-    pub id: Option<String>,
-
-    /// Session subcommand
     #[command(subcommand)]
-    pub command: Option<SessionCommand>,
-
-    /// List all conversations (doesn't require --id)
-    #[arg(long)]
-    pub list: bool,
+    pub command: SessionCommand,
 }
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum SessionCommand {
+    /// List all conversations
+    ///
+    /// Example: forge session list
+    List,
+
+    /// Create a new conversation
+    ///
+    /// Example: forge session new
+    New,
+
     /// Dump conversation as JSON or HTML
-    Dump(SessionDumpArgs),
+    ///
+    /// Example: forge session dump abc123 html
+    Dump {
+        /// Conversation ID
+        id: String,
+
+        /// Output format: "html" for HTML, omit for JSON (default)
+        format: Option<String>,
+    },
 
     /// Compact the conversation context
-    Compact,
+    ///
+    /// Example: forge session compact abc123
+    Compact {
+        /// Conversation ID
+        id: String,
+    },
 
     /// Retry the last command without modifying context
-    Retry,
-}
+    ///
+    /// Example: forge session retry abc123
+    Retry {
+        /// Conversation ID
+        id: String,
+    },
 
-#[derive(Parser, Debug, Clone)]
-pub struct SessionDumpArgs {
-    /// Output format: "html" for HTML, omit for JSON (default)
-    pub format: Option<String>,
+    /// Resume a conversation
+    ///
+    /// Example: forge session resume abc123
+    Resume {
+        /// Conversation ID
+        id: String,
+    },
 }
 
 #[cfg(test)]
@@ -441,7 +519,7 @@ mod tests {
 
     #[test]
     fn test_config_get_specific_field() {
-        let fixture = Cli::parse_from(["forge", "config", "get", "--field", "model"]);
+        let fixture = Cli::parse_from(["forge", "config", "get", "model"]);
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::Config(config)) => match config.command {
                 ConfigCommand::Get(args) => args.field,
@@ -498,113 +576,92 @@ mod tests {
     }
 
     #[test]
-    fn test_session_dump_json_with_id() {
-        let fixture = Cli::parse_from(["forge", "session", "--id", "abc123", "dump"]);
-        let (id, format) = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => {
-                let format = match session.command {
-                    Some(SessionCommand::Dump(args)) => args.format,
-                    _ => None,
-                };
-                (session.id, format)
-            }
-            _ => (None, None),
-        };
-        assert_eq!(id, Some("abc123".to_string()));
-        assert_eq!(format, None); // JSON is default
-    }
-
-    #[test]
-    fn test_session_dump_html_with_id() {
-        let fixture = Cli::parse_from(["forge", "session", "--id", "abc123", "dump", "html"]);
-        let (id, format) = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => {
-                let format = match session.command {
-                    Some(SessionCommand::Dump(args)) => args.format,
-                    _ => None,
-                };
-                (session.id, format)
-            }
-            _ => (None, None),
-        };
-        assert_eq!(id, Some("abc123".to_string()));
-        assert_eq!(format, Some("html".to_string()));
-    }
-
-    #[test]
-    fn test_session_retry_with_id() {
-        let fixture = Cli::parse_from(["forge", "session", "--id", "xyz789", "retry"]);
-        let (id, is_retry) = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => {
-                let is_retry = matches!(session.command, Some(SessionCommand::Retry));
-                (session.id, is_retry)
-            }
-            _ => (None, false),
-        };
-        assert_eq!(id, Some("xyz789".to_string()));
-        assert_eq!(is_retry, true);
-    }
-
-    #[test]
-    fn test_session_list_no_id_required() {
-        let fixture = Cli::parse_from(["forge", "session", "--list"]);
+    fn test_session_list() {
+        let fixture = Cli::parse_from(["forge", "session", "list"]);
         let is_list = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => session.list,
+            Some(TopLevelCommand::Session(session)) => {
+                matches!(session.command, SessionCommand::List)
+            }
             _ => false,
         };
         assert_eq!(is_list, true);
     }
 
     #[test]
-    fn test_session_resume_with_id_no_subcommand() {
-        let fixture = Cli::parse_from(["forge", "session", "--id", "def456"]);
-        let (id, has_subcommand) = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => {
-                let has_subcommand = session.command.is_some();
-                (session.id, has_subcommand)
-            }
-            _ => (None, true),
+    fn test_session_dump_json_with_id() {
+        let fixture = Cli::parse_from(["forge", "session", "dump", "abc123"]);
+        let (id, format) = match fixture.subcommands {
+            Some(TopLevelCommand::Session(session)) => match session.command {
+                SessionCommand::Dump { id, format } => (id, format),
+                _ => (String::new(), None),
+            },
+            _ => (String::new(), None),
         };
-        assert_eq!(id, Some("def456".to_string()));
-        assert_eq!(has_subcommand, false); // No subcommand means resume
+        assert_eq!(id, "abc123");
+        assert_eq!(format, None); // JSON is default
+    }
+
+    #[test]
+    fn test_session_dump_html_with_id() {
+        let fixture = Cli::parse_from(["forge", "session", "dump", "abc123", "html"]);
+        let (id, format) = match fixture.subcommands {
+            Some(TopLevelCommand::Session(session)) => match session.command {
+                SessionCommand::Dump { id, format } => (id, format),
+                _ => (String::new(), None),
+            },
+            _ => (String::new(), None),
+        };
+        assert_eq!(id, "abc123");
+        assert_eq!(format, Some("html".to_string()));
+    }
+
+    #[test]
+    fn test_session_retry_with_id() {
+        let fixture = Cli::parse_from(["forge", "session", "retry", "xyz789"]);
+        let id = match fixture.subcommands {
+            Some(TopLevelCommand::Session(session)) => match session.command {
+                SessionCommand::Retry { id } => id,
+                _ => String::new(),
+            },
+            _ => String::new(),
+        };
+        assert_eq!(id, "xyz789");
     }
 
     #[test]
     fn test_session_compact_with_id() {
-        let fixture = Cli::parse_from(["forge", "session", "--id", "abc123", "compact"]);
-        let (id, command) = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => {
-                let command = match session.command {
-                    Some(SessionCommand::Compact) => "compact",
-                    _ => "other",
-                };
-                (session.id, command)
-            }
-            _ => (None, "none"),
+        let fixture = Cli::parse_from(["forge", "session", "compact", "abc123"]);
+        let id = match fixture.subcommands {
+            Some(TopLevelCommand::Session(session)) => match session.command {
+                SessionCommand::Compact { id } => id,
+                _ => String::new(),
+            },
+            _ => String::new(),
         };
-        assert_eq!(id, Some("abc123".to_string()));
-        assert_eq!(command, "compact");
+        assert_eq!(id, "abc123");
     }
 
     #[test]
-    fn test_session_dump_without_id_fails() {
-        // This should fail because --id is required
-        let result = Cli::try_parse_from(["forge", "session", "dump"]);
-        assert!(result.is_err(), "Expected error when --id is not provided");
+    fn test_session_resume() {
+        let fixture = Cli::parse_from(["forge", "session", "resume", "def456"]);
+        let id = match fixture.subcommands {
+            Some(TopLevelCommand::Session(session)) => match session.command {
+                SessionCommand::Resume { id } => id,
+                _ => String::new(),
+            },
+            _ => String::new(),
+        };
+        assert_eq!(id, "def456");
     }
 
     #[test]
-    fn test_session_retry_without_id_fails() {
-        // This should fail because --id is required
-        let result = Cli::try_parse_from(["forge", "session", "retry"]);
-        assert!(result.is_err(), "Expected error when --id is not provided");
-    }
-
-    #[test]
-    fn test_show_tools_command_with_agent() {
-        let fixture = Cli::parse_from(["forge", "show-tools", "sage"]);
+    fn test_list_tools_command_with_agent() {
+        let fixture = Cli::parse_from(["forge", "list", "tools", "sage"]);
         let actual = match fixture.subcommands {
-            Some(TopLevelCommand::ShowTools { agent }) => agent,
+            Some(TopLevelCommand::List(list)) => match list.command {
+                ListCommand::Tools { agent } => agent,
+                _ => AgentId::default(),
+            },
             _ => AgentId::default(),
         };
         let expected = AgentId::new("sage");
