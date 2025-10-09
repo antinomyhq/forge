@@ -74,7 +74,7 @@
     "api_key_vars": "VERTEX_AI_AUTH_TOKEN",
     "url_param_vars": ["PROJECT_ID", "LOCATION"],
     "response_type": "OpenAI",
-    "url": "{{#if (eq location \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{project_id}}/locations/{{location}}/endpoints/openapi/{{else}}https://{{location}}-aiplatform.googleapis.com/v1/projects/{{project_id}}/locations/{{location}}/endpoints/openapi/{{/if}}"
+    "url": "{{#if (eq LOCATION \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/{{else}}https://{{LOCATION}}-aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/{{/if}}"
   }
 ,
   {
@@ -82,8 +82,8 @@
     "api_key_vars": "AZURE_API_KEY",
     "url_param_vars": ["AZURE_RESOURCE_NAME", "AZURE_DEPLOYMENT_NAME", "AZURE_API_VERSION"],
     "response_type": "OpenAI",
-    "url": "https://{{azureresourcename}}.openai.azure.com/openai/",
-    "chat_url": "https://{{azureresourcename}}.openai.azure.com/openai/deployments/{{azuredeploymentname}}/chat/completions?api-version={{azureapiversion}}",
-    "model_url": "https://{{azureresourcename}}.openai.azure.com/openai/models?api-version={{azureapiversion}}"
+    "url": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/",
+    "chat_url": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/deployments/{{AZURE_DEPLOYMENT_NAME}}/chat/completions?api-version={{AZURE_API_VERSION}}",
+    "model_url": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/models?api-version={{AZURE_API_VERSION}}"
   }
 ]

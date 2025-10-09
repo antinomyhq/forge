@@ -92,9 +92,8 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
         let mut template_data = std::collections::HashMap::new();
         for env_var in &config.url_param_vars {
             if let Some(value) = self.infra.get_env_var(env_var) {
-                // Convert env var names to handlebars-friendly variable names
-                let key_name = env_var.to_lowercase().replace('_', "");
-                template_data.insert(key_name, value);
+                // Use env var names verbatim (same case) in templates
+                template_data.insert(env_var.clone(), value);
             } else {
                 return Err(ProviderError::env_var_not_found(config.id, env_var).into());
             }
@@ -336,11 +335,11 @@ mod tests {
     #[test]
     fn test_handlebars_url_rendering() {
         let handlebars = Handlebars::new();
-        let template = "{{#if (eq location \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{project_id}}/locations/{{location}}/endpoints/openapi/{{else}}https://{{location}}-aiplatform.googleapis.com/v1/projects/{{project_id}}/locations/{{location}}/endpoints/openapi/{{/if}}";
+        let template = "{{#if (eq LOCATION \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/{{else}}https://{{LOCATION}}-aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/{{/if}}";
 
         let mut data = std::collections::HashMap::new();
-        data.insert("project_id".to_string(), "test-project".to_string());
-        data.insert("location".to_string(), "global".to_string());
+        data.insert("PROJECT_ID".to_string(), "test-project".to_string());
+        data.insert("LOCATION".to_string(), "global".to_string());
 
         let result = handlebars.render_template(template, &data).unwrap();
         assert_eq!(
@@ -348,7 +347,7 @@ mod tests {
             "https://aiplatform.googleapis.com/v1/projects/test-project/locations/global/endpoints/openapi/"
         );
 
-        data.insert("location".to_string(), "us-central1".to_string());
+        data.insert("LOCATION".to_string(), "us-central1".to_string());
         let result = handlebars.render_template(template, &data).unwrap();
         assert_eq!(
             result,
@@ -399,20 +398,20 @@ mod tests {
     fn test_azure_url_rendering() {
         let handlebars = Handlebars::new();
         let mut data = std::collections::HashMap::new();
-        data.insert("azureresourcename".to_string(), "my-resource".to_string());
-        data.insert("azuredeploymentname".to_string(), "gpt-4".to_string());
+        data.insert("AZURE_RESOURCE_NAME".to_string(), "my-resource".to_string());
+        data.insert("AZURE_DEPLOYMENT_NAME".to_string(), "gpt-4".to_string());
         data.insert(
-            "azureapiversion".to_string(),
+            "AZURE_API_VERSION".to_string(),
             "2024-02-15-preview".to_string(),
         );
 
         // Test base URL
-        let base_template = "https://{{azureresourcename}}.openai.azure.com/openai/";
+        let base_template = "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/";
         let base_result = handlebars.render_template(base_template, &data).unwrap();
         assert_eq!(base_result, "https://my-resource.openai.azure.com/openai/");
 
         // Test chat completion URL
-        let chat_template = "https://{{azureresourcename}}.openai.azure.com/openai/deployments/{{azuredeploymentname}}/chat/completions?api-version={{azureapiversion}}";
+        let chat_template = "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/deployments/{{AZURE_DEPLOYMENT_NAME}}/chat/completions?api-version={{AZURE_API_VERSION}}";
         let chat_result = handlebars.render_template(chat_template, &data).unwrap();
         assert_eq!(
             chat_result,
@@ -420,7 +419,7 @@ mod tests {
         );
 
         // Test model URL
-        let model_template = "https://{{azureresourcename}}.openai.azure.com/openai/models?api-version={{azureapiversion}}";
+        let model_template = "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/models?api-version={{AZURE_API_VERSION}}";
         let model_result = handlebars.render_template(model_template, &data).unwrap();
         assert_eq!(
             model_result,
