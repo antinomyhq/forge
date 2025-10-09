@@ -52,12 +52,7 @@ pub struct Provider {
     pub response: ProviderResponse,
     pub url: Url,
     pub key: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[setters(skip)]
-    pub model_url: Option<Url>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[setters(skip)]
-    pub chat_url: Option<Url>,
+    pub model_url: Url,
 }
 
 impl Provider {
@@ -65,10 +60,9 @@ impl Provider {
         Provider {
             id: ProviderId::Forge,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://antinomy.ai/api/v1/").unwrap(),
+            url: Url::parse("https://antinomy.ai/api/v1/chat/completions").unwrap(),
             key: Some(key.into()),
-            model_url: None,
-            chat_url: None,
+            model_url: Url::parse("https://antinomy.ai/api/v1/models").unwrap(),
         }
     }
 
@@ -77,10 +71,9 @@ impl Provider {
         Provider {
             id: ProviderId::Zai,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.z.ai/api/paas/v4/").unwrap(),
+            url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
             key: Some(key.into()),
-            model_url: None,
-            chat_url: None,
+            model_url: Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
         }
     }
 
@@ -89,10 +82,9 @@ impl Provider {
         Provider {
             id: ProviderId::ZaiCoding,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.z.ai/api/coding/v1/").unwrap(),
+            url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
             key: Some(key.into()),
-            model_url: None,
-            chat_url: None,
+            model_url: Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
         }
     }
 
@@ -101,10 +93,9 @@ impl Provider {
         Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.openai.com/v1/").unwrap(),
+            url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some(key.into()),
-            model_url: None,
-            chat_url: None,
+            model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
         }
     }
 
@@ -113,10 +104,9 @@ impl Provider {
         Provider {
             id: ProviderId::Xai,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.x.ai/v1/").unwrap(),
+            url: Url::parse("https://api.x.ai/v1/chat/completions").unwrap(),
             key: Some(key.into()),
-            model_url: None,
-            chat_url: None,
+            model_url: Url::parse("https://api.x.ai/v1/models").unwrap(),
         }
     }
 
@@ -125,10 +115,9 @@ impl Provider {
         Provider {
             id: ProviderId::Requesty,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.requesty.ai/v1/").unwrap(),
+            url: Url::parse("https://api.requesty.ai/v1/chat/completions").unwrap(),
             key: Some(key.into()),
-            model_url: None,
-            chat_url: None,
+            model_url: Url::parse("https://api.requesty.ai/v1/models").unwrap(),
         }
     }
 
@@ -137,10 +126,9 @@ impl Provider {
         Provider {
             id: ProviderId::OpenRouter,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://openrouter.ai/api/v1/").unwrap(),
+            url: Url::parse("https://openrouter.ai/api/v1/chat/completions").unwrap(),
             key: Some(key.into()),
-            model_url: None,
-            chat_url: None,
+            model_url: Url::parse("https://openrouter.ai/api/v1/models").unwrap(),
         }
     }
 
@@ -149,32 +137,42 @@ impl Provider {
         Provider {
             id: ProviderId::Anthropic,
             response: ProviderResponse::Anthropic,
-            url: Url::parse("https://api.anthropic.com/v1/").unwrap(),
+            url: Url::parse("https://api.anthropic.com/v1/messages").unwrap(),
             key: Some(key.into()),
-            model_url: None,
-            chat_url: None,
+            model_url: Url::parse("https://api.anthropic.com/v1/models").unwrap(),
         }
     }
 
     pub fn vertex_ai(key: &str, project_id: &str, location: &str) -> anyhow::Result<Provider> {
-        let url = if location == "global" {
-            format!(
-                "https://aiplatform.googleapis.com/v1/projects/{}/locations/{}/endpoints/openapi/",
-                project_id, location
+        let (chat_url, model_url) = if location == "global" {
+            (
+                format!(
+                    "https://aiplatform.googleapis.com/v1/projects/{}/locations/{}/endpoints/openapi/chat/completions",
+                    project_id, location
+                ),
+                format!(
+                    "https://aiplatform.googleapis.com/v1/projects/{}/locations/{}/endpoints/openapi/models",
+                    project_id, location
+                ),
             )
         } else {
-            format!(
-                "https://{}-aiplatform.googleapis.com/v1/projects/{}/locations/{}/endpoints/openapi/",
-                location, project_id, location
+            (
+                format!(
+                    "https://{}-aiplatform.googleapis.com/v1/projects/{}/locations/{}/endpoints/openapi/chat/completions",
+                    location, project_id, location
+                ),
+                format!(
+                    "https://{}-aiplatform.googleapis.com/v1/projects/{}/locations/{}/endpoints/openapi/models",
+                    location, project_id, location
+                ),
             )
         };
         Ok(Provider {
             id: ProviderId::VertexAi,
             response: ProviderResponse::OpenAI,
-            url: Url::parse(&url)?,
+            url: Url::parse(&chat_url)?,
             key: Some(key.into()),
-            model_url: None,
-            chat_url: None,
+            model_url: Url::parse(&model_url)?,
         })
     }
 
@@ -184,7 +182,6 @@ impl Provider {
         deployment_name: &str,
         api_version: &str,
     ) -> anyhow::Result<Provider> {
-        let base_url = format!("https://{}.openai.azure.com/openai/", resource_name);
         let chat_url = format!(
             "https://{}.openai.azure.com/openai/deployments/{}/chat/completions?api-version={}",
             resource_name, deployment_name, api_version
@@ -197,49 +194,21 @@ impl Provider {
         Ok(Provider {
             id: ProviderId::Azure,
             response: ProviderResponse::OpenAI,
-            url: Url::parse(&base_url)?,
+            url: Url::parse(&chat_url)?,
             key: Some(key.into()),
-            model_url: Some(Url::parse(&model_url)?),
-            chat_url: Some(Url::parse(&chat_url)?),
+            model_url: Url::parse(&model_url)?,
         })
     }
 }
 
 impl Provider {
-    /// Converts the provider to it's base URL
-    pub fn to_base_url(&self) -> Url {
+    pub fn get_model_url(&self) -> Url {
+        self.model_url.clone()
+    }
+
+    pub fn get_chat_url(&self) -> Url {
+        // The url field now contains the full chat completion URL
         self.url.clone()
-    }
-
-    pub fn model_url(&self) -> Url {
-        // If a specific model_url is provided, use it
-        if let Some(ref model_url) = self.model_url {
-            return model_url.clone();
-        }
-
-        // Otherwise, fall back to default behavior
-        match &self.response {
-            ProviderResponse::OpenAI => {
-                if self.id == ProviderId::ZaiCoding {
-                    let base_url = Url::parse("https://api.z.ai/api/paas/v4/").unwrap();
-                    base_url.join("models").unwrap()
-                } else {
-                    self.url.join("models").unwrap()
-                }
-            }
-            ProviderResponse::Anthropic => self.url.join("models").unwrap(),
-        }
-    }
-
-    pub fn chat_completion_url(&self) -> Url {
-        // If a specific chat_url is provided, use it
-        if let Some(ref chat_url) = self.chat_url {
-            return chat_url.clone();
-        }
-
-        // Otherwise, fall back to base_url/chat/completions for OpenAI-compatible
-        // providers
-        self.url.join("chat/completions").unwrap()
     }
 }
 
@@ -258,10 +227,9 @@ mod tests {
         let expected = Provider {
             id: ProviderId::Xai,
             response: ProviderResponse::OpenAI,
-            url: Url::from_str("https://api.x.ai/v1/").unwrap(),
+            url: Url::from_str("https://api.x.ai/v1/chat/completions").unwrap(),
             key: Some(fixture.to_string()),
-            model_url: None,
-            chat_url: None,
+            model_url: Url::from_str("https://api.x.ai/v1/models").unwrap(),
         };
         assert_eq!(actual, expected);
     }
@@ -276,64 +244,50 @@ mod tests {
     }
 
     #[test]
-    fn test_zai_coding_to_base_url() {
+    fn test_zai_coding_to_chat_url() {
         let fixture = Provider::zai_coding("test_key");
-        let actual = fixture.to_base_url();
-        let expected = Url::parse("https://api.z.ai/api/coding/v1/").unwrap();
+        let actual = fixture.get_chat_url();
+        let expected = Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap();
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_zai_coding_to_model_url() {
         let fixture = Provider::zai_coding("test_key");
-        let actual = fixture.model_url();
-        let expected = Url::parse("https://api.z.ai/api/paas/v4/")
-            .unwrap()
-            .join("models")
-            .unwrap();
+        let actual = fixture.get_model_url();
+        let expected = Url::parse("https://api.z.ai/api/paas/v4/models").unwrap();
         assert_eq!(actual, expected);
     }
 
     #[test]
-    fn test_regular_zai_to_base_url() {
+    fn test_regular_zai_to_chat_url() {
         let fixture = Provider::zai("test_key");
-        let actual = fixture.to_base_url();
-        let expected = Url::parse("https://api.z.ai/api/paas/v4/").unwrap();
+        let actual = fixture.get_chat_url();
+        let expected = Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap();
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_regular_zai_to_model_url() {
         let fixture = Provider::zai("test_key");
-        let actual = fixture.model_url();
-        let expected = Url::parse("https://api.z.ai/api/paas/v4/")
-            .unwrap()
-            .join("models")
-            .unwrap();
+        let actual = fixture.get_model_url();
+        let expected = Url::parse("https://api.z.ai/api/paas/v4/models").unwrap();
         assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_openai_to_base_url_and_model_url_same() {
-        let fixture = Provider::openai("test_key");
-        let base_url = fixture.to_base_url();
-        let model_url = fixture.model_url();
-        assert_eq!(base_url.join("models").unwrap(), model_url);
     }
 
     #[test]
     fn test_vertex_ai_global_location() {
         let fixture = Provider::vertex_ai("test_token", "forge-452914", "global").unwrap();
-        let actual = fixture.to_base_url();
-        let expected = Url::parse("https://aiplatform.googleapis.com/v1/projects/forge-452914/locations/global/endpoints/openapi/").unwrap();
+        let actual = fixture.get_chat_url();
+        let expected = Url::parse("https://aiplatform.googleapis.com/v1/projects/forge-452914/locations/global/endpoints/openapi/chat/completions").unwrap();
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_vertex_ai_regular_location() {
         let fixture = Provider::vertex_ai("test_token", "test_project", "us-central1").unwrap();
-        let actual = fixture.to_base_url();
-        let expected = Url::parse("https://us-central1-aiplatform.googleapis.com/v1/projects/test_project/locations/us-central1/endpoints/openapi/").unwrap();
+        let actual = fixture.get_chat_url();
+        let expected = Url::parse("https://us-central1-aiplatform.googleapis.com/v1/projects/test_project/locations/us-central1/endpoints/openapi/chat/completions").unwrap();
         assert_eq!(actual, expected);
     }
 
@@ -342,18 +296,13 @@ mod tests {
         let fixture =
             Provider::azure("test_key", "my-resource", "gpt-4", "2024-02-15-preview").unwrap();
 
-        // Check base URL
-        let actual = fixture.to_base_url();
-        let expected = Url::parse("https://my-resource.openai.azure.com/openai/").unwrap();
-        assert_eq!(actual, expected);
-
-        // Check chat completion URL
-        let actual_chat = fixture.chat_completion_url();
+        // Check chat completion URL (url field now contains the chat completion URL)
+        let actual_chat = fixture.get_chat_url();
         let expected_chat = Url::parse("https://my-resource.openai.azure.com/openai/deployments/gpt-4/chat/completions?api-version=2024-02-15-preview").unwrap();
         assert_eq!(actual_chat, expected_chat);
 
         // Check model URL
-        let actual_model = fixture.model_url();
+        let actual_model = fixture.get_model_url();
         let expected_model = Url::parse(
             "https://my-resource.openai.azure.com/openai/models?api-version=2024-02-15-preview",
         )
@@ -369,18 +318,13 @@ mod tests {
         let fixture =
             Provider::azure("another_key", "east-us", "gpt-35-turbo", "2023-05-15").unwrap();
 
-        // Check base URL
-        let actual = fixture.to_base_url();
-        let expected = Url::parse("https://east-us.openai.azure.com/openai/").unwrap();
-        assert_eq!(actual, expected);
-
         // Check chat completion URL
-        let actual_chat = fixture.chat_completion_url();
+        let actual_chat = fixture.get_chat_url();
         let expected_chat = Url::parse("https://east-us.openai.azure.com/openai/deployments/gpt-35-turbo/chat/completions?api-version=2023-05-15").unwrap();
         assert_eq!(actual_chat, expected_chat);
 
         // Check model URL
-        let actual_model = fixture.model_url();
+        let actual_model = fixture.get_model_url();
         let expected_model =
             Url::parse("https://east-us.openai.azure.com/openai/models?api-version=2023-05-15")
                 .unwrap();

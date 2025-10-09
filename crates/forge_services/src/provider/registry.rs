@@ -17,10 +17,7 @@ struct ProviderConfig {
     url_param_vars: Vec<String>,
     response_type: ProviderResponse,
     url: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    model_url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    chat_url: Option<String>,
+    model_url: String,
 }
 
 static HANDLEBARS: OnceLock<Handlebars<'static>> = OnceLock::new();
@@ -127,40 +124,19 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
         };
 
         // Render optional model_url if present
-        let model_url = if let Some(model_url_template) = &config.model_url {
-            Some(Url::parse(
-                &self
-                    .handlebars
-                    .render_template(model_url_template, &template_data)
-                    .map_err(|e| {
-                        anyhow::anyhow!(
-                            "Failed to render model_url template for {}: {}",
-                            config.id,
-                            e
-                        )
-                    })?,
-            )?)
-        } else {
-            None
-        };
-
-        // Render optional chat_url if present
-        let chat_url = if let Some(chat_url_template) = &config.chat_url {
-            Some(Url::parse(
-                &self
-                    .handlebars
-                    .render_template(chat_url_template, &template_data)
-                    .map_err(|e| {
-                        anyhow::anyhow!(
-                            "Failed to render chat_url template for {}: {}",
-                            config.id,
-                            e
-                        )
-                    })?,
-            )?)
-        } else {
-            None
-        };
+        let model_url_template = &config.model_url;
+        let model_url = Url::parse(
+            &self
+                .handlebars
+                .render_template(model_url_template, &template_data)
+                .map_err(|e| {
+                    anyhow::anyhow!(
+                        "Failed to render model_url template for {}: {}",
+                        config.id,
+                        e
+                    )
+                })?,
+        )?;
 
         Ok(Provider {
             id: config.id,
@@ -168,7 +144,6 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
             url: final_url,
             key: Some(api_key),
             model_url,
-            chat_url,
         })
     }
 
@@ -297,7 +272,10 @@ mod tests {
         assert_eq!(openrouter_config.api_key_vars, "OPENROUTER_API_KEY");
         assert_eq!(openrouter_config.url_param_vars, Vec::<String>::new());
         assert_eq!(openrouter_config.response_type, ProviderResponse::OpenAI);
-        assert_eq!(openrouter_config.url, "https://openrouter.ai/api/v1/");
+        assert_eq!(
+            openrouter_config.url,
+            "https://openrouter.ai/api/v1/chat/completions"
+        );
     }
 
     #[test]
@@ -311,7 +289,7 @@ mod tests {
         assert_eq!(config.api_key_vars, "OPENROUTER_API_KEY");
         assert_eq!(config.url_param_vars, Vec::<String>::new());
         assert_eq!(config.response_type, ProviderResponse::OpenAI);
-        assert_eq!(config.url, "https://openrouter.ai/api/v1/");
+        assert_eq!(config.url, "https://openrouter.ai/api/v1/chat/completions");
     }
 
     #[test]
@@ -371,25 +349,16 @@ mod tests {
         );
         assert_eq!(config.response_type, ProviderResponse::OpenAI);
 
-        // Check base URL
+        // Check URL (now contains full chat completion URL)
         assert!(config.url.contains("{{"));
         assert!(config.url.contains("}}"));
         assert!(config.url.contains("openai.azure.com"));
-
-        // Check chat_url exists and contains expected elements
-        let chat_url = config
-            .chat_url
-            .as_ref()
-            .expect("chat_url should be present");
-        assert!(chat_url.contains("api-version"));
-        assert!(chat_url.contains("deployments"));
-        assert!(chat_url.contains("chat/completions"));
+        assert!(config.url.contains("api-version"));
+        assert!(config.url.contains("deployments"));
+        assert!(config.url.contains("chat/completions"));
 
         // Check model_url exists and contains expected elements
-        let model_url = config
-            .model_url
-            .as_ref()
-            .expect("model_url should be present");
+        let model_url = config.model_url.clone();
         assert!(model_url.contains("api-version"));
         assert!(model_url.contains("/models"));
     }
@@ -520,22 +489,15 @@ mod tests {
         assert_eq!(provider.id, ProviderId::Azure);
         assert_eq!(provider.key, Some("test-key-123".to_string()));
 
-        // Check base URL
-        let base_url = provider.to_base_url();
-        assert_eq!(
-            base_url.as_str(),
-            "https://my-test-resource.openai.azure.com/openai/"
-        );
-
-        // Check chat completion URL
-        let chat_url = provider.chat_completion_url();
+        // Check chat completion URL (url field now contains the chat completion URL)
+        let chat_url = provider.get_chat_url();
         assert_eq!(
             chat_url.as_str(),
             "https://my-test-resource.openai.azure.com/openai/deployments/gpt-4-deployment/chat/completions?api-version=2024-02-01-preview"
         );
 
         // Check model URL
-        let model_url = provider.model_url();
+        let model_url = provider.get_model_url();
         assert_eq!(
             model_url.as_str(),
             "https://my-test-resource.openai.azure.com/openai/models?api-version=2024-02-01-preview"

@@ -54,12 +54,13 @@ impl ClientBuilder {
                 http.clone(),
             ))),
 
-            ProviderResponse::Anthropic => InnerClient::Anthropic(Anthropic::new(
+            ProviderResponse::Anthropic => InnerClient::Anthropic(Box::new(Anthropic::new(
                 http.clone(),
                 provider.key.clone().unwrap_or_default(),
-                provider.to_base_url().to_string(),
+                provider.get_chat_url(),
+                provider.get_model_url(),
                 "2023-06-01".to_string(),
-            )),
+            ))),
         };
 
         Ok(Client {
@@ -88,7 +89,7 @@ impl<T> Clone for Client<T> {
 
 enum InnerClient<T> {
     OpenAICompat(Box<OpenAIProvider<T>>),
-    Anthropic(Anthropic<T>),
+    Anthropic(Box<Anthropic<T>>),
 }
 
 impl<T: HttpClientService> Client<T> {
@@ -230,10 +231,9 @@ mod tests {
         let provider = Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.openai.com/v1/").unwrap(),
+            url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some("test-key".to_string()),
-            model_url: None,
-            chat_url: None,
+            model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
         };
         let client = ClientBuilder::new(provider, "dev")
             .build(Arc::new(MockHttpClient))
@@ -249,10 +249,9 @@ mod tests {
         let provider = Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.openai.com/v1/").unwrap(),
+            url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some("test-key".to_string()),
-            model_url: None,
-            chat_url: None,
+            model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
         };
         let client = ClientBuilder::new(provider, "dev")
             .build(Arc::new(MockHttpClient))
@@ -270,10 +269,9 @@ mod tests {
         let provider = Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.openai.com/v1/").unwrap(),
+            url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some("test-key".to_string()),
-            model_url: None,
-            chat_url: None,
+            model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
         };
 
         // Test the builder pattern API
@@ -294,10 +292,9 @@ mod tests {
         let provider = Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.openai.com/v1/").unwrap(),
+            url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some("test-key".to_string()),
-            model_url: None,
-            chat_url: None,
+            model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
         };
 
         // Test that ClientBuilder::new works with minimal parameters
