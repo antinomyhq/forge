@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use forge_domain::{LineNumbers, TitleFormat, ToolCallContext, ToolCallFull, ToolOutput, Tools};
@@ -8,8 +9,8 @@ use crate::services::ShellService;
 use crate::utils::format_display_path;
 use crate::{
     ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
-    FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService,
-    PlanCreateService, PolicyService,
+    FsReadService, FsRemoveService, FsSearchService, FsUndoService, ModificationService,
+    NetFetchService, PlanCreateService, PolicyService,
 };
 
 pub struct ToolExecutor<S> {
@@ -29,7 +30,8 @@ impl<
         + ConversationService
         + EnvironmentService
         + PlanCreateService
-        + PolicyService,
+        + PolicyService
+        + ModificationService,
 > ToolExecutor<S>
 {
     pub fn new(services: Arc<S>) -> Self {
@@ -138,6 +140,10 @@ impl<
     async fn call_internal(&self, input: Tools) -> anyhow::Result<ToolOperation> {
         Ok(match input {
             Tools::Read(input) => {
+                let modified = self
+                    .services
+                    .detect_file_modification(&PathBuf::from(&input.path))
+                    .await?;
                 let output = self
                     .services
                     .read(
@@ -145,7 +151,8 @@ impl<
                         input.start_line.map(|i| i as u64),
                         input.end_line.map(|i| i as u64),
                     )
-                    .await?;
+                    .await?
+                    .externally_modified(modified);
                 let output = if input.show_line_numbers {
                     let numbered_content = output
                         .content
@@ -159,6 +166,11 @@ impl<
                 (input, output).into()
             }
             Tools::Write(input) => {
+                let modified = self
+                    .services
+                    .detect_file_modification(&PathBuf::from(&input.path))
+                    .await?;
+
                 let output = self
                     .services
                     .create(
@@ -167,7 +179,8 @@ impl<
                         input.overwrite,
                         true,
                     )
-                    .await?;
+                    .await?
+                    .externally_modified(modified);
                 (input, output).into()
             }
             Tools::Search(input) => {
@@ -186,6 +199,11 @@ impl<
                 (input, output).into()
             }
             Tools::Patch(input) => {
+                let modified = self
+                    .services
+                    .detect_file_modification(&PathBuf::from(&input.path))
+                    .await?;
+
                 let output = self
                     .services
                     .patch(
@@ -194,7 +212,9 @@ impl<
                         input.operation.clone(),
                         input.content.clone(),
                     )
-                    .await?;
+                    .await?
+                    .externally_modified(modified);
+
                 (input, output).into()
             }
             Tools::Undo(input) => {

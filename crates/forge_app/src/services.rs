@@ -17,13 +17,13 @@ use crate::Walker;
 use crate::dto::{InitAuth, LoginInfo, Provider, ProviderId};
 use crate::user::{User, UserUsage};
 
-#[derive(Debug)]
+#[derive(Debug, Setters)]
 pub struct ShellOutput {
     pub output: CommandOutput,
     pub shell: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Setters)]
 pub struct PatchOutput {
     pub warning: Option<String>,
     pub before: String,
@@ -60,12 +60,12 @@ impl Content {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Setters)]
 pub struct SearchResult {
     pub matches: Vec<Match>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Setters)]
 pub struct Match {
     pub path: String,
     pub result: Option<MatchResult>,
@@ -77,7 +77,7 @@ pub enum MatchResult {
     Found { line_number: usize, line: String },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Setters)]
 pub struct HttpResponse {
     pub content: String,
     pub code: u16,
@@ -91,7 +91,7 @@ pub enum ResponseContext {
     Raw,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Setters)]
 pub struct FsCreateOutput {
     pub path: String,
     // Set when the file already exists
@@ -100,13 +100,13 @@ pub struct FsCreateOutput {
     pub externally_modified: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Setters)]
 pub struct FsRemoveOutput {
     // Content of the file
     pub content: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Setters)]
 pub struct PlanCreateOutput {
     pub path: PathBuf,
     // Set when the file already exists
@@ -119,7 +119,7 @@ pub struct FsUndoOutput {
     pub after_undo: Option<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Setters)]
 pub struct PolicyDecision {
     pub allowed: bool,
     pub path: Option<PathBuf>,
@@ -395,7 +395,7 @@ pub trait ModificationService: Send + Sync {
     ///
     /// # Errors
     /// Returns an error if reading the file or snapshot fails
-    async fn detect(&self, path: &Path) -> anyhow::Result<bool>;
+    async fn detect_file_modification(&self, path: &PathBuf) -> anyhow::Result<bool>;
 }
 
 /// Core app trait providing access to services and repositories.
@@ -817,7 +817,7 @@ impl<I: Services> PolicyService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> ModificationService for I {
-    async fn detect(&self, path: &Path) -> anyhow::Result<bool> {
-        self.modification_service().detect(path).await
+    async fn detect_file_modification(&self, path: &PathBuf) -> anyhow::Result<bool> {
+        self.modification_service().detect_file_modification(path).await
     }
 }

@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::PathBuf;
 
 use crate::{FileReaderInfra, SnapshotInfra};
 
@@ -16,7 +16,7 @@ impl<F> ForgeModificationService<F> {
 impl<F: FileReaderInfra + SnapshotInfra> forge_app::ModificationService
     for ForgeModificationService<F>
 {
-    async fn detect(&self, path: &Path) -> anyhow::Result<bool> {
+    async fn detect_file_modification(&self, path: &PathBuf) -> anyhow::Result<bool> {
         // Read current file content as bytes
         let current_content = self.0.read(path).await?;
 
