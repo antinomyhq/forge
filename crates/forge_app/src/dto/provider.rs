@@ -1,4 +1,3 @@
-use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter, EnumString};
 use url::Url;
@@ -45,8 +44,7 @@ pub enum ProviderResponse {
 }
 
 /// Providers that can be used.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Setters)]
-#[setters(strip_option, into)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Provider {
     pub id: ProviderId,
     pub response: ProviderResponse,
