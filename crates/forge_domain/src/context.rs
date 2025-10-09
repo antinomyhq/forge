@@ -477,43 +477,6 @@ impl Context {
         None
     }
 
-    /// Detects if the conversation was interrupted before completion.
-    ///
-    /// A conversation is considered interrupted if:
-    /// - The last message is from the assistant without an attempt_completion
-    /// - The last message has incomplete tool calls
-    ///
-    /// # Returns
-    /// - `Some(InterruptionInfo)` if an interruption is detected
-    /// - `None` if the conversation appears complete or empty
-    pub fn detect_interruption(&self) -> Option<crate::InterruptionInfo> {
-        if let Some((_index, message)) = self
-            .messages
-            .iter()
-            .enumerate()
-            .rev()
-            .find(|(_, msg)| matches!(msg, ContextMessage::Text(_)))
-            && let ContextMessage::Text(text_message) = message
-            && text_message.role == Role::Assistant
-        {
-            // Check if this assistant message has attempt_completion
-            let has_attempt_completion = text_message
-                .tool_calls
-                .as_ref()
-                .map(|calls| {
-                    calls
-                        .iter()
-                        .any(|call| crate::Tools::is_attempt_completion(&call.name))
-                })
-                .unwrap_or(false);
-
-            if !has_attempt_completion {
-                return Some(crate::InterruptionInfo { reason: "User Interruption".to_string() });
-            }
-        }
-        None
-    }
-
     /// Gets a comprehensive summary of the conversation state.
     ///
     /// This method orchestrates the extraction of:
@@ -532,9 +495,7 @@ impl Context {
             })
             .unwrap_or((None, None));
 
-        let interruption = self.detect_interruption();
-
-        crate::ConversationSummary { user_message, completion, interruption }
+        crate::ConversationSummary { user_message, completion }
     }
 
     /// Checks if reasoning is enabled by user or not.
@@ -998,7 +959,6 @@ mod tests {
         let actual = fixture.get_summary();
 
         assert!(actual.completion.is_none());
-        assert!(actual.interruption.is_some());
     }
 
     #[test]
@@ -1047,42 +1007,6 @@ mod tests {
     }
 
     #[test]
-    fn test_detect_interruption_with_incomplete_assistant_message() {
-        let fixture = Context::default()
-            .add_message(ContextMessage::user("Do something", None))
-            .add_message(ContextMessage::assistant("Working on it...", None, None));
-
-        let actual = fixture.detect_interruption();
-
-        assert!(actual.is_some());
-        assert_eq!(actual.unwrap().reason, "User Interruption");
-    }
-
-    #[test]
-    fn test_detect_interruption_with_completed_conversation() {
-        let fixture = Context::default()
-            .add_message(ContextMessage::user("Help me", None))
-            .add_message(ContextMessage::assistant(
-                "Done",
-                None,
-                Some(completion_tool("Completed")),
-            ));
-
-        let actual = fixture.detect_interruption();
-
-        assert!(actual.is_none());
-    }
-
-    #[test]
-    fn test_detect_interruption_empty_context() {
-        let fixture = Context::default();
-
-        let actual = fixture.detect_interruption();
-
-        assert!(actual.is_none());
-    }
-
-    #[test]
     fn test_get_summary_complete_conversation() {
         let fixture = Context::default()
             .add_message(ContextMessage::user("Create a file", None))
@@ -1099,7 +1023,6 @@ mod tests {
             actual.completion.unwrap().result,
             "File test.txt created successfully"
         );
-        assert!(actual.interruption.is_none());
     }
 
     #[test]
@@ -1112,7 +1035,6 @@ mod tests {
 
         assert!(actual.user_message.is_none());
         assert!(actual.completion.is_none());
-        assert!(actual.interruption.is_some());
     }
 
     #[test]
@@ -1123,6 +1045,5 @@ mod tests {
 
         assert!(actual.user_message.is_none());
         assert!(actual.completion.is_none());
-        assert!(actual.interruption.is_none());
     }
 }

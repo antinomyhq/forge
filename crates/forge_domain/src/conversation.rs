@@ -150,7 +150,6 @@ mod tests {
             summary.completion.unwrap().result,
             "# Task Complete\n\nFile created successfully"
         );
-        assert!(summary.interruption.is_none());
     }
 
     #[test]
@@ -166,6 +165,5 @@ mod tests {
         assert!(actual.is_some());
         let summary = actual.unwrap();
         assert!(summary.completion.is_none());
-        assert!(summary.interruption.is_some());
     }
 }

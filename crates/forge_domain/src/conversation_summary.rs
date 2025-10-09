@@ -21,6 +21,4 @@ pub struct ConversationSummary {
     pub user_message: Option<String>,
     /// Information about the last attempt completion (if any)
     pub completion: Option<AttemptCompletionInfo>,
-    /// Information about an interruption (if detected)
-    pub interruption: Option<InterruptionInfo>,
 }
