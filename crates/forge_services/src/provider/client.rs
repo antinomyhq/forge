@@ -57,8 +57,8 @@ impl ClientBuilder {
             ProviderResponse::Anthropic => InnerClient::Anthropic(Box::new(Anthropic::new(
                 http.clone(),
                 provider.key.clone().unwrap_or_default(),
-                provider.get_chat_url(),
-                provider.get_model_url(),
+                provider.url,
+                provider.model_url,
                 "2023-06-01".to_string(),
             ))),
         };

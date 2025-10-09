@@ -1,3 +1,4 @@
+use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter, EnumString};
 use url::Url;
@@ -44,24 +45,13 @@ pub enum ProviderResponse {
 }
 
 /// Providers that can be used.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Setters)]
 pub struct Provider {
     pub id: ProviderId,
     pub response: ProviderResponse,
     pub url: Url,
     pub key: Option<String>,
     pub model_url: Url,
-}
-
-impl Provider {
-    pub fn get_model_url(&self) -> Url {
-        self.model_url.clone()
-    }
-
-    pub fn get_chat_url(&self) -> Url {
-        // The url field now contains the full chat completion URL
-        self.url.clone()
-    }
 }
 
 #[cfg(test)]
@@ -206,7 +196,7 @@ mod tests {
     #[test]
     fn test_zai_coding_to_chat_url() {
         let fixture = zai_coding("test_key");
-        let actual = fixture.get_chat_url();
+        let actual = fixture.url.clone();
         let expected = Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap();
         assert_eq!(actual, expected);
     }
@@ -214,7 +204,7 @@ mod tests {
     #[test]
     fn test_zai_coding_to_model_url() {
         let fixture = zai_coding("test_key");
-        let actual = fixture.get_model_url();
+        let actual = fixture.model_url.clone();
         let expected = Url::parse("https://api.z.ai/api/paas/v4/models").unwrap();
         assert_eq!(actual, expected);
     }
@@ -222,7 +212,7 @@ mod tests {
     #[test]
     fn test_regular_zai_to_chat_url() {
         let fixture = zai("test_key");
-        let actual = fixture.get_chat_url();
+        let actual = fixture.url.clone();
         let expected = Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap();
         assert_eq!(actual, expected);
     }
@@ -230,7 +220,7 @@ mod tests {
     #[test]
     fn test_regular_zai_to_model_url() {
         let fixture = zai("test_key");
-        let actual = fixture.get_model_url();
+        let actual = fixture.model_url.clone();
         let expected = Url::parse("https://api.z.ai/api/paas/v4/models").unwrap();
         assert_eq!(actual, expected);
     }
@@ -238,7 +228,7 @@ mod tests {
     #[test]
     fn test_vertex_ai_global_location() {
         let fixture = vertex_ai("test_token", "forge-452914", "global");
-        let actual = fixture.get_chat_url();
+        let actual = fixture.url.clone();
         let expected = Url::parse("https://aiplatform.googleapis.com/v1/projects/forge-452914/locations/global/endpoints/openapi/chat/completions").unwrap();
         assert_eq!(actual, expected);
     }
@@ -246,7 +236,7 @@ mod tests {
     #[test]
     fn test_vertex_ai_regular_location() {
         let fixture = vertex_ai("test_token", "test_project", "us-central1");
-        let actual = fixture.get_chat_url();
+        let actual = fixture.url.clone();
         let expected = Url::parse("https://us-central1-aiplatform.googleapis.com/v1/projects/test_project/locations/us-central1/endpoints/openapi/chat/completions").unwrap();
         assert_eq!(actual, expected);
     }
@@ -256,12 +246,12 @@ mod tests {
         let fixture = azure("test_key", "my-resource", "gpt-4", "2024-02-15-preview");
 
         // Check chat completion URL (url field now contains the chat completion URL)
-        let actual_chat = fixture.get_chat_url();
+        let actual_chat = fixture.url.clone();
         let expected_chat = Url::parse("https://my-resource.openai.azure.com/openai/deployments/gpt-4/chat/completions?api-version=2024-02-15-preview").unwrap();
         assert_eq!(actual_chat, expected_chat);
 
         // Check model URL
-        let actual_model = fixture.get_model_url();
+        let actual_model = fixture.model_url.clone();
         let expected_model = Url::parse(
             "https://my-resource.openai.azure.com/openai/models?api-version=2024-02-15-preview",
         )
@@ -277,12 +267,12 @@ mod tests {
         let fixture = azure("another_key", "east-us", "gpt-35-turbo", "2023-05-15");
 
         // Check chat completion URL
-        let actual_chat = fixture.get_chat_url();
+        let actual_chat = fixture.url.clone();
         let expected_chat = Url::parse("https://east-us.openai.azure.com/openai/deployments/gpt-35-turbo/chat/completions?api-version=2023-05-15").unwrap();
         assert_eq!(actual_chat, expected_chat);
 
         // Check model URL
-        let actual_model = fixture.get_model_url();
+        let actual_model = fixture.model_url.clone();
         let expected_model =
             Url::parse("https://east-us.openai.azure.com/openai/models?api-version=2023-05-15")
                 .unwrap();

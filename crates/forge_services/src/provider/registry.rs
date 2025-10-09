@@ -490,14 +490,14 @@ mod tests {
         assert_eq!(provider.key, Some("test-key-123".to_string()));
 
         // Check chat completion URL (url field now contains the chat completion URL)
-        let chat_url = provider.get_chat_url();
+        let chat_url = provider.url;
         assert_eq!(
             chat_url.as_str(),
             "https://my-test-resource.openai.azure.com/openai/deployments/gpt-4-deployment/chat/completions?api-version=2024-02-01-preview"
         );
 
         // Check model URL
-        let model_url = provider.get_model_url();
+        let model_url = provider.model_url;
         assert_eq!(
             model_url.as_str(),
             "https://my-test-resource.openai.azure.com/openai/models?api-version=2024-02-01-preview"

@@ -50,7 +50,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
                 request.session_id.clone().unwrap(),
             ));
             debug!(
-                provider = %self.provider.get_chat_url(),
+                provider = %self.provider.url,
                 session_id = %request.session_id.as_ref().unwrap(),
                 "Added Session-Id header for zai provider"
             );
@@ -68,7 +68,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         let mut pipeline = ProviderPipeline::new(&self.provider);
         request = pipeline.transform(request);
 
-        let url = self.provider.get_chat_url();
+        let url = self.provider.url.clone();
         let headers = create_headers(self.get_headers_with_request(&request));
 
         info!(
@@ -100,7 +100,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
             debug!("Loading Vertex AI models from static JSON file");
             Ok(self.inner_vertex_models())
         } else {
-            let url = self.provider.get_model_url();
+            let url = self.provider.model_url.clone();
             debug!(url = %url, "Fetching models");
             match self.fetch_models(url.as_str()).await {
                 Err(error) => {
