@@ -818,6 +818,8 @@ impl<I: Services> PolicyService for I {
 #[async_trait::async_trait]
 impl<I: Services> ModificationService for I {
     async fn detect_file_modification(&self, path: &PathBuf) -> anyhow::Result<bool> {
-        self.modification_service().detect_file_modification(path).await
+        self.modification_service()
+            .detect_file_modification(path)
+            .await
     }
 }
