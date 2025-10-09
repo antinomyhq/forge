@@ -180,12 +180,54 @@ mod tests {
     use anyhow::Context;
     use bytes::Bytes;
     use forge_app::HttpClientService;
-    use forge_app::dto::{ProviderId, ProviderResponse};
+    use forge_app::dto::{Provider, ProviderId, ProviderResponse};
     use reqwest::header::HeaderMap;
     use reqwest_eventsource::EventSource;
+    use url::Url;
 
     use super::*;
     use crate::provider::mock_server::{MockServer, normalize_ports};
+
+    // Test helper functions
+    fn openai(key: &str) -> Provider {
+        Provider {
+            id: ProviderId::OpenAI,
+            response: ProviderResponse::OpenAI,
+            url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
+            key: Some(key.into()),
+            model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
+        }
+    }
+
+    fn zai(key: &str) -> Provider {
+        Provider {
+            id: ProviderId::Zai,
+            response: ProviderResponse::OpenAI,
+            url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
+            key: Some(key.into()),
+            model_url: Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+        }
+    }
+
+    fn zai_coding(key: &str) -> Provider {
+        Provider {
+            id: ProviderId::ZaiCoding,
+            response: ProviderResponse::OpenAI,
+            url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
+            key: Some(key.into()),
+            model_url: Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+        }
+    }
+
+    fn anthropic(key: &str) -> Provider {
+        Provider {
+            id: ProviderId::Anthropic,
+            response: ProviderResponse::Anthropic,
+            url: Url::parse("https://api.anthropic.com/v1/messages").unwrap(),
+            key: Some(key.into()),
+            model_url: Url::parse("https://api.anthropic.com/v1/models").unwrap(),
+        }
+    }
 
     // Mock implementation of HttpClientService for testing
     #[derive(Clone)]
@@ -384,7 +426,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_headers_with_request_zai_provider() -> anyhow::Result<()> {
-        let provider = Provider::zai("test-key");
+        let provider = zai("test-key");
         let http_client = Arc::new(MockHttpClient::new());
         let openai_provider = OpenAIProvider::new(provider, http_client);
 
@@ -411,7 +453,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_headers_with_request_zai_coding_provider() -> anyhow::Result<()> {
-        let provider = Provider::zai_coding("test-key");
+        let provider = zai_coding("test-key");
         let http_client = Arc::new(MockHttpClient::new());
         let openai_provider = OpenAIProvider::new(provider, http_client);
 
@@ -438,7 +480,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_headers_with_request_openai_provider() -> anyhow::Result<()> {
-        let provider = Provider::openai("test-key");
+        let provider = openai("test-key");
         let http_client = Arc::new(MockHttpClient::new());
         let openai_provider = OpenAIProvider::new(provider, http_client);
 
@@ -461,7 +503,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_headers_with_request_zai_provider_no_session_id() -> anyhow::Result<()> {
-        let provider = Provider::zai("test-key");
+        let provider = zai("test-key");
         let http_client = Arc::new(MockHttpClient::new());
         let openai_provider = OpenAIProvider::new(provider, http_client);
 
@@ -483,7 +525,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_headers_with_request_anthropic_provider() -> anyhow::Result<()> {
-        let provider = Provider::anthropic("test-key");
+        let provider = anthropic("test-key");
         let http_client = Arc::new(MockHttpClient::new());
         let openai_provider = OpenAIProvider::new(provider, http_client);
 
@@ -506,7 +548,7 @@ mod tests {
 
     #[test]
     fn test_get_headers_fallback() -> anyhow::Result<()> {
-        let provider = Provider::zai("test-key");
+        let provider = zai("test-key");
         let http_client = Arc::new(MockHttpClient::new());
         let openai_provider = OpenAIProvider::new(provider, http_client);
 
