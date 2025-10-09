@@ -939,6 +939,14 @@ mod tests {
         );
     }
 
+    fn completion_tool(result: &str) -> Vec<ToolCallFull> {
+        vec![ToolCallFull {
+            name: crate::ToolName::new("attempt_completion"),
+            call_id: Some(crate::ToolCallId::new("call1")),
+            arguments: crate::ToolCallArguments::from(serde_json::json!({"result": result})),
+        }]
+    }
+
     #[test]
     fn test_get_summary_with_completion() {
         let fixture = Context::default()
@@ -946,13 +954,7 @@ mod tests {
             .add_message(ContextMessage::assistant(
                 "I'll help you",
                 None,
-                Some(vec![ToolCallFull {
-                    name: crate::ToolName::new("attempt_completion"),
-                    call_id: Some(crate::ToolCallId::new("call1")),
-                    arguments: crate::ToolCallArguments::from(serde_json::json!({
-                        "result": "Task completed successfully"
-                    })),
-                }]),
+                Some(completion_tool("Task completed successfully")),
             ));
 
         let actual = fixture.get_summary();
@@ -972,30 +974,17 @@ mod tests {
             .add_message(ContextMessage::assistant(
                 "First response",
                 None,
-                Some(vec![ToolCallFull {
-                    name: crate::ToolName::new("attempt_completion"),
-                    call_id: Some(crate::ToolCallId::new("call1")),
-                    arguments: crate::ToolCallArguments::from(serde_json::json!({
-                        "result": "First completion"
-                    })),
-                }]),
+                Some(completion_tool("First completion")),
             ))
             .add_message(ContextMessage::user("Second task", None))
             .add_message(ContextMessage::assistant(
                 "Second response",
                 None,
-                Some(vec![ToolCallFull {
-                    name: crate::ToolName::new("attempt_completion"),
-                    call_id: Some(crate::ToolCallId::new("call2")),
-                    arguments: crate::ToolCallArguments::from(serde_json::json!({
-                        "result": "Second completion"
-                    })),
-                }]),
+                Some(completion_tool("Second completion")),
             ));
 
         let actual = fixture.get_summary();
 
-        assert!(actual.completion.is_some());
         assert_eq!(actual.completion.unwrap().result, "Second completion");
         assert_eq!(actual.user_message, Some("Second task".to_string()));
     }
@@ -1076,13 +1065,7 @@ mod tests {
             .add_message(ContextMessage::assistant(
                 "Done",
                 None,
-                Some(vec![ToolCallFull {
-                    name: crate::ToolName::new("attempt_completion"),
-                    call_id: Some(crate::ToolCallId::new("call1")),
-                    arguments: crate::ToolCallArguments::from(serde_json::json!({
-                        "result": "Completed"
-                    })),
-                }]),
+                Some(completion_tool("Completed")),
             ));
 
         let actual = fixture.detect_interruption();
@@ -1106,21 +1089,14 @@ mod tests {
             .add_message(ContextMessage::assistant(
                 "File created",
                 None,
-                Some(vec![ToolCallFull {
-                    name: crate::ToolName::new("attempt_completion"),
-                    call_id: Some(crate::ToolCallId::new("call1")),
-                    arguments: crate::ToolCallArguments::from(serde_json::json!({
-                        "result": "File test.txt created successfully"
-                    })),
-                }]),
+                Some(completion_tool("File test.txt created successfully")),
             ));
 
         let actual = fixture.get_summary();
 
         assert_eq!(actual.user_message, Some("Create a file".to_string()));
-        assert!(actual.completion.is_some());
         assert_eq!(
-            actual.completion.as_ref().unwrap().result,
+            actual.completion.unwrap().result,
             "File test.txt created successfully"
         );
         assert!(actual.interruption.is_none());
