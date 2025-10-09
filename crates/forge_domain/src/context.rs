@@ -471,7 +471,9 @@ impl Context {
             if let ContextMessage::Text(text_message) = message
                 && text_message.role == Role::User
             {
-                return Some(&text_message.content);
+                return Some(crate::xml::extract_outermost_tag_or_text(
+                    &text_message.content,
+                ));
             }
         }
         None
