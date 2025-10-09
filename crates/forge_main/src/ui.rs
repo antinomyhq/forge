@@ -761,7 +761,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Some(ConversationSummary { user_message, completion, .. }) => {
                 // Display user message if available
                 if let Some(msg) = user_message {
-                    println!("\x1b[90mUser:\x1b[0m {}\n", msg);
+                    println!("\x1b[1;36mYou:\x1b[0m {}", msg);
+                    println!();
                 }
 
                 // Display completion with markdown rendering
@@ -844,8 +845,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Some(ConversationSummary { user_message, completion, .. }) => {
                 // Display user message if available
                 if let Some(msg) = user_message {
-                    println!("{}", msg);
-                    println!(); // Empty line separator
+                    println!("\x1b[1;36mYou:\x1b[0m {}", msg);
+                    println!();
                 }
 
                 // Display completion with markdown rendering
