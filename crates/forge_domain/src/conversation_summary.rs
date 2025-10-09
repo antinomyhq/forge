@@ -7,13 +7,6 @@ pub struct AttemptCompletionInfo {
     pub result: String,
 }
 
-/// Information about an interruption in a conversation
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InterruptionInfo {
-    /// The reason for the interruption
-    pub reason: String,
-}
-
 /// A summary of a conversation's current state
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConversationSummary {
