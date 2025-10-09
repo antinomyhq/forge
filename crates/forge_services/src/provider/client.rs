@@ -49,9 +49,10 @@ impl ClientBuilder {
         let retry_config = self.retry_config;
 
         let inner = match &provider.response {
-            ProviderResponse::OpenAI => {
-                InnerClient::OpenAICompat(OpenAIProvider::new(provider.clone(), http.clone()))
-            }
+            ProviderResponse::OpenAI => InnerClient::OpenAICompat(Box::new(OpenAIProvider::new(
+                provider.clone(),
+                http.clone(),
+            ))),
 
             ProviderResponse::Anthropic => InnerClient::Anthropic(Anthropic::new(
                 http.clone(),
@@ -86,7 +87,7 @@ impl<T> Clone for Client<T> {
 }
 
 enum InnerClient<T> {
-    OpenAICompat(OpenAIProvider<T>),
+    OpenAICompat(Box<OpenAIProvider<T>>),
     Anthropic(Anthropic<T>),
 }
 
