@@ -449,21 +449,24 @@ impl Context {
         None
     }
 
-    /// Finds the user message that appears before a given message index.
+    /// Finds the message with the specified role that appears before a given
+    /// message index.
     ///
     /// This method walks backward through messages from the given index to find
-    /// the first user message.
+    /// the first message with the specified role.
     ///
     /// # Arguments
     /// * `message_index` - The index to start searching from
+    /// * `role` - The role to search for
     ///
     /// # Returns
-    /// - `Some(&str)` containing the user message content
-    /// - `None` if no user message is found before the given index
-    pub fn find_user_message_before(&self, message_index: usize) -> Option<&str> {
+    /// - `Some(&str)` containing the message content
+    /// - `None` if no message with the specified role is found before the given
+    ///   index
+    pub fn find_message_with_role_before(&self, message_index: usize, role: Role) -> Option<&str> {
         for message in self.messages.iter().take(message_index).rev() {
             if let ContextMessage::Text(text_message) = message
-                && text_message.role == Role::User
+                && text_message.role == role
             {
                 return Some(crate::xml::extract_outermost_tag_or_text(
                     &text_message.content,
@@ -491,7 +494,9 @@ impl Context {
             .map(|(attempt_completion, index)| {
                 let completion_info =
                     crate::AttemptCompletionInfo { result: attempt_completion.result };
-                let user_msg = self.find_user_message_before(index).map(|s| s.to_string());
+                let user_msg = self
+                    .find_message_with_role_before(index, Role::User)
+                    .map(|s| s.to_string());
                 (Some(completion_info), user_msg)
             })
             .unwrap_or((None, None));
@@ -980,7 +985,7 @@ mod tests {
             .add_message(ContextMessage::user("User question", None))
             .add_message(ContextMessage::assistant("Assistant answer", None, None));
 
-        let actual = fixture.find_user_message_before(2);
+        let actual = fixture.find_message_with_role_before(2, Role::User);
 
         assert_eq!(actual, Some("User question"));
     }
@@ -993,9 +998,29 @@ mod tests {
             .add_message(ContextMessage::user("Second question", None))
             .add_message(ContextMessage::assistant("Second answer", None, None));
 
-        let actual = fixture.find_user_message_before(3);
+        let actual = fixture.find_message_with_role_before(3, Role::User);
 
         assert_eq!(actual, Some("Second question"));
+    }
+
+    #[test]
+    fn test_find_message_with_role_before() {
+        let fixture = Context::default()
+            .add_message(ContextMessage::system("System message"))
+            .add_message(ContextMessage::user("User question", None))
+            .add_message(ContextMessage::assistant("Assistant answer", None, None));
+
+        // Test finding system message before assistant message
+        let actual = fixture.find_message_with_role_before(2, Role::System);
+        assert_eq!(actual, Some("System message"));
+
+        // Test finding user message before assistant message
+        let actual = fixture.find_message_with_role_before(2, Role::User);
+        assert_eq!(actual, Some("User question"));
+
+        // Test finding assistant message before assistant message (should be None)
+        let actual = fixture.find_message_with_role_before(2, Role::Assistant);
+        assert_eq!(actual, None);
     }
 
     #[test]
@@ -1004,7 +1029,7 @@ mod tests {
             .add_message(ContextMessage::system("System only"))
             .add_message(ContextMessage::assistant("Assistant only", None, None));
 
-        let actual = fixture.find_user_message_before(1);
+        let actual = fixture.find_message_with_role_before(1, Role::User);
 
         assert!(actual.is_none());
     }
