@@ -421,15 +421,17 @@ impl Context {
             .sum::<usize>()
     }
 
-    /// Finds the last tool call with the specified name and its message index.
-    ///
-    /// This method iterates through messages in reverse order to find the most
-    /// recent assistant message containing a tool call with the specified name.
-    fn find_last_tool_call_with_index<T>(&self, tool_name: &ToolName) -> Option<(T, usize)>
+    /// Finds all tool calls with the specified name in the conversation.
+    /// Returns a vector of tuples containing:
+    /// - The deserialized tool call arguments of type T
+    /// - The message index where the tool call was found
+    fn find_all_tool_calls_with_index<T>(&self, tool_name: &ToolName) -> Vec<(T, usize)>
     where
         T: for<'de> serde::Deserialize<'de>,
     {
-        for (index, message) in self.messages.iter().enumerate().rev() {
+        let mut results = Vec::new();
+
+        for (index, message) in self.messages.iter().enumerate() {
             if let ContextMessage::Text(text_message) = message
                 && text_message.role == Role::Assistant
                 && let Some(tool_calls) = &text_message.tool_calls
@@ -440,29 +442,72 @@ impl Context {
                         if let Ok(parsed_args) =
                             serde_json::from_str::<T>(&tool_call.arguments.clone().into_string())
                         {
-                            return Some((parsed_args, index));
+                            results.push((parsed_args, index));
                         }
                     }
                 }
             }
         }
-        None
+
+        results
+    }
+
+    /// Finds the first (earliest) message with the specified role before a
+    /// given index.
+    /// Searches backward from the specified index to find messages with the
+    /// target role, then returns the FIRST (earliest) one found in that
+    /// range.
+    fn find_first_message_with_role_before(
+        &self,
+        message_index: usize,
+        role: Role,
+    ) -> Option<(&str, usize)> {
+        let mut found_messages = Vec::new();
+
+        // Search backward from the completion index
+        for (index, message) in self.messages.iter().enumerate().take(message_index).rev() {
+            if let ContextMessage::Text(text_message) = message
+                && text_message.role == role
+            {
+                let content = crate::xml::extract_outermost_tag_or_text(&text_message.content);
+                found_messages.push((content, index));
+            } else if !found_messages.is_empty() {
+                // Stop when we hit a non-matching role after finding at least one match
+                // This ensures we only get consecutive messages of the same role
+                break;
+            }
+        }
+
+        // Reverse to get chronological order, then take the first (earliest)
+        found_messages.reverse();
+        found_messages.first().copied()
+    }
+
+    /// Counts the total number of tool calls in messages within a given range.
+    fn count_tool_calls_in_range(&self, start_index: usize, end_index: usize) -> usize {
+        if start_index >= end_index {
+            return 0;
+        }
+
+        self.messages
+            .iter()
+            .enumerate()
+            .skip(start_index + 1)
+            .take(end_index.saturating_sub(start_index + 1))
+            .filter_map(|(_, message)| {
+                if let ContextMessage::Text(text_message) = message
+                    && text_message.role == Role::Assistant
+                {
+                    text_message.tool_calls.as_ref().map(|calls| calls.len())
+                } else {
+                    None
+                }
+            })
+            .sum()
     }
 
     /// Finds the message with the specified role that appears before a given
     /// message index.
-    ///
-    /// This method walks backward through messages from the given index to find
-    /// the first message with the specified role.
-    ///
-    /// # Arguments
-    /// * `message_index` - The index to start searching from
-    /// * `role` - The role to search for
-    ///
-    /// # Returns
-    /// - `Some(&str)` containing the message content
-    /// - `None` if no message with the specified role is found before the given
-    ///   index
     pub fn find_message_with_role_before(&self, message_index: usize, role: Role) -> Option<&str> {
         for message in self.messages.iter().take(message_index).rev() {
             if let ContextMessage::Text(text_message) = message
@@ -477,31 +522,38 @@ impl Context {
     }
 
     /// Gets a comprehensive summary of the conversation state.
-    ///
-    /// This method orchestrates the extraction of:
-    /// - The last attempt completion (if any)
-    /// - The user message that preceded it
-    /// - Any detected interruptions
-    ///
-    /// # Returns
-    /// A `ConversationSummary` with all available information
     pub fn get_summary(&self) -> crate::ConversationSummary {
         let attempt_completion_tool_name = crate::ToolName::new("attempt_completion");
-        let (completion, user_message) = self
-            .find_last_tool_call_with_index::<crate::tools::AttemptCompletion>(
-                &attempt_completion_tool_name,
-            )
-            .map(|(attempt_completion, index)| {
-                let completion_info =
-                    crate::AttemptCompletionInfo { result: attempt_completion.result };
-                let user_msg = self
-                    .find_message_with_role_before(index, Role::User)
-                    .map(|s| s.to_string());
-                (Some(completion_info), user_msg)
-            })
-            .unwrap_or((None, None));
 
-        crate::ConversationSummary { user_message, completion }
+        // Find all attempt_completion tool calls
+        let all_completions = self
+            .find_all_tool_calls_with_index::<crate::tools::AttemptCompletion>(
+                &attempt_completion_tool_name,
+            );
+
+        // Build entries for each completion
+        let entries = all_completions
+            .into_iter()
+            .filter_map(|(attempt_completion, completion_index)| {
+                // Find the first user message before this completion
+                let (user_message, user_index) =
+                    self.find_first_message_with_role_before(completion_index, Role::User)?;
+
+                // Count tool calls between user message and completion (inclusive of
+                // completion)
+                let tool_call_count =
+                    self.count_tool_calls_in_range(user_index, completion_index + 1);
+
+                // Create entry with AttemptCompletionInfo
+                Some(crate::CompletionEntry {
+                    user_message: user_message.to_string(),
+                    completion: crate::AttemptCompletionInfo { result: attempt_completion.result },
+                    tool_call_count,
+                })
+            })
+            .collect();
+
+        crate::ConversationSummary { entries }
     }
 
     /// Checks if reasoning is enabled by user or not.
@@ -926,12 +978,11 @@ mod tests {
 
         let actual = fixture.get_summary();
 
-        assert!(actual.completion.is_some());
-        assert_eq!(
-            actual.completion.unwrap().result,
-            "Task completed successfully"
-        );
-        assert_eq!(actual.user_message, Some("Please help me".to_string()));
+        assert_eq!(actual.entries.len(), 1);
+        let entry = actual.entries.first().unwrap();
+        assert_eq!(entry.user_message, "Please help me");
+        assert_eq!(entry.completion.result, "Task completed successfully");
+        assert_eq!(entry.tool_call_count, 1);
     }
 
     #[test]
@@ -952,8 +1003,19 @@ mod tests {
 
         let actual = fixture.get_summary();
 
-        assert_eq!(actual.completion.unwrap().result, "Second completion");
-        assert_eq!(actual.user_message, Some("Second task".to_string()));
+        assert_eq!(actual.entries.len(), 2);
+
+        // First entry
+        let first_entry = &actual.entries[0];
+        assert_eq!(first_entry.user_message, "First task");
+        assert_eq!(first_entry.completion.result, "First completion");
+        assert_eq!(first_entry.tool_call_count, 1);
+
+        // Second entry
+        let second_entry = &actual.entries[1];
+        assert_eq!(second_entry.user_message, "Second task");
+        assert_eq!(second_entry.completion.result, "Second completion");
+        assert_eq!(second_entry.tool_call_count, 1);
     }
 
     #[test]
@@ -964,18 +1026,7 @@ mod tests {
 
         let actual = fixture.get_summary();
 
-        assert!(actual.completion.is_none());
-    }
-
-    #[test]
-    fn test_find_last_tool_call_empty_context() {
-        let fixture = Context::default();
-        let tool_name = crate::ToolName::new("attempt_completion");
-
-        let actual =
-            fixture.find_last_tool_call_with_index::<crate::tools::AttemptCompletion>(&tool_name);
-
-        assert!(actual.is_none());
+        assert_eq!(actual.entries.len(), 0);
     }
 
     #[test]
@@ -1046,11 +1097,14 @@ mod tests {
 
         let actual = fixture.get_summary();
 
-        assert_eq!(actual.user_message, Some("Create a file".to_string()));
+        assert_eq!(actual.entries.len(), 1);
+        let entry = actual.entries.first().unwrap();
+        assert_eq!(entry.user_message, "Create a file");
         assert_eq!(
-            actual.completion.unwrap().result,
+            entry.completion.result,
             "File test.txt created successfully"
         );
+        assert_eq!(entry.tool_call_count, 1);
     }
 
     #[test]
@@ -1061,8 +1115,7 @@ mod tests {
 
         let actual = fixture.get_summary();
 
-        assert!(actual.user_message.is_none());
-        assert!(actual.completion.is_none());
+        assert_eq!(actual.entries.len(), 0);
     }
 
     #[test]
@@ -1071,62 +1124,6 @@ mod tests {
 
         let actual = fixture.get_summary();
 
-        assert!(actual.user_message.is_none());
-        assert!(actual.completion.is_none());
-    }
-
-    #[test]
-    fn test_find_last_tool_call_generic() {
-        let fixture = Context::default()
-            .add_message(ContextMessage::user("Please help me", None))
-            .add_message(ContextMessage::assistant(
-                "I'll help you",
-                None,
-                Some(completion_tool("Task completed successfully")),
-            ));
-
-        // Test the generic method with AttemptCompletion type
-        let tool_name = crate::ToolName::new("attempt_completion");
-        let actual =
-            fixture.find_last_tool_call_with_index::<crate::tools::AttemptCompletion>(&tool_name);
-
-        assert!(actual.is_some());
-        let (attempt_completion, _index) = actual.unwrap();
-        assert_eq!(attempt_completion.result, "Task completed successfully");
-    }
-
-    #[test]
-    fn test_find_last_tool_call_with_index() {
-        let fixture = Context::default()
-            .add_message(ContextMessage::user("Please help me", None))
-            .add_message(ContextMessage::assistant(
-                "I'll help you",
-                None,
-                Some(completion_tool("Task completed successfully")),
-            ));
-
-        // Test the generic method with AttemptCompletion type and index
-        let tool_name = crate::ToolName::new("attempt_completion");
-        let actual =
-            fixture.find_last_tool_call_with_index::<crate::tools::AttemptCompletion>(&tool_name);
-
-        assert!(actual.is_some());
-        let (attempt_completion, index) = actual.unwrap();
-        assert_eq!(attempt_completion.result, "Task completed successfully");
-        assert_eq!(index, 1); // Second message (index 1)
-    }
-
-    #[test]
-    fn test_find_last_tool_call_not_found() {
-        let fixture = Context::default()
-            .add_message(ContextMessage::user("Please help me", None))
-            .add_message(ContextMessage::assistant("I'll help you", None, None));
-
-        // Test the generic method with a tool that doesn't exist
-        let tool_name = crate::ToolName::new("attempt_completion");
-        let actual =
-            fixture.find_last_tool_call_with_index::<crate::tools::AttemptCompletion>(&tool_name);
-
-        assert!(actual.is_none());
+        assert_eq!(actual.entries.len(), 0);
     }
 }

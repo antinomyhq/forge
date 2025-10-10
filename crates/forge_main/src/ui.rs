@@ -758,18 +758,33 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             None => {
                 // Don't show anything for empty conversations
             }
-            Some(ConversationSummary { user_message, completion, .. }) => {
-                // Display user message if available
-                if let Some(msg) = user_message {
-                    println!("\x1b[1;36mYou:\x1b[0m {}", msg);
+            Some(ConversationSummary { entries }) => {
+                // Display all completion entries
+                for (idx, entry) in entries.iter().enumerate() {
+                    // Display user message with icon and BOLD formatting
+                    println!("👤 \x1b[1;37m{}\x1b[0m", entry.user_message);
                     println!();
-                }
 
-                // Display completion with markdown rendering
-                if let Some(comp) = completion {
-                    let rendered = self.markdown.render(&comp.result);
+                    // Show tool call count in dim gray format (like logs)
+                    if entry.tool_call_count > 0 {
+                        println!(
+                            "\x1b[2m🔧 {} tool call(s) used\x1b[0m",
+                            entry.tool_call_count
+                        );
+                        println!();
+                    }
+
+                    // Display completion with icon and markdown rendering
+                    print!("🤖 ");
+                    let rendered = self.markdown.render(&entry.completion.result);
                     println!("{}", rendered);
-                    println!(); // Empty line after completion
+
+                    // Add separator between entries (but not after the last one)
+                    if idx < entries.len() - 1 {
+                        println!();
+                        println!("\x1b[2m{}\x1b[0m", "─".repeat(80));
+                        println!();
+                    }
                 }
             }
         }
@@ -842,17 +857,33 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 // Output nothing for empty conversations - shell will handle
                 // fallback
             }
-            Some(ConversationSummary { user_message, completion, .. }) => {
-                // Display user message if available
-                if let Some(msg) = user_message {
-                    println!("\x1b[1;36mYou:\x1b[0m {}", msg);
+            Some(ConversationSummary { entries }) => {
+                // Display all completion entries
+                for (idx, entry) in entries.iter().enumerate() {
+                    // Display user message with icon and BOLD formatting
+                    println!("👤 \x1b[1;37m{}\x1b[0m", entry.user_message);
                     println!();
-                }
 
-                // Display completion with markdown rendering
-                if let Some(comp) = completion {
-                    let rendered = self.markdown.render(&comp.result);
+                    // Show tool call count in dim gray format (like logs)
+                    if entry.tool_call_count > 0 {
+                        println!(
+                            "\x1b[2m🔧 {} tool call(s) used\x1b[0m",
+                            entry.tool_call_count
+                        );
+                        println!();
+                    }
+
+                    // Display completion with icon and markdown rendering
+                    print!("🤖 ");
+                    let rendered = self.markdown.render(&entry.completion.result);
                     println!("{}", rendered);
+
+                    // Add separator between entries (but not after the last one)
+                    if idx < entries.len() - 1 {
+                        println!();
+                        println!("\x1b[2m{}\x1b[0m", "─".repeat(80));
+                        println!();
+                    }
                 }
             }
         }

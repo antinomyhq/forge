@@ -144,12 +144,14 @@ mod tests {
 
         assert!(actual.is_some());
         let summary = actual.unwrap();
-        assert_eq!(summary.user_message, Some("Create a test file".to_string()));
-        assert!(summary.completion.is_some());
+        assert_eq!(summary.entries.len(), 1);
+        let entry = summary.entries.first().unwrap();
+        assert_eq!(entry.user_message, "Create a test file");
         assert_eq!(
-            summary.completion.unwrap().result,
+            entry.completion.result,
             "# Task Complete\n\nFile created successfully"
         );
+        assert_eq!(entry.tool_call_count, 1);
     }
 
     #[test]
@@ -164,6 +166,6 @@ mod tests {
 
         assert!(actual.is_some());
         let summary = actual.unwrap();
-        assert!(summary.completion.is_none());
+        assert_eq!(summary.entries.len(), 0);
     }
 }
