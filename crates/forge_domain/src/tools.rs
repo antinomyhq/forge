@@ -336,24 +336,6 @@ pub struct Followup {
     pub option5: Option<String>,
 }
 
-/// After each tool use, you will receive the result of
-/// that tool use, i.e. if it succeeded or failed, along with any reasons for
-/// failure. Once you've received the results of tool uses and can confirm that
-/// the task is complete, present the result of your work to
-/// the user in markdown format and call this tool. The user may respond with
-/// feedback if they are not satisfied with the result, which you can use to
-/// make improvements and try again. IMPORTANT NOTE: This tool CANNOT be used
-/// until you've confirmed from the user that any previous tool uses were
-/// successful. Failure to do so will result in code corruption and system
-/// failure. Before using this tool, you must ask yourself if you've confirmed
-/// from the user that any previous tool uses were successful. If not, then DO
-/// NOT use this tool.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-pub struct AttemptCompletion {
-    /// Indicates whether the task was completed successfully.
-    pub success: bool,
-}
-
 /// Creates a new plan file with the specified name, version, and content. Use
 /// this tool to create structured project plans, task breakdowns, or
 /// implementation strategies that can be tracked and referenced throughout
@@ -670,7 +652,7 @@ mod tests {
     fn test_tool_definition_json() {
         let tools = Tools::iter()
             .map(|tool| {
-                let definition = tool.definition();
+                let definition = tool.definition().input_schema;
                 serde_json::to_string_pretty(&definition)
                     .expect("Failed to serialize tool definition to JSON")
             })
