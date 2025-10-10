@@ -83,7 +83,7 @@ pub struct Cli {
     #[arg(long)]
     pub sandbox: Option<String>,
 
-    /// Configure the banner display.
+    /// Configure the banner display for ongoing session.
     ///
     /// Options:
     /// - `default`: Show the default banner (default behavior)
