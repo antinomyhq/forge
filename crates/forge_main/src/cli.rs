@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use forge_domain::AgentId;
@@ -82,6 +83,50 @@ pub struct Cli {
     /// The worktree name will be used as the branch name.
     #[arg(long)]
     pub sandbox: Option<String>,
+
+    /// Configure the banner display.
+    ///
+    /// Options:
+    /// - `default`: Show the default banner (default behavior)
+    /// - `disabled` or `none`: Disable the banner
+    /// - `<path>`: Path to a custom banner file
+    ///
+    /// Examples:
+    /// - `--banner default`
+    /// - `--banner disabled`
+    /// - `--banner ./my-banner.txt`
+    #[arg(long)]
+    pub banner: Option<Banner>,
+}
+
+/// Banner configuration options
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Banner {
+    /// Use a custom banner from a file
+    Custom(PathBuf),
+    /// Use the default banner
+    Default,
+    /// Disable the banner
+    Disabled,
+}
+
+impl FromStr for Banner {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "default" => Ok(Banner::Default),
+            "disabled" | "disable" | "none" | "off" => Ok(Banner::Disabled),
+            path => {
+                let path = PathBuf::from(path);
+                if path.exists() {
+                    Ok(Banner::Custom(path))
+                } else {
+                    Ok(Banner::Default)
+                }
+            }
+        }
+    }
 }
 
 impl Cli {

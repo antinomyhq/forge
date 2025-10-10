@@ -20,7 +20,7 @@ use merge::Merge;
 use tokio_stream::StreamExt;
 use tracing::debug;
 
-use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
+use crate::cli::{Banner, Cli, McpCommand, TopLevelCommand, Transport};
 use crate::cli_format::format_columns;
 use crate::config::ConfigManager;
 use crate::conversation_selector::ConversationSelector;
@@ -71,10 +71,37 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(models)
     }
 
+    /// Displays banner based on CLI configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `cli_mode` - If true, shows CLI-relevant commands with `:` prefix. If
+    ///   false, shows all interactive commands with `/` prefix.
+    ///
+    /// Respects the banner configuration from CLI arguments:
+    /// - If banner is set to Disabled, no banner is shown
+    /// - If banner is set to Custom, shows the custom banner from the file
+    /// - If banner is set to Default or None, shows the default banner
+    fn display_banner_inner(&self, cli_mode: bool) -> Result<()> {
+        match &self.cli.banner {
+            Some(Banner::Disabled) => {
+                Ok(())
+            }
+            Some(Banner::Custom(path)) => {
+                banner::display(cli_mode, Some(path))?;
+                Ok(())
+            }
+            Some(Banner::Default) | None => {
+                banner::display(cli_mode, None)?;
+                Ok(())
+            }
+        }
+    }
+
     /// Displays banner only if user is in interactive mode.
     fn display_banner(&self) -> Result<()> {
         if self.cli.is_interactive() {
-            banner::display(false)?;
+            self.display_banner_inner(false)?;
         }
         Ok(())
     }
@@ -378,7 +405,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 return Ok(());
             }
             TopLevelCommand::ShowBanner => {
-                banner::display(true)?;
+                self.display_banner()?;
                 return Ok(());
             }
             TopLevelCommand::Config(config_group) => {

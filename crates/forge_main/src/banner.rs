@@ -1,4 +1,5 @@
 use std::io;
+use std::path::Path;
 
 use colored::Colorize;
 use forge_tracker::VERSION;
@@ -11,8 +12,19 @@ const BANNER: &str = include_str!("banner");
 ///
 /// * `cli_mode` - If true, shows CLI-relevant commands with `:` prefix. If
 ///   false, shows all interactive commands with `/` prefix.
-pub fn display(cli_mode: bool) -> io::Result<()> {
-    let mut banner = BANNER.to_string();
+/// * `custom_path` - Optional path to a custom banner file. If None, uses the
+///   default banner.
+///
+/// # Errors
+///
+/// Returns an error if the custom banner file cannot be read.
+pub fn display(cli_mode: bool, custom_path: Option<&Path>) -> io::Result<()> {
+    // Load custom banner or use default
+    let mut banner = if let Some(path) = custom_path {
+        std::fs::read_to_string(path)?
+    } else {
+        BANNER.to_string()
+    };
 
     // Always show version
     let version_label = ("Version:", VERSION);
