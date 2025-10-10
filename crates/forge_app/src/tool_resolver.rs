@@ -20,8 +20,7 @@ impl ToolResolver {
     /// and glob patterns (e.g., "fs_*" matches "fs_read", "fs_write").
     /// Filters and deduplicates tool definitions based on agent's tools
     /// configuration. Returns only the tool definitions that are specified
-    /// in the agent's tools list. Automatically includes `attempt_completion`
-    /// tool as it's required for all agents. Maintains deduplication to avoid
+    /// in the agent's tools list. Maintains deduplication to avoid
     /// duplicate tool definitions. Returns tools sorted alphabetically by name.
     /// Returns references to avoid unnecessary cloning.
     pub fn resolve<'a>(&'a self, agent: &Agent) -> Vec<&'a ToolDefinition> {
@@ -270,50 +269,6 @@ mod tests {
         let expected = vec![
             &tool_resolver.all_tool_definitions[0], // fs_read
             &tool_resolver.all_tool_definitions[1], // fs_write
-        ];
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_resolve_always_includes_attempt_completion() {
-        let all_tool_definitions = vec![
-            ToolDefinition::new("read").description("Read Tool"),
-            ToolDefinition::new("write").description("Write Tool"),
-            ToolDefinition::new("attempt_completion").description("Completion Tool"),
-        ];
-
-        let tool_resolver = ToolResolver::new(all_tool_definitions);
-
-        let fixture = Agent::new(AgentId::new("test-agent")).tools(vec![ToolName::new("read")]);
-
-        let actual = tool_resolver.resolve(&fixture);
-        let expected = vec![
-            &tool_resolver.all_tool_definitions[2], // attempt_completion
-            &tool_resolver.all_tool_definitions[0], // read
-        ];
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_resolve_does_not_duplicate_attempt_completion() {
-        let all_tool_definitions = vec![
-            ToolDefinition::new("read").description("Read Tool"),
-            ToolDefinition::new("attempt_completion").description("Completion Tool"),
-        ];
-
-        let tool_resolver = ToolResolver::new(all_tool_definitions);
-
-        let fixture = Agent::new(AgentId::new("test-agent")).tools(vec![
-            ToolName::new("read"),
-            ToolName::new("attempt_completion"),
-        ]);
-
-        let actual = tool_resolver.resolve(&fixture);
-        let expected = vec![
-            &tool_resolver.all_tool_definitions[1], // attempt_completion
-            &tool_resolver.all_tool_definitions[0], // read
         ];
 
         assert_eq!(actual, expected);
