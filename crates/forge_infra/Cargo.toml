@@ -24,6 +24,7 @@ rmcp.workspace = true
 tracing.workspace = true
 backon.workspace = true
 thiserror.workspace = true
+schemars.workspace = true
 forge_app.workspace = true
 forge_walker.workspace = true
 
