@@ -782,7 +782,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     // Add separator between entries (but not after the last one)
                     if idx < entries.len() - 1 {
                         println!();
-                        println!("\x1b[2m{}\x1b[0m", "─".repeat(50));
+                        // Get terminal width, default to 80 if unable to determine
+                        let width = console::Term::stdout().size().1 as usize;
+                        let separator_width = width.min(120); // Cap at 120 for very wide terminals
+                        println!("\x1b[2m{}\x1b[0m", "─".repeat(separator_width));
                         println!();
                     }
                 }
@@ -881,7 +884,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     // Add separator between entries (but not after the last one)
                     if idx < entries.len() - 1 {
                         println!();
-                        println!("\x1b[2m{}\x1b[0m", "─".repeat(80));
+                        // Get terminal width, default to 80 if unable to determine
+                        let width = console::Term::stdout().size().1 as usize;
+                        let separator_width = width.min(120); // Cap at 120 for very wide terminals
+                        println!("\x1b[2m{}\x1b[0m", "─".repeat(separator_width));
                         println!();
                     }
                 }
