@@ -111,7 +111,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
                     let data: ListModelResponse = serde_json::from_str(&response)
                         .with_context(|| format_http_context(None, "GET", &url))
                         .with_context(|| "Failed to deserialize models response")?;
-                    Ok(data.into_vec().into_iter().map(Into::into).collect())
+                    Ok(data.data.into_iter().map(Into::into).collect())
                 }
             }
         }
