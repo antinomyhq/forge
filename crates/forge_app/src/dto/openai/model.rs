@@ -273,4 +273,66 @@ mod tests {
         assert_eq!(actual.pricing.as_ref().unwrap().prompt, Some(0.0015));
         assert_eq!(actual.pricing.as_ref().unwrap().completion, Some(0.0002));
     }
+
+    #[test]
+    fn test_github_direct_array_format() {
+        let json = include_str!("fixtures/github-models-sample.json");
+
+        let fixture = serde_json::from_str::<ListModelResponse>(json).unwrap();
+        let actual = serde_json::to_string(&fixture).unwrap();
+        let expected = serde_json::from_str::<ListModelResponse>(&actual).unwrap();
+
+        assert_eq!(fixture.into_models().len(), expected.into_models().len());
+    }
+
+    #[test]
+    fn test_openai_wrapped_format() {
+        let json = r#"{"data": [{"id": "gpt-4"}]}"#;
+
+        let fixture = serde_json::from_str::<ListModelResponse>(json).unwrap();
+        let actual = serde_json::to_string(&fixture).unwrap();
+        let expected = serde_json::from_str::<ListModelResponse>(&actual).unwrap();
+
+        assert_eq!(fixture.into_models().len(), expected.into_models().len());
+    }
+
+    #[test]
+    fn test_model_field_aliases() {
+        let json_with_summary = r#"{"id": "test-1", "summary": "test"}"#;
+        let json_with_description = r#"{"id": "test-2", "description": "test"}"#;
+
+        let fixture1 = serde_json::from_str::<Model>(json_with_summary).unwrap();
+        let actual1 = serde_json::to_string(&fixture1).unwrap();
+        let expected1 = serde_json::from_str::<Model>(&actual1).unwrap();
+
+        let fixture2 = serde_json::from_str::<Model>(json_with_description).unwrap();
+        let actual2 = serde_json::to_string(&fixture2).unwrap();
+        let expected2 = serde_json::from_str::<Model>(&actual2).unwrap();
+
+        assert_eq!(fixture1.description, expected1.description);
+        assert_eq!(fixture2.description, expected2.description);
+    }
+
+    #[test]
+    fn test_supported_parameters_aliases() {
+        let json_with_capabilities = r#"{"id": "test-1", "capabilities": ["streaming"]}"#;
+        let json_with_supported_params = r#"{"id": "test-2", "supported_parameters": ["tools"]}"#;
+
+        let fixture1 = serde_json::from_str::<Model>(json_with_capabilities).unwrap();
+        let actual1 = serde_json::to_string(&fixture1).unwrap();
+        let expected1 = serde_json::from_str::<Model>(&actual1).unwrap();
+
+        let fixture2 = serde_json::from_str::<Model>(json_with_supported_params).unwrap();
+        let actual2 = serde_json::to_string(&fixture2).unwrap();
+        let expected2 = serde_json::from_str::<Model>(&actual2).unwrap();
+
+        assert_eq!(
+            fixture1.supported_parameters,
+            expected1.supported_parameters
+        );
+        assert_eq!(
+            fixture2.supported_parameters,
+            expected2.supported_parameters
+        );
+    }
 }
