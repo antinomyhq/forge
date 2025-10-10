@@ -4,6 +4,17 @@
   "description": "Configuration for a workflow that contains all settings required to initialize a workflow.",
   "type": "object",
   "properties": {
+    "banner": {
+      "description": "Configure the banner display.\n\nAccepts a string value: - `\"default\"`: Show the default banner (default behavior) - `\"disabled\"`, `\"none\"`, or `\"off\"`: Disable the banner - `\"./path/to/file.txt\"`: Path to a custom banner file\n\nExample: ```yaml banner: disabled # or banner: ./my-custom-banner.txt ```\n\nIf specified in both workflow and CLI, CLI takes precedence.",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Banner"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "commands": {
       "description": "Commands that can be used to interact with the workflow",
       "type": "array",
@@ -127,6 +138,38 @@
     }
   },
   "definitions": {
+    "Banner": {
+      "description": "Banner configuration options for workflow",
+      "oneOf": [
+        {
+          "description": "Use a custom banner from a file",
+          "type": "object",
+          "required": [
+            "custom"
+          ],
+          "properties": {
+            "custom": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "Use the default banner",
+          "type": "string",
+          "enum": [
+            "default"
+          ]
+        },
+        {
+          "description": "Disable the banner",
+          "type": "string",
+          "enum": [
+            "disabled"
+          ]
+        }
+      ]
+    },
     "Command": {
       "type": "object",
       "required": [

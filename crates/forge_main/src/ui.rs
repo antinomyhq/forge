@@ -20,7 +20,7 @@ use merge::Merge;
 use tokio_stream::StreamExt;
 use tracing::debug;
 
-use crate::cli::{Banner, Cli, McpCommand, TopLevelCommand, Transport};
+use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
 use crate::cli_format::format_columns;
 use crate::config::ConfigManager;
 use crate::conversation_selector::ConversationSelector;
@@ -71,37 +71,70 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(models)
     }
 
-    /// Displays banner based on CLI configuration.
+    /// Displays banner based on CLI and workflow configuration.
     ///
     /// # Arguments
     ///
     /// * `cli_mode` - If true, shows CLI-relevant commands with `:` prefix. If
     ///   false, shows all interactive commands with `/` prefix.
+    /// * `workflow` - Optional workflow configuration. If provided, its banner
+    ///   setting will be used unless overridden by CLI.
     ///
-    /// Respects the banner configuration from CLI arguments:
-    /// - If banner is set to Disabled, no banner is shown
-    /// - If banner is set to Custom, shows the custom banner from the file
-    /// - If banner is set to Default or None, shows the default banner
-    fn display_banner_inner(&self, cli_mode: bool) -> Result<()> {
-        match &self.cli.banner {
-            Some(Banner::Disabled) => {
-                Ok(())
-            }
-            Some(Banner::Custom(path)) => {
-                banner::display(cli_mode, Some(path))?;
-                Ok(())
-            }
-            Some(Banner::Default) | None => {
-                banner::display(cli_mode, None)?;
-                Ok(())
+    /// Priority order (highest to lowest):
+    /// 1. CLI banner configuration
+    /// 2. Workflow banner configuration
+    /// 3. Default banner
+    fn display_banner_inner(&self, cli_mode: bool, workflow: Option<&Workflow>) -> Result<()> {
+        // Check CLI banner first (highest priority)
+        if let Some(banner) = &self.cli.banner {
+            return match banner {
+                forge_api::Banner::Disabled => Ok(()),
+                forge_api::Banner::Custom(path) => {
+                    banner::display(cli_mode, Some(path))?;
+                    Ok(())
+                }
+                forge_api::Banner::Default => {
+                    banner::display(cli_mode, None)?;
+                    Ok(())
+                }
+            };
+        }
+
+        // Check workflow banner second
+        if let Some(wf) = workflow {
+            if let Some(banner_config) = &wf.banner {
+                return match banner_config {
+                    forge_api::Banner::Disabled => Ok(()),
+                    forge_api::Banner::Default => {
+                        banner::display(cli_mode, None)?;
+                        Ok(())
+                    }
+                    forge_api::Banner::Custom(path) => {
+                        if path.exists() {
+                            banner::display(cli_mode, Some(path))?;
+                        } else {
+                            banner::display(cli_mode, None)?;
+                        }
+                        Ok(())
+                    }
+                };
             }
         }
+
+        // Default: show the default banner
+        banner::display(cli_mode, None)?;
+        Ok(())
     }
 
     /// Displays banner only if user is in interactive mode.
-    fn display_banner(&self) -> Result<()> {
+    ///
+    /// # Arguments
+    ///
+    /// * `workflow` - Optional workflow configuration to read banner settings
+    ///   from
+    fn display_banner(&self, workflow: Option<&Workflow>) -> Result<()> {
         if self.cli.is_interactive() {
-            self.display_banner_inner(false)?;
+            self.display_banner_inner(false, workflow)?;
         }
         Ok(())
     }
@@ -109,12 +142,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     // Handle creating a new conversation
     async fn on_new(&mut self) -> Result<()> {
         self.api = Arc::new((self.new_api)());
-        self.init_state(false).await?;
+        let workflow = self.init_state(false).await?;
 
         // Reset previously set CLI parameters by the user
         self.cli.conversation = None;
 
-        self.display_banner()?;
+        self.display_banner(Some(&workflow))?;
         self.trace_user();
         self.hydrate_caches();
         Ok(())
@@ -212,8 +245,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         // // Display the banner in dimmed colors since we're in interactive mode
-        self.display_banner()?;
-        self.init_state(true).await?;
+        let workflow = self.init_state(true).await?;
+        self.display_banner(Some(&workflow))?;
         self.trace_user();
         self.hydrate_caches();
         self.init_conversation().await?;
@@ -405,7 +438,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 return Ok(());
             }
             TopLevelCommand::ShowBanner => {
-                self.display_banner()?;
+                // Load workflow to get banner config
+                let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await.ok();
+                self.display_banner(workflow.as_ref())?;
                 return Ok(());
             }
             TopLevelCommand::Config(config_group) => {

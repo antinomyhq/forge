@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::temperature::Temperature;
 use crate::update::Update;
-use crate::{Compact, MaxTokens, TopK, TopP};
+use crate::{Banner, Compact, MaxTokens, TopK, TopP};
 
 /// Configuration for a workflow that contains all settings
 /// required to initialize a workflow.
@@ -123,6 +123,26 @@ pub struct Workflow {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub compact: Option<Compact>,
+
+    /// Configure the banner display.
+    ///
+    /// Accepts a string value:
+    /// - `"default"`: Show the default banner (default behavior)
+    /// - `"disabled"`, `"none"`, or `"off"`: Disable the banner
+    /// - `"./path/to/file.txt"`: Path to a custom banner file
+    ///
+    /// Example:
+    /// ```yaml
+    /// banner: disabled
+    /// # or
+    /// banner: ./my-custom-banner.txt
+    /// ```
+    ///
+    /// If specified in both workflow and CLI, CLI takes precedence.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub banner: Option<Banner>,
 }
 
 lazy_static! {
@@ -168,6 +188,7 @@ impl Workflow {
             max_tool_failure_per_turn: None,
             max_requests_per_turn: None,
             compact: None,
+            banner: None,
         }
     }
 }
@@ -196,6 +217,7 @@ mod tests {
         assert_eq!(actual.max_tokens, None);
         assert_eq!(actual.tool_supported, None);
         assert_eq!(actual.compact, None);
+        assert_eq!(actual.banner, None);
     }
 
     #[test]
@@ -284,5 +306,95 @@ mod tests {
 
         // Assert
         assert_eq!(base.compact, Some(new_compact));
+    }
+
+    #[test]
+    fn test_workflow_with_banner_disabled() {
+        // Fixture
+        let fixture = r#"
+        {
+            "banner": "disabled"
+        }
+        "#;
+
+        // Act
+        let actual: Workflow = serde_json::from_str(fixture).unwrap();
+
+        // Assert
+        assert_eq!(actual.banner, Some(Banner::Disabled));
+    }
+
+    #[test]
+    fn test_workflow_with_banner_default() {
+        // Fixture
+        let fixture = r#"
+        {
+            "banner": "default"
+        }
+        "#;
+
+        // Act
+        let actual: Workflow = serde_json::from_str(fixture).unwrap();
+
+        // Assert
+        assert_eq!(actual.banner, Some(Banner::Default));
+    }
+
+    #[test]
+    fn test_workflow_with_banner_custom() {
+        let fixture = r#"
+        {
+            "banner": "./my-banner.txt"
+        }
+        "#;
+
+        // Act
+        let actual: Workflow = serde_json::from_str(fixture).unwrap();
+
+        // Assert
+        assert_eq!(
+            actual.banner,
+            Some(Banner::Custom(std::path::PathBuf::from("./my-banner.txt")))
+        );
+    }
+
+    #[test]
+    fn test_workflow_merge_banner() {
+        // Fixture
+        let mut base = Workflow::new();
+        let other = Workflow::new().banner(Banner::Custom(std::path::PathBuf::from(
+            "./custom-banner.txt",
+        )));
+
+        // Act
+        base.merge(other);
+
+        // Assert
+        assert_eq!(
+            base.banner,
+            Some(Banner::Custom(std::path::PathBuf::from(
+                "./custom-banner.txt"
+            )))
+        );
+    }
+
+    #[test]
+    fn test_workflow_merge_banner_with_existing() {
+        // Fixture
+        let mut base = Workflow::new().banner(Banner::Disabled);
+        let other = Workflow::new().banner(Banner::Custom(std::path::PathBuf::from(
+            "./custom-banner.txt",
+        )));
+
+        // Act
+        base.merge(other);
+
+        // Assert
+        assert_eq!(
+            base.banner,
+            Some(Banner::Custom(std::path::PathBuf::from(
+                "./custom-banner.txt"
+            )))
+        );
     }
 }
