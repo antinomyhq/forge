@@ -11,7 +11,7 @@ use forge_app::dto::anthropic::{
 use reqwest::Url;
 use tracing::debug;
 
-use crate::provider::client::{create_headers, join_url};
+use crate::provider::client::create_headers;
 use crate::provider::event::into_chat_completion_message;
 use crate::provider::utils::format_http_context;
 
@@ -19,13 +19,26 @@ use crate::provider::utils::format_http_context;
 pub struct Anthropic<T> {
     http: Arc<T>,
     api_key: String,
-    base_url: String,
+    chat_url: Url,
+    model_url: Url,
     anthropic_version: String,
 }
 
 impl<H: HttpClientService> Anthropic<H> {
-    pub fn new(http: Arc<H>, api_key: String, base_url: String, version: String) -> Self {
-        Self { http, api_key, base_url, anthropic_version: version }
+    pub fn new(
+        http: Arc<H>,
+        api_key: String,
+        chat_url: Url,
+        model_url: Url,
+        version: String,
+    ) -> Self {
+        Self {
+            http,
+            api_key,
+            chat_url,
+            model_url,
+            anthropic_version: version,
+        }
     }
 
     fn get_headers(&self) -> Vec<(String, String)> {
@@ -36,10 +49,6 @@ impl<H: HttpClientService> Anthropic<H> {
                 self.anthropic_version.clone(),
             ),
         ]
-    }
-
-    fn url(&self, path: &str) -> anyhow::Result<Url> {
-        join_url(&self.base_url, path)
     }
 }
 
@@ -60,8 +69,7 @@ impl<T: HttpClientService> Anthropic<T> {
 
         let request = SetCache.transform(request);
 
-        let path = "/messages";
-        let url = self.url(path)?;
+        let url = &self.chat_url;
         debug!(url = %url, model = %model, "Connecting Upstream");
 
         let json_bytes =
@@ -70,31 +78,31 @@ impl<T: HttpClientService> Anthropic<T> {
         let source = self
             .http
             .eventsource(
-                &url,
+                url,
                 Some(create_headers(self.get_headers())),
                 json_bytes.into(),
             )
             .await
-            .with_context(|| format_http_context(None, "POST", &url))?;
+            .with_context(|| format_http_context(None, "POST", url))?;
 
-        let stream = into_chat_completion_message::<EventData>(url, source);
+        let stream = into_chat_completion_message::<EventData>(url.clone(), source);
 
         Ok(Box::pin(stream))
     }
 
     pub async fn models(&self) -> anyhow::Result<Vec<Model>> {
-        let url = join_url(&self.base_url, "models")?;
+        let url = &self.model_url;
         debug!(url = %url, "Fetching models");
 
         let response = self
             .http
-            .get(&url, Some(create_headers(self.get_headers())))
+            .get(url, Some(create_headers(self.get_headers())))
             .await
-            .with_context(|| format_http_context(None, "GET", &url))
+            .with_context(|| format_http_context(None, "GET", url))
             .with_context(|| "Failed to fetch models")?;
 
         let status = response.status();
-        let ctx_msg = format_http_context(Some(status), "GET", &url);
+        let ctx_msg = format_http_context(Some(status), "GET", url);
         let text = response
             .text()
             .await
@@ -176,10 +184,13 @@ mod tests {
     }
 
     fn create_anthropic(base_url: &str) -> anyhow::Result<Anthropic<MockHttpClient>> {
+        let chat_url = Url::parse(base_url)?.join("messages")?;
+        let model_url = Url::parse(base_url)?.join("models")?;
         Ok(Anthropic::new(
             Arc::new(MockHttpClient::new()),
             "sk-test-key".to_string(),
-            base_url.to_string(),
+            chat_url,
+            model_url,
             "2023-06-01".to_string(),
         ))
     }
@@ -223,14 +234,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_url_for_models() {
+        let chat_url = Url::parse("https://api.anthropic.com/v1/messages").unwrap();
+        let model_url = Url::parse("https://api.anthropic.com/v1/models").unwrap();
         let anthropic = Anthropic::new(
             Arc::new(MockHttpClient::new()),
             "sk-some-key".to_string(),
-            "https://api.anthropic.com/v1/".to_string(),
+            chat_url,
+            model_url.clone(),
             "v1".to_string(),
         );
         assert_eq!(
-            anthropic.url("/models").unwrap().as_str(),
+            anthropic.model_url.as_str(),
             "https://api.anthropic.com/v1/models"
         );
     }
