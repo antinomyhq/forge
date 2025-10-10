@@ -775,7 +775,6 @@ mod tests {
                 parameters: serde_json::json!({
                     "$schema": "http://json-schema.org/draft-07/schema#",
                     "properties": {},
-                    "title": "Null",
                     "type": "object"
                 }),
             },
