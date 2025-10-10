@@ -36,6 +36,7 @@ pub enum ProviderId {
     VertexAi,
     BigModel,
     Azure,
+    Github,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

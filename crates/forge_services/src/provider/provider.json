@@ -94,5 +94,13 @@
     "response_type": "OpenAI",
     "url": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/deployments/{{AZURE_DEPLOYMENT_NAME}}/chat/completions?api-version={{AZURE_API_VERSION}}",
     "model_url": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/models?api-version={{AZURE_API_VERSION}}"
+  },
+  {
+    "id": "github",
+    "api_key_vars": "GITHUB_TOKEN",
+    "url_param_vars": [],
+    "response_type": "OpenAI",
+    "url": "https://models.github.ai/inference/chat/completions",
+    "model_url": "https://models.github.ai/catalog/models"
   }
 ]
