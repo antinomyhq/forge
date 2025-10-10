@@ -99,7 +99,7 @@ pub enum ListModelResponse {
 
 impl ListModelResponse {
     /// Extracts the models vector regardless of the response format
-    pub fn into_models(self) -> Vec<Model> {
+    pub fn into_vec(self) -> Vec<Model> {
         match self {
             ListModelResponse::Wrapped { data } => data,
             ListModelResponse::Direct(models) => models,
@@ -236,7 +236,7 @@ mod tests {
 
         let actual = serde_json::from_value::<ListModelResponse>(fixture).unwrap();
 
-        let models = actual.into_models();
+        let models = actual.into_vec();
         assert_eq!(models.len(), 1);
         let model = &models[0];
         assert_eq!(model.id.as_str(), "moonshotai/Kimi-K2-Instruct-75k");
@@ -282,7 +282,7 @@ mod tests {
         let actual = serde_json::to_string(&fixture).unwrap();
         let expected = serde_json::from_str::<ListModelResponse>(&actual).unwrap();
 
-        assert_eq!(fixture.into_models().len(), expected.into_models().len());
+        assert_eq!(fixture.into_vec().len(), expected.into_vec().len());
     }
 
     #[test]
@@ -293,7 +293,7 @@ mod tests {
         let actual = serde_json::to_string(&fixture).unwrap();
         let expected = serde_json::from_str::<ListModelResponse>(&actual).unwrap();
 
-        assert_eq!(fixture.into_models().len(), expected.into_models().len());
+        assert_eq!(fixture.into_vec().len(), expected.into_vec().len());
     }
 
     #[test]
