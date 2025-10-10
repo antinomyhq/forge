@@ -33,12 +33,14 @@ pub struct Model {
     pub id: ModelId,
     pub name: Option<String>,
     pub created: Option<u64>,
+    #[serde(alias = "summary")]
     pub description: Option<String>,
     pub context_length: Option<u64>,
     pub architecture: Option<Architecture>,
     pub pricing: Option<Pricing>,
     pub top_provider: Option<TopProvider>,
     pub per_request_limits: Option<serde_json::Value>,
+    #[serde(alias = "capabilities")]
     pub supported_parameters: Option<Vec<String>>,
 }
 
@@ -83,9 +85,26 @@ pub struct TopProvider {
     pub is_moderated: bool,
 }
 
+/// Response format for listing models.
+/// Supports both OpenAI format (wrapped in data field) and GitHub format
+/// (direct array).
 #[derive(Debug, Deserialize, Clone, Serialize)]
-pub struct ListModelResponse {
-    pub data: Vec<Model>,
+#[serde(untagged)]
+pub enum ListModelResponse {
+    /// OpenAI format: { "data": [...] }
+    Wrapped { data: Vec<Model> },
+    /// GitHub format: [...]
+    Direct(Vec<Model>),
+}
+
+impl ListModelResponse {
+    /// Extracts the models vector regardless of the response format
+    pub fn into_models(self) -> Vec<Model> {
+        match self {
+            ListModelResponse::Wrapped { data } => data,
+            ListModelResponse::Direct(models) => models,
+        }
+    }
 }
 
 impl From<Model> for forge_domain::Model {
@@ -217,8 +236,9 @@ mod tests {
 
         let actual = serde_json::from_value::<ListModelResponse>(fixture).unwrap();
 
-        assert_eq!(actual.data.len(), 1);
-        let model = &actual.data[0];
+        let models = actual.into_models();
+        assert_eq!(models.len(), 1);
+        let model = &models[0];
         assert_eq!(model.id.as_str(), "moonshotai/Kimi-K2-Instruct-75k");
         assert_eq!(model.name, Some("Kimi K2 Instruct 75k".to_string()));
         assert_eq!(model.context_length, Some(75000));
