@@ -1,5 +1,6 @@
 use forge_domain::{DefaultTransformation, Transformer};
 
+use super::normalize_tool_schema::NormalizeToolSchema;
 use super::drop_tool_call::DropToolCalls;
 use super::make_cerebras_compat::MakeCerebrasCompat;
 use super::make_openai_compat::MakeOpenAiCompat;
@@ -45,7 +46,8 @@ impl Transformer for ProviderPipeline<'_> {
         let mut combined = zai_thinking
             .pipe(or_transformers)
             .pipe(open_ai_compat)
-            .pipe(cerebras_compat);
+            .pipe(cerebras_compat)
+            .pipe(NormalizeToolSchema);
         combined.transform(request)
     }
 }

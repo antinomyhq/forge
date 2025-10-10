@@ -299,20 +299,14 @@ impl From<ToolDefinition> for Tool {
                 parameters: {
                     let mut params = serde_json::to_value(value.input_schema).unwrap();
                     // Ensure OpenAI compatibility by adding properties field if missing
-                    if let Some(obj) = params.as_object_mut() {
-                        // Removed tool usage description and title from parameters property.
-                        obj.remove_entry("description");
-                        obj.remove_entry("title");
-
-                        if !obj.contains_key("properties")
-                            && obj.get("type")
-                                == Some(&serde_json::Value::String("object".to_string()))
-                        {
-                            obj.insert(
-                                "properties".to_string(),
-                                serde_json::Value::Object(serde_json::Map::new()),
-                            );
-                        }
+                    if let Some(obj) = params.as_object_mut()
+                        && obj.get("type") == Some(&serde_json::Value::String("object".to_string()))
+                        && !obj.contains_key("properties")
+                    {
+                        obj.insert(
+                            "properties".to_string(),
+                            serde_json::Value::Object(serde_json::Map::new()),
+                        );
                     }
                     params
                 },
@@ -775,45 +769,8 @@ mod tests {
                 parameters: serde_json::json!({
                     "$schema": "http://json-schema.org/draft-07/schema#",
                     "properties": {},
+                    "title": "Null",
                     "type": "object"
-                }),
-            },
-        };
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_tool_definition_conversion() {
-        use schemars::JsonSchema;
-
-        #[derive(JsonSchema)]
-        #[schemars(title = "Tool Title", description = "Schema description")]
-        #[allow(dead_code)]
-        struct TestInput {
-            name: String,
-        }
-
-        let fixture = ToolDefinition::new("example_tool")
-            .description("Tool description")
-            .input_schema(schemars::schema_for!(TestInput));
-
-        let actual = Tool::from(fixture);
-
-        let expected = Tool {
-            r#type: FunctionType,
-            function: FunctionDescription {
-                description: Some("Tool description".to_string()),
-                name: "example_tool".to_string(),
-                parameters: serde_json::json!({
-                    "$schema": "http://json-schema.org/draft-07/schema#",
-                    "type": "object",
-                    "required": ["name"],
-                    "properties": {
-                        "name": {
-                            "type": "string"
-                        }
-                    }
                 }),
             },
         };
