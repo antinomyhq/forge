@@ -1,9 +1,9 @@
 use forge_domain::{DefaultTransformation, Transformer};
 
-use super::normalize_tool_schema::NormalizeToolSchema;
 use super::drop_tool_call::DropToolCalls;
 use super::make_cerebras_compat::MakeCerebrasCompat;
 use super::make_openai_compat::MakeOpenAiCompat;
+use super::normalize_tool_schema::NormalizeToolSchema;
 use super::set_cache::SetCache;
 use super::tool_choice::SetToolChoice;
 use super::when_model::when_model;
