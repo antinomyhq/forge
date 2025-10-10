@@ -102,23 +102,24 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Check workflow banner second
         if let Some(wf) = workflow
-            && let Some(banner_config) = &wf.banner {
-                return match banner_config {
-                    forge_api::Banner::Disabled => Ok(()),
-                    forge_api::Banner::Default => {
+            && let Some(banner_config) = &wf.banner
+        {
+            return match banner_config {
+                forge_api::Banner::Disabled => Ok(()),
+                forge_api::Banner::Default => {
+                    banner::display(cli_mode, None)?;
+                    Ok(())
+                }
+                forge_api::Banner::Custom(path) => {
+                    if path.exists() {
+                        banner::display(cli_mode, Some(path))?;
+                    } else {
                         banner::display(cli_mode, None)?;
-                        Ok(())
                     }
-                    forge_api::Banner::Custom(path) => {
-                        if path.exists() {
-                            banner::display(cli_mode, Some(path))?;
-                        } else {
-                            banner::display(cli_mode, None)?;
-                        }
-                        Ok(())
-                    }
-                };
-            }
+                    Ok(())
+                }
+            };
+        }
 
         // Default: show the default banner
         banner::display(cli_mode, None)?;
