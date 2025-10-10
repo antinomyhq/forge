@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::io::Stdout;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -10,7 +11,7 @@ use forge_api::{
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
-use forge_display::MarkdownFormat;
+use forge_display::MarkdownWriter;
 use forge_domain::{ChatResponseContent, McpConfig, McpServerConfig, Scope, TitleFormat};
 use forge_fs::ForgeFS;
 use forge_select::ForgeSelect;
@@ -39,7 +40,7 @@ use crate::{TRACKER, banner, tracker};
 const MAX_CONVERSATIONS_TO_SHOW: usize = 20;
 
 pub struct UI<A, F: Fn() -> A> {
-    markdown: MarkdownFormat,
+    markdown: MarkdownWriter<Stdout>,
     state: UIState,
     api: Arc<F::Output>,
     new_api: Arc<F>,
@@ -138,7 +139,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             cli,
             command,
             spinner: SpinnerManager::new(),
-            markdown: MarkdownFormat::new(),
+            markdown: MarkdownWriter::new(std::io::stdout()),
             _guard: forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?,
         })
     }
@@ -1291,7 +1292,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         self.spinner.stop(None)?;
-
         Ok(())
     }
 
@@ -1356,8 +1356,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 ChatResponseContent::Title(title) => self.writeln(title.display())?,
                 ChatResponseContent::PlainText(text) => self.writeln(text)?,
                 ChatResponseContent::Markdown(text) => {
-                    tracing::info!(message = %text, "Agent Response");
-                    self.writeln(self.markdown.render(&text))?;
+                    self.markdown.add_chunk(&text);
                 }
             },
             ChatResponse::ToolCallStart(_) => {
@@ -1405,14 +1404,19 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
             ChatResponse::TaskReasoning { content } => {
                 if !content.trim().is_empty() {
-                    let rendered_content = self.markdown.render(&content);
-                    self.writeln(rendered_content.dimmed())?;
+                    self.markdown.add_chunk_dimmed(&content);
                 }
             }
             ChatResponse::TaskComplete => {
                 if let Some(conversation_id) = self.state.conversation_id {
                     self.on_completion(conversation_id).await?;
                 }
+            }
+            ChatResponse::StartOfStream => {
+                self.spinner.stop(None)?;
+            }
+            ChatResponse::EndOfStream => {
+                self.spinner.start(None)?;
             }
         }
         Ok(())
@@ -1442,7 +1446,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let info = Info::default().extend(&conversation);
 
         self.writeln(info)?;
-
         self.spinner.stop(None)?;
 
         // Only prompt for new conversation if in interactive mode

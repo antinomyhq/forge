@@ -78,6 +78,8 @@ impl<S: Services> AgentExecutor<S> {
                 },
                 ChatResponse::TaskReasoning { .. } => {}
                 ChatResponse::TaskComplete => {}
+                ChatResponse::StartOfStream => ctx.send(message).await?,
+                ChatResponse::EndOfStream => ctx.send(message).await?,
                 ChatResponse::ToolCallStart(_) => ctx.send(message).await?,
                 ChatResponse::ToolCallEnd(_) => ctx.send(message).await?,
                 ChatResponse::Usage(_) => ctx.send(message).await?,

@@ -71,7 +71,7 @@ async fn test_attempt_completion_content() {
     ctx.run("Hi").await.unwrap();
     let response_len = ctx.output.chat_responses.len();
 
-    assert_eq!(response_len, 2, "Response length should be 2");
+    assert_eq!(response_len, 4, "Response length should be 4");
 
     let first_text_response = ctx
         .output
