@@ -101,8 +101,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         // Check workflow banner second
-        if let Some(wf) = workflow {
-            if let Some(banner_config) = &wf.banner {
+        if let Some(wf) = workflow
+            && let Some(banner_config) = &wf.banner {
                 return match banner_config {
                     forge_api::Banner::Disabled => Ok(()),
                     forge_api::Banner::Default => {
@@ -119,7 +119,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     }
                 };
             }
-        }
 
         // Default: show the default banner
         banner::display(cli_mode, None)?;
@@ -439,7 +438,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
             TopLevelCommand::ShowBanner => {
                 // Load workflow to get banner config
-                let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await.ok();
+                let workflow = self
+                    .api
+                    .read_workflow(self.cli.workflow.as_deref())
+                    .await
+                    .ok();
                 self.display_banner(workflow.as_ref())?;
                 return Ok(());
             }
