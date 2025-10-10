@@ -78,9 +78,6 @@ impl FormatContent for Tools {
                     .sub_title(&input.question)
                     .into(),
             ),
-            Tools::AttemptCompletion(input) => {
-                Some(ChatResponseContent::Markdown(input.result.clone()))
-            }
             Tools::Plan(_) => None,
         }
     }

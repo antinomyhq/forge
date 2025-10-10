@@ -33,7 +33,6 @@ impl FormatContent for ToolOperation {
             ToolOperation::NetFetch { input: _, output: _ } => None,
             ToolOperation::Shell { output: _ } => None,
             ToolOperation::FollowUp { output: _ } => None,
-            ToolOperation::AttemptCompletion => None,
             ToolOperation::PlanCreate { input: _, output } => Some({
                 let title = TitleFormat::debug(format!(
                     "Create {}",
@@ -496,17 +495,6 @@ mod tests {
     #[test]
     fn test_follow_up_no_response() {
         let fixture = ToolOperation::FollowUp { output: None };
-        let env = fixture_environment();
-
-        let actual = fixture.to_content(&env);
-        let expected = None;
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_attempt_completion() {
-        let fixture = ToolOperation::AttemptCompletion;
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);

@@ -1,6 +1,6 @@
 use forge_domain::{
     ChatCompletionMessage, ChatResponse, Content, FinishReason, ReasoningConfig, Role,
-    ToolCallArguments, ToolCallFull, ToolOutput, ToolResult, ToolsDiscriminants,
+    ToolCallArguments, ToolCallFull, ToolOutput, ToolResult,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -510,9 +510,7 @@ async fn test_multiple_consecutive_tool_calls() {
             ChatCompletionMessage::assistant("Reading 2").add_tool_call(tool_call.clone()),
             ChatCompletionMessage::assistant("Reading 3").add_tool_call(tool_call.clone()),
             ChatCompletionMessage::assistant("Reading 4").add_tool_call(tool_call.clone()),
-            ChatCompletionMessage::assistant("Completing Task").add_tool_call(ToolCallFull::new(
-                ToolsDiscriminants::AttemptCompletion.name(),
-            )),
+            ChatCompletionMessage::assistant("Completing Task"),
         ]);
 
     let _ = ctx.run("Read a file").await;

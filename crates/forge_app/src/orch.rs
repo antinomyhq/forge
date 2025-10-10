@@ -273,7 +273,6 @@ impl<S: AgentService> Orchestrator<S> {
             .model
             .clone()
             .ok_or(Error::MissingModel(self.agent.id.clone()))?;
-        let tool_supported = self.is_tool_supported()?;
 
         let mut context = self.conversation.context.clone().unwrap_or_default();
 
@@ -341,7 +340,6 @@ impl<S: AgentService> Orchestrator<S> {
 
         // Indicates whether the tool execution has been completed
         let mut is_complete = false;
-        let mut has_attempted_completion = false;
 
         let mut request_count = 0;
 
@@ -451,9 +449,6 @@ impl<S: AgentService> Orchestrator<S> {
             context = context.usage(usage);
 
             let has_tool_calls = !tool_calls.is_empty();
-            has_attempted_completion = tool_calls
-                .iter()
-                .any(|call| Tools::is_attempt_completion(&call.name));
 
             debug!(agent_id = %agent.id, tool_call_count = tool_calls.len(), "Tool call count");
 
@@ -510,38 +505,6 @@ impl<S: AgentService> Orchestrator<S> {
 
             context = context.append_message(content.clone(), reasoning_details, tool_call_records);
 
-            match (turn_has_tool_calls, has_tool_calls) {
-                (false, false) => {
-                    // No tools were called in the previous turn nor were they called in this step;
-                    // Means that this is conversation.
-
-                    self.send(ChatResponse::TaskMessage {
-                        content: ChatResponseContent::Markdown(
-                            remove_tag_with_prefix(&content, "forge_")
-                                .as_str()
-                                .to_string(),
-                        ),
-                    })
-                    .await?;
-                    is_complete = true;
-                    self.error_tracker
-                        .succeed(&ToolsDiscriminants::AttemptCompletion.name());
-                }
-                (true, false) => {
-                    // Since no tool calls are present, which doesn't mean task is complete so
-                    // re-prompt the agent to ensure the task complete.
-                    let content = self.attempt_completion_prompt(tool_supported).await?;
-                    let message = ContextMessage::user(content, model_id.clone().into());
-                    context = context.add_message(message);
-                    self.error_tracker
-                        .failed(&ToolsDiscriminants::AttemptCompletion.name());
-                }
-                _ => {
-                    self.error_tracker
-                        .succeed(&ToolsDiscriminants::AttemptCompletion.name());
-                }
-            }
-
             if self.error_tracker.limit_reached() {
                 self.send(ChatResponse::Interrupt {
                     reason: InterruptionReason::MaxToolFailurePerTurnLimitReached {
@@ -593,17 +556,8 @@ impl<S: AgentService> Orchestrator<S> {
         self.services.update(self.conversation.clone()).await?;
 
         // Signal Task Completion
-        if has_attempted_completion {
-            self.send(ChatResponse::TaskComplete).await?;
-        }
+        self.send(ChatResponse::TaskComplete).await?;
 
         Ok(())
-    }
-
-    async fn attempt_completion_prompt(&self, tool_supported: bool) -> anyhow::Result<String> {
-        let ctx = serde_json::json!({"tool_supported": tool_supported});
-        self.services
-            .render("{{> forge-partial-tool-required.md}}", &ctx)
-            .await
     }
 }

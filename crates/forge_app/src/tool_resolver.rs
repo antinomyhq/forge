@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use forge_domain::{Agent, ToolDefinition, ToolName, ToolsDiscriminants};
+use forge_domain::{Agent, ToolDefinition, ToolName};
 use globset::Glob;
 
 /// Service that resolves tool definitions for agents based on their configured
@@ -27,7 +27,6 @@ impl ToolResolver {
     pub fn resolve<'a>(&'a self, agent: &Agent) -> Vec<&'a ToolDefinition> {
         let matchers = Self::build_matchers(agent);
         let mut resolved = self.match_tools(&matchers);
-        self.ensure_attempt_completion(&mut resolved);
         self.dedupe_tools(&mut resolved);
         self.sort_tools(&mut resolved);
         resolved
@@ -63,26 +62,6 @@ impl ToolResolver {
             .iter()
             .filter(|tool| Self::is_allowed_pattern(matchers, &tool.name))
             .collect()
-    }
-
-    /// Ensures attempt_completion tool is always included in the resolved tools
-    fn ensure_attempt_completion<'a>(&'a self, resolved: &mut Vec<&'a ToolDefinition>) {
-        let attempt_completion_name = ToolsDiscriminants::AttemptCompletion.name();
-
-        if resolved
-            .iter()
-            .any(|tool| tool.name == attempt_completion_name)
-        {
-            return;
-        }
-
-        if let Some(attempt_completion) = self
-            .all_tool_definitions
-            .iter()
-            .find(|tool| tool.name == attempt_completion_name)
-        {
-            resolved.push(attempt_completion);
-        }
     }
 
     /// Deduplicates tool definitions by name, keeping the first occurrence
