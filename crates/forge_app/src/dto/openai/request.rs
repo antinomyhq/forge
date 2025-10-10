@@ -300,7 +300,7 @@ impl From<ToolDefinition> for Tool {
                     let mut params = serde_json::to_value(value.input_schema).unwrap();
                     // Ensure OpenAI compatibility by adding properties field if missing
                     if let Some(obj) = params.as_object_mut() {
-                        // duplicate entries.
+                        // Removed tool usage description and title from parameters property.
                         obj.remove_entry("description");
                         obj.remove_entry("title");
 
