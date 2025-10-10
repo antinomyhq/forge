@@ -65,7 +65,7 @@ mod tests {
         assert_eq!(actual.tools.unwrap()[0].function.parameters, expected);
     }
 
-     #[test]
+    #[test]
     fn test_normalize_already_normalized() {
         let fixture = Request::default().tools(vec![tool_fixture(json!({
             "type": "object",
