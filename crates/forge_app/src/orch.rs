@@ -346,9 +346,6 @@ impl<S: AgentService> Orchestrator<S> {
         // Retrieve the number of requests allowed per tick.
         let max_requests_per_turn = agent.max_requests_per_turn;
 
-        // Store tool calls at turn level
-        let mut turn_has_tool_calls = false;
-
         let tool_context =
             ToolCallContext::new(self.conversation.metrics.clone()).sender(self.sender.clone());
         while !is_complete {
@@ -414,6 +411,14 @@ impl<S: AgentService> Orchestrator<S> {
                 title_generator_future
             )?;
 
+            // Send the content message
+            if !content.is_empty() {
+                self.send(ChatResponse::TaskMessage {
+                    content: ChatResponseContent::Markdown(content.clone()),
+                })
+                .await?;
+            }
+
             // If conversation_title is generated then update the conversation with it's
             // title.
             if let Some(title) = conversation_title {
@@ -448,28 +453,10 @@ impl<S: AgentService> Orchestrator<S> {
 
             context = context.usage(usage);
 
-            let has_tool_calls = !tool_calls.is_empty();
-
             debug!(agent_id = %agent.id, tool_call_count = tool_calls.len(), "Tool call count");
 
-            // Turn is completed, if tool should yield
-            is_complete = tool_calls
-                .iter()
-                .any(|call| Tools::should_yield(&call.name));
-
-            if !is_complete && has_tool_calls {
-                // If task is completed we would have already displayed a message so we can
-                // ignore the content that's collected from the stream
-                // NOTE: Important to send the content messages before the tool call happens
-                self.send(ChatResponse::TaskMessage {
-                    content: ChatResponseContent::Markdown(
-                        remove_tag_with_prefix(&content, "forge_")
-                            .as_str()
-                            .to_string(),
-                    ),
-                })
-                .await?;
-            }
+            // Turn is completed, if no more tool calls are made
+            is_complete = tool_calls.is_empty();
 
             if let Some(reasoning) = reasoning.as_ref()
                 && !is_complete
@@ -544,9 +531,6 @@ impl<S: AgentService> Orchestrator<S> {
                     is_complete = true;
                 }
             }
-
-            // Update if turn has tool calls
-            turn_has_tool_calls = turn_has_tool_calls || has_tool_calls;
         }
 
         // Update metrics in conversation
