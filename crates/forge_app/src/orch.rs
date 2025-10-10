@@ -411,14 +411,6 @@ impl<S: AgentService> Orchestrator<S> {
                 title_generator_future
             )?;
 
-            // Send the content message
-            if !content.is_empty() {
-                self.send(ChatResponse::TaskMessage {
-                    content: ChatResponseContent::Markdown(content.clone()),
-                })
-                .await?;
-            }
-
             // If conversation_title is generated then update the conversation with it's
             // title.
             if let Some(title) = conversation_title {
@@ -459,13 +451,18 @@ impl<S: AgentService> Orchestrator<S> {
             is_complete = tool_calls.is_empty();
 
             if let Some(reasoning) = reasoning.as_ref()
-                && !is_complete
                 && context.is_reasoning_supported()
             {
                 // If reasoning is present, send it as a separate message
                 self.send(ChatResponse::TaskReasoning { content: reasoning.to_string() })
                     .await?;
             }
+
+            // Send the content message
+            self.send(ChatResponse::TaskMessage {
+                content: ChatResponseContent::Markdown(content.clone()),
+            })
+            .await?;
 
             // Process tool calls and update context
             let mut tool_call_records = self.execute_tool_calls(&tool_calls, &tool_context).await?;
