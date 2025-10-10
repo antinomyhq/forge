@@ -299,14 +299,20 @@ impl From<ToolDefinition> for Tool {
                 parameters: {
                     let mut params = serde_json::to_value(value.input_schema).unwrap();
                     // Ensure OpenAI compatibility by adding properties field if missing
-                    if let Some(obj) = params.as_object_mut()
-                        && obj.get("type") == Some(&serde_json::Value::String("object".to_string()))
-                        && !obj.contains_key("properties")
-                    {
-                        obj.insert(
-                            "properties".to_string(),
-                            serde_json::Value::Object(serde_json::Map::new()),
-                        );
+                    if let Some(obj) = params.as_object_mut() {
+                        // duplicate entries.
+                        obj.remove_entry("description");
+                        obj.remove_entry("title");
+
+                        if !obj.contains_key("properties")
+                            && obj.get("type")
+                                == Some(&serde_json::Value::String("object".to_string()))
+                        {
+                            obj.insert(
+                                "properties".to_string(),
+                                serde_json::Value::Object(serde_json::Map::new()),
+                            );
+                        }
                     }
                     params
                 },
