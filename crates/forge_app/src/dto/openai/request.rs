@@ -782,4 +782,42 @@ mod tests {
 
         assert_eq!(actual, expected);
     }
+
+    #[test]
+    fn test_tool_definition_conversion_removes_duplicate_fields() {
+        use schemars::JsonSchema;
+
+        #[derive(JsonSchema)]
+        #[schemars(title = "Tool Title", description = "Schema description")]
+        #[allow(dead_code)]
+        struct TestInput {
+            name: String,
+        }
+
+        let fixture = ToolDefinition::new("example_tool")
+            .description("Tool description")
+            .input_schema(schemars::schema_for!(TestInput));
+
+        let actual = Tool::from(fixture);
+
+        let expected = Tool {
+            r#type: FunctionType,
+            function: FunctionDescription {
+                description: Some("Tool description".to_string()),
+                name: "example_tool".to_string(),
+                parameters: serde_json::json!({
+                    "$schema": "http://json-schema.org/draft-07/schema#",
+                    "type": "object",
+                    "required": ["name"],
+                    "properties": {
+                        "name": {
+                            "type": "string"
+                        }
+                    }
+                }),
+            },
+        };
+
+        assert_eq!(actual, expected);
+    }
 }
