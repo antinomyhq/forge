@@ -12,8 +12,8 @@ use crate::temperature::Temperature;
 use crate::top_k::TopK;
 use crate::top_p::TopP;
 use crate::{
-    ConversationId, Image, ModelId, ReasoningFull, ToolChoice, ToolDefinition, ToolOutput,
-    ToolValue, Usage,
+    ConversationId, Image, ModelId, ReasoningFull, ToolChoice, ToolDefinition, ToolName,
+    ToolOutput, ToolValue, Usage,
 };
 
 /// Represents a message being sent to the LLM provider
@@ -421,32 +421,26 @@ impl Context {
             .sum::<usize>()
     }
 
-    /// Finds the last attempt completion in the conversation context.
+    /// Finds the last tool call with the specified name and its message index.
     ///
     /// This method iterates through messages in reverse order to find the most
-    /// recent assistant message containing an attempt_completion tool call.
-    ///
-    /// # Returns
-    /// - `Some((AttemptCompletionInfo, usize))` with the completion info and
-    ///   message index
-    /// - `None` if no attempt completion exists in the context
-    fn find_last_attempt_completion(&self) -> Option<(crate::AttemptCompletionInfo, usize)> {
+    /// recent assistant message containing a tool call with the specified name.
+    fn find_last_tool_call_with_index<T>(&self, tool_name: &ToolName) -> Option<(T, usize)>
+    where
+        T: for<'de> serde::Deserialize<'de>,
+    {
         for (index, message) in self.messages.iter().enumerate().rev() {
             if let ContextMessage::Text(text_message) = message
                 && text_message.role == Role::Assistant
                 && let Some(tool_calls) = &text_message.tool_calls
             {
                 for tool_call in tool_calls {
-                    if crate::Tools::is_attempt_completion(&tool_call.name) {
-                        // Extract the "result" field from arguments
-                        if let Ok(parsed_args) = tool_call.arguments.parse()
-                            && let Some(result) = parsed_args.get("result")
-                            && let Some(result_str) = result.as_str()
+                    if &tool_call.name == tool_name {
+                        // Parse the arguments into the expected type T
+                        if let Ok(parsed_args) =
+                            serde_json::from_str::<T>(&tool_call.arguments.clone().into_string())
                         {
-                            return Some((
-                                crate::AttemptCompletionInfo { result: result_str.to_string() },
-                                index,
-                            ));
+                            return Some((parsed_args, index));
                         }
                     }
                 }
@@ -489,11 +483,16 @@ impl Context {
     /// # Returns
     /// A `ConversationSummary` with all available information
     pub fn get_summary(&self) -> crate::ConversationSummary {
+        let attempt_completion_tool_name = crate::ToolName::new("attempt_completion");
         let (completion, user_message) = self
-            .find_last_attempt_completion()
-            .map(|(comp, index)| {
+            .find_last_tool_call_with_index::<crate::tools::AttemptCompletion>(
+                &attempt_completion_tool_name,
+            )
+            .map(|(attempt_completion, index)| {
+                let completion_info =
+                    crate::AttemptCompletionInfo { result: attempt_completion.result };
                 let user_msg = self.find_user_message_before(index).map(|s| s.to_string());
-                (Some(comp), user_msg)
+                (Some(completion_info), user_msg)
             })
             .unwrap_or((None, None));
 
@@ -964,10 +963,12 @@ mod tests {
     }
 
     #[test]
-    fn test_find_last_attempt_completion_empty_context() {
+    fn test_find_last_tool_call_empty_context() {
         let fixture = Context::default();
+        let tool_name = crate::ToolName::new("attempt_completion");
 
-        let actual = fixture.find_last_attempt_completion();
+        let actual =
+            fixture.find_last_tool_call_with_index::<crate::tools::AttemptCompletion>(&tool_name);
 
         assert!(actual.is_none());
     }
@@ -1047,5 +1048,60 @@ mod tests {
 
         assert!(actual.user_message.is_none());
         assert!(actual.completion.is_none());
+    }
+
+    #[test]
+    fn test_find_last_tool_call_generic() {
+        let fixture = Context::default()
+            .add_message(ContextMessage::user("Please help me", None))
+            .add_message(ContextMessage::assistant(
+                "I'll help you",
+                None,
+                Some(completion_tool("Task completed successfully")),
+            ));
+
+        // Test the generic method with AttemptCompletion type
+        let tool_name = crate::ToolName::new("attempt_completion");
+        let actual =
+            fixture.find_last_tool_call_with_index::<crate::tools::AttemptCompletion>(&tool_name);
+
+        assert!(actual.is_some());
+        let (attempt_completion, _index) = actual.unwrap();
+        assert_eq!(attempt_completion.result, "Task completed successfully");
+    }
+
+    #[test]
+    fn test_find_last_tool_call_with_index() {
+        let fixture = Context::default()
+            .add_message(ContextMessage::user("Please help me", None))
+            .add_message(ContextMessage::assistant(
+                "I'll help you",
+                None,
+                Some(completion_tool("Task completed successfully")),
+            ));
+
+        // Test the generic method with AttemptCompletion type and index
+        let tool_name = crate::ToolName::new("attempt_completion");
+        let actual =
+            fixture.find_last_tool_call_with_index::<crate::tools::AttemptCompletion>(&tool_name);
+
+        assert!(actual.is_some());
+        let (attempt_completion, index) = actual.unwrap();
+        assert_eq!(attempt_completion.result, "Task completed successfully");
+        assert_eq!(index, 1); // Second message (index 1)
+    }
+
+    #[test]
+    fn test_find_last_tool_call_not_found() {
+        let fixture = Context::default()
+            .add_message(ContextMessage::user("Please help me", None))
+            .add_message(ContextMessage::assistant("I'll help you", None, None));
+
+        // Test the generic method with a tool that doesn't exist
+        let tool_name = crate::ToolName::new("attempt_completion");
+        let actual =
+            fixture.find_last_tool_call_with_index::<crate::tools::AttemptCompletion>(&tool_name);
+
+        assert!(actual.is_none());
     }
 }
