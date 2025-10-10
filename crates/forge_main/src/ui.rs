@@ -418,7 +418,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .ok_or_else(|| anyhow::anyhow!("Error: --id is required for --show-summary"))?;
             let conversation_id = ConversationId::parse(&id_str)
                 .context(format!("Invalid conversation ID: {}", id_str))?;
-            self.on_show_summary(conversation_id).await?;
+
+            // Fetch and display the conversation summary
+            let conversation = self
+                .api
+                .conversation(&conversation_id)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("Conversation not found: {}", conversation_id))?;
+
+            self.display_conversation_summary(&conversation)?;
             return Ok(());
         }
 
@@ -754,42 +762,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         let summary = conversation.get_summary();
 
-        match summary {
-            None => {
-                // Don't show anything for empty conversations
-            }
-            Some(ConversationSummary { entries }) => {
-                // Display all completion entries
-                for (idx, entry) in entries.iter().enumerate() {
-                    // Display user message with icon and BOLD formatting
-                    println!("👤 \x1b[1;37m{}\x1b[0m", entry.user_message);
-                    println!();
-
-                    // Show tool call count in dim gray format (like logs)
-                    if entry.tool_call_count > 0 {
-                        println!(
-                            "\x1b[2m🔧 {} tool call(s) used\x1b[0m",
-                            entry.tool_call_count
-                        );
-                        println!();
-                    }
-
-                    // Display completion with icon and markdown rendering
-                    print!("🤖 ");
-                    let rendered = self.markdown.render(&entry.completion.result);
-                    println!("{}", rendered);
-
-                    // Add separator between entries (but not after the last one)
-                    if idx < entries.len() - 1 {
-                        println!();
-                        // Get terminal width, default to 80 if unable to determine
-                        let width = console::Term::stdout().size().1 as usize;
-                        let separator_width = width.min(120); // Cap at 120 for very wide terminals
-                        println!("\x1b[2m{}\x1b[0m", "─".repeat(separator_width));
-                        println!();
-                    }
-                }
-            }
+        if let Some(ConversationSummary { entries }) = summary {
+            let display =
+                crate::model::ConversationDisplay { entries: &entries, markdown: &self.markdown };
+            println!("{}", display);
         }
 
         Ok(())
@@ -834,65 +810,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .collect();
 
         format_columns(items);
-
-        Ok(())
-    }
-
-    /// Display conversation summary with last completion and status
-    async fn on_show_summary(
-        &mut self,
-        conversation_id: forge_domain::ConversationId,
-    ) -> anyhow::Result<()> {
-        use forge_domain::ConversationSummary;
-
-        // Fetch the conversation
-        let conversation = self
-            .api
-            .conversation(&conversation_id)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("Conversation not found: {}", conversation_id))?;
-
-        // Get summary
-        let summary = conversation.get_summary();
-
-        match summary {
-            None => {
-                // Output nothing for empty conversations - shell will handle
-                // fallback
-            }
-            Some(ConversationSummary { entries }) => {
-                // Display all completion entries
-                for (idx, entry) in entries.iter().enumerate() {
-                    // Display user message with icon and BOLD formatting
-                    println!("👤 \x1b[1;37m{}\x1b[0m", entry.user_message);
-                    println!();
-
-                    // Show tool call count in dim gray format (like logs)
-                    if entry.tool_call_count > 0 {
-                        println!(
-                            "\x1b[2m🔧 {} tool call(s) used\x1b[0m",
-                            entry.tool_call_count
-                        );
-                        println!();
-                    }
-
-                    // Display completion with icon and markdown rendering
-                    print!("🤖 ");
-                    let rendered = self.markdown.render(&entry.completion.result);
-                    println!("{}", rendered);
-
-                    // Add separator between entries (but not after the last one)
-                    if idx < entries.len() - 1 {
-                        println!();
-                        // Get terminal width, default to 80 if unable to determine
-                        let width = console::Term::stdout().size().1 as usize;
-                        let separator_width = width.min(120); // Cap at 120 for very wide terminals
-                        println!("\x1b[2m{}\x1b[0m", "─".repeat(separator_width));
-                        println!();
-                    }
-                }
-            }
-        }
 
         Ok(())
     }

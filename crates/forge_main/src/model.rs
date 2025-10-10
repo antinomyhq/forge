@@ -11,6 +11,47 @@ use strum_macros::{EnumIter, EnumProperty};
 
 use crate::info::Info;
 
+pub struct ConversationDisplay<'a> {
+    pub entries: &'a [forge_domain::CompletionEntry],
+    pub markdown: &'a forge_display::MarkdownFormat,
+}
+
+impl<'a> std::fmt::Display for ConversationDisplay<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (idx, entry) in self.entries.iter().enumerate() {
+            // Display user message with icon and BOLD formatting
+            writeln!(f, "\u{f007} \x1b[1;37m{}\x1b[0m", entry.user_message)?;
+            writeln!(f)?;
+
+            // Show tool call count in dim gray format (like logs)
+            if entry.tool_call_count > 0 {
+                writeln!(
+                    f,
+                    "\x1b[2m\u{f0ad} {} tool call(s) used\x1b[0m",
+                    entry.tool_call_count
+                )?;
+                writeln!(f)?;
+            }
+
+            // Display completion with icon and markdown rendering
+            write!(f, "\u{f489} ")?;
+            let rendered = self.markdown.render(&entry.completion.result);
+            writeln!(f, "{}", rendered)?;
+
+            // Add separator between entries (but not after the last one)
+            if idx < self.entries.len() - 1 {
+                writeln!(f)?;
+                // Get terminal width, default to 80 if unable to determine
+                let width = console::Term::stdout().size().1 as usize;
+                let separator_width = width.min(120); // Cap at 120 for very wide terminals
+                writeln!(f, "\x1b[2m{}\x1b[0m", "─".repeat(separator_width))?;
+                writeln!(f)?;
+            }
+        }
+        Ok(())
+    }
+}
+
 /// Represents a partial event structure used for CLI event dispatching
 ///
 /// This is an intermediate structure for parsing event JSON from the CLI
