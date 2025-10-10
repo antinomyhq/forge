@@ -782,7 +782,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     // Add separator between entries (but not after the last one)
                     if idx < entries.len() - 1 {
                         println!();
-                        println!("\x1b[2m{}\x1b[0m", "─".repeat(80));
+                        println!("\x1b[2m{}\x1b[0m", "─".repeat(50));
                         println!();
                     }
                 }
