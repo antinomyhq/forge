@@ -784,7 +784,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tool_definition_conversion_removes_duplicate_fields() {
+    fn test_tool_definition_conversion() {
         use schemars::JsonSchema;
 
         #[derive(JsonSchema)]
