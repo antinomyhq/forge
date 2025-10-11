@@ -144,7 +144,7 @@ pub enum McpCommand {
     Add(McpAddArgs),
 
     /// List servers
-    List,
+    List(McpListArgs),
 
     /// Remove a server
     Remove(McpRemoveArgs),
@@ -157,6 +157,12 @@ pub enum McpCommand {
 
     /// Cache management commands
     Cache(McpCacheArgs),
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct McpListArgs {
+    #[arg(short, long)]
+    pub detailed: bool,
 }
 
 #[derive(Parser, Debug, Clone)]
