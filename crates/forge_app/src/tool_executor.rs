@@ -236,7 +236,6 @@ impl<
                     .await?;
                 output.into()
             }
-            Tools::AttemptCompletion(_input) => crate::operation::ToolOperation::AttemptCompletion,
             Tools::Plan(input) => {
                 let output = self
                     .services
