@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::Context as _;
 use forge_app::dto::AppConfig;
 use forge_fs::ForgeFS;
 use forge_services::AppConfigRepository;
