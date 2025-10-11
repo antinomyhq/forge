@@ -22,6 +22,9 @@ pub struct AppConfig {
     pub agent: Option<AgentId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider: Option<ProviderId>,
+    /// Agent-specific provider mappings
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub agent_provider: HashMap<AgentId, ProviderId>,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub model: HashMap<ProviderId, ModelId>,
 }

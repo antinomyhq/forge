@@ -186,6 +186,11 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
 impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProviderRegistry<F> {
     async fn get_active_provider(&self) -> anyhow::Result<Provider> {
         let app_config = self.infra.get_app_config().await?;
+        if let Some(active_agent) = app_config.agent
+            && let Some(provider_id) = app_config.agent_provider.get(&active_agent)
+        {
+            return self.provider_from_id(provider_id.clone()).await;
+        }
         if let Some(provider_id) = app_config.provider {
             return self.provider_from_id(provider_id).await;
         }
@@ -232,6 +237,16 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
     async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()> {
         self.update(|config| {
             config.agent = Some(agent_id);
+        })
+        .await
+    }
+    async fn set_agent_provider(
+        &self,
+        agent_id: AgentId,
+        provider_id: ProviderId,
+    ) -> anyhow::Result<()> {
+        self.update(|config| {
+            config.agent_provider.insert(agent_id, provider_id);
         })
         .await
     }
