@@ -46,6 +46,7 @@ mod tests {
     use std::path::PathBuf;
 
     use console::strip_ansi_codes;
+    use forge_display::DiffFormat;
     use forge_domain::{ChatResponseContent, Environment, PatchOperation, TitleFormat};
     use insta::assert_snapshot;
     use pretty_assertions::assert_eq;
@@ -182,7 +183,11 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
-        let expected = None;
+        let expected = Some(ChatResponseContent::PlainText(
+            DiffFormat::format("old content", "new content")
+                .diff()
+                .to_string(),
+        ));
 
         assert_eq!(actual, expected);
     }
