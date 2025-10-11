@@ -31,9 +31,10 @@ impl<S: AgentService> Compactor<S> {
 
             // If compact doesn't have a model but agent does, use agent's model
             if compact.model.is_none()
-                && let Some(ref agent_model) = agent.model {
-                    compact.model = Some(agent_model.clone());
-                }
+                && let Some(ref agent_model) = agent.model
+            {
+                compact.model = Some(agent_model.clone());
+            }
 
             let eviction = CompactionStrategy::evict(compact.eviction_window);
             let retention = CompactionStrategy::retain(compact.retention_window);
