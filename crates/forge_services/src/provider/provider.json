@@ -94,5 +94,13 @@
     "response_type": "OpenAI",
     "url": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/deployments/{{AZURE_DEPLOYMENT_NAME}}/chat/completions?api-version={{AZURE_API_VERSION}}",
     "model_url": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/models?api-version={{AZURE_API_VERSION}}"
+  },
+  {
+    "id": "streamlake",
+    "api_key_vars": "STREAMLAKE_API_KEY",
+    "url_param_vars": ["STREAMLAKE_ENDPOINT_ID"],
+    "response_type": "OpenAI",
+    "url": "https://vanchin.streamlake.ai/api/gateway/v1/endpoints/chat/completions",
+    "model_url": "https://vanchin.streamlake.ai/api/gateway/v1/models"
   }
 ]
