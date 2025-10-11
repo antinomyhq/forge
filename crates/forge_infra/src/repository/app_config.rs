@@ -17,40 +17,10 @@ impl AppConfigRepositoryImpl {
         Self { config_path, cache: Arc::new(Mutex::new(None)) }
     }
 
-    async fn init_default(&self) -> anyhow::Result<AppConfig> {
-        let default_config = AppConfig::default();
-        let content = serde_json::to_string_pretty(&default_config)?;
-        ForgeFS::write(&self.config_path, content).await?;
-        Ok(default_config)
-    }
-
     async fn read_inner(&self) -> anyhow::Result<AppConfig> {
-        // Check if file exists, if not create with default config
-        if !ForgeFS::exists(&self.config_path) {
-            return self.init_default().await;
-        }
-
         let path = &self.config_path;
-        let content = ForgeFS::read_utf8(&path)
-            .await
-            .with_context(|| format!("Failed to read app config: {}", path.display()))?;
-        if content.is_empty() {
-            return self.init_default().await;
-        }
-
-        // Try to deserialize the config, if it fails (e.g. invalid provider), reset to
-        // default
-        match serde_json::from_str::<AppConfig>(&content) {
-            Ok(config) => Ok(config),
-            Err(e) => {
-                tracing::warn!(
-                    error = ?e,
-                    path = %path.display(),
-                    "Failed to deserialize app config, resetting to default"
-                );
-                self.init_default().await
-            }
-        }
+        let content = ForgeFS::read_utf8(&path).await?;
+        Ok(serde_json::from_str(&content)?)
     }
 
     async fn read(&self) -> AppConfig {
@@ -198,26 +168,17 @@ mod tests {
         let expected = AppConfig::default();
         assert_eq!(actual, expected);
 
-        // Verify that the config file was reset to default
-        let content = std::fs::read_to_string(&config_path)?;
-        let written_config: AppConfig = serde_json::from_str(&content)?;
-        assert_eq!(written_config, expected);
-
         Ok(())
     }
 
     #[tokio::test]
-    async fn test_read_creates_file_if_not_exists() -> anyhow::Result<()> {
+    async fn test_read_returns_default_if_not_exists() -> anyhow::Result<()> {
         let (repo, _temp_dir) = repository_fixture()?;
 
         // File should not exist initially
         assert!(!repo.config_path.exists());
 
-        // Reading should create the file with default config
         let config = repo.get_app_config().await?;
-
-        // File should now exist
-        assert!(repo.config_path.exists());
 
         // Config should be the default
         assert_eq!(config, AppConfig::default());
