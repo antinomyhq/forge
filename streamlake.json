@@ -1,0 +1,11 @@
+[
+  {
+    "id": "{{STREAMLAKE_ENDPOINT_ID}}",
+    "name": "KAT-Coder",
+    "description": "KAT-Coder possesses advanced intelligent agent capabilities such as multi-tool parallel invocation, enabling autonomous completion of complex tasks with fewer interactions, featuring stronger code comprehension and logical reasoning, delivering ultimate performance for AI Coding.",
+    "context_length": 256000,
+    "tools_supported": true,
+    "supports_parallel_tool_calls": true,
+    "supports_reasoning": true
+  }
+]

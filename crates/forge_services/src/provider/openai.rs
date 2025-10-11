@@ -95,6 +95,9 @@ impl<H: HttpClientService> OpenAIProvider<H> {
     }
 
     async fn inner_models(&self) -> Result<Vec<forge_app::domain::Model>> {
+        if self.provider.id == forge_app::dto::ProviderId::Streamlake {
+            return self.inner_streamlake_models();
+        }
         // For Vertex AI, load models from static JSON file using VertexProvider logic
         if self.provider.id == forge_app::dto::ProviderId::VertexAi {
             debug!("Loading Vertex AI models from static JSON file");
@@ -157,6 +160,50 @@ impl<H: HttpClientService> OpenAIProvider<H> {
             };
         }
         VERTEX_MODELS.clone()
+    }
+    /// Load Streamlake AI models from static JSON file
+    /// Loads and renders Streamlake models from JSON with Handlebars template
+    /// support
+    ///
+    /// The streamlake.json file may contain Handlebars templates that reference
+    /// environment variables (e.g., {{STREAMLAKE_ENDPOINT_ID}}). This method
+    /// renders those templates before parsing the JSON.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if template rendering or JSON parsing fails
+    fn inner_streamlake_models(&self) -> Result<Vec<forge_app::domain::Model>> {
+        use std::collections::HashMap;
+
+        use handlebars::Handlebars;
+
+        lazy_static! {
+            static ref STREAMLAKE_TEMPLATE: String = include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../streamlake.json"
+            ))
+            .to_string();
+        }
+
+        // Create Handlebars renderer
+        let hb = Handlebars::new();
+
+        // Build template data from environment variables
+        let mut template_data = HashMap::new();
+        if let Ok(endpoint_id) = std::env::var("STREAMLAKE_ENDPOINT_ID") {
+            template_data.insert("STREAMLAKE_ENDPOINT_ID", endpoint_id);
+        }
+
+        // Render the template
+        let rendered = hb
+            .render_template(&STREAMLAKE_TEMPLATE, &template_data)
+            .with_context(|| "Failed to render streamlake.json template")?;
+
+        // Parse the rendered JSON
+        let models =
+            serde_json::from_str(&rendered).with_context(|| "Failed to parse streamlake.json")?;
+
+        Ok(models)
     }
 }
 
