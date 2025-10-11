@@ -90,4 +90,84 @@ impl Conversation {
         // Instead of using Handlebars, we now use our Element DSL
         crate::conversation_html::render_conversation_html(self)
     }
+
+    /// Gets a summary of the conversation's current state.
+    ///
+    /// This method provides quick access to:
+    /// - The last attempt completion (if any)
+    /// - The user message that preceded it
+    /// - Any detected interruptions
+    ///
+    /// # Returns
+    /// - `Some(ConversationSummary)` if the conversation has context
+    /// - `None` if the conversation has no context yet
+    pub fn get_summary(&self) -> Option<crate::ConversationSummary> {
+        self.context.as_ref().map(|ctx| ctx.get_summary())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+    use crate::{Context, ContextMessage, ToolCallFull, ToolCallId, ToolName};
+
+    #[test]
+    fn test_get_summary_without_context() {
+        let fixture = Conversation::generate();
+
+        let actual = fixture.get_summary();
+
+        assert!(actual.is_none());
+    }
+
+    #[test]
+    fn test_get_summary_with_context_and_assistant() {
+        let context = Context::default()
+            .add_message(ContextMessage::user("Create a test file", None))
+            .add_message(ContextMessage::assistant(
+                "File created successfully",
+                None,
+                Some(vec![ToolCallFull {
+                    name: ToolName::new("write"),
+                    call_id: Some(ToolCallId::new("call1")),
+                    arguments: crate::ToolCallArguments::from(serde_json::json!({
+                        "path": "test.txt",
+                        "content": "Hello, World!"
+                    })),
+                }]),
+            ));
+
+        let fixture = Conversation::generate().context(context);
+
+        let actual = fixture.get_summary();
+
+        assert!(actual.is_some());
+        let summary = actual.unwrap();
+        assert_eq!(summary.entries.len(), 1);
+        let entry = summary.entries.first().unwrap();
+        assert_eq!(entry.user_message, "Create a test file");
+        assert_eq!(entry.assistant_content, "File created successfully");
+        assert_eq!(entry.tool_call_count, 1);
+    }
+
+    #[test]
+    fn test_get_summary_with_interrupted_conversation() {
+        let context = Context::default()
+            .add_message(ContextMessage::user("Long running task", None))
+            .add_message(ContextMessage::assistant("Processing...", None, None));
+
+        let fixture = Conversation::generate().context(context);
+
+        let actual = fixture.get_summary();
+
+        assert!(actual.is_some());
+        let summary = actual.unwrap();
+        assert_eq!(summary.entries.len(), 1);
+        let entry = summary.entries.first().unwrap();
+        assert_eq!(entry.user_message, "Long running task");
+        assert_eq!(entry.assistant_content, "Processing...");
+        assert_eq!(entry.tool_call_count, 0);
+    }
 }
