@@ -75,6 +75,7 @@ mod tests {
             .add_message(ContextMessage::Text(TextMessage {
                 role: Role::Assistant,
                 content: "First assistant response with reasoning".to_string(),
+                original_content: None,
                 tool_calls: None,
                 model: None,
                 reasoning_details: Some(reasoning_details.clone()),
@@ -83,6 +84,7 @@ mod tests {
             .add_message(ContextMessage::Text(TextMessage {
                 role: Role::Assistant,
                 content: "Second assistant response with reasoning".to_string(),
+                original_content: None,
                 tool_calls: None,
                 model: None,
                 reasoning_details: Some(reasoning_details.clone()),
@@ -90,6 +92,7 @@ mod tests {
             .add_message(ContextMessage::Text(TextMessage {
                 role: Role::Assistant,
                 content: "Third assistant without reasoning".to_string(),
+                original_content: None,
                 tool_calls: None,
                 model: None,
                 reasoning_details: None,
@@ -108,6 +111,7 @@ mod tests {
             .add_message(ContextMessage::Text(TextMessage {
                 role: Role::Assistant,
                 content: "First assistant without reasoning".to_string(),
+                original_content: None,
                 tool_calls: None,
                 model: None,
                 reasoning_details: None,
@@ -115,6 +119,7 @@ mod tests {
             .add_message(ContextMessage::Text(TextMessage {
                 role: Role::Assistant,
                 content: "Second assistant with reasoning".to_string(),
+                original_content: None,
                 tool_calls: None,
                 model: None,
                 reasoning_details: Some(reasoning_details.clone()),
@@ -122,6 +127,7 @@ mod tests {
             .add_message(ContextMessage::Text(TextMessage {
                 role: Role::Assistant,
                 content: "Third assistant with reasoning".to_string(),
+                original_content: None,
                 tool_calls: None,
                 model: None,
                 reasoning_details: Some(reasoning_details),
