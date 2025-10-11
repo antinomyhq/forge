@@ -1,5 +1,0 @@
----
-source: crates/forge_app/src/operation.rs
-expression: to_value(actual)
----
-<success>[Task was completed successfully. Now wait for user feedback]</success>
