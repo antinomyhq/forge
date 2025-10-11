@@ -133,6 +133,24 @@ impl ContextMessage {
         TextMessage {
             role: Role::User,
             content: content.to_string(),
+            original_content: None,
+            tool_calls: None,
+            reasoning_details: None,
+            model,
+        }
+        .into()
+    }
+
+    /// Creates a user message with both original and formatted content
+    pub fn user_with_original(
+        original: impl ToString,
+        formatted: impl ToString,
+        model: Option<ModelId>,
+    ) -> Self {
+        TextMessage {
+            role: Role::User,
+            content: formatted.to_string(),
+            original_content: Some(original.to_string()),
             tool_calls: None,
             reasoning_details: None,
             model,
@@ -144,6 +162,7 @@ impl ContextMessage {
         TextMessage {
             role: Role::System,
             content: content.to_string(),
+            original_content: None,
             tool_calls: None,
             model: None,
             reasoning_details: None,
@@ -161,6 +180,7 @@ impl ContextMessage {
         TextMessage {
             role: Role::Assistant,
             content: content.to_string(),
+            original_content: None,
             tool_calls,
             reasoning_details,
             model: None,
@@ -240,6 +260,13 @@ fn reasoning_content_char_count(text_message: &TextMessage) -> usize {
 pub struct TextMessage {
     pub role: Role,
     pub content: String,
+    /// Original unwrapped content before any transformations.
+    /// Only populated for User messages where template wrapping is applied.
+    /// This field is for internal use only (summaries, logging, UI).
+    /// NOT sent to LLM APIs - the DTO conversion layer explicitly maps only the
+    /// `content` field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub original_content: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_calls: Option<Vec<ToolCallFull>>,
     // note: this used to track model used for this message.
@@ -262,6 +289,7 @@ impl TextMessage {
         Self {
             role: Role::Assistant,
             content: content.to_string(),
+            original_content: None,
             tool_calls: None,
             reasoning_details,
             model,
@@ -451,9 +479,15 @@ impl Context {
             if let ContextMessage::Text(text_message) = message
                 && text_message.role == role
             {
-                return Some(crate::xml::extract_outermost_tag_or_text(
-                    &text_message.content,
-                ));
+                return match role {
+                    Role::User => Some(
+                        text_message
+                            .original_content
+                            .as_deref()
+                            .unwrap_or(&text_message.content),
+                    ),
+                    _ => Some(&text_message.content),
+                };
             }
         }
         None
@@ -540,9 +574,12 @@ impl Context {
             if let ContextMessage::Text(text_message) = msg
                 && text_message.role == Role::User
             {
-                Some(crate::xml::extract_outermost_tag_or_text(
-                    &text_message.content,
-                ))
+                Some(
+                    text_message
+                        .original_content
+                        .as_deref()
+                        .unwrap_or(&text_message.content),
+                )
             } else {
                 None
             }
@@ -555,9 +592,7 @@ impl Context {
             if let ContextMessage::Text(text_message) = msg
                 && text_message.role == Role::Assistant
             {
-                Some(crate::xml::extract_outermost_tag_or_text(
-                    &text_message.content,
-                ))
+                Some(text_message.content.as_str())
             } else {
                 None
             }
@@ -1560,5 +1595,159 @@ mod tests {
         // Test finding assistant message before assistant message (should be None)
         let actual = fixture.find_message_with_role_before(2, Role::Assistant);
         assert_eq!(actual, None);
+    }
+
+    // ============================================================================
+    // TESTS FOR ORIGINAL_CONTENT - Verify summary uses unwrapped content
+    // ============================================================================
+
+    #[test]
+    fn test_get_summary_uses_original_content() {
+        // Pattern: User with XML wrapping -> Assistant
+        let fixture = Context::default()
+            .add_message(ContextMessage::user_with_original(
+                "Create a file",
+                "<task>Create a file</task>",
+                None,
+            ))
+            .add_message(ContextMessage::assistant("File created", None, None));
+
+        let actual = fixture.get_summary();
+
+        assert_eq!(actual.entries.len(), 1);
+        // Should use original_content, NOT the formatted content with XML tags
+        assert_eq!(actual.entries[0].user_message, "Create a file");
+        assert_eq!(actual.entries[0].assistant_content, "File created");
+    }
+
+    #[test]
+    fn test_get_summary_uses_original_content_multiple_exchanges() {
+        // Pattern: Multiple exchanges with original_content
+        let fixture = Context::default()
+            .add_message(ContextMessage::user_with_original(
+                "First task",
+                "<task>First task</task>",
+                None,
+            ))
+            .add_message(ContextMessage::assistant("First response", None, None))
+            .add_message(ContextMessage::user_with_original(
+                "Second task",
+                "<task>Second task</task>",
+                None,
+            ))
+            .add_message(ContextMessage::assistant("Second response", None, None));
+
+        let actual = fixture.get_summary();
+
+        assert_eq!(actual.entries.len(), 2);
+        assert_eq!(actual.entries[0].user_message, "First task");
+        assert_eq!(actual.entries[0].assistant_content, "First response");
+        assert_eq!(actual.entries[1].user_message, "Second task");
+        assert_eq!(actual.entries[1].assistant_content, "Second response");
+    }
+
+    #[test]
+    fn test_get_summary_mixed_original_and_regular_content() {
+        // Pattern: Mix of messages with and without original_content
+        let fixture = Context::default()
+            .add_message(ContextMessage::user_with_original(
+                "Original content",
+                "<task>Original content</task>",
+                None,
+            ))
+            .add_message(ContextMessage::assistant("Response 1", None, None))
+            .add_message(ContextMessage::user("Plain user message", None))
+            .add_message(ContextMessage::assistant("Response 2", None, None));
+
+        let actual = fixture.get_summary();
+
+        assert_eq!(actual.entries.len(), 2);
+        // First uses original_content
+        assert_eq!(actual.entries[0].user_message, "Original content");
+        // Second falls back to content (no original_content)
+        assert_eq!(actual.entries[1].user_message, "Plain user message");
+    }
+
+    #[test]
+    fn test_get_summary_original_content_with_feedback_tag() {
+        // Pattern: User with feedback XML wrapping
+        let fixture = Context::default()
+            .add_message(ContextMessage::user_with_original(
+                "Update the code",
+                "<feedback>Update the code</feedback>",
+                None,
+            ))
+            .add_message(ContextMessage::assistant("Code updated", None, None));
+
+        let actual = fixture.get_summary();
+
+        assert_eq!(actual.entries.len(), 1);
+        // Should use original_content without feedback tags
+        assert_eq!(actual.entries[0].user_message, "Update the code");
+        assert_eq!(actual.entries[0].assistant_content, "Code updated");
+    }
+
+    #[test]
+    fn test_get_summary_original_content_back_to_back_users() {
+        // Pattern: Back-to-back users with original_content
+        let fixture = Context::default()
+            .add_message(ContextMessage::user_with_original(
+                "First message",
+                "<task>First message</task>",
+                None,
+            ))
+            .add_message(ContextMessage::user_with_original(
+                "Second message",
+                "<feedback>Second message</feedback>",
+                None,
+            ))
+            .add_message(ContextMessage::assistant("Combined response", None, None));
+
+        let actual = fixture.get_summary();
+
+        assert_eq!(actual.entries.len(), 1);
+        // Should use original_content from the FIRST user message
+        assert_eq!(actual.entries[0].user_message, "First message");
+        assert_eq!(actual.entries[0].assistant_content, "Combined response");
+    }
+
+    #[test]
+    fn test_extract_user_content_prefers_original_content() {
+        // Direct test of the helper method
+        let fixture = Context::default().add_message(ContextMessage::user_with_original(
+            "Raw input",
+            "<task>Raw input</task>",
+            None,
+        ));
+
+        let actual = fixture.extract_user_content(0);
+
+        assert_eq!(actual, Some("Raw input"));
+    }
+
+    #[test]
+    fn test_extract_user_content_fallback_when_no_original() {
+        // Test fallback when original_content is None
+        let fixture = Context::default().add_message(ContextMessage::user("Plain message", None));
+
+        let actual = fixture.extract_user_content(0);
+
+        assert_eq!(actual, Some("Plain message"));
+    }
+
+    #[test]
+    fn test_find_message_with_role_before_uses_original_content() {
+        let fixture = Context::default()
+            .add_message(ContextMessage::user_with_original(
+                "Original",
+                "<task>Original</task>",
+                None,
+            ))
+            .add_message(ContextMessage::assistant("Response", None, None));
+
+        let actual = fixture.find_message_with_role_before(1, Role::User);
+
+        // Should return original_content, not formatted
+        assert_eq!(actual, Some("Original"));
     }
 }

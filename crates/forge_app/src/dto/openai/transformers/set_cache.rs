@@ -70,6 +70,7 @@ mod tests {
                     's' => ContextMessage::Text(TextMessage {
                         role: Role::System,
                         content: c.to_string(),
+                        original_content: None,
                         tool_calls: None,
                         model: None,
                         reasoning_details: None,
@@ -77,6 +78,7 @@ mod tests {
                     'u' => ContextMessage::Text(TextMessage {
                         role: Role::User,
                         content: c.to_string(),
+                        original_content: None,
                         tool_calls: None,
                         model: ModelId::new("gpt-4").into(),
                         reasoning_details: None,
@@ -84,6 +86,7 @@ mod tests {
                     'a' => ContextMessage::Text(TextMessage {
                         role: Role::Assistant,
                         content: c.to_string(),
+                        original_content: None,
                         tool_calls: None,
                         model: None,
                         reasoning_details: None,

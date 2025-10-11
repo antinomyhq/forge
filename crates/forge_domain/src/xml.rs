@@ -26,49 +26,6 @@ pub fn extract_tag_content<'a>(text: &'a str, tag_name: &str) -> Option<&'a str>
     None
 }
 
-/// Extracts content from the outermost XML tag found in the text.
-/// If no XML tags are found, returns the original text as-is.
-///
-/// # Arguments
-///
-/// * `text` - The text to extract content from
-///
-/// # Returns
-///
-/// The content inside the outermost XML tag, or the original text if no tags
-/// found
-pub fn extract_outermost_tag_or_text(text: &str) -> &str {
-    // Try to find any opening tag: <tag_name> or <tag_name ...>
-    let Ok(tag_pattern) = regex::Regex::new(r"<([a-zA-Z][a-zA-Z0-9_-]*?)(?:\s[^>]*?)?>") else {
-        return text;
-    };
-
-    // Find first opening tag
-    let Some(captures) = tag_pattern.captures(text) else {
-        return text;
-    };
-
-    let Some(tag_name) = captures.get(1) else {
-        return text;
-    };
-
-    let Some(opening_match) = captures.get(0) else {
-        return text;
-    };
-
-    // Find corresponding closing tag
-    let closing_tag = format!("</{}>", tag_name.as_str());
-    let start_pos = opening_match.end();
-
-    if let Some(end_idx) = text[start_pos..].find(&closing_tag) {
-        let content_end = start_pos + end_idx;
-        return text[start_pos..content_end].trim();
-    }
-
-    // If extraction fails, return original text
-    text
-}
-
 /// Removes content within XML-style tags that start with the specified prefix
 pub fn remove_tag_with_prefix(text: &str, prefix: &str) -> String {
     // First, find all unique tag names that start with the prefix
@@ -206,54 +163,6 @@ mod tests {
         let fixture = "<foo>1<foo>2</foo>3</foo>";
         let actual = extract_tag_content(fixture, "foo").unwrap();
         let expected = "1<foo>2</foo>3";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_extract_outermost_tag_or_text_with_tag() {
-        let fixture = "<message>Hello, world!</message>";
-        let actual = extract_outermost_tag_or_text(fixture);
-        let expected = "Hello, world!";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_extract_outermost_tag_or_text_no_tags() {
-        let fixture = "Plain text without tags";
-        let actual = extract_outermost_tag_or_text(fixture);
-        let expected = "Plain text without tags";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_extract_outermost_tag_or_text_with_nested() {
-        let fixture = "<outer>Some <inner>nested</inner> content</outer>";
-        let actual = extract_outermost_tag_or_text(fixture);
-        let expected = "Some <inner>nested</inner> content";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_extract_outermost_tag_or_text_with_attributes() {
-        let fixture = r#"<div class="test" id="main">Content here</div>"#;
-        let actual = extract_outermost_tag_or_text(fixture);
-        let expected = "Content here";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_extract_outermost_tag_or_text_malformed() {
-        let fixture = "<opening>Content without closing";
-        let actual = extract_outermost_tag_or_text(fixture);
-        let expected = "<opening>Content without closing";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_extract_outermost_tag_or_text_with_text_before_tag() {
-        let fixture = "Some prefix <tag>content</tag> some suffix";
-        let actual = extract_outermost_tag_or_text(fixture);
-        let expected = "content";
         assert_eq!(actual, expected);
     }
 }

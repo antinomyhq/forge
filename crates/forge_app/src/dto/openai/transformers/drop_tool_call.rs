@@ -58,6 +58,7 @@ mod tests {
                 ContextMessage::Text(TextMessage {
                     role: Role::Assistant,
                     content: "Using tool".to_string(),
+                    original_content: None,
                     tool_calls: Some(vec![tool_call]),
                     model: None,
                     reasoning_details: None,

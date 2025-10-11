@@ -433,3 +433,47 @@ impl TryFrom<forge_domain::ToolDefinition> for ToolDefinition {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use forge_domain::{Context, Role, TextMessage};
+
+    use super::*;
+
+    #[test]
+    fn test_anthropic_conversion_excludes_original_content() {
+        let fixture = ContextMessage::Text(TextMessage {
+            role: Role::User,
+            content: "<task>Create a file</task>".to_string(),
+            original_content: None,
+            tool_calls: None,
+            reasoning_details: None,
+            model: None,
+        });
+
+        let actual = Message::try_from(fixture).unwrap();
+        let json = serde_json::to_value(&actual).unwrap();
+
+        // Verify original_content is NOT in the serialized output
+        assert!(!json.to_string().contains("original_content"));
+        assert!(json.to_string().contains("<task>Create a file</task>"));
+    }
+
+    #[test]
+    fn test_anthropic_request_excludes_original_content() {
+        let fixture = Context::default().add_message(ContextMessage::Text(TextMessage {
+            role: Role::User,
+            content: "<task>Test message</task>".to_string(),
+            original_content: Some("Test message".to_string()),
+            tool_calls: None,
+            reasoning_details: None,
+            model: None,
+        }));
+
+        let actual = Request::try_from(fixture).unwrap();
+        let json = serde_json::to_value(&actual).unwrap();
+
+        assert!(!json.to_string().contains("original_content"));
+        assert!(json.to_string().contains("<task>Test message</task>"));
+    }
+}

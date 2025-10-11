@@ -100,6 +100,7 @@ mod tests {
             .add_message(ContextMessage::Text(TextMessage {
                 role: Role::System,
                 content: "System message".to_string(),
+                original_content: None,
                 tool_calls: None,
                 model: None,
                 reasoning_details: None,
@@ -107,6 +108,7 @@ mod tests {
             .add_message(ContextMessage::Text(TextMessage {
                 role: Role::Assistant,
                 content: "Assistant message".to_string(),
+                original_content: None,
                 tool_calls: None,
                 model: None,
                 reasoning_details: None,
