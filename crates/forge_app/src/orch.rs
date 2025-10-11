@@ -338,7 +338,10 @@ impl<S: AgentService> Orchestrator<S> {
                 })
             });
 
-        // Indicates whether the tool execution has been completed
+        // Signals that the loop should suspend (task may or may not be completed)
+        let mut should_yield = false;
+
+        // Signals that the task is completed
         let mut is_complete = false;
 
         let mut request_count = 0;
@@ -348,7 +351,7 @@ impl<S: AgentService> Orchestrator<S> {
 
         let tool_context =
             ToolCallContext::new(self.conversation.metrics.clone()).sender(self.sender.clone());
-        while !is_complete {
+        while !should_yield {
             // Set context for the current loop iteration
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
@@ -450,6 +453,12 @@ impl<S: AgentService> Orchestrator<S> {
             // Turn is completed, if no more tool calls are made
             is_complete = tool_calls.is_empty();
 
+            // Should yield if a tool is asking for a follow-up
+            should_yield = is_complete
+                || tool_calls
+                    .iter()
+                    .any(|call| Tools::should_yield(&call.name));
+
             if let Some(reasoning) = reasoning.as_ref()
                 && context.is_reasoning_supported()
             {
@@ -497,8 +506,8 @@ impl<S: AgentService> Orchestrator<S> {
                     },
                 })
                 .await?;
-
-                is_complete = true;
+                // Should yield if too many errors are produced
+                should_yield = true;
             }
 
             // Update context in the conversation
@@ -507,7 +516,7 @@ impl<S: AgentService> Orchestrator<S> {
             self.services.update(self.conversation.clone()).await?;
             request_count += 1;
 
-            if !is_complete && let Some(max_request_allowed) = max_requests_per_turn {
+            if !should_yield && let Some(max_request_allowed) = max_requests_per_turn {
                 // Check if agent has reached the maximum request per turn limit
                 if request_count >= max_request_allowed {
                     warn!(
@@ -525,7 +534,7 @@ impl<S: AgentService> Orchestrator<S> {
                     })
                     .await?;
                     // force completion
-                    is_complete = true;
+                    should_yield = true;
                 }
             }
         }
@@ -537,7 +546,9 @@ impl<S: AgentService> Orchestrator<S> {
         self.services.update(self.conversation.clone()).await?;
 
         // Signal Task Completion
-        self.send(ChatResponse::TaskComplete).await?;
+        if is_complete {
+            self.send(ChatResponse::TaskComplete).await?;
+        }
 
         Ok(())
     }
