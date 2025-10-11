@@ -16,7 +16,6 @@ tool_supported: true
 compact:
   max_tokens: 2000
   token_threshold: 100000
-  model: *advanced_model
   retention_window: 6
   message_threshold: 200
   eviction_window: 0.2
