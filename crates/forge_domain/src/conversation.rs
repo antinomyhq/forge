@@ -123,17 +123,18 @@ mod tests {
     }
 
     #[test]
-    fn test_get_summary_with_context_and_completion() {
+    fn test_get_summary_with_context_and_assistant() {
         let context = Context::default()
             .add_message(ContextMessage::user("Create a test file", None))
             .add_message(ContextMessage::assistant(
-                "File created",
+                "File created successfully",
                 None,
                 Some(vec![ToolCallFull {
-                    name: ToolName::new("attempt_completion"),
+                    name: ToolName::new("write"),
                     call_id: Some(ToolCallId::new("call1")),
                     arguments: crate::ToolCallArguments::from(serde_json::json!({
-                        "result": "# Task Complete\n\nFile created successfully"
+                        "path": "test.txt",
+                        "content": "Hello, World!"
                     })),
                 }]),
             ));
@@ -147,10 +148,7 @@ mod tests {
         assert_eq!(summary.entries.len(), 1);
         let entry = summary.entries.first().unwrap();
         assert_eq!(entry.user_message, "Create a test file");
-        assert_eq!(
-            entry.completion.result,
-            "# Task Complete\n\nFile created successfully"
-        );
+        assert_eq!(entry.assistant_content, "File created successfully");
         assert_eq!(entry.tool_call_count, 1);
     }
 
@@ -166,6 +164,10 @@ mod tests {
 
         assert!(actual.is_some());
         let summary = actual.unwrap();
-        assert_eq!(summary.entries.len(), 0);
+        assert_eq!(summary.entries.len(), 1);
+        let entry = summary.entries.first().unwrap();
+        assert_eq!(entry.user_message, "Long running task");
+        assert_eq!(entry.assistant_content, "Processing...");
+        assert_eq!(entry.tool_call_count, 0);
     }
 }

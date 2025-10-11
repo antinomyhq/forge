@@ -12,8 +12,8 @@ use crate::temperature::Temperature;
 use crate::top_k::TopK;
 use crate::top_p::TopP;
 use crate::{
-    ConversationId, Image, ModelId, ReasoningFull, ToolChoice, ToolDefinition, ToolName,
-    ToolOutput, ToolValue, Usage,
+    ConversationId, Image, ModelId, ReasoningFull, ToolChoice, ToolDefinition, ToolOutput,
+    ToolValue, Usage,
 };
 
 /// Represents a message being sent to the LLM provider
@@ -421,68 +421,6 @@ impl Context {
             .sum::<usize>()
     }
 
-    /// Finds all tool calls with the specified name in the conversation.
-    /// Returns a vector of tuples containing:
-    /// - The deserialized tool call arguments of type T
-    /// - The message index where the tool call was found
-    fn find_all_tool_calls_with_index<T>(&self, tool_name: &ToolName) -> Vec<(T, usize)>
-    where
-        T: for<'de> serde::Deserialize<'de>,
-    {
-        let mut results = Vec::new();
-
-        for (index, message) in self.messages.iter().enumerate() {
-            if let ContextMessage::Text(text_message) = message
-                && text_message.role == Role::Assistant
-                && let Some(tool_calls) = &text_message.tool_calls
-            {
-                for tool_call in tool_calls {
-                    if &tool_call.name == tool_name {
-                        // Parse the arguments into the expected type T
-                        if let Ok(parsed_args) =
-                            serde_json::from_str::<T>(&tool_call.arguments.clone().into_string())
-                        {
-                            results.push((parsed_args, index));
-                        }
-                    }
-                }
-            }
-        }
-
-        results
-    }
-
-    /// Finds the first (earliest) message with the specified role before a
-    /// given index.
-    /// Searches backward from the specified index to find messages with the
-    /// target role, then returns the FIRST (earliest) one found in that
-    /// range.
-    fn find_first_message_with_role_before(
-        &self,
-        message_index: usize,
-        role: Role,
-    ) -> Option<(&str, usize)> {
-        let mut found_messages = Vec::new();
-
-        // Search backward from the completion index
-        for (index, message) in self.messages.iter().enumerate().take(message_index).rev() {
-            if let ContextMessage::Text(text_message) = message
-                && text_message.role == role
-            {
-                let content = crate::xml::extract_outermost_tag_or_text(&text_message.content);
-                found_messages.push((content, index));
-            } else if !found_messages.is_empty() {
-                // Stop when we hit a non-matching role after finding at least one match
-                // This ensures we only get consecutive messages of the same role
-                break;
-            }
-        }
-
-        // Reverse to get chronological order, then take the first (earliest)
-        found_messages.reverse();
-        found_messages.first().copied()
-    }
-
     /// Counts the total number of tool calls in messages within a given range.
     fn count_tool_calls_in_range(&self, start_index: usize, end_index: usize) -> usize {
         if start_index >= end_index {
@@ -521,38 +459,231 @@ impl Context {
         None
     }
 
+    /// Find all user message indices in the conversation
+    fn find_user_message_indices(&self) -> Vec<usize> {
+        self.messages
+            .iter()
+            .enumerate()
+            .filter_map(|(index, msg)| {
+                if msg.has_role(Role::User) {
+                    Some(index)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    /// Find the last assistant message before a given index (exclusive)
+    fn find_last_assistant_before(&self, before_index: usize) -> Option<usize> {
+        self.messages
+            .iter()
+            .take(before_index)
+            .enumerate()
+            .rev()
+            .find_map(|(index, msg)| {
+                if msg.has_role(Role::Assistant) {
+                    Some(index)
+                } else {
+                    None
+                }
+            })
+    }
+
+    /// Check if there's at least one assistant message between two indices
+    fn has_assistant_between(&self, start: usize, end: usize) -> bool {
+        if start >= end {
+            return false;
+        }
+
+        self.messages
+            .iter()
+            .enumerate()
+            .skip(start + 1)
+            .take(end - start - 1)
+            .any(|(_, msg)| msg.has_role(Role::Assistant))
+    }
+
+    /// Find the next user message index after a given index
+    fn find_next_user_index(&self, after_index: usize) -> Option<usize> {
+        self.messages
+            .iter()
+            .enumerate()
+            .skip(after_index + 1)
+            .find_map(|(index, msg)| {
+                if msg.has_role(Role::User) {
+                    Some(index)
+                } else {
+                    None
+                }
+            })
+    }
+
+    /// Checks if there's an assistant message after the given user index
+    fn has_assistant_after(&self, user_index: usize) -> bool {
+        self.messages
+            .iter()
+            .skip(user_index + 1)
+            .any(|msg| msg.has_role(Role::Assistant))
+    }
+
+    /// Finds the last assistant message before the next user boundary (or end
+    /// of conversation if no next user)
+    fn find_last_assistant_in_range(&self, next_user_index: Option<usize>) -> Option<usize> {
+        let boundary = next_user_index.unwrap_or(self.messages.len());
+        self.find_last_assistant_before(boundary)
+    }
+
+    /// Extracts user message content at the given index
+    fn extract_user_content(&self, index: usize) -> Option<&str> {
+        self.messages.get(index).and_then(|msg| {
+            if let ContextMessage::Text(text_message) = msg
+                && text_message.role == Role::User
+            {
+                Some(crate::xml::extract_outermost_tag_or_text(
+                    &text_message.content,
+                ))
+            } else {
+                None
+            }
+        })
+    }
+
+    /// Extracts assistant message content at the given index
+    fn extract_assistant_content(&self, index: usize) -> Option<&str> {
+        self.messages.get(index).and_then(|msg| {
+            if let ContextMessage::Text(text_message) = msg
+                && text_message.role == Role::Assistant
+            {
+                Some(crate::xml::extract_outermost_tag_or_text(
+                    &text_message.content,
+                ))
+            } else {
+                None
+            }
+        })
+    }
+
+    /// Creates a completion entry from user and assistant indices
+    fn create_entry(
+        &self,
+        user_index: usize,
+        assistant_index: usize,
+    ) -> Option<crate::CompletionEntry> {
+        let user_message = self.extract_user_content(user_index)?;
+        let assistant_content = self.extract_assistant_content(assistant_index)?;
+        let tool_call_count = self.count_tool_calls_in_range(user_index, assistant_index + 1);
+
+        Some(crate::CompletionEntry {
+            user_message: user_message.to_string(),
+            assistant_content: assistant_content.to_string(),
+            tool_call_count,
+        })
+    }
+
+    /// Checks if there's an assistant between current user and next user (or
+    /// after current user if no next user exists)
+    fn has_assistant_in_range(&self, user_index: usize, next_user_index: Option<usize>) -> bool {
+        match next_user_index {
+            Some(next_user) => self.has_assistant_between(user_index, next_user),
+            None => self.has_assistant_after(user_index),
+        }
+    }
+
+    /// Finds the next user index that has an assistant after it, starting from
+    /// current position in the user_indices array
+    fn find_next_user_with_assistant(
+        &self,
+        user_indices: &[usize],
+        start_position: usize,
+    ) -> usize {
+        let mut position = start_position + 1;
+        while position < user_indices.len() {
+            let user_idx = user_indices[position];
+            let next_user_idx = self.find_next_user_index(user_idx);
+            let has_assistant = self.has_assistant_in_range(user_idx, next_user_idx);
+
+            if has_assistant {
+                break;
+            }
+            position += 1;
+        }
+        position
+    }
+
+    /// Processes a single user-assistant pair and returns a completion entry
+    fn process_user_assistant_pair(
+        &self,
+        user_index: usize,
+        next_user_index: Option<usize>,
+    ) -> Option<crate::CompletionEntry> {
+        let assistant_index = self.find_last_assistant_in_range(next_user_index)?;
+        self.create_entry(user_index, assistant_index)
+    }
+
+    /// Processes back-to-back user messages (multiple users without assistants
+    /// between them). Returns the completion entry for the FIRST user paired
+    /// with the assistant after the sequence, and the next position to
+    /// continue from
+    fn process_back_to_back_users(
+        &self,
+        user_indices: &[usize],
+        start_position: usize,
+    ) -> (Option<crate::CompletionEntry>, usize) {
+        let end_position = self.find_next_user_with_assistant(user_indices, start_position);
+        let first_user_index = user_indices[start_position];
+
+        if end_position > start_position {
+            // Find the user message after the back-to-back sequence
+            // and get the last assistant before it
+            let next_user_index = user_indices.get(end_position + 1).copied();
+            let assistant_index = self.find_last_assistant_in_range(next_user_index);
+            let entry = assistant_index
+                .and_then(|assist_idx| self.create_entry(first_user_index, assist_idx));
+            (entry, end_position + 1)
+        } else {
+            (None, start_position + 1)
+        }
+    }
+
+    /// Processes all user messages and creates conversation entries by
+    /// iterating through user indices and handling both normal
+    /// user-assistant pairs and back-to-back user message sequences
+    fn process_all_users(&self, user_indices: &[usize]) -> Vec<crate::CompletionEntry> {
+        let mut entries = Vec::new();
+        let mut current_position = 0;
+
+        while current_position < user_indices.len() {
+            let user_index = user_indices[current_position];
+            let next_user_index = self.find_next_user_index(user_index);
+            let has_assistant = self.has_assistant_in_range(user_index, next_user_index);
+
+            if has_assistant {
+                if let Some(entry) = self.process_user_assistant_pair(user_index, next_user_index) {
+                    entries.push(entry);
+                }
+                current_position += 1;
+            } else {
+                let (entry, next_position) =
+                    self.process_back_to_back_users(user_indices, current_position);
+                if let Some(entry) = entry {
+                    entries.push(entry);
+                }
+                current_position = next_position;
+            }
+        }
+
+        entries
+    }
+
     /// Gets a comprehensive summary of the conversation state.
     pub fn get_summary(&self) -> crate::ConversationSummary {
-        let attempt_completion_tool_name = crate::ToolName::new("attempt_completion");
-
-        // Find all attempt_completion tool calls
-        let all_completions = self
-            .find_all_tool_calls_with_index::<crate::tools::AttemptCompletion>(
-                &attempt_completion_tool_name,
-            );
-
-        // Build entries for each completion
-        let entries = all_completions
-            .into_iter()
-            .filter_map(|(attempt_completion, completion_index)| {
-                // Find the first user message before this completion
-                let (user_message, user_index) =
-                    self.find_first_message_with_role_before(completion_index, Role::User)?;
-
-                // Count tool calls between user message and completion (inclusive of
-                // completion)
-                let tool_call_count =
-                    self.count_tool_calls_in_range(user_index, completion_index + 1);
-
-                // Create entry with AttemptCompletionInfo
-                Some(crate::CompletionEntry {
-                    user_message: user_message.to_string(),
-                    completion: crate::AttemptCompletionInfo { result: attempt_completion.result },
-                    tool_call_count,
-                })
-            })
-            .collect();
-
+        let user_indices = self.find_user_message_indices();
+        let entries = if user_indices.is_empty() {
+            Vec::new()
+        } else {
+            self.process_all_users(&user_indices)
+        };
         crate::ConversationSummary { entries }
     }
 
@@ -623,6 +754,459 @@ mod tests {
     use super::*;
     use crate::estimate_token_count;
     use crate::transformer::Transformer;
+
+    // ============================================================================
+    // TEST HELPERS - For building readable test contexts
+    // ============================================================================
+
+    /// Helper to create user messages with short notation
+    fn user(content: &str) -> ContextMessage {
+        ContextMessage::user(content, None)
+    }
+
+    /// Helper to create assistant messages with short notation
+    fn assistant(content: &str) -> ContextMessage {
+        ContextMessage::assistant(content, None, None)
+    }
+
+    /// Helper to create assistant messages with tool calls
+    fn assistant_with_tools(content: &str, tool_count: usize) -> ContextMessage {
+        let tools: Vec<ToolCallFull> = (0..tool_count)
+            .map(|i| ToolCallFull {
+                name: crate::ToolName::new(format!("tool_{}", i)),
+                call_id: Some(crate::ToolCallId::new(format!("call_{}", i))),
+                arguments: crate::ToolCallArguments::from(serde_json::json!({})),
+            })
+            .collect();
+        ContextMessage::assistant(content, None, Some(tools))
+    }
+
+    /// Helper to create system messages
+    fn system(content: &str) -> ContextMessage {
+        ContextMessage::system(content)
+    }
+
+    /// Builder for creating test contexts with readable message patterns
+    /// Allows patterns like: U1-U2-A1 or U1-AT2-R1-U2-A2
+    struct ContextBuilder {
+        messages: Vec<ContextMessage>,
+    }
+
+    impl ContextBuilder {
+        fn new() -> Self {
+            Self { messages: Vec::new() }
+        }
+
+        /// Add a user message
+        fn u(mut self, content: &str) -> Self {
+            self.messages.push(user(content));
+            self
+        }
+
+        /// Add an assistant message
+        fn a(mut self, content: &str) -> Self {
+            self.messages.push(assistant(content));
+            self
+        }
+
+        /// Add an assistant message with tool calls
+        fn at(mut self, content: &str, tool_count: usize) -> Self {
+            self.messages
+                .push(assistant_with_tools(content, tool_count));
+            self
+        }
+
+        /// Add a system message
+        fn s(mut self, content: &str) -> Self {
+            self.messages.push(system(content));
+            self
+        }
+
+        fn build(self) -> Context {
+            let mut ctx = Context::default();
+            for msg in self.messages {
+                ctx = ctx.add_message(msg);
+            }
+            ctx
+        }
+    }
+
+    // ============================================================================
+    // UNIT TESTS - Test individual helper functions
+    // ============================================================================
+
+    #[test]
+    fn test_find_user_message_indices_empty() {
+        let fixture = Context::default();
+        let actual = fixture.find_user_message_indices();
+        assert_eq!(actual, Vec::<usize>::new());
+    }
+
+    #[test]
+    fn test_find_user_message_indices_single_user() {
+        // Pattern: U1
+        let fixture = ContextBuilder::new().u("U1").build();
+        let actual = fixture.find_user_message_indices();
+        assert_eq!(actual, vec![0]);
+    }
+
+    #[test]
+    fn test_find_user_message_indices_multiple_users() {
+        // Pattern: U1-A1-U2-A2-U3
+        let fixture = ContextBuilder::new()
+            .u("U1")
+            .a("A1")
+            .u("U2")
+            .a("A2")
+            .u("U3")
+            .build();
+        let actual = fixture.find_user_message_indices();
+        assert_eq!(actual, vec![0, 2, 4]);
+    }
+
+    #[test]
+    fn test_find_user_message_indices_with_system() {
+        // Pattern: S-U1-A1-U2
+        let fixture = ContextBuilder::new()
+            .s("System")
+            .u("U1")
+            .a("A1")
+            .u("U2")
+            .build();
+        let actual = fixture.find_user_message_indices();
+        assert_eq!(actual, vec![1, 3]); // System is at 0, users at 1 and 3
+    }
+
+    #[test]
+    fn test_find_last_assistant_before_exists() {
+        // Pattern: U1-A1-U2
+        let fixture = ContextBuilder::new().u("U1").a("A1").u("U2").build();
+        let actual = fixture.find_last_assistant_before(2);
+        assert_eq!(actual, Some(1));
+    }
+
+    #[test]
+    fn test_find_last_assistant_before_none() {
+        // Pattern: U1-U2
+        let fixture = ContextBuilder::new().u("U1").u("U2").build();
+        let actual = fixture.find_last_assistant_before(2);
+        assert_eq!(actual, None);
+    }
+
+    #[test]
+    fn test_find_last_assistant_before_multiple() {
+        // Pattern: U1-A1-A2-U2 (should find last one: A2)
+        let fixture = ContextBuilder::new()
+            .u("U1")
+            .a("A1")
+            .a("A2")
+            .u("U2")
+            .build();
+        let actual = fixture.find_last_assistant_before(3);
+        assert_eq!(actual, Some(2));
+    }
+
+    #[test]
+    fn test_has_assistant_between_true() {
+        // Pattern: U1-A1-U2
+        let fixture = ContextBuilder::new().u("U1").a("A1").u("U2").build();
+        let actual = fixture.has_assistant_between(0, 2);
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_has_assistant_between_false() {
+        // Pattern: U1-U2
+        let fixture = ContextBuilder::new().u("U1").u("U2").build();
+        let actual = fixture.has_assistant_between(0, 1);
+        assert_eq!(actual, false);
+    }
+
+    #[test]
+    fn test_has_assistant_between_invalid_range() {
+        // Pattern: U1-A1
+        let fixture = ContextBuilder::new().u("U1").a("A1").build();
+        let actual = fixture.has_assistant_between(1, 0); // Invalid: start >= end
+        assert_eq!(actual, false);
+    }
+
+    #[test]
+    fn test_find_next_user_index_exists() {
+        // Pattern: U1-A1-U2
+        let fixture = ContextBuilder::new().u("U1").a("A1").u("U2").build();
+        let actual = fixture.find_next_user_index(0);
+        assert_eq!(actual, Some(2));
+    }
+
+    #[test]
+    fn test_find_next_user_index_none() {
+        // Pattern: U1-A1
+        let fixture = ContextBuilder::new().u("U1").a("A1").build();
+        let actual = fixture.find_next_user_index(0);
+        assert_eq!(actual, None);
+    }
+
+    #[test]
+    fn test_has_assistant_after_true() {
+        // Pattern: U1-A1
+        let fixture = ContextBuilder::new().u("U1").a("A1").build();
+        let actual = fixture.has_assistant_after(0);
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_has_assistant_after_false() {
+        // Pattern: U1
+        let fixture = ContextBuilder::new().u("U1").build();
+        let actual = fixture.has_assistant_after(0);
+        assert_eq!(actual, false);
+    }
+
+    #[test]
+    fn test_has_assistant_in_range_with_next_user() {
+        // Pattern: U1-A1-U2
+        let fixture = ContextBuilder::new().u("U1").a("A1").u("U2").build();
+        let actual = fixture.has_assistant_in_range(0, Some(2));
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_has_assistant_in_range_without_next_user() {
+        // Pattern: U1-A1
+        let fixture = ContextBuilder::new().u("U1").a("A1").build();
+        let actual = fixture.has_assistant_in_range(0, None);
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_extract_user_content_valid() {
+        // Pattern: U1
+        let fixture = ContextBuilder::new().u("Test content").build();
+        let actual = fixture.extract_user_content(0);
+        assert_eq!(actual, Some("Test content"));
+    }
+
+    #[test]
+    fn test_extract_user_content_invalid_index() {
+        let fixture = ContextBuilder::new().u("U1").build();
+        let actual = fixture.extract_user_content(5);
+        assert_eq!(actual, None);
+    }
+
+    #[test]
+    fn test_extract_assistant_content_valid() {
+        // Pattern: A1
+        let fixture = ContextBuilder::new().a("Test response").build();
+        let actual = fixture.extract_assistant_content(0);
+        assert_eq!(actual, Some("Test response"));
+    }
+
+    #[test]
+    fn test_create_entry_valid() {
+        // Pattern: U1-A1
+        let fixture = ContextBuilder::new().u("Question").a("Answer").build();
+        let actual = fixture.create_entry(0, 1);
+
+        assert!(actual.is_some());
+        let entry = actual.unwrap();
+        assert_eq!(entry.user_message, "Question");
+        assert_eq!(entry.assistant_content, "Answer");
+        assert_eq!(entry.tool_call_count, 0);
+    }
+
+    #[test]
+    fn test_create_entry_with_tool_calls() {
+        // Pattern: U1-AT2 (assistant with 2 tools)
+        let fixture = ContextBuilder::new().u("U1").at("AT2", 2).build();
+        let actual = fixture.create_entry(0, 1);
+
+        assert!(actual.is_some());
+        let entry = actual.unwrap();
+        assert_eq!(entry.tool_call_count, 2);
+    }
+
+    // ============================================================================
+    // INTEGRATION TESTS - Test get_summary with various message patterns
+    // ============================================================================
+
+    #[test]
+    fn test_get_summary_empty_context() {
+        // Pattern: (empty)
+        let fixture = Context::default();
+        let actual = fixture.get_summary();
+        assert_eq!(actual.entries.len(), 0);
+    }
+
+    #[test]
+    fn test_get_summary_user_only() {
+        // Pattern: U1 (no assistant response)
+        let fixture = ContextBuilder::new().u("Help me").build();
+        let actual = fixture.get_summary();
+        assert_eq!(actual.entries.len(), 0);
+    }
+
+    #[test]
+    fn test_get_summary_u1_a1() {
+        // Pattern: U1-A1
+        let fixture = ContextBuilder::new().u("U1").a("A1").build();
+        let actual = fixture.get_summary();
+
+        assert_eq!(actual.entries.len(), 1);
+        assert_eq!(actual.entries[0].user_message, "U1");
+        assert_eq!(actual.entries[0].assistant_content, "A1");
+        assert_eq!(actual.entries[0].tool_call_count, 0);
+    }
+
+    #[test]
+    fn test_get_summary_u1_a1_u2_a2() {
+        // Pattern: U1-A1-U2-A2
+        let fixture = ContextBuilder::new()
+            .u("U1")
+            .a("A1")
+            .u("U2")
+            .a("A2")
+            .build();
+        let actual = fixture.get_summary();
+
+        assert_eq!(actual.entries.len(), 2);
+        assert_eq!(actual.entries[0].user_message, "U1");
+        assert_eq!(actual.entries[0].assistant_content, "A1");
+        assert_eq!(actual.entries[1].user_message, "U2");
+        assert_eq!(actual.entries[1].assistant_content, "A2");
+    }
+
+    #[test]
+    fn test_get_summary_u1_a1_a2_takes_last_assistant() {
+        // Pattern: U1-A1-A2 (should take last assistant before next user)
+        let fixture = ContextBuilder::new().u("U1").a("A1").a("A2").build();
+        let actual = fixture.get_summary();
+
+        assert_eq!(actual.entries.len(), 1);
+        assert_eq!(actual.entries[0].user_message, "U1");
+        assert_eq!(actual.entries[0].assistant_content, "A2"); // Last assistant
+    }
+
+    #[test]
+    fn test_get_summary_u1_u2_a1_shows_first_user() {
+        // Pattern: U1-U2-A1 (back-to-back users, should show first)
+        let fixture = ContextBuilder::new().u("U1").u("U2").a("A1").build();
+        let actual = fixture.get_summary();
+
+        assert_eq!(actual.entries.len(), 1);
+        assert_eq!(actual.entries[0].user_message, "U1"); // First user
+        assert_eq!(actual.entries[0].assistant_content, "A1");
+    }
+
+    #[test]
+    fn test_get_summary_u1_u2_u3_a1_shows_first_user() {
+        // Pattern: U1-U2-U3-A1 (multiple back-to-back users)
+        let fixture = ContextBuilder::new()
+            .u("U1")
+            .u("U2")
+            .u("U3")
+            .a("A1")
+            .build();
+        let actual = fixture.get_summary();
+
+        assert_eq!(actual.entries.len(), 1);
+        assert_eq!(actual.entries[0].user_message, "U1"); // Still first
+    }
+
+    #[test]
+    fn test_get_summary_with_tool_calls() {
+        // Pattern: U1-AT2 (assistant with 2 tool calls)
+        let fixture = ContextBuilder::new().u("U1").at("AT2", 2).build();
+        let actual = fixture.get_summary();
+
+        assert_eq!(actual.entries.len(), 1);
+        assert_eq!(actual.entries[0].tool_call_count, 2);
+    }
+
+    #[test]
+    fn test_get_summary_with_system_message() {
+        // Pattern: S-U1-A1-U2-A2
+        let fixture = ContextBuilder::new()
+            .s("System")
+            .u("U1")
+            .a("A1")
+            .u("U2")
+            .a("A2")
+            .build();
+        let actual = fixture.get_summary();
+
+        assert_eq!(actual.entries.len(), 2);
+        assert_eq!(actual.entries[0].user_message, "U1");
+        assert_eq!(actual.entries[1].user_message, "U2");
+    }
+
+    #[test]
+    fn test_get_summary_complex_pattern() {
+        // Pattern: S-U1-A1-U2-U3-A2-A3-U4-A4
+        let fixture = ContextBuilder::new()
+            .s("System")
+            .u("U1")
+            .a("A1")
+            .u("U2")
+            .u("U3")
+            .a("A2")
+            .a("A3")
+            .u("U4")
+            .a("A4")
+            .build();
+        let actual = fixture.get_summary();
+
+        assert_eq!(actual.entries.len(), 3);
+        // Entry 1: U1-A1
+        assert_eq!(actual.entries[0].user_message, "U1");
+        assert_eq!(actual.entries[0].assistant_content, "A1");
+        // Entry 2: U2-(U3)-A3 (first of back-to-back users, last assistant before U4)
+        assert_eq!(actual.entries[1].user_message, "U2");
+        assert_eq!(actual.entries[1].assistant_content, "A3");
+        // Entry 3: U4-A4
+        assert_eq!(actual.entries[2].user_message, "U4");
+        assert_eq!(actual.entries[2].assistant_content, "A4");
+    }
+
+    #[test]
+    fn test_get_summary_u1_a1_a2_u2_a3() {
+        // Pattern: U1-A1-A2-U2-A3 (multiple assistants between users)
+        let fixture = ContextBuilder::new()
+            .u("U1")
+            .a("A1")
+            .a("A2")
+            .u("U2")
+            .a("A3")
+            .build();
+        let actual = fixture.get_summary();
+
+        assert_eq!(actual.entries.len(), 2);
+        assert_eq!(actual.entries[0].user_message, "U1");
+        assert_eq!(actual.entries[0].assistant_content, "A2"); // Last before U2
+        assert_eq!(actual.entries[1].user_message, "U2");
+        assert_eq!(actual.entries[1].assistant_content, "A3");
+    }
+
+    #[test]
+    fn test_get_summary_three_separate_exchanges() {
+        // Pattern: U1-A1-U2-A2-U3-A3
+        let fixture = ContextBuilder::new()
+            .u("U1")
+            .a("A1")
+            .u("U2")
+            .a("A2")
+            .u("U3")
+            .a("A3")
+            .build();
+        let actual = fixture.get_summary();
+
+        assert_eq!(actual.entries.len(), 3);
+        assert_eq!(actual.entries[0].user_message, "U1");
+        assert_eq!(actual.entries[0].assistant_content, "A1");
+        assert_eq!(actual.entries[1].user_message, "U2");
+        assert_eq!(actual.entries[1].assistant_content, "A2");
+        assert_eq!(actual.entries[2].user_message, "U3");
+        assert_eq!(actual.entries[2].assistant_content, "A3");
+    }
 
     #[test]
     fn test_override_system_message() {
@@ -958,102 +1542,6 @@ mod tests {
         );
     }
 
-    fn completion_tool(result: &str) -> Vec<ToolCallFull> {
-        vec![ToolCallFull {
-            name: crate::ToolName::new("attempt_completion"),
-            call_id: Some(crate::ToolCallId::new("call1")),
-            arguments: crate::ToolCallArguments::from(serde_json::json!({"result": result})),
-        }]
-    }
-
-    #[test]
-    fn test_get_summary_with_completion() {
-        let fixture = Context::default()
-            .add_message(ContextMessage::user("Please help me", None))
-            .add_message(ContextMessage::assistant(
-                "I'll help you",
-                None,
-                Some(completion_tool("Task completed successfully")),
-            ));
-
-        let actual = fixture.get_summary();
-
-        assert_eq!(actual.entries.len(), 1);
-        let entry = actual.entries.first().unwrap();
-        assert_eq!(entry.user_message, "Please help me");
-        assert_eq!(entry.completion.result, "Task completed successfully");
-        assert_eq!(entry.tool_call_count, 1);
-    }
-
-    #[test]
-    fn test_get_summary_with_multiple_completions() {
-        let fixture = Context::default()
-            .add_message(ContextMessage::user("First task", None))
-            .add_message(ContextMessage::assistant(
-                "First response",
-                None,
-                Some(completion_tool("First completion")),
-            ))
-            .add_message(ContextMessage::user("Second task", None))
-            .add_message(ContextMessage::assistant(
-                "Second response",
-                None,
-                Some(completion_tool("Second completion")),
-            ));
-
-        let actual = fixture.get_summary();
-
-        assert_eq!(actual.entries.len(), 2);
-
-        // First entry
-        let first_entry = &actual.entries[0];
-        assert_eq!(first_entry.user_message, "First task");
-        assert_eq!(first_entry.completion.result, "First completion");
-        assert_eq!(first_entry.tool_call_count, 1);
-
-        // Second entry
-        let second_entry = &actual.entries[1];
-        assert_eq!(second_entry.user_message, "Second task");
-        assert_eq!(second_entry.completion.result, "Second completion");
-        assert_eq!(second_entry.tool_call_count, 1);
-    }
-
-    #[test]
-    fn test_get_summary_with_no_completion() {
-        let fixture = Context::default()
-            .add_message(ContextMessage::user("Help me", None))
-            .add_message(ContextMessage::assistant("I'm working on it", None, None));
-
-        let actual = fixture.get_summary();
-
-        assert_eq!(actual.entries.len(), 0);
-    }
-
-    #[test]
-    fn test_find_user_message_before() {
-        let fixture = Context::default()
-            .add_message(ContextMessage::system("System message"))
-            .add_message(ContextMessage::user("User question", None))
-            .add_message(ContextMessage::assistant("Assistant answer", None, None));
-
-        let actual = fixture.find_message_with_role_before(2, Role::User);
-
-        assert_eq!(actual, Some("User question"));
-    }
-
-    #[test]
-    fn test_find_user_message_before_with_multiple_users() {
-        let fixture = Context::default()
-            .add_message(ContextMessage::user("First question", None))
-            .add_message(ContextMessage::assistant("First answer", None, None))
-            .add_message(ContextMessage::user("Second question", None))
-            .add_message(ContextMessage::assistant("Second answer", None, None));
-
-        let actual = fixture.find_message_with_role_before(3, Role::User);
-
-        assert_eq!(actual, Some("Second question"));
-    }
-
     #[test]
     fn test_find_message_with_role_before() {
         let fixture = Context::default()
@@ -1072,58 +1560,5 @@ mod tests {
         // Test finding assistant message before assistant message (should be None)
         let actual = fixture.find_message_with_role_before(2, Role::Assistant);
         assert_eq!(actual, None);
-    }
-
-    #[test]
-    fn test_find_user_message_before_no_user_message() {
-        let fixture = Context::default()
-            .add_message(ContextMessage::system("System only"))
-            .add_message(ContextMessage::assistant("Assistant only", None, None));
-
-        let actual = fixture.find_message_with_role_before(1, Role::User);
-
-        assert!(actual.is_none());
-    }
-
-    #[test]
-    fn test_get_summary_complete_conversation() {
-        let fixture = Context::default()
-            .add_message(ContextMessage::user("Create a file", None))
-            .add_message(ContextMessage::assistant(
-                "File created",
-                None,
-                Some(completion_tool("File test.txt created successfully")),
-            ));
-
-        let actual = fixture.get_summary();
-
-        assert_eq!(actual.entries.len(), 1);
-        let entry = actual.entries.first().unwrap();
-        assert_eq!(entry.user_message, "Create a file");
-        assert_eq!(
-            entry.completion.result,
-            "File test.txt created successfully"
-        );
-        assert_eq!(entry.tool_call_count, 1);
-    }
-
-    #[test]
-    fn test_get_summary_interrupted_conversation() {
-        let fixture = Context::default()
-            .add_message(ContextMessage::user("Do a long task", None))
-            .add_message(ContextMessage::assistant("Starting...", None, None));
-
-        let actual = fixture.get_summary();
-
-        assert_eq!(actual.entries.len(), 0);
-    }
-
-    #[test]
-    fn test_get_summary_empty_context() {
-        let fixture = Context::default();
-
-        let actual = fixture.get_summary();
-
-        assert_eq!(actual.entries.len(), 0);
     }
 }

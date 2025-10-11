@@ -33,9 +33,9 @@ impl<'a> std::fmt::Display for ConversationDisplay<'a> {
                 writeln!(f)?;
             }
 
-            // Display completion with icon and markdown rendering
+            // Display assistant response with icon and markdown rendering
             write!(f, "\u{f489} ")?;
-            let rendered = self.markdown.render(&entry.completion.result);
+            let rendered = self.markdown.render(&entry.assistant_content);
             writeln!(f, "{}", rendered)?;
 
             // Add separator between entries (but not after the last one)
