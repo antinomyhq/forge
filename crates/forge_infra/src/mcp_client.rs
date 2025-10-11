@@ -6,10 +6,10 @@ use backon::{ExponentialBuilder, Retryable};
 use forge_domain::{Image, McpServerConfig, ToolDefinition, ToolName, ToolOutput};
 use forge_services::McpClientInfra;
 use rmcp::model::{CallToolRequestParam, ClientInfo, Implementation, InitializeRequestParam};
-use rmcp::schemars::schema::RootSchema;
 use rmcp::service::RunningService;
-use rmcp::transport::TokioChildProcess;
+use rmcp::transport::{SseClientTransport, TokioChildProcess};
 use rmcp::{RoleClient, ServiceExt};
+use schemars::schema::RootSchema;
 use serde_json::Value;
 use tokio::process::Command;
 
@@ -37,7 +37,13 @@ impl ForgeMcpClient {
         ClientInfo {
             protocol_version: Default::default(),
             capabilities: Default::default(),
-            client_info: Implementation { name: "Forge".to_string(), version: VERSION.to_string() },
+            client_info: Implementation {
+                name: "Forge".to_string(),
+                version: VERSION.to_string(),
+                icons: None,
+                title: None,
+                website_url: None,
+            },
         }
     }
 
@@ -72,15 +78,16 @@ impl ForgeMcpClient {
                     cmd.env(key, value);
                 }
 
-                cmd.stdin(std::process::Stdio::inherit())
+                cmd.args(&stdio.args)
+                    .stdin(std::process::Stdio::inherit())
                     .stdout(std::process::Stdio::piped())
                     .stderr(std::process::Stdio::piped());
                 self.client_info()
-                    .serve(TokioChildProcess::new(cmd.args(&stdio.args))?)
+                    .serve(TokioChildProcess::new(cmd)?)
                     .await?
             }
             McpServerConfig::Sse(sse) => {
-                let transport = rmcp::transport::SseTransport::start(sse.url.clone()).await?;
+                let transport = SseClientTransport::start(sse.url.clone()).await?;
                 self.client_info().serve(transport).await?
             }
         };
@@ -135,7 +142,9 @@ impl ForgeMcpClient {
                 rmcp::model::RawContent::Resource(_) => {
                     Err(Error::UnsupportedMcpResponse("Resource").into())
                 }
-
+                rmcp::model::RawContent::ResourceLink(_) => {
+                    Err(Error::UnsupportedMcpResponse("ResourceLink").into())
+                }
                 rmcp::model::RawContent::Audio(_) => {
                     Err(Error::UnsupportedMcpResponse("Audio").into())
                 }
@@ -158,7 +167,12 @@ impl ForgeMcpClient {
         .when(|err| {
             let is_transport = err
                 .downcast_ref::<rmcp::ServiceError>()
-                .map(|e| matches!(e, rmcp::ServiceError::Transport(_)))
+                .map(|e| {
+                    matches!(
+                        e,
+                        rmcp::ServiceError::TransportSend(_) | rmcp::ServiceError::TransportClosed
+                    )
+                })
                 .unwrap_or(false);
 
             if is_transport {
