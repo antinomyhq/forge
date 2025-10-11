@@ -72,9 +72,15 @@ impl SnapshotService {
             .await?
             .context(format!("No valid snapshots found for {path:?}"))?;
 
-        // Restore the content
         let content = ForgeFS::read(&snapshot_path).await?;
-        ForgeFS::write(&path, content).await?;
+        if content.is_empty() {
+            // File was created, so delete it
+            if ForgeFS::exists(&path) {
+                ForgeFS::remove_file(&path).await?;
+            }
+        } else {
+            ForgeFS::write(&path, content).await?;
+        }
 
         // Remove the used snapshot
         ForgeFS::remove_file(&snapshot_path).await?;
