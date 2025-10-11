@@ -37,7 +37,20 @@ impl AppConfigRepositoryImpl {
         if content.is_empty() {
             return self.init_default().await;
         }
-        Ok(serde_json::from_str(&content)?)
+
+        // Try to deserialize the config, if it fails (e.g. invalid provider), reset to
+        // default
+        match serde_json::from_str::<AppConfig>(&content) {
+            Ok(config) => Ok(config),
+            Err(e) => {
+                tracing::warn!(
+                    error = ?e,
+                    path = %path.display(),
+                    "Failed to deserialize app config, resetting to default"
+                );
+                self.init_default().await
+            }
+        }
     }
 
     async fn write(&self, config: &AppConfig) -> anyhow::Result<()> {
@@ -161,6 +174,30 @@ mod tests {
         // Next read should get fresh data
         let third_read = repo.get_app_config().await?;
         assert_eq!(third_read, new_config);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_handles_invalid_provider_gracefully() -> anyhow::Result<()> {
+        let fixture = r#"{
+            "provider": "xyz",
+            "model": {}
+        }"#;
+        let temp_dir = tempfile::tempdir()?;
+        let config_path = temp_dir.path().join(".config.json");
+        std::fs::write(&config_path, fixture)?;
+        let repo = AppConfigRepositoryImpl::new(config_path.clone());
+
+        let actual = repo.get_app_config().await?;
+
+        let expected = AppConfig::default();
+        assert_eq!(actual, expected);
+
+        // Verify that the config file was reset to default
+        let content = std::fs::read_to_string(&config_path)?;
+        let written_config: AppConfig = serde_json::from_str(&content)?;
+        assert_eq!(written_config, expected);
 
         Ok(())
     }
