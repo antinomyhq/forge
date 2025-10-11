@@ -9,21 +9,18 @@ impl FormatContent for ToolOperation {
     fn to_content(&self, env: &Environment) -> Option<ChatResponseContent> {
         match self {
             ToolOperation::FsRead { input: _, output: _ } => None,
-            ToolOperation::FsCreate { input: _, output: _ } => None,
+            ToolOperation::FsCreate { input, output } => {
+                if let Some(ref before) = output.before {
+                    let after = &input.content;
+                    Some(ChatResponseContent::PlainText(
+                        DiffFormat::format(before, after).diff().to_string(),
+                    ))
+                } else {
+                    None
+                }
+            }
             ToolOperation::FsRemove { input: _, output: _ } => None,
             ToolOperation::FsSearch { input: _, output: _ } => None,
-            // ToolOperation::FsSearch { input: _, output } => output.as_ref().map(|result| {
-            //     ChatResponseContent::PlainText(
-            //         GrepFormat::new(
-            //             result
-            //                 .matches
-            //                 .iter()
-            //                 .map(|matched| format_match(matched, env.cwd.as_path()))
-            //                 .collect::<Vec<_>>(),
-            //         )
-            //         .format(),
-            //     )
-            // }),
             ToolOperation::FsPatch { input: _, output } => Some(ChatResponseContent::PlainText(
                 DiffFormat::format(&output.before, &output.after)
                     .diff()
