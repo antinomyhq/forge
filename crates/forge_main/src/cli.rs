@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use forge_domain::AgentId;
+use forge_domain::{AgentId, Banner};
 
 #[derive(Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
@@ -82,6 +82,20 @@ pub struct Cli {
     /// The worktree name will be used as the branch name.
     #[arg(long)]
     pub sandbox: Option<String>,
+
+    /// Configure the banner display for ongoing session.
+    ///
+    /// Options:
+    /// - `default`: Show the default banner (default behavior)
+    /// - `disabled` or `none`: Disable the banner
+    /// - `<path>`: Path to a custom banner file
+    ///
+    /// Examples:
+    /// - `--banner default`
+    /// - `--banner disabled`
+    /// - `--banner ./my-banner.txt`
+    #[arg(long)]
+    pub banner: Option<Banner>,
 }
 
 impl Cli {
