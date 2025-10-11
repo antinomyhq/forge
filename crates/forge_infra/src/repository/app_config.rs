@@ -24,7 +24,7 @@ impl AppConfigRepositoryImpl {
         Ok(default_config)
     }
 
-    async fn read(&self) -> anyhow::Result<AppConfig> {
+    async fn read_inner(&self) -> anyhow::Result<AppConfig> {
         // Check if file exists, if not create with default config
         if !ForgeFS::exists(&self.config_path) {
             return self.init_default().await;
@@ -53,6 +53,10 @@ impl AppConfigRepositoryImpl {
         }
     }
 
+    async fn read(&self) -> AppConfig {
+        self.read_inner().await.unwrap_or_default()
+    }
+
     async fn write(&self, config: &AppConfig) -> anyhow::Result<()> {
         let content = serde_json::to_string_pretty(config)?;
         ForgeFS::write(&self.config_path, content).await?;
@@ -71,7 +75,7 @@ impl AppConfigRepository for AppConfigRepositoryImpl {
         drop(cache);
 
         // Cache miss, read from file
-        let config = self.read().await?;
+        let config = self.read().await;
 
         // Update cache with the newly read config
         let mut cache = self.cache.lock().await;
