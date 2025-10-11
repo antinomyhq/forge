@@ -33,14 +33,12 @@ pub struct Model {
     pub id: ModelId,
     pub name: Option<String>,
     pub created: Option<u64>,
-    #[serde(alias = "summary")]
     pub description: Option<String>,
     pub context_length: Option<u64>,
     pub architecture: Option<Architecture>,
     pub pricing: Option<Pricing>,
     pub top_provider: Option<TopProvider>,
     pub per_request_limits: Option<serde_json::Value>,
-    #[serde(alias = "capabilities")]
     pub supported_parameters: Option<Vec<String>>,
 }
 
@@ -85,26 +83,9 @@ pub struct TopProvider {
     pub is_moderated: bool,
 }
 
-/// Response format for listing models.
-/// Supports both OpenAI format (wrapped in data field) and GitHub format
-/// (direct array).
 #[derive(Debug, Deserialize, Clone, Serialize)]
-#[serde(untagged)]
-pub enum ListModelResponse {
-    /// OpenAI format: { "data": [...] }
-    Wrapped { data: Vec<Model> },
-    /// GitHub format: [...]
-    Direct(Vec<Model>),
-}
-
-impl ListModelResponse {
-    /// Extracts the models vector regardless of the response format
-    pub fn into_vec(self) -> Vec<Model> {
-        match self {
-            ListModelResponse::Wrapped { data } => data,
-            ListModelResponse::Direct(models) => models,
-        }
-    }
+pub struct ListModelResponse {
+    pub data: Vec<Model>,
 }
 
 impl From<Model> for forge_domain::Model {
@@ -236,9 +217,8 @@ mod tests {
 
         let actual = serde_json::from_value::<ListModelResponse>(fixture).unwrap();
 
-        let models = actual.into_vec();
-        assert_eq!(models.len(), 1);
-        let model = &models[0];
+        assert_eq!(actual.data.len(), 1);
+        let model = &actual.data[0];
         assert_eq!(model.id.as_str(), "moonshotai/Kimi-K2-Instruct-75k");
         assert_eq!(model.name, Some("Kimi K2 Instruct 75k".to_string()));
         assert_eq!(model.context_length, Some(75000));
@@ -272,67 +252,5 @@ mod tests {
 
         assert_eq!(actual.pricing.as_ref().unwrap().prompt, Some(0.0015));
         assert_eq!(actual.pricing.as_ref().unwrap().completion, Some(0.0002));
-    }
-
-    #[test]
-    fn test_github_direct_array_format() {
-        let json = include_str!("fixtures/github-models-sample.json");
-
-        let fixture = serde_json::from_str::<ListModelResponse>(json).unwrap();
-        let actual = serde_json::to_string(&fixture).unwrap();
-        let expected = serde_json::from_str::<ListModelResponse>(&actual).unwrap();
-
-        assert_eq!(fixture.into_vec().len(), expected.into_vec().len());
-    }
-
-    #[test]
-    fn test_openai_wrapped_format() {
-        let json = r#"{"data": [{"id": "gpt-4"}]}"#;
-
-        let fixture = serde_json::from_str::<ListModelResponse>(json).unwrap();
-        let actual = serde_json::to_string(&fixture).unwrap();
-        let expected = serde_json::from_str::<ListModelResponse>(&actual).unwrap();
-
-        assert_eq!(fixture.into_vec().len(), expected.into_vec().len());
-    }
-
-    #[test]
-    fn test_model_field_aliases() {
-        let json_with_summary = r#"{"id": "test-1", "summary": "test"}"#;
-        let json_with_description = r#"{"id": "test-2", "description": "test"}"#;
-
-        let fixture1 = serde_json::from_str::<Model>(json_with_summary).unwrap();
-        let actual1 = serde_json::to_string(&fixture1).unwrap();
-        let expected1 = serde_json::from_str::<Model>(&actual1).unwrap();
-
-        let fixture2 = serde_json::from_str::<Model>(json_with_description).unwrap();
-        let actual2 = serde_json::to_string(&fixture2).unwrap();
-        let expected2 = serde_json::from_str::<Model>(&actual2).unwrap();
-
-        assert_eq!(fixture1.description, expected1.description);
-        assert_eq!(fixture2.description, expected2.description);
-    }
-
-    #[test]
-    fn test_supported_parameters_aliases() {
-        let json_with_capabilities = r#"{"id": "test-1", "capabilities": ["streaming"]}"#;
-        let json_with_supported_params = r#"{"id": "test-2", "supported_parameters": ["tools"]}"#;
-
-        let fixture1 = serde_json::from_str::<Model>(json_with_capabilities).unwrap();
-        let actual1 = serde_json::to_string(&fixture1).unwrap();
-        let expected1 = serde_json::from_str::<Model>(&actual1).unwrap();
-
-        let fixture2 = serde_json::from_str::<Model>(json_with_supported_params).unwrap();
-        let actual2 = serde_json::to_string(&fixture2).unwrap();
-        let expected2 = serde_json::from_str::<Model>(&actual2).unwrap();
-
-        assert_eq!(
-            fixture1.supported_parameters,
-            expected1.supported_parameters
-        );
-        assert_eq!(
-            fixture2.supported_parameters,
-            expected2.supported_parameters
-        );
     }
 }
