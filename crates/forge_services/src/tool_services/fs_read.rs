@@ -64,7 +64,15 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
         let env = self.0.get_environment();
 
         // Validate file size before reading content
-        assert_file_size(&*self.0, path, env.max_file_size).await?;
+        if let Err(e) = assert_file_size(&*self.0, path, env.max_file_size).await {
+            tracing::error!(
+                path = %path.display(),
+                max_file_size = env.max_file_size,
+                error = %e,
+                "File size validation failed"
+            );
+            return Err(e);
+        }
 
         let (start_line, end_line) = resolve_range(start_line, end_line, env.max_read_size);
 
@@ -72,6 +80,16 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
             .0
             .range_read_utf8(path, start_line, end_line)
             .await
+            .map_err(|e| {
+                tracing::error!(
+                    path = %path.display(),
+                    start_line = start_line,
+                    end_line = end_line,
+                    error = %e,
+                    "Failed to read file content"
+                );
+                e
+            })
             .with_context(|| format!("Failed to read file content from {}", path.display()))?;
 
         Ok(ReadOutput {
