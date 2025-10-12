@@ -463,7 +463,7 @@ mod tests {
             result
                 .unwrap_err()
                 .to_string()
-                .contains("Could not find match for search text: missing")
+                .contains("Could not find match for search text: 'missing'")
         );
     }
 
@@ -563,7 +563,7 @@ mod tests {
             result
                 .unwrap_err()
                 .to_string()
-                .contains("Could not find match for search text: missing")
+                .contains("Could not find match for search text: 'missing'")
         );
     }
 
@@ -613,7 +613,7 @@ mod tests {
             result
                 .unwrap_err()
                 .to_string()
-                .contains("Could not find match for search text: missing")
+                .contains("Could not find match for search text: 'missing'")
         );
     }
 }
