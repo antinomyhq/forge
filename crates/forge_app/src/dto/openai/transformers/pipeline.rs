@@ -69,7 +69,7 @@ mod tests {
     use url::Url;
 
     use super::*;
-    use crate::dto::ProviderResponse;
+    use crate::domain::ProviderResponse;
 
     // Test helper functions
     fn forge(key: &str) -> Provider {
