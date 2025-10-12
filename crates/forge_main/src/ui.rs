@@ -687,7 +687,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Add provider information if available
         if let Ok(provider) = provider_result {
-            info = info.add_key_value("Provider (URL)", provider.to_base_url());
+            info = info.add_key_value("Provider (URL)", provider.url);
             if let Some(ref api_key) = provider.key {
                 info = info.add_key_value("API Key", truncate_key(api_key));
             }
