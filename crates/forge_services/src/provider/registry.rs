@@ -229,7 +229,11 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
         Err(forge_app::Error::NoActiveModel.into())
     }
 
-    async fn set_active_model(&self, model: ModelId, provider_id: ProviderId) -> anyhow::Result<()> {
+    async fn set_active_model(
+        &self,
+        model: ModelId,
+        provider_id: ProviderId,
+    ) -> anyhow::Result<()> {
         self.update(|config| {
             config.model.insert(provider_id, model.clone());
         })
@@ -255,9 +259,10 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use forge_app::domain::ProviderResponse;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
     fn test_load_provider_configs() {

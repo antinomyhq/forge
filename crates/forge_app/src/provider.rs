@@ -1,6 +1,8 @@
-use crate::{AgentLoaderService, ProviderRegistry};
-use forge_domain::{ModelId, Provider};
 use std::sync::Arc;
+
+use forge_domain::{ModelId, Provider};
+
+use crate::{AgentLoaderService, ProviderRegistry};
 
 pub struct ProviderManager<S> {
     services: Arc<S>,
@@ -19,7 +21,7 @@ impl<S: ProviderRegistry + AgentLoaderService> ProviderManager<S> {
             .and_then(|agent_id| agents.into_iter().find(|v| v.id == agent_id))
             .and_then(|agent| agent.provider)
         {
-            return Ok(self.services.provider_from_id(provider_id).await?);
+            return self.services.provider_from_id(provider_id).await;
         }
 
         // fall back to original logic if there is no agent

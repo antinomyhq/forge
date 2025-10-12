@@ -1,5 +1,5 @@
-use thiserror::Error;
 use forge_app::domain::ProviderId;
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ProviderError {
