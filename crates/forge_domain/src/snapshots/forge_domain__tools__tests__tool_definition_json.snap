@@ -34,8 +34,22 @@ expression: tools
   }
 }
 {
+  "title": "FSReadBinary",
+  "description": "Reads binary files (images) from the specified absolute path. Use this tool to read image files that support vision capabilities. Supported formats: JPEG, PNG, WebP, GIF. The tool returns the image content in base64 format that can be sent to vision-capable models. For text files, use the `read` tool instead. Binary files are automatically encoded to base64.",
+  "type": "object",
+  "required": [
+    "path"
+  ],
+  "properties": {
+    "path": {
+      "description": "The path of the image file to read, always provide absolute paths.",
+      "type": "string"
+    }
+  }
+}
+{
   "title": "FSWrite",
-  "description": "Use it to create a new file at a specified path with the provided content. Always provide absolute paths for file locations. The tool automatically handles the creation of any missing intermediary directories in the specified path. IMPORTANT: DO NOT attempt to use this tool to move or rename files, use the shell tool instead.",
+  "description": "Use it to create a new file at a specified path with the provided content.\n\nAlways provide absolute paths for file locations. The tool automatically handles the creation of any missing intermediary directories in the specified path. IMPORTANT: DO NOT attempt to use this tool to move or rename files, use the shell tool instead.",
   "type": "object",
   "required": [
     "content",

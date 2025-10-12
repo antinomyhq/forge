@@ -30,6 +30,14 @@ impl FormatContent for Tools {
                 };
                 Some(TitleFormat::debug("Read").sub_title(subtitle).into())
             }
+            Tools::ReadBinary(input) => {
+                let display_path = display_path_for(&input.path);
+                Some(
+                    TitleFormat::debug("Read Binary")
+                        .sub_title(display_path)
+                        .into(),
+                )
+            }
             Tools::Write(input) => {
                 let display_path = display_path_for(&input.path);
                 let title = if input.overwrite {

@@ -147,16 +147,21 @@ impl<
                     )
                     .await?;
                 let output = if input.show_line_numbers {
-                    let numbered_content = output
+                    let file_content = output
                         .content
                         .file_content()
-                        .numbered_from(output.start_line as usize);
+                        .ok_or_else(|| anyhow::anyhow!("Expected file content but got image"))?;
+                    let numbered_content = file_content.numbered_from(output.start_line as usize);
                     output.content(crate::Content::file(numbered_content))
                 } else {
                     output
                 };
 
                 (input, output).into()
+            }
+            Tools::ReadBinary(input) => {
+                let output = self.services.read_binary(input.path.clone()).await?;
+                output.into()
             }
             Tools::Write(input) => {
                 let output = self
@@ -293,6 +298,6 @@ impl<
 
         context.with_metrics(|metrics| {
             operation.into_tool_output(tool_name, truncation_path, &env, metrics)
-        })
+        })?
     }
 }

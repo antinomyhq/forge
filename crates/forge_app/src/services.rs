@@ -42,6 +42,7 @@ pub struct ReadOutput {
 #[derive(Debug)]
 pub enum Content {
     File(String),
+    Image(forge_domain::Image),
 }
 
 impl Content {
@@ -49,9 +50,21 @@ impl Content {
         Self::File(content.into())
     }
 
-    pub fn file_content(&self) -> &str {
+    pub fn image(image: forge_domain::Image) -> Self {
+        Self::Image(image)
+    }
+
+    pub fn file_content(&self) -> Option<&str> {
         match self {
-            Self::File(content) => content,
+            Self::File(content) => Some(content),
+            Self::Image(_) => None,
+        }
+    }
+
+    pub fn as_image(&self) -> Option<&forge_domain::Image> {
+        match self {
+            Self::Image(image) => Some(image),
+            Self::File(_) => None,
         }
     }
 }
@@ -281,8 +294,13 @@ pub trait FsReadService: Send + Sync {
         start_line: Option<u64>,
         end_line: Option<u64>,
     ) -> anyhow::Result<ReadOutput>;
+
+    /// Reads a binary file (e.g., image) at the specified path and returns its
+    /// content.
+    async fn read_binary(&self, path: String) -> anyhow::Result<Content>;
 }
 
+#[async_trait::async_trait]
 #[async_trait::async_trait]
 pub trait FsRemoveService: Send + Sync {
     /// Removes a file at the specified path.
@@ -613,6 +631,10 @@ impl<I: Services> FsReadService for I {
         self.fs_read_service()
             .read(path, start_line, end_line)
             .await
+    }
+
+    async fn read_binary(&self, path: String) -> anyhow::Result<Content> {
+        self.fs_read_service().read_binary(path).await
     }
 }
 

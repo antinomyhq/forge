@@ -121,7 +121,7 @@ pub mod tests {
                 max_read_size: 2000,
                 tool_timeout: 300,
                 http: Default::default(),
-                max_file_size: 10_000_000,
+                max_file_size: 256 << 10,
                 forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
                 auto_open_dump: false,
                 custom_history_path: None,
@@ -570,6 +570,25 @@ pub mod tests {
 
         fn get_env_var(&self, _key: &str) -> Option<String> {
             None
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl FileInfoInfra for MockCompositeService {
+        async fn is_binary(&self, path: &Path) -> anyhow::Result<bool> {
+            self.file_service.is_binary(path).await
+        }
+
+        async fn is_file(&self, path: &Path) -> anyhow::Result<bool> {
+            self.file_service.is_file(path).await
+        }
+
+        async fn exists(&self, path: &Path) -> anyhow::Result<bool> {
+            self.file_service.exists(path).await
+        }
+
+        async fn file_size(&self, path: &Path) -> anyhow::Result<u64> {
+            self.file_service.file_size(path).await
         }
     }
 

@@ -15,6 +15,7 @@ tools:
   - undo
   - sage
   - mcp_*
+  - read_binary
 user_prompt: |-
   {{#if (eq event.name 'forge/user_task_update')}}
   <feedback>{{event.value}}</feedback>
