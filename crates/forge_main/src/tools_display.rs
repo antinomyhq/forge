@@ -31,14 +31,28 @@ pub fn format_tools(agent_tools: &[ToolName], overview: &ToolsOverview) -> Info 
     }
 
     // MCP tools section
-    if !overview.mcp.is_empty() {
-        for (server_name, tools) in overview.mcp.iter() {
+    if !overview.mcp.get_servers().is_empty() {
+        for (server_name, tools) in overview.mcp.get_servers().iter() {
             let title = (*server_name).to_case(Case::UpperSnake);
             info = info.add_title(title);
 
             for tool in tools {
                 info = info.add_key(format!("{} {}", checkbox(&tool.name), tool.name));
             }
+        }
+    }
+
+    // Failed MCP servers section
+    if !overview.mcp.get_failures().is_empty() {
+        info = info.add_title("FAILED MCP SERVERS");
+        for (server_name, error) in overview.mcp.get_failures().iter() {
+            // Truncate error message for readability
+            let truncated_error = if error.len() > 50 {
+                format!("{}...", &error[..47])
+            } else {
+                error.clone()
+            };
+            info = info.add_key(format!("[✗] {} - {}", server_name, truncated_error));
         }
     }
 

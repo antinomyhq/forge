@@ -5,7 +5,7 @@ use anyhow::Context;
 use console::style;
 use forge_domain::{
     Agent, AgentInput, ChatResponse, ChatResponseContent, ToolCallContext, ToolCallFull,
-    ToolDefinition, ToolName, ToolOutput, ToolResult, Tools, ToolsDiscriminants,
+    ToolDefinition, ToolName, ToolOutput, ToolResult, Tools,
 };
 use futures::future::join_all;
 use strum::IntoEnumIterator;
@@ -150,7 +150,7 @@ impl<S> ToolRegistry<S> {
     fn validate_tool_call(agent: &Agent, tool_name: &ToolName) -> Result<(), Error> {
         // Check if tool matches any pattern (supports globs like "mcp_*")
         let matches = ToolResolver::is_allowed(agent, tool_name);
-        if !matches && *tool_name != ToolsDiscriminants::AttemptCompletion.name() {
+        if !matches {
             tracing::error!(tool_name = %tool_name, "No tool with name");
             let supported_tools = agent
                 .tools
@@ -167,7 +167,7 @@ impl<S> ToolRegistry<S> {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Agent, AgentId, ToolName, Tools, ToolsDiscriminants};
+    use forge_domain::{Agent, AgentId, ToolName, Tools};
     use pretty_assertions::assert_eq;
 
     use crate::error::Error;
@@ -197,16 +197,6 @@ mod tests {
             error,
             "Tool 'write' is not available. Please try again with one of these tools: [read, search]"
         );
-    }
-
-    #[tokio::test]
-    async fn test_completion_tool_call() {
-        let result = ToolRegistry::<()>::validate_tool_call(
-            &agent(),
-            &ToolsDiscriminants::AttemptCompletion.name(),
-        );
-
-        assert!(result.is_ok(), "Completion tool call should be valid");
     }
 
     #[test]
@@ -341,30 +331,6 @@ mod tests {
         let actual = ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("read"));
 
         assert!(actual.is_err());
-    }
-
-    #[test]
-    fn test_validate_tool_call_attempt_completion_always_allowed() {
-        let fixture = Agent::new(AgentId::new("test_agent")).tools(vec![ToolName::new("read")]);
-
-        let actual = ToolRegistry::<()>::validate_tool_call(
-            &fixture,
-            &ToolsDiscriminants::AttemptCompletion.name(),
-        );
-
-        assert!(actual.is_ok());
-    }
-
-    #[test]
-    fn test_validate_tool_call_attempt_completion_with_empty_tools() {
-        let fixture = Agent::new(AgentId::new("test_agent"));
-
-        let actual = ToolRegistry::<()>::validate_tool_call(
-            &fixture,
-            &ToolsDiscriminants::AttemptCompletion.name(),
-        );
-
-        assert!(actual.is_ok());
     }
 
     #[test]

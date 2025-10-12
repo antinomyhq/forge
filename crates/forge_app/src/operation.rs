@@ -98,8 +98,6 @@ pub enum ToolOperation {
     FollowUp {
         output: Option<String>,
     },
-    AttemptCompletion,
-
     PlanCreate {
         input: PlanCreate,
         output: PlanCreateOutput,
@@ -503,10 +501,6 @@ impl ToolOperation {
                     forge_domain::ToolOutput::text(elm)
                 }
             },
-            ToolOperation::AttemptCompletion => forge_domain::ToolOutput::text(
-                Element::new("success")
-                    .text("[Task was completed successfully. Now wait for user feedback]"),
-            ),
             ToolOperation::PlanCreate { input, output } => {
                 let elm = Element::new("plan_created")
                     .attr("path", output.path.display().to_string())
@@ -1568,22 +1562,6 @@ mod tests {
 
         let actual = fixture.into_tool_output(
             ToolName::new("shell"),
-            TempContentFiles::default(),
-            &env,
-            &mut Metrics::new(),
-        );
-
-        insta::assert_snapshot!(to_value(actual));
-    }
-
-    #[test]
-    fn test_attempt_completion() {
-        let fixture = ToolOperation::AttemptCompletion;
-
-        let env = fixture_environment();
-
-        let actual = fixture.into_tool_output(
-            ToolName::new("attempt_completion"),
             TempContentFiles::default(),
             &env,
             &mut Metrics::new(),
