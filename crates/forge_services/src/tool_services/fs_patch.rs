@@ -645,4 +645,107 @@ mod tests {
         let result = super::apply_replacement(source.to_string(), search, &operation, content);
         assert_eq!(result.unwrap(), "line1\nline2\n");
     }
+
+    #[test]
+    fn test_apply_replacement_delete_empty_string() {
+        let source = "";
+        let search = Some("".to_string());
+        let operation = PatchOperation::Delete;
+        let content = "ignored";
+
+        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        assert_eq!(result.unwrap(), "");
+    }
+
+    #[test]
+    fn test_apply_replacement_delete_single_character() {
+        let source = "abc";
+        let search = Some("b".to_string());
+        let operation = PatchOperation::Delete;
+        let content = "ignored";
+
+        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        assert_eq!(result.unwrap(), "ac");
+    }
+
+    #[test]
+    fn test_apply_replacement_delete_unicode_characters() {
+        let source = "héllo 🌍 wörld";
+        let search = Some("🌍 ".to_string());
+        let operation = PatchOperation::Delete;
+        let content = "ignored";
+
+        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        assert_eq!(result.unwrap(), "héllo wörld");
+    }
+
+    #[test]
+    fn test_apply_replacement_delete_consecutive_newlines() {
+        let source = "line1\n\nline3";
+        let search = Some("\n".to_string());
+        let operation = PatchOperation::Delete;
+        let content = "ignored";
+
+        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        // When deleting the first \n from \n\n, both get deleted due to our newline
+        // handling logic
+        assert_eq!(result.unwrap(), "line1line3");
+    }
+
+    #[test]
+    fn test_apply_replacement_delete_first_character() {
+        let source = "xhello";
+        let search = Some("x".to_string());
+        let operation = PatchOperation::Delete;
+        let content = "ignored";
+
+        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        assert_eq!(result.unwrap(), "hello");
+    }
+
+    #[test]
+    fn test_apply_replacement_delete_very_last_character() {
+        let source = "hellox";
+        let search = Some("x".to_string());
+        let operation = PatchOperation::Delete;
+        let content = "ignored";
+
+        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        assert_eq!(result.unwrap(), "hello");
+    }
+
+    #[test]
+    fn test_apply_replacement_delete_entire_content() {
+        let source = "single line";
+        let search = Some("single line".to_string());
+        let operation = PatchOperation::Delete;
+        let content = "ignored";
+
+        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        assert_eq!(result.unwrap(), "");
+    }
+
+    #[test]
+    fn test_apply_replacement_delete_with_carriage_return() {
+        let source = "line1\r\nline2\r\nline3";
+        let search = Some("line2".to_string());
+        let operation = PatchOperation::Delete;
+        let content = "ignored";
+
+        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        // Should delete "line2" but leave the \r\n, resulting in "line1\r\n\r\nline3"
+        assert_eq!(result.unwrap(), "line1\r\n\r\nline3");
+    }
+
+    #[test]
+    fn test_apply_replacement_delete_boundary_condition() {
+        // Test edge case where patch.end() is at the string boundary
+        let source = "a";
+        let search = Some("a".to_string());
+        let operation = PatchOperation::Delete;
+        let content = "ignored";
+
+        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        assert_eq!(result.unwrap(), "");
+    }
 }
