@@ -171,11 +171,18 @@ fn apply_replacement(
             }
 
             // Delete the matched text
-            PatchOperation::Delete => Ok(format!(
-                "{}{}",
-                &haystack[..patch.start],
-                &haystack[patch.end()..]
-            )),
+            PatchOperation::Delete => {
+                let end_pos = if haystack.chars().nth(patch.end()) == Some('\n') {
+                    patch.end() + 1 // Include the trailing newline
+                } else {
+                    patch.end()
+                };
+                Ok(format!(
+                    "{}{}",
+                    &haystack[..patch.start],
+                    &haystack[end_pos..]
+                ))
+            }
         }
     } else {
         match operation {
@@ -615,5 +622,27 @@ mod tests {
                 .to_string()
                 .contains("Could not find match for search text: 'missing'")
         );
+    }
+
+    #[test]
+    fn test_apply_replacement_delete_multiline() {
+        let source = "line1\nline2\nline3\nline4";
+        let search = Some("line2".to_string());
+        let operation = PatchOperation::Delete;
+        let content = "ignored";
+
+        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        assert_eq!(result.unwrap(), "line1\nline3\nline4");
+    }
+
+    #[test]
+    fn test_apply_replacement_delete_last_line() {
+        let source = "line1\nline2\nline3";
+        let search = Some("line3".to_string());
+        let operation = PatchOperation::Delete;
+        let content = "ignored";
+
+        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        assert_eq!(result.unwrap(), "line1\nline2\n");
     }
 }
