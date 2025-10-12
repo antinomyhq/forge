@@ -1,6 +1,6 @@
 // Tests for this module can be found in: tests/orch_*.rs
 use std::collections::HashSet;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use async_recursion::async_recursion;
@@ -18,7 +18,8 @@ use crate::user_prompt::UserPromptBuilder;
 #[setters(into, strip_option)]
 pub struct Orchestrator<S> {
     services: Arc<S>,
-    sender: Option<ArcSender>,
+    #[setters(skip)] // Custom setter defined below
+    sender: Option<EventLoggingSender>,
     conversation: Conversation,
     environment: Environment,
     tool_definitions: Vec<ToolDefinition>,
@@ -29,6 +30,7 @@ pub struct Orchestrator<S> {
     event: Event,
     error_tracker: ToolErrorTracker,
     user_prompt_service: UserPromptBuilder<S>,
+    event_log_ref: Arc<Mutex<Option<ConversationEventLog>>>,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -40,6 +42,9 @@ impl<S: AgentService> Orchestrator<S> {
         agent: Agent,
         event: Event,
     ) -> Self {
+        // Create event log reference from conversation's event log
+        let event_log_ref = Arc::new(Mutex::new(conversation.event_log.clone()));
+
         Self {
             user_prompt_service: UserPromptBuilder::new(
                 services.clone(),
@@ -58,12 +63,22 @@ impl<S: AgentService> Orchestrator<S> {
             files: Default::default(),
             custom_instructions: Default::default(),
             error_tracker: Default::default(),
+            event_log_ref,
         }
     }
 
     /// Get a reference to the internal conversation
     pub fn get_conversation(&self) -> &Conversation {
         &self.conversation
+    }
+
+    /// Sets the sender and wraps it with EventLoggingSender for automatic event
+    /// capture
+    pub fn sender(mut self, sender: impl Into<Option<ArcSender>>) -> Self {
+        self.sender = sender
+            .into()
+            .map(|s| EventLoggingSender::new(s, self.event_log_ref.clone()));
+        self
     }
 
     // Helper function to get all tool results from a vector of tool calls
@@ -121,21 +136,19 @@ impl<S: AgentService> Orchestrator<S> {
     }
 
     async fn send(&mut self, message: ChatResponse) -> anyhow::Result<()> {
-        // Capture event in event log with timestamp
-        if let Some(ref mut event_log) = self.conversation.event_log {
-            event_log.push(TimestampedEvent::new(message.clone()));
-        } else {
-            // Initialize event log if it doesn't exist (backward compatibility)
-            let mut event_log = ConversationEventLog::new();
-            event_log.push(TimestampedEvent::new(message.clone()));
-            self.conversation.event_log = Some(event_log);
-        }
-
-        // Send to UI as usual
+        // Event logging happens automatically in EventLoggingSender
         if let Some(sender) = &self.sender {
             sender.send(Ok(message)).await?
         }
         Ok(())
+    }
+
+    /// Syncs the event log from the wrapper back to the conversation before
+    /// saving
+    fn sync_event_log(&mut self) {
+        if let Ok(event_log) = self.event_log_ref.lock() {
+            self.conversation.event_log = event_log.clone();
+        }
     }
 
     /// Checks if parallel tool calls is supported by agent
@@ -290,13 +303,15 @@ impl<S: AgentService> Orchestrator<S> {
                 )),
             };
 
-            // Add to event log only (don't send to UI)
-            if let Some(ref mut event_log) = self.conversation.event_log {
-                event_log.push(TimestampedEvent::new(user_message));
-            } else {
-                let mut event_log = ConversationEventLog::new();
-                event_log.push(TimestampedEvent::new(user_message));
-                self.conversation.event_log = Some(event_log);
+            // Add to EventLoggingSender's shared event log (not directly to conversation)
+            if let Ok(mut event_log) = self.event_log_ref.lock() {
+                if let Some(ref mut log) = *event_log {
+                    log.push(TimestampedEvent::new(user_message));
+                } else {
+                    let mut new_log = ConversationEventLog::new();
+                    new_log.push(TimestampedEvent::new(user_message));
+                    *event_log = Some(new_log);
+                }
             }
         }
 
@@ -381,11 +396,13 @@ impl<S: AgentService> Orchestrator<S> {
         // Retrieve the number of requests allowed per tick.
         let max_requests_per_turn = self.agent.max_requests_per_turn;
 
+        // Tool context now uses EventLoggingSender directly for automatic event capture
         let tool_context =
             ToolCallContext::new(self.conversation.metrics.clone()).sender(self.sender.clone());
         while !should_yield {
             // Set context for the current loop iteration
             self.conversation.context = Some(context.clone());
+            self.sync_event_log();
             self.services.update(self.conversation.clone()).await?;
 
             // Run the main chat request and compaction check in parallel
@@ -545,6 +562,7 @@ impl<S: AgentService> Orchestrator<S> {
             // Update context in the conversation
             context = SetModel::new(model_id.clone()).transform(context);
             self.conversation.context = Some(context.clone());
+            self.sync_event_log();
             self.services.update(self.conversation.clone()).await?;
             request_count += 1;
 
@@ -576,6 +594,7 @@ impl<S: AgentService> Orchestrator<S> {
             self.conversation.metrics = metrics.clone();
         })?;
 
+        self.sync_event_log();
         self.services.update(self.conversation.clone()).await?;
 
         // Signal Task Completion

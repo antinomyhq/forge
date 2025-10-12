@@ -1453,31 +1453,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     self.writeln(self.markdown.render(&text))?;
                 }
             },
-            ChatResponse::ToolCallStart(tool_call) => {
-                // During replay, format and display the tool call
-                // During live execution, just stop the spinner (tool display already sent as
-                // TaskMessage)
-                if self.is_replaying {
-                    use forge_app::fmt::content::FormatContent;
-                    use forge_domain::Tools;
-
-                    if let Ok(tool_input) = Tools::try_from(tool_call) {
-                        let env = self.api.environment();
-                        if let Some(content) = tool_input.to_content(&env) {
-                            match content {
-                                ChatResponseContent::Title(title) => {
-                                    self.writeln_title(title)?;
-                                }
-                                ChatResponseContent::Markdown(text) => {
-                                    self.writeln(self.markdown.render(&text))?;
-                                }
-                                ChatResponseContent::PlainText(text) => {
-                                    self.writeln(text)?;
-                                }
-                            }
-                        }
-                    }
-                } else {
+            ChatResponse::ToolCallStart(_) => {
+                if !self.is_replaying {
                     self.spinner.stop(None)?;
                 }
             }
