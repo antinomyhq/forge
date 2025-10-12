@@ -131,14 +131,6 @@ pub struct ForgeCommand {
     pub value: Option<String>,
 }
 
-impl From<&Workflow> for ForgeCommandManager {
-    fn from(value: &Workflow) -> Self {
-        let cmd = ForgeCommandManager::default();
-        cmd.register_all(value);
-        cmd
-    }
-}
-
 #[derive(Debug)]
 pub struct ForgeCommandManager {
     commands: Arc<Mutex<Vec<ForgeCommand>>>,
