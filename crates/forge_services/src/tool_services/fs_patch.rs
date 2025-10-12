@@ -55,7 +55,9 @@ impl From<Range> for std::ops::Range<usize> {
 enum Error {
     #[error("Failed to read/write file: {0}")]
     FileOperation(#[from] std::io::Error),
-    #[error("Could not find match for search text: '{0}'. File may have changed externally, consider reading the file again.")]
+    #[error(
+        "Could not find match for search text: '{0}'. File may have changed externally, consider reading the file again."
+    )]
     NoMatch(String),
     #[error("Could not find swap target text: {0}")]
     NoSwapTarget(String),
