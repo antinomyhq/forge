@@ -123,8 +123,9 @@ pub struct Workflow {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub compact: Option<Compact>,
-    ///
-    ///
+    /// Flag to enable/disable banner support for ui
+    /// If not specified, banner will be enabled.
+    /// Default is false (banner enabled) when not specified
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
