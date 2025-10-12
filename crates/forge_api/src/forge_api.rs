@@ -177,7 +177,9 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
         forge_app.logout().await
     }
     async fn get_provider(&self) -> anyhow::Result<Provider> {
-        self.services.get_active_provider().await
+        ForgeApp::new(self.services.clone())
+            .get_active_provider()
+            .await
     }
 
     async fn set_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
@@ -211,11 +213,16 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
     }
 
     async fn get_operating_model(&self) -> Option<ModelId> {
-        self.services.get_active_model().await.ok()
+        ForgeApp::new(self.services.clone())
+            .get_active_model()
+            .await
+            .ok()
     }
 
     async fn set_operating_model(&self, model_id: ModelId) -> anyhow::Result<()> {
-        self.services.set_active_model(model_id).await
+        ForgeApp::new(self.services.clone())
+            .set_active_model(model_id)
+            .await
     }
 
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {

@@ -204,10 +204,8 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
         Ok(self.get_providers().await.clone())
     }
 
-    async fn get_active_model(&self) -> anyhow::Result<ModelId> {
-        let provider_id = self.get_active_provider().await?.id;
-
-        if let Some(model_id) = self.infra.get_app_config().await?.model.get(&provider_id) {
+    async fn get_active_model(&self, provider_id: &ProviderId) -> anyhow::Result<ModelId> {
+        if let Some(model_id) = self.infra.get_app_config().await?.model.get(provider_id) {
             return Ok(model_id.clone());
         }
 
@@ -215,8 +213,7 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
         Err(forge_app::Error::NoActiveModel.into())
     }
 
-    async fn set_active_model(&self, model: ModelId) -> anyhow::Result<()> {
-        let provider_id = self.get_active_provider().await?.id;
+    async fn set_active_model(&self, model: ModelId, provider_id: ProviderId) -> anyhow::Result<()> {
         self.update(|config| {
             config.model.insert(provider_id, model.clone());
         })
@@ -234,13 +231,17 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
         })
         .await
     }
+
+    async fn provider_from_id(&self, id: ProviderId) -> anyhow::Result<Provider> {
+        self.provider_from_id(id).await
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use pretty_assertions::assert_eq;
-    use forge_app::domain::ProviderResponse;
     use super::*;
+    use forge_app::domain::ProviderResponse;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_load_provider_configs() {

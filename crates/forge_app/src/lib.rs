@@ -22,6 +22,7 @@ mod user;
 pub mod user_prompt;
 pub mod utils;
 mod walker;
+mod provider;
 
 pub use agent::*;
 pub use app::*;

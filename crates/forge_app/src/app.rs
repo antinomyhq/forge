@@ -9,12 +9,13 @@ use forge_stream::MpscStream;
 use crate::authenticator::Authenticator;
 use crate::dto::{InitAuth, ToolsOverview};
 use crate::orch::Orchestrator;
+use crate::provider::ProviderManager;
 use crate::services::{CustomInstructionsService, TemplateService};
 use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
 use crate::{
     AgentLoaderService, AttachmentService, ConversationService, EnvironmentService,
-    FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker, WorkflowService,
+    FileDiscoveryService, ProviderService, Services, Walker, WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -24,6 +25,7 @@ pub struct ForgeApp<S> {
     services: Arc<S>,
     tool_registry: ToolRegistry<S>,
     authenticator: Authenticator<S>,
+    provider: ProviderManager<S>,
 }
 
 impl<S: Services> ForgeApp<S> {
@@ -32,6 +34,7 @@ impl<S: Services> ForgeApp<S> {
         Self {
             tool_registry: ToolRegistry::new(services.clone()),
             authenticator: Authenticator::new(services.clone()),
+            provider: ProviderManager::new(services.clone()),
             services,
         }
     }
@@ -51,7 +54,7 @@ impl<S: Services> ForgeApp<S> {
             .unwrap_or_default()
             .expect("conversation for the request should've been created at this point.");
 
-        let provider = services
+        let provider = self
             .get_active_provider()
             .await
             .context("Failed to get provider")?;
@@ -96,7 +99,7 @@ impl<S: Services> ForgeApp<S> {
 
         // Prepare agents with user configuration and subscriptions
         let agents = services.get_agents().await?;
-        let model = services.get_active_model().await?;
+        let model = self.get_active_model().await?;
         let agent = agents
             .into_iter()
             .map(|agent| {
@@ -239,5 +242,15 @@ impl<S: Services> ForgeApp<S> {
     }
     pub async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> Result<()> {
         self.services.write_workflow(path, workflow).await
+    }
+
+    pub async fn get_active_provider(&self) -> anyhow::Result<Provider> {
+        self.provider.get_active_provider().await
+    }
+    pub async fn set_active_model(&self, model: ModelId) -> anyhow::Result<()> {
+        self.provider.set_active_model(model).await
+    }
+    pub async fn get_active_model(&self) -> anyhow::Result<ModelId> {
+        self.provider.get_active_model().await
     }
 }
