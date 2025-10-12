@@ -49,6 +49,10 @@ pub struct UI<A, F: Fn() -> A> {
     spinner: SpinnerManager,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
+    /// Replay timestamp context - when set, all TitleFormats use this timestamp
+    replay_timestamp: Option<chrono::DateTime<chrono::Utc>>,
+    /// Flag indicating if we're in replay mode (to skip spinner operations)
+    is_replaying: bool,
 }
 
 impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
@@ -59,7 +63,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     /// Writes a TitleFormat to the console output with proper formatting
-    fn writeln_title(&mut self, title: TitleFormat) -> anyhow::Result<()> {
+    /// If replay_timestamp is set, injects it into the title
+    fn writeln_title(&mut self, mut title: TitleFormat) -> anyhow::Result<()> {
+        if let Some(ts) = self.replay_timestamp {
+            title.timestamp = Some(ts);
+        }
         self.spinner.write_ln(title.display())
     }
 
@@ -140,6 +148,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             spinner: SpinnerManager::new(),
             markdown: MarkdownFormat::new(),
             _guard: forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?,
+            replay_timestamp: None,
+            is_replaying: false,
         })
     }
 
@@ -466,6 +476,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     "Resumed conversation: {}",
                     id_str
                 )))?;
+
+                // Replay conversation history after resuming session
+                if let Some(conversation) = self.api.conversation(&conversation_id).await? {
+                    self.replay_conversation(&conversation).await?;
+                }
+
                 // Interactive mode will be handled by the main loop
             }
         }
@@ -727,6 +743,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ConversationSelector::select_conversation(&conversations).await?
         {
             self.state.conversation_id = Some(conversation.id);
+
+            // Replay conversation history after switching
+            self.replay_conversation(&conversation).await?;
         }
         Ok(())
     }
@@ -1345,6 +1364,80 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
+    /// Replays the conversation history by printing all events from the event
+    /// log with their original timestamps.
+    ///
+    /// This method iterates through the stored event log and renders each event
+    /// using the existing UI logic, providing perfect replay of the original
+    /// conversation.
+    ///
+    /// # Arguments
+    /// - `conversation` - The conversation to replay
+    ///
+    /// # Behavior
+    /// - Returns early if conversation has no event log (legacy conversation)
+    /// - Returns early if event log is empty (new conversation)
+    /// - Skips replay for headless single-shot prompts to avoid cluttering
+    ///   output
+    /// - Respects verbose flag for tool call display
+    /// - Uses original timestamps from event log
+    /// - Displays conversation statistics at the end (ID, title, token usage,
+    ///   cost)
+    async fn replay_conversation(&mut self, conversation: &Conversation) -> Result<()> {
+        // Skip replay for headless single-shot prompts
+        if !self.cli.is_interactive() && self.cli.prompt.is_some() {
+            return Ok(());
+        }
+
+        // Get the context
+        let context = match &conversation.context {
+            Some(ctx) => ctx,
+            None => return Ok(()), // No context to replay
+        };
+
+        // Check if context is empty or only has system messages
+        if context.messages.is_empty() {
+            return Ok(());
+        }
+
+        // Check if conversation has event log with events
+        if let Some(ref event_log) = conversation.event_log {
+            if event_log.is_empty() {
+                // Empty event log - skip replay entirely (new conversation)
+                return Ok(());
+            }
+
+            // Print start separator
+
+            // Set replay mode
+            self.is_replaying = true;
+
+            // Replay from event log with original timestamps
+            for timestamped_event in event_log.iter() {
+                // Set replay timestamp context
+                self.replay_timestamp = Some(timestamped_event.timestamp);
+                // Use original handle_chat_response
+                self.handle_chat_response(timestamped_event.event.clone())
+                    .await?;
+            }
+
+            // Clear replay mode and timestamp context
+            self.is_replaying = false;
+            self.replay_timestamp = None;
+
+            // Display conversation stats at the end (like in live conversation)
+            let info = Info::default().extend(conversation);
+            self.writeln(info)?;
+        } else {
+            // No event log (legacy conversation) - show message
+            self.writeln_title(TitleFormat::info(
+                "No replay available (conversation created before replay feature)",
+            ))?;
+        }
+
+        Ok(())
+    }
+
     async fn handle_chat_response(&mut self, message: ChatResponse) -> Result<()> {
         debug!(chat_response = ?message, "Chat Response");
         if message.is_empty() {
@@ -1353,30 +1446,58 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         match message {
             ChatResponse::TaskMessage { content } => match content {
-                ChatResponseContent::Title(title) => self.writeln(title.display())?,
+                ChatResponseContent::Title(title) => self.writeln_title(title)?,
                 ChatResponseContent::PlainText(text) => self.writeln(text)?,
                 ChatResponseContent::Markdown(text) => {
                     tracing::info!(message = %text, "Agent Response");
                     self.writeln(self.markdown.render(&text))?;
                 }
             },
-            ChatResponse::ToolCallStart(_) => {
-                self.spinner.stop(None)?;
+            ChatResponse::ToolCallStart(tool_call) => {
+                // During replay, format and display the tool call
+                // During live execution, just stop the spinner (tool display already sent as
+                // TaskMessage)
+                if self.is_replaying {
+                    use forge_app::fmt::content::FormatContent;
+                    use forge_domain::Tools;
+
+                    if let Ok(tool_input) = Tools::try_from(tool_call) {
+                        let env = self.api.environment();
+                        if let Some(content) = tool_input.to_content(&env) {
+                            match content {
+                                ChatResponseContent::Title(title) => {
+                                    self.writeln_title(title)?;
+                                }
+                                ChatResponseContent::Markdown(text) => {
+                                    self.writeln(self.markdown.render(&text))?;
+                                }
+                                ChatResponseContent::PlainText(text) => {
+                                    self.writeln(text)?;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    self.spinner.stop(None)?;
+                }
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
                 // Only track toolcall name in case of success else track the error.
-                let payload = if toolcall_result.is_error() {
-                    let mut r = ToolCallPayload::new(toolcall_result.name.to_string());
-                    if let Some(cause) = toolcall_result.output.as_str() {
-                        r = r.with_cause(cause.to_string());
-                    }
-                    r
-                } else {
-                    ToolCallPayload::new(toolcall_result.name.to_string())
-                };
-                tracker::tool_call(payload);
+                if !self.is_replaying {
+                    let payload = if toolcall_result.is_error() {
+                        let mut r = ToolCallPayload::new(toolcall_result.name.to_string());
+                        if let Some(cause) = toolcall_result.output.as_str() {
+                            r = r.with_cause(cause.to_string());
+                        }
+                        r
+                    } else {
+                        ToolCallPayload::new(toolcall_result.name.to_string())
+                    };
+                    tracker::tool_call(payload);
 
-                self.spinner.start(None)?;
+                    self.spinner.start(None)?;
+                }
+
                 if !self.cli.verbose {
                     return Ok(());
                 }
@@ -1384,12 +1505,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ChatResponse::Usage(_) => {}
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 if !self.api.environment().retry_config.suppress_retry_errors {
-                    self.spinner.start(Some("Retrying"))?;
+                    if !self.is_replaying {
+                        self.spinner.start(Some("Retrying"))?;
+                    }
                     self.writeln_title(TitleFormat::error(cause.as_str()))?;
                 }
             }
             ChatResponse::Interrupt { reason } => {
-                self.spinner.stop(None)?;
+                if !self.is_replaying {
+                    self.spinner.stop(None)?;
+                }
 
                 let title = match reason {
                     InterruptionReason::MaxRequestPerTurnLimitReached { limit } => {
@@ -1401,7 +1526,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 };
 
                 self.writeln_title(TitleFormat::action(title))?;
-                self.should_continue().await?;
+
+                if !self.is_replaying {
+                    self.should_continue().await?;
+                }
             }
             ChatResponse::TaskReasoning { content } => {
                 if !content.trim().is_empty() {
@@ -1410,7 +1538,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 }
             }
             ChatResponse::TaskComplete => {
-                if let Some(conversation_id) = self.state.conversation_id {
+                if !self.is_replaying
+                    && let Some(conversation_id) = self.state.conversation_id
+                {
                     self.on_completion(conversation_id).await?;
                 }
             }

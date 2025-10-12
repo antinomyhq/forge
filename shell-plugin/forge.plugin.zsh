@@ -233,6 +233,9 @@ function _forge_action_conversation() {
             FORGE_CONVERSATION_ID="$conversation_id"
             
             echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Switched to conversation \033[1m${conversation_id}\033[0m"
+            
+            # Replay the conversation history (session without subcommand = resume)
+            _forge_exec session --id "$conversation_id"
         fi
     else
         echo "\033[31m✗\033[0m No conversations found"

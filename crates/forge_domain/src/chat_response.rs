@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
+use serde::{Deserialize, Serialize};
+
 use crate::{ToolCallFull, ToolName, ToolResult, Usage};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ChatResponseContent {
     Title(TitleFormat),
     PlainText(String),
@@ -42,7 +44,7 @@ impl ChatResponseContent {
 
 /// Events that are emitted by the agent for external consumption. This includes
 /// events for all internal state changes.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ChatResponse {
     TaskMessage { content: ChatResponseContent },
     TaskReasoning { content: String },
@@ -73,7 +75,7 @@ impl ChatResponse {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum InterruptionReason {
     MaxToolFailurePerTurnLimitReached {
         limit: u64,
@@ -84,7 +86,7 @@ pub enum InterruptionReason {
     },
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Cause(String);
 
 impl Cause {
@@ -109,7 +111,7 @@ impl From<&anyhow::Error> for Cause {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Category {
     Action,
     Info,
@@ -118,12 +120,16 @@ pub enum Category {
     Completion,
 }
 
-#[derive(Clone, derive_setters::Setters, Debug, PartialEq)]
+#[derive(Clone, derive_setters::Setters, Debug, PartialEq, Serialize, Deserialize)]
 #[setters(into, strip_option)]
 pub struct TitleFormat {
     pub title: String,
     pub sub_title: Option<String>,
     pub category: Category,
+    /// Optional timestamp for replay - when set, display logic uses this
+    /// instead of current time
+    #[serde(skip)]
+    pub timestamp: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 pub trait TitleExt {
@@ -146,6 +152,7 @@ impl TitleFormat {
             title: message.into(),
             sub_title: None,
             category: Category::Info,
+            timestamp: None,
         }
     }
 
@@ -155,6 +162,7 @@ impl TitleFormat {
             title: message.into(),
             sub_title: None,
             category: Category::Action,
+            timestamp: None,
         }
     }
 
@@ -163,6 +171,7 @@ impl TitleFormat {
             title: message.into(),
             sub_title: None,
             category: Category::Error,
+            timestamp: None,
         }
     }
 
@@ -171,6 +180,7 @@ impl TitleFormat {
             title: message.into(),
             sub_title: None,
             category: Category::Debug,
+            timestamp: None,
         }
     }
 
@@ -179,6 +189,7 @@ impl TitleFormat {
             title: message.into(),
             sub_title: None,
             category: Category::Completion,
+            timestamp: None,
         }
     }
 }

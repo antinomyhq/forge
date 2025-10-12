@@ -100,6 +100,7 @@ mod tests {
             context: None,
             metrics: Metrics::new().with_time(now),
             metadata: MetaData { created_at: now, updated_at: Some(now) },
+            event_log: None,
         }
     }
 
