@@ -11,8 +11,8 @@ typeset -h _FORGE_CONVERSATION_PATTERN=":"
 # Detect fd command - Ubuntu/Debian use 'fdfind', others use 'fd'
 typeset -h _FORGE_FD_CMD="$(command -v fdfind 2>/dev/null || command -v fd 2>/dev/null || echo 'fd')"
 
-# Cache the commands list once at plugin load time
-typeset -h _FORGE_COMMANDS="$($_FORGE_BIN show-commands 2>/dev/null)"
+# Commands cache - loaded lazily on first use
+typeset -h _FORGE_COMMANDS=""
 
 # Style tagged files
 ZSH_HIGHLIGHT_PATTERNS+=('@\[[^]]#\]' 'fg=cyan,bold')
@@ -26,6 +26,15 @@ ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z]#' 'fg=yellow,bold')
 
 # Highlight everything after that word + space in white
 ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z]# *(*|[[:graph:]]*)' 'fg=white,bold')
+
+# Lazy loader for commands cache
+# Loads the commands list only when first needed, avoiding startup cost
+function _forge_get_commands() {
+    if [[ -z "$_FORGE_COMMANDS" ]]; then
+        _FORGE_COMMANDS="$($_FORGE_BIN show-commands 2>/dev/null)"
+    fi
+    echo "$_FORGE_COMMANDS"
+}
 
 # Private fzf function with common options for consistent UX
 function _forge_fzf() {
@@ -130,14 +139,15 @@ function forge-completion() {
         # Extract the text after the colon for filtering
         local filter_text="${LBUFFER#:}"
         
-        # Use the cached commands list
-        if [[ -n "$_FORGE_COMMANDS" ]]; then
+        # Lazily load the commands list
+        local commands_list=$(_forge_get_commands)
+        if [[ -n "$commands_list" ]]; then
             # Use fzf for interactive selection with prefilled filter
             local selected
             if [[ -n "$filter_text" ]]; then
-                selected=$(echo "$_FORGE_COMMANDS" | _forge_fzf --nth=1 --query "$filter_text" --prompt="Command ❯ ")
+                selected=$(echo "$commands_list" | _forge_fzf --nth=1 --query "$filter_text" --prompt="Command ❯ ")
             else
-                selected=$(echo "$_FORGE_COMMANDS" | _forge_fzf --nth=1 --prompt="Command ❯ ")
+                selected=$(echo "$commands_list" | _forge_fzf --nth=1 --prompt="Command ❯ ")
             fi
             
             if [[ -n "$selected" ]]; then
@@ -257,9 +267,10 @@ function _forge_action_default() {
     
     # Validate that the command exists in show-commands (if user_action is provided)
     if [[ -n "$user_action" ]]; then
-        if [[ -n "$_FORGE_COMMANDS" ]]; then
+        local commands_list=$(_forge_get_commands)
+        if [[ -n "$commands_list" ]]; then
             # Check if the user_action is in the list of valid commands
-            if ! echo "$_FORGE_COMMANDS" | grep -q "^${user_action}\b"; then
+            if ! echo "$commands_list" | grep -q "^${user_action}\b"; then
                 echo
                 echo "\033[31m⏺\033[0m \033[90m[$(date '+%H:%M:%S')]\033[0m \033[1;31mERROR:\033[0m Command '\033[1m${user_action}\033[0m' not found"
                 _forge_reset

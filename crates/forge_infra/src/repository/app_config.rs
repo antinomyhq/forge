@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::Context as _;
 use forge_app::dto::AppConfig;
 use forge_fs::ForgeFS;
 use forge_services::AppConfigRepository;
@@ -17,27 +16,14 @@ impl AppConfigRepositoryImpl {
         Self { config_path, cache: Arc::new(Mutex::new(None)) }
     }
 
-    async fn init_default(&self) -> anyhow::Result<AppConfig> {
-        let default_config = AppConfig::default();
-        let content = serde_json::to_string_pretty(&default_config)?;
-        ForgeFS::write(&self.config_path, content).await?;
-        Ok(default_config)
+    async fn read_inner(&self) -> anyhow::Result<AppConfig> {
+        let path = &self.config_path;
+        let content = ForgeFS::read_utf8(&path).await?;
+        Ok(serde_json::from_str(&content)?)
     }
 
-    async fn read(&self) -> anyhow::Result<AppConfig> {
-        // Check if file exists, if not create with default config
-        if !ForgeFS::exists(&self.config_path) {
-            return self.init_default().await;
-        }
-
-        let path = &self.config_path;
-        let content = ForgeFS::read_utf8(&path)
-            .await
-            .with_context(|| format!("Failed to read app config: {}", path.display()))?;
-        if content.is_empty() {
-            return self.init_default().await;
-        }
-        Ok(serde_json::from_str(&content)?)
+    async fn read(&self) -> AppConfig {
+        self.read_inner().await.unwrap_or_default()
     }
 
     async fn write(&self, config: &AppConfig) -> anyhow::Result<()> {
@@ -58,7 +44,7 @@ impl AppConfigRepository for AppConfigRepositoryImpl {
         drop(cache);
 
         // Cache miss, read from file
-        let config = self.read().await?;
+        let config = self.read().await;
 
         // Update cache with the newly read config
         let mut cache = self.cache.lock().await;
@@ -166,17 +152,32 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_read_creates_file_if_not_exists() -> anyhow::Result<()> {
+    async fn test_read_handles_invalid_provider_gracefully() -> anyhow::Result<()> {
+        let fixture = r#"{
+            "provider": "xyz",
+            "model": {}
+        }"#;
+        let temp_dir = tempfile::tempdir()?;
+        let config_path = temp_dir.path().join(".config.json");
+        std::fs::write(&config_path, fixture)?;
+        let repo = AppConfigRepositoryImpl::new(config_path.clone());
+
+        let actual = repo.get_app_config().await?;
+
+        let expected = AppConfig::default();
+        assert_eq!(actual, expected);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_returns_default_if_not_exists() -> anyhow::Result<()> {
         let (repo, _temp_dir) = repository_fixture()?;
 
         // File should not exist initially
         assert!(!repo.config_path.exists());
 
-        // Reading should create the file with default config
         let config = repo.get_app_config().await?;
-
-        // File should now exist
-        assert!(repo.config_path.exists());
 
         // Config should be the default
         assert_eq!(config, AppConfig::default());

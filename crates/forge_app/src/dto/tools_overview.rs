@@ -26,7 +26,7 @@ impl ToolsOverview {
         let mut tools = Vec::new();
         tools.extend(&self.system);
         tools.extend(&self.agents);
-        for server_tools in self.mcp.values() {
+        for server_tools in self.mcp.get_servers().values() {
             tools.extend(server_tools);
         }
         tools

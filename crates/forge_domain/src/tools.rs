@@ -45,7 +45,6 @@ pub enum Tools {
     Shell(Shell),
     Fetch(NetFetch),
     Followup(Followup),
-    AttemptCompletion(AttemptCompletion),
     Plan(PlanCreate),
 }
 
@@ -337,25 +336,6 @@ pub struct Followup {
     pub option5: Option<String>,
 }
 
-/// After each tool use, the user will respond with the result of
-/// that tool use, i.e. if it succeeded or failed, along with any reasons for
-/// failure. Once you've received the results of tool uses and can confirm that
-/// the task is complete, use this tool to present the result of your work to
-/// the user in markdown format. The user may respond with feedback if they are
-/// not satisfied with the result, which you can use to make improvements and
-/// try again. IMPORTANT NOTE: This tool CANNOT be used until you've confirmed
-/// from the user that any previous tool uses were successful. Failure to do so
-/// will result in code corruption and system failure. Before using this tool,
-/// you must ask yourself if you've confirmed from the user that any previous
-/// tool uses were successful. If not, then DO NOT use this tool.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-pub struct AttemptCompletion {
-    /// The result of the task. Formulate this result in a way that is final and
-    /// does not require further input from the user. Don't end your result with
-    /// questions or offers for further assistance.
-    pub result: String,
-}
-
 /// Creates a new plan file with the specified name, version, and content. Use
 /// this tool to create structured project plans, task breakdowns, or
 /// implementation strategies that can be tracked and referenced throughout
@@ -468,7 +448,6 @@ impl ToolDescription for Tools {
             Tools::Shell(v) => v.description(),
             Tools::Followup(v) => v.description(),
             Tools::Fetch(v) => v.description(),
-            Tools::AttemptCompletion(v) => v.description(),
             Tools::Search(v) => v.description(),
             Tools::Read(v) => v.description(),
             Tools::Remove(v) => v.description(),
@@ -503,7 +482,6 @@ impl Tools {
             Tools::Shell(_) => r#gen.into_root_schema_for::<Shell>(),
             Tools::Followup(_) => r#gen.into_root_schema_for::<Followup>(),
             Tools::Fetch(_) => r#gen.into_root_schema_for::<NetFetch>(),
-            Tools::AttemptCompletion(_) => r#gen.into_root_schema_for::<AttemptCompletion>(),
             Tools::Search(_) => r#gen.into_root_schema_for::<FSSearch>(),
             Tools::Read(_) => r#gen.into_root_schema_for::<FSRead>(),
             Tools::Remove(_) => r#gen.into_root_schema_for::<FSRemove>(),
@@ -523,16 +501,7 @@ impl Tools {
     }
     pub fn should_yield(tool_name: &ToolName) -> bool {
         // Tools that convey that the execution should yield
-        [
-            ToolsDiscriminants::Followup,
-            ToolsDiscriminants::AttemptCompletion,
-        ]
-        .iter()
-        .any(|v| v.to_string().to_case(Case::Snake).eq(tool_name.as_str()))
-    }
-    pub fn is_attempt_completion(tool_name: &ToolName) -> bool {
-        // Tool that convey that conversation might be completed
-        [ToolsDiscriminants::AttemptCompletion]
+        [ToolsDiscriminants::Followup]
             .iter()
             .any(|v| v.to_string().to_case(Case::Snake).eq(tool_name.as_str()))
     }
@@ -607,9 +576,7 @@ impl Tools {
                 message: format!("Fetch content from URL: {}", input.url),
             }),
             // Operations that don't require permission checks
-            Tools::Undo(_) | Tools::Followup(_) | Tools::AttemptCompletion(_) | Tools::Plan(_) => {
-                None
-            }
+            Tools::Undo(_) | Tools::Followup(_) | Tools::Plan(_) => None,
         }
     }
 }
@@ -675,15 +642,6 @@ mod tests {
     use crate::{ToolName, Tools, ToolsDiscriminants};
 
     #[test]
-    fn test_is_complete() {
-        let complete_tool = ToolName::new("attempt_completion");
-        let incomplete_tool = ToolName::new("read");
-
-        assert!(Tools::is_attempt_completion(&complete_tool));
-        assert!(!Tools::is_attempt_completion(&incomplete_tool));
-    }
-
-    #[test]
     fn test_tool_definition() {
         let actual = ToolsDiscriminants::Remove.name();
         let expected = ToolName::new("remove");
@@ -694,7 +652,7 @@ mod tests {
     fn test_tool_definition_json() {
         let tools = Tools::iter()
             .map(|tool| {
-                let definition = tool.definition();
+                let definition = tool.definition().input_schema;
                 serde_json::to_string_pretty(&definition)
                     .expect("Failed to serialize tool definition to JSON")
             })

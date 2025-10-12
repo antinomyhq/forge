@@ -15,6 +15,7 @@ use crate::{CacheRepository, McpClientInfra, McpServerInfra};
 #[derive(Clone)]
 pub struct ForgeMcpService<M, I, C> {
     tools: Arc<RwLock<HashMap<ToolName, ToolHolder<McpExecutor<C>>>>>,
+    failed_servers: Arc<RwLock<HashMap<ServerName, String>>>,
     previous_config_hash: Arc<Mutex<u64>>,
     manager: Arc<M>,
     infra: Arc<I>,
@@ -37,6 +38,7 @@ where
     pub fn new(manager: Arc<M>, infra: Arc<I>) -> Self {
         Self {
             tools: Default::default(),
+            failed_servers: Default::default(),
             previous_config_hash: Arc::new(Mutex::new(Default::default())),
             manager,
             infra,
@@ -106,15 +108,36 @@ where
         *self.previous_config_hash.lock().await = new_hash;
         self.clear_tools().await;
 
-        futures::future::join_all(mcp.mcp_servers.iter().map(|(name, server)| async move {
-            self.connect(name, server.clone())
-                .await
-                .context(format!("Failed to initiate MCP server: {name}"))
-        }))
-        .await
-        .into_iter()
-        .collect::<anyhow::Result<Vec<_>>>()
-        .map(|_| ())
+        // Clear failed servers map before attempting new connections
+        self.failed_servers.write().await.clear();
+
+        let server_names: Vec<ServerName> = mcp.mcp_servers.keys().cloned().collect();
+        let connections: Vec<_> = mcp
+            .mcp_servers
+            .into_iter()
+            .map(|(name, server)| async move {
+                self.connect(&name, server)
+                    .await
+                    .context(format!("Failed to initiate MCP server: {name}"))
+            })
+            .collect();
+
+        let results = futures::future::join_all(connections).await;
+
+        for (result, server_name) in results.into_iter().zip(server_names) {
+            match result {
+                Ok(_) => {}
+                Err(error) => {
+                    let error_string = error.to_string();
+                    self.failed_servers
+                        .write()
+                        .await
+                        .insert(server_name.clone(), error_string.clone());
+                }
+            }
+        }
+
+        Ok(())
     }
 
     async fn list(&self) -> anyhow::Result<McpServers> {
@@ -130,7 +153,9 @@ where
                 .push(tool.definition.clone());
         }
 
-        Ok(grouped_tools.into())
+        let failures = self.failed_servers.read().await.clone();
+
+        Ok(McpServers::new(grouped_tools, failures))
     }
     async fn clear_tools(&self) {
         self.tools.write().await.clear()

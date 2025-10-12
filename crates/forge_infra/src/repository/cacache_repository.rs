@@ -82,14 +82,22 @@ impl forge_services::CacheRepository for CacacheRepository {
 
         match cacache::read(&self.cache_dir, &key_str).await {
             Ok(data) => {
-                let entry: CachedEntry<V> =
-                    serde_json::from_slice(&data).context("Failed to deserialize cached entry")?;
-
-                // Check if entry has expired
-                if self.is_expired(entry.timestamp) {
-                    Ok(None)
-                } else {
-                    Ok(Some(entry.value))
+                // Try to deserialize the cached entry
+                match serde_json::from_slice::<CachedEntry<V>>(&data) {
+                    Ok(entry) => {
+                        // Check if entry has expired
+                        if self.is_expired(entry.timestamp) {
+                            Ok(None)
+                        } else {
+                            Ok(Some(entry.value))
+                        }
+                    }
+                    Err(_) => {
+                        // Failed to deserialize (likely due to format change)
+                        // Clear the invalid cache entry to maintain backward compatibility
+                        let _ = cacache::remove(&self.cache_dir, &key_str).await;
+                        Ok(None)
+                    }
                 }
             }
             Err(e) => {
