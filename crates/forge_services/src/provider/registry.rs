@@ -1,8 +1,7 @@
 use std::sync::{Arc, OnceLock};
 
 use forge_app::ProviderRegistry;
-use forge_app::domain::{AgentId, ModelId};
-use forge_app::dto::{Provider, ProviderId, ProviderResponse};
+use forge_app::domain::{AgentId, ModelId, Provider, ProviderId, ProviderResponse};
 use handlebars::Handlebars;
 use serde::Deserialize;
 use tokio::sync::OnceCell;
@@ -131,7 +130,7 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
         })
     }
 
-    async fn provider_from_id(&self, id: forge_app::dto::ProviderId) -> anyhow::Result<Provider> {
+    async fn provider_from_id(&self, id: ProviderId) -> anyhow::Result<Provider> {
         // Handle special cases first
         if id == ProviderId::Forge {
             // Forge provider isn't typically configured via env vars in the registry
@@ -186,11 +185,6 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
 impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProviderRegistry<F> {
     async fn get_active_provider(&self) -> anyhow::Result<Provider> {
         let app_config = self.infra.get_app_config().await?;
-        if let Some(active_agent) = app_config.agent
-            && let Some(provider_id) = app_config.agent_provider.get(&active_agent)
-        {
-            return self.provider_from_id(provider_id.clone()).await;
-        }
         if let Some(provider_id) = app_config.provider {
             return self.provider_from_id(provider_id).await;
         }
@@ -240,22 +234,12 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
         })
         .await
     }
-    async fn set_agent_provider(
-        &self,
-        agent_id: AgentId,
-        provider_id: ProviderId,
-    ) -> anyhow::Result<()> {
-        self.update(|config| {
-            config.agent_provider.insert(agent_id, provider_id);
-        })
-        .await
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
-
+    use forge_app::domain::ProviderResponse;
     use super::*;
 
     #[test]

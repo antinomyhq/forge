@@ -6,10 +6,7 @@ use std::sync::Arc;
 use anyhow::{Context as _, Result};
 use derive_setters::Setters;
 use forge_app::HttpClientService;
-use forge_app::domain::{
-    ChatCompletionMessage, Context, HttpConfig, Model, ModelId, ResultStream, RetryConfig,
-};
-use forge_app::dto::{Provider, ProviderResponse};
+use forge_app::domain::{ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ProviderResponse, ResultStream, RetryConfig};
 use reqwest::Url;
 use reqwest::header::HeaderMap;
 use tokio::sync::RwLock;
@@ -186,11 +183,10 @@ mod tests {
 
     use bytes::Bytes;
     use forge_app::HttpClientService;
-    use forge_app::dto::{Provider, ProviderId, ProviderResponse};
     use reqwest::Url;
     use reqwest::header::HeaderMap;
     use reqwest_eventsource::EventSource;
-
+    use forge_app::domain::ProviderId;
     use super::*;
 
     // Simple mock for testing client functionality

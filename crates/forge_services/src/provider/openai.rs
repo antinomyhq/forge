@@ -2,10 +2,8 @@ use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
 use forge_app::HttpClientService;
-use forge_app::domain::{
-    ChatCompletionMessage, Context as ChatContext, ModelId, ResultStream, Transformer,
-};
-use forge_app::dto::Provider;
+use forge_app::domain::{ChatCompletionMessage, Context as ChatContext, ModelId, ProviderId, ResultStream, Transformer};
+use forge_app::domain::Provider;
 use forge_app::dto::openai::{ListModelResponse, ProviderPipeline, Request, Response};
 use lazy_static::lazy_static;
 use reqwest::header::AUTHORIZATION;
@@ -41,8 +39,8 @@ impl<H: HttpClientService> OpenAIProvider<H> {
     fn get_headers_with_request(&self, request: &Request) -> Vec<(String, String)> {
         let mut headers = self.get_headers();
         // Add Session-Id header for zai and zai_coding providers
-        if (self.provider.id == forge_app::dto::ProviderId::Zai
-            || self.provider.id == forge_app::dto::ProviderId::ZaiCoding)
+        if (self.provider.id == ProviderId::Zai
+            || self.provider.id == ProviderId::ZaiCoding)
             && request.session_id.is_some()
         {
             headers.push((
@@ -96,7 +94,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
 
     async fn inner_models(&self) -> Result<Vec<forge_app::domain::Model>> {
         // For Vertex AI, load models from static JSON file using VertexProvider logic
-        if self.provider.id == forge_app::dto::ProviderId::VertexAi {
+        if self.provider.id == ProviderId::VertexAi {
             debug!("Loading Vertex AI models from static JSON file");
             Ok(self.inner_vertex_models())
         } else {
@@ -180,7 +178,7 @@ mod tests {
     use anyhow::Context;
     use bytes::Bytes;
     use forge_app::HttpClientService;
-    use forge_app::dto::{ProviderId, ProviderResponse};
+    use forge_app::domain::{ProviderId, ProviderResponse};
     use reqwest::header::HeaderMap;
     use reqwest_eventsource::EventSource;
 

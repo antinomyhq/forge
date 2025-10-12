@@ -8,7 +8,7 @@ use super::tool_choice::SetToolChoice;
 use super::when_model::when_model;
 use super::zai_reasoning::SetZaiThinking;
 use crate::dto::openai::{Request, ToolChoice};
-use crate::dto::{Provider, ProviderId};
+use forge_domain::{Provider, ProviderId};
 
 /// Pipeline for transforming requests based on the provider type
 pub struct ProviderPipeline<'a>(&'a Provider);

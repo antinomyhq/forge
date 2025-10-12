@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::dto::{InitAuth, LoginInfo, Provider, ProviderId, ToolsOverview};
+use forge_app::dto::{InitAuth, LoginInfo, ToolsOverview};
 use forge_app::{
     AgentLoaderService, AuthService, ConversationService, EnvironmentService, FileDiscoveryService,
     ForgeApp, McpConfigManager, McpService, ProviderRegistry, ProviderService, Services, User,

@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use forge_app::dto::{InitAuth, ProviderId, ToolsOverview};
+use forge_app::dto::{InitAuth, ToolsOverview};
 use forge_app::{User, UserUsage};
 use forge_domain::{AgentId, ModelId};
 use forge_stream::MpscStream;

@@ -5,7 +5,7 @@ use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation,
     ConversationId, Environment, File, McpConfig, McpServers, Model, ModelId, PatchOperation,
-    ResultStream, Scope, ToolCallFull, ToolOutput, Workflow,
+    Provider, ProviderId, ResultStream, Scope, ToolCallFull, ToolOutput, Workflow,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -14,7 +14,7 @@ use reqwest_eventsource::EventSource;
 use url::Url;
 
 use crate::Walker;
-use crate::dto::{InitAuth, LoginInfo, Provider, ProviderId};
+use crate::dto::{InitAuth, LoginInfo};
 use crate::user::{User, UserUsage};
 
 #[derive(Debug)]
@@ -356,11 +356,6 @@ pub trait ProviderRegistry: Send + Sync {
     async fn set_active_model(&self, model: ModelId) -> anyhow::Result<()>;
     async fn get_active_agent(&self) -> anyhow::Result<Option<AgentId>>;
     async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()>;
-    async fn set_agent_provider(
-        &self,
-        agent_id: AgentId,
-        provider_id: ProviderId,
-    ) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -730,15 +725,6 @@ impl<I: Services> ProviderRegistry for I {
 
     async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()> {
         self.provider_registry().set_active_agent(agent_id).await
-    }
-    async fn set_agent_provider(
-        &self,
-        agent_id: AgentId,
-        provider_id: ProviderId,
-    ) -> anyhow::Result<()> {
-        self.provider_registry()
-            .set_agent_provider(agent_id, provider_id)
-            .await
     }
 }
 
