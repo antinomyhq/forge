@@ -29,6 +29,12 @@
         "null"
       ]
     },
+    "hidebanner": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
     "max_requests_per_turn": {
       "description": "Maximum number of requests that can be made in a single turn",
       "type": [

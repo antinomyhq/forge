@@ -71,10 +71,19 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(models)
     }
 
-    /// Displays banner only if user is in interactive mode.
-    fn display_banner(&self) -> Result<()> {
+    /// Displays banner only if user is in interactive mode and hidebanner is not set to true.
+    async fn display_banner(&self) -> Result<()> {
         if self.cli.is_interactive() {
-            banner::display(false)?;
+            match self.api.read_workflow(self.cli.workflow.as_deref()).await {
+                Ok(workflow) => {
+                    if !workflow.hidebanner.unwrap_or(false) {
+                        banner::display(false)?;
+                    }
+                },
+                Err(_) => {
+                    banner::display(false)?;
+                }
+            }
         }
         Ok(())
     }
@@ -87,7 +96,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Reset previously set CLI parameters by the user
         self.cli.conversation = None;
 
-        self.display_banner()?;
+        self.display_banner().await?;
         self.trace_user();
         self.hydrate_caches();
         Ok(())
@@ -185,7 +194,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         // // Display the banner in dimmed colors since we're in interactive mode
-        self.display_banner()?;
+        self.display_banner().await?;
         self.init_state(true).await?;
         self.trace_user();
         self.hydrate_caches();

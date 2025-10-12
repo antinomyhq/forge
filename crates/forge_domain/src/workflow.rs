@@ -123,6 +123,12 @@ pub struct Workflow {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub compact: Option<Compact>,
+    ///
+    ///
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub hidebanner: Option<bool>,
 }
 
 lazy_static! {
@@ -168,6 +174,7 @@ impl Workflow {
             max_tool_failure_per_turn: None,
             max_requests_per_turn: None,
             compact: None,
+            hidebanner: None,
         }
     }
 }
