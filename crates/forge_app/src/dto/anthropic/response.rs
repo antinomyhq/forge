@@ -86,6 +86,7 @@ impl From<Usage> for forge_domain::Usage {
             completion_tokens,
             total_tokens,
             cached_tokens,
+            context_tokens: TokenCount::Actual(0),
             ..Default::default()
         }
     }

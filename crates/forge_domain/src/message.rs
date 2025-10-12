@@ -13,6 +13,7 @@ pub struct Usage {
     pub completion_tokens: TokenCount,
     pub total_tokens: TokenCount,
     pub cached_tokens: TokenCount,
+    pub context_tokens: TokenCount,
     pub cost: Option<f64>,
 }
 
@@ -24,6 +25,7 @@ impl Usage {
         self.completion_tokens = self.completion_tokens + other.completion_tokens.clone();
         self.total_tokens = self.total_tokens + other.total_tokens.clone();
         self.cached_tokens = self.cached_tokens + other.cached_tokens.clone();
+        self.context_tokens = self.context_tokens + other.context_tokens.clone();
         self.cost = match (self.cost, other.cost) {
             (Some(a), Some(b)) => Some(a + b),
             (Some(a), None) => Some(a),
@@ -190,6 +192,7 @@ mod tests {
             completion_tokens: TokenCount::Actual(50),
             total_tokens: TokenCount::Actual(150),
             cached_tokens: TokenCount::Actual(20),
+            context_tokens: TokenCount::Actual(0),
             cost: Some(0.01),
         };
 
@@ -198,6 +201,7 @@ mod tests {
             completion_tokens: TokenCount::Actual(75),
             total_tokens: TokenCount::Actual(275),
             cached_tokens: TokenCount::Actual(30),
+            context_tokens: TokenCount::Actual(0),
             cost: Some(0.02),
         };
 
@@ -208,6 +212,7 @@ mod tests {
             completion_tokens: TokenCount::Actual(125),
             total_tokens: TokenCount::Actual(425),
             cached_tokens: TokenCount::Actual(50),
+            context_tokens: TokenCount::Actual(0),
             cost: Some(0.03),
         };
 
@@ -221,6 +226,7 @@ mod tests {
             completion_tokens: TokenCount::Approx(50),
             total_tokens: TokenCount::Actual(150),
             cached_tokens: TokenCount::Actual(20),
+            context_tokens: TokenCount::Actual(0),
             cost: Some(0.01),
         };
 
@@ -229,6 +235,7 @@ mod tests {
             completion_tokens: TokenCount::Actual(75),
             total_tokens: TokenCount::Approx(275),
             cached_tokens: TokenCount::Approx(30),
+            context_tokens: TokenCount::Actual(0),
             cost: Some(0.02),
         };
 
@@ -239,6 +246,7 @@ mod tests {
             completion_tokens: TokenCount::Approx(125),
             total_tokens: TokenCount::Approx(425),
             cached_tokens: TokenCount::Approx(50),
+            context_tokens: TokenCount::Actual(0),
             cost: Some(0.03),
         };
 
@@ -252,6 +260,7 @@ mod tests {
             completion_tokens: TokenCount::Actual(50),
             total_tokens: TokenCount::Actual(150),
             cached_tokens: TokenCount::Actual(20),
+            context_tokens: TokenCount::Actual(0),
             cost: Some(0.01),
         };
 
@@ -260,6 +269,7 @@ mod tests {
             completion_tokens: TokenCount::Actual(75),
             total_tokens: TokenCount::Actual(275),
             cached_tokens: TokenCount::Actual(30),
+            context_tokens: TokenCount::Actual(0),
             cost: None,
         };
 
@@ -270,6 +280,7 @@ mod tests {
             completion_tokens: TokenCount::Actual(125),
             total_tokens: TokenCount::Actual(425),
             cached_tokens: TokenCount::Actual(50),
+            context_tokens: TokenCount::Actual(0),
             cost: Some(0.01),
         };
 
@@ -283,6 +294,7 @@ mod tests {
             completion_tokens: TokenCount::Actual(50),
             total_tokens: TokenCount::Actual(150),
             cached_tokens: TokenCount::Actual(20),
+            context_tokens: TokenCount::Actual(0),
             cost: None,
         };
 
@@ -291,6 +303,7 @@ mod tests {
             completion_tokens: TokenCount::Actual(75),
             total_tokens: TokenCount::Actual(275),
             cached_tokens: TokenCount::Actual(30),
+            context_tokens: TokenCount::Actual(0),
             cost: None,
         };
 
@@ -301,6 +314,7 @@ mod tests {
             completion_tokens: TokenCount::Actual(125),
             total_tokens: TokenCount::Actual(425),
             cached_tokens: TokenCount::Actual(50),
+            context_tokens: TokenCount::Actual(0),
             cost: None,
         };
 
@@ -316,6 +330,7 @@ mod tests {
             completion_tokens: TokenCount::Actual(75),
             total_tokens: TokenCount::Actual(275),
             cached_tokens: TokenCount::Actual(30),
+            context_tokens: TokenCount::Actual(0),
             cost: Some(0.05),
         };
 
@@ -326,6 +341,7 @@ mod tests {
             completion_tokens: TokenCount::Actual(75),
             total_tokens: TokenCount::Actual(275),
             cached_tokens: TokenCount::Actual(30),
+            context_tokens: TokenCount::Actual(0),
             cost: Some(0.05),
         };
 

@@ -443,10 +443,15 @@ impl<S: AgentService> Orchestrator<S> {
                 "Processing usage information"
             );
 
-            // Send the usage information if available
-            self.send(ChatResponse::Usage(usage.clone())).await?;
+            // Populate context_tokens with the cumulative context size before sending
+            let mut usage_with_context = usage.clone();
+            usage_with_context.context_tokens = context.token_count();
 
-            context = context.usage(usage);
+            // Send the usage information if available
+            self.send(ChatResponse::Usage(usage_with_context.clone()))
+                .await?;
+
+            context = context.usage(usage_with_context);
 
             debug!(agent_id = %agent.id, tool_call_count = tool_calls.len(), "Tool call count");
 

@@ -162,8 +162,8 @@ impl From<&Usage> for Info {
         let mut usage_info = Info::new()
             .add_title("TOKEN USAGE")
             .add_key_value(
-                "Input Tokens",
-                value.prompt_tokens.to_formatted_string(&Locale::en),
+                "Context Used",
+                value.context_tokens.to_formatted_string(&Locale::en),
             )
             .add_key_value("Cached Tokens", cached_display)
             .add_key_value(

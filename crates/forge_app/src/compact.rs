@@ -216,6 +216,7 @@ mod tests {
                         completion_tokens: TokenCount::Actual(50),
                         total_tokens: TokenCount::Actual(150),
                         cached_tokens: TokenCount::Actual(0),
+                        context_tokens: TokenCount::Actual(0),
                         cost: Some(cost),
                     },
                     tool_calls: vec![],
@@ -269,6 +270,7 @@ mod tests {
             completion_tokens: TokenCount::Actual(100),
             total_tokens: TokenCount::Actual(300),
             cached_tokens: TokenCount::Actual(0),
+            context_tokens: TokenCount::Actual(0),
             cost: Some(cost),
         }
     }
