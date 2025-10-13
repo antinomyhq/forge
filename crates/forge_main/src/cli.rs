@@ -67,8 +67,8 @@ impl Cli {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum TopLevelCommand {
-    /// Generate shell completion scripts
-    Completion(CompletionCommandGroup),
+    /// Generate shell extension scripts
+    Extension(ExtensionCommandGroup),
 
     /// List resources (agents, models, providers, commands, tools)
     List(ListCommandGroup),
@@ -145,26 +145,17 @@ pub enum ShowCommand {
     Banner,
 }
 
-/// Group of completion-related commands
+/// Group of extension-related commands
 #[derive(Parser, Debug, Clone)]
-pub struct CompletionCommandGroup {
+pub struct ExtensionCommandGroup {
     #[command(subcommand)]
-    pub command: CompletionCommand,
+    pub command: ExtensionCommand,
 }
 
 #[derive(Subcommand, Debug, Clone)]
-pub enum CompletionCommand {
-    /// Generate ZSH completion script
+pub enum ExtensionCommand {
+    /// Generate ZSH extension script
     Zsh,
-
-    /// Generate Bash completion script
-    Bash,
-
-    /// Generate Fish completion script
-    Fish,
-
-    /// Generate PowerShell completion script
-    Powershell,
 }
 
 /// Group of workflow-related commands

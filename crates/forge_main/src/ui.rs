@@ -21,7 +21,7 @@ use tokio_stream::StreamExt;
 use tracing::debug;
 
 use crate::cli::{
-    Cli, CompletionCommand, ListCommand, McpCommand, SessionCommand, ShowCommand, TopLevelCommand,
+    Cli, ExtensionCommand, ListCommand, McpCommand, SessionCommand, ShowCommand, TopLevelCommand,
     Transport, WorkflowCommand,
 };
 use crate::cli_format::format_columns;
@@ -278,22 +278,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 }
                 return Ok(());
             }
-            TopLevelCommand::Completion(completion_group) => {
-                match completion_group.command {
-                    CompletionCommand::Zsh => {
+            TopLevelCommand::Extension(extension_group) => {
+                match extension_group.command {
+                    ExtensionCommand::Zsh => {
                         self.on_zsh_prompt().await?;
-                    }
-                    CompletionCommand::Bash => {
-                        // TODO: Implement bash completion
-                        self.writeln("Bash completion not yet implemented")?;
-                    }
-                    CompletionCommand::Fish => {
-                        // TODO: Implement fish completion
-                        self.writeln("Fish completion not yet implemented")?;
-                    }
-                    CompletionCommand::Powershell => {
-                        // TODO: Implement powershell completion
-                        self.writeln("PowerShell completion not yet implemented")?;
                     }
                 }
                 return Ok(());
