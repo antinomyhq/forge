@@ -46,11 +46,10 @@ pub async fn display(
 
     match load(&config, interactive).await {
         Ok(Some(content)) => println!("{content}"),
-        Ok(None) => {} // Disabled
+        Ok(None) => {}
         Err(err) => {
-            // Log error and fall back to default banner
             let warning = TitleFormat::error("Banner Error")
-                .sub_title(format!("{} {}", err, "Falling back to default banner."))
+                .sub_title(format!("{err}. Falling back to default banner"))
                 .display();
             println!("{warning}");
             if let Some(content) = load(&BannerConfig::Default, interactive).await? {
@@ -81,7 +80,7 @@ async fn load(config: &BannerConfig, interactive: bool) -> anyhow::Result<Option
 
 fn format_banner(raw: &str, interactive: bool) -> String {
     let tips = if interactive {
-        vec![
+        [
             ("New conversation:", "/new"),
             ("Get started:", "/info, /usage, /help, /conversation"),
             ("Switch model:", "/model"),
@@ -89,27 +88,35 @@ fn format_banner(raw: &str, interactive: bool) -> String {
             ("Update:", "/update"),
             ("Quit:", "/exit or <CTRL+D>"),
         ]
+        .as_slice()
     } else {
-        vec![
+        [
             ("New conversation:", ":new"),
             ("Get started:", ":info, :conversation"),
             ("Switch model:", ":model"),
             ("Switch provider:", ":provider"),
             ("Switch agent:", ":<agent_name> e.g. :forge or :muse"),
         ]
+        .as_slice()
     };
 
-    let labels: Vec<(&str, &str)> = std::iter::once(("Version:", VERSION)).chain(tips).collect();
-    let max_width = labels.iter().map(|(k, _)| k.len()).max().unwrap_or(0);
+    let max_width = tips.iter().map(|(k, _)| k.len()).max().unwrap_or(0);
 
     let mut banner = raw.to_string();
-    for (key, value) in &labels {
+    banner.push_str(&format!(
+        "\n{}{}",
+        format!("{:>max_width$} ", "Version:").dimmed(),
+        VERSION.cyan()
+    ));
+
+    for (key, value) in tips {
         banner.push_str(&format!(
             "\n{}{}",
             format!("{key:>max_width$} ").dimmed(),
             value.cyan()
         ));
     }
+
     banner.push('\n');
     banner
 }
@@ -121,23 +128,21 @@ async fn read_file(path: &Path) -> anyhow::Result<String> {
         std::env::current_dir()?.join(path)
     };
 
-    if !resolved.exists() {
-        anyhow::bail!(
-            "Custom banner file not found: {}\nTip: Check if the file exists and the path is correct.",
-            resolved.display()
-        );
-    }
+    anyhow::ensure!(
+        resolved.exists(),
+        "Custom banner file not found: {}",
+        resolved.display()
+    );
 
     let content = tokio::fs::read_to_string(&resolved)
         .await
         .with_context(|| format!("Failed to read custom banner from {}", resolved.display()))?;
 
-    if content.trim().is_empty() {
-        anyhow::bail!(
-            "Custom banner file is empty: {}\nTip: Add ASCII art or text content to your banner file.",
-            resolved.display()
-        );
-    }
+    anyhow::ensure!(
+        !content.trim().is_empty(),
+        "Custom banner file is empty: {}",
+        resolved.display()
+    );
 
     Ok(content)
 }
