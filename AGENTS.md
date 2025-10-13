@@ -16,7 +16,7 @@ This document contains guidelines and best practices for AI agents working with 
   use pretty_assertions::assert_eq; // Always use pretty assertions
 
   fn test_foo() {
-      let fixture = ...; // Instantiate a fixture for the test
+      let setup = ...; // Instantiate a fixture or setup for the test
       let actual = ...; // Execute the fixture to create an output
       let expected = ...; // Define a hand written expected result
       assert_eq!(actual, expected); // Assert that the actual result matches the expected result

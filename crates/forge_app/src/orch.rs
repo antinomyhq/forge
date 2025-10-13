@@ -7,6 +7,7 @@ use async_recursion::async_recursion;
 use derive_setters::Setters;
 use forge_domain::*;
 use forge_template::Element;
+use tokio::task::JoinHandle;
 use tracing::{debug, info, warn};
 
 use crate::agent::AgentService;
@@ -268,11 +269,7 @@ impl<S: AgentService> Orchestrator<S> {
             "Initializing agent"
         );
 
-        let model_id = self
-            .agent
-            .model
-            .clone()
-            .ok_or(Error::MissingModel(self.agent.id.clone()))?;
+        let model_id = self.get_model()?;
 
         let mut context = self.conversation.context.clone().unwrap_or_default();
 
@@ -351,6 +348,10 @@ impl<S: AgentService> Orchestrator<S> {
 
         let tool_context =
             ToolCallContext::new(self.conversation.metrics.clone()).sender(self.sender.clone());
+
+        // Asynchronously generate a title for the provided task
+        let title = self.generate_title(model_id.clone());
+
         while !should_yield {
             // Set context for the current loop iteration
             self.conversation.context = Some(context.clone());
@@ -376,25 +377,6 @@ impl<S: AgentService> Orchestrator<S> {
                 }),
             );
 
-            // Generate title only if conversation doesn't have any title and event.value
-            // exists
-            use futures::future::{Either, ready};
-            let title_generator_future: Either<_, _> = if let Some(ref prompt) = self.event.value {
-                if self.conversation.title.is_none() {
-                    let title_generator = TitleGenerator::new(
-                        self.services.clone(),
-                        prompt.to_owned(),
-                        model_id.clone(),
-                    )
-                    .reasoning(agent.reasoning.clone());
-                    Either::Left(async move { title_generator.generate().await })
-                } else {
-                    Either::Right(ready(Ok::<Option<String>, anyhow::Error>(None)))
-                }
-            } else {
-                Either::Right(ready(Ok::<Option<String>, anyhow::Error>(None)))
-            };
-
             // Prepare compaction task that runs in parallel
             // Execute both operations in parallel
             let (
@@ -407,19 +389,7 @@ impl<S: AgentService> Orchestrator<S> {
                     finish_reason,
                 },
                 compaction_result,
-                conversation_title,
-            ) = tokio::try_join!(
-                main_request,
-                self.check_and_compact(&context),
-                title_generator_future
-            )?;
-
-            // If conversation_title is generated then update the conversation with it's
-            // title.
-            if let Some(title) = conversation_title {
-                debug!(conversation_id = %self.conversation.id, title, "Title generated for conversation");
-                self.conversation.title = Some(title);
-            }
+            ) = tokio::try_join!(main_request, self.check_and_compact(&context),)?;
 
             // Apply compaction result if it completed successfully
             match compaction_result {
@@ -543,6 +513,13 @@ impl<S: AgentService> Orchestrator<S> {
         tool_context.with_metrics(|metrics| {
             self.conversation.metrics = metrics.clone();
         })?;
+
+        // Set conversation title
+        if let Some(title) = title.await.ok().flatten() {
+            debug!(conversation_id = %self.conversation.id, title, "Title generated for conversation");
+            self.conversation.title = Some(title)
+        }
+
         self.services.update(self.conversation.clone()).await?;
 
         // Signal Task Completion
@@ -551,5 +528,29 @@ impl<S: AgentService> Orchestrator<S> {
         }
 
         Ok(())
+    }
+
+    fn get_model(&self) -> anyhow::Result<ModelId> {
+        Ok(self
+            .agent
+            .model
+            .clone()
+            .ok_or(Error::MissingModel(self.agent.id.clone()))?)
+    }
+
+    /// Creates a join handle which eventually resolves with the conversation
+    /// title
+    fn generate_title(&self, model: ModelId) -> JoinHandle<Option<String>> {
+        let prompt = &self.event.value;
+        if self.conversation.title.is_none()
+            && let Some(prompt) = prompt
+        {
+            let generator = TitleGenerator::new(self.services.clone(), prompt.to_owned(), model)
+                .reasoning(self.agent.reasoning.clone());
+
+            tokio::spawn(async move { generator.generate().await.ok().flatten() })
+        } else {
+            tokio::spawn(async { None })
+        }
     }
 }

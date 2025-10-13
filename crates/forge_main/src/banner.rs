@@ -11,8 +11,17 @@ const BANNER: &str = include_str!("banner");
 ///
 /// * `cli_mode` - If true, shows CLI-relevant commands with `:` prefix. If
 ///   false, shows all interactive commands with `/` prefix.
+///
+/// # Environment Variables
+///
+/// * `FORGE_BANNER` - Optional custom banner text to display instead of the
+///   default
 pub fn display(cli_mode: bool) -> io::Result<()> {
-    let mut banner = BANNER.to_string();
+    // Check for custom banner via environment variable
+    let mut banner = std::env::var("FORGE_BANNER")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| BANNER.to_string());
 
     // Always show version
     let version_label = ("Version:", VERSION);
