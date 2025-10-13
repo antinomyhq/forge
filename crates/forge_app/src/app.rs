@@ -1,4 +1,3 @@
-use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -60,7 +59,7 @@ impl<S: Services> ForgeApp<S> {
         let models = services.models(provider).await?;
 
         // Discover files using the discovery service
-        let workflow = self.read_workflow_merged(None).await.unwrap_or_default();
+        let workflow = self.services.read_merged(None).await.unwrap_or_default();
         let max_depth = workflow.max_walker_depth;
         let environment = services.get_environment();
 
@@ -99,12 +98,13 @@ impl<S: Services> ForgeApp<S> {
         // Prepare agents with user configuration and subscriptions
         let agents = services.get_agents().await?;
         let model = services.get_active_model().await?;
+        let commands = services.get_commands().await?;
         let agent = agents
             .into_iter()
             .map(|agent| {
                 agent
                     .set_model_deeply(model.clone())
-                    .apply_workflow_config(&workflow)
+                    .apply_workflow_config(&workflow, &commands)
             })
             .find(|agent| agent.has_subscription(&chat.event.name))
             .ok_or(crate::Error::UnsubscribedEvent(chat.event.name.to_owned()))?;
@@ -233,35 +233,13 @@ impl<S: Services> ForgeApp<S> {
         self.authenticator.logout().await
     }
     pub async fn read_workflow(&self, path: Option<&Path>) -> Result<Workflow> {
-        extend_workflow(self.services.read_workflow(path), self.services.as_ref()).await
+        self.services.read_workflow(path).await
     }
 
     pub async fn read_workflow_merged(&self, path: Option<&Path>) -> Result<Workflow> {
-        extend_workflow(self.services.read_merged(path), self.services.as_ref()).await
+        self.services.read_merged(path).await
     }
     pub async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> Result<()> {
-        let external_commands = self
-            .services
-            .get_commands()
-            .await?
-            .into_iter()
-            .map(|v| v.name)
-            .collect::<BTreeSet<_>>();
-        let mut workflow = workflow.clone();
-        workflow
-            .commands
-            .retain(|v| !external_commands.contains(v.name.as_str()));
-
-        self.services.write_workflow(path, &workflow).await
+        self.services.write_workflow(path, workflow).await
     }
-}
-
-async fn extend_workflow<F: Future<Output = Result<Workflow>>, S: CommandLoaderService>(
-    input: F,
-    services: &S,
-) -> F::Output {
-    let mut workflow = input.await?;
-    // TODO: maybe check for duplicates?
-    workflow.commands.extend(services.get_commands().await?);
-    Ok(workflow)
 }

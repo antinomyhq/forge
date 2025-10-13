@@ -198,22 +198,39 @@ impl ForgeCommandManager {
             .collect::<Vec<_>>()
     }
 
-    /// Registers multiple commands to the manager.
-    pub fn register_all(&self, workflow: &Workflow) {
+    /// Registers multiple commands to the manager (without workflow commands).
+    pub fn register_all(&self, _workflow: &Workflow) {
         let mut guard = self.commands.lock().unwrap();
         let mut commands = Self::default_commands();
 
         commands.sort_by(|a, b| a.name.cmp(&b.name));
 
-        commands.extend(workflow.commands.clone().into_iter().map(|cmd| {
+        // Note: Workflow commands are now registered separately via register_workflow_commands()
+        // since they need to be fetched asynchronously from the API
+
+        *guard = commands;
+    }
+
+    /// Registers workflow commands from the API.
+    pub fn register_commands(&self, commands: Vec<forge_domain::Command>) {
+        let mut guard = self.commands.lock().unwrap();
+
+        // Remove existing workflow commands (those with ⚙ prefix in description)
+        guard.retain(|cmd| !cmd.description.starts_with("⚙ "));
+
+        // Add new workflow commands
+        let new_commands = commands.into_iter().map(|cmd| {
             let name = cmd.name.clone();
             let description = format!("⚙ {}", cmd.description);
             let value = cmd.prompt.clone();
 
             ForgeCommand { name, description, value }
-        }));
+        });
 
-        *guard = commands;
+        guard.extend(new_commands);
+
+        // Sort commands for consistent completion behavior
+        guard.sort_by(|a, b| a.name.cmp(&b.name));
     }
 
     /// Registers agent commands to the manager.

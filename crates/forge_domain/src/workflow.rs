@@ -25,9 +25,9 @@ pub struct Workflow {
     pub updates: Option<Update>,
 
     /// Commands that can be used to interact with the workflow
-    #[merge(strategy = crate::merge::vec::append)]
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub commands: Vec<Command>,
+    // #[merge(strategy = crate::merge::vec::append)]
+    // #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    // pub commands: Vec<Command>,
 
     /// Maximum depth to which the file walker should traverse for all agents
     /// If not provided, each agent's individual setting will be used
@@ -155,7 +155,6 @@ impl Workflow {
     /// scratch.
     pub fn new() -> Self {
         Self {
-            commands: Vec::new(),
             max_walker_depth: None,
             custom_rules: None,
             temperature: None,
@@ -187,7 +186,6 @@ mod tests {
         let actual = Workflow::new();
 
         // Assert
-        assert!(actual.commands.is_empty());
         assert_eq!(actual.max_walker_depth, None);
         assert_eq!(actual.custom_rules, None);
         assert_eq!(actual.temperature, None);
