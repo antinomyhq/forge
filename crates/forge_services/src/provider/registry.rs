@@ -59,7 +59,6 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
 
     fn init_providers(&self) -> Vec<Provider> {
         let configs = get_provider_configs();
-        let provider_url_override = self.provider_url();
 
         configs
             .iter()
@@ -68,17 +67,12 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
                 if config.id == ProviderId::Forge {
                     return None;
                 }
-                self.create_provider(config, provider_url_override.clone())
-                    .ok()
+                self.create_provider(config).ok()
             })
             .collect()
     }
 
-    fn create_provider(
-        &self,
-        config: &ProviderConfig,
-        provider_url_override: Option<(ProviderResponse, Url)>,
-    ) -> anyhow::Result<Provider> {
+    fn create_provider(&self, config: &ProviderConfig) -> anyhow::Result<Provider> {
         // Check API key environment variable
         let api_key = self
             .infra
@@ -104,25 +98,7 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
                 anyhow::anyhow!("Failed to render URL template for {}: {}", config.id, e)
             })?;
 
-        // Handle URL overrides for OpenAI and Anthropic (preserve existing behavior)
-        let final_url = match config.id {
-            ProviderId::OpenAI => {
-                if let Some((ProviderResponse::OpenAI, override_url)) = provider_url_override {
-                    override_url
-                } else {
-                    Url::parse(&url)?
-                }
-            }
-            ProviderId::Anthropic => {
-                if let Some((ProviderResponse::Anthropic, override_url)) = provider_url_override {
-                    override_url
-                } else {
-                    Url::parse(&url)?
-                }
-            }
-            _ => Url::parse(&url)?,
-        };
-
+        let final_url = Url::parse(&url)?;
         // Render optional model_url if present
         let model_url_template = &config.model_url;
         let model_url = Url::parse(
@@ -169,22 +145,6 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
             .first()
             .cloned()
             .ok_or_else(|| forge_app::Error::NoActiveProvider.into())
-    }
-
-    fn provider_url(&self) -> Option<(ProviderResponse, Url)> {
-        if let Some(url) = self.infra.get_env_var("OPENAI_URL")
-            && let Ok(parsed_url) = Url::parse(&url)
-        {
-            return Some((ProviderResponse::OpenAI, parsed_url));
-        }
-
-        // Check for Anthropic URL override
-        if let Some(url) = self.infra.get_env_var("ANTHROPIC_URL")
-            && let Ok(parsed_url) = Url::parse(&url)
-        {
-            return Some((ProviderResponse::Anthropic, parsed_url));
-        }
-        None
     }
 
     async fn update<U>(&self, updater: U) -> anyhow::Result<()>
@@ -395,65 +355,68 @@ mod tests {
             "https://my-resource.openai.azure.com/openai/models?api-version=2024-02-15-preview"
         );
     }
+}
+
+#[cfg(test)]
+mod env_tests {
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    use forge_app::domain::Environment;
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    // Mock infrastructure that provides environment variables
+    struct MockInfra {
+        env_vars: HashMap<String, String>,
+    }
+
+    impl EnvironmentInfra for MockInfra {
+        fn get_environment(&self) -> Environment {
+            // Return a minimal Environment for testing
+            Environment {
+                os: "test".to_string(),
+                pid: 1,
+                cwd: std::path::PathBuf::from("/test"),
+                home: None,
+                shell: "test".to_string(),
+                base_path: std::path::PathBuf::from("/test"),
+                forge_api_url: Url::parse("https://test.com").unwrap(),
+                retry_config: Default::default(),
+                max_search_lines: 100,
+                max_search_result_bytes: 1000,
+                fetch_truncation_limit: 1000,
+                stdout_max_prefix_length: 100,
+                stdout_max_suffix_length: 100,
+                stdout_max_line_length: 500,
+                max_read_size: 2000,
+                http: Default::default(),
+                max_file_size: 100000,
+                tool_timeout: 300,
+                auto_open_dump: false,
+                custom_history_path: None,
+            }
+        }
+
+        fn get_env_var(&self, key: &str) -> Option<String> {
+            self.env_vars.get(key).cloned()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl AppConfigRepository for MockInfra {
+        async fn get_app_config(&self) -> anyhow::Result<forge_app::dto::AppConfig> {
+            Ok(forge_app::dto::AppConfig::default())
+        }
+
+        async fn set_app_config(&self, _config: &forge_app::dto::AppConfig) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
 
     #[test]
     fn test_create_azure_provider_with_handlebars_urls() {
-        use std::collections::HashMap;
-        use std::sync::Arc;
-
-        use forge_app::domain::Environment;
-
-        // Mock infrastructure that provides environment variables
-        struct MockInfra {
-            env_vars: HashMap<String, String>,
-        }
-
-        impl EnvironmentInfra for MockInfra {
-            fn get_environment(&self) -> Environment {
-                // Return a minimal Environment for testing
-                Environment {
-                    os: "test".to_string(),
-                    pid: 1,
-                    cwd: std::path::PathBuf::from("/test"),
-                    home: None,
-                    shell: "test".to_string(),
-                    base_path: std::path::PathBuf::from("/test"),
-                    forge_api_url: Url::parse("https://test.com").unwrap(),
-                    retry_config: Default::default(),
-                    max_search_lines: 100,
-                    max_search_result_bytes: 1000,
-                    fetch_truncation_limit: 1000,
-                    stdout_max_prefix_length: 100,
-                    stdout_max_suffix_length: 100,
-                    stdout_max_line_length: 500,
-                    max_read_size: 2000,
-                    http: Default::default(),
-                    max_file_size: 100000,
-                    tool_timeout: 300,
-                    auto_open_dump: false,
-                    custom_history_path: None,
-                }
-            }
-
-            fn get_env_var(&self, key: &str) -> Option<String> {
-                self.env_vars.get(key).cloned()
-            }
-        }
-
-        #[async_trait::async_trait]
-        impl AppConfigRepository for MockInfra {
-            async fn get_app_config(&self) -> anyhow::Result<forge_app::dto::AppConfig> {
-                Ok(forge_app::dto::AppConfig::default())
-            }
-
-            async fn set_app_config(
-                &self,
-                _config: &forge_app::dto::AppConfig,
-            ) -> anyhow::Result<()> {
-                Ok(())
-            }
-        }
-
         // Setup environment variables
         let mut env_vars = HashMap::new();
         env_vars.insert("AZURE_API_KEY".to_string(), "test-key-123".to_string());
@@ -482,7 +445,7 @@ mod tests {
 
         // Create provider using the registry's create_provider method
         let provider = registry
-            .create_provider(azure_config, None)
+            .create_provider(azure_config)
             .expect("Should create Azure provider");
 
         // Verify all URLs are correctly rendered
@@ -501,6 +464,95 @@ mod tests {
         assert_eq!(
             model_url.as_str(),
             "https://my-test-resource.openai.azure.com/openai/models?api-version=2024-02-01-preview"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_custom_anthropic_provider_with_env_var() {
+        let mut env_vars = HashMap::new();
+        env_vars.insert("ANTHROPIC_API_KEY".to_string(), "test-key".to_string());
+        env_vars.insert(
+            "ANTHROPIC_URL".to_string(),
+            "https://custom.anthropic.com/v1".to_string(),
+        );
+
+        let infra = Arc::new(MockInfra { env_vars });
+        let registry = ForgeProviderRegistry::new(infra);
+        let provider = registry
+            .provider_from_id(ProviderId::AnthropicCompatible)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            provider.url.as_str(),
+            "https://custom.anthropic.com/v1/messages"
+        );
+        assert_eq!(
+            provider.model_url.as_str(),
+            "https://custom.anthropic.com/v1/models"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_openai_no_custom_url() {
+        let mut env_vars = HashMap::new();
+        env_vars.insert("OPENAI_API_KEY".to_string(), "test-key".to_string());
+
+        let infra = Arc::new(MockInfra { env_vars });
+        let registry = ForgeProviderRegistry::new(infra);
+        let providers = registry.get_all_providers().await.unwrap();
+
+        let openai_provider = providers
+            .iter()
+            .find(|p| p.id == ProviderId::OpenAI)
+            .unwrap();
+        assert_eq!(
+            openai_provider.url.as_str(),
+            "https://api.openai.com/v1/chat/completions"
+        );
+        assert_eq!(
+            openai_provider.model_url.as_str(),
+            "https://api.openai.com/v1/models"
+        );
+
+        let anthropic_provider = providers.iter().find(|p| p.id == ProviderId::Anthropic);
+        assert!(anthropic_provider.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_all_custom_providers_with_env_vars() {
+        let mut env_vars = HashMap::new();
+        env_vars.insert("OPENAI_API_KEY".to_string(), "test-key".to_string());
+        env_vars.insert(
+            "OPENAI_URL".to_string(),
+            "https://custom.openai.com/v1".to_string(),
+        );
+        env_vars.insert("ANTHROPIC_API_KEY".to_string(), "test-key".to_string());
+        env_vars.insert(
+            "ANTHROPIC_URL".to_string(),
+            "https://custom.anthropic.com/v1".to_string(),
+        );
+
+        let infra = Arc::new(MockInfra { env_vars });
+        let registry = ForgeProviderRegistry::new(infra);
+        let providers = registry.get_all_providers().await.unwrap();
+
+        let openai_provider = providers
+            .iter()
+            .find(|p| p.id == ProviderId::OpenAICompatible)
+            .unwrap();
+        let anthropic_provider = providers
+            .iter()
+            .find(|p| p.id == ProviderId::AnthropicCompatible)
+            .unwrap();
+
+        assert_eq!(
+            openai_provider.url.as_str(),
+            "https://custom.openai.com/v1/chat/completions"
+        );
+        assert_eq!(
+            anthropic_provider.url.as_str(),
+            "https://custom.anthropic.com/v1/messages"
         );
     }
 }
