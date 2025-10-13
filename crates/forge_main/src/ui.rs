@@ -656,18 +656,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_info(&mut self) -> anyhow::Result<()> {
         let mut info = Info::from(&self.api.environment());
 
-        // Execute async operations sequentially
-        let conversation = if self.cli.is_interactive() {
-            let conversation_id = self.init_conversation().await?;
-            self.api.conversation(&conversation_id).await.ok().flatten()
+        let conversation_id = if self.cli.is_interactive() {
+            Some(self.init_conversation().await?)
         } else {
-            // In case of headless mode, if conversation id is present then only load else
-            // ignore.
-            if let Some(conversation_id) = get_conversation_id_from_env() {
-                self.api.conversation(&conversation_id).await.ok().flatten()
-            } else {
-                None
-            }
+            get_conversation_id_from_env()
+        };
+
+        // Fetch conversation if ID is available
+        let conversation = match conversation_id {
+            Some(id) => self.api.conversation(&id).await.ok().flatten(),
+            None => None,
         };
 
         let key_info = self.api.get_login_info().await;
