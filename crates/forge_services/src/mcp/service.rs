@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_app::domain::{
-    McpConfig, McpServerConfig, McpServers, ServerName, ToolCallFull, ToolDefinition, ToolName,
-    ToolOutput,
+    McpConfig, McpServerConfig, McpServers, ServerName,
+    ToolCallFull, ToolDefinition, ToolName, ToolOutput,
 };
 use forge_app::{McpConfigManager, McpService};
 use tokio::sync::{Mutex, RwLock};
@@ -84,7 +84,7 @@ where
         server_name: &ServerName,
         config: McpServerConfig,
     ) -> anyhow::Result<()> {
-        let client = self.infra.connect(config).await?;
+        let client = self.infra.connect(server_name, config).await?;
         let client = Arc::new(C::from(client));
         self.insert_clients(server_name, client).await?;
 

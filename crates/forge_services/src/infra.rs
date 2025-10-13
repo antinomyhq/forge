@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_app::domain::{
-    CommandOutput, Conversation, ConversationId, Environment, McpServerConfig, ToolDefinition,
-    ToolName, ToolOutput,
+    CommandOutput, Conversation, ConversationId, Environment, McpServerConfig,
+    ServerName, ToolDefinition, ToolName, ToolOutput,
 };
 use forge_app::{WalkedFile, Walker};
 use forge_snaps::Snapshot;
@@ -186,7 +186,11 @@ pub trait McpClientInfra: Clone + Send + Sync + 'static {
 #[async_trait::async_trait]
 pub trait McpServerInfra: Send + Sync + 'static {
     type Client: McpClientInfra;
-    async fn connect(&self, config: McpServerConfig) -> anyhow::Result<Self::Client>;
+    async fn connect(
+        &self,
+        server_name: &ServerName,
+        config: McpServerConfig,
+    ) -> anyhow::Result<Self::Client>;
 }
 /// Service for walking filesystem directories
 #[async_trait::async_trait]

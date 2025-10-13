@@ -42,3 +42,6 @@ Cargo.lock
 *-dump.html
 .mcp.json
 .forge
+.codanna
+.codannaignore
+.fastembed_cache

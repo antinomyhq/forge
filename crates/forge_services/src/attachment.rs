@@ -348,6 +348,7 @@ pub mod tests {
 
         async fn connect(
             &self,
+            _: &forge_app::domain::ServerName,
             _: forge_app::domain::McpServerConfig,
         ) -> anyhow::Result<Self::Client> {
             Ok(())

@@ -249,8 +249,12 @@ impl UserInfra for ForgeInfra {
 impl McpServerInfra for ForgeInfra {
     type Client = ForgeMcpClient;
 
-    async fn connect(&self, config: McpServerConfig) -> anyhow::Result<Self::Client> {
-        self.mcp_server.connect(config).await
+    async fn connect(
+        &self,
+        server_name: &forge_app::domain::ServerName,
+        config: McpServerConfig,
+    ) -> anyhow::Result<Self::Client> {
+        self.mcp_server.connect(server_name, config).await
     }
 }
 
