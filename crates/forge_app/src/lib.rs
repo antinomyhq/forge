@@ -5,7 +5,7 @@ mod authenticator;
 mod compact;
 pub mod dto;
 mod error;
-mod fmt;
+pub mod fmt;
 mod mcp_executor;
 mod operation;
 mod orch;

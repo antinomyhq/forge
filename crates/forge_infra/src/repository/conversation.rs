@@ -2,11 +2,22 @@ use std::sync::Arc;
 
 use chrono::{NaiveDateTime, Utc};
 use diesel::prelude::*;
-use forge_domain::{Context, Conversation, ConversationId, MetaData, WorkspaceId};
+use forge_domain::{
+    Context, Conversation, ConversationEventLog, ConversationId, MetaData, WorkspaceId,
+};
 use forge_services::ConversationRepository;
+use serde::{Deserialize, Serialize};
 
 use crate::database::DatabasePool;
 use crate::database::schema::conversations;
+
+/// Wrapper for serializing context and event_log together in database
+#[derive(Debug, Serialize, Deserialize)]
+struct ContextData {
+    context: Context,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    event_log: Option<ConversationEventLog>,
+}
 
 // Database model for conversations table
 #[derive(Debug, Queryable, Selectable, Insertable, AsChangeset)]
@@ -23,11 +34,18 @@ struct ConversationRecord {
 
 impl ConversationRecord {
     fn new(conversation: Conversation, workspace_id: WorkspaceId) -> Self {
+        // Serialize context and event_log together if context exists
         let context = conversation
             .context
             .as_ref()
             .filter(|ctx| !ctx.messages.is_empty())
-            .and_then(|ctx| serde_json::to_string(ctx).ok());
+            .and_then(|ctx| {
+                let context_data = ContextData {
+                    context: ctx.clone(),
+                    event_log: conversation.event_log.clone(),
+                };
+                serde_json::to_string(&context_data).ok()
+            });
         let updated_at = context.as_ref().map(|_| Utc::now().naive_utc());
 
         Self {
@@ -45,11 +63,25 @@ impl TryFrom<ConversationRecord> for Conversation {
     type Error = anyhow::Error;
     fn try_from(record: ConversationRecord) -> anyhow::Result<Self> {
         let id = ConversationId::parse(record.conversation_id)?;
-        let context = record
-            .context
-            .and_then(|ctx| serde_json::from_str::<Context>(&ctx).ok());
+
+        // Try to deserialize as ContextData first (new format with event_log)
+        let (context, event_log) = match record.context {
+            Some(ctx_str) => {
+                // Try new format first
+                if let Ok(context_data) = serde_json::from_str::<ContextData>(&ctx_str) {
+                    (Some(context_data.context), context_data.event_log)
+                } else {
+                    // Fallback to old format (just Context)
+                    let context = serde_json::from_str::<Context>(&ctx_str).ok();
+                    (context, None)
+                }
+            }
+            None => (None, None),
+        };
+
         Ok(Conversation::new(id)
             .context(context)
+            .event_log(event_log)
             .title(record.title)
             .metadata(
                 MetaData::new(record.created_at.and_utc())

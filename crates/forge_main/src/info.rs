@@ -617,6 +617,7 @@ mod tests {
             context: None,
             metrics,
             metadata: forge_domain::MetaData::new(Utc::now()),
+            event_log: None,
         };
 
         let actual = super::Info::from(&fixture);
@@ -644,6 +645,7 @@ mod tests {
             context: None,
             metrics,
             metadata: forge_domain::MetaData::new(Utc::now()),
+            event_log: None,
         };
 
         let actual = super::Info::from(&fixture);

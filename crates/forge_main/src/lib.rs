@@ -3,6 +3,7 @@ mod cli;
 mod cli_format;
 mod completer;
 mod config;
+
 mod conversation_selector;
 mod editor;
 mod env;
