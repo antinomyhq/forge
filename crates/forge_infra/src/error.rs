@@ -5,7 +5,7 @@ pub enum Error {
     UnsupportedMcpResponse(&'static str),
 
     #[error("MCP server '{server}' error: {message}")]
-    McpServerError { server: String, message: String },
+    McpServer { server: String, message: String },
 
     #[error("MCP connection failed for server '{server}': {reason}")]
     McpConnectionFailed { server: String, reason: String },

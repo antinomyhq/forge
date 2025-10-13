@@ -6,10 +6,9 @@ use backon::{ExponentialBuilder, Retryable};
 use forge_domain::{Image, McpServerConfig, ToolDefinition, ToolName, ToolOutput};
 use forge_services::McpClientInfra;
 use rmcp::model::{
-    CallToolRequestParam, ClientInfo, Implementation, LoggingLevel,
-    LoggingMessageNotificationParam, ProgressNotificationParam,
+    CallToolRequestParam, ClientInfo, Implementation,
 };
-use rmcp::service::{NotificationContext, RunningService};
+use rmcp::service::RunningService;
 use rmcp::transport::{SseClientTransport, TokioChildProcess};
 use rmcp::{ClientHandler, RoleClient, ServiceExt};
 use schemars::schema::RootSchema;
@@ -27,81 +26,10 @@ const VERSION: &str = match option_env!("APP_VERSION") {
 type RmcpClient = RunningService<RoleClient, ForgeClientHandler>;
 
 /// Handler for MCP client notifications (logging, progress, elicitation)
-#[derive(Clone)]
-pub struct ForgeClientHandler {
-    server_name: String,
-}
-
-impl ForgeClientHandler {
-    fn new(server_name: String) -> Self {
-        Self { server_name }
-    }
-}
+#[derive(Default,Clone)]
+pub struct ForgeClientHandler;
 
 impl ClientHandler for ForgeClientHandler {
-    async fn on_logging_message(
-        &self,
-        params: LoggingMessageNotificationParam,
-        _context: NotificationContext<RoleClient>,
-    ) {
-        let server = &self.server_name;
-        let logger = params.logger.as_deref().unwrap_or("mcp");
-
-        // Map MCP log levels to tracing levels
-        match params.level {
-            LoggingLevel::Debug => {
-                debug!(
-                    server = %server,
-                    logger = %logger,
-                    message = %params.data,
-                    "MCP server log message"
-                );
-            }
-            LoggingLevel::Info | LoggingLevel::Notice => {
-                info!(
-                    server = %server,
-                    logger = %logger,
-                    message = %params.data,
-                    "MCP server log message"
-                );
-            }
-            LoggingLevel::Warning => {
-                warn!(
-                    server = %server,
-                    logger = %logger,
-                    message = %params.data,
-                    "MCP server warning"
-                );
-            }
-            LoggingLevel::Error
-            | LoggingLevel::Critical
-            | LoggingLevel::Alert
-            | LoggingLevel::Emergency => {
-                error!(
-                    server = %server,
-                    logger = %logger,
-                    message = %params.data,
-                    "MCP server error"
-                );
-            }
-        }
-    }
-
-    async fn on_progress(
-        &self,
-        params: ProgressNotificationParam,
-        _context: NotificationContext<RoleClient>,
-    ) {
-        let server = &self.server_name;
-        debug!(
-            server = %server,
-            progress_token = ?params.progress_token,
-            progress = params.progress,
-            total = ?params.total,
-            "MCP server progress update"
-        );
-    }
-
     fn get_info(&self) -> ClientInfo {
         ClientInfo {
             protocol_version: Default::default(),
@@ -128,7 +56,7 @@ pub struct ForgeMcpClient {
 impl ForgeMcpClient {
     /// Creates a new MCP client with the given configuration and server name.
     pub fn new(config: McpServerConfig, server_name: String) -> Self {
-        let handler = Arc::new(ForgeClientHandler::new(server_name.clone()));
+        let handler = Arc::new(ForgeClientHandler);
 
         Self { client: Default::default(), config, server_name, handler }
     }
@@ -242,7 +170,7 @@ impl ForgeMcpClient {
         let tools = client
             .list_tools(None)
             .await
-            .map_err(|e| Error::McpServerError {
+            .map_err(|e| Error::McpServer {
                 server: self.server_name.clone(),
                 message: format!("Failed to list tools: {}", e),
             })?;
