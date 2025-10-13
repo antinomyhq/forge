@@ -356,13 +356,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     output.push_str(&format!("{name}: {server}"));
                     self.writeln_title(TitleFormat::info(output))?;
                 }
-                McpCommand::Cache(cache_args) => match cache_args.command {
-                    crate::cli::McpCacheCommand::Refresh => {
-                        self.spinner.start(Some("Reloading MCPs"))?;
-                        self.api.reload_mcp().await?;
-                        self.writeln_title(TitleFormat::info("MCP reloaded"))?;
-                    }
-                },
+                McpCommand::Reload => {
+                    self.spinner.start(Some("Reloading MCPs"))?;
+                    self.api.reload_mcp().await?;
+                    self.writeln_title(TitleFormat::info("MCP reloaded"))?;
+                }
             },
             TopLevelCommand::Info => {
                 // Make sure to init model

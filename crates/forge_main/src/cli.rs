@@ -164,8 +164,8 @@ pub enum McpCommand {
     /// Show detailed configuration for a server
     Show(McpShowArgs),
 
-    /// Cache management commands
-    Cache(McpCacheArgs),
+    /// Reload MCP servers and rebuild caches
+    Reload,
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -215,19 +215,7 @@ pub struct McpShowArgs {
     pub name: String,
 }
 
-#[derive(Parser, Debug, Clone)]
-pub struct McpCacheArgs {
-    /// Cache subcommand
-    #[command(subcommand)]
-    pub command: McpCacheCommand,
-}
-
-#[derive(Subcommand, Debug, Clone)]
-pub enum McpCacheCommand {
-    /// Rebuild caches by fetching fresh data from MCPs
-    Refresh,
-}
-
+/// Configuration scope (local, user, or project)
 #[derive(Copy, Clone, Debug, ValueEnum, Default)]
 pub enum Scope {
     #[default]
