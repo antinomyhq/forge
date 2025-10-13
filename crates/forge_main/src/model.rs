@@ -19,17 +19,27 @@ use crate::info::Info;
 pub struct PartialEvent {
     pub name: String,
     pub value: Value,
+    pub context: Option<Value>,
 }
 
 impl PartialEvent {
     pub fn new<V: Into<Value>>(name: impl ToString, value: V) -> Self {
-        Self { name: name.to_string(), value: value.into() }
+        Self { name: name.to_string(), value: value.into(), context: None }
+    }
+
+    pub fn with_context(mut self, ctx: Value) -> Self {
+        self.context = Some(ctx);
+        self
     }
 }
 
 impl From<PartialEvent> for Event {
     fn from(value: PartialEvent) -> Self {
-        Event::new(value.name, Some(value.value))
+        let mut event = Event::new(value.name, Some(value.value));
+        if let Some(ctx) = value.context {
+            event = event.context(ctx);
+        }
+        event
     }
 }
 
@@ -382,12 +392,11 @@ impl ForgeCommandManager {
                     // Handle custom workflow commands
                     let command_name = command.strip_prefix('/').unwrap_or(command);
                     if let Some(command) = self.find(command_name) {
-                        let value = self.extract_command_value(&command, &parts[1..]);
-
-                        Ok(Command::Custom(PartialEvent::new(
-                            command.name.clone(),
-                            value.unwrap_or_default(),
-                        )))
+                        let actual_command = self.extract_command_value(&command, &parts[1..]);
+                        Ok(Command::Custom(
+                            PartialEvent::new(command.name.clone(), actual_command)
+                                .with_context(serde_json::json!({"arguments": parameters})),
+                        ))
                     } else {
                         Err(anyhow::anyhow!("{} is not valid", command))
                     }

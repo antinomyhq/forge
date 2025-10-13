@@ -17,6 +17,7 @@ pub struct Event {
     pub value: Option<Value>,
     pub timestamp: String,
     pub attachments: Vec<Attachment>,
+    pub context: Option<Value>,
 }
 
 #[derive(Debug, JsonSchema, Deserialize, Serialize, Clone)]
@@ -103,6 +104,7 @@ impl Event {
             value: value.map(|v| v.into()),
             timestamp,
             attachments: Vec::new(),
+            context: None,
         }
     }
 }
