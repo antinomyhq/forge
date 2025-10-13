@@ -105,12 +105,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .cloned()
             .ok_or(anyhow::anyhow!("Undefined agent: {agent_id}"))?;
 
-        let conversation_id = self.init_conversation().await?;
-        if let Some(conversation) = self.api.conversation(&conversation_id).await? {
-            self.api.set_operating_agent(agent_id).await?;
-            self.api.upsert_conversation(conversation).await?;
-        }
-
         // Update the app config with the new operating agent.
         self.api.set_operating_agent(agent.id.clone()).await?;
         let name = agent.id.as_str().to_case(Case::UpperSnake).bold();
