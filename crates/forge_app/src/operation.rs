@@ -16,8 +16,8 @@ use crate::truncation::{
 };
 use crate::utils::format_display_path;
 use crate::{
-    Content, FsCreateOutput, FsRemoveOutput, FsUndoOutput, HttpResponse, PatchOutput,
-    PlanCreateOutput, ReadOutput, ResponseContext, SearchResult, ShellOutput,
+    FsCreateOutput, FsRemoveOutput, FsUndoOutput, HttpResponse, PatchOutput, PlanCreateOutput,
+    ReadOutput, ResponseContext, SearchResult, ShellOutput,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,7 +69,7 @@ pub enum ToolOperation {
         output: ReadOutput,
     },
     FsReadBinary {
-        output: Content,
+        output: forge_domain::Image,
     },
     FsCreate {
         input: FSWrite,
@@ -222,13 +222,10 @@ impl ToolOperation {
         content_files: TempContentFiles,
         env: &Environment,
         metrics: &mut Metrics,
-    ) -> anyhow::Result<forge_domain::ToolOutput> {
+    ) -> forge_domain::ToolOutput {
         match self {
             ToolOperation::FsRead { input, output } => {
-                let content = output
-                    .content
-                    .file_content()
-                    .ok_or_else(|| anyhow::anyhow!("Expected file content but got image"))?;
+                let content = output.content.file_content();
                 let elm = Element::new("file_content")
                     .attr("path", input.path)
                     .attr(
@@ -238,14 +235,9 @@ impl ToolOperation {
                     .attr("total_lines", content.lines().count())
                     .cdata(content);
 
-                Ok(forge_domain::ToolOutput::text(elm))
+                forge_domain::ToolOutput::text(elm)
             }
-            ToolOperation::FsReadBinary { output } => {
-                let image = output
-                    .as_image()
-                    .ok_or_else(|| anyhow::anyhow!("Expected image content but got file"))?;
-                Ok(forge_domain::ToolOutput::image(image.clone()))
-            }
+            ToolOperation::FsReadBinary { output } => forge_domain::ToolOutput::image(output),
             ToolOperation::FsCreate { input, output } => {
                 let diff_result = DiffFormat::format(
                     output.before.as_ref().unwrap_or(&"".to_string()),
@@ -278,7 +270,7 @@ impl ToolOperation {
                     elm = elm.append(Element::new("warning").text(warning));
                 }
 
-                Ok(forge_domain::ToolOutput::text(elm))
+                forge_domain::ToolOutput::text(elm)
             }
             ToolOperation::FsRemove { input, output } => {
                 file_change_stats(
@@ -296,7 +288,7 @@ impl ToolOperation {
                 let elem = Element::new("file_removed")
                     .attr("path", display_path)
                     .attr("status", "completed");
-                Ok(forge_domain::ToolOutput::text(elem))
+                forge_domain::ToolOutput::text(elem)
             }
 
             ToolOperation::FsSearch { input, output } => match output {
@@ -351,14 +343,14 @@ impl ToolOperation {
                     };
                     elm = elm.cdata(truncated_output.data.join("\n"));
 
-                    Ok(forge_domain::ToolOutput::text(elm))
+                    forge_domain::ToolOutput::text(elm)
                 }
                 None => {
                     let mut elm = Element::new("search_results").attr("path", &input.path);
                     elm = elm.attr_if_some("regex", input.regex);
                     elm = elm.attr_if_some("file_pattern", input.file_pattern);
 
-                    Ok(forge_domain::ToolOutput::text(elm))
+                    forge_domain::ToolOutput::text(elm)
                 }
             },
             ToolOperation::FsPatch { input, output } => {
@@ -384,7 +376,7 @@ impl ToolOperation {
                     metrics,
                 );
 
-                Ok(forge_domain::ToolOutput::text(elm))
+                forge_domain::ToolOutput::text(elm)
             }
             ToolOperation::FsUndo { input, output } => {
                 // Diff between snapshot state (after_undo) and modified state
@@ -409,7 +401,7 @@ impl ToolOperation {
                         let elm = Element::new("file_undo")
                             .attr("path", input.path)
                             .attr("status", "no_changes");
-                        Ok(forge_domain::ToolOutput::text(elm))
+                        forge_domain::ToolOutput::text(elm)
                     }
                     (None, Some(after)) => {
                         let elm = Element::new("file_undo")
@@ -417,7 +409,7 @@ impl ToolOperation {
                             .attr("status", "created")
                             .attr("total_lines", after.lines().count())
                             .cdata(after);
-                        Ok(forge_domain::ToolOutput::text(elm))
+                        forge_domain::ToolOutput::text(elm)
                     }
                     (Some(before), None) => {
                         let elm = Element::new("file_undo")
@@ -425,7 +417,7 @@ impl ToolOperation {
                             .attr("status", "removed")
                             .attr("total_lines", before.lines().count())
                             .cdata(before);
-                        Ok(forge_domain::ToolOutput::text(elm))
+                        forge_domain::ToolOutput::text(elm)
                     }
                     (Some(before), Some(after)) => {
                         // This diff is between modified state (before_undo) and snapshot
@@ -437,7 +429,7 @@ impl ToolOperation {
                             .attr("status", "restored")
                             .cdata(strip_ansi_codes(diff.diff()));
 
-                        Ok(forge_domain::ToolOutput::text(elm))
+                        forge_domain::ToolOutput::text(elm)
                     }
                 }
             }
@@ -468,7 +460,7 @@ impl ToolOperation {
                     ));
                 }
 
-                Ok(forge_domain::ToolOutput::text(elm))
+                forge_domain::ToolOutput::text(elm)
             }
             ToolOperation::Shell { output } => {
                 let mut parent_elem = Element::new("shell_output")
@@ -500,16 +492,16 @@ impl ToolOperation {
                 parent_elem = parent_elem.append(stdout_elem);
                 parent_elem = parent_elem.append(stderr_elem);
 
-                Ok(forge_domain::ToolOutput::text(parent_elem))
+                forge_domain::ToolOutput::text(parent_elem)
             }
             ToolOperation::FollowUp { output } => match output {
                 None => {
                     let elm = Element::new("interrupted").text("No feedback provided");
-                    Ok(forge_domain::ToolOutput::text(elm))
+                    forge_domain::ToolOutput::text(elm)
                 }
                 Some(content) => {
                     let elm = Element::new("feedback").text(content);
-                    Ok(forge_domain::ToolOutput::text(elm))
+                    forge_domain::ToolOutput::text(elm)
                 }
             },
             ToolOperation::PlanCreate { input, output } => {
@@ -518,7 +510,7 @@ impl ToolOperation {
                     .attr("plan_name", input.plan_name)
                     .attr("version", input.version);
 
-                Ok(forge_domain::ToolOutput::text(elm))
+                forge_domain::ToolOutput::text(elm)
             }
         }
     }
@@ -533,7 +525,7 @@ mod tests {
     use url::Url;
 
     use super::*;
-    use crate::{Match, MatchResult};
+    use crate::{Content, Match, MatchResult};
 
     fn fixture_environment() -> Environment {
         let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
@@ -613,7 +605,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -642,7 +634,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -671,7 +663,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -702,7 +694,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -729,7 +721,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -755,7 +747,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -780,7 +772,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -814,7 +806,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -848,7 +840,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -889,7 +881,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -921,7 +913,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -946,7 +938,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -971,7 +963,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -1012,7 +1004,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -1050,7 +1042,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -1090,7 +1082,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -1132,7 +1124,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -1177,7 +1169,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -1202,7 +1194,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -1229,7 +1221,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -1248,7 +1240,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -1290,7 +1282,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -1315,7 +1307,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -1343,7 +1335,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -1371,7 +1363,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -1390,7 +1382,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -1412,7 +1404,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -1436,7 +1428,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -1458,7 +1450,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -1480,7 +1472,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -1507,7 +1499,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -1543,7 +1535,7 @@ mod tests {
         );
 
         // make sure that the content is truncated
-        let actual = actual.unwrap();
+        let actual = actual;
         assert!(
             !actual
                 .values
@@ -1579,7 +1571,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -1597,7 +1589,7 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 
     #[test]
@@ -1613,6 +1605,6 @@ mod tests {
             &mut Metrics::new(),
         );
 
-        insta::assert_snapshot!(to_value(actual.unwrap()));
+        insta::assert_snapshot!(to_value(actual));
     }
 }

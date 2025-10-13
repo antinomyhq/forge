@@ -227,7 +227,7 @@ mod tests {
                         model: None,
                         reasoning_details: None,
                     }),
-                    _ => panic!("Invalid character '{}' in pattern. Use 'u', 'a', or 's'", c),
+                    _ => panic!("Invalid character '{c}' in pattern. Use 'u', 'a', or 's'"),
                 }
             })
             .collect();

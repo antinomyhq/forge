@@ -235,10 +235,10 @@ mod tests {
     fn test_http_config_http2_defaults() {
         let config = HttpConfig::default();
 
-        assert_eq!(config.adaptive_window, true);
+        assert!(config.adaptive_window);
         assert_eq!(config.keep_alive_interval, Some(60));
         assert_eq!(config.keep_alive_timeout, 10);
-        assert_eq!(config.keep_alive_while_idle, true);
+        assert!(config.keep_alive_while_idle);
     }
 
     #[test]
@@ -251,22 +251,22 @@ mod tests {
             ..HttpConfig::default()
         };
 
-        assert_eq!(config.adaptive_window, false);
+        assert!(!config.adaptive_window);
         assert_eq!(config.keep_alive_interval, None);
         assert_eq!(config.keep_alive_timeout, 30);
-        assert_eq!(config.keep_alive_while_idle, false);
+        assert!(!config.keep_alive_while_idle);
     }
 
     #[test]
     fn test_http_config_accept_invalid_certs_defaults() {
         let config = HttpConfig::default();
-        assert_eq!(config.accept_invalid_certs, false);
+        assert!(!config.accept_invalid_certs);
     }
 
     #[test]
     fn test_http_config_accept_invalid_certs_custom() {
         let config = HttpConfig { accept_invalid_certs: true, ..HttpConfig::default() };
-        assert_eq!(config.accept_invalid_certs, true);
+        assert!(config.accept_invalid_certs);
     }
 
     #[test]

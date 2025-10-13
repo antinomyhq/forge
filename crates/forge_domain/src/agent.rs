@@ -747,7 +747,7 @@ mod tests {
         let mut fixture = Agent::new("test-agent");
         fixture.add_subscription("string_literal");
         fixture.add_subscription(String::from("owned_string"));
-        fixture.add_subscription(&"string_ref".to_string());
+        fixture.add_subscription("string_ref".to_string());
 
         let actual = fixture.subscribe.as_ref().unwrap();
         let expected = vec![

@@ -7,9 +7,9 @@ use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::ShellService;
 use crate::utils::format_display_path;
 use crate::{
-    ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
-    FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService,
-    PlanCreateService, PolicyService,
+    ConversationService, EnvironmentService, FollowUpService, FsBinaryReadService, FsCreateService,
+    FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoService,
+    NetFetchService, PlanCreateService, PolicyService,
 };
 
 pub struct ToolExecutor<S> {
@@ -18,6 +18,7 @@ pub struct ToolExecutor<S> {
 
 impl<
     S: FsReadService
+        + FsBinaryReadService
         + FsCreateService
         + FsSearchService
         + NetFetchService
@@ -147,10 +148,7 @@ impl<
                     )
                     .await?;
                 let output = if input.show_line_numbers {
-                    let file_content = output
-                        .content
-                        .file_content()
-                        .ok_or_else(|| anyhow::anyhow!("Expected file content but got image"))?;
+                    let file_content = output.content.file_content();
                     let numbered_content = file_content.numbered_from(output.start_line as usize);
                     output.content(crate::Content::file(numbered_content))
                 } else {
@@ -298,6 +296,6 @@ impl<
 
         context.with_metrics(|metrics| {
             operation.into_tool_output(tool_name, truncation_path, &env, metrics)
-        })?
+        })
     }
 }

@@ -83,9 +83,9 @@ pub struct CliProvider(pub Provider);
 impl Display for CliProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let name = self.0.id.to_string();
-        write!(f, "{}", name)?;
+        write!(f, "{name}")?;
         if let Some(domain) = self.0.url.domain() {
-            write!(f, " [{}]", domain)?;
+            write!(f, " [{domain}]")?;
         }
         Ok(())
     }
@@ -238,7 +238,7 @@ impl ForgeCommandManager {
         for agent in agents {
             let agent_id_str = agent.id.as_str();
             let sanitized_id = Self::sanitize_agent_id(agent_id_str);
-            let command_name = format!("agent-{}", sanitized_id);
+            let command_name = format!("agent-{sanitized_id}");
 
             // Skip if it would conflict with reserved commands
             if Self::is_reserved_command(&command_name) {
@@ -248,7 +248,7 @@ impl ForgeCommandManager {
 
             let default_title = agent_id_str.to_string();
             let title = agent.title.as_ref().unwrap_or(&default_title);
-            let description = format!("🤖 Switch to {} agent", title);
+            let description = format!("🤖 Switch to {title} agent");
 
             guard.push(ForgeCommand {
                 name: command_name,
@@ -376,7 +376,7 @@ impl ForgeCommandManager {
                                 return Ok(Command::AgentSwitch(agent_id.clone()));
                             }
                         }
-                        return Err(anyhow::anyhow!("{} is not a valid agent command", command));
+                        return Err(anyhow::anyhow!("{command} is not a valid agent command"));
                     }
 
                     // Handle custom workflow commands
@@ -389,7 +389,7 @@ impl ForgeCommandManager {
                             value.unwrap_or_default(),
                         )))
                     } else {
-                        Err(anyhow::anyhow!("{} is not valid", command))
+                        Err(anyhow::anyhow!("{command} is not valid"))
                     }
                 } else {
                     Err(anyhow::anyhow!("Invalid Command Format."))

@@ -121,7 +121,7 @@ impl<'a> Sandbox<'a> {
 
         if !worktree_output.status.success() {
             let stderr = String::from_utf8_lossy(&worktree_output.stderr);
-            bail!("Failed to create git worktree: {}", stderr);
+            bail!("Failed to create git worktree: {stderr}");
         }
 
         println!(

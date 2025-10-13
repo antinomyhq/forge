@@ -413,8 +413,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         })?;
 
         // Parse conversation ID from the string
-        let conversation_id = ConversationId::parse(&id_str)
-            .context(format!("Invalid conversation ID: {}", id_str))?;
+        let conversation_id =
+            ConversationId::parse(&id_str).context(format!("Invalid conversation ID: {id_str}"))?;
 
         // Validate that the conversation exists
         self.validate_session_exists(&conversation_id).await?;
@@ -456,10 +456,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             None => {
                 // Resume session - set conversation ID and enter interactive mode
                 self.state.conversation_id = Some(conversation_id);
-                self.writeln_title(TitleFormat::info(format!(
-                    "Resumed conversation: {}",
-                    id_str
-                )))?;
+                self.writeln_title(TitleFormat::info(format!("Resumed conversation: {id_str}")))?;
                 // Interactive mode will be handled by the main loop
             }
         }
@@ -475,8 +472,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         if conversation.is_none() {
             anyhow::bail!(
-                "Conversation '{}' not found. Use 'forge session list' to see available conversations.",
-                conversation_id
+                "Conversation '{conversation_id}' not found. Use 'forge session list' to see available conversations."
             );
         }
 
@@ -525,7 +521,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 let domain = provider
                     .url
                     .domain()
-                    .map(|d| format!("[{}]", d))
+                    .map(|d| format!("[{d}]"))
                     .unwrap_or_default();
                 (id, domain)
             })
@@ -907,8 +903,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     self.on_agent_change(AgentId::new(agent_id)).await?;
                 } else {
                     return Err(anyhow::anyhow!(
-                        "Agent '{}' not found or unavailable",
-                        agent_id
+                        "Agent '{agent_id}' not found or unavailable"
                     ));
                 }
             }
@@ -1164,7 +1159,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         sub_title.push('[');
 
         if let Some(ref agent) = self.api.get_operating_agent().await {
-            sub_title.push_str(format!("via {}", agent).as_str());
+            sub_title.push_str(format!("via {agent}").as_str());
         }
 
         if let Some(ref model) = self.api.get_operating_model().await {

@@ -3,39 +3,10 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_app::{Content, FsReadService, ReadOutput};
-use strum_macros::{Display, EnumString};
 
 use crate::range::resolve_range;
 use crate::utils::assert_absolute_path;
 use crate::{EnvironmentInfra, FileInfoInfra, FileReaderInfra as InfraFsReadService};
-
-/// Supported image formats for binary file reading
-#[derive(Debug, Clone, Copy, EnumString, Display)]
-#[strum(serialize_all = "lowercase")]
-enum ImageFormat {
-    #[strum(serialize = "jpg", serialize = "jpeg")]
-    Jpeg,
-    Png,
-    Webp,
-    Gif,
-}
-
-impl ImageFormat {
-    /// Returns the MIME type for this image format
-    fn mime_type(&self) -> &'static str {
-        match self {
-            Self::Jpeg => "image/jpeg",
-            Self::Png => "image/png",
-            Self::Webp => "image/webp",
-            Self::Gif => "image/gif",
-        }
-    }
-
-    /// Returns a comma-separated list of supported formats
-    fn supported_formats() -> &'static str {
-        "JPEG, PNG, WebP, GIF"
-    }
-}
 
 /// Validates that file size does not exceed the maximum allowed file size.
 ///
@@ -47,7 +18,7 @@ impl ImageFormat {
 /// # Returns
 /// * `Ok(())` if file size is within limits
 /// * `Err(anyhow::Error)` if file exceeds max_file_size
-async fn assert_file_size<F: FileInfoInfra>(
+pub(super) async fn assert_file_size<F: FileInfoInfra>(
     infra: &F,
     path: &Path,
     max_file_size: u64,
@@ -55,9 +26,7 @@ async fn assert_file_size<F: FileInfoInfra>(
     let file_size = infra.file_size(path).await?;
     if file_size > max_file_size {
         return Err(anyhow::anyhow!(
-            "File size ({} bytes) exceeds the maximum allowed size of {} bytes",
-            file_size,
-            max_file_size
+            "File size ({file_size} bytes) exceeds the maximum allowed size of {max_file_size} bytes"
         ));
     }
     Ok(())
@@ -127,42 +96,6 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
             end_line: file_info.end_line,
             total_lines: file_info.total_lines,
         })
-    }
-
-    async fn read_binary(&self, path: String) -> anyhow::Result<Content> {
-        let path = Path::new(&path);
-        assert_absolute_path(path)?;
-        let env = self.0.get_environment();
-
-        // Validate file size before reading content using binary file size limit
-        assert_file_size(&*self.0, path, env.max_file_size).await?;
-
-        // Determine image format from file extension
-        let extension = path
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .ok_or_else(|| {
-                anyhow::anyhow!("File has no extension. Cannot determine image format.")
-            })?;
-
-        let format = extension.parse::<ImageFormat>().map_err(|_| {
-            anyhow::anyhow!(
-                "Unsupported image format: {}. Supported formats: {}",
-                extension,
-                ImageFormat::supported_formats()
-            )
-        })?;
-
-        // Read the binary content
-        let content = self
-            .0
-            .read(path)
-            .await
-            .with_context(|| format!("Failed to read binary file from {}", path.display()))?;
-
-        let image = forge_app::domain::Image::new_bytes(content, format.mime_type());
-
-        Ok(Content::image(image))
     }
 }
 
@@ -277,211 +210,5 @@ mod tests {
         let expected = "File size (16 bytes) exceeds the maximum allowed size of 5 bytes";
         assert!(actual.is_err());
         assert_eq!(actual.unwrap_err().to_string(), expected);
-    }
-
-    // Tests for read_binary
-    use std::path::PathBuf;
-
-    use forge_app::FsReadService;
-
-    use crate::attachment::tests::MockCompositeService;
-
-    #[tokio::test]
-    async fn test_read_binary_png() {
-        let infra = Arc::new(MockCompositeService::new());
-        infra.add_file(
-            PathBuf::from("/test/image.png"),
-            "fake-png-content".to_string(),
-        );
-
-        let service = ForgeFsRead::new(infra);
-        let actual = service.read_binary("/test/image.png".to_string()).await;
-
-        assert!(actual.is_ok());
-        let content = actual.unwrap();
-        match content {
-            Content::Image(image) => {
-                assert_eq!(image.mime_type(), "image/png");
-            }
-            _ => panic!("Expected Image content"),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_read_binary_jpeg() {
-        let infra = Arc::new(MockCompositeService::new());
-        infra.add_file(
-            PathBuf::from("/test/photo.jpg"),
-            "fake-jpeg-content".to_string(),
-        );
-
-        let service = ForgeFsRead::new(infra);
-        let actual = service.read_binary("/test/photo.jpg".to_string()).await;
-
-        assert!(actual.is_ok());
-        let content = actual.unwrap();
-        match content {
-            Content::Image(image) => {
-                assert_eq!(image.mime_type(), "image/jpeg");
-            }
-            _ => panic!("Expected Image content"),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_read_binary_jpeg_alternate_extension() {
-        let infra = Arc::new(MockCompositeService::new());
-        infra.add_file(
-            PathBuf::from("/test/photo.jpeg"),
-            "fake-jpeg-content".to_string(),
-        );
-
-        let service = ForgeFsRead::new(infra);
-        let actual = service.read_binary("/test/photo.jpeg".to_string()).await;
-
-        assert!(actual.is_ok());
-        let content = actual.unwrap();
-        match content {
-            Content::Image(image) => {
-                assert_eq!(image.mime_type(), "image/jpeg");
-            }
-            _ => panic!("Expected Image content"),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_read_binary_webp() {
-        let infra = Arc::new(MockCompositeService::new());
-        infra.add_file(
-            PathBuf::from("/test/image.webp"),
-            "fake-webp-content".to_string(),
-        );
-
-        let service = ForgeFsRead::new(infra);
-        let actual = service.read_binary("/test/image.webp".to_string()).await;
-
-        assert!(actual.is_ok());
-        let content = actual.unwrap();
-        match content {
-            Content::Image(image) => {
-                assert_eq!(image.mime_type(), "image/webp");
-            }
-            _ => panic!("Expected Image content"),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_read_binary_gif() {
-        let infra = Arc::new(MockCompositeService::new());
-        infra.add_file(
-            PathBuf::from("/test/animation.gif"),
-            "fake-gif-content".to_string(),
-        );
-
-        let service = ForgeFsRead::new(infra);
-        let actual = service.read_binary("/test/animation.gif".to_string()).await;
-
-        assert!(actual.is_ok());
-        let content = actual.unwrap();
-        match content {
-            Content::Image(image) => {
-                assert_eq!(image.mime_type(), "image/gif");
-            }
-            _ => panic!("Expected Image content"),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_read_binary_unsupported_format() {
-        let infra = Arc::new(MockCompositeService::new());
-        infra.add_file(
-            PathBuf::from("/test/document.pdf"),
-            "fake-pdf-content".to_string(),
-        );
-
-        let service = ForgeFsRead::new(infra);
-        let actual = service.read_binary("/test/document.pdf".to_string()).await;
-
-        assert!(actual.is_err());
-        assert!(
-            actual
-                .unwrap_err()
-                .to_string()
-                .contains("Unsupported image format")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_read_binary_no_extension() {
-        let infra = Arc::new(MockCompositeService::new());
-        infra.add_file(PathBuf::from("/test/noext"), "fake-content".to_string());
-
-        let service = ForgeFsRead::new(infra);
-        let actual = service.read_binary("/test/noext".to_string()).await;
-
-        assert!(actual.is_err());
-        assert!(
-            actual
-                .unwrap_err()
-                .to_string()
-                .contains("File has no extension")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_read_binary_nonexistent_file() {
-        let infra = Arc::new(MockCompositeService::new());
-        let service = ForgeFsRead::new(infra);
-        let actual = service
-            .read_binary("/test/nonexistent.png".to_string())
-            .await;
-
-        assert!(actual.is_err());
-    }
-
-    #[tokio::test]
-    async fn test_read_binary_base64_encoding() {
-        let infra = Arc::new(MockCompositeService::new());
-        let test_content = "test-image-bytes";
-        infra.add_file(PathBuf::from("/test/encode.png"), test_content.to_string());
-
-        let service = ForgeFsRead::new(infra);
-        let actual = service.read_binary("/test/encode.png".to_string()).await;
-
-        assert!(actual.is_ok());
-        let content = actual.unwrap();
-
-        match content {
-            Content::Image(image) => {
-                // Verify the image URL contains base64 encoded data
-                assert!(image.url().starts_with("data:image/png;base64,"));
-
-                // Verify we can decode the base64 data back
-                use base64::Engine;
-                let expected_base64 =
-                    base64::engine::general_purpose::STANDARD.encode(test_content);
-                assert!(image.url().ends_with(&expected_base64));
-            }
-            _ => panic!("Expected Image content"),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_read_binary_size_limit() {
-        let infra = Arc::new(MockCompositeService::new());
-        // Create a file larger than default max_binary_file_size (256kb)
-        let large_content = "x".repeat((256 << 10) + 1); // 2 MB
-        infra.add_file(PathBuf::from("/test/large.png"), large_content);
-
-        let service = ForgeFsRead::new(infra);
-        let actual = service.read_binary("/test/large.png".to_string()).await;
-
-        assert!(actual.is_err());
-        assert!(
-            actual
-                .unwrap_err()
-                .to_string()
-                .contains("exceeds the maximum allowed size")
-        );
     }
 }

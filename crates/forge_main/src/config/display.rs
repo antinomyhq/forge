@@ -27,8 +27,8 @@ pub fn display_all_config(agent: Option<String>, model: Option<String>, provider
 /// Display a single configuration field (kept simple for scriptability)
 pub fn display_single_field(field: &str, value: Option<String>) {
     match value {
-        Some(v) => println!("{}", v),
-        None => eprintln!("{}: Not set", field),
+        Some(v) => println!("{v}"),
+        None => eprintln!("{field}: Not set"),
     }
 }
 

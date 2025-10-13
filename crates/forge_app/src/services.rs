@@ -4,8 +4,8 @@ use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation,
-    ConversationId, Environment, File, McpConfig, McpServers, Model, ModelId, PatchOperation,
-    ResultStream, Scope, ToolCallFull, ToolOutput, Workflow,
+    ConversationId, Environment, File, Image, McpConfig, McpServers, Model, ModelId,
+    PatchOperation, ResultStream, Scope, ToolCallFull, ToolOutput, Workflow,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -42,7 +42,6 @@ pub struct ReadOutput {
 #[derive(Debug)]
 pub enum Content {
     File(String),
-    Image(forge_domain::Image),
 }
 
 impl Content {
@@ -50,21 +49,9 @@ impl Content {
         Self::File(content.into())
     }
 
-    pub fn image(image: forge_domain::Image) -> Self {
-        Self::Image(image)
-    }
-
-    pub fn file_content(&self) -> Option<&str> {
+    pub fn file_content(&self) -> &str {
         match self {
-            Self::File(content) => Some(content),
-            Self::Image(_) => None,
-        }
-    }
-
-    pub fn as_image(&self) -> Option<&forge_domain::Image> {
-        match self {
-            Self::Image(image) => Some(image),
-            Self::File(_) => None,
+            Self::File(content) => content,
         }
     }
 }
@@ -294,13 +281,14 @@ pub trait FsReadService: Send + Sync {
         start_line: Option<u64>,
         end_line: Option<u64>,
     ) -> anyhow::Result<ReadOutput>;
-
-    /// Reads a binary file (e.g., image) at the specified path and returns its
-    /// content.
-    async fn read_binary(&self, path: String) -> anyhow::Result<Content>;
 }
 
 #[async_trait::async_trait]
+pub trait FsBinaryReadService: Send + Sync {
+    /// Reads a file at the specified path and returns its content.
+    async fn read_binary(&self, path: String) -> anyhow::Result<forge_domain::Image>;
+}
+
 #[async_trait::async_trait]
 pub trait FsRemoveService: Send + Sync {
     /// Removes a file at the specified path.
@@ -410,6 +398,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type PlanCreateService: PlanCreateService;
     type FsPatchService: FsPatchService;
     type FsReadService: FsReadService;
+    type FsBinaryReadService: FsBinaryReadService;
     type FsRemoveService: FsRemoveService;
     type FsSearchService: FsSearchService;
     type FollowUpService: FollowUpService;
@@ -433,6 +422,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn plan_create_service(&self) -> &Self::PlanCreateService;
     fn fs_patch_service(&self) -> &Self::FsPatchService;
     fn fs_read_service(&self) -> &Self::FsReadService;
+    fn fs_binary_read_service(&self) -> &Self::FsBinaryReadService;
     fn fs_remove_service(&self) -> &Self::FsRemoveService;
     fn fs_search_service(&self) -> &Self::FsSearchService;
     fn follow_up_service(&self) -> &Self::FollowUpService;
@@ -632,9 +622,11 @@ impl<I: Services> FsReadService for I {
             .read(path, start_line, end_line)
             .await
     }
-
-    async fn read_binary(&self, path: String) -> anyhow::Result<Content> {
-        self.fs_read_service().read_binary(path).await
+}
+#[async_trait::async_trait]
+impl<I: Services> FsBinaryReadService for I {
+    async fn read_binary(&self, path: String) -> anyhow::Result<Image> {
+        self.fs_binary_read_service().read_binary(path).await
     }
 }
 
