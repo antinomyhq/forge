@@ -515,7 +515,9 @@ impl<S: AgentService> Orchestrator<S> {
         })?;
 
         // Set conversation title
-        if let Some(title) = title.await.ok().flatten() { self.conversation.title = Some(title) }
+        if let Some(title) = title.await.ok().flatten() {
+            self.conversation.title = Some(title)
+        }
 
         self.services.update(self.conversation.clone()).await?;
 
