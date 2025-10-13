@@ -38,6 +38,9 @@ pub enum ProviderId {
     VertexAi,
     BigModel,
     Azure,
+    #[serde(rename = "openai_compatible")]
+    OpenAICompatible,
+    AnthropicCompatible,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
