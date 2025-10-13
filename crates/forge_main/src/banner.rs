@@ -50,7 +50,7 @@ pub async fn display(
         Err(err) => {
             // Log error and fall back to default banner
             let warning = TitleFormat::error("Banner Error")
-                .sub_title(format!("{} {}",err,"Falling back to default banner."))
+                .sub_title(format!("{} {}", err, "Falling back to default banner."))
                 .display();
             println!("{warning}");
             if let Some(content) = load(&BannerConfig::Default, interactive).await? {
