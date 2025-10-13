@@ -107,8 +107,7 @@ impl ForgeMcpClient {
 
                         while let Ok(Some(line)) = lines.next_line().await {
                             // Route MCP server stderr to our logging system
-                            // Use warn level since stderr typically indicates issues
-                            warn!(
+                            error!(
                                 server = %server_name,
                                 source = "stderr",
                                 message = %line,
