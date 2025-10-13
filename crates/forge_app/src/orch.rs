@@ -515,12 +515,9 @@ impl<S: AgentService> Orchestrator<S> {
         })?;
 
         // Set conversation title
-        match title.await.ok().flatten() {
-            Some(title) => {
-                debug!(conversation_id = %self.conversation.id, title, "Title generated for conversation");
-                self.conversation.title = Some(title)
-            }
-            None => {}
+        if let Some(title) = title.await.ok().flatten() {
+            debug!(conversation_id = %self.conversation.id, title, "Title generated for conversation");
+            self.conversation.title = Some(title)
         }
 
         self.services.update(self.conversation.clone()).await?;
