@@ -5,9 +5,7 @@ use std::sync::{Arc, RwLock};
 use backon::{ExponentialBuilder, Retryable};
 use forge_domain::{Image, McpServerConfig, ToolDefinition, ToolName, ToolOutput};
 use forge_services::McpClientInfra;
-use rmcp::model::{
-    CallToolRequestParam, ClientInfo, Implementation,
-};
+use rmcp::model::{CallToolRequestParam, ClientInfo, Implementation};
 use rmcp::service::RunningService;
 use rmcp::transport::{SseClientTransport, TokioChildProcess};
 use rmcp::{ClientHandler, RoleClient, ServiceExt};
@@ -26,7 +24,7 @@ const VERSION: &str = match option_env!("APP_VERSION") {
 type RmcpClient = RunningService<RoleClient, ForgeClientHandler>;
 
 /// Handler for MCP client notifications (logging, progress, elicitation)
-#[derive(Default,Clone)]
+#[derive(Default, Clone)]
 pub struct ForgeClientHandler;
 
 impl ClientHandler for ForgeClientHandler {
