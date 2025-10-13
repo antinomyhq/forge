@@ -659,6 +659,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let conversation_id = if self.cli.is_interactive() {
             Some(self.init_conversation().await?)
         } else {
+            // In case of headless mode, use conversation id from env.
             get_conversation_id_from_env()
         };
 
