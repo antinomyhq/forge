@@ -634,8 +634,8 @@ mod tests {
     }
 
     #[test]
-    fn test_cli_banner_disabled_case_insensitive() {
-        let fixture = Cli::parse_from(["forge", "--banner", "DISABLED"]);
+    fn test_cli_banner_disable_case_insensitive() {
+        let fixture = Cli::parse_from(["forge", "--banner", "DISABLE"]);
         assert_eq!(fixture.banner, Some(BannerConfig::Disable));
     }
 
