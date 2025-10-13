@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_app::domain::{
-    CommandOutput, Conversation, ConversationId, Environment, McpServerConfig,
-    ServerName, ToolDefinition, ToolName, ToolOutput,
+    CommandOutput, Conversation, ConversationId, Environment, McpServerConfig, ServerName,
+    ToolDefinition, ToolName, ToolOutput,
 };
 use forge_app::{WalkedFile, Walker};
 use forge_snaps::Snapshot;

@@ -130,12 +130,7 @@ impl ForgeMcpClient {
     pub fn new(config: McpServerConfig, server_name: String) -> Self {
         let handler = Arc::new(ForgeClientHandler::new(server_name.clone()));
 
-        Self {
-            client: Default::default(),
-            config,
-            server_name,
-            handler,
-        }
+        Self { client: Default::default(), config, server_name, handler }
     }
 
     /// Connects to the MCP server. If `force` is true, it will reconnect even

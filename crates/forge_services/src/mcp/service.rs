@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_app::domain::{
-    McpConfig, McpServerConfig, McpServers, ServerName,
-    ToolCallFull, ToolDefinition, ToolName, ToolOutput,
+    McpConfig, McpServerConfig, McpServers, ServerName, ToolCallFull, ToolDefinition, ToolName,
+    ToolOutput,
 };
 use forge_app::{McpConfigManager, McpService};
 use tokio::sync::{Mutex, RwLock};
