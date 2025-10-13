@@ -35,6 +35,8 @@ pub fn render_conversation_html(conversation: &Conversation) -> String {
                         .append(Element::new("h2").text("Basic Information"))
                         .append(Element::new("p").text(format!("ID: {}", conversation.id))),
                 )
+                // Reasoning Configuration Section
+                .append(create_reasoning_config_section(conversation))
                 // Variables Section
                 // Agent States Section
                 .append(create_conversation_context_section(conversation)),
@@ -64,15 +66,57 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                                 header.append(Element::new("span").text(format!(" ({model})")));
                         }
 
+                        // Add reasoning indicator if reasoning details are present
+
+                        if let Some(reasoning_details) = &content_message.reasoning_details
+                            && !reasoning_details.is_empty()
+                        {
+                            header = header.append(
+                                Element::new("span.reasoning-indicator").text(" 🧠 Reasoning"),
+                            );
+                        }
+
                         let message_div =
                             Element::new(format!("details.message-card.message-{role_lowercase}"))
-                                .append(header)
-                                .append(Element::new("pre").text(&content_message.content));
+                                .append(header);
+
+                        // Add reasoning details first if any (before main content)
+                        let message_with_reasoning = if let Some(reasoning_details) =
+                            &content_message.reasoning_details
+                        {
+                            if !reasoning_details.is_empty() {
+                                message_div.append(Element::new("div.reasoning-section").append(
+                                    reasoning_details.iter().map(|reasoning_detail| {
+                                        if let Some(text) = &reasoning_detail.text {
+                                            Element::new("div.reasoning-content")
+                                                .append(
+                                                    Element::new("strong").text("🧠 Reasoning: "),
+                                                )
+                                                .append(Element::new("pre").text(text))
+                                        } else {
+                                            Element::new("div")
+                                        }
+                                    }),
+                                ))
+                            } else {
+                                message_div
+                            }
+                        } else {
+                            message_div
+                        };
+
+                        // Add main content after reasoning
+                        let message_with_content = message_with_reasoning.append(
+                            Element::new("div.main-content")
+                                .append(Element::new("strong").text("Response: "))
+                                .append(Element::new("pre").text(&content_message.content)),
+                        );
 
                         // Add tool calls if any
+
                         if let Some(tool_calls) = &content_message.tool_calls {
                             if !tool_calls.is_empty() {
-                                message_div.append(Element::new("div").append(
+                                message_with_content.append(Element::new("div").append(
                                     tool_calls.iter().map(|tool_call| {
                                         Element::new("div.tool-call")
                                             .append(
@@ -100,10 +144,10 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                                     }),
                                 ))
                             } else {
-                                message_div
+                                message_with_content
                             }
                         } else {
-                            message_div
+                            message_with_content
                         }
                     }
                     ContextMessage::Tool(tool_result) => {
@@ -221,5 +265,84 @@ mod tests {
         assert!(actual.contains("Title: "));
         assert!(actual.contains("Basic Information"));
         assert!(actual.contains("Conversation Context"));
+    }
+
+    #[test]
+    fn test_render_conversation_with_reasoning_details() {
+        use crate::agent::{Effort, ReasoningConfig};
+        use crate::context::{Context, ContextMessage};
+        use crate::conversation::ConversationId;
+        use crate::reasoning::ReasoningFull;
+
+        let id = ConversationId::generate();
+        let reasoning_config = ReasoningConfig {
+            enabled: Some(true),
+            effort: Some(Effort::High),
+            max_tokens: Some(5000),
+            exclude: Some(false),
+        };
+
+        let context =
+            Context::default()
+                .reasoning(reasoning_config)
+                .add_message(ContextMessage::assistant(
+                    "Main response content",
+                    Some(vec![ReasoningFull {
+                        text: Some("This is my reasoning process".to_string()),
+                        signature: Some("reasoning_signature_123".to_string()),
+                    }]),
+                    None,
+                ));
+
+        let fixture = Conversation::new(id).context(context);
+        let actual = render_conversation_html(&fixture);
+
+        // Verify reasoning details are displayed in messages
+        assert!(actual.contains("reasoning-section"));
+        assert!(actual.contains("reasoning-content"));
+        assert!(actual.contains("🧠 Reasoning:"));
+        assert!(actual.contains("This is my reasoning process"));
+
+        // Verify main content is displayed separately
+        assert!(actual.contains("main-content"));
+        assert!(actual.contains("Response:"));
+        assert!(actual.contains("Main response content"));
+
+        // Verify reasoning indicator in message header
+        assert!(actual.contains("🧠 Reasoning"));
+    }
+}
+
+fn create_reasoning_config_section(conversation: &Conversation) -> Element {
+    let section =
+        Element::new("div.section").append(Element::new("h2").text("Reasoning Configuration"));
+
+    if let Some(context) = &conversation.context {
+        if let Some(reasoning_config) = &context.reasoning {
+            section
+                .append(
+                    Element::new("p")
+                        .append(Element::new("strong").text("Status: "))
+                        .text(match reasoning_config.enabled {
+                            Some(true) => "Enabled",
+                            Some(false) => "Disabled",
+                            None => "Not specified",
+                        }),
+                )
+                .append(
+                    Element::new("p")
+                        .append(Element::new("strong").text("Effort: "))
+                        .text(format!("{:?}", reasoning_config.effort)),
+                )
+                .append(reasoning_config.max_tokens.map(|max_tokens| {
+                    Element::new("p")
+                        .append(Element::new("strong").text("Max Tokens: "))
+                        .text(format!("{:?}", max_tokens))
+                }))
+        } else {
+            section.append(Element::new("p").text("No reasoning configuration found"))
+        }
+    } else {
+        section.append(Element::new("p").text("No context available"))
     }
 }

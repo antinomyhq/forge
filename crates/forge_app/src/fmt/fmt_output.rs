@@ -1,28 +1,26 @@
-use forge_display::{DiffFormat, GrepFormat};
+use forge_display::DiffFormat;
 use forge_domain::{ChatResponseContent, Environment, TitleFormat};
 
 use crate::fmt::content::FormatContent;
 use crate::operation::ToolOperation;
-use crate::utils::{format_display_path, format_match};
+use crate::utils::format_display_path;
 
 impl FormatContent for ToolOperation {
     fn to_content(&self, env: &Environment) -> Option<ChatResponseContent> {
         match self {
             ToolOperation::FsRead { input: _, output: _ } => None,
-            ToolOperation::FsCreate { input: _, output: _ } => None,
+            ToolOperation::FsCreate { input, output } => {
+                if let Some(ref before) = output.before {
+                    let after = &input.content;
+                    Some(ChatResponseContent::PlainText(
+                        DiffFormat::format(before, after).diff().to_string(),
+                    ))
+                } else {
+                    None
+                }
+            }
             ToolOperation::FsRemove { input: _, output: _ } => None,
-            ToolOperation::FsSearch { input: _, output } => output.as_ref().map(|result| {
-                ChatResponseContent::PlainText(
-                    GrepFormat::new(
-                        result
-                            .matches
-                            .iter()
-                            .map(|matched| format_match(matched, env.cwd.as_path()))
-                            .collect::<Vec<_>>(),
-                    )
-                    .format(),
-                )
-            }),
+            ToolOperation::FsSearch { input: _, output: _ } => None,
             ToolOperation::FsPatch { input: _, output } => Some(ChatResponseContent::PlainText(
                 DiffFormat::format(&output.before, &output.after)
                     .diff()
@@ -32,7 +30,6 @@ impl FormatContent for ToolOperation {
             ToolOperation::NetFetch { input: _, output: _ } => None,
             ToolOperation::Shell { output: _ } => None,
             ToolOperation::FollowUp { output: _ } => None,
-            ToolOperation::AttemptCompletion => None,
             ToolOperation::PlanCreate { input: _, output } => Some({
                 let title = TitleFormat::debug(format!(
                     "Create {}",
@@ -49,6 +46,7 @@ mod tests {
     use std::path::PathBuf;
 
     use console::strip_ansi_codes;
+    use forge_display::DiffFormat;
     use forge_domain::{ChatResponseContent, Environment, PatchOperation, TitleFormat};
     use insta::assert_snapshot;
     use pretty_assertions::assert_eq;
@@ -185,7 +183,11 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
-        let expected = None;
+        let expected = Some(ChatResponseContent::PlainText(
+            DiffFormat::format("old content", "new content")
+                .diff()
+                .to_string(),
+        ));
 
         assert_eq!(actual, expected);
     }
@@ -258,14 +260,9 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
+        let expected = None;
 
-        // Should return Some(String) with formatted grep output
-        assert!(actual.is_some());
-        let output = actual.unwrap();
-        assert!(output.contains("file1.txt"));
-        assert!(output.contains("Hello world"));
-        assert!(output.contains("file2.txt"));
-        assert!(output.contains("Hello universe"));
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -288,11 +285,9 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
+        let expected = None;
 
-        // Should return Some(String) with formatted grep output even for errors
-        assert!(actual.is_some());
-        let output = actual.unwrap();
-        assert!(output.contains("file1.txt"));
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -502,17 +497,6 @@ mod tests {
     #[test]
     fn test_follow_up_no_response() {
         let fixture = ToolOperation::FollowUp { output: None };
-        let env = fixture_environment();
-
-        let actual = fixture.to_content(&env);
-        let expected = None;
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_attempt_completion() {
-        let fixture = ToolOperation::AttemptCompletion;
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
