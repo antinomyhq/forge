@@ -54,8 +54,8 @@ impl<S> UserPromptBuilder<S> {
                 .await?;
 
             let render_prompt = if let Some(ctx) = self.event.context.as_ref() {
-                // It's possible that rendered_prompt might have template, so render it again with 
-                // event context.
+                // It's possible that rendered_prompt might have template, so render it again
+                // with event context.
                 self.services.render(rendered_prompt.as_str(), &ctx).await?
             } else {
                 rendered_prompt
