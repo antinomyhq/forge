@@ -661,7 +661,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             let conversation_id = self.init_conversation().await?;
             self.api.conversation(&conversation_id).await.ok().flatten()
         } else {
-            // In case of headless mode, if conversation id is present then only load else ignore.
+            // In case of headless mode, if conversation id is present then only load else
+            // ignore.
             if let Some(conversation_id) = get_conversation_id_from_env() {
                 self.api.conversation(&conversation_id).await.ok().flatten()
             } else {
