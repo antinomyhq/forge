@@ -2,14 +2,14 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use colored::Colorize;
-use forge_domain::TitleFormat;
+use forge_domain::{Banner, TitleFormat};
 use forge_tracker::VERSION;
 
 use crate::title_display::TitleDisplayExt;
 
 const DEFAULT_BANNER: &str = include_str!("banner");
 
-/// Banner configuration
+/// Banner configuration (CLI layer)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BannerConfig {
     /// Use the default built-in banner
@@ -24,7 +24,7 @@ impl std::str::FromStr for BannerConfig {
     type Err = std::convert::Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.eq_ignore_ascii_case("disable") || s.eq_ignore_ascii_case("disabled") {
+        if s.eq_ignore_ascii_case("disable") {
             Ok(Self::Disable)
         } else {
             Ok(Self::Custom(PathBuf::from(s)))
@@ -32,17 +32,24 @@ impl std::str::FromStr for BannerConfig {
     }
 }
 
+impl From<&Banner> for BannerConfig {
+    fn from(banner: &Banner) -> Self {
+        match banner {
+            Banner::Disable => Self::Disable,
+            Banner::Custom(path) => Self::Custom(path.clone()),
+        }
+    }
+}
+
 /// Display banner based on configuration
 ///
-/// Resolves configuration (CLI > Workflow > Default), loads and displays banner
-/// content. If custom banner fails to load, logs error and falls back to
-/// default banner.
+/// Loads and displays banner content. If custom banner fails to load, logs error
+/// and falls back to default banner.
 pub async fn display(
-    cli: Option<&BannerConfig>,
-    workflow: Option<&str>,
     interactive: bool,
+    config: Option<BannerConfig>,
 ) -> anyhow::Result<()> {
-    let config = resolve(cli, workflow);
+    let config = config.unwrap_or(BannerConfig::Default);
 
     match load(&config, interactive).await {
         Ok(Some(content)) => println!("{content}"),
@@ -59,12 +66,6 @@ pub async fn display(
     }
 
     Ok(())
-}
-
-fn resolve(cli: Option<&BannerConfig>, workflow: Option<&str>) -> BannerConfig {
-    cli.cloned()
-        .or_else(|| workflow.map(|s| s.parse().unwrap()))
-        .unwrap_or(BannerConfig::Default)
 }
 
 async fn load(config: &BannerConfig, interactive: bool) -> anyhow::Result<Option<String>> {
@@ -156,37 +157,6 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn test_banner_config_from_str_disable() {
-        let actual: BannerConfig = "disable".parse().unwrap();
-        assert_eq!(actual, BannerConfig::Disable);
-    }
-
-    #[test]
-    fn test_banner_config_from_str_custom() {
-        let actual: BannerConfig = "./banner.txt".parse().unwrap();
-        assert_eq!(actual, BannerConfig::Custom(PathBuf::from("./banner.txt")));
-    }
-
-    #[test]
-    fn test_resolve_cli_overrides_workflow() {
-        let cli = Some(BannerConfig::Disable);
-        let actual = resolve(cli.as_ref(), Some("./banner.txt"));
-        assert_eq!(actual, BannerConfig::Disable);
-    }
-
-    #[test]
-    fn test_resolve_uses_workflow_when_no_cli() {
-        let actual = resolve(None, Some("disabled"));
-        assert_eq!(actual, BannerConfig::Disable);
-    }
-
-    #[test]
-    fn test_resolve_defaults_when_neither() {
-        let actual = resolve(None, None);
-        assert_eq!(actual, BannerConfig::Default);
-    }
-
     #[tokio::test]
     async fn test_load_disable() {
         let actual = load(&BannerConfig::Disable, false).await.unwrap();
@@ -230,8 +200,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_display_falls_back_on_error() {
-        let cli = Some(BannerConfig::Custom(PathBuf::from("/nonexistent.txt")));
-        let result = display(cli.as_ref(), None, false).await;
+        let config = Some(BannerConfig::Custom(PathBuf::from("/nonexistent.txt")));
+        let result = display(false, config).await;
         assert!(result.is_ok()); // Should succeed by falling back to default
     }
 }

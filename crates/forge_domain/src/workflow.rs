@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use derive_setters::Setters;
 use lazy_static::lazy_static;
 use merge::Merge;
@@ -7,6 +9,30 @@ use serde::{Deserialize, Serialize};
 use crate::temperature::Temperature;
 use crate::update::Update;
 use crate::{Compact, MaxTokens, TopK, TopP};
+
+/// Custom banner configuration
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[serde(untagged)]
+pub enum Banner {
+    /// Disable banner display
+    Disable,
+    /// Load custom banner from file
+    Custom(PathBuf),
+}
+
+impl<'de> Deserialize<'de> for Banner {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        if s.eq_ignore_ascii_case("disable") {
+            Ok(Self::Disable)
+        } else {
+            Ok(Self::Custom(PathBuf::from(s)))
+        }
+    }
+}
 
 /// Configuration for a workflow that contains all settings
 /// required to initialize a workflow.
@@ -124,14 +150,14 @@ pub struct Workflow {
     #[merge(strategy = crate::merge::option)]
     pub compact: Option<Compact>,
 
-    /// Banner configuration string
-    /// - "disabled" to hide the banner
-    /// - Path to a custom banner file (absolute or relative)
-    /// - None/omitted to use the default banner
+    /// Banner configuration
+    /// - None: Use the default built-in banner
+    /// - Disable: Hide the banner entirely (use "disable" in YAML)
+    /// - Custom(path): Load banner from specified file
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
-    pub banner: Option<String>,
+    pub banner: Option<Banner>,
 }
 
 lazy_static! {
@@ -297,25 +323,28 @@ mod tests {
     }
 
     #[test]
-    fn test_workflow_with_banner_disabled() {
-        let fixture = r#"{"banner": "disabled"}"#;
+    fn test_workflow_with_banner_disable() {
+        let fixture = r#"{"banner": "disable"}"#;
         let actual: Workflow = serde_json::from_str(fixture).unwrap();
-        assert_eq!(actual.banner, Some("disabled".to_string()));
+        assert_eq!(actual.banner, Some(Banner::Disable));
     }
 
     #[test]
     fn test_workflow_with_banner_custom_path() {
         let fixture = r#"{"banner": "./custom-banner.txt"}"#;
         let actual: Workflow = serde_json::from_str(fixture).unwrap();
-        assert_eq!(actual.banner, Some("./custom-banner.txt".to_string()));
+        assert_eq!(
+            actual.banner,
+            Some(Banner::Custom(PathBuf::from("./custom-banner.txt")))
+        );
     }
 
     #[test]
     fn test_workflow_merge_banner() {
         let mut base = Workflow::new();
-        let other = Workflow::new().banner("disabled");
+        let other = Workflow::new().banner(Banner::Disable);
         base.merge(other);
-        assert_eq!(base.banner, Some("disabled".to_string()));
+        assert_eq!(base.banner, Some(Banner::Disable));
     }
 
     #[test]

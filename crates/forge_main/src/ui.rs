@@ -13,6 +13,8 @@ use forge_app::utils::truncate_key;
 use forge_display::MarkdownFormat;
 use forge_domain::{ChatResponseContent, McpConfig, McpServerConfig, Scope, TitleFormat};
 use forge_fs::ForgeFS;
+
+use crate::banner::BannerConfig;
 use forge_select::ForgeSelect;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
@@ -74,14 +76,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Displays banner only if user is in interactive mode.
     async fn display_banner(&self) -> Result<()> {
         if self.cli.is_interactive() {
-            // Load workflow to get banner configuration
             let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
-            banner::display(
-                self.cli.banner.as_ref(),
-                workflow.banner.as_deref(),
-                self.cli.is_interactive(),
-            )
-            .await?;
+            
+            // Resolve banner config: CLI > Workflow > Default
+            let config = self
+                .cli
+                .banner
+                .clone()
+                .or_else(|| workflow.banner.as_ref().map(BannerConfig::from));
+            
+            banner::display(self.cli.is_interactive(), config).await?;
         }
         Ok(())
     }
@@ -385,10 +389,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 return Ok(());
             }
             TopLevelCommand::ShowBanner => {
-                // Load workflow to get banner configuration
                 let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
-                banner::display(self.cli.banner.as_ref(), workflow.banner.as_deref(), false)
-                    .await?;
+                
+                // Resolve banner config: CLI > Workflow > Default
+                let config = self
+                    .cli
+                    .banner
+                    .clone()
+                    .or_else(|| workflow.banner.as_ref().map(BannerConfig::from));
+                
+                banner::display(false, config).await?;
                 return Ok(());
             }
             TopLevelCommand::Config(config_group) => {
