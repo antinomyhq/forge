@@ -233,7 +233,7 @@ impl<S: AgentService> Orchestrator<S> {
             .chat_agent(
                 model_id,
                 transformers.transform(context),
-                agent.provider.clone(),
+                agent.provider,
             )
             .await?;
 

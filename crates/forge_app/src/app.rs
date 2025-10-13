@@ -12,7 +12,10 @@ use crate::orch::Orchestrator;
 use crate::services::{CustomInstructionsService, TemplateService};
 use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
-use crate::{AgentLoaderService, AttachmentService, ConversationService, EnvironmentService, FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker, WorkflowService};
+use crate::{
+    AgentLoaderService, AttachmentService, ConversationService, EnvironmentService,
+    FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker, WorkflowService,
+};
 
 /// ForgeApp handles the core chat functionality by orchestrating various
 /// services. It encapsulates the complex logic previously contained in the
