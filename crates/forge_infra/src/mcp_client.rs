@@ -5,10 +5,10 @@ use std::sync::{Arc, RwLock};
 use backon::{ExponentialBuilder, Retryable};
 use forge_domain::{Image, McpServerConfig, ToolDefinition, ToolName, ToolOutput};
 use forge_services::McpClientInfra;
-use rmcp::model::{CallToolRequestParam, ClientInfo, Implementation};
+use rmcp::model::{CallToolRequestParam, ClientInfo, Implementation, InitializeRequestParam};
 use rmcp::service::RunningService;
 use rmcp::transport::{SseClientTransport, TokioChildProcess};
-use rmcp::{ClientHandler, RoleClient, ServiceExt};
+use rmcp::{RoleClient, ServiceExt};
 use schemars::schema::RootSchema;
 use serde_json::Value;
 use tokio::process::Command;
@@ -21,14 +21,21 @@ const VERSION: &str = match option_env!("APP_VERSION") {
     None => env!("CARGO_PKG_VERSION"),
 };
 
-type RmcpClient = RunningService<RoleClient, ForgeClientHandler>;
+type RmcpClient = RunningService<RoleClient, InitializeRequestParam>;
 
-/// Handler for MCP client notifications (logging, progress, elicitation)
-#[derive(Default, Clone)]
-pub struct ForgeClientHandler;
+#[derive(Clone)]
+pub struct ForgeMcpClient {
+    client: Arc<RwLock<Option<Arc<RmcpClient>>>>,
+    config: McpServerConfig,
+    server_name: String,
+}
 
-impl ClientHandler for ForgeClientHandler {
-    fn get_info(&self) -> ClientInfo {
+impl ForgeMcpClient {
+    pub fn new(config: McpServerConfig, server_name: String) -> Self {
+        Self { client: Default::default(), config, server_name }
+    }
+
+    fn client_info(&self) -> ClientInfo {
         ClientInfo {
             protocol_version: Default::default(),
             capabilities: Default::default(),
@@ -40,23 +47,6 @@ impl ClientHandler for ForgeClientHandler {
                 website_url: None,
             },
         }
-    }
-}
-
-#[derive(Clone)]
-pub struct ForgeMcpClient {
-    client: Arc<RwLock<Option<Arc<RmcpClient>>>>,
-    config: McpServerConfig,
-    server_name: String,
-    handler: Arc<ForgeClientHandler>,
-}
-
-impl ForgeMcpClient {
-    /// Creates a new MCP client with the given configuration and server name.
-    pub fn new(config: McpServerConfig, server_name: String) -> Self {
-        let handler = Arc::new(ForgeClientHandler);
-
-        Self { client: Default::default(), config, server_name, handler }
     }
 
     /// Connects to the MCP server. If `force` is true, it will reconnect even
@@ -86,14 +76,14 @@ impl ForgeMcpClient {
 
         let client = match &self.config {
             McpServerConfig::Stdio(stdio) => {
-                let mut cmd = Command::new(&stdio.command);
-                cmd.args(&stdio.args);
+                let mut cmd = Command::new(stdio.command.clone());
 
                 for (key, value) in &stdio.env {
                     cmd.env(key, value);
                 }
 
-                cmd.stdin(std::process::Stdio::piped())
+                cmd.args(&stdio.args)
+                    .stdin(std::process::Stdio::inherit())
                     .stdout(std::process::Stdio::piped())
                     .stderr(std::process::Stdio::piped())
                     .kill_on_drop(true);
@@ -128,14 +118,12 @@ impl ForgeMcpClient {
                     });
                 }
 
-                (*self.handler)
-                    .clone()
-                    .serve(transport)
-                    .await
-                    .map_err(|e| Error::McpConnectionFailed {
+                self.client_info().serve(transport).await.map_err(|e| {
+                    Error::McpConnectionFailed {
                         server: self.server_name.clone(),
                         reason: format!("Stdio connection handshake failed: {}", e),
-                    })?
+                    }
+                })?
             }
             McpServerConfig::Sse(sse) => {
                 let transport = SseClientTransport::start(sse.url.clone())
@@ -145,14 +133,12 @@ impl ForgeMcpClient {
                         reason: format!("Failed to start SSE transport: {}", e),
                     })?;
 
-                (*self.handler)
-                    .clone()
-                    .serve(transport)
-                    .await
-                    .map_err(|e| Error::McpConnectionFailed {
+                self.client_info().serve(transport).await.map_err(|e| {
+                    Error::McpConnectionFailed {
                         server: self.server_name.clone(),
                         reason: format!("SSE connection handshake failed: {}", e),
-                    })?
+                    }
+                })?
             }
         };
 
