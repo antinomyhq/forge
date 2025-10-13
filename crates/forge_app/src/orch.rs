@@ -550,8 +550,13 @@ impl<S: AgentService> Orchestrator<S> {
         if self.conversation.title.is_none()
             && let Some(prompt) = prompt
         {
-            let generator = TitleGenerator::new(self.services.clone(), prompt.to_owned(), model)
-                .reasoning(self.agent.reasoning.clone());
+            let generator = TitleGenerator::new(
+                self.services.clone(),
+                prompt.to_owned(),
+                model,
+                self.agent.provider,
+            )
+            .reasoning(self.agent.reasoning.clone());
 
             tokio::spawn(async move { generator.generate().await.ok().flatten() })
         } else {
