@@ -22,7 +22,6 @@ use tracing::debug;
 
 use crate::cli::{
     Cli, ExtensionCommand, ListCommand, McpCommand, SessionCommand, TopLevelCommand, Transport,
-    WorkflowCommand,
 };
 use crate::cli_format::format_columns;
 use crate::config::ConfigManager;
@@ -286,26 +285,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 }
                 return Ok(());
             }
-            TopLevelCommand::Workflow(workflow_group) => {
-                match workflow_group.command {
-                    WorkflowCommand::Run { file } => {
-                        self.cli.workflow = Some(file);
-                        // Continue to workflow handling in main loop
-                    }
-                    WorkflowCommand::Dispatch { file, event } => {
-                        self.cli.workflow = Some(file);
-                        self.cli.event = Some(event);
-                        // Continue to workflow handling in main loop
-                    }
-                    WorkflowCommand::Validate { file: _ } => {
-                        self.spinner.start(Some("Validating workflow"))?;
-                        // TODO: Add workflow validation logic
-                        self.spinner
-                            .stop(Some("Workflow validation not yet implemented".to_string()))?;
-                        return Ok(());
-                    }
-                }
-            }
+
             TopLevelCommand::Mcp(mcp_command) => match mcp_command.command {
                 McpCommand::Add(add) => {
                     let name = add.name;

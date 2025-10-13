@@ -48,13 +48,13 @@ pub struct Cli {
     #[command(subcommand)]
     pub subcommands: Option<TopLevelCommand>,
 
-    // Internal fields for workflow command handling
-    /// Path to a file containing the workflow to execute (internal use)
-    #[arg(skip)]
+    /// Path to a file containing the workflow to execute.
+    #[arg(long, short = 'w')]
     pub workflow: Option<PathBuf>,
 
-    /// Dispatch an event to the workflow (internal use)
-    #[arg(skip)]
+    /// Dispatch an event to the workflow.
+    /// For example: --event '{"name": "fix_issue", "value": "449"}'
+    #[arg(long, short = 'e')]
     pub event: Option<String>,
 }
 
@@ -86,9 +86,6 @@ pub enum TopLevelCommand {
 
     /// Session management commands (dump, retry, resume, list)
     Session(SessionCommandGroup),
-
-    /// Workflow management and execution
-    Workflow(WorkflowCommandGroup),
 
     /// MCP server management commands
     Mcp(McpCommandGroup),
@@ -143,38 +140,6 @@ pub struct ExtensionCommandGroup {
 pub enum ExtensionCommand {
     /// Generate ZSH extension script
     Zsh,
-}
-
-/// Group of workflow-related commands
-#[derive(Parser, Debug, Clone)]
-pub struct WorkflowCommandGroup {
-    #[command(subcommand)]
-    pub command: WorkflowCommand,
-}
-
-#[derive(Subcommand, Debug, Clone)]
-pub enum WorkflowCommand {
-    /// Execute a workflow from file
-    Run {
-        /// Path to workflow file
-        file: PathBuf,
-    },
-
-    /// Dispatch an event to a workflow
-    Dispatch {
-        /// Path to workflow file
-        file: PathBuf,
-
-        /// Event data as JSON string
-        /// Example: '{"name": "deploy", "env": "prod"}'
-        event: String,
-    },
-
-    /// Validate workflow file syntax
-    Validate {
-        /// Path to workflow file to validate
-        file: PathBuf,
-    },
 }
 
 /// Group of MCP-related commands
