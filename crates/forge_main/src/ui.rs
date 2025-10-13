@@ -36,7 +36,7 @@ use crate::update::on_update;
 use crate::{TRACKER, banner, tracker};
 
 // Configuration constants
-const MAX_CONVERSATIONS_TO_SHOW: usize = 20;
+const MAX_CONVERSATIONS_TO_SHOW: usize = 100;
 
 pub struct UI<A, F: Fn() -> A> {
     markdown: MarkdownFormat,
