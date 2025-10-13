@@ -43,12 +43,9 @@ impl From<&Banner> for BannerConfig {
 
 /// Display banner based on configuration
 ///
-/// Loads and displays banner content. If custom banner fails to load, logs error
-/// and falls back to default banner.
-pub async fn display(
-    interactive: bool,
-    config: Option<BannerConfig>,
-) -> anyhow::Result<()> {
+/// Loads and displays banner content. If custom banner fails to load, logs
+/// error and falls back to default banner.
+pub async fn display(interactive: bool, config: Option<BannerConfig>) -> anyhow::Result<()> {
     let config = config.unwrap_or(BannerConfig::Default);
 
     match load(&config, interactive).await {

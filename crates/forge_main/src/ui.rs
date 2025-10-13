@@ -13,8 +13,6 @@ use forge_app::utils::truncate_key;
 use forge_display::MarkdownFormat;
 use forge_domain::{ChatResponseContent, McpConfig, McpServerConfig, Scope, TitleFormat};
 use forge_fs::ForgeFS;
-
-use crate::banner::BannerConfig;
 use forge_select::ForgeSelect;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
@@ -22,6 +20,7 @@ use merge::Merge;
 use tokio_stream::StreamExt;
 use tracing::debug;
 
+use crate::banner::BannerConfig;
 use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
 use crate::cli_format::format_columns;
 use crate::config::ConfigManager;
@@ -77,14 +76,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn display_banner(&self) -> Result<()> {
         if self.cli.is_interactive() {
             let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
-            
+
             // Resolve banner config: CLI > Workflow > Default
             let config = self
                 .cli
                 .banner
                 .clone()
                 .or_else(|| workflow.banner.as_ref().map(BannerConfig::from));
-            
+
             banner::display(self.cli.is_interactive(), config).await?;
         }
         Ok(())
@@ -390,14 +389,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
             TopLevelCommand::ShowBanner => {
                 let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
-                
+
                 // Resolve banner config: CLI > Workflow > Default
                 let config = self
                     .cli
                     .banner
                     .clone()
                     .or_else(|| workflow.banner.as_ref().map(BannerConfig::from));
-                
+
                 banner::display(false, config).await?;
                 return Ok(());
             }
