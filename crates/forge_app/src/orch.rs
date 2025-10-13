@@ -515,10 +515,7 @@ impl<S: AgentService> Orchestrator<S> {
         })?;
 
         // Set conversation title
-        match title.await.ok().flatten() {
-            Some(title) => self.conversation.title = Some(title),
-            None => {}
-        }
+        if let Some(title) = title.await.ok().flatten() { self.conversation.title = Some(title) }
 
         self.services.update(self.conversation.clone()).await?;
 
@@ -538,7 +535,8 @@ impl<S: AgentService> Orchestrator<S> {
             .ok_or(Error::MissingModel(self.agent.id.clone()))?)
     }
 
-    /// Creates a join handle which eventually resolves with the conversation title
+    /// Creates a join handle which eventually resolves with the conversation
+    /// title
     fn generate_title(&self, model: ModelId) -> JoinHandle<Option<String>> {
         let prompt = &self.event.value;
         if self.conversation.title.is_none()
