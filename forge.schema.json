@@ -5,10 +5,14 @@
   "type": "object",
   "properties": {
     "banner": {
-      "description": "Banner configuration string - \"disabled\" to hide the banner - Path to a custom banner file (absolute or relative) - None/omitted to use the default banner",
-      "type": [
-        "string",
-        "null"
+      "description": "Banner configuration - disable: Hide the banner entirely - path: Load banner from specified file",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Banner"
+        },
+        {
+          "type": "null"
+        }
       ]
     },
     "commands": {
@@ -134,6 +138,19 @@
     }
   },
   "definitions": {
+    "Banner": {
+      "description": "Custom banner configuration",
+      "anyOf": [
+        {
+          "description": "Disable banner display",
+          "type": "null"
+        },
+        {
+          "description": "Load custom banner from file",
+          "type": "string"
+        }
+      ]
+    },
     "Command": {
       "type": "object",
       "required": [

@@ -151,9 +151,8 @@ pub struct Workflow {
     pub compact: Option<Compact>,
 
     /// Banner configuration
-    /// - None: Use the default built-in banner
-    /// - Disable: Hide the banner entirely (use "disable" in YAML)
-    /// - Custom(path): Load banner from specified file
+    /// - disable: Hide the banner entirely
+    /// - path: Load banner from specified file
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
