@@ -177,7 +177,7 @@ function forge-completion() {
 # Action handler: Start a new conversation
 function _forge_action_new() {
     echo
-    _forge_exec show banner
+    _forge_exec banner
     _forge_print_agent_message "FORGE"
     FORGE_CONVERSATION_ID=""
     FORGE_ACTIVE_AGENT="forge"

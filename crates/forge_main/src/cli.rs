@@ -73,8 +73,10 @@ pub enum TopLevelCommand {
     /// List resources (agents, models, providers, commands, tools)
     List(ListCommandGroup),
 
-    /// Show information and status (banner, config, environment)
-    Show(ShowCommandGroup),
+    /// Display the banner with version and helpful information
+    ///
+    /// Example: forge banner
+    Banner,
 
     /// Show current configuration, active model, and environment status
     Info,
@@ -128,21 +130,6 @@ pub enum ListCommand {
         /// Agent ID to show tools for
         agent: AgentId,
     },
-}
-
-/// Group of show-related commands
-#[derive(Parser, Debug, Clone)]
-pub struct ShowCommandGroup {
-    #[command(subcommand)]
-    pub command: ShowCommand,
-}
-
-#[derive(Subcommand, Debug, Clone)]
-pub enum ShowCommand {
-    /// Display the banner with version and helpful information
-    ///
-    /// Example: forge show banner
-    Banner,
 }
 
 /// Group of extension-related commands

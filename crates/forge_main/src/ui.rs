@@ -21,8 +21,8 @@ use tokio_stream::StreamExt;
 use tracing::debug;
 
 use crate::cli::{
-    Cli, ExtensionCommand, ListCommand, McpCommand, SessionCommand, ShowCommand, TopLevelCommand,
-    Transport, WorkflowCommand,
+    Cli, ExtensionCommand, ListCommand, McpCommand, SessionCommand, TopLevelCommand, Transport,
+    WorkflowCommand,
 };
 use crate::cli_format::format_columns;
 use crate::config::ConfigManager;
@@ -391,12 +391,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_info().await?;
                 return Ok(());
             }
-            TopLevelCommand::Show(show_group) => match show_group.command {
-                ShowCommand::Banner => {
-                    banner::display(true)?;
-                    return Ok(());
-                }
-            },
+            TopLevelCommand::Banner => {
+                banner::display(true)?;
+                return Ok(());
+            }
             TopLevelCommand::Config(config_group) => {
                 let config_manager = ConfigManager::new(self.api.clone());
                 config_manager
