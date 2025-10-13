@@ -395,7 +395,7 @@ impl ForgeCommandManager {
                         let actual_command = self.extract_command_value(&command, &parts[1..]);
                         Ok(Command::Custom(
                             PartialEvent::new(command.name.clone(), actual_command)
-                                .with_context(serde_json::json!({"arguments": parameters})),
+                                .with_context(serde_json::json!({"parameters": parameters})),
                         ))
                     } else {
                         Err(anyhow::anyhow!("{} is not valid", command))
