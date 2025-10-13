@@ -1,10 +1,7 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use forge_domain::{
-    ChatCompletionMessage, ChatResponse, Conversation, ConversationId, Event, ToolCallFull,
-    ToolErrorTracker, ToolResult,
-};
+use forge_domain::{ChatCompletionMessage, ChatResponse, Conversation, ConversationId, Event, ProviderId, ToolCallFull, ToolErrorTracker, ToolResult};
 use handlebars::{Handlebars, no_escape};
 use rust_embed::Embed;
 use tokio::sync::Mutex;
@@ -112,6 +109,7 @@ impl AgentService for Runner {
         &self,
         _id: &forge_domain::ModelId,
         context: forge_domain::Context,
+        _provider_id: Option<ProviderId>,
     ) -> forge_domain::ResultStream<ChatCompletionMessage, anyhow::Error> {
         let mut responses = self.test_completions.lock().await;
 

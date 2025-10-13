@@ -9,14 +9,10 @@ use forge_stream::MpscStream;
 use crate::authenticator::Authenticator;
 use crate::dto::{InitAuth, ToolsOverview};
 use crate::orch::Orchestrator;
-use crate::provider::ProviderManager;
 use crate::services::{CustomInstructionsService, TemplateService};
 use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
-use crate::{
-    AgentLoaderService, AttachmentService, ConversationService, EnvironmentService,
-    FileDiscoveryService, ProviderService, Services, Walker, WorkflowService,
-};
+use crate::{AgentLoaderService, AttachmentService, ConversationService, EnvironmentService, FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker, WorkflowService};
 
 /// ForgeApp handles the core chat functionality by orchestrating various
 /// services. It encapsulates the complex logic previously contained in the
@@ -25,7 +21,6 @@ pub struct ForgeApp<S> {
     services: Arc<S>,
     tool_registry: ToolRegistry<S>,
     authenticator: Authenticator<S>,
-    provider: ProviderManager<S>,
 }
 
 impl<S: Services> ForgeApp<S> {
@@ -34,7 +29,6 @@ impl<S: Services> ForgeApp<S> {
         Self {
             tool_registry: ToolRegistry::new(services.clone()),
             authenticator: Authenticator::new(services.clone()),
-            provider: ProviderManager::new(services.clone()),
             services,
         }
     }
@@ -245,12 +239,27 @@ impl<S: Services> ForgeApp<S> {
     }
 
     pub async fn get_active_provider(&self) -> anyhow::Result<Provider> {
-        self.provider.get_active_provider().await
-    }
-    pub async fn set_active_model(&self, model: ModelId) -> anyhow::Result<()> {
-        self.provider.set_active_model(model).await
+        let agents = self.services.get_agents().await?;
+        if let Some(provider_id) = self
+            .services
+            .get_active_agent()
+            .await?
+            .and_then(|agent_id| agents.into_iter().find(|v| v.id == agent_id))
+            .and_then(|agent| agent.provider)
+        {
+            return self.services.provider_from_id(provider_id).await;
+        }
+
+        // fall back to original logic if there is no agent
+        // set yet.
+        self.services.get_active_provider().await
     }
     pub async fn get_active_model(&self) -> anyhow::Result<ModelId> {
-        self.provider.get_active_model().await
+        let provider_id = self.get_active_provider().await?.id;
+        self.services.get_active_model(&provider_id).await
+    }
+    pub async fn set_active_model(&self, model: ModelId) -> anyhow::Result<()> {
+        let provider_id = self.get_active_provider().await?.id;
+        self.services.set_active_model(model, provider_id).await
     }
 }

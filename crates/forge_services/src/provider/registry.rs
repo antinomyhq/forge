@@ -169,6 +169,14 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
         self.get_first_available_provider().await
     }
 
+    async fn get_provider(&self, provider_id: &ProviderId) -> Option<Provider> {
+        self.get_providers()
+            .await
+            .iter()
+            .find(|p| p.id == *provider_id)
+            .cloned()
+    }
+
     async fn set_active_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
         self.update(|config| {
             config.provider = Some(provider_id);
