@@ -199,6 +199,9 @@ pub enum PatchOperation {
     /// Swap the matched text with another text (search for the second text and
     /// swap them)
     Swap,
+
+    /// Delete the matched text from the file
+    Delete,
 }
 
 // TODO: do the Blanket impl for all the unit enums
@@ -257,10 +260,12 @@ pub struct FSPatch {
     ///   all occurrences are updated.
     /// - 'swap': Replace the matched text with another text (search for the
     ///   second text and swap them)
+    /// - 'delete': Delete the matched text from the file
     pub operation: PatchOperation,
 
     /// The content to use for the operation (replacement text, line to
-    /// prepend/append, or target line for swap operations)
+    /// prepend/append, or target line for swap operations). For delete
+    /// operations, this field is ignored.
     pub content: String,
 }
 
