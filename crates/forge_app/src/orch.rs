@@ -230,11 +230,7 @@ impl<S: AgentService> Orchestrator<S> {
             .pipe(ReasoningNormalizer.when(|_| reasoning_supported));
         let response = self
             .services
-            .chat_agent(
-                model_id,
-                transformers.transform(context),
-                agent.provider,
-            )
+            .chat_agent(model_id, transformers.transform(context), agent.provider)
             .await?;
 
         response.into_full(!tool_supported).await
