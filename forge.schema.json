@@ -4,6 +4,13 @@
   "description": "Configuration for a workflow that contains all settings required to initialize a workflow.",
   "type": "object",
   "properties": {
+    "banner": {
+      "description": "Banner configuration string - \"disabled\" to hide the banner - Path to a custom banner file (absolute or relative) - None/omitted to use the default banner",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "commands": {
       "description": "Commands that can be used to interact with the workflow",
       "type": "array",

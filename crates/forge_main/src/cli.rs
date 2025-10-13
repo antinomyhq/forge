@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand, ValueEnum};
 use forge_domain::AgentId;
 
+use crate::banner::BannerConfig;
+
 #[derive(Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
 pub struct Cli {
@@ -82,6 +84,20 @@ pub struct Cli {
     /// The worktree name will be used as the branch name.
     #[arg(long)]
     pub sandbox: Option<String>,
+
+    /// Banner display configuration
+    ///
+    /// Controls the startup banner display:
+    /// - Not specified: uses configuration file or default banner
+    /// - "disable" or "disabled": hide the banner entirely
+    /// - File path: load custom ASCII banner from specified file
+    ///
+    /// Examples:
+    ///   --banner disable
+    ///   --banner ./banners/project-banner.txt
+    ///   --banner /etc/forge/production-banner.txt
+    #[arg(long, value_name = "disable|PATH")]
+    pub banner: Option<BannerConfig>,
 }
 
 impl Cli {
@@ -609,5 +625,41 @@ mod tests {
         };
         let expected = AgentId::new("sage");
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_banner_disable() {
+        let fixture = Cli::parse_from(["forge", "--banner", "disable"]);
+        assert_eq!(fixture.banner, Some(BannerConfig::Disable));
+    }
+
+    #[test]
+    fn test_cli_banner_disabled_case_insensitive() {
+        let fixture = Cli::parse_from(["forge", "--banner", "DISABLED"]);
+        assert_eq!(fixture.banner, Some(BannerConfig::Disable));
+    }
+
+    #[test]
+    fn test_cli_banner_custom_relative_path() {
+        let fixture = Cli::parse_from(["forge", "--banner", "./my-banner.txt"]);
+        assert_eq!(
+            fixture.banner,
+            Some(BannerConfig::Custom(PathBuf::from("./my-banner.txt")))
+        );
+    }
+
+    #[test]
+    fn test_cli_banner_custom_absolute_path() {
+        let fixture = Cli::parse_from(["forge", "--banner", "/etc/forge/banner.txt"]);
+        assert_eq!(
+            fixture.banner,
+            Some(BannerConfig::Custom(PathBuf::from("/etc/forge/banner.txt")))
+        );
+    }
+
+    #[test]
+    fn test_cli_banner_not_specified() {
+        let fixture = Cli::parse_from(["forge"]);
+        assert_eq!(fixture.banner, None);
     }
 }

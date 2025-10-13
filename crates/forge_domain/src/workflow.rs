@@ -123,6 +123,15 @@ pub struct Workflow {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub compact: Option<Compact>,
+
+    /// Banner configuration string
+    /// - "disabled" to hide the banner
+    /// - Path to a custom banner file (absolute or relative)
+    /// - None/omitted to use the default banner
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub banner: Option<String>,
 }
 
 lazy_static! {
@@ -168,6 +177,7 @@ impl Workflow {
             max_tool_failure_per_turn: None,
             max_requests_per_turn: None,
             compact: None,
+            banner: None,
         }
     }
 }
@@ -284,5 +294,33 @@ mod tests {
 
         // Assert
         assert_eq!(base.compact, Some(new_compact));
+    }
+
+    #[test]
+    fn test_workflow_with_banner_disabled() {
+        let fixture = r#"{"banner": "disabled"}"#;
+        let actual: Workflow = serde_json::from_str(fixture).unwrap();
+        assert_eq!(actual.banner, Some("disabled".to_string()));
+    }
+
+    #[test]
+    fn test_workflow_with_banner_custom_path() {
+        let fixture = r#"{"banner": "./custom-banner.txt"}"#;
+        let actual: Workflow = serde_json::from_str(fixture).unwrap();
+        assert_eq!(actual.banner, Some("./custom-banner.txt".to_string()));
+    }
+
+    #[test]
+    fn test_workflow_merge_banner() {
+        let mut base = Workflow::new();
+        let other = Workflow::new().banner("disabled");
+        base.merge(other);
+        assert_eq!(base.banner, Some("disabled".to_string()));
+    }
+
+    #[test]
+    fn test_workflow_banner_default_is_none() {
+        let actual = Workflow::new();
+        assert_eq!(actual.banner, None);
     }
 }

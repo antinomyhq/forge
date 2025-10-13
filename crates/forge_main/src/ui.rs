@@ -72,9 +72,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     /// Displays banner only if user is in interactive mode.
-    fn display_banner(&self) -> Result<()> {
+    async fn display_banner(&self) -> Result<()> {
         if self.cli.is_interactive() {
-            banner::display(false)?;
+            // Load workflow to get banner configuration
+            let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
+            banner::display(
+                self.cli.banner.as_ref(),
+                workflow.banner.as_deref(),
+                self.cli.is_interactive(),
+            )
+            .await?;
         }
         Ok(())
     }
@@ -87,7 +94,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Reset previously set CLI parameters by the user
         self.cli.conversation = None;
 
-        self.display_banner()?;
+        self.display_banner().await?;
         self.trace_user();
         self.hydrate_caches();
         Ok(())
@@ -185,7 +192,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         // // Display the banner in dimmed colors since we're in interactive mode
-        self.display_banner()?;
+        self.display_banner().await?;
         self.init_state(true).await?;
         self.trace_user();
         self.hydrate_caches();
@@ -378,7 +385,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 return Ok(());
             }
             TopLevelCommand::ShowBanner => {
-                banner::display(true)?;
+                // Load workflow to get banner configuration
+                let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
+                banner::display(self.cli.banner.as_ref(), workflow.banner.as_deref(), false)
+                    .await?;
                 return Ok(());
             }
             TopLevelCommand::Config(config_group) => {

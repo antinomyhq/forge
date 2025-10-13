@@ -1,0 +1,12 @@
+---
+source: crates/forge_main/src/banner.rs
+expression: "strip_ansi_escapes::strip_str(actual)"
+---
+Custom Banner
+
+         Version: 0.1.0
+New conversation: :new
+     Get started: :info, :conversation
+    Switch model: :model
+ Switch provider: :provider
+    Switch agent: :<agent_name> e.g. :forge or :muse

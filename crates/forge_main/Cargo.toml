@@ -59,3 +59,4 @@ insta.workspace = true
 pretty_assertions.workspace = true
 tempfile.workspace = true
 serial_test = "3.2"
+strip-ansi-escapes.workspace = true
