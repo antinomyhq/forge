@@ -205,8 +205,9 @@ impl ForgeCommandManager {
 
         commands.sort_by(|a, b| a.name.cmp(&b.name));
 
-        // Note: Workflow commands are now registered separately via register_workflow_commands()
-        // since they need to be fetched asynchronously from the API
+        // Note: Workflow commands are now registered separately via
+        // register_workflow_commands() since they need to be fetched
+        // asynchronously from the API
 
         *guard = commands;
     }
