@@ -11,7 +11,6 @@ use crate::agent::AgentService as AS;
 
 /// Service for generating contextually appropriate titles
 #[derive(Setters)]
-#[setters(strip_option)]
 pub struct TitleGenerator<S> {
     /// Shared reference to the agent services used for AI interactions
     services: Arc<S>,
