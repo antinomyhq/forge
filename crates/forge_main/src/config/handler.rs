@@ -43,21 +43,21 @@ impl<A: API> ConfigManager<A> {
         // Set provider if specified
         if let Some(provider_str) = args.provider {
             let provider_id = self.validate_provider(&provider_str).await?;
-            self.api.set_provider(provider_id).await?;
+            self.api.set_default_provider(provider_id).await?;
             display_success("Provider set", &provider_str);
         }
 
         // Set agent if specified
         if let Some(agent_str) = args.agent {
             let agent_id = self.validate_agent(&agent_str).await?;
-            self.api.set_operating_agent(agent_id.clone()).await?;
+            self.api.set_active_agent(agent_id.clone()).await?;
             display_success("Agent set", agent_id.as_str());
         }
 
         // Set model if specified
         if let Some(model_str) = args.model {
             let model_id = self.validate_model(&model_str).await?;
-            self.api.set_operating_model(model_id.clone()).await?;
+            self.api.set_default_model(model_id.clone()).await?;
             display_success("Model set", model_id.as_str());
         }
 
@@ -72,7 +72,7 @@ impl<A: API> ConfigManager<A> {
                 "agent" => {
                     let agent = self
                         .api
-                        .get_operating_agent()
+                        .get_active_agent()
                         .await
                         .map(|a| a.as_str().to_string());
                     display_single_field("agent", agent);
@@ -80,13 +80,18 @@ impl<A: API> ConfigManager<A> {
                 "model" => {
                     let model = self
                         .api
-                        .get_operating_model()
+                        .get_default_model()
                         .await
                         .map(|m| m.as_str().to_string());
                     display_single_field("model", model);
                 }
                 "provider" => {
-                    let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
+                    let provider = self
+                        .api
+                        .get_provider(None)
+                        .await
+                        .ok()
+                        .map(|p| p.id.to_string());
                     display_single_field("provider", provider);
                 }
                 _ => {
@@ -97,15 +102,20 @@ impl<A: API> ConfigManager<A> {
             // Get all configuration
             let agent = self
                 .api
-                .get_operating_agent()
+                .get_active_agent()
                 .await
                 .map(|a| a.as_str().to_string());
             let model = self
                 .api
-                .get_operating_model()
+                .get_default_model()
                 .await
                 .map(|m| m.as_str().to_string());
-            let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
+            let provider = self
+                .api
+                .get_provider(None)
+                .await
+                .ok()
+                .map(|p| p.id.to_string());
 
             display_all_config(agent, model, provider);
         }

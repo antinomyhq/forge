@@ -349,12 +349,15 @@ pub trait AuthService: Send + Sync {
 }
 #[async_trait::async_trait]
 pub trait ProviderRegistry: Send + Sync {
-    async fn get_active_provider(&self) -> anyhow::Result<Provider>;
-    async fn set_active_provider(&self, provider_id: ProviderId) -> anyhow::Result<()>;
+    async fn get_default_provider(&self) -> anyhow::Result<Provider>;
+    async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()>;
     async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>>;
-    async fn get_active_model(&self, provider_id: &ProviderId) -> anyhow::Result<ModelId>;
-    async fn set_active_model(&self, model: ModelId, provider_id: ProviderId)
-    -> anyhow::Result<()>;
+    async fn get_default_model(&self, provider_id: &ProviderId) -> anyhow::Result<ModelId>;
+    async fn set_default_model(
+        &self,
+        model: ModelId,
+        provider_id: ProviderId,
+    ) -> anyhow::Result<()>;
     async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider>;
 }
 
@@ -362,6 +365,9 @@ pub trait ProviderRegistry: Send + Sync {
 pub trait AgentRegistry: Send + Sync {
     /// Load all agent definitions from the forge/agent directory
     async fn get_agents(&self) -> anyhow::Result<Vec<Agent>>;
+
+    /// Get agent by ID
+    async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<Agent>>;
 
     /// Get the currently active agent
     async fn get_active_agent(&self) -> anyhow::Result<Option<Agent>>;
@@ -706,13 +712,13 @@ impl<I: Services> CustomInstructionsService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> ProviderRegistry for I {
-    async fn get_active_provider(&self) -> anyhow::Result<Provider> {
-        self.provider_registry().get_active_provider().await
+    async fn get_default_provider(&self) -> anyhow::Result<Provider> {
+        self.provider_registry().get_default_provider().await
     }
 
-    async fn set_active_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
+    async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
         self.provider_registry()
-            .set_active_provider(provider_id)
+            .set_default_provider(provider_id)
             .await
     }
 
@@ -720,17 +726,19 @@ impl<I: Services> ProviderRegistry for I {
         self.provider_registry().get_all_providers().await
     }
 
-    async fn get_active_model(&self, provider_id: &ProviderId) -> anyhow::Result<ModelId> {
-        self.provider_registry().get_active_model(provider_id).await
+    async fn get_default_model(&self, provider_id: &ProviderId) -> anyhow::Result<ModelId> {
+        self.provider_registry()
+            .get_default_model(provider_id)
+            .await
     }
 
-    async fn set_active_model(
+    async fn set_default_model(
         &self,
         model: ModelId,
         provider_id: ProviderId,
     ) -> anyhow::Result<()> {
         self.provider_registry()
-            .set_active_model(model, provider_id)
+            .set_default_model(model, provider_id)
             .await
     }
 
@@ -786,6 +794,10 @@ pub trait HttpClientService: Send + Sync + 'static {
 impl<I: Services> AgentRegistry for I {
     async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
         self.agent_loader_service().get_agents().await
+    }
+
+    async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<Agent>> {
+        self.agent_loader_service().get_agent(agent_id).await
     }
 
     async fn get_active_agent(&self) -> anyhow::Result<Option<Agent>> {

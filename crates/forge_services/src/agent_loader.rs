@@ -71,6 +71,14 @@ impl<
         self.cache_or_init().await
     }
 
+    async fn get_agent(
+        &self,
+        agent_id: &forge_app::domain::AgentId,
+    ) -> anyhow::Result<Option<Agent>> {
+        let agents = self.get_agents().await?;
+        Ok(agents.into_iter().find(|agent| &agent.id == agent_id))
+    }
+
     async fn get_active_agent(&self) -> anyhow::Result<Option<Agent>> {
         let app_config = self.infra.get_app_config().await?;
 

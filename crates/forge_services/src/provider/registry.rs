@@ -159,7 +159,7 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
 
 #[async_trait::async_trait]
 impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProviderRegistry<F> {
-    async fn get_active_provider(&self) -> anyhow::Result<Provider> {
+    async fn get_default_provider(&self) -> anyhow::Result<Provider> {
         let app_config = self.infra.get_app_config().await?;
         if let Some(provider_id) = app_config.provider {
             return self.provider_from_id(provider_id).await;
@@ -169,7 +169,7 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
         self.get_first_available_provider().await
     }
 
-    async fn set_active_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
+    async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
         self.update(|config| {
             config.provider = Some(provider_id);
         })
@@ -180,7 +180,7 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
         Ok(self.get_providers().await.clone())
     }
 
-    async fn get_active_model(&self, provider_id: &ProviderId) -> anyhow::Result<ModelId> {
+    async fn get_default_model(&self, provider_id: &ProviderId) -> anyhow::Result<ModelId> {
         if let Some(model_id) = self.infra.get_app_config().await?.model.get(provider_id) {
             return Ok(model_id.clone());
         }
@@ -189,7 +189,7 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
         Err(forge_app::Error::NoActiveModel.into())
     }
 
-    async fn set_active_model(
+    async fn set_default_model(
         &self,
         model: ModelId,
         provider_id: ProviderId,

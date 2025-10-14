@@ -51,7 +51,7 @@ impl<T: Services> AgentService for T {
         let provider = if let Some(provider_id) = provider_id {
             self.get_provider(provider_id).await?
         } else {
-            self.get_active_provider().await?
+            self.get_default_provider().await?
         };
 
         self.chat(id, context, provider).await

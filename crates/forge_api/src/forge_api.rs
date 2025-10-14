@@ -51,7 +51,7 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
         Ok(self
             .services
             .models(
-                self.get_provider()
+                self.get_provider(None)
                     .await
                     .context("Failed to fetch models")?,
             )
@@ -176,18 +176,18 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
         let forge_app = ForgeApp::new(self.services.clone());
         forge_app.logout().await
     }
-    async fn get_provider(&self) -> anyhow::Result<Provider> {
+    async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider> {
         ForgeApp::new(self.services.clone())
-            .get_active_provider()
+            .get_provider(agent)
             .await
     }
 
-    async fn set_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        self.services.set_active_provider(provider_id).await
+    async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
+        self.services.set_default_provider(provider_id).await
     }
 
     async fn user_info(&self) -> Result<Option<User>> {
-        let provider = self.get_provider().await?;
+        let provider = self.get_provider(None).await?;
         if let Some(ref api_key) = provider.key {
             let user_info = self.services.user_info(api_key).await?;
             return Ok(Some(user_info));
@@ -196,7 +196,7 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
     }
 
     async fn user_usage(&self) -> Result<Option<UserUsage>> {
-        let provider = self.get_provider().await?;
+        let provider = self.get_provider(None).await?;
         if let Some(ref api_key) = provider.key {
             let user_usage = self.services.user_usage(api_key).await?;
             return Ok(Some(user_usage));
@@ -204,22 +204,22 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
         Ok(None)
     }
 
-    async fn get_operating_agent(&self) -> Option<AgentId> {
+    async fn get_active_agent(&self) -> Option<AgentId> {
         self.services.get_active_agent_id().await.ok().flatten()
     }
 
-    async fn set_operating_agent(&self, agent_id: AgentId) -> anyhow::Result<()> {
+    async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()> {
         self.services.set_active_agent_id(agent_id).await
     }
 
-    async fn get_operating_model(&self) -> Option<ModelId> {
+    async fn get_default_model(&self) -> Option<ModelId> {
         ForgeApp::new(self.services.clone())
             .get_active_model()
             .await
             .ok()
     }
 
-    async fn set_operating_model(&self, model_id: ModelId) -> anyhow::Result<()> {
+    async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()> {
         ForgeApp::new(self.services.clone())
             .set_active_model(model_id)
             .await

@@ -102,22 +102,22 @@ pub trait API: Sync + Send {
     async fn get_login_info(&self) -> Result<Option<LoginInfo>>;
     async fn login(&self, auth: &InitAuth) -> Result<()>;
     async fn logout(&self) -> anyhow::Result<()>;
-    async fn get_provider(&self) -> anyhow::Result<Provider>;
-    async fn set_provider(&self, provider_id: ProviderId) -> anyhow::Result<()>;
+    async fn get_provider(&self, agent_id: Option<AgentId>) -> anyhow::Result<Provider>;
+    async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()>;
     async fn user_info(&self) -> anyhow::Result<Option<User>>;
     async fn user_usage(&self) -> anyhow::Result<Option<UserUsage>>;
 
     /// Gets the currently operating agent
-    async fn get_operating_agent(&self) -> Option<AgentId>;
+    async fn get_active_agent(&self) -> Option<AgentId>;
 
-    /// Sets the operating agent
-    async fn set_operating_agent(&self, agent_id: AgentId) -> anyhow::Result<()>;
+    /// Sets the active agent
+    async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()>;
 
     /// Gets the currently operating model
-    async fn get_operating_model(&self) -> Option<ModelId>;
+    async fn get_default_model(&self) -> Option<ModelId>;
 
     /// Sets the operating model
-    async fn set_operating_model(&self, model_id: ModelId) -> anyhow::Result<()>;
+    async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()>;
 
     /// Refresh MCP caches by fetching fresh data
     async fn reload_mcp(&self) -> Result<()>;

@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use chrono::Local;
 use forge_domain::*;
 use forge_stream::MpscStream;
@@ -51,12 +51,6 @@ impl<S: Services> ForgeApp<S> {
             .unwrap_or_default()
             .expect("conversation for the request should've been created at this point.");
 
-        let provider = self
-            .get_active_provider()
-            .await
-            .context("Failed to get provider")?;
-        let models = services.models(provider).await?;
-
         // Discover files using the discovery service
         let workflow = self.services.read_merged(None).await.unwrap_or_default();
         let max_depth = workflow.max_walker_depth;
@@ -96,16 +90,19 @@ impl<S: Services> ForgeApp<S> {
 
         // Prepare agents with user configuration and subscriptions
         let agents = services.get_agents().await?;
-        let model = self.get_active_model().await?;
-        let agent = agents
+        let mut agent = agents
             .into_iter()
-            .map(|agent| {
-                agent
-                    .set_model_deeply(model.clone())
-                    .apply_workflow_config(&workflow)
-            })
             .find(|agent| agent.has_subscription(&chat.event.name))
             .ok_or(crate::Error::UnsubscribedEvent(chat.event.name.to_owned()))?;
+
+        let provider = self.get_provider(Some(agent.id.clone())).await?;
+        let model = self.services.get_default_model(&provider.id).await?;
+        let models = services.models(provider).await?;
+
+        // Adjust agent parameters
+        agent = agent
+            .set_model_deeply(model)
+            .apply_workflow_config(&workflow);
 
         // Get system and mcp tool definitions and resolve them for the agent
         let all_tool_definitions = self.tool_registry.list().await?;
@@ -241,25 +238,25 @@ impl<S: Services> ForgeApp<S> {
         self.services.write_workflow(path, workflow).await
     }
 
-    pub async fn get_active_provider(&self) -> anyhow::Result<Provider> {
-        // Provider can be agent specific so we try to get the provider for the active
-        // agent
-        let agent = self.services.get_active_agent().await?;
-
-        if let Some(provider_id) = agent.and_then(|agent| agent.provider) {
+    pub async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider> {
+        if let Some(agent) = agent
+            && let Some(agent) = self.services.get_agent(&agent).await?
+            && let Some(provider_id) = agent.provider
+        {
             return self.services.get_provider(provider_id).await;
         }
 
         // Fall back to original logic if there is no agent
         // set yet.
-        self.services.get_active_provider().await
+        self.services.get_default_provider().await
     }
     pub async fn get_active_model(&self) -> anyhow::Result<ModelId> {
-        let provider_id = self.get_active_provider().await?.id;
-        self.services.get_active_model(&provider_id).await
+        let provider_id = self.get_provider(None).await?.id;
+        self.services.get_default_model(&provider_id).await
     }
+
     pub async fn set_active_model(&self, model: ModelId) -> anyhow::Result<()> {
-        let provider_id = self.get_active_provider().await?.id;
-        self.services.set_active_model(model, provider_id).await
+        let provider_id = self.get_provider(None).await?.id;
+        self.services.set_default_model(model, provider_id).await
     }
 }
