@@ -242,18 +242,15 @@ impl<S: Services> ForgeApp<S> {
     }
 
     pub async fn get_active_provider(&self) -> anyhow::Result<Provider> {
-        let agents = self.services.get_agents().await?;
-        if let Some(provider_id) = self
-            .services
-            .get_active_agent_id()
-            .await?
-            .and_then(|agent_id| agents.into_iter().find(|v| v.id == agent_id))
-            .and_then(|agent| agent.provider)
-        {
+        // Provider can be agent specific so we try to get the provider for the active
+        // agent
+        let agent = self.services.get_active_agent().await?;
+
+        if let Some(provider_id) = agent.and_then(|agent| agent.provider) {
             return self.services.get_provider(provider_id).await;
         }
 
-        // fall back to original logic if there is no agent
+        // Fall back to original logic if there is no agent
         // set yet.
         self.services.get_active_provider().await
     }

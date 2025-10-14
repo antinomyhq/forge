@@ -364,6 +364,9 @@ pub trait ProviderRegistry: Send + Sync {
 pub trait AgentLoaderService: Send + Sync {
     /// Load all agent definitions from the forge/agent directory
     async fn get_agents(&self) -> anyhow::Result<Vec<Agent>>;
+
+    /// Get the currently active agent
+    async fn get_active_agent(&self) -> anyhow::Result<Option<Agent>>;
 }
 
 #[async_trait::async_trait]
@@ -787,6 +790,10 @@ pub trait HttpClientService: Send + Sync + 'static {
 impl<I: Services> AgentLoaderService for I {
     async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
         self.agent_loader_service().get_agents().await
+    }
+
+    async fn get_active_agent(&self) -> anyhow::Result<Option<Agent>> {
+        self.agent_loader_service().get_active_agent().await
     }
 }
 
