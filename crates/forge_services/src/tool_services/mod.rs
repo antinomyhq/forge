@@ -1,5 +1,6 @@
 mod fetch;
 mod followup;
+mod fs_binary_read;
 mod fs_create;
 mod fs_patch;
 mod fs_read;
@@ -12,6 +13,7 @@ mod syn;
 
 pub use fetch::*;
 pub use followup::*;
+pub use fs_binary_read::*;
 pub use fs_create::*;
 pub use fs_patch::*;
 pub use fs_read::*;

@@ -18,7 +18,7 @@ use crate::{EnvironmentInfra, FileInfoInfra, FileReaderInfra as InfraFsReadServi
 /// # Returns
 /// * `Ok(())` if file size is within limits
 /// * `Err(anyhow::Error)` if file exceeds max_file_size
-async fn assert_file_size<F: FileInfoInfra>(
+pub(super) async fn assert_file_size<F: FileInfoInfra>(
     infra: &F,
     path: &Path,
     max_file_size: u64,
@@ -26,9 +26,7 @@ async fn assert_file_size<F: FileInfoInfra>(
     let file_size = infra.file_size(path).await?;
     if file_size > max_file_size {
         return Err(anyhow::anyhow!(
-            "File size ({} bytes) exceeds the maximum allowed size of {} bytes",
-            file_size,
-            max_file_size
+            "File size ({file_size} bytes) exceeds the maximum allowed size of {max_file_size} bytes"
         ));
     }
     Ok(())

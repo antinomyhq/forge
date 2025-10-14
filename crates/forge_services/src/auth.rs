@@ -53,7 +53,7 @@ impl<I: HttpInfra + EnvironmentInfra + AppConfigRepository> ForgeAuthService<I> 
                 &response.bytes().await?,
             )?),
             202 => Err(Error::AuthInProgress.into()),
-            status => bail!("HTTP {}: Authentication failed", status),
+            status => bail!("HTTP {status}: Authentication failed"),
         }
     }
 

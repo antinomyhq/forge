@@ -52,7 +52,7 @@ pub fn format_tools(agent_tools: &[ToolName], overview: &ToolsOverview) -> Info 
             } else {
                 error.clone()
             };
-            info = info.add_key(format!("[✗] {} - {}", server_name, truncated_error));
+            info = info.add_key(format!("[✗] {server_name} - {truncated_error}"));
         }
     }
 

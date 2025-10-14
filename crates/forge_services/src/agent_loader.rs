@@ -247,7 +247,7 @@ mod tests {
 
         for (name, content) in builtin_agents {
             let agent = parse_agent_file(content)
-                .with_context(|| format!("Failed to parse built-in agent: {}", name))
+                .with_context(|| format!("Failed to parse built-in agent: {name}"))
                 .unwrap();
 
             assert_eq!(agent.id.as_str(), name);

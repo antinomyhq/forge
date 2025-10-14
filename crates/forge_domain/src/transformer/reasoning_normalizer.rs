@@ -131,7 +131,7 @@ mod tests {
     #[test]
     fn test_reasoning_normalizer_keeps_all_when_first_has_reasoning() {
         let fixture = create_context_first_assistant_has_reasoning();
-        let mut transformer = ReasoningNormalizer::default();
+        let mut transformer = ReasoningNormalizer;
         let actual = transformer.transform(fixture.clone());
 
         // All reasoning details should be preserved since first assistant has reasoning
@@ -143,7 +143,7 @@ mod tests {
     #[test]
     fn test_reasoning_normalizer_removes_all_when_first_assistant_message_has_no_reasoning() {
         let context = create_context_first_assistant_no_reasoning();
-        let mut transformer = ReasoningNormalizer::default();
+        let mut transformer = ReasoningNormalizer;
         let actual = transformer.transform(context.clone());
 
         // All reasoning details should be removed since first assistant has no
@@ -159,7 +159,7 @@ mod tests {
             .reasoning(ReasoningConfig::default().enabled(true))
             .add_message(ContextMessage::system("System message"))
             .add_message(ContextMessage::user("User message", None));
-        let mut transformer = ReasoningNormalizer::default();
+        let mut transformer = ReasoningNormalizer;
         let actual = transformer.transform(context.clone());
 
         // All reasoning details should be removed since first assistant has no

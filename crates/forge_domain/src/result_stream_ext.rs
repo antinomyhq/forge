@@ -469,7 +469,7 @@ mod tests {
 
         // Expected: Should process all content without interruption
         let expected = ChatCompletionMessageFull {
-            content: format!("{} and more content", xml_content),
+            content: format!("{xml_content} and more content"),
             tool_calls: vec![], /* No XML tool calls should be extracted when interruption is
                                  * disabled */
             usage: Usage {

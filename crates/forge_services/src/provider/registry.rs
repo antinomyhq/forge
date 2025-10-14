@@ -31,7 +31,7 @@ fn get_provider_configs() -> &'static Vec<ProviderConfig> {
     PROVIDER_CONFIGS.get_or_init(|| {
         let json_str = include_str!("provider.json");
         serde_json::from_str(json_str)
-            .map_err(|e| anyhow::anyhow!("Failed to parse provider configs: {}", e))
+            .map_err(|e| anyhow::anyhow!("Failed to parse provider configs: {e}"))
             .unwrap()
     })
 }

@@ -52,8 +52,7 @@ impl ForgeFetch {
                     };
                     if path.starts_with(&disallowed) {
                         return Err(anyhow!(
-                            "URL {} cannot be fetched due to robots.txt restrictions",
-                            url
+                            "URL {url} cannot be fetched due to robots.txt restrictions"
                         ));
                     }
                 }
@@ -70,7 +69,7 @@ impl ForgeFetch {
             .get(url.as_str())
             .send()
             .await
-            .map_err(|e| anyhow!("Failed to fetch URL {}: {}", url, e))?;
+            .map_err(|e| anyhow!("Failed to fetch URL {url}: {e}"))?;
         let code = response.status().as_u16();
 
         if !response.status().is_success() {
@@ -91,7 +90,7 @@ impl ForgeFetch {
         let page_raw = response
             .text()
             .await
-            .map_err(|e| anyhow!("Failed to read response content from {}: {}", url, e))?;
+            .map_err(|e| anyhow!("Failed to read response content from {url}: {e}"))?;
 
         let is_page_html = page_raw[..100.min(page_raw.len())].contains("<html")
             || content_type.contains("text/html")

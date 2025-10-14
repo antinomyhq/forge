@@ -50,16 +50,16 @@ impl DatabasePool {
             .max_size(1) // Single connection for in-memory testing
             .connection_timeout(Duration::from_secs(30))
             .build(manager)
-            .map_err(|e| anyhow::anyhow!("Failed to create in-memory connection pool: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to create in-memory connection pool: {e}"))?;
 
         // Run migrations on the in-memory database
         let mut connection = pool
             .get()
-            .map_err(|e| anyhow::anyhow!("Failed to get connection for migrations: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to get connection for migrations: {e}"))?;
 
         connection
             .run_pending_migrations(MIGRATIONS)
-            .map_err(|e| anyhow::anyhow!("Failed to run database migrations: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to run database migrations: {e}"))?;
 
         Ok(Self { pool })
     }
@@ -67,7 +67,7 @@ impl DatabasePool {
     pub fn get_connection(&self) -> Result<PooledSqliteConnection> {
         self.pool.get().map_err(|e| {
             warn!(error = %e, "Failed to get connection from pool");
-            anyhow::anyhow!("Failed to get connection from pool: {}", e)
+            anyhow::anyhow!("Failed to get connection from pool: {e}")
         })
     }
 }
@@ -124,17 +124,17 @@ impl TryFrom<PoolConfig> for DatabasePool {
 
         let pool = builder.build(manager).map_err(|e| {
             warn!(error = %e, "Failed to create connection pool");
-            anyhow::anyhow!("Failed to create connection pool: {}", e)
+            anyhow::anyhow!("Failed to create connection pool: {e}")
         })?;
 
         // Run migrations on a connection from the pool
         let mut connection = pool
             .get()
-            .map_err(|e| anyhow::anyhow!("Failed to get connection for migrations: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to get connection for migrations: {e}"))?;
 
         connection.run_pending_migrations(MIGRATIONS).map_err(|e| {
             warn!(error = %e, "Failed to run database migrations");
-            anyhow::anyhow!("Failed to run database migrations: {}", e)
+            anyhow::anyhow!("Failed to run database migrations: {e}")
         })?;
 
         debug!(database_path = %config.database_path.display(), "created connection pool");

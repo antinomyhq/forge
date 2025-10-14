@@ -178,7 +178,7 @@ mod tests {
         let paths = Attachment::parse_all(text);
         assert_eq!(paths.len(), 1);
 
-        let path_found = paths.iter().next().unwrap();
+        let path_found = paths.first().unwrap();
         assert_eq!(path_found.path, "/path/to/file.txt");
     }
 
@@ -188,7 +188,7 @@ mod tests {
         let paths = Attachment::parse_all(text);
         assert_eq!(paths.len(), 1);
 
-        let path_found = paths.iter().next().unwrap();
+        let path_found = paths.first().unwrap();
         assert_eq!(path_found.path, "/path/with spaces/file.txt");
     }
 
@@ -250,7 +250,7 @@ mod tests {
             loc: Some(Location { start: Some(10), end: Some(20) }),
             symbol: None,
         };
-        let actual = paths.iter().next().unwrap();
+        let actual = paths.first().unwrap();
         assert_eq!(actual, &expected);
     }
 
@@ -265,7 +265,7 @@ mod tests {
             loc: None,
             symbol: Some("my_function".to_string()),
         };
-        let actual = paths.iter().next().unwrap();
+        let actual = paths.first().unwrap();
         assert_eq!(actual, &expected);
     }
 
@@ -280,7 +280,7 @@ mod tests {
             loc: Some(Location { start: Some(5), end: Some(15) }),
             symbol: Some("main_function".to_string()),
         };
-        let actual = paths.iter().next().unwrap();
+        let actual = paths.first().unwrap();
         assert_eq!(actual, &expected);
     }
 
@@ -327,7 +327,7 @@ mod tests {
             loc: None,
             symbol: Some("function_with_underscore_123".to_string()),
         };
-        let actual = paths.iter().next().unwrap();
+        let actual = paths.first().unwrap();
         assert_eq!(actual, &expected);
     }
 
@@ -342,7 +342,7 @@ mod tests {
             loc: Some(Location { start: Some(0), end: Some(999999) }),
             symbol: None,
         };
-        let actual = paths.iter().next().unwrap();
+        let actual = paths.first().unwrap();
         assert_eq!(actual, &expected);
     }
 
@@ -357,7 +357,7 @@ mod tests {
             loc: Some(Location { start: Some(12), end: None }),
             symbol: Some("main()".to_string()),
         };
-        let actual = paths.iter().next().unwrap();
+        let actual = paths.first().unwrap();
         assert_eq!(actual, &expected);
     }
 
@@ -372,7 +372,7 @@ mod tests {
             loc: Some(Location { start: Some(12), end: None }),
             symbol: Some("main()".to_string()),
         };
-        let actual = paths.iter().next().unwrap();
+        let actual = paths.first().unwrap();
         assert_eq!(actual, &expected);
     }
 
@@ -387,7 +387,7 @@ mod tests {
             loc: Some(Location { start: Some(10), end: Some(20) }),
             symbol: None,
         };
-        let actual = paths.iter().next().unwrap();
+        let actual = paths.first().unwrap();
         assert_eq!(actual, &expected);
     }
 
@@ -398,7 +398,7 @@ mod tests {
         assert_eq!(paths.len(), 1);
 
         let expected = FileTag { path: "D:\\file.txt".to_string(), loc: None, symbol: None };
-        let actual = paths.iter().next().unwrap();
+        let actual = paths.first().unwrap();
         assert_eq!(actual, &expected);
     }
 
@@ -413,7 +413,7 @@ mod tests {
             loc: None,
             symbol: Some("function_name".to_string()),
         };
-        let actual = paths.iter().next().unwrap();
+        let actual = paths.first().unwrap();
         assert_eq!(actual, &expected);
     }
 
@@ -428,7 +428,7 @@ mod tests {
             loc: Some(Location { start: Some(42), end: None }),
             symbol: None,
         };
-        let actual = paths.iter().next().unwrap();
+        let actual = paths.first().unwrap();
         assert_eq!(actual, &expected);
     }
 
@@ -443,7 +443,7 @@ mod tests {
             loc: Some(Location { start: Some(5), end: Some(15) }),
             symbol: Some("test_function".to_string()),
         };
-        let actual = paths.iter().next().unwrap();
+        let actual = paths.first().unwrap();
         assert_eq!(actual, &expected);
     }
 
@@ -458,7 +458,7 @@ mod tests {
             loc: Some(Location { start: Some(25), end: Some(30) }),
             symbol: None,
         };
-        let actual = paths.iter().next().unwrap();
+        let actual = paths.first().unwrap();
         assert_eq!(actual, &expected);
     }
 
@@ -473,7 +473,7 @@ mod tests {
             loc: Some(Location { start: Some(100), end: None }),
             symbol: None,
         };
-        let actual = paths.iter().next().unwrap();
+        let actual = paths.first().unwrap();
         assert_eq!(actual, &expected);
     }
 
@@ -488,7 +488,7 @@ mod tests {
             loc: None,
             symbol: None,
         };
-        let actual = paths.iter().next().unwrap();
+        let actual = paths.first().unwrap();
         assert_eq!(actual, &expected);
     }
 
@@ -503,7 +503,7 @@ mod tests {
             loc: None,
             symbol: Some("main".to_string()),
         };
-        let actual = paths.iter().next().unwrap();
+        let actual = paths.first().unwrap();
         assert_eq!(actual, &expected);
     }
 
@@ -518,7 +518,7 @@ mod tests {
             loc: Some(Location { start: Some(10), end: None }),
             symbol: Some("setup_function".to_string()),
         };
-        let actual = paths.iter().next().unwrap();
+        let actual = paths.first().unwrap();
         assert_eq!(actual, &expected);
     }
 

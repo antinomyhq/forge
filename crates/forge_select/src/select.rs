@@ -391,7 +391,7 @@ mod tests {
 
     #[test]
     fn test_ansi_stripping() {
-        let options = vec!["\x1b[1mBold\x1b[0m", "\x1b[31mRed\x1b[0m"];
+        let options = ["\x1b[1mBold\x1b[0m", "\x1b[31mRed\x1b[0m"];
         let display: Vec<String> = options
             .iter()
             .map(|s| strip_ansi_codes(s).to_string())

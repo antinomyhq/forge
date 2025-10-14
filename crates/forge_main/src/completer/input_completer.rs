@@ -143,7 +143,7 @@ mod tests {
         let actual = completer.complete("@cfg", 4);
 
         // Should find config.rs and another_config.toml
-        assert!(actual.len() >= 1);
+        assert!(!actual.is_empty());
         let config_match = actual.iter().find(|s| s.value.contains("config.rs"));
         assert!(
             config_match.is_some(),
@@ -175,7 +175,7 @@ mod tests {
         // Test that literal matching still works for exact substrings
         let actual = completer.complete("@main", 5);
 
-        assert!(actual.len() >= 1);
+        assert!(!actual.is_empty());
         let main_match = actual.iter().find(|s| s.value.contains("main.rs"));
         assert!(
             main_match.is_some(),
@@ -190,7 +190,7 @@ mod tests {
         // Test dollar '$' at the end
         let actual = completer.complete("@main$", 6);
 
-        assert!(actual.len() >= 1);
+        assert!(!actual.is_empty());
         let match_found = actual.iter().find(|s| s.value.contains("main$"));
         assert!(
             match_found.is_some(),
@@ -205,7 +205,7 @@ mod tests {
         // Test dollar '$' at the start
         let actual = completer.complete("@$main", 6);
 
-        assert!(actual.len() >= 1);
+        assert!(!actual.is_empty());
         let match_found = actual.iter().find(|s| s.value.contains("$main"));
         assert!(
             match_found.is_some(),
@@ -220,7 +220,7 @@ mod tests {
         // Test dollar '$' in the middle
         let actual = completer.complete("@ma$in", 6);
 
-        assert!(actual.len() >= 1);
+        assert!(!actual.is_empty());
         let match_found = actual.iter().find(|s| s.value.contains("ma$in"));
         assert!(
             match_found.is_some(),
@@ -235,7 +235,7 @@ mod tests {
         // Test caret '^' at the start
         let actual = completer.complete("@^main", 6);
 
-        assert!(actual.len() >= 1);
+        assert!(!actual.is_empty());
         let match_found = actual.iter().find(|s| s.value.contains("^main"));
         assert!(
             match_found.is_some(),
@@ -250,7 +250,7 @@ mod tests {
         // Test caret '^' at the end
         let actual = completer.complete("@main^", 6);
 
-        assert!(actual.len() >= 1);
+        assert!(!actual.is_empty());
         let match_found = actual.iter().find(|s| s.value.contains("main^"));
         assert!(
             match_found.is_some(),
@@ -265,7 +265,7 @@ mod tests {
         // Test caret '^' in the middle
         let actual = completer.complete("@ma^in", 6);
 
-        assert!(actual.len() >= 1);
+        assert!(!actual.is_empty());
         let match_found = actual.iter().find(|s| s.value.contains("ma^in"));
         assert!(
             match_found.is_some(),
@@ -280,7 +280,7 @@ mod tests {
         // Test exclamation '!' at the start
         let actual = completer.complete("@!test", 6);
 
-        assert!(actual.len() >= 1);
+        assert!(!actual.is_empty());
         let match_found = actual.iter().find(|s| s.value.contains("!test"));
         assert!(
             match_found.is_some(),
@@ -295,7 +295,7 @@ mod tests {
         // Test exclamation '!' at the end
         let actual = completer.complete("@test!", 6);
 
-        assert!(actual.len() >= 1);
+        assert!(!actual.is_empty());
         let match_found = actual.iter().find(|s| s.value.contains("test!"));
         assert!(
             match_found.is_some(),
@@ -310,7 +310,7 @@ mod tests {
         // Test exclamation '!' in the middle
         let actual = completer.complete("@te!st", 6);
 
-        assert!(actual.len() >= 1);
+        assert!(!actual.is_empty());
         let match_found = actual.iter().find(|s| s.value.contains("te!st"));
         assert!(
             match_found.is_some(),
@@ -325,7 +325,7 @@ mod tests {
         // Test single quote '\'' at the start
         let actual = completer.complete("@'lib", 5);
 
-        assert!(actual.len() >= 1);
+        assert!(!actual.is_empty());
         let match_found = actual.iter().find(|s| s.value.contains("'lib"));
         assert!(
             match_found.is_some(),
@@ -340,7 +340,7 @@ mod tests {
         // Test single quote '\'' at the end
         let actual = completer.complete("@lib'", 5);
 
-        assert!(actual.len() >= 1);
+        assert!(!actual.is_empty());
         let match_found = actual.iter().find(|s| s.value.contains("lib'"));
         assert!(
             match_found.is_some(),
@@ -355,7 +355,7 @@ mod tests {
         // Test single quote '\'' in the middle
         let actual = completer.complete("@li'b", 5);
 
-        assert!(actual.len() >= 1);
+        assert!(!actual.is_empty());
         let match_found = actual.iter().find(|s| s.value.contains("li'b"));
         assert!(
             match_found.is_some(),

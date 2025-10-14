@@ -113,6 +113,57 @@ fn match_pattern<P: AsRef<Path>>(pattern: &str, target: P) -> bool {
     }
 }
 
+impl Display for WriteRule {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if let Some(wd) = &self.dir {
+            write!(f, "write '{}' in '{}'", self.write, wd)
+        } else {
+            write!(f, "write '{}'", self.write)
+        }
+    }
+}
+
+impl Display for ReadRule {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if let Some(wd) = &self.dir {
+            write!(f, "read '{}' in '{}'", self.read, wd)
+        } else {
+            write!(f, "read '{}'", self.read)
+        }
+    }
+}
+
+impl Display for ExecuteRule {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if let Some(wd) = &self.dir {
+            write!(f, "execute '{}' in '{}'", self.command, wd)
+        } else {
+            write!(f, "execute '{}'", self.command)
+        }
+    }
+}
+
+impl Display for Fetch {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if let Some(wd) = &self.dir {
+            write!(f, "fetch '{}' in '{}'", self.url, wd)
+        } else {
+            write!(f, "fetch '{}'", self.url)
+        }
+    }
+}
+
+impl Display for Rule {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Rule::Write(rule) => write!(f, "{rule}"),
+            Rule::Read(rule) => write!(f, "{rule}"),
+            Rule::Execute(rule) => write!(f, "{rule}"),
+            Rule::Fetch(rule) => write!(f, "{rule}"),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -277,56 +328,5 @@ mod tests {
         let actual = fixture.matches(&operation);
 
         assert_eq!(actual, true);
-    }
-}
-
-impl Display for WriteRule {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if let Some(wd) = &self.dir {
-            write!(f, "write '{}' in '{}'", self.write, wd)
-        } else {
-            write!(f, "write '{}'", self.write)
-        }
-    }
-}
-
-impl Display for ReadRule {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if let Some(wd) = &self.dir {
-            write!(f, "read '{}' in '{}'", self.read, wd)
-        } else {
-            write!(f, "read '{}'", self.read)
-        }
-    }
-}
-
-impl Display for ExecuteRule {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if let Some(wd) = &self.dir {
-            write!(f, "execute '{}' in '{}'", self.command, wd)
-        } else {
-            write!(f, "execute '{}'", self.command)
-        }
-    }
-}
-
-impl Display for Fetch {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if let Some(wd) = &self.dir {
-            write!(f, "fetch '{}' in '{}'", self.url, wd)
-        } else {
-            write!(f, "fetch '{}'", self.url)
-        }
-    }
-}
-
-impl Display for Rule {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Rule::Write(rule) => write!(f, "{rule}"),
-            Rule::Read(rule) => write!(f, "{rule}"),
-            Rule::Execute(rule) => write!(f, "{rule}"),
-            Rule::Fetch(rule) => write!(f, "{rule}"),
-        }
     }
 }
