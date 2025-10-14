@@ -4,6 +4,13 @@
   "description": "Configuration for a workflow that contains all settings required to initialize a workflow.",
   "type": "object",
   "properties": {
+    "commands": {
+      "description": "Commands that can be used to interact with the workflow",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Command"
+      }
+    },
     "compact": {
       "description": "Configuration for automatic context compaction for all agents If specified, this will be applied to all agents in the workflow If not specified, each agent's individual setting will be used",
       "anyOf": [
@@ -52,7 +59,7 @@
       "minimum": 0.0
     },
     "max_walker_depth": {
-      "description": "Commands that can be used to interact with the workflow Maximum depth to which the file walker should traverse for all agents If not provided, each agent's individual setting will be used",
+      "description": "Maximum depth to which the file walker should traverse for all agents If not provided, each agent's individual setting will be used",
       "type": [
         "integer",
         "null"
@@ -120,6 +127,27 @@
     }
   },
   "definitions": {
+    "Command": {
+      "type": "object",
+      "required": [
+        "description",
+        "name"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
     "Compact": {
       "description": "Configuration for automatic context compaction",
       "type": "object",
