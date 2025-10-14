@@ -21,7 +21,7 @@ use tokio_stream::StreamExt;
 use tracing::debug;
 
 use crate::cli::{Cli, ExtensionCommand, ListCommand, McpCommand, SessionCommand, TopLevelCommand};
-use crate::cli_format::format_columns;
+use crate::cli_format::{ToRow, format_columns};
 use crate::config::ConfigManager;
 use crate::conversation_selector::ConversationSelector;
 use crate::env::{get_agent_from_env, get_conversation_id_from_env};
@@ -356,11 +356,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     self.writeln_title(TitleFormat::info("MCP reloaded"))?;
                 }
             },
-            TopLevelCommand::Info => {
+            TopLevelCommand::Info { porcelain } => {
                 // Make sure to init model
                 self.on_new().await?;
 
-                self.on_info().await?;
+                self.on_info(porcelain).await?;
                 return Ok(());
             }
             TopLevelCommand::Banner => {
@@ -675,7 +675,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn on_info(&mut self) -> anyhow::Result<()> {
+    async fn on_info(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let mut info = Info::from(&self.api.environment());
 
         // Fetch conversation if ID is available
@@ -724,7 +724,24 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             info = info.extend(Info::from(&login_info));
         }
 
-        self.writeln(info)?;
+        if porcelain {
+            use crate::cli_format::format_columns;
+            // Use ToRow to extract key-value pairs, then convert to individual rows
+            let flat_row = info.to_row();
+            let rows: Vec<(String, String)> = flat_row
+                .chunks(2)
+                .filter_map(|chunk| {
+                    if chunk.len() == 2 {
+                        Some((chunk[0].clone(), chunk[1].clone()))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            format_columns(rows);
+        } else {
+            self.writeln(info)?;
+        }
 
         Ok(())
     }
@@ -813,7 +830,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_new().await?;
             }
             Command::Info => {
-                self.on_info().await?;
+                self.on_info(false).await?;
             }
             Command::Usage => {
                 self.on_usage().await?;

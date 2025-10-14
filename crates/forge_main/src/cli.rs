@@ -79,7 +79,11 @@ pub enum TopLevelCommand {
     Banner,
 
     /// Show current configuration, active model, and environment status
-    Info,
+    Info {
+        /// Output in machine-readable format (porcelain)
+        #[arg(long)]
+        porcelain: bool,
+    },
 
     /// Configuration management commands
     Config(ConfigCommandGroup),
@@ -600,5 +604,27 @@ mod tests {
             _ => false,
         };
         assert_eq!(is_session_list, true);
+    }
+
+    #[test]
+    fn test_info_command_without_porcelain() {
+        let fixture = Cli::parse_from(["forge", "info"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Info { porcelain }) => porcelain,
+            _ => true,
+        };
+        let expected = false;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_info_command_with_porcelain() {
+        let fixture = Cli::parse_from(["forge", "info", "--porcelain"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Info { porcelain }) => porcelain,
+            _ => false,
+        };
+        let expected = true;
+        assert_eq!(actual, expected);
     }
 }

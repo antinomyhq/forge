@@ -8,6 +8,7 @@ use forge_app::utils::truncate_key;
 use forge_tracker::VERSION;
 use num_format::{Locale, ToFormattedString};
 
+use crate::cli_format::ToRow;
 use crate::model::ForgeCommandManager;
 
 #[derive(Debug, PartialEq)]
@@ -396,6 +397,29 @@ impl From<&Conversation> for Info {
     }
 }
 
+impl ToRow for Info {
+    fn to_row(self) -> Vec<String> {
+        let mut row = Vec::new();
+
+        for section in self.sections {
+            match section {
+                Section::Title(_) => {
+                    // Skip title sections as they serve as visual separators
+                    continue;
+                }
+                Section::Items(key, value) => {
+                    // Add the key
+                    row.push(key);
+                    // Add the value or empty string if None
+                    row.push(value.unwrap_or_default());
+                }
+            }
+        }
+
+        row
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -403,6 +427,9 @@ mod tests {
     use chrono::Utc;
     use forge_api::Environment;
     use pretty_assertions::assert_eq;
+
+    use super::*;
+    use crate::info::Info;
 
     // Helper to create minimal test environment
     fn create_env(os: &str, home: Option<&str>) -> Environment {
@@ -654,5 +681,170 @@ mod tests {
         assert!(expected_display.contains("CONVERSATION"));
         assert!(!expected_display.contains("Title:"));
         assert!(expected_display.contains(&conversation_id.to_string()));
+    }
+
+    #[test]
+    fn test_to_row_empty_info() {
+        let fixture = Info::new();
+        let actual = fixture.to_row();
+        let expected: Vec<String> = Vec::new();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_to_row_only_titles() {
+        let fixture = Info::new().add_title("TITLE1").add_title("TITLE2");
+        let actual = fixture.to_row();
+        let expected: Vec<String> = Vec::new();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_to_row_items_with_values() {
+        let fixture = Info::new()
+            .add_key_value("Key1", "Value1")
+            .add_key_value("Key2", "Value2");
+        let actual = fixture.to_row();
+        let expected = vec!["Key1", "Value1", "Key2", "Value2"];
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_to_row_items_without_values() {
+        let fixture = Info::new().add_key("Key1").add_key("Key2");
+        let actual = fixture.to_row();
+        let expected = vec!["Key1", "", "Key2", ""];
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_to_row_mixed_content() {
+        let fixture = Info::new()
+            .add_title("TITLE1")
+            .add_key_value("Key1", "Value1")
+            .add_title("TITLE2")
+            .add_key("Key2")
+            .add_key_value("Key3", "Value3");
+        let actual = fixture.to_row();
+        let expected = vec!["Key1", "Value1", "Key2", "", "Key3", "Value3"];
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_to_row_complex_usage_pattern() {
+        // Simulate the Environment Info pattern
+        let fixture = Info::new()
+            .add_title("PATHS")
+            .add_key_value("Logs", "/path/to/logs")
+            .add_key_value("Agents", "/path/to/agents")
+            .add_title("ENVIRONMENT")
+            .add_key_value("Version", "1.0.0")
+            .add_key_value("Shell", "bash");
+        let actual = fixture.to_row();
+        let expected = vec![
+            "Logs",
+            "/path/to/logs",
+            "Agents",
+            "/path/to/agents",
+            "Version",
+            "1.0.0",
+            "Shell",
+            "bash",
+        ];
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_to_row_with_special_characters() {
+        let fixture = Info::new()
+            .add_key_value("Key with spaces", "Value with spaces")
+            .add_key_value("Key-with-dashes", "Value-with-dashes")
+            .add_key_value("Key_with_underscores", "Value_with_underscores");
+        let actual = fixture.to_row();
+        let expected = vec![
+            "Key with spaces",
+            "Value with spaces",
+            "Key-with-dashes",
+            "Value-with-dashes",
+            "Key_with_underscores",
+            "Value_with_underscores",
+        ];
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_to_row_empty_strings() {
+        let fixture = Info::new().add_key_value("", "").add_key("EmptyKey");
+        let actual = fixture.to_row();
+        let expected = vec!["", "", "EmptyKey", ""];
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_info_to_row_integration_with_format_columns() {
+        use crate::cli_format::format_columns;
+
+        // Create an Info struct with typical content
+        let info = Info::new()
+            .add_title("PATHS")
+            .add_key_value("Logs", "/path/to/logs")
+            .add_key_value("Agents", "/path/to/agents")
+            .add_title("ENVIRONMENT")
+            .add_key_value("Version", "1.0.0")
+            .add_key_value("Shell", "bash");
+
+        // Convert to row and verify the structure
+        let row = info.to_row();
+        assert_eq!(
+            row,
+            vec![
+                "Logs",
+                "/path/to/logs",
+                "Agents",
+                "/path/to/agents",
+                "Version",
+                "1.0.0",
+                "Shell",
+                "bash"
+            ]
+        );
+
+        // Test that it works with format_columns (should not panic)
+        let infos = vec![
+            Info::new()
+                .add_key_value("Setting1", "Value1")
+                .add_key_value("Setting2", "Value2"),
+            Info::new()
+                .add_key_value("Config1", "Option1")
+                .add_key_value("Config2", "Option2"),
+        ];
+
+        // This should work without panicking
+        format_columns(infos);
+    }
+
+    #[test]
+    fn test_empty_info_with_format_columns() {
+        use crate::cli_format::format_columns;
+        let empty_infos = vec![Info::new(), Info::new()];
+        // Should not panic with empty info structs
+        format_columns(empty_infos);
+    }
+
+    #[test]
+    fn test_mixed_info_with_format_columns() {
+        use crate::cli_format::format_columns;
+        let infos = vec![
+            Info::new()
+                .add_title("TITLE")
+                .add_key_value("Key1", "Value1")
+                .add_key_value("Key2", "Value2"), // Ensure consistent column count
+            Info::new()
+                .add_key_value("Key3", "Value3") // Ensure consistent column count
+                .add_key_value("Key4", "Value4"),
+        ];
+
+        // Should not panic and handle mixed content correctly
+        format_columns(infos);
     }
 }
