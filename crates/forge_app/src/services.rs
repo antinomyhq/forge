@@ -363,7 +363,7 @@ pub trait ProviderRegistry: Send + Sync {
 #[async_trait::async_trait]
 pub trait AgentLoaderService: Send + Sync {
     /// Load all agent definitions from the forge/agent directory
-    async fn get_agents(&self) -> anyhow::Result<Vec<Agent>>;    
+    async fn get_agents(&self) -> anyhow::Result<Vec<Agent>>;
 }
 
 #[async_trait::async_trait]
