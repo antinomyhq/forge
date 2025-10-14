@@ -83,15 +83,13 @@ impl ForgeMcpClient {
                     .stdout(std::process::Stdio::piped())
                     .stderr(std::process::Stdio::piped())
                     .kill_on_drop(true);
-                
+
                 // Use builder pattern to capture and ignore stderr to silence MCP logs
                 let (transport, _stderr) = TokioChildProcess::builder(cmd)
                     .stderr(std::process::Stdio::piped())
                     .spawn()?;
-                
-                self.client_info()
-                    .serve(transport)
-                    .await?
+
+                self.client_info().serve(transport).await?
             }
             McpServerConfig::Sse(sse) => {
                 let transport = SseClientTransport::start(sse.url.clone()).await?;
