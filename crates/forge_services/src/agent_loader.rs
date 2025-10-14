@@ -81,6 +81,21 @@ impl<
             Ok(None)
         }
     }
+
+    async fn get_active_agent_id(&self) -> anyhow::Result<Option<forge_app::domain::AgentId>> {
+        let app_config = self.infra.get_app_config().await?;
+        Ok(app_config.agent)
+    }
+
+    async fn set_active_agent_id(
+        &self,
+        agent_id: forge_app::domain::AgentId,
+    ) -> anyhow::Result<()> {
+        let mut config = self.infra.get_app_config().await?;
+        config.agent = Some(agent_id);
+        self.infra.set_app_config(&config).await?;
+        Ok(())
+    }
 }
 
 impl<

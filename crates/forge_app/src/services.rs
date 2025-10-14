@@ -355,8 +355,6 @@ pub trait ProviderRegistry: Send + Sync {
     async fn get_active_model(&self, provider_id: &ProviderId) -> anyhow::Result<ModelId>;
     async fn set_active_model(&self, model: ModelId, provider_id: ProviderId)
     -> anyhow::Result<()>;
-    async fn get_active_agent_id(&self) -> anyhow::Result<Option<AgentId>>;
-    async fn set_active_agent_id(&self, agent_id: AgentId) -> anyhow::Result<()>;
     async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider>;
 }
 
@@ -367,6 +365,12 @@ pub trait AgentRegistry: Send + Sync {
 
     /// Get the currently active agent
     async fn get_active_agent(&self) -> anyhow::Result<Option<Agent>>;
+
+    /// Get the active agent ID
+    async fn get_active_agent_id(&self) -> anyhow::Result<Option<AgentId>>;
+
+    /// Set the active agent ID
+    async fn set_active_agent_id(&self, agent_id: AgentId) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -730,14 +734,6 @@ impl<I: Services> ProviderRegistry for I {
             .await
     }
 
-    async fn get_active_agent_id(&self) -> anyhow::Result<Option<AgentId>> {
-        self.provider_registry().get_active_agent_id().await
-    }
-
-    async fn set_active_agent_id(&self, agent_id: AgentId) -> anyhow::Result<()> {
-        self.provider_registry().set_active_agent_id(agent_id).await
-    }
-
     async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider> {
         self.provider_registry().get_provider(id).await
     }
@@ -794,6 +790,16 @@ impl<I: Services> AgentRegistry for I {
 
     async fn get_active_agent(&self) -> anyhow::Result<Option<Agent>> {
         self.agent_loader_service().get_active_agent().await
+    }
+
+    async fn get_active_agent_id(&self) -> anyhow::Result<Option<AgentId>> {
+        self.agent_loader_service().get_active_agent_id().await
+    }
+
+    async fn set_active_agent_id(&self, agent_id: AgentId) -> anyhow::Result<()> {
+        self.agent_loader_service()
+            .set_active_agent_id(agent_id)
+            .await
     }
 }
 

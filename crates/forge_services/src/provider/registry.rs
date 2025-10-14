@@ -1,7 +1,7 @@
 use std::sync::{Arc, OnceLock};
 
 use forge_app::ProviderRegistry;
-use forge_app::domain::{AgentId, ModelId, Provider, ProviderId, ProviderResponse};
+use forge_app::domain::{ModelId, Provider, ProviderId, ProviderResponse};
 use handlebars::Handlebars;
 use serde::Deserialize;
 use tokio::sync::OnceCell;
@@ -196,18 +196,6 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
     ) -> anyhow::Result<()> {
         self.update(|config| {
             config.model.insert(provider_id, model.clone());
-        })
-        .await
-    }
-
-    async fn get_active_agent_id(&self) -> anyhow::Result<Option<AgentId>> {
-        let app_config = self.infra.get_app_config().await?;
-        Ok(app_config.agent)
-    }
-
-    async fn set_active_agent_id(&self, agent_id: AgentId) -> anyhow::Result<()> {
-        self.update(|config| {
-            config.agent = Some(agent_id);
         })
         .await
     }
