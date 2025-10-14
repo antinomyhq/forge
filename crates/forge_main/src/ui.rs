@@ -11,7 +11,7 @@ use forge_api::{
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
 use forge_display::MarkdownFormat;
-use forge_domain::{ChatResponseContent, McpConfig, Scope, TitleFormat};
+use forge_domain::{ChatResponseContent, TitleFormat};
 use forge_fs::ForgeFS;
 use forge_select::ForgeSelect;
 use forge_spinner::SpinnerManager;
@@ -1459,14 +1459,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let conversation_id = self.init_conversation().await?;
         let chat = ChatRequest::new(event, conversation_id);
         self.on_chat(chat).await
-    }
-
-    async fn update_mcp_config(&self, scope: &Scope, f: impl FnOnce(&mut McpConfig)) -> Result<()> {
-        let mut config = self.api.read_mcp_config(None).await?;
-        f(&mut config);
-        self.api.write_mcp_config(scope, &config).await?;
-
-        Ok(())
     }
 
     async fn on_usage(&mut self) -> anyhow::Result<()> {
