@@ -911,28 +911,28 @@ mod tests {
     }
 
     #[test]
-    fn test_mixed_info_with_format_columns() {
-        #[test]
-        fn test_to_rows_with_subtitle() {
-            let fixture = Info::new()
-                .add_key_value_subtitle("Key1", "Value1", "Subtitle1")
-                .add_key_value_subtitle("Key2", "Value2", "Subtitle2");
-            let actual = fixture.to_rows();
-            let expected = InfoRows::ThreeColumn(vec![
-                (
-                    "Key1".to_string(),
-                    "Value1".to_string(),
-                    "Subtitle1".to_string(),
-                ),
-                (
-                    "Key2".to_string(),
-                    "Value2".to_string(),
-                    "Subtitle2".to_string(),
-                ),
-            ]);
-            assert_eq!(actual, expected);
-        }
+    fn test_to_rows_with_subtitle() {
+        let fixture = Info::new()
+            .add_key_value_subtitle("Key1", "Value1", "Subtitle1")
+            .add_key_value_subtitle("Key2", "Value2", "Subtitle2");
+        let actual = fixture.to_rows();
+        let expected = InfoRows::ThreeColumn(vec![
+            (
+                "Key1".to_string(),
+                "Value1".to_string(),
+                "Subtitle1".to_string(),
+            ),
+            (
+                "Key2".to_string(),
+                "Value2".to_string(),
+                "Subtitle2".to_string(),
+            ),
+        ]);
+        assert_eq!(actual, expected);
+    }
 
+    #[test]
+    fn test_mixed_info_with_format_columns() {
         use crate::cli_format::format_columns;
         let info1 = Info::new()
             .add_title("TITLE")

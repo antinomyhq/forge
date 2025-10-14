@@ -667,29 +667,29 @@ mod tests {
     }
 
     #[test]
+    fn test_mcp_list_with_porcelain() {
+        let fixture = Cli::parse_from(["forge", "mcp", "list", "--porcelain"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Mcp(mcp)) => mcp.porcelain,
+            _ => false,
+        };
+        let expected = true;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_session_list_with_porcelain() {
+        let fixture = Cli::parse_from(["forge", "session", "list", "--porcelain"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Session(session)) => session.porcelain,
+            _ => false,
+        };
+        let expected = true;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
     fn test_list_models_with_porcelain() {
-        #[test]
-        fn test_mcp_list_with_porcelain() {
-            let fixture = Cli::parse_from(["forge", "mcp", "list", "--porcelain"]);
-            let actual = match fixture.subcommands {
-                Some(TopLevelCommand::Mcp(mcp)) => mcp.porcelain,
-                _ => false,
-            };
-            let expected = true;
-            assert_eq!(actual, expected);
-        }
-
-        #[test]
-        fn test_session_list_with_porcelain() {
-            let fixture = Cli::parse_from(["forge", "session", "list", "--porcelain"]);
-            let actual = match fixture.subcommands {
-                Some(TopLevelCommand::Session(session)) => session.porcelain,
-                _ => false,
-            };
-            let expected = true;
-            assert_eq!(actual, expected);
-        }
-
         let fixture = Cli::parse_from(["forge", "list", "models", "--porcelain"]);
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::List(list)) => list.porcelain,
