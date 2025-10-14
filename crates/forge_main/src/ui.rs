@@ -278,6 +278,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     ListCommand::Mcp => {
                         self.on_show_mcp_servers().await?;
                     }
+                    ListCommand::Session => {
+                        self.on_show_conversations().await?;
+                    }
                 }
                 return Ok(());
             }

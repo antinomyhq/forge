@@ -136,6 +136,11 @@ pub enum ListCommand {
     ///
     /// Example: forge list mcp
     Mcp,
+
+    /// List all conversations (sessions)
+    ///
+    /// Example: forge list session
+    Session,
 }
 
 /// Group of extension-related commands
@@ -585,5 +590,15 @@ mod tests {
         };
         let expected = AgentId::new("sage");
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_list_session_command() {
+        let fixture = Cli::parse_from(["forge", "list", "session"]);
+        let is_session_list = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => matches!(list.command, ListCommand::Session),
+            _ => false,
+        };
+        assert_eq!(is_session_list, true);
     }
 }
