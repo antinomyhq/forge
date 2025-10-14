@@ -309,7 +309,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                     // Log each added server after successful write
                     for server_name in added_servers {
-                        self.writeln_title(TitleFormat::info(format!("Added MCP server '{server_name}'")))?;
+                        self.writeln_title(TitleFormat::info(format!(
+                            "Added MCP server '{server_name}'"
+                        )))?;
                     }
                 }
                 McpCommand::List => {
