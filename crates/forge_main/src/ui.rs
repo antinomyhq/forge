@@ -20,13 +20,11 @@ use merge::Merge;
 use tokio_stream::StreamExt;
 use tracing::debug;
 
-use crate::cli::{
-    Cli, ExtensionCommand, ListCommand, McpCommand, SessionCommand, TopLevelCommand, Transport,
-};
+use crate::cli::{Cli, ExtensionCommand, ListCommand, McpCommand, SessionCommand, TopLevelCommand};
 use crate::cli_format::format_columns;
 use crate::config::ConfigManager;
 use crate::conversation_selector::ConversationSelector;
-use crate::env::{get_agent_from_env, get_conversation_id_from_env, parse_env};
+use crate::env::{get_agent_from_env, get_conversation_id_from_env};
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{CliModel, CliProvider, Command, ForgeCommandManager, PartialEvent};
@@ -287,42 +285,35 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
 
             TopLevelCommand::Mcp(mcp_command) => match mcp_command.command {
-                McpCommand::Add(add) => {
-                    let name = add.name;
-                    let scope: forge_domain::Scope = add.scope.into();
+                McpCommand::Import(import_args) => {
+                    let scope: forge_domain::Scope = import_args.scope.into();
 
-                    // Create the appropriate server type based on input
-                    let server = if let Some(json_str) = add.json {
-                        // Parse JSON configuration
-                        serde_json::from_str::<forge_domain::McpServerConfig>(json_str.as_str())
-                            .context("Failed to parse JSON")?
-                    } else {
-                        // Create server from command_or_url and args
-                        let command_or_url = add.command_or_url.ok_or_else(|| {
-                            anyhow::anyhow!("Either --json or command_or_url is required")
-                        })?;
+                    // Parse the incoming MCP configuration
+                    let incoming_config: forge_domain::McpConfig = serde_json::from_str(&import_args.json)
+                        .context("Failed to parse MCP configuration JSON. Expected format: {\"mcpServers\": {...}}")?;
 
-                        match add.transport {
-                            Transport::Stdio => forge_domain::McpServerConfig::new_stdio(
-                                command_or_url.clone(),
-                                add.args.clone(),
-                                Some(parse_env(add.env.clone())),
-                            ),
-                            Transport::Sse => {
-                                forge_domain::McpServerConfig::new_sse(command_or_url.clone())
-                            }
-                        }
-                    };
+                    // Read only the scope-specific config (not merged)
+                    let mut scope_config = self.api.read_mcp_config(Some(&scope)).await?;
 
-                    self.update_mcp_config(&scope, |config| {
-                        config.mcp_servers.insert(name.to_string().into(), server);
-                    })
-                    .await?;
+                    // Merge the incoming servers with scope-specific config only
+                    let mut added_servers = Vec::new();
+                    for (server_name, server_config) in incoming_config.mcp_servers {
+                        scope_config
+                            .mcp_servers
+                            .insert(server_name.clone(), server_config);
+                        added_servers.push(server_name);
+                    }
 
-                    self.writeln_title(TitleFormat::info(format!("Added MCP server '{name}'")))?;
+                    // Write back to the specific scope only
+                    self.api.write_mcp_config(&scope, &scope_config).await?;
+
+                    // Log each added server after successful write
+                    for server_name in added_servers {
+                        self.writeln_title(TitleFormat::info(format!("Added MCP server '{server_name}'")))?;
+                    }
                 }
                 McpCommand::List => {
-                    let mcp_servers = self.api.read_mcp_config().await?;
+                    let mcp_servers = self.api.read_mcp_config(None).await?;
                     if mcp_servers.is_empty() {
                         self.writeln_title(TitleFormat::error("No MCP servers found"))?;
                     }
@@ -337,16 +328,20 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     let name = forge_api::ServerName::from(rm.name);
                     let scope: forge_domain::Scope = rm.scope.into();
 
-                    self.update_mcp_config(&scope, |config| {
-                        config.mcp_servers.remove(&name);
-                    })
-                    .await?;
+                    // Read only the scope-specific config (not merged)
+                    let mut scope_config = self.api.read_mcp_config(Some(&scope)).await?;
+
+                    // Remove the server from scope-specific config only
+                    scope_config.mcp_servers.remove(&name);
+
+                    // Write back to the specific scope only
+                    self.api.write_mcp_config(&scope, &scope_config).await?;
 
                     self.writeln_title(TitleFormat::info(format!("Removed server: {name}")))?;
                 }
                 McpCommand::Show(val) => {
                     let name = forge_api::ServerName::from(val.name);
-                    let config = self.api.read_mcp_config().await?;
+                    let config = self.api.read_mcp_config(None).await?;
                     let server = config
                         .mcp_servers
                         .get(&name)
@@ -1465,7 +1460,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn update_mcp_config(&self, scope: &Scope, f: impl FnOnce(&mut McpConfig)) -> Result<()> {
-        let mut config = self.api.read_mcp_config().await?;
+        let mut config = self.api.read_mcp_config(None).await?;
         f(&mut config);
         self.api.write_mcp_config(scope, &config).await?;
 

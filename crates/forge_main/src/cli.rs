@@ -152,8 +152,8 @@ pub struct McpCommandGroup {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum McpCommand {
-    /// Add a server
-    Add(McpAddArgs),
+    /// Import MCP servers configuration from JSON
+    Import(McpImportArgs),
 
     /// List servers
     List,
@@ -169,34 +169,14 @@ pub enum McpCommand {
 }
 
 #[derive(Parser, Debug, Clone)]
-pub struct McpAddArgs {
-    /// Configuration scope (local, user, or project)
+pub struct McpImportArgs {
+    /// The JSON configuration to import
+    #[arg()]
+    pub json: String,
+
+    /// Configuration scope (local or user)
     #[arg(short = 's', long = "scope", default_value = "local")]
     pub scope: Scope,
-
-    /// Transport type (stdio or sse)
-    #[arg(short = 't', long = "transport", default_value = "stdio")]
-    pub transport: Transport,
-
-    /// Environment variables, e.g. -e KEY=value
-    #[arg(short = 'e', long = "env")]
-    pub env: Vec<String>,
-
-    /// Name of the server
-    pub name: String,
-
-    /// JSON string containing full server configuration
-    /// When provided, other options (command_or_url, args) are ignored
-    #[arg(long, conflicts_with_all = &["command_or_url", "args"])]
-    pub json: Option<String>,
-
-    /// URL or command for the MCP server
-    #[arg(required_unless_present = "json")]
-    pub command_or_url: Option<String>,
-
-    /// Additional arguments to pass to the server
-    #[arg(short = 'a', long = "args")]
-    pub args: Vec<String>,
 }
 
 #[derive(Parser, Debug, Clone)]
