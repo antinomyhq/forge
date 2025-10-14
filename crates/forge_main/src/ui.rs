@@ -24,7 +24,9 @@ use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
 use crate::cli_format::format_columns;
 use crate::config::ConfigManager;
 use crate::conversation_selector::ConversationSelector;
-use crate::env::{get_agent_from_env, get_conversation_id_from_env, parse_env};
+use crate::env::{
+    get_agent_from_env, get_conversation_id_from_env, parse_env, should_show_completion_prompt,
+};
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{CliModel, CliProvider, Command, ForgeCommandManager, PartialEvent};
@@ -1439,8 +1441,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         self.spinner.stop(None)?;
 
-        // Only prompt for new conversation if in interactive mode
-        if self.cli.is_interactive() {
+        // Only prompt for new conversation if in interactive mode and prompt is enabled
+        if self.cli.is_interactive() && should_show_completion_prompt() {
             let prompt_text = "Start a new conversation?";
             let should_start_new_chat = ForgeSelect::confirm(prompt_text)
                 // Pressing ENTER should start new
