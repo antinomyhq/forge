@@ -251,6 +251,10 @@ pub struct ConfigCommandGroup {
     /// Subcommands under `config`
     #[command(subcommand)]
     pub command: ConfigCommand,
+
+    /// Output in machine-readable format (tab-separated key-value pairs)
+    #[arg(long, global = true)]
+    pub porcelain: bool,
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -689,6 +693,17 @@ mod tests {
         let fixture = Cli::parse_from(["forge", "list", "models", "--porcelain"]);
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::List(list)) => list.porcelain,
+            _ => false,
+        };
+        let expected = true;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_config_list_with_porcelain() {
+        let fixture = Cli::parse_from(["forge", "config", "list", "--porcelain"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Config(config)) => config.porcelain,
             _ => false,
         };
         let expected = true;

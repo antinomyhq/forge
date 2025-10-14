@@ -370,7 +370,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             TopLevelCommand::Config(config_group) => {
                 let config_manager = ConfigManager::new(self.api.clone());
                 config_manager
-                    .handle_command(config_group.command.clone())
+                    .handle_command(config_group.command.clone(), config_group.porcelain)
                     .await?;
                 return Ok(());
             }
