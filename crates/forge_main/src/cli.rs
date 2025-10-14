@@ -128,6 +128,9 @@ pub enum TopLevelCommand {
 
     /// Session management commands (dump, retry, resume, list)
     Session(SessionCommandGroup),
+
+    /// Generate and optionally commit changes with AI-generated message
+    Commit(CommitCommandGroup),
 }
 
 /// Group of MCP-related commands
@@ -329,6 +332,14 @@ pub enum SessionCommand {
 pub struct SessionDumpArgs {
     /// Output format: "html" for HTML, omit for JSON (default)
     pub format: Option<String>,
+}
+
+/// Group of Commit-related commands
+#[derive(Parser, Debug, Clone)]
+pub struct CommitCommandGroup {
+    /// Preview the commit message without committing
+    #[arg(long)]
+    pub preview: bool,
 }
 
 #[cfg(test)]
@@ -608,6 +619,28 @@ mod tests {
             _ => AgentId::default(),
         };
         let expected = AgentId::new("sage");
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_commit_without_preview() {
+        let fixture = Cli::parse_from(["forge", "commit"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Commit(commit)) => commit.preview,
+            _ => true,
+        };
+        let expected = false;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_commit_with_preview() {
+        let fixture = Cli::parse_from(["forge", "commit", "--preview"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Commit(commit)) => commit.preview,
+            _ => false,
+        };
+        let expected = true;
         assert_eq!(actual, expected);
     }
 }

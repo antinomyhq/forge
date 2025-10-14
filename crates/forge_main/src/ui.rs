@@ -22,6 +22,7 @@ use tracing::debug;
 
 use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
 use crate::cli_format::format_columns;
+use crate::commit::CommitHandler;
 use crate::config::ConfigManager;
 use crate::conversation_selector::ConversationSelector;
 use crate::env::{get_agent_from_env, get_conversation_id_from_env, parse_env};
@@ -387,6 +388,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.handle_session_command(session_group).await?;
                 return Ok(());
             }
+
+            TopLevelCommand::Commit(commit_group) => {
+                self.handle_commit_command(commit_group).await?;
+                return Ok(());
+            }
         }
         Ok(())
     }
@@ -478,6 +484,39 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 "Conversation '{}' not found. Use 'forge session list' to see available conversations.",
                 conversation_id
             );
+        }
+
+        Ok(())
+    }
+
+    async fn handle_commit_command(
+        &mut self,
+        commit_group: crate::cli::CommitCommandGroup,
+    ) -> anyhow::Result<()> {
+        // Start spinner
+        if commit_group.preview {
+            self.spinner.start(Some("Generating commit message"))?;
+        } else {
+            self.spinner.start(Some("Generating and committing"))?;
+        }
+        // Handle the commit command
+        match CommitHandler::new(self.api.clone())
+            .handle(commit_group.clone())
+            .await
+        {
+            Ok(message) => {
+                self.spinner.stop(None)?;
+                if commit_group.preview {
+                    self.writeln_title(TitleFormat::info("Generated commit message:"))?;
+                    self.writeln(&message)?;
+                } else {
+                    self.writeln_title(TitleFormat::info("changes committed."))?;
+                }
+            }
+            Err(e) => {
+                self.spinner.stop(None)?;
+                return Err(e);
+            }
         }
 
         Ok(())

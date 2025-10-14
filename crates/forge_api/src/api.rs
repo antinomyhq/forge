@@ -81,6 +81,7 @@ pub trait API: Sync + Send {
         &self,
         command: &str,
         working_dir: PathBuf,
+        silent: bool,
     ) -> Result<CommandOutput>;
 
     /// Executes the shell command on present stdio.
