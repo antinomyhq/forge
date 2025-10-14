@@ -471,6 +471,7 @@ FORGE_MAX_SEARCH_RESULT_BYTES=101024   # Maximum bytes for search results (defau
 FORGE_HISTORY_FILE=/path/to/history    # Custom path for Forge history file (default: uses system default location)
 FORGE_BANNER="Your custom banner text" # Custom banner text to display on startup (default: Forge ASCII art)
 FORGE_SHOW_COMPLETION_PROMPT=true      # Show completion prompt after task completion (default: true)
+FORGE_MAX_CONVERSATIONS=100            # Maximum number of conversations to show in list (default: 100)
 SHELL=/bin/zsh                         # Shell to use for command execution (Unix/Linux/macOS)
 COMSPEC=cmd.exe                        # Command processor to use (Windows)
 ```
