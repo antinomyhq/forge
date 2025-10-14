@@ -275,6 +275,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     ListCommand::Tools { agent } => {
                         self.on_show_tools(agent).await?;
                     }
+                    ListCommand::Mcp => {
+                        self.on_show_mcp_servers().await?;
+                    }
                 }
                 return Ok(());
             }
@@ -318,18 +321,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     }
                 }
                 McpCommand::List => {
-                    let mcp_servers = self.api.read_mcp_config(None).await?;
-                    if mcp_servers.is_empty() {
-                        self.writeln_title(TitleFormat::error("No MCP servers found"))?;
-                    }
-
-                    let servers: Vec<_> = mcp_servers
-                        .mcp_servers
-                        .into_iter()
-                        .map(|(name, server)| (name, server.to_string()))
-                        .collect();
-
-                    format_columns(servers);
+                    self.on_show_mcp_servers().await?;
                 }
                 McpCommand::Remove(rm) => {
                     let name = forge_api::ServerName::from(rm.name);
@@ -662,6 +654,24 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let info = format_tools(&agent_tools, &all_tools);
         self.writeln(info)?;
 
+        Ok(())
+    }
+
+    /// Displays all MCP servers
+    async fn on_show_mcp_servers(&mut self) -> anyhow::Result<()> {
+        let mcp_servers = self.api.read_mcp_config(None).await?;
+        if mcp_servers.is_empty() {
+            self.writeln_title(TitleFormat::error("No MCP servers found"))?;
+            return Ok(());
+        }
+
+        let servers: Vec<_> = mcp_servers
+            .mcp_servers
+            .into_iter()
+            .map(|(name, server)| (name, server.to_string()))
+            .collect();
+
+        format_columns(servers);
         Ok(())
     }
 

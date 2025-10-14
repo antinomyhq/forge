@@ -70,7 +70,7 @@ pub enum TopLevelCommand {
     /// Generate shell extension scripts
     Extension(ExtensionCommandGroup),
 
-    /// List resources (agents, models, providers, commands, tools)
+    /// List resources (agents, models, providers, commands, tools, mcp)
     List(ListCommandGroup),
 
     /// Display the banner with version and helpful information
@@ -132,6 +132,10 @@ pub enum ListCommand {
         /// Agent ID to show tools for
         agent: AgentId,
     },
+    /// List all MCP servers
+    ///
+    /// Example: forge list mcp
+    Mcp,
 }
 
 /// Group of extension-related commands
