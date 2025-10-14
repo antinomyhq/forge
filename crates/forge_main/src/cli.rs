@@ -232,8 +232,11 @@ pub enum ConfigCommand {
     /// Set configuration values
     Set(ConfigSetArgs),
 
-    /// Get configuration values
+    /// Get a specific configuration value
     Get(ConfigGetArgs),
+
+    /// List all configuration values
+    List,
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -260,9 +263,8 @@ impl ConfigSetArgs {
 
 #[derive(Parser, Debug, Clone)]
 pub struct ConfigGetArgs {
-    /// Specific field to get (agent, model, or provider). If not specified,
-    /// shows all.
-    pub field: Option<String>,
+    /// Specific field to get (agent, model, or provider)
+    pub field: String,
 }
 
 /// Group of Session-related commands
@@ -415,16 +417,13 @@ mod tests {
     }
 
     #[test]
-    fn test_config_get_all() {
-        let fixture = Cli::parse_from(["forge", "config", "get"]);
+    fn test_config_list() {
+        let fixture = Cli::parse_from(["forge", "config", "list"]);
         let actual = match fixture.subcommands {
-            Some(TopLevelCommand::Config(config)) => match config.command {
-                ConfigCommand::Get(args) => args.field,
-                _ => Some("invalid".to_string()),
-            },
-            _ => Some("invalid".to_string()),
+            Some(TopLevelCommand::Config(config)) => matches!(config.command, ConfigCommand::List),
+            _ => false,
         };
-        let expected = None;
+        let expected = true;
         assert_eq!(actual, expected);
     }
 
@@ -434,11 +433,11 @@ mod tests {
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::Config(config)) => match config.command {
                 ConfigCommand::Get(args) => args.field,
-                _ => None,
+                _ => "invalid".to_string(),
             },
-            _ => None,
+            _ => "invalid".to_string(),
         };
-        let expected = Some("model".to_string());
+        let expected = "model".to_string();
         assert_eq!(actual, expected);
     }
 
