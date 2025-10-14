@@ -80,11 +80,16 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
             .ok_or_else(|| ProviderError::env_var_not_found(config.id, &config.api_key_vars))?;
 
         // Check URL parameter environment variables and build template data
+        // URL parameters are optional - only add them if they exist
         let mut template_data = std::collections::HashMap::new();
+
         for env_var in &config.url_param_vars {
             if let Some(value) = self.infra.get_env_var(env_var) {
-                // Use env var names verbatim (same case) in templates
-                template_data.insert(env_var.clone(), value);
+                template_data.insert(env_var, value);
+            } else if env_var == "OPENAI_URL" {
+                template_data.insert(env_var, "https://api.openai.com/v1".to_string());
+            } else if env_var == "ANTHROPIC_URL" {
+                template_data.insert(env_var, "https://api.anthropic.com/v1".to_string());
             } else {
                 return Err(ProviderError::env_var_not_found(config.id, env_var).into());
             }
@@ -480,7 +485,7 @@ mod env_tests {
         let infra = Arc::new(MockInfra { env_vars });
         let registry = ForgeProviderRegistry::new(infra);
         let provider = registry
-            .provider_from_id(ProviderId::AnthropicCompatible)
+            .provider_from_id(ProviderId::Anthropic)
             .await
             .unwrap();
 
@@ -502,7 +507,6 @@ mod env_tests {
         let infra = Arc::new(MockInfra { env_vars });
         let registry = ForgeProviderRegistry::new(infra);
         let providers = registry.get_all_providers().await.unwrap();
-
         let openai_provider = providers
             .iter()
             .find(|p| p.id == ProviderId::OpenAI)
@@ -540,11 +544,11 @@ mod env_tests {
 
         let openai_provider = providers
             .iter()
-            .find(|p| p.id == ProviderId::OpenAICompatible)
+            .find(|p| p.id == ProviderId::OpenAI)
             .unwrap();
         let anthropic_provider = providers
             .iter()
-            .find(|p| p.id == ProviderId::AnthropicCompatible)
+            .find(|p| p.id == ProviderId::Anthropic)
             .unwrap();
 
         assert_eq!(
