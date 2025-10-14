@@ -656,14 +656,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_info(&mut self) -> anyhow::Result<()> {
         let mut info = Info::from(&self.api.environment());
 
-        let conversation_id = if self.cli.is_interactive() {
-            Some(self.init_conversation().await?)
-        } else {
-            // In case of headless mode, use conversation id from env.
-            get_conversation_id_from_env()
-        };
-
         // Fetch conversation if ID is available
+        let conversation_id = get_conversation_id_from_env().or(self.state.conversation_id);
         let conversation = match conversation_id {
             Some(id) => self.api.conversation(&id).await.ok().flatten(),
             None => None,
@@ -677,6 +671,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Add conversation information if available
         if let Some(conversation) = conversation {
             info = info.extend(Info::from(&conversation));
+        } else {
+            info = info.extend(
+                Info::new()
+                    .add_title("CONVERSATION")
+                    .add_key_value("ID", "<Uninitialized>".to_string()),
+            );
         }
 
         info = info.add_title("AGENT");
