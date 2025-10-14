@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use forge_app::dto::{InitAuth, LoginInfo, ToolsOverview};
 use forge_app::{
-    AgentLoaderService, AuthService, ConversationService, EnvironmentService, FileDiscoveryService,
+    AgentRegistry, AuthService, ConversationService, EnvironmentService, FileDiscoveryService,
     ForgeApp, McpConfigManager, McpService, ProviderRegistry, ProviderService, Services, User,
     UserUsage, Walker, WorkflowService,
 };

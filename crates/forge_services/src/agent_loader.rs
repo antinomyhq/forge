@@ -54,7 +54,7 @@ impl<
         + EnvironmentInfra
         + DirectoryReaderInfra
         + AppConfigRepository,
-> forge_app::AgentLoaderService for AgentLoaderService<F>
+> forge_app::AgentRegistry for AgentLoaderService<F>
 {
     /// Load all agent definitions from all available sources with conflict
     /// resolution.

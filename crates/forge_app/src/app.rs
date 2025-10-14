@@ -13,7 +13,7 @@ use crate::services::{CustomInstructionsService, TemplateService};
 use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
 use crate::{
-    AgentLoaderService, AttachmentService, ConversationService, EnvironmentService,
+    AgentRegistry, AttachmentService, ConversationService, EnvironmentService,
     FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker, WorkflowService,
 };
 
