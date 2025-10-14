@@ -4,6 +4,17 @@
   "description": "Configuration for a workflow that contains all settings required to initialize a workflow.",
   "type": "object",
   "properties": {
+    "banner": {
+      "description": "Configuration for banner display behavior If not specified, shows the default banner Can be set to \"disabled\" to hide banner or a file path for custom banner",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/BannerConfig"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "commands": {
       "description": "Commands that can be used to interact with the workflow",
       "type": "array",
@@ -26,12 +37,6 @@
       "description": "A set of custom rules that all agents should follow These rules will be applied in addition to each agent's individual rules",
       "type": [
         "string",
-        "null"
-      ]
-    },
-    "hidebanner": {
-      "type": [
-        "boolean",
         "null"
       ]
     },
@@ -133,6 +138,31 @@
     }
   },
   "definitions": {
+    "BannerConfig": {
+      "description": "Configuration for banner display behavior",
+      "oneOf": [
+        {
+          "description": "Disable banner display",
+          "type": "string",
+          "enum": [
+            "Disabled"
+          ]
+        },
+        {
+          "description": "Use a custom banner from file path",
+          "type": "object",
+          "required": [
+            "Custom"
+          ],
+          "properties": {
+            "Custom": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "Command": {
       "type": "object",
       "required": [
