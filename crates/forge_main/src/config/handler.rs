@@ -105,25 +105,15 @@ impl<A: API> ConfigManager<A> {
             .api
             .get_operating_agent()
             .await
-            .map(|a| a.as_str().to_string())
-            .unwrap_or_else(|| "Not set".to_string());
+            .map(|a| a.as_str().to_string());
         let model = self
             .api
             .get_operating_model()
             .await
-            .map(|m| m.as_str().to_string())
-            .unwrap_or_else(|| "Not set".to_string());
-        let provider = self
-            .api
-            .get_provider()
-            .await
-            .ok()
-            .map(|p| p.id.to_string())
-            .unwrap_or_else(|| "Not set".to_string());
+            .map(|m| m.as_str().to_string());
+        let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
 
-        let configs = vec![("Agent", agent), ("Model", model), ("Provider", provider)];
-
-        crate::cli_format::format_columns(configs);
+        super::helpers::format_config_list(agent, model, provider);
         Ok(())
     }
 

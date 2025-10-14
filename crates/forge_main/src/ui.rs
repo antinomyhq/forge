@@ -269,6 +269,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     ListCommand::Commands => {
                         self.on_show_commands().await?;
                     }
+                    ListCommand::Config => {
+                        self.on_show_config().await?;
+                    }
                     ListCommand::Tools { agent } => {
                         self.on_show_tools(agent).await?;
                     }
@@ -618,6 +621,24 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         format_columns(commands);
 
+        Ok(())
+    }
+
+    /// Lists current configuration values
+    async fn on_show_config(&self) -> anyhow::Result<()> {
+        let agent = self
+            .api
+            .get_operating_agent()
+            .await
+            .map(|a| a.as_str().to_string());
+        let model = self
+            .api
+            .get_operating_model()
+            .await
+            .map(|m| m.as_str().to_string());
+        let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
+
+        crate::config::format_config_list(agent, model, provider);
         Ok(())
     }
 

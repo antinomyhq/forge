@@ -120,6 +120,11 @@ pub enum ListCommand {
     /// Example: forge list commands
     Commands,
 
+    /// List current configuration values
+    ///
+    /// Example: forge list config
+    Config,
+
     /// List all tools for a specific agent
     ///
     /// Example: forge list tools sage
