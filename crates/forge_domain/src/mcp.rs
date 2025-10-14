@@ -2,7 +2,6 @@
 //! Follows the design specifications of Claude's [.mcp.json](https://docs.anthropic.com/en/docs/claude-code/tutorials#set-up-model-context-protocol-mcp)
 
 use std::collections::BTreeMap;
-use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 
 use derive_more::{Deref, Display, From};
@@ -60,29 +59,6 @@ pub struct McpSseServer {
     /// Url of the MCP server
     #[serde(skip_serializing_if = "String::is_empty")]
     pub url: String,
-}
-
-impl Display for McpServerConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut output = String::new();
-        match self {
-            McpServerConfig::Stdio(stdio) => {
-                output.push_str(&format!("{} ", stdio.command));
-                stdio.args.iter().for_each(|arg| {
-                    output.push_str(&format!("{arg} "));
-                });
-
-                stdio.env.iter().for_each(|(key, value)| {
-                    output.push_str(&format!("{key}={value} "));
-                });
-            }
-            McpServerConfig::Sse(sse) => {
-                output.push_str(&format!("{} ", sse.url));
-            }
-        }
-
-        write!(f, "{}", output.trim())
-    }
 }
 
 #[derive(
