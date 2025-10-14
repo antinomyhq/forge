@@ -13,7 +13,7 @@ use crate::model::ForgeCommandManager;
 #[derive(Debug, PartialEq)]
 pub enum Section {
     Title(String),
-    Items(String, Option<String>),
+    Items(String, Option<String>, Option<String>), // key, value, subtitle
 }
 
 #[derive(Default)]
@@ -32,17 +32,32 @@ impl Info {
     }
 
     pub fn add_key(self, key: impl ToString) -> Self {
-        self.add_item(key, None::<String>)
+        self.add_item(key, None::<String>, None::<String>)
     }
 
     pub fn add_key_value(self, key: impl ToString, value: impl ToString) -> Self {
-        self.add_item(key, Some(value))
+        self.add_item(key, Some(value), None::<String>)
     }
 
-    fn add_item(mut self, key: impl ToString, value: Option<impl ToString>) -> Self {
+    pub fn add_key_value_subtitle(
+        self,
+        key: impl ToString,
+        value: impl ToString,
+        subtitle: impl ToString,
+    ) -> Self {
+        self.add_item(key, Some(value), Some(subtitle))
+    }
+
+    fn add_item(
+        mut self,
+        key: impl ToString,
+        value: Option<impl ToString>,
+        subtitle: Option<impl ToString>,
+    ) -> Self {
         self.sections.push(Section::Items(
             key.to_string(),
             value.map(|a| a.to_string()),
+            subtitle.map(|a| a.to_string()),
         ));
         self
     }
@@ -196,9 +211,19 @@ impl fmt::Display for Info {
                     writeln!(f)?;
                     writeln!(f, "{}", title.bold().dimmed())?
                 }
-                Section::Items(key, value) => {
+                Section::Items(key, value, subtitle) => {
                     if let Some(value) = value {
-                        writeln!(f, "  {}: {}", key.bright_cyan().bold(), value)?;
+                        if let Some(subtitle) = subtitle {
+                            writeln!(
+                                f,
+                                "  {}: {} [{}]",
+                                key.bright_cyan().bold(),
+                                value,
+                                subtitle.dimmed()
+                            )?;
+                        } else {
+                            writeln!(f, "  {}: {}", key.bright_cyan().bold(), value)?;
+                        }
                     } else {
                         writeln!(f, "  {key}")?;
                     }
@@ -396,6 +421,65 @@ impl From<&Conversation> for Info {
     }
 }
 
+impl Info {
+    /// Converts Info into a vector of tuples for porcelain output
+    ///
+    /// Extracts all Items sections (skipping Titles) and returns them as either
+    /// 2-column (key, value) or 3-column (key, value, subtitle) tuples
+    /// depending on whether subtitles are present.
+    pub fn to_rows(&self) -> InfoRows {
+        let has_subtitles = self
+            .sections
+            .iter()
+            .any(|section| matches!(section, Section::Items(_, _, Some(_))));
+
+        if has_subtitles {
+            let rows: Vec<(String, String, String)> = self
+                .sections
+                .iter()
+                .filter_map(|section| match section {
+                    Section::Title(_) => None,
+                    Section::Items(key, value, subtitle) => Some((
+                        key.clone(),
+                        value.clone().unwrap_or_default(),
+                        subtitle.clone().unwrap_or_default(),
+                    )),
+                })
+                .collect();
+            InfoRows::ThreeColumn(rows)
+        } else {
+            let rows: Vec<(String, String)> = self
+                .sections
+                .iter()
+                .filter_map(|section| match section {
+                    Section::Title(_) => None,
+                    Section::Items(key, value, _) => {
+                        Some((key.clone(), value.clone().unwrap_or_default()))
+                    }
+                })
+                .collect();
+            InfoRows::TwoColumn(rows)
+        }
+    }
+}
+
+/// Represents rows from Info that can be either 2 or 3 columns
+#[derive(Debug, PartialEq)]
+pub enum InfoRows {
+    TwoColumn(Vec<(String, String)>),
+    ThreeColumn(Vec<(String, String, String)>),
+}
+
+impl InfoRows {
+    /// Formats the rows using format_columns regardless of column count
+    pub fn format(self) {
+        match self {
+            InfoRows::TwoColumn(rows) => crate::cli_format::format_columns(rows),
+            InfoRows::ThreeColumn(rows) => crate::cli_format::format_columns(rows),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -403,6 +487,9 @@ mod tests {
     use chrono::Utc;
     use forge_api::Environment;
     use pretty_assertions::assert_eq;
+
+    use super::*;
+    use crate::info::Info;
 
     // Helper to create minimal test environment
     fn create_env(os: &str, home: Option<&str>) -> Environment {
@@ -654,5 +741,215 @@ mod tests {
         assert!(expected_display.contains("CONVERSATION"));
         assert!(!expected_display.contains("Title:"));
         assert!(expected_display.contains(&conversation_id.to_string()));
+    }
+
+    #[test]
+    fn test_to_rows_empty_info() {
+        let fixture = Info::new();
+        let actual = fixture.to_rows();
+        let expected = InfoRows::TwoColumn(Vec::new());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_to_rows_only_titles() {
+        let fixture = Info::new().add_title("TITLE1").add_title("TITLE2");
+        let actual = fixture.to_rows();
+        let expected = InfoRows::TwoColumn(Vec::new());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_to_rows_items_with_values() {
+        let fixture = Info::new()
+            .add_key_value("Key1", "Value1")
+            .add_key_value("Key2", "Value2");
+        let actual = fixture.to_rows();
+        let expected = InfoRows::TwoColumn(vec![
+            ("Key1".to_string(), "Value1".to_string()),
+            ("Key2".to_string(), "Value2".to_string()),
+        ]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_to_rows_items_without_values() {
+        let fixture = Info::new().add_key("Key1").add_key("Key2");
+        let actual = fixture.to_rows();
+        let expected = InfoRows::TwoColumn(vec![
+            ("Key1".to_string(), "".to_string()),
+            ("Key2".to_string(), "".to_string()),
+        ]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_to_rows_mixed_content() {
+        let fixture = Info::new()
+            .add_title("TITLE1")
+            .add_key_value("Key1", "Value1")
+            .add_title("TITLE2")
+            .add_key("Key2")
+            .add_key_value("Key3", "Value3");
+        let actual = fixture.to_rows();
+        let expected = InfoRows::TwoColumn(vec![
+            ("Key1".to_string(), "Value1".to_string()),
+            ("Key2".to_string(), "".to_string()),
+            ("Key3".to_string(), "Value3".to_string()),
+        ]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_to_rows_complex_usage_pattern() {
+        // Simulate the Environment Info pattern
+        let fixture = Info::new()
+            .add_title("PATHS")
+            .add_key_value("Logs", "/path/to/logs")
+            .add_key_value("Agents", "/path/to/agents")
+            .add_title("ENVIRONMENT")
+            .add_key_value("Version", "1.0.0")
+            .add_key_value("Shell", "bash");
+        let actual = fixture.to_rows();
+        let expected = InfoRows::TwoColumn(vec![
+            ("Logs".to_string(), "/path/to/logs".to_string()),
+            ("Agents".to_string(), "/path/to/agents".to_string()),
+            ("Version".to_string(), "1.0.0".to_string()),
+            ("Shell".to_string(), "bash".to_string()),
+        ]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_to_rows_with_special_characters() {
+        let fixture = Info::new()
+            .add_key_value("Key with spaces", "Value with spaces")
+            .add_key_value("Key-with-dashes", "Value-with-dashes")
+            .add_key_value("Key_with_underscores", "Value_with_underscores");
+        let actual = fixture.to_rows();
+        let expected = InfoRows::TwoColumn(vec![
+            (
+                "Key with spaces".to_string(),
+                "Value with spaces".to_string(),
+            ),
+            (
+                "Key-with-dashes".to_string(),
+                "Value-with-dashes".to_string(),
+            ),
+            (
+                "Key_with_underscores".to_string(),
+                "Value_with_underscores".to_string(),
+            ),
+        ]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_to_rows_empty_strings() {
+        let fixture = Info::new().add_key_value("", "").add_key("EmptyKey");
+        let actual = fixture.to_rows();
+        let expected = InfoRows::TwoColumn(vec![
+            ("".to_string(), "".to_string()),
+            ("EmptyKey".to_string(), "".to_string()),
+        ]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_info_to_rows_integration_with_format_columns() {
+        use crate::cli_format::format_columns;
+
+        // Create an Info struct with typical content
+        let info = Info::new()
+            .add_title("PATHS")
+            .add_key_value("Logs", "/path/to/logs")
+            .add_key_value("Agents", "/path/to/agents")
+            .add_title("ENVIRONMENT")
+            .add_key_value("Version", "1.0.0")
+            .add_key_value("Shell", "bash");
+
+        // Convert to rows and verify the structure
+        let rows = info.to_rows();
+        assert_eq!(
+            rows,
+            InfoRows::TwoColumn(vec![
+                ("Logs".to_string(), "/path/to/logs".to_string()),
+                ("Agents".to_string(), "/path/to/agents".to_string()),
+                ("Version".to_string(), "1.0.0".to_string()),
+                ("Shell".to_string(), "bash".to_string()),
+            ])
+        );
+
+        // Test that it works with format_columns (should not panic)
+        let info1 = Info::new()
+            .add_key_value("Setting1", "Value1")
+            .add_key_value("Setting2", "Value2");
+        let info2 = Info::new()
+            .add_key_value("Config1", "Option1")
+            .add_key_value("Config2", "Option2");
+
+        // This should work without panicking
+        match info1.to_rows() {
+            InfoRows::TwoColumn(rows) => format_columns(rows),
+            InfoRows::ThreeColumn(rows) => format_columns(rows),
+        }
+        match info2.to_rows() {
+            InfoRows::TwoColumn(rows) => format_columns(rows),
+            InfoRows::ThreeColumn(rows) => format_columns(rows),
+        }
+    }
+
+    #[test]
+    fn test_empty_info_with_format_columns() {
+        use crate::cli_format::format_columns;
+        let empty_info = Info::new();
+        // Should not panic with empty info structs
+        match empty_info.to_rows() {
+            InfoRows::TwoColumn(rows) => format_columns(rows),
+            InfoRows::ThreeColumn(rows) => format_columns(rows),
+        }
+    }
+
+    #[test]
+    fn test_mixed_info_with_format_columns() {
+        #[test]
+        fn test_to_rows_with_subtitle() {
+            let fixture = Info::new()
+                .add_key_value_subtitle("Key1", "Value1", "Subtitle1")
+                .add_key_value_subtitle("Key2", "Value2", "Subtitle2");
+            let actual = fixture.to_rows();
+            let expected = InfoRows::ThreeColumn(vec![
+                (
+                    "Key1".to_string(),
+                    "Value1".to_string(),
+                    "Subtitle1".to_string(),
+                ),
+                (
+                    "Key2".to_string(),
+                    "Value2".to_string(),
+                    "Subtitle2".to_string(),
+                ),
+            ]);
+            assert_eq!(actual, expected);
+        }
+
+        use crate::cli_format::format_columns;
+        let info1 = Info::new()
+            .add_title("TITLE")
+            .add_key_value("Key1", "Value1")
+            .add_key_value("Key2", "Value2");
+        let info2 = Info::new()
+            .add_key_value("Key3", "Value3")
+            .add_key_value("Key4", "Value4");
+
+        // Should not panic and handle mixed content correctly
+        match info1.to_rows() {
+            InfoRows::TwoColumn(rows) => format_columns(rows),
+            InfoRows::ThreeColumn(rows) => format_columns(rows),
+        }
+        match info2.to_rows() {
+            InfoRows::TwoColumn(rows) => format_columns(rows),
+            InfoRows::ThreeColumn(rows) => format_columns(rows),
+        }
     }
 }

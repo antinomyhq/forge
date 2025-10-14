@@ -31,7 +31,7 @@ ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z]# *(*|[[:graph:]]*)' 'fg=white,bold')
 # Loads the commands list only when first needed, avoiding startup cost
 function _forge_get_commands() {
     if [[ -z "$_FORGE_COMMANDS" ]]; then
-        _FORGE_COMMANDS="$($_FORGE_BIN list commands 2>/dev/null)"
+        _FORGE_COMMANDS="$($_FORGE_BIN list commands --porcelain 2>/dev/null)"
     fi
     echo "$_FORGE_COMMANDS"
 }
@@ -71,11 +71,11 @@ function _forge_select_and_set_config() {
         local output
         # Handle multi-word commands properly
         if [[ "$show_command" == *" "* ]]; then
-            # Split the command into words and execute
+            # Split the command into words and execute with --porcelain
             local cmd_parts=(${=show_command})
-            output=$($_FORGE_BIN "${cmd_parts[@]}" 2>/dev/null)
+            output=$($_FORGE_BIN "${cmd_parts[@]}" --porcelain 2>/dev/null)
         else
-            output=$($_FORGE_BIN "$show_command" 2>/dev/null)
+            output=$($_FORGE_BIN "$show_command" --porcelain 2>/dev/null)
         fi
         
         if [[ -n "$output" ]]; then
@@ -187,7 +187,7 @@ function _forge_action_new() {
 # Action handler: Show info
 function _forge_action_info() {
     echo
-    _forge_exec info
+    _forge_exec info 
     _forge_reset
 }
 
@@ -217,7 +217,7 @@ function _forge_action_conversation() {
     
     # Get conversations list
     local conversations_output
-    conversations_output=$($_FORGE_BIN session list 2>/dev/null)
+    conversations_output=$($_FORGE_BIN session list --porcelain 2>/dev/null)
     
     if [[ -n "$conversations_output" ]]; then
         # Get current conversation ID if set

@@ -20,11 +20,11 @@ impl<A: API> ConfigManager<A> {
     }
 
     /// Handle config command
-    pub async fn handle_command(&self, command: ConfigCommand) -> Result<()> {
+    pub async fn handle_command(&self, command: ConfigCommand, porcelain: bool) -> Result<()> {
         match command {
             ConfigCommand::Set(args) => self.handle_set(args).await?,
             ConfigCommand::Get(args) => self.handle_get(args).await?,
-            ConfigCommand::List => self.handle_list().await?,
+            ConfigCommand::List => self.handle_list(porcelain).await?,
         }
         Ok(())
     }
@@ -100,7 +100,7 @@ impl<A: API> ConfigManager<A> {
     }
 
     /// Handle config list command
-    async fn handle_list(&self) -> ConfigResult<()> {
+    async fn handle_list(&self, porcelain: bool) -> ConfigResult<()> {
         let agent = self
             .api
             .get_operating_agent()
@@ -113,7 +113,12 @@ impl<A: API> ConfigManager<A> {
             .map(|m| m.as_str().to_string());
         let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
 
-        super::helpers::format_config_list(agent, model, provider);
+        let info = super::helpers::build_config_info(agent, model, provider);
+        if porcelain {
+            info.to_rows().format();
+        } else {
+            println!("{}", info);
+        }
         Ok(())
     }
 
