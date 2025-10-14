@@ -219,7 +219,6 @@ impl<S: AgentService> Orchestrator<S> {
         model_id: &ModelId,
         context: Context,
         reasoning_supported: bool,
-        agent: &Agent,
     ) -> anyhow::Result<ChatCompletionMessageFull> {
         let tool_supported = self.is_tool_supported()?;
         let mut transformers = DefaultTransformation::default()
@@ -230,7 +229,11 @@ impl<S: AgentService> Orchestrator<S> {
             .pipe(ReasoningNormalizer.when(|_| reasoning_supported));
         let response = self
             .services
-            .chat_agent(model_id, transformers.transform(context), agent.provider)
+            .chat_agent(
+                model_id,
+                transformers.transform(context),
+                self.agent.provider,
+            )
             .await?;
 
         response.into_full(!tool_supported).await
@@ -361,7 +364,7 @@ impl<S: AgentService> Orchestrator<S> {
             // Run the main chat request and compaction check in parallel
             let main_request = crate::retry::retry_with_config(
                 &self.environment.retry_config,
-                || self.execute_chat_turn(&model_id, context.clone(), context.is_reasoning_supported(), agent),
+                || self.execute_chat_turn(&model_id, context.clone(), context.is_reasoning_supported()),
                 self.sender.as_ref().map(|sender| {
                     let sender = sender.clone();
                     let agent_id = agent.id.clone();
