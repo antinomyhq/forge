@@ -200,12 +200,12 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
         .await
     }
 
-    async fn get_active_agent(&self) -> anyhow::Result<Option<AgentId>> {
+    async fn get_active_agent_id(&self) -> anyhow::Result<Option<AgentId>> {
         let app_config = self.infra.get_app_config().await?;
         Ok(app_config.agent)
     }
 
-    async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()> {
+    async fn set_active_agent_id(&self, agent_id: AgentId) -> anyhow::Result<()> {
         self.update(|config| {
             config.agent = Some(agent_id);
         })

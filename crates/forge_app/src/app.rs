@@ -245,7 +245,7 @@ impl<S: Services> ForgeApp<S> {
         let agents = self.services.get_agents().await?;
         if let Some(provider_id) = self
             .services
-            .get_active_agent()
+            .get_active_agent_id()
             .await?
             .and_then(|agent_id| agents.into_iter().find(|v| v.id == agent_id))
             .and_then(|agent| agent.provider)
