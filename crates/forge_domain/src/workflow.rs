@@ -25,9 +25,9 @@ pub struct Workflow {
     pub updates: Option<Update>,
 
     /// Commands that can be used to interact with the workflow
-    // #[merge(strategy = crate::merge::vec::append)]
-    // #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    // pub commands: Vec<Command>,
+    #[merge(strategy = merge::vec::append)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub commands: Vec<Command>,
 
     /// Maximum depth to which the file walker should traverse for all agents
     /// If not provided, each agent's individual setting will be used
@@ -167,6 +167,7 @@ impl Workflow {
             max_tool_failure_per_turn: None,
             max_requests_per_turn: None,
             compact: None,
+            commands: vec![],
         }
     }
 }
