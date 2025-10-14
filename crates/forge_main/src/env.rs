@@ -20,7 +20,8 @@ pub fn get_agent_from_env() -> Option<AgentId> {
 /// Check if the completion prompt should be shown
 ///
 /// Returns true if the environment variable is not set, cannot be parsed, or is
-/// set to "true" (case-insensitive). Returns false only if explicitly set to "false".
+/// set to "true" (case-insensitive). Returns false only if explicitly set to
+/// "false".
 pub fn should_show_completion_prompt() -> bool {
     std::env::var(FORGE_SHOW_COMPLETION_PROMPT)
         .ok()
@@ -177,5 +178,4 @@ mod tests {
 
         assert_eq!(actual.get("KEY"), Some(&"value=with=equals".to_string()));
     }
-
 }
