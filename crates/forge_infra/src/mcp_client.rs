@@ -78,8 +78,7 @@ impl ForgeMcpClient {
                     cmd.env(key, value);
                 }
 
-                cmd.args(&stdio.args)
-                    .kill_on_drop(true);
+                cmd.args(&stdio.args).kill_on_drop(true);
 
                 // Use builder pattern to capture and ignore stderr to silence MCP logs
                 let (transport, _stderr) = TokioChildProcess::builder(cmd)
