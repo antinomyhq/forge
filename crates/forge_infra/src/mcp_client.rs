@@ -79,9 +79,6 @@ impl ForgeMcpClient {
                 }
 
                 cmd.args(&stdio.args)
-                    .stdin(std::process::Stdio::inherit())
-                    .stdout(std::process::Stdio::piped())
-                    .stderr(std::process::Stdio::piped())
                     .kill_on_drop(true);
 
                 // Use builder pattern to capture and ignore stderr to silence MCP logs
