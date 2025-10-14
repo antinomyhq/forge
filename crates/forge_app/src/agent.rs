@@ -49,9 +49,7 @@ impl<T: Services> AgentService for T {
         provider_id: Option<ProviderId>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         let provider = if let Some(provider_id) = provider_id {
-            self.get_provider(&provider_id)
-                .await
-                .ok_or(anyhow::anyhow!("provider not found"))?
+            self.get_provider(provider_id).await?
         } else {
             self.get_active_provider().await?
         };
