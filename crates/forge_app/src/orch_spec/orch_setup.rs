@@ -83,6 +83,7 @@ impl Default for TestContext {
                 stdout_max_line_length: 200, // 5 MB
                 auto_open_dump: false,
                 custom_history_path: None,
+                max_conversations: 100,
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(AgentId::new("forge"))
