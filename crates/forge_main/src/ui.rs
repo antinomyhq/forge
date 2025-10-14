@@ -320,11 +320,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         self.writeln_title(TitleFormat::error("No MCP servers found"))?;
                     }
 
-                    let mut output = String::new();
-                    for (name, server) in mcp_servers.mcp_servers {
-                        output.push_str(&format!("{name}: {server}"));
-                    }
-                    self.writeln(output)?;
+                    let servers: Vec<_> = mcp_servers
+                        .mcp_servers
+                        .into_iter()
+                        .map(|(name, server)| (name, server.to_string()))
+                        .collect();
+
+                    format_columns(servers);
                 }
                 McpCommand::Remove(rm) => {
                     let name = forge_api::ServerName::from(rm.name);
