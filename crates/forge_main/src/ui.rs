@@ -510,7 +510,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     self.writeln_title(TitleFormat::info("Generated commit message:"))?;
                     self.writeln(&message)?;
                 } else {
-                    self.writeln_title(TitleFormat::info("changes committed."))?;
+                    self.writeln_title(TitleFormat::action("changes committed."))?;
                 }
             }
             Err(e) => {
