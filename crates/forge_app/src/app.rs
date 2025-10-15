@@ -230,7 +230,7 @@ impl<S: Services> ForgeApp<S> {
             .execute(
                 "git log --pretty=format:%s --abbrev-commit --max-count=20".into(),
                 cwd.clone(),
-                true,
+                false,
                 true,
                 None,
             )
@@ -241,7 +241,7 @@ impl<S: Services> ForgeApp<S> {
         let diff_output = self
             .services
             .shell_service()
-            .execute("git diff --staged".into(), cwd.clone(), true, true, None)
+            .execute("git diff --staged".into(), cwd.clone(), false, true, None)
             .await
             .context("Failed to get staged changes")?;
 
