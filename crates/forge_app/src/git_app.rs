@@ -4,8 +4,7 @@ use anyhow::{Context, Result};
 use forge_domain::*;
 
 use crate::{
-    EnvironmentService, ProviderRegistry, ProviderService, Services, ShellService,
-    TemplateService,
+    EnvironmentService, ProviderRegistry, ProviderService, Services, ShellService, TemplateService,
 };
 
 /// GitApp handles git-related operations like commit message generation.

@@ -218,7 +218,6 @@ impl<S: Services> ForgeApp<S> {
         ))
     }
 
-
     pub async fn list_tools(&self) -> Result<ToolsOverview> {
         self.tool_registry.tools_overview().await
     }
