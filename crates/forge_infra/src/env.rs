@@ -78,6 +78,7 @@ impl ForgeEnvironmentInfra {
             max_file_size: 256 << 10, // 256 KiB
             forge_api_url,
             custom_history_path,
+            max_conversations: parse_env::<usize>("FORGE_MAX_CONVERSATIONS").unwrap_or(100),
         }
     }
 
@@ -639,11 +640,41 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn test_max_conversations_env_var() {
+        let cwd = tempfile::tempdir().unwrap();
+        let infra = ForgeEnvironmentInfra::new(false, cwd.path().to_path_buf());
+
+        // Test default value
+        unsafe {
+            std::env::remove_var("FORGE_MAX_CONVERSATIONS");
+        }
+        let env = infra.get_environment();
+        assert_eq!(env.max_conversations, 100);
+
+        // Test custom value
+        unsafe {
+            std::env::set_var("FORGE_MAX_CONVERSATIONS", "50");
+        }
+        let env = infra.get_environment();
+        assert_eq!(env.max_conversations, 50);
+
+        // Test invalid value (should fallback to default)
+        unsafe {
+            std::env::set_var("FORGE_MAX_CONVERSATIONS", "invalid");
+        }
+        let env = infra.get_environment();
+        assert_eq!(env.max_conversations, 100);
+
+        unsafe {
+            std::env::remove_var("FORGE_MAX_CONVERSATIONS");
+        }
+    }
+
     #[test]
     #[serial]
     fn test_unified_parse_env_functionality() {
-        // Test that the unified parse_env works for different types
-
         // Test boolean parsing with custom logic
         unsafe {
             env::set_var("TEST_BOOL_TRUE", "yes");

@@ -35,9 +35,6 @@ use crate::tools_display::format_tools;
 use crate::update::on_update;
 use crate::{TRACKER, banner, tracker};
 
-// Configuration constants
-const MAX_CONVERSATIONS_TO_SHOW: usize = 20;
-
 pub struct UI<A, F: Fn() -> A> {
     markdown: MarkdownFormat,
     state: UIState,
@@ -656,9 +653,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_info(&mut self) -> anyhow::Result<()> {
         let mut info = Info::from(&self.api.environment());
 
-        // Execute async operations sequentially
-        let conversation_id = &self.init_conversation().await?;
-        let conversation = self.api.conversation(conversation_id).await.ok().flatten();
+        // Fetch conversation if ID is available
+        let conversation_id = get_conversation_id_from_env().or(self.state.conversation_id);
+        let conversation = match conversation_id {
+            Some(id) => self.api.conversation(&id).await.ok().flatten(),
+            None => None,
+        };
+
         let key_info = self.api.get_login_info().await;
         let operating_agent = self.api.get_active_agent().await;
         let operating_model = self.api.get_default_model().await;
@@ -674,6 +675,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Add conversation information if available
         if let Some(conversation) = conversation {
             info = info.extend(Info::from(&conversation));
+        } else {
+            info = info.extend(
+                Info::new()
+                    .add_title("CONVERSATION")
+                    .add_key_value("ID", "<Uninitialized>".to_string()),
+            );
         }
 
         info = info.add_title("AGENT");
@@ -728,10 +735,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn list_conversations(&mut self) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Conversations"))?;
-        let conversations = self
-            .api
-            .list_conversations(Some(MAX_CONVERSATIONS_TO_SHOW))
-            .await?;
+        let max_conversations = self.api.environment().max_conversations;
+        let conversations = self.api.list_conversations(Some(max_conversations)).await?;
         self.spinner.stop(None)?;
 
         if conversations.is_empty() {
@@ -750,10 +755,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn on_show_conversations(&mut self) -> anyhow::Result<()> {
-        let conversations = self
-            .api
-            .list_conversations(Some(MAX_CONVERSATIONS_TO_SHOW))
-            .await?;
+        let max_conversations = self.api.environment().max_conversations;
+        let conversations = self.api.list_conversations(Some(max_conversations)).await?;
 
         if conversations.is_empty() {
             return Ok(());
