@@ -87,7 +87,7 @@ where
         self.infra
             .write(
                 self.config_path(scope).await?.as_path(),
-                Bytes::from(serde_json::to_string(config)?),
+                Bytes::from(serde_json::to_string_pretty(config)?),
                 true,
             )
             .await?;
