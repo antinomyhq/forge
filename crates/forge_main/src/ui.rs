@@ -35,6 +35,7 @@ use crate::title_display::TitleDisplayExt;
 use crate::tools_display::format_tools;
 use crate::update::on_update;
 use crate::{TRACKER, banner, tracker};
+use crate::cli::CommitCommandGroup;
 
 pub struct UI<A, F: Fn() -> A> {
     markdown: MarkdownFormat,
@@ -488,7 +489,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn handle_commit_command(
         &mut self,
-        commit_group: crate::cli::CommitCommandGroup,
+        commit_group: CommitCommandGroup,
     ) -> anyhow::Result<()> {
         // Start spinner
         if commit_group.preview {
@@ -872,6 +873,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
             Command::Shell(ref command) => {
                 self.api.execute_shell_command_raw(command).await?;
+            }
+            Command::Commit { preview, max_diff_size } => {
+                let args = CommitCommandGroup { preview, max_diff_size };
+                self.handle_commit_command(args).await?;
             }
             Command::Agent => {
                 #[derive(Clone)]
