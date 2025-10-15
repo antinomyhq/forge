@@ -14,7 +14,8 @@ use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
 use crate::{
     AgentLoaderService, AttachmentService, ConversationService, EnvironmentService,
-    FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker, WorkflowService,
+    FileDiscoveryService, ProviderRegistry, ProviderService, Services, ShellService, Walker,
+    WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -216,6 +217,73 @@ impl<S: Services> ForgeApp<S> {
             original_messages,
             compacted_messages,
         ))
+    }
+
+    pub async fn generate_commit_message(&self) -> Result<String> {
+        // Get current working directory
+        let cwd = self.services.environment_service().get_environment().cwd;
+
+        // Get recent commit messages as examples
+        let recent_commits = self
+            .services
+            .shell_service()
+            .execute(
+                "git log --pretty=format:%s --abbrev-commit --max-count=20".into(),
+                cwd.clone(),
+                true,
+                true,
+                None,
+            )
+            .await
+            .context("Failed to get recent commits")?;
+
+        // Get staged changes
+        let diff_output = self
+            .services
+            .shell_service()
+            .execute("git diff --staged".into(), cwd.clone(), true, true,None)
+            .await
+            .context("Failed to get staged changes")?;
+
+        if diff_output.output.stdout.trim().is_empty() {
+            return Err(anyhow::anyhow!("No staged changes to commit"));
+        }
+
+        // Render prompt with diff and recent commit messages.
+        let rendered_prompt = self
+            .services
+            .template_service()
+            .render_template(
+                "{{> forge-commit-message-prompt.md }}",
+                &serde_json::json!({
+                    "diff": diff_output.output.stdout,
+                    "examples": recent_commits.output.stdout,
+                }),
+            )
+            .await?;
+
+        // Get active provider
+        let provider = self
+            .services
+            .get_active_provider()
+            .await
+            .context("Failed to get provider")?;
+
+        // Get active Model
+        let model = self.services.get_active_model().await?;
+
+        // Create an context
+        let ctx = forge_domain::Context::default()
+            .add_message(ContextMessage::user(rendered_prompt, Some(model.clone())));
+
+        // Send message to LLM
+        let stream = self
+            .services
+            .provider_service()
+            .chat(&model, ctx, provider)
+            .await?;
+        let message = stream.into_full(false).await?;
+        Ok(message.content)
     }
 
     pub async fn list_tools(&self) -> Result<ToolsOverview> {

@@ -10,11 +10,11 @@ Generate a concise, single-line git commit message based on the provided git dif
 
 # Examples from Repository
 
-{examples}
+{{examples}}
 
 # Git Diff
 
-{diff}
+{{diff}}
 
 # Instructions
 

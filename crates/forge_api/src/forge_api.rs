@@ -65,6 +65,11 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
         Ok(self.services.get_all_providers().await?)
     }
 
+    async fn generate_commit_message(&self) -> Result<String> {
+        let forge_app = ForgeApp::new(self.services.clone());
+        forge_app.generate_commit_message().await
+    }
+
     async fn chat(
         &self,
         chat: ChatRequest,

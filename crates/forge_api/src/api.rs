@@ -28,6 +28,8 @@ pub trait API: Sync + Send {
     /// Executes a chat request and returns a stream of responses
     async fn chat(&self, chat: ChatRequest) -> Result<MpscStream<Result<ChatResponse>>>;
 
+    async fn generate_commit_message(&self) -> Result<String>;
+
     /// Returns the current environment
     fn environment(&self) -> Environment;
 
