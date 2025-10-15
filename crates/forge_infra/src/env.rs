@@ -97,7 +97,7 @@ impl ForgeEnvironmentInfra {
         for path in paths {
             let env_file = path.join(".env");
             if env_file.is_file() {
-                dotenv::from_path(&env_file).ok();
+                dotenvy::from_path(&env_file).ok();
             }
         }
 
@@ -669,6 +669,41 @@ mod tests {
 
         unsafe {
             std::env::remove_var("FORGE_MAX_CONVERSATIONS");
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_multiline_env_vars() {
+        // Test multiline env var support with single quotes
+        let content = r#"FORGE_BANNER='
+ _____ ____  ____  _____ _____   ____ ____  ____  _____
+/    //  _ \/  __\/  __//  __/  /   _Y  _ \/  _ \/  __/
+|  __\| / \||  \/|| |  _|  \    |  / | / \|| | \||  \
+| |   | \_/||    /| |_//|  /_   |  \_| \_/|| |_/||  /_
+\_/   \____/\_/\_\\____\\____\  \____|____/\____/\_____\
+
+'
+TEST_VAR=simple"#;
+
+        let (_root, cwd) = setup_envs(vec![("", content)]);
+        ForgeEnvironmentInfra::dot_env(&cwd);
+
+        // Verify the multiline variable was loaded
+        let banner = env::var("FORGE_BANNER").expect("FORGE_BANNER should be set");
+        assert!(banner.contains("_____"));
+        assert!(banner.contains("/  __/"));
+        assert!(
+            banner.lines().count() > 1,
+            "Banner should have multiple lines"
+        );
+
+        // Verify simple var still works
+        assert_eq!(env::var("TEST_VAR").unwrap(), "simple");
+
+        unsafe {
+            env::remove_var("FORGE_BANNER");
+            env::remove_var("TEST_VAR");
         }
     }
 
