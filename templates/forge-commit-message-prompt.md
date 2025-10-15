@@ -3,7 +3,7 @@ Generate a concise and descriptive git commit message based on the provided git 
 # Requirements
 
 - **Title Length**: 50-72 characters
-- **Format**: Follow conventional commit format (e.g., `feat:`, `fix:`, `refactor:`, `docs:`, etc.)
+- **Format**: Follow conventional commit format.
 - **Style**: Use imperative mood (e.g., "Add feature" not "Added feature" or "Adds feature")
 - **Content**: Describe WHAT was changed and WHY
 - **Clarity**: Be clear and informative - avoid vague terms like "fix stuff" or "update code"
