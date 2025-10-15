@@ -241,7 +241,7 @@ impl<S: Services> ForgeApp<S> {
         let diff_output = self
             .services
             .shell_service()
-            .execute("git diff --staged".into(), cwd.clone(), true, true,None)
+            .execute("git diff --staged".into(), cwd.clone(), true, true, None)
             .await
             .context("Failed to get staged changes")?;
 

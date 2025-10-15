@@ -169,7 +169,13 @@ mod tests {
         let fixture = ForgeShell::new(Arc::new(MockCommandInfra { expected_env_vars: None }));
 
         let actual = fixture
-            .execute("echo hello".to_string(), PathBuf::from("."), false,false, None)
+            .execute(
+                "echo hello".to_string(),
+                PathBuf::from("."),
+                false,
+                false,
+                None,
+            )
             .await
             .unwrap();
 

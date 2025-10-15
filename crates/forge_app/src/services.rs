@@ -677,7 +677,7 @@ impl<I: Services> ShellService for I {
         env_vars: Option<Vec<String>>,
     ) -> anyhow::Result<ShellOutput> {
         self.shell_service()
-            .execute(command, cwd, keep_ansi,silent, env_vars)
+            .execute(command, cwd, keep_ansi, silent, env_vars)
             .await
     }
 }
