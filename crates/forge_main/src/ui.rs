@@ -487,10 +487,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .lines()
                 .collect::<Vec<_>>()
                 .join(" ");
-            info = info.add_key_value(id, title);
+            info = info.add_title(id).add_key_value("Description", title);
         }
 
-        self.write_info_or_porcelain(info, porcelain)?;
+        self.write_info_or_porcelain(info, porcelain, 0, true)?;
 
         Ok(())
     }
@@ -512,10 +512,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .domain()
                 .map(|d| format!("[{}]", d))
                 .unwrap_or_default();
-            info = info.add_key_value(id, domain);
+            info = info.add_title(id).add_key_value("Domain", domain);
         }
 
-        self.write_info_or_porcelain(info, porcelain)?;
+        self.write_info_or_porcelain(info, porcelain, 0, true)?;
 
         Ok(())
     }
@@ -532,34 +532,27 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         for model in models.iter() {
             let id = model.id.to_string();
-            let mut info_parts = Vec::new();
+            info = info.add_title(id);
 
             // Add context length if available
             if let Some(limit) = model.context_length {
-                if limit >= 1_000_000 {
-                    info_parts.push(format!("{}M", limit / 1_000_000));
+                let context = if limit >= 1_000_000 {
+                    format!("{}M", limit / 1_000_000)
                 } else if limit >= 1000 {
-                    info_parts.push(format!("{}k", limit / 1000));
+                    format!("{}k", limit / 1000)
                 } else {
-                    info_parts.push(format!("{limit}"));
-                }
+                    format!("{limit}")
+                };
+                info = info.add_key_value("Context", context);
             }
 
             // Add tools support indicator if explicitly supported
             if model.tools_supported == Some(true) {
-                info_parts.push("🛠️".to_string());
+                info = info.add_key_value("Tools", "🛠️");
             }
-
-            let model_info = if !info_parts.is_empty() {
-                format!("[ {} ]", info_parts.join(" "))
-            } else {
-                String::new()
-            };
-
-            info = info.add_key_value(id, model_info);
         }
 
-        self.write_info_or_porcelain(info, porcelain)?;
+        self.write_info_or_porcelain(info, porcelain, 0, true)?;
 
         Ok(())
     }
@@ -570,29 +563,40 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Define base commands with their descriptions
         info = info
-            .add_key_value("info", "Print session information")
-            .add_key_value("provider", "Switch the providers")
-            .add_key_value("model", "Switch the models")
-            .add_key_value("new", "Start new conversation")
+            .add_title("info".to_string())
+            .add_key_value("Description", "Print session information")
+            .add_title("provider".to_string())
+            .add_key_value("Description", "Switch the providers")
+            .add_title("model".to_string())
+            .add_key_value("Description", "Switch the models")
+            .add_title("new".to_string())
+            .add_key_value("Description", "Start new conversation")
+            .add_title("dump".to_string())
             .add_key_value(
-                "dump",
+                "Description",
                 "Save conversation as JSON or HTML (use /dump html for HTML format)",
             )
+            .add_title("conversation".to_string())
             .add_key_value(
-                "conversation",
+                "Description",
                 "List all conversations for the active workspace",
             )
-            .add_key_value("retry", "Retry the last command")
-            .add_key_value("compact", "Compact the conversation context")
+            .add_title("retry".to_string())
+            .add_key_value("Description", "Retry the last command")
+            .add_title("compact".to_string())
+            .add_key_value("Description", "Compact the conversation context")
+            .add_title("tools".to_string())
             .add_key_value(
-                "tools",
+                "Description",
                 "List all available tools with their descriptions and schema",
             );
 
         // Add alias commands
         info = info
-            .add_key_value("ask", "Alias for agent SAGE")
-            .add_key_value("plan", "Alias for agent MUSE");
+            .add_title("ask".to_string())
+            .add_key_value("Description", "Alias for agent SAGE")
+            .add_title("plan".to_string())
+            .add_key_value("Description", "Alias for agent MUSE");
 
         // Fetch agents and add them to the commands list
         let agents = self.api.get_agents().await?;
@@ -604,10 +608,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .lines()
                 .collect::<Vec<_>>()
                 .join(" ");
-            info = info.add_key_value(agent.id.to_string(), title);
+            info = info
+                .add_title(agent.id.to_string())
+                .add_key_value("Description", title);
         }
 
-        self.write_info_or_porcelain(info, porcelain)?;
+        self.write_info_or_porcelain(info, porcelain, 0, true)?;
 
         Ok(())
     }
@@ -627,7 +633,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
 
         let info = crate::config::build_config_info(agent, model, provider);
-        self.write_info_or_porcelain(info, porcelain)?;
+        self.write_info_or_porcelain(info, porcelain, 0, false)?;
         Ok(())
     }
 
@@ -649,7 +655,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         };
 
         let info = format_tools(&agent_tools, &all_tools);
-        self.write_info_or_porcelain(info, porcelain)?;
+        self.write_info_or_porcelain(info, porcelain, 0, false)?;
 
         Ok(())
     }
@@ -665,10 +671,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let mut info = Info::new().add_title("MCP SERVERS");
 
         for (name, server) in mcp_servers.mcp_servers {
-            info = info.add_key_value(name, server.to_string());
+            info = info
+                .add_title(name.clone())
+                .add_key_value("Command", server.to_string());
         }
 
-        self.write_info_or_porcelain(info, porcelain)?;
+        self.write_info_or_porcelain(info, porcelain, 0, true)?;
         Ok(())
     }
 
@@ -721,16 +729,30 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             info = info.extend(Info::from(&login_info));
         }
 
-        self.write_info_or_porcelain(info, porcelain)?;
+        self.write_info_or_porcelain(info, porcelain, 0, false)?;
 
         Ok(())
     }
 
     /// Helper to output Info struct either as formatted display or porcelain
-    fn write_info_or_porcelain(&mut self, info: Info, porcelain: bool) -> anyhow::Result<()> {
+    ///
+    /// # Arguments
+    /// * `info` - The Info struct to display
+    /// * `porcelain` - Whether to use porcelain mode
+    /// * `title_position` - Position of the title column in porcelain mode (0 =
+    ///   first, usize::MAX = last)
+    /// * `include_title` - Whether to include the title in porcelain output
+    ///   (false for section headers, true for IDs)
+    fn write_info_or_porcelain(
+        &mut self,
+        info: Info,
+        porcelain: bool,
+        title_position: usize,
+        include_title: bool,
+    ) -> anyhow::Result<()> {
         if porcelain {
             // Use to_rows to get key-value pairs and format with columns
-            info.to_rows().format();
+            crate::cli_format::format_columns(info.to_rows(title_position, include_title));
         } else {
             self.writeln(info)?;
         }
@@ -797,11 +819,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 format!("{} ago", humantime::format_duration(duration))
             };
 
-            // Use three columns: title, time_ago, id
-            info = info.add_key_value_subtitle(title, time_ago, conv.id.to_string());
+            // Add conversation: Title=<title>, Updated=<time_ago>, with ID as section title
+            info = info
+                .add_title(conv.id.to_string())
+                .add_key_value("Title", title)
+                .add_key_value("Updated", time_ago);
         }
 
-        self.write_info_or_porcelain(info, porcelain)?;
+        self.write_info_or_porcelain(info, porcelain, usize::MAX, true)?;
 
         Ok(())
     }

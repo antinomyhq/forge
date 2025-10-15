@@ -68,6 +68,7 @@ impl Cli {
 #[derive(Subcommand, Debug, Clone)]
 pub enum TopLevelCommand {
     /// Generate shell extension scripts
+    #[command(hide = true)]
     Extension(ExtensionCommandGroup),
 
     /// List resources (agents, models, providers, commands, tools, mcp)
@@ -126,6 +127,7 @@ pub enum ListCommand {
     /// List all available commands
     ///
     /// Example: forge list commands
+    #[command(hide = true)]
     Commands,
 
     /// List current configuration values
@@ -360,6 +362,7 @@ pub enum SessionCommand {
 mod tests {
     use clap::Parser;
     use pretty_assertions::assert_eq;
+    use serial_test::serial;
 
     use super::*;
 
