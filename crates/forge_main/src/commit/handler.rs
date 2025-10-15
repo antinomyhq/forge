@@ -49,10 +49,7 @@ impl<A: API> CommitHandler<A> {
                 anyhow::bail!("Git commit failed: {}", commit_result.stderr);
             }
 
-            Ok(format!(
-                "Committed with message:\n{}\n\n{}",
-                commit_message, commit_result.stdout
-            ))
+            Ok(commit_message)
         }
     }
 }
