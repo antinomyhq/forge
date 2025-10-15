@@ -371,9 +371,7 @@ impl ForgeCommandManager {
                 // /commit 5000         -> commit with max-diff of 5000 bytes
                 // /commit preview 5000 -> preview with max-diff
                 let preview = parameters.contains(&"preview");
-                let max_diff_size = parameters
-                    .iter()
-                    .find_map(|&p| p.parse::<usize>().ok());
+                let max_diff_size = parameters.iter().find_map(|&p| p.parse::<usize>().ok());
 
                 Ok(Command::Commit { preview, max_diff_size })
             }

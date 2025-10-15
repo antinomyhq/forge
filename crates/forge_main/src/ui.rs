@@ -20,7 +20,7 @@ use merge::Merge;
 use tokio_stream::StreamExt;
 use tracing::debug;
 
-use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
+use crate::cli::{Cli, CommitCommandGroup, McpCommand, TopLevelCommand, Transport};
 use crate::cli_format::format_columns;
 use crate::commit::CommitHandler;
 use crate::config::ConfigManager;
@@ -35,7 +35,6 @@ use crate::title_display::TitleDisplayExt;
 use crate::tools_display::format_tools;
 use crate::update::on_update;
 use crate::{TRACKER, banner, tracker};
-use crate::cli::CommitCommandGroup;
 
 pub struct UI<A, F: Fn() -> A> {
     markdown: MarkdownFormat,
