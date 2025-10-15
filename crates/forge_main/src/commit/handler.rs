@@ -27,7 +27,7 @@ impl<A: API> CommitHandler<A> {
     /// - AI generation fails
     /// - Commit operation fails
     pub async fn handle(&self, args: CommitCommandGroup) -> Result<String> {
-        let commit_message = self.api.generate_commit_message().await?;
+        let commit_message = self.api.generate_commit_message(args.max_diff_size).await?;
         if args.preview {
             // Just return the message for preview
             Ok(commit_message)

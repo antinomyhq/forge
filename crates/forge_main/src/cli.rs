@@ -340,6 +340,14 @@ pub struct CommitCommandGroup {
     /// Preview the commit message without committing
     #[arg(long)]
     pub preview: bool,
+
+    /// Maximum git diff size in bytes (0 = unlimited)
+    ///
+    /// Limits the size of the git diff sent to the AI model. Large diffs are
+    /// truncated to save tokens and reduce API costs. Set to 0 for unlimited
+    /// size.
+    #[arg(long = "max-diff", default_value = "0")]
+    pub max_diff_size: usize,
 }
 
 #[cfg(test)]

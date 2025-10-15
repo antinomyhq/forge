@@ -219,7 +219,17 @@ impl<S: Services> ForgeApp<S> {
         ))
     }
 
-    pub async fn generate_commit_message(&self) -> Result<String> {
+    /// Generates a commit message based on staged git changes
+    ///
+    /// # Arguments
+    ///
+    /// * `max_diff_size` - Maximum size of git diff in bytes. Set to 0 for
+    ///   unlimited.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if git operations fail or AI generation fails
+    pub async fn generate_commit_message(&self, max_diff_size: usize) -> Result<String> {
         // Get current working directory
         let cwd = self.services.environment_service().get_environment().cwd;
 
@@ -249,6 +259,22 @@ impl<S: Services> ForgeApp<S> {
             return Err(anyhow::anyhow!("No staged changes to commit"));
         }
 
+        // Truncate diff if it exceeds max size
+        let (diff_content, was_truncated) =
+            if max_diff_size > 0 && diff_output.output.stdout.len() > max_diff_size {
+                // Safely truncate at a char boundary
+                let truncated = diff_output
+                    .output
+                    .stdout
+                    .char_indices()
+                    .take_while(|(idx, _)| *idx < max_diff_size)
+                    .map(|(_, c)| c)
+                    .collect::<String>();
+                (truncated, true)
+            } else {
+                (diff_output.output.stdout.clone(), false)
+            };
+
         // Render prompt with diff and recent commit messages.
         let rendered_prompt = self
             .services
@@ -267,13 +293,24 @@ impl<S: Services> ForgeApp<S> {
         let model = self.services.get_active_model().await?;
 
         // Create an context
+        let truncation_notice = if was_truncated {
+            format!(
+                "\n\n[Note: Diff truncated to {} bytes. Original size: {} bytes]",
+                max_diff_size,
+                diff_output.output.stdout.len()
+            )
+        } else {
+            String::new()
+        };
+
         let ctx = forge_domain::Context::default()
             .add_message(ContextMessage::system(rendered_prompt))
             .add_message(ContextMessage::user(
                 format!(
-                    "<recent_commit_messages>\n{}\n</recent_commit_messages>\n\n<git_diff>\n{}\n</git_diff>",
+                    "<recent_commit_messages>\n{}\n</recent_commit_messages>\n\n<git_diff>\n{}{}\n</git_diff>",
                     recent_commits.output.stdout,
-                    diff_output.output.stdout
+                    diff_content,
+                    truncation_notice
                 ),
                 Some(model.clone()),
             ));
