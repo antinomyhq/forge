@@ -253,13 +253,7 @@ impl<S: Services> ForgeApp<S> {
         let rendered_prompt = self
             .services
             .template_service()
-            .render_template(
-                "{{> forge-commit-message-prompt.md }}",
-                &serde_json::json!({
-                    "diff": diff_output.output.stdout,
-                    "examples": recent_commits.output.stdout,
-                }),
-            )
+            .render_template("{{> forge-commit-message-prompt.md }}", &())
             .await?;
 
         // Get active provider
@@ -274,7 +268,15 @@ impl<S: Services> ForgeApp<S> {
 
         // Create an context
         let ctx = forge_domain::Context::default()
-            .add_message(ContextMessage::user(rendered_prompt, Some(model.clone())));
+            .add_message(ContextMessage::system(rendered_prompt))
+            .add_message(ContextMessage::user(
+                format!(
+                    "<recent_commit_messages>\n{}\n</recent_commit_messages>\n\n<git_diff>\n{}\n</git_diff>",
+                    recent_commits.output.stdout,
+                    diff_output.output.stdout
+                ),
+                Some(model.clone()),
+            ));
 
         // Send message to LLM
         let stream = self
