@@ -32,7 +32,8 @@ pub trait API: Sync + Send {
     ///
     /// # Arguments
     ///
-    /// * `max_diff_size` - Maximum size of git diff in bytes. None for unlimited.
+    /// * `max_diff_size` - Maximum size of git diff in bytes. None for
+    ///   unlimited.
     ///
     /// # Errors
     ///

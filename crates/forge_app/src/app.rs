@@ -223,7 +223,8 @@ impl<S: Services> ForgeApp<S> {
     ///
     /// # Arguments
     ///
-    /// * `max_diff_size` - Maximum size of git diff in bytes. None for unlimited.
+    /// * `max_diff_size` - Maximum size of git diff in bytes. None for
+    ///   unlimited.
     ///
     /// # Errors
     ///
