@@ -14,5 +14,4 @@ You will receive:
 - `<recent_commit_messages>` - Examples from the repository to understand the commit message style for user.
 - `<git_diff>` - The git diff showing what changed (may be truncated if too large)
 
-Generate ONLY the commit message - no explanations, no quotes, no backticks, no additional text.
 Skip preamble and provide the commit message directly.
