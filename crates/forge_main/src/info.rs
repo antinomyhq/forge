@@ -487,8 +487,6 @@ mod tests {
     use forge_api::Environment;
     use pretty_assertions::assert_eq;
 
-    use crate::info::Info;
-
     // Helper to create minimal test environment
     fn create_env(os: &str, home: Option<&str>) -> Environment {
         Environment {

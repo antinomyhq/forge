@@ -362,7 +362,6 @@ pub enum SessionCommand {
 mod tests {
     use clap::Parser;
     use pretty_assertions::assert_eq;
-    use serial_test::serial;
 
     use super::*;
 
