@@ -5,8 +5,8 @@ use anyhow::{Context, Result};
 use forge_app::dto::{InitAuth, LoginInfo, Provider, ProviderId, ToolsOverview};
 use forge_app::{
     AgentLoaderService, AuthService, ConversationService, EnvironmentService, FileDiscoveryService,
-    ForgeApp, McpConfigManager, McpService, ProviderRegistry, ProviderService, Services, User,
-    UserUsage, Walker, WorkflowService,
+    ForgeApp, GitApp, McpConfigManager, McpService, ProviderRegistry, ProviderService, Services,
+    User, UserUsage, Walker, WorkflowService,
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
@@ -66,8 +66,8 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
     }
 
     async fn generate_commit_message(&self, max_diff_size: Option<usize>) -> Result<String> {
-        let forge_app = ForgeApp::new(self.services.clone());
-        forge_app.generate_commit_message(max_diff_size).await
+        let git_app = GitApp::new(self.services.clone());
+        git_app.generate_commit_message(max_diff_size).await
     }
 
     async fn chat(
