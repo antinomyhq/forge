@@ -233,27 +233,34 @@ impl<S: Services> ForgeApp<S> {
         // Get current working directory
         let cwd = self.services.environment_service().get_environment().cwd;
 
-        // Get recent commit messages as examples
-        let recent_commits = self
-            .services
-            .shell_service()
-            .execute(
+        // Execute git operations in parallel
+        let (recent_commits, branch_name, diff_output) = tokio::join!(
+            self.services.shell_service().execute(
                 "git log --pretty=format:%s --abbrev-commit --max-count=20".into(),
                 cwd.clone(),
                 false,
                 true,
                 None,
+            ),
+            self.services.shell_service().execute(
+                "git rev-parse --abbrev-ref HEAD".into(),
+                cwd.clone(),
+                false,
+                true,
+                None,
+            ),
+            self.services.shell_service().execute(
+                "git diff --staged".into(),
+                cwd.clone(),
+                false,
+                true,
+                None,
             )
-            .await
-            .context("Failed to get recent commits")?;
+        );
 
-        // Get staged changes
-        let diff_output = self
-            .services
-            .shell_service()
-            .execute("git diff --staged".into(), cwd.clone(), false, true, None)
-            .await
-            .context("Failed to get staged changes")?;
+        let recent_commits = recent_commits.context("Failed to get recent commits")?;
+        let branch_name = branch_name.context("Failed to get branch name")?;
+        let diff_output = diff_output.context("Failed to get staged changes")?;
 
         if diff_output.output.stdout.trim().is_empty() {
             return Err(anyhow::anyhow!("No staged changes to commit"));
@@ -275,22 +282,18 @@ impl<S: Services> ForgeApp<S> {
                 (diff_output.output.stdout.clone(), false)
             };
 
-        // Render prompt with diff and recent commit messages.
-        let rendered_prompt = self
-            .services
-            .template_service()
-            .render_template("{{> forge-commit-message-prompt.md }}", &())
-            .await?;
+        // Execute independent operations in parallel
+        let (rendered_prompt, provider, model) = tokio::join!(
+            self.services
+                .template_service()
+                .render_template("{{> forge-commit-message-prompt.md }}", &()),
+            self.services.get_active_provider(),
+            self.services.get_active_model()
+        );
 
-        // Get active provider
-        let provider = self
-            .services
-            .get_active_provider()
-            .await
-            .context("Failed to get provider")?;
-
-        // Get active Model
-        let model = self.services.get_active_model().await?;
+        let rendered_prompt = rendered_prompt?;
+        let provider = provider.context("Failed to get provider")?;
+        let model = model?;
 
         // Create an context
         let truncation_notice = if was_truncated {
@@ -307,7 +310,8 @@ impl<S: Services> ForgeApp<S> {
             .add_message(ContextMessage::system(rendered_prompt))
             .add_message(ContextMessage::user(
                 format!(
-                    "<recent_commit_messages>\n{}\n</recent_commit_messages>\n\n<git_diff>\n{}{}\n</git_diff>",
+                    "<branch_name>\n{}\n</branch_name>\n\n<recent_commit_messages>\n{}\n</recent_commit_messages>\n\n<git_diff>\n{}{}\n</git_diff>",
+                    branch_name.output.stdout,
                     recent_commits.output.stdout,
                     diff_content,
                     truncation_notice
