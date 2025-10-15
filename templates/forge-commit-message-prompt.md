@@ -1,18 +1,18 @@
-Generate a concise, single-line git commit message based on the provided git diff.
+Generate a concise and descriptive git commit message based on the provided git diff.
 
 # Requirements
 
-- **Length**: Maximum 72 characters (aim for 50-60 for best practice)
+- **Title Length**: 50-72 characters
+- **Format**: Follow conventional commit format (e.g., `feat:`, `fix:`, `refactor:`, `docs:`, etc.)
 - **Style**: Use imperative mood (e.g., "Add feature" not "Added feature" or "Adds feature")
-- **Content**: Describe WHAT changed and WHY (if not obvious from the what)
-- **Format**: Single line, no period at the end
-- **Clarity**: Be specific and actionable - avoid vague terms like "fix stuff" or "update code"
+- **Content**: Describe WHAT was changed and WHY
+- **Clarity**: Be clear and informative - avoid vague terms like "fix stuff" or "update code"
 
 # Instructions
 
 You will receive:
-- `<recent_commit_messages>` - Examples from the repository to understand the commit message style
+- `<recent_commit_messages>` - Examples from the repository to understand the commit message style for user.
 - `<git_diff>` - The git diff showing what changed
 
-Generate ONLY the commit message - no explanations, no quotes, no additional text.
-The message should be clear enough that someone reading it in the git log understands the change without viewing the diff.
+Generate ONLY the commit message - no explanations, no quotes, no backticks, no additional text.
+Skip preamble and provide the commit message directly.
