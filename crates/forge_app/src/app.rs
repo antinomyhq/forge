@@ -223,13 +223,12 @@ impl<S: Services> ForgeApp<S> {
     ///
     /// # Arguments
     ///
-    /// * `max_diff_size` - Maximum size of git diff in bytes. Set to 0 for
-    ///   unlimited.
+    /// * `max_diff_size` - Maximum size of git diff in bytes. None for unlimited.
     ///
     /// # Errors
     ///
     /// Returns an error if git operations fail or AI generation fails
-    pub async fn generate_commit_message(&self, max_diff_size: usize) -> Result<String> {
+    pub async fn generate_commit_message(&self, max_diff_size: Option<usize>) -> Result<String> {
         // Get current working directory
         let cwd = self.services.environment_service().get_environment().cwd;
 
@@ -267,20 +266,20 @@ impl<S: Services> ForgeApp<S> {
         }
 
         // Truncate diff if it exceeds max size
-        let (diff_content, was_truncated) =
-            if max_diff_size > 0 && diff_output.output.stdout.len() > max_diff_size {
+        let (diff_content, was_truncated) = match max_diff_size {
+            Some(max_size) if diff_output.output.stdout.len() > max_size => {
                 // Safely truncate at a char boundary
                 let truncated = diff_output
                     .output
                     .stdout
                     .char_indices()
-                    .take_while(|(idx, _)| *idx < max_diff_size)
+                    .take_while(|(idx, _)| *idx < max_size)
                     .map(|(_, c)| c)
                     .collect::<String>();
                 (truncated, true)
-            } else {
-                (diff_output.output.stdout.clone(), false)
-            };
+            }
+            _ => (diff_output.output.stdout.clone(), false),
+        };
 
         // Execute independent operations in parallel
         let (rendered_prompt, provider, model) = tokio::join!(
@@ -299,7 +298,7 @@ impl<S: Services> ForgeApp<S> {
         let truncation_notice = if was_truncated {
             format!(
                 "\n\n[Note: Diff truncated to {} bytes. Original size: {} bytes]",
-                max_diff_size,
+                max_diff_size.unwrap(),
                 diff_output.output.stdout.len()
             )
         } else {

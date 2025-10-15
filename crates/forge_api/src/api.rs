@@ -32,13 +32,12 @@ pub trait API: Sync + Send {
     ///
     /// # Arguments
     ///
-    /// * `max_diff_size` - Maximum size of git diff in bytes. Set to 0 for
-    ///   unlimited.
+    /// * `max_diff_size` - Maximum size of git diff in bytes. None for unlimited.
     ///
     /// # Errors
     ///
     /// Returns an error if git operations fail or AI generation fails
-    async fn generate_commit_message(&self, max_diff_size: usize) -> Result<String>;
+    async fn generate_commit_message(&self, max_diff_size: Option<usize>) -> Result<String>;
 
     /// Returns the current environment
     fn environment(&self) -> Environment;
