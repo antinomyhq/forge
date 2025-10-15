@@ -208,6 +208,7 @@ impl<
                         input.command.clone(),
                         input.cwd.clone(),
                         input.keep_ansi,
+                        false,
                         input.env.clone(),
                     )
                     .await?;
