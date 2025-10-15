@@ -42,7 +42,7 @@ impl<A: API> CommitHandler<A> {
 
             // If exit code is 0, there are no staged changes; use -a as fallback
             // If exit code is 1, there are staged changes; commit only those
-            let staged_files = status_result.success();
+            let staged_files = status_result.exit_code.unwrap_or_default() == 1;
 
             // Actually commit the changes
             let escaped_message = commit_message.replace('\'', "'\\''");
