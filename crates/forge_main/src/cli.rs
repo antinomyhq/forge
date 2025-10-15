@@ -345,7 +345,8 @@ pub struct CommitCommandGroup {
     ///
     /// Limits the size of the git diff sent to the AI model. Large diffs are
     /// truncated to save tokens and reduce API costs. Omit for unlimited size.
-    #[arg(long = "max-diff")]
+    /// Minimum value is 5000 bytes.
+    #[arg(long = "max-diff", value_parser = clap::builder::RangedI64ValueParser::<usize>::new().range(5000..))]
     pub max_diff_size: Option<usize>,
 }
 
