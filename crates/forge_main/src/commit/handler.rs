@@ -32,16 +32,29 @@ impl<A: API> CommitHandler<A> {
             // Just return the message for preview
             Ok(commit_message)
         } else {
+            // Check if there are staged changes first
+            let cwd = self.api.environment().cwd;
+            let status_result = self
+                .api
+                .execute_shell_command("git diff --cached --quiet", cwd.clone(), false)
+                .await
+                .context("Failed to check staged changes")?;
+
+            // If exit code is 0, there are no staged changes; use -a as fallback
+            // If exit code is 1, there are staged changes; commit only those
+            let staged_files = status_result.success();
+
             // Actually commit the changes
             let escaped_message = commit_message.replace('\'', "'\\''");
-            let cwd = self.api.environment().cwd;
+            let commit_command = if staged_files {
+                format!("git commit -m '{escaped_message}'")
+            } else {
+                format!("git commit -a -m '{escaped_message}'")
+            };
+
             let commit_result = self
                 .api
-                .execute_shell_command(
-                    &format!("git commit -m '{}'", escaped_message),
-                    cwd.clone(),
-                    false,
-                )
+                .execute_shell_command(&commit_command, cwd.clone(), false)
                 .await
                 .context("Failed to commit changes")?;
 

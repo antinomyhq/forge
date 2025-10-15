@@ -33,7 +33,7 @@ impl<S: Services> GitApp<S> {
         let cwd = self.services.environment_service().get_environment().cwd;
 
         // Execute git operations in parallel
-        let (recent_commits, branch_name, diff_output) = tokio::join!(
+        let (recent_commits, branch_name, staged_diff, unstaged_diff) = tokio::join!(
             self.services.shell_service().execute(
                 "git log --pretty=format:%s --abbrev-commit --max-count=20".into(),
                 cwd.clone(),
@@ -54,16 +54,29 @@ impl<S: Services> GitApp<S> {
                 false,
                 true,
                 None,
+            ),
+            self.services.shell_service().execute(
+                "git diff".into(),
+                cwd.clone(),
+                false,
+                true,
+                None,
             )
         );
 
         let recent_commits = recent_commits.context("Failed to get recent commits")?;
         let branch_name = branch_name.context("Failed to get branch name")?;
-        let diff_output = diff_output.context("Failed to get staged changes")?;
+        let staged_diff = staged_diff.context("Failed to get staged changes")?;
+        let unstaged_diff = unstaged_diff.context("Failed to get unstaged changes")?;
 
-        if diff_output.output.stdout.trim().is_empty() {
-            return Err(anyhow::anyhow!("No staged changes to commit"));
-        }
+        // Use staged changes if available, otherwise fall back to unstaged changes
+        let diff_output = if !staged_diff.output.stdout.trim().is_empty() {
+            staged_diff
+        } else if !unstaged_diff.output.stdout.trim().is_empty() {
+            unstaged_diff
+        } else {
+            return Err(anyhow::anyhow!("No changes to commit"));
+        };
 
         // Truncate diff if it exceeds max size
         let (diff_content, was_truncated) = match max_diff_size {
