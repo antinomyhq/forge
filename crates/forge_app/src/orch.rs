@@ -12,7 +12,6 @@ use tracing::{debug, info, warn};
 
 use crate::agent::AgentService;
 use crate::compact::Compactor;
-use crate::file_tracking::FileChange;
 use crate::title_generator::TitleGenerator;
 use crate::user_prompt::UserPromptBuilder;
 
@@ -31,6 +30,7 @@ pub struct Orchestrator<S> {
     event: Event,
     error_tracker: ToolErrorTracker,
     user_prompt_service: UserPromptBuilder<S>,
+    changed_files: Vec<std::path::PathBuf>,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -60,6 +60,7 @@ impl<S: AgentService> Orchestrator<S> {
             files: Default::default(),
             custom_instructions: Default::default(),
             error_tracker: Default::default(),
+            changed_files: Default::default(),
         }
     }
 
@@ -286,6 +287,9 @@ impl<S: AgentService> Orchestrator<S> {
         // Render user prompts
         context = self.user_prompt_service.set_user_prompt(context).await?;
 
+        // Handle files that may have been reverted/modified externally by the user
+        context = self.add_externally_changed_files(context, &model_id).await;
+
         // Create agent reference for the rest of the method
         let agent = &self.agent;
 
@@ -354,46 +358,6 @@ impl<S: AgentService> Orchestrator<S> {
         let title = self.generate_title(model_id.clone());
 
         while !should_yield {
-            // Detect files that may have been reverted/modified externally by the user
-            let file_changes = self.services.detect_file_changes(&self.conversation).await;
-            if !file_changes.is_empty() {
-                let changes = file_changes
-                    .iter()
-                    .map(|f| f.to_string())
-                    .collect::<Vec<_>>()
-                    .join("\n");
-
-                // Remove deleted files from metrics
-                file_changes
-                    .iter()
-                    .filter_map(|change| match change {
-                        FileChange::Deleted(path) => Some(path.display().to_string()),
-                        _ => None,
-                    })
-                    .for_each(|path_str| {
-                        self.conversation
-                            .metrics
-                            .files_changed
-                            .remove_entry(&path_str);
-                        let _ = tool_context.with_metrics(|metrics| {
-                            metrics.files_changed.remove_entry(&path_str);
-                        });
-                    });
-
-                let message = self
-                    .services
-                    .render(
-                        "{{> forge-file-changes-notification.md }}",
-                        &serde_json::json!({
-                            "changes": changes
-                        }),
-                    )
-                    .await?;
-
-                context =
-                    context.add_message(ContextMessage::user(message, model_id.clone().into()));
-            }
-
             // Set context for the current loop iteration
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
@@ -577,6 +541,41 @@ impl<S: AgentService> Orchestrator<S> {
             .model
             .clone()
             .ok_or(Error::MissingModel(self.agent.id.clone()))?)
+    }
+
+    /// Adds externally changed files notification to the context
+    async fn add_externally_changed_files(
+        &mut self,
+        context: Context,
+        model_id: &ModelId,
+    ) -> Context {
+        if self.changed_files.is_empty() {
+            return context;
+        }
+
+        let changes = self
+            .changed_files
+            .iter()
+            .map(|path| format!("- `{}`", path.display()))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        if let Ok(rendered_message) = self
+            .services
+            .render(
+                "{{> forge-file-changes-notification.md }}",
+                &serde_json::json!({
+                    "changes": changes
+                }),
+            )
+            .await
+        {
+            return context.add_message(ContextMessage::user(
+                rendered_message,
+                model_id.clone().into(),
+            ));
+        }
+        return context;
     }
 
     /// Creates a join handle which eventually resolves with the conversation

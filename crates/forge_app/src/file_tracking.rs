@@ -1,8 +1,5 @@
-use std::fmt::Display;
-use std::path::PathBuf;
 use std::sync::Arc;
 
-use serde::Serialize;
 use sha2::{Digest, Sha256};
 use tracing::debug;
 
@@ -12,44 +9,6 @@ use crate::{Content, FsReadService};
 #[derive(Clone)]
 pub struct FileChangeDetector<F> {
     fs_read_service: Arc<F>,
-}
-
-#[derive(Serialize)]
-pub enum FileChange {
-    Deleted(PathBuf),
-    Modified(PathBuf),
-    Unknown(PathBuf),
-}
-
-impl FileChange {
-    /// Returns the path of the changed file
-    pub fn path(&self) -> &PathBuf {
-        match self {
-            FileChange::Deleted(path) => path,
-            FileChange::Modified(path) => path,
-            FileChange::Unknown(path) => path,
-        }
-    }
-
-    /// Returns the operation type as a string
-    fn operation(&self) -> &str {
-        match self {
-            FileChange::Deleted(_) => "deleted",
-            FileChange::Modified(_) => "modified",
-            FileChange::Unknown(_) => "unknown",
-        }
-    }
-}
-
-impl Display for FileChange {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "- **{}**: `{}`",
-            self.operation().to_uppercase(),
-            self.path().display()
-        )
-    }
 }
 
 impl<F: FsReadService> FileChangeDetector<F> {
@@ -74,11 +33,11 @@ impl<F: FsReadService> FileChangeDetector<F> {
     pub async fn detect(
         &self,
         tracked_files: &std::collections::HashMap<String, String>,
-    ) -> Vec<FileChange> {
+    ) -> Vec<std::path::PathBuf> {
         let mut changes = Vec::new();
 
         for (path, stored_hash) in tracked_files {
-            let file_path = PathBuf::from(path);
+            let file_path = std::path::PathBuf::from(path);
 
             // Read the current file content and compute its hash
             match self.read_file_content(&file_path).await {
@@ -93,25 +52,17 @@ impl<F: FsReadService> FileChangeDetector<F> {
                             current_hash = %current_hash,
                             "Detected file modification"
                         );
-                        changes.push(FileChange::Modified(file_path));
+                        changes.push(file_path);
                     }
                 }
                 Err(e) => {
-                    // Check if it's a file not found error (deleted) or other error
-                    if is_not_found_error(&e) {
-                        debug!(
-                            path = %path,
-                            "File has been deleted"
-                        );
-                        changes.push(FileChange::Deleted(file_path));
-                    } else {
-                        debug!(
-                            path = %path,
-                            error = ?e,
-                            "Failed to read file for hash comparison"
-                        );
-                        changes.push(FileChange::Unknown(file_path));
-                    }
+                    // File has changed (deleted or inaccessible)
+                    debug!(
+                        path = %path,
+                        error = ?e,
+                        "File has changed or is inaccessible"
+                    );
+                    changes.push(file_path);
                 }
             }
         }
@@ -120,7 +71,7 @@ impl<F: FsReadService> FileChangeDetector<F> {
     }
 
     /// Reads file content using the FsReadService
-    async fn read_file_content(&self, path: &PathBuf) -> anyhow::Result<String> {
+    async fn read_file_content(&self, path: &std::path::PathBuf) -> anyhow::Result<String> {
         let output = self
             .fs_read_service
             .read(path.to_string_lossy().to_string(), None, None)
@@ -137,17 +88,6 @@ fn compute_content_hash(content: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(content.as_bytes());
     format!("{:x}", hasher.finalize())
-}
-
-/// Checks if an error indicates that a file was not found
-fn is_not_found_error(error: &anyhow::Error) -> bool {
-    error.chain().any(|e| {
-        if let Some(io_error) = e.downcast_ref::<std::io::Error>() {
-            io_error.kind() == std::io::ErrorKind::NotFound
-        } else {
-            false
-        }
-    })
 }
 
 #[cfg(test)]
@@ -233,7 +173,7 @@ mod tests {
         tracked_files.insert("/test/file.txt".to_string(), hash);
 
         let actual = detector.detect(&tracked_files).await;
-        let expected: Vec<FileChange> = vec![];
+        let expected: Vec<std::path::PathBuf> = vec![];
 
         assert_eq!(actual.len(), expected.len());
     }
@@ -251,8 +191,7 @@ mod tests {
         let actual = detector.detect(&tracked_files).await;
 
         assert_eq!(actual.len(), 1);
-        assert_eq!(actual[0].path(), &PathBuf::from("/test/file.txt"));
-        assert_eq!(actual[0].operation(), "modified");
+        assert_eq!(actual[0], std::path::PathBuf::from("/test/file.txt"));
     }
 
     #[tokio::test]
@@ -266,8 +205,7 @@ mod tests {
         let actual = detector.detect(&tracked_files).await;
 
         assert_eq!(actual.len(), 1);
-        assert_eq!(actual[0].path(), &PathBuf::from("/test/file.txt"));
-        assert_eq!(actual[0].operation(), "deleted");
+        assert_eq!(actual[0], std::path::PathBuf::from("/test/file.txt"));
     }
 
     #[tokio::test]
@@ -281,8 +219,7 @@ mod tests {
         let actual = detector.detect(&tracked_files).await;
 
         assert_eq!(actual.len(), 1);
-        assert_eq!(actual[0].path(), &PathBuf::from("/test/file.txt"));
-        assert_eq!(actual[0].operation(), "unknown");
+        assert_eq!(actual[0], std::path::PathBuf::from("/test/file.txt"));
     }
 
     #[tokio::test]
@@ -307,11 +244,9 @@ mod tests {
         let actual = detector.detect(&tracked_files).await;
         assert_eq!(actual.len(), 2);
 
-        let modified = actual.iter().find(|c| c.operation() == "modified").unwrap();
-        assert_eq!(modified.path(), &PathBuf::from("/test/file2.txt"));
-
-        let deleted = actual.iter().find(|c| c.operation() == "deleted").unwrap();
-        assert_eq!(deleted.path(), &PathBuf::from("/test/file3.txt"));
+        // Check that both changed files are present
+        assert!(actual.contains(&std::path::PathBuf::from("/test/file2.txt")));
+        assert!(actual.contains(&std::path::PathBuf::from("/test/file3.txt")));
     }
 
     #[tokio::test]
@@ -321,7 +256,7 @@ mod tests {
         let tracked_files = HashMap::new();
 
         let actual = detector.detect(&tracked_files).await;
-        let expected: Vec<FileChange> = vec![];
+        let expected: Vec<std::path::PathBuf> = vec![];
 
         assert_eq!(actual.len(), expected.len());
     }

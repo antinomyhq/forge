@@ -5,7 +5,6 @@ use forge_domain::{
     ToolCallFull, ToolResult,
 };
 
-use crate::file_tracking::FileChange;
 use crate::tool_registry::ToolRegistry;
 use crate::{ConversationService, ProviderRegistry, ProviderService, Services, TemplateService};
 
@@ -38,12 +37,6 @@ pub trait AgentService: Send + Sync + 'static {
     /// Synchronize the on-going conversation
     async fn update(&self, conversation: Conversation) -> anyhow::Result<()>;
 
-    /// Detect files that have been modified externally by comparing current
-    /// hashes with the hashes stored in conversation metrics
-    async fn detect_file_changes(
-        &self,
-        conversation: &Conversation,
-    ) -> Vec<crate::file_tracking::FileChange>;
 }
 
 /// Blanket implementation of AgentService for any type that implements Services
@@ -80,20 +73,4 @@ impl<T: Services> AgentService for T {
         self.upsert_conversation(conversation).await
     }
 
-    async fn detect_file_changes(&self, conversation: &Conversation) -> Vec<FileChange> {
-        use std::collections::HashMap;
-
-        use crate::file_tracking::FileChangeDetector;
-
-        let tracked_files: HashMap<String, String> = conversation
-            .metrics
-            .files_changed
-            .iter()
-            .map(|(path, metrics)| (path.clone(), metrics.file_hash.clone()))
-            .collect();
-
-        FileChangeDetector::new(Arc::new(self.clone()))
-            .detect(&tracked_files)
-            .await
-    }
 }

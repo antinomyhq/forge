@@ -1,4 +1,4 @@
-The following files were modified externally by the user since your last changes. If you need to operate on these files, consider re-reading them to get the latest content.
+The following files were modified by me since your last changes. If you need to operate on these files, consider re-reading them to get the latest content.
 
 ## File Changes:
 {{changes}}

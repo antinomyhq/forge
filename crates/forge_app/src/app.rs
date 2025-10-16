@@ -114,6 +114,24 @@ impl<S: Services> ForgeApp<S> {
             tool_resolver.resolve(&agent).into_iter().cloned().collect();
         let max_tool_failure_per_turn = agent.max_tool_failure_per_turn.unwrap_or(3);
 
+        // Detect files that may have been changed externally before starting the agentic loop
+        let changed_files = {
+            use std::collections::HashMap;
+
+            use crate::file_tracking::FileChangeDetector;
+
+            let tracked_files: HashMap<String, String> = conversation
+                .metrics
+                .files_changed
+                .iter()
+                .map(|(path, metrics)| (path.clone(), metrics.file_hash.clone()))
+                .collect();
+
+            FileChangeDetector::new(services.clone())
+                .detect(&tracked_files)
+                .await
+        };
+
         // Create the orchestrator with all necessary dependencies
         let orch = Orchestrator::new(
             services.clone(),
@@ -127,7 +145,8 @@ impl<S: Services> ForgeApp<S> {
         .custom_instructions(custom_instructions)
         .tool_definitions(tool_definitions)
         .models(models)
-        .files(files);
+        .files(files)
+        .changed_files(changed_files);
 
         // Create and return the stream
         let stream = MpscStream::spawn(
