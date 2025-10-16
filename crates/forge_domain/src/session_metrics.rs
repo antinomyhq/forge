@@ -21,8 +21,9 @@ pub struct FileChangeMetrics {
     pub lines_added: u64,
     pub lines_removed: u64,
     pub file_hash: String,
-    /// The file state that was last notified to the agent about external changes.
-    /// None if we've never notified the agent about external changes for this file.
+    /// The file state that was last notified to the agent about external
+    /// changes. None if we've never notified the agent about external
+    /// changes for this file.
     #[serde(default)]
     pub last_notified_state: Option<FileState>,
 }
