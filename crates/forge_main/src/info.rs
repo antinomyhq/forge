@@ -77,11 +77,7 @@ impl Info {
                     if !current_row_values.is_empty() {
                         let row = if include_title {
                             // For list commands: combine all values into one row with ID
-                            self.build_row(
-                                current_row_values,
-                                current_title.clone(),
-                                0
-                            )
+                            self.build_row(current_row_values, current_title.clone(), 0)
                         } else {
                             // This shouldn't happen for include_title=false, but handle it
                             current_row_values
