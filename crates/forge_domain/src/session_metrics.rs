@@ -5,6 +5,15 @@ use chrono::{DateTime, Utc};
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
+/// Represents the state of a file at a specific point in time
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FileState {
+    /// File is readable with its content hash
+    Readable { hash: String },
+    /// File cannot be read (deleted, no permissions, etc.)
+    Unreadable,
+}
+
 /// Tracks metrics for individual file changes
 #[derive(Debug, Clone, Default, Setters, Serialize, Deserialize)]
 #[setters(into, strip_option)]
@@ -12,6 +21,10 @@ pub struct FileChangeMetrics {
     pub lines_added: u64,
     pub lines_removed: u64,
     pub file_hash: String,
+    /// The file state that was last notified to the agent about external changes.
+    /// None if we've never notified the agent about external changes for this file.
+    #[serde(default)]
+    pub last_notified_state: Option<FileState>,
 }
 
 impl FileChangeMetrics {
@@ -94,6 +107,7 @@ mod tests {
             lines_added: 0,
             lines_removed: 0,
             file_hash: "abc123".to_string(),
+            last_notified_state: None,
         };
         assert_eq!(actual.lines_added, expected.lines_added);
         assert_eq!(actual.lines_removed, expected.lines_removed);
@@ -111,6 +125,7 @@ mod tests {
             lines_added: 13,
             lines_removed: 7,
             file_hash: "hash3".to_string(),
+            last_notified_state: None,
         };
         assert_eq!(actual.lines_added, expected.lines_added);
         assert_eq!(actual.lines_removed, expected.lines_removed);

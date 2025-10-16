@@ -45,7 +45,7 @@ impl<S: Services> ForgeApp<S> {
         let services = self.services.clone();
 
         // Get the conversation for the chat request
-        let conversation = services
+        let mut conversation = services
             .find_conversation(&chat.conversation_id)
             .await
             .unwrap_or_default()
@@ -119,16 +119,27 @@ impl<S: Services> ForgeApp<S> {
         let changed_files = {
             use crate::file_tracking::FileChangeDetector;
 
-            FileChangeDetector::new(services.clone())
+            let changes = FileChangeDetector::new(services.clone())
                 .detect(
                     &conversation
                         .metrics
                         .files_changed
                         .iter()
-                        .map(|(path, metrics)| (path.clone(), metrics.file_hash.clone()))
+                        .map(|(path, metrics)| (path.clone(), metrics.last_notified_state.clone()))
                         .collect(),
                 )
-                .await
+                .await;
+
+            // Update last_notified_state to prevent duplicate notifications
+            for change in &changes {
+                if let Some(path_str) = change.path.to_str() {
+                    if let Some(metrics) = conversation.metrics.files_changed.get_mut(path_str) {
+                        metrics.last_notified_state = Some(change.state.clone());
+                    }
+                }
+            }
+
+            changes
         };
 
         // Create the orchestrator with all necessary dependencies

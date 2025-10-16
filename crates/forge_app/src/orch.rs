@@ -12,6 +12,7 @@ use tracing::{debug, info, warn};
 
 use crate::agent::AgentService;
 use crate::compact::Compactor;
+use crate::file_tracking::FileChange;
 use crate::title_generator::TitleGenerator;
 use crate::user_prompt::UserPromptBuilder;
 
@@ -30,7 +31,7 @@ pub struct Orchestrator<S> {
     event: Event,
     error_tracker: ToolErrorTracker,
     user_prompt_service: UserPromptBuilder<S>,
-    changed_files: Vec<std::path::PathBuf>,
+    changed_files: Vec<FileChange>,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -552,7 +553,7 @@ impl<S: AgentService> Orchestrator<S> {
         let changes = self
             .changed_files
             .iter()
-            .map(|path| format!("- `{}`", path.display()))
+            .map(|change| format!("- `{}`", change.path.display()))
             .collect::<Vec<_>>()
             .join("\n");
 
