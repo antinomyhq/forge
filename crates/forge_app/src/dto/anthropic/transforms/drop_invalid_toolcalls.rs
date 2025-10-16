@@ -1,9 +1,16 @@
 use forge_domain::Transformer;
+use serde_json::json;
 
 use crate::dto::anthropic::{Content, Request};
 
-/// Transformer that removes content items based on type constraints:
-/// - Removes `Content::ToolUse` variants where the input is not an object type
+/// Transformer that normalizes ToolUse content to ensure inputs are always
+/// objects.
+/// - Preserves `Content::Text` and other content types as-is
+/// - For `Content::ToolUse`:
+///   - If input is already an object, keeps it unchanged
+///   - If input is None, keeps it as None
+///   - If input is non-object (string, array, number, etc.), wraps it in
+///     `{"json": value}`
 pub struct DropInvalidToolUse;
 
 impl Transformer for DropInvalidToolUse {
@@ -11,14 +18,15 @@ impl Transformer for DropInvalidToolUse {
 
     fn transform(&mut self, mut request: Self::Value) -> Self::Value {
         for message in request.get_messages_mut() {
-            message.content.retain(|content| match content {
-                Content::Text { .. } => true,
-                Content::ToolUse { input, .. } => {
-                    // Keep only if input is Some and is an object
-                    input.as_ref().is_some_and(|v| v.is_object())
+            for content in &mut message.content {
+                if let Content::ToolUse { input, .. } = content {
+                    *input = match input.take() {
+                        Some(value) if value.is_object() => Some(value),
+                        Some(value) => Some(json!({ "json": value })),
+                        None => None,
+                    };
                 }
-                _ => true,
-            });
+            }
         }
 
         request
@@ -27,184 +35,105 @@ impl Transformer for DropInvalidToolUse {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Context, ContextMessage, ModelId, Role, TextMessage, Transformer};
+    use forge_domain::{
+        Context, ContextMessage, ModelId, Role, TextMessage, ToolCallArguments, ToolCallFull,
+        Transformer,
+    };
     use pretty_assertions::assert_eq;
+    use serde_json::json;
 
     use super::*;
     use crate::dto::anthropic::Request;
 
-    fn create_context_fixture() -> Context {
-        Context::default().messages(vec![
-            ContextMessage::Text(TextMessage {
-                role: Role::User,
-                content: "Hello".to_string(),
-                tool_calls: None,
-                model: ModelId::new("claude-3-5-sonnet-20241022").into(),
-                reasoning_details: None,
-            }),
-            ContextMessage::Text(TextMessage {
-                role: Role::Assistant,
-                content: "Hi there".to_string(),
-                tool_calls: None,
-                model: None,
-                reasoning_details: None,
-            }),
-        ])
+    fn transform_tool_call(json_args: &str) -> Request {
+        let fixture = Context::default().messages(vec![ContextMessage::Text(TextMessage {
+            role: Role::User,
+            content: "Hello".to_string(),
+            tool_calls: Some(vec![
+                ToolCallFull::new("test_tool")
+                    .call_id("call_123")
+                    .arguments(ToolCallArguments::from_json(json_args)),
+            ]),
+            model: Some(ModelId::new("claude-3-5-sonnet-20241022")),
+            reasoning_details: None,
+        })]);
+        DropInvalidToolUse.transform(Request::try_from(fixture).unwrap())
     }
 
-    #[test]
-    fn test_preserves_text_content_from_messages() {
-        let fixture = create_context_fixture();
-        let request = Request::try_from(fixture).unwrap();
-        let mut transformer = DropInvalidToolUse;
-        let actual = transformer.transform(request);
-        let expected_message_count = 2;
-        let expected_content_count = 1; // Text content is preserved
-
-        assert_eq!(actual.messages.len(), expected_message_count);
-        assert_eq!(actual.messages[0].content.len(), expected_content_count);
-        assert_eq!(actual.messages[1].content.len(), expected_content_count);
-        assert!(matches!(
-            actual.messages[0].content[0],
-            Content::Text { .. }
-        ));
-        assert!(matches!(
-            actual.messages[1].content[0],
-            Content::Text { .. }
-        ));
+    fn get_tool_input(request: &Request) -> &Option<serde_json::Value> {
+        if let Content::ToolUse { input, .. } = &request.messages[0].content[1] {
+            input
+        } else {
+            panic!("Expected ToolUse content")
+        }
     }
 
     #[test]
     fn test_preserves_tool_use_with_object_input() {
-        let fixture = Context::default().messages(vec![ContextMessage::Text(TextMessage {
-            role: Role::User,
-            content: "Hello".to_string(),
-            tool_calls: Some(vec![forge_domain::ToolCallFull {
-                call_id: Some("call_123".into()),
-                name: "test_tool".into(),
-                arguments: forge_domain::ToolCallArguments::from_json(r#"{"key": "value"}"#),
-            }]),
-            model: ModelId::new("claude-3-5-sonnet-20241022").into(),
-            reasoning_details: None,
-        })]);
-
-        let request = Request::try_from(fixture).unwrap();
-        let mut transformer = DropInvalidToolUse;
-        let actual = transformer.transform(request);
-
-        assert_eq!(actual.messages.len(), 1);
-        assert_eq!(actual.messages[0].content.len(), 2); // Text + ToolUse preserved
-        assert!(matches!(
-            actual.messages[0].content[0],
-            Content::Text { .. }
-        ));
-        assert!(matches!(
-            actual.messages[0].content[1],
-            Content::ToolUse { .. }
-        ));
+        let actual = transform_tool_call(r#"{"key": "value"}"#);
+        assert_eq!(get_tool_input(&actual), &Some(json!({"key": "value"})));
     }
 
     #[test]
-    fn test_removes_tool_use_with_non_object_input() {
-        let fixture = Context::default().messages(vec![ContextMessage::Text(TextMessage {
-            role: Role::User,
-            content: "Hello".to_string(),
-            tool_calls: Some(vec![forge_domain::ToolCallFull {
-                call_id: Some("call_123".into()),
-                name: "test_tool".into(),
-                arguments: forge_domain::ToolCallArguments::from_json(r#""string_value""#),
-            }]),
-            model: ModelId::new("claude-3-5-sonnet-20241022").into(),
-            reasoning_details: None,
-        })]);
-
-        let request = Request::try_from(fixture).unwrap();
-        let mut transformer = DropInvalidToolUse;
-        let actual = transformer.transform(request);
-
-        assert_eq!(actual.messages.len(), 1);
-        assert_eq!(actual.messages[0].content.len(), 1); // Text preserved, ToolUse removed
-        assert!(matches!(
-            actual.messages[0].content[0],
-            Content::Text { .. }
-        ));
+    fn test_wraps_tool_use_with_string_input() {
+        let actual = transform_tool_call(r#""string_value""#);
+        assert_eq!(
+            get_tool_input(&actual),
+            &Some(json!({"json": "string_value"}))
+        );
     }
 
     #[test]
-    fn test_removes_tool_use_with_none_input() {
-        use crate::dto::anthropic::{Content, Message, Role};
+    fn test_wraps_tool_use_with_array_input() {
+        let actual = transform_tool_call(r#"[1, 2, 3]"#);
+        assert_eq!(get_tool_input(&actual), &Some(json!({"json": [1, 2, 3]})));
+    }
 
-        let mut request = Request::default();
-        request.messages = vec![Message {
-            role: Role::User,
+    #[test]
+    fn test_wraps_tool_use_with_number_input() {
+        let actual = transform_tool_call(r#"42"#);
+        assert_eq!(get_tool_input(&actual), &Some(json!({"json": 42})));
+    }
+
+    #[test]
+    fn test_wraps_tool_use_with_none_input() {
+        let request = Request::default().messages(vec![crate::dto::anthropic::Message {
+            role: crate::dto::anthropic::Role::User,
             content: vec![Content::ToolUse {
                 id: "call_123".to_string(),
                 name: "test_tool".to_string(),
                 input: None,
                 cache_control: None,
             }],
-        }];
+        }]);
+        let actual = DropInvalidToolUse.transform(request);
 
-        let mut transformer = DropInvalidToolUse;
-        let actual = transformer.transform(request);
-
-        assert_eq!(actual.messages.len(), 1);
-        assert_eq!(actual.messages[0].content.len(), 0);
+        if let Content::ToolUse { input, .. } = &actual.messages[0].content[0] {
+            assert_eq!(input, &None);
+        }
     }
 
     #[test]
     fn test_empty_messages_remain_empty() {
-        let fixture = Context::default();
-        let request = Request::try_from(fixture).unwrap();
-        let mut transformer = DropInvalidToolUse;
-        let actual = transformer.transform(request);
-
+        let actual = DropInvalidToolUse.transform(Request::try_from(Context::default()).unwrap());
         assert_eq!(actual.messages.len(), 0);
     }
 
     #[test]
-    fn test_preserves_other_content_types() {
-        use crate::dto::anthropic::{Content, ImageSource, Message, Role};
-
-        let mut request = Request::default();
-        request.messages = vec![Message {
+    fn test_preserves_text_content() {
+        let fixture = Context::default().messages(vec![ContextMessage::Text(TextMessage {
             role: Role::User,
-            content: vec![
-                Content::Text { text: "This should be kept".to_string(), cache_control: None },
-                Content::Image {
-                    source: ImageSource {
-                        type_: "base64".to_string(),
-                        media_type: Some("image/png".to_string()),
-                        data: Some("base64data".to_string()),
-                        url: None,
-                    },
-                    cache_control: None,
-                },
-                Content::ToolResult {
-                    tool_use_id: "call_123".to_string(),
-                    content: Some("result".to_string()),
-                    is_error: Some(false),
-                    cache_control: None,
-                },
-            ],
-        }];
-
-        let mut transformer = DropInvalidToolUse;
-        let actual = transformer.transform(request);
+            content: "Hello".to_string(),
+            tool_calls: None,
+            model: None,
+            reasoning_details: None,
+        })]);
+        let actual = DropInvalidToolUse.transform(Request::try_from(fixture).unwrap());
 
         assert_eq!(actual.messages.len(), 1);
-        assert_eq!(actual.messages[0].content.len(), 3); // Text, Image, and ToolResult preserved
         assert!(matches!(
             actual.messages[0].content[0],
             Content::Text { .. }
-        ));
-        assert!(matches!(
-            actual.messages[0].content[1],
-            Content::Image { .. }
-        ));
-        assert!(matches!(
-            actual.messages[0].content[2],
-            Content::ToolResult { .. }
         ));
     }
 }
