@@ -132,11 +132,10 @@ impl<S: Services> ForgeApp<S> {
 
             // Update file_hash to prevent duplicate notifications
             for change in &changes {
-                if let Some(path_str) = change.path.to_str() {
-                    if let Some(metrics) = conversation.metrics.files_changed.get_mut(path_str) {
+                if let Some(path_str) = change.path.to_str()
+                    && let Some(metrics) = conversation.metrics.files_changed.get_mut(path_str) {
                         metrics.file_hash = change.file_hash.clone();
                     }
-                }
             }
 
             changes
