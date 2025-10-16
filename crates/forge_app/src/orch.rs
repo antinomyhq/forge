@@ -12,6 +12,7 @@ use tracing::{debug, info, warn};
 
 use crate::agent::AgentService;
 use crate::compact::Compactor;
+use crate::file_tracking::FileChange;
 use crate::title_generator::TitleGenerator;
 use crate::user_prompt::UserPromptBuilder;
 
@@ -356,14 +357,25 @@ impl<S: AgentService> Orchestrator<S> {
             // Detect files that may have been reverted/modified externally by the user
             let file_changes = self.services.detect_file_changes(&self.conversation).await;
             if !file_changes.is_empty() {
-                let changes = file_changes.iter().map(|f| f.to_string()).fold(
-                    String::new(),
-                    |mut acc, file| {
-                        acc.push_str(&file);
-                        acc.push('\n');
-                        acc
-                    },
-                );
+                let changes = file_changes
+                    .iter()
+                    .map(|f| f.to_string())
+                    .collect::<Vec<_>>()
+                    .join("\n");
+
+                // Remove deleted files from metrics
+                file_changes
+                    .iter()
+                    .filter_map(|change| match change {
+                        FileChange::Deleted(path) => Some(path.display().to_string()),
+                        _ => None,
+                    })
+                    .for_each(|path_str| {
+                        self.conversation.metrics.files_changed.remove_entry(&path_str);
+                        let _ = tool_context.with_metrics(|metrics| {
+                            metrics.files_changed.remove_entry(&path_str);
+                        });
+                    });
 
                 let message = self
                     .services
@@ -374,8 +386,8 @@ impl<S: AgentService> Orchestrator<S> {
                         }),
                     )
                     .await?;
-                context =
-                    context.add_message(ContextMessage::user(message, model_id.clone().into()));
+                
+                context = context.add_message(ContextMessage::user(message, model_id.clone().into()));
             }
 
             // Set context for the current loop iteration
