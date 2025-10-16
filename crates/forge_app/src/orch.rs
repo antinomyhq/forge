@@ -287,9 +287,6 @@ impl<S: AgentService> Orchestrator<S> {
         // Render user prompts
         context = self.user_prompt_service.set_user_prompt(context).await?;
 
-        // Handle files that may have been reverted/modified externally by the user
-        context = self.add_externally_changed_files(context, &model_id).await;
-
         // Create agent reference for the rest of the method
         let agent = &self.agent;
 
@@ -339,6 +336,9 @@ impl<S: AgentService> Orchestrator<S> {
                     }
                 })
             });
+
+        // Handle files that may have been reverted/modified externally by the user
+        context = self.add_externally_changed_files(context, &model_id).await;
 
         // Signals that the loop should suspend (task may or may not be completed)
         let mut should_yield = false;
@@ -545,7 +545,7 @@ impl<S: AgentService> Orchestrator<S> {
 
     /// Adds externally changed files notification to the context
     async fn add_externally_changed_files(
-        &mut self,
+        &self,
         context: Context,
         model_id: &ModelId,
     ) -> Context {
