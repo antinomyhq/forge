@@ -229,7 +229,11 @@ impl<S: AgentService> Orchestrator<S> {
             .pipe(ReasoningNormalizer.when(|_| reasoning_supported));
         let response = self
             .services
-            .chat_agent(model_id, transformers.transform(context))
+            .chat_agent(
+                model_id,
+                transformers.transform(context),
+                self.agent.provider,
+            )
             .await?;
 
         response.into_full(!tool_supported).await
@@ -545,8 +549,13 @@ impl<S: AgentService> Orchestrator<S> {
         if self.conversation.title.is_none()
             && let Some(prompt) = prompt
         {
-            let generator = TitleGenerator::new(self.services.clone(), prompt.to_owned(), model)
-                .reasoning(self.agent.reasoning.clone());
+            let generator = TitleGenerator::new(
+                self.services.clone(),
+                prompt.to_owned(),
+                model,
+                self.agent.provider,
+            )
+            .reasoning(self.agent.reasoning.clone());
 
             tokio::spawn(async move { generator.generate().await.ok().flatten() })
         } else {

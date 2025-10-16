@@ -11,8 +11,8 @@ use crate::merge::Key;
 use crate::temperature::Temperature;
 use crate::template::Template;
 use crate::{
-    Context, Error, EventContext, MaxTokens, ModelId, Result, SystemContext, ToolDefinition,
-    ToolName, TopK, TopP, Workflow,
+    Context, Error, EventContext, MaxTokens, ModelId, ProviderId, Result, SystemContext,
+    ToolDefinition, ToolName, TopK, TopP, Workflow,
 };
 
 // Unique identifier for an agent
@@ -65,6 +65,10 @@ pub struct Agent {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub title: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub provider: Option<ProviderId>,
 
     // The language model ID to be used by this agent
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -258,6 +262,7 @@ impl Agent {
             reasoning: Default::default(),
             max_tool_failure_per_turn: Default::default(),
             max_requests_per_turn: Default::default(),
+            provider: Default::default(),
         }
     }
 
