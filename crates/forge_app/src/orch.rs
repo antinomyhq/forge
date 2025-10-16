@@ -544,11 +544,7 @@ impl<S: AgentService> Orchestrator<S> {
     }
 
     /// Adds externally changed files notification to the context
-    async fn add_externally_changed_files(
-        &self,
-        context: Context,
-        model_id: &ModelId,
-    ) -> Context {
+    async fn add_externally_changed_files(&self, context: Context, model_id: &ModelId) -> Context {
         if self.changed_files.is_empty() {
             return context;
         }
