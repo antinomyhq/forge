@@ -45,8 +45,8 @@ impl Display for FileChange {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "<file_change_detected operation=\"{}\" path=\"{}\" />",
-            self.operation(),
+            "- **{}**: `{}`",
+            self.operation().to_uppercase(),
             self.path().display()
         )
     }
