@@ -371,7 +371,10 @@ impl<S: AgentService> Orchestrator<S> {
                         _ => None,
                     })
                     .for_each(|path_str| {
-                        self.conversation.metrics.files_changed.remove_entry(&path_str);
+                        self.conversation
+                            .metrics
+                            .files_changed
+                            .remove_entry(&path_str);
                         let _ = tool_context.with_metrics(|metrics| {
                             metrics.files_changed.remove_entry(&path_str);
                         });
@@ -386,8 +389,9 @@ impl<S: AgentService> Orchestrator<S> {
                         }),
                     )
                     .await?;
-                
-                context = context.add_message(ContextMessage::user(message, model_id.clone().into()));
+
+                context =
+                    context.add_message(ContextMessage::user(message, model_id.clone().into()));
             }
 
             // Set context for the current loop iteration
