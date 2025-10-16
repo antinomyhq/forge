@@ -575,7 +575,7 @@ impl<S: AgentService> Orchestrator<S> {
                 model_id.clone().into(),
             ));
         }
-        return context;
+        context
     }
 
     /// Creates a join handle which eventually resolves with the conversation

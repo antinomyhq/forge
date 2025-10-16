@@ -114,7 +114,8 @@ impl<S: Services> ForgeApp<S> {
             tool_resolver.resolve(&agent).into_iter().cloned().collect();
         let max_tool_failure_per_turn = agent.max_tool_failure_per_turn.unwrap_or(3);
 
-        // Detect files that may have been changed externally before starting the agentic loop
+        // Detect files that may have been changed externally before starting the
+        // agentic loop
         let changed_files = {
             use std::collections::HashMap;
 
