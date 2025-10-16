@@ -134,7 +134,8 @@ pub trait ProviderService: Send + Sync {
 #[async_trait::async_trait]
 pub trait McpConfigManager: Send + Sync {
     /// Responsible to load the MCP servers from all configuration files.
-    async fn read_mcp_config(&self) -> anyhow::Result<McpConfig>;
+    /// If scope is provided, only loads from that specific scope (not merged).
+    async fn read_mcp_config(&self, scope: Option<&Scope>) -> anyhow::Result<McpConfig>;
 
     /// Responsible for writing the McpConfig on disk.
     async fn write_mcp_config(&self, config: &McpConfig, scope: &Scope) -> anyhow::Result<()>;
@@ -479,8 +480,8 @@ impl<I: Services> ProviderService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> McpConfigManager for I {
-    async fn read_mcp_config(&self) -> anyhow::Result<McpConfig> {
-        self.mcp_config_manager().read_mcp_config().await
+    async fn read_mcp_config(&self, scope: Option<&Scope>) -> anyhow::Result<McpConfig> {
+        self.mcp_config_manager().read_mcp_config(scope).await
     }
 
     async fn write_mcp_config(&self, config: &McpConfig, scope: &Scope) -> anyhow::Result<()> {

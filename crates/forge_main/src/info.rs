@@ -13,7 +13,7 @@ use crate::model::ForgeCommandManager;
 #[derive(Debug, PartialEq)]
 pub enum Section {
     Title(String),
-    Items(String, Option<String>),
+    Items(String, Option<String>), // key, value, subtitle
 }
 
 #[derive(Default)]
@@ -32,14 +32,19 @@ impl Info {
     }
 
     pub fn add_key(self, key: impl ToString) -> Self {
-        self.add_item(key, None::<String>)
+        self.add_item(key, None::<String>, None::<String>)
     }
 
     pub fn add_key_value(self, key: impl ToString, value: impl ToString) -> Self {
-        self.add_item(key, Some(value))
+        self.add_item(key, Some(value), None::<String>)
     }
 
-    fn add_item(mut self, key: impl ToString, value: Option<impl ToString>) -> Self {
+    fn add_item(
+        mut self,
+        key: impl ToString,
+        value: Option<impl ToString>,
+        _subtitle: Option<impl ToString>,
+    ) -> Self {
         self.sections.push(Section::Items(
             key.to_string(),
             value.map(|a| a.to_string()),
@@ -50,6 +55,79 @@ impl Info {
     pub fn extend(mut self, other: impl Into<Info>) -> Self {
         self.sections.extend(other.into().sections);
         self
+    }
+
+    /// Converts Info sections into rows suitable for column formatting
+    /// Each section (Title + all its Items) becomes one row
+    ///
+    /// # Arguments
+    /// * `title_position` - Zero-based index where the title should appear (0 =
+    ///   first column, usize::MAX = last column)
+    /// * `include_title` - Whether to include the title in the output row
+    ///   (false for section headers, true for IDs)
+    pub fn to_rows(&self, include_title: bool) -> Vec<Vec<String>> {
+        let mut rows = Vec::new();
+        let mut current_title = String::new();
+        let mut current_row_values = Vec::new();
+
+        for section in &self.sections {
+            match section {
+                Section::Title(title) => {
+                    // If we have accumulated values for the previous title, push them as a row
+                    if !current_row_values.is_empty() {
+                        let row = if include_title {
+                            // For list commands: combine all values into one row with ID
+                            self.build_row(current_row_values, current_title.clone(), 0)
+                        } else {
+                            // This shouldn't happen for include_title=false, but handle it
+                            current_row_values
+                        };
+                        rows.push(row);
+                        current_row_values = Vec::new();
+                    }
+                    current_title = title.clone();
+                }
+                Section::Items(key, value) => {
+                    if include_title {
+                        // For list commands: accumulate values to create one row per title
+                        let value_str = value.clone().unwrap_or_default();
+                        current_row_values.push(value_str);
+                    } else {
+                        // For info/config/tools: each item is its own row
+                        if let Some(value_str) = value {
+                            // Key-value pair: show [key, value]
+                            rows.push(vec![key.clone(), value_str.clone()]);
+                        } else {
+                            // Key-only (like tools): show [key]
+                            rows.push(vec![key.clone()]);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Push the last accumulated row for list commands
+        if !current_row_values.is_empty() {
+            let row = if include_title {
+                self.build_row(current_row_values, current_title, 0)
+            } else {
+                current_row_values
+            };
+            rows.push(row);
+        }
+
+        rows
+    }
+
+    /// Helper method to build a row with title at specified position
+    fn build_row(&self, mut values: Vec<String>, title: String, position: usize) -> Vec<String> {
+        // If position is >= values.len(), append at the end
+        if position >= values.len() {
+            values.push(title);
+        } else {
+            values.insert(position, title);
+        }
+        values
     }
 }
 
@@ -200,7 +278,8 @@ impl fmt::Display for Info {
                     if let Some(value) = value {
                         writeln!(f, "  {}: {}", key.bright_cyan().bold(), value)?;
                     } else {
-                        writeln!(f, "  {key}")?;
+                        // Show key-only items (like tools)
+                        writeln!(f, "  {}", key)?;
                     }
                 }
             }
