@@ -117,19 +117,17 @@ impl<S: Services> ForgeApp<S> {
         // Detect files that may have been changed externally before starting the
         // agentic loop
         let changed_files = {
-            use std::collections::HashMap;
-
             use crate::file_tracking::FileChangeDetector;
 
-            let tracked_files: HashMap<String, String> = conversation
-                .metrics
-                .files_changed
-                .iter()
-                .map(|(path, metrics)| (path.clone(), metrics.file_hash.clone()))
-                .collect();
-
             FileChangeDetector::new(services.clone())
-                .detect(&tracked_files)
+                .detect(
+                    &conversation
+                        .metrics
+                        .files_changed
+                        .iter()
+                        .map(|(path, metrics)| (path.clone(), metrics.file_hash.clone()))
+                        .collect(),
+                )
                 .await
         };
 
