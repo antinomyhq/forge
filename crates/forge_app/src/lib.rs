@@ -5,6 +5,7 @@ mod authenticator;
 mod compact;
 pub mod dto;
 mod error;
+mod file_tracking;
 mod fmt;
 mod mcp_executor;
 mod operation;

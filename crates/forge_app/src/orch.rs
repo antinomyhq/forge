@@ -353,6 +353,31 @@ impl<S: AgentService> Orchestrator<S> {
         let title = self.generate_title(model_id.clone());
 
         while !should_yield {
+            // Detect files that may have been reverted/modified externally by the user
+            let file_changes = self.services.detect_file_changes(&self.conversation).await;
+            if !file_changes.is_empty() {
+                let changes = file_changes.iter().map(|f| f.to_string()).fold(
+                    String::new(),
+                    |mut acc, file| {
+                        acc.push_str(&file);
+                        acc.push('\n');
+                        acc
+                    },
+                );
+
+                let message = self
+                    .services
+                    .render(
+                        "{{> forge-file-changes-notification.md }}",
+                        &serde_json::json!({
+                            "changes": changes
+                        }),
+                    )
+                    .await?;
+                context =
+                    context.add_message(ContextMessage::user(message, model_id.clone().into()));
+            }
+
             // Set context for the current loop iteration
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;

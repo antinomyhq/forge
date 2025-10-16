@@ -45,7 +45,6 @@ fn compute_content_hash(content: &str) -> String {
 
 fn file_change_stats(operation: FileOperationStats, metrics: &mut Metrics) {
     tracing::info!(path = %operation.path, type = %operation.tool_name, lines_added = %operation.lines_added, lines_removed = %operation.lines_removed, "File change stats");
-
     match operation.operation_type {
         OperationType::Undo => {
             metrics.record_file_undo(

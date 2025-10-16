@@ -261,6 +261,10 @@ mod tests {
         async fn update(&self, _: forge_domain::Conversation) -> anyhow::Result<()> {
             Ok(())
         }
+
+        async fn detect_file_changes(&self, _: &forge_domain::Conversation) -> Vec<crate::file_tracking::FileChange> {
+            Vec::new()
+        }
     }
 
     fn usage(cost: f64) -> Usage {
