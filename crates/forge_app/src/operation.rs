@@ -9,6 +9,7 @@ use forge_domain::{
     PlanCreate, ToolName,
 };
 use forge_template::Element;
+use sha2::{Digest, Sha256};
 
 use crate::truncation::{
     Stderr, Stdout, TruncationMode, truncate_fetch_content, truncate_search_output,
@@ -32,6 +33,14 @@ struct FileOperationStats {
     lines_added: u64,
     lines_removed: u64,
     operation_type: OperationType,
+    file_hash: String,
+}
+
+/// Computes SHA-256 hash of the given content
+fn compute_content_hash(content: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(content.as_bytes());
+    format!("{:x}", hasher.finalize())
 }
 
 fn file_change_stats(operation: FileOperationStats, metrics: &mut Metrics) {
@@ -41,6 +50,7 @@ fn file_change_stats(operation: FileOperationStats, metrics: &mut Metrics) {
         OperationType::Undo => {
             metrics.record_file_undo(
                 operation.path,
+                operation.file_hash,
                 operation.lines_added,
                 operation.lines_removed,
             );
@@ -48,6 +58,7 @@ fn file_change_stats(operation: FileOperationStats, metrics: &mut Metrics) {
         OperationType::Change => {
             metrics.record_file_operation(
                 operation.path,
+                operation.file_hash,
                 operation.lines_added,
                 operation.lines_removed,
             );
@@ -241,6 +252,7 @@ impl ToolOperation {
                     &input.content,
                 );
                 let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
+                let file_hash = compute_content_hash(&input.content);
 
                 file_change_stats(
                     FileOperationStats {
@@ -249,6 +261,7 @@ impl ToolOperation {
                         lines_added: diff_result.lines_added(),
                         lines_removed: diff_result.lines_removed(),
                         operation_type: OperationType::Change,
+                        file_hash,
                     },
                     metrics,
                 );
@@ -270,6 +283,9 @@ impl ToolOperation {
                 forge_domain::ToolOutput::text(elm)
             }
             ToolOperation::FsRemove { input, output } => {
+                // Empty hash since file was removed
+                let file_hash = String::new();
+
                 file_change_stats(
                     FileOperationStats {
                         path: input.path.clone(),
@@ -277,6 +293,7 @@ impl ToolOperation {
                         lines_added: 0,
                         lines_removed: output.content.lines().count() as u64,
                         operation_type: OperationType::Change,
+                        file_hash,
                     },
                     metrics,
                 );
@@ -353,6 +370,8 @@ impl ToolOperation {
             ToolOperation::FsPatch { input, output } => {
                 let diff_result = DiffFormat::format(&output.before, &output.after);
                 let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
+                let file_hash = compute_content_hash(&output.after);
+
                 let mut elm = Element::new("file_diff")
                     .attr("path", &input.path)
                     .attr("total_lines", output.after.lines().count())
@@ -369,6 +388,7 @@ impl ToolOperation {
                         lines_added: diff_result.lines_added(),
                         lines_removed: diff_result.lines_removed(),
                         operation_type: OperationType::Change,
+                        file_hash,
                     },
                     metrics,
                 );
@@ -382,6 +402,7 @@ impl ToolOperation {
                     output.after_undo.as_deref().unwrap_or(""),
                     output.before_undo.as_deref().unwrap_or(""),
                 );
+                let file_hash = compute_content_hash(output.after_undo.as_deref().unwrap_or(""));
 
                 file_change_stats(
                     FileOperationStats {
@@ -390,6 +411,7 @@ impl ToolOperation {
                         lines_added: diff.lines_added(),
                         lines_removed: diff.lines_removed(),
                         operation_type: OperationType::Undo,
+                        file_hash,
                     },
                     metrics,
                 );
