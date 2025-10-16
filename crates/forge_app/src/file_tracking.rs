@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use forge_domain::FileState;
 use sha2::{Digest, Sha256};
 use tracing::debug;
 
@@ -11,7 +10,8 @@ use crate::{Content, FsReadService};
 #[derive(Debug, Clone, PartialEq)]
 pub struct FileChange {
     pub path: std::path::PathBuf,
-    pub state: FileState,
+    /// File hash if readable, None if unreadable
+    pub file_hash: Option<String>,
 }
 
 /// Detects file changes by comparing current file hashes with stored hashes
@@ -32,45 +32,34 @@ impl<F: FsReadService> FileChangeDetector<F> {
 
     /// Detects files that have changed since the last notification
     ///
-    /// Compares current file state (hash or unreadable) with the last notified
-    /// state. Returns a list of file changes with their current states.
+    /// Compares current file hash with stored hash. Returns a list of file
+    /// changes.
     ///
     /// # Arguments
     ///
-    /// * `tracked_files` - Map of file paths to their last notified states (if
-    ///   any)
-    pub async fn detect(
-        &self,
-        tracked_files: &HashMap<String, Option<FileState>>,
-    ) -> Vec<FileChange> {
+    /// * `tracked_files` - Map of file paths to their last known hashes (None
+    ///   if unreadable)
+    pub async fn detect(&self, tracked_files: &HashMap<String, Option<String>>) -> Vec<FileChange> {
         let mut changes = Vec::new();
 
-        for (path, last_notified_state) in tracked_files {
+        for (path, last_hash) in tracked_files {
             let file_path = std::path::PathBuf::from(path);
 
-            // Get current state: either hash or Unreadable
-            let current_state = match self.read_file_content(&file_path).await {
-                Ok(content) => {
-                    let hash = compute_content_hash(&content);
-                    FileState::Readable { hash }
-                }
-                Err(_) => FileState::Unreadable,
+            // Get current hash: Some(hash) if readable, None if unreadable
+            let current_hash = match self.read_file_content(&file_path).await {
+                Ok(content) => Some(compute_content_hash(&content)),
+                Err(_) => None,
             };
 
-            // Check if state has changed since last notification
-            let should_notify = match last_notified_state {
-                None => true,                                     // Never notified before
-                Some(last_state) => current_state != *last_state, // State changed
-            };
-
-            if should_notify {
+            // Check if hash has changed
+            if current_hash != *last_hash {
                 debug!(
                     path = %path,
-                    last_notified_state = ?last_notified_state,
-                    current_state = ?current_state,
-                    "Detected file state change requiring notification"
+                    last_hash = ?last_hash,
+                    current_hash = ?current_hash,
+                    "Detected file change"
                 );
-                changes.push(FileChange { path: file_path, state: current_state });
+                changes.push(FileChange { path: file_path, file_hash: current_hash });
             }
         }
 
@@ -164,13 +153,10 @@ mod tests {
         let fs = MockFsReadService::new().with_file("/test/file.txt", content);
         let detector = FileChangeDetector::new(Arc::new(fs));
 
-        let mut last_notified_state = HashMap::new();
-        last_notified_state.insert(
-            "/test/file.txt".to_string(),
-            Some(FileState::Readable { hash: file_hash }),
-        );
+        let mut tracked_files = HashMap::new();
+        tracked_files.insert("/test/file.txt".to_string(), Some(file_hash));
 
-        let actual = detector.detect(&last_notified_state).await;
+        let actual = detector.detect(&tracked_files).await;
         let expected = vec![];
 
         assert_eq!(actual, expected);
@@ -185,16 +171,13 @@ mod tests {
         let fs = MockFsReadService::new().with_file("/test/file.txt", new_content);
         let detector = FileChangeDetector::new(Arc::new(fs));
 
-        let mut last_notified_state = HashMap::new();
-        last_notified_state.insert(
-            "/test/file.txt".to_string(),
-            Some(FileState::Readable { hash: old_hash }),
-        );
+        let mut tracked_files = HashMap::new();
+        tracked_files.insert("/test/file.txt".to_string(), Some(old_hash));
 
-        let actual = detector.detect(&last_notified_state).await;
+        let actual = detector.detect(&tracked_files).await;
         let expected = vec![FileChange {
             path: std::path::PathBuf::from("/test/file.txt"),
-            state: FileState::Readable { hash: new_hash },
+            file_hash: Some(new_hash),
         }];
 
         assert_eq!(actual, expected);
@@ -207,16 +190,13 @@ mod tests {
         let fs = MockFsReadService::new().with_not_found("/test/file.txt");
         let detector = FileChangeDetector::new(Arc::new(fs));
 
-        let mut last_notified_state = HashMap::new();
-        last_notified_state.insert(
-            "/test/file.txt".to_string(),
-            Some(FileState::Readable { hash: old_hash }),
-        );
+        let mut tracked_files = HashMap::new();
+        tracked_files.insert("/test/file.txt".to_string(), Some(old_hash));
 
-        let actual = detector.detect(&last_notified_state).await;
+        let actual = detector.detect(&tracked_files).await;
         let expected = vec![FileChange {
             path: std::path::PathBuf::from("/test/file.txt"),
-            state: FileState::Unreadable,
+            file_hash: None,
         }];
 
         assert_eq!(actual, expected);
@@ -232,23 +212,17 @@ mod tests {
         let detector = FileChangeDetector::new(Arc::new(fs));
 
         // First call: detect change
-        let mut last_notified_state = HashMap::new();
-        last_notified_state.insert(
-            "/test/file.txt".to_string(),
-            Some(FileState::Readable { hash: old_hash }),
-        );
+        let mut tracked_files = HashMap::new();
+        tracked_files.insert("/test/file.txt".to_string(), Some(old_hash));
 
-        let first = detector.detect(&last_notified_state).await;
+        let first = detector.detect(&tracked_files).await;
         assert_eq!(first.len(), 1);
 
-        // Simulate updating last_notified_state after notification
-        last_notified_state.insert(
-            "/test/file.txt".to_string(),
-            Some(FileState::Readable { hash: new_hash }),
-        );
+        // Simulate updating file_hash after notification (like app.rs does)
+        tracked_files.insert("/test/file.txt".to_string(), Some(new_hash));
 
         // Second call: should not detect change
-        let actual = detector.detect(&last_notified_state).await;
+        let actual = detector.detect(&tracked_files).await;
         let expected = vec![];
 
         assert_eq!(actual, expected);

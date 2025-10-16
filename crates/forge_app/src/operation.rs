@@ -33,7 +33,7 @@ struct FileOperationStats {
     lines_added: u64,
     lines_removed: u64,
     operation_type: OperationType,
-    file_hash: String,
+    file_hash: Option<String>,
 }
 
 /// Computes SHA-256 hash of the given content
@@ -251,7 +251,7 @@ impl ToolOperation {
                     &input.content,
                 );
                 let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
-                let file_hash = compute_content_hash(&input.content);
+                let file_hash = Some(compute_content_hash(&input.content));
 
                 file_change_stats(
                     FileOperationStats {
@@ -282,8 +282,8 @@ impl ToolOperation {
                 forge_domain::ToolOutput::text(elm)
             }
             ToolOperation::FsRemove { input, output } => {
-                // Empty hash since file was removed
-                let file_hash = String::new();
+                // None since file was removed
+                let file_hash = None;
 
                 file_change_stats(
                     FileOperationStats {
@@ -369,7 +369,7 @@ impl ToolOperation {
             ToolOperation::FsPatch { input, output } => {
                 let diff_result = DiffFormat::format(&output.before, &output.after);
                 let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
-                let file_hash = compute_content_hash(&output.after);
+                let file_hash = Some(compute_content_hash(&output.after));
 
                 let mut elm = Element::new("file_diff")
                     .attr("path", &input.path)
@@ -401,7 +401,9 @@ impl ToolOperation {
                     output.after_undo.as_deref().unwrap_or(""),
                     output.before_undo.as_deref().unwrap_or(""),
                 );
-                let file_hash = compute_content_hash(output.after_undo.as_deref().unwrap_or(""));
+                let file_hash = Some(compute_content_hash(
+                    output.after_undo.as_deref().unwrap_or(""),
+                ));
 
                 file_change_stats(
                     FileOperationStats {

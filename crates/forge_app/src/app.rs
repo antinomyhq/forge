@@ -125,17 +125,17 @@ impl<S: Services> ForgeApp<S> {
                         .metrics
                         .files_changed
                         .iter()
-                        .map(|(path, metrics)| (path.clone(), metrics.last_notified_state.clone()))
+                        .map(|(path, metrics)| (path.clone(), metrics.file_hash.clone()))
                         .collect(),
                 )
                 .await;
 
-            // Update last_notified_state to prevent duplicate notifications
+            // Update file_hash to prevent duplicate notifications
             for change in &changes {
-                if let Some(path_str) = change.path.to_str()
-                    && let Some(metrics) = conversation.metrics.files_changed.get_mut(path_str)
-                {
-                    metrics.last_notified_state = Some(change.state.clone());
+                if let Some(path_str) = change.path.to_str() {
+                    if let Some(metrics) = conversation.metrics.files_changed.get_mut(path_str) {
+                        metrics.file_hash = change.file_hash.clone();
+                    }
                 }
             }
 
