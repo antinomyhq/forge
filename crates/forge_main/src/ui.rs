@@ -490,7 +490,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             info = info.add_title(id).add_key_value("Description", title);
         }
 
-        self.write_info_or_porcelain(info, porcelain, 0, true)?;
+        self.write_info_or_porcelain(info, porcelain, true)?;
 
         Ok(())
     }
@@ -515,7 +515,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             info = info.add_title(id).add_key_value("Domain", domain);
         }
 
-        self.write_info_or_porcelain(info, porcelain, 0, true)?;
+        self.write_info_or_porcelain(info, porcelain, true)?;
 
         Ok(())
     }
@@ -552,7 +552,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         }
 
-        self.write_info_or_porcelain(info, porcelain, 0, true)?;
+        self.write_info_or_porcelain(info, porcelain, true)?;
 
         Ok(())
     }
@@ -613,7 +613,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .add_key_value("Description", title);
         }
 
-        self.write_info_or_porcelain(info, porcelain, 0, true)?;
+        self.write_info_or_porcelain(info, porcelain, true)?;
 
         Ok(())
     }
@@ -633,7 +633,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
 
         let info = crate::config::build_config_info(agent, model, provider);
-        self.write_info_or_porcelain(info, porcelain, 0, false)?;
+        self.write_info_or_porcelain(info, porcelain, false)?;
         Ok(())
     }
 
@@ -655,7 +655,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         };
 
         let info = format_tools(&agent_tools, &all_tools);
-        self.write_info_or_porcelain(info, porcelain, 0, false)?;
+        self.write_info_or_porcelain(info, porcelain, false)?;
 
         Ok(())
     }
@@ -676,7 +676,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .add_key_value("Command", server.to_string());
         }
 
-        self.write_info_or_porcelain(info, porcelain, 0, true)?;
+        self.write_info_or_porcelain(info, porcelain, true)?;
         Ok(())
     }
 
@@ -729,7 +729,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             info = info.extend(Info::from(&login_info));
         }
 
-        self.write_info_or_porcelain(info, porcelain, 0, false)?;
+        self.write_info_or_porcelain(info, porcelain, false)?;
 
         Ok(())
     }
@@ -747,12 +747,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         &mut self,
         info: Info,
         porcelain: bool,
-        title_position: usize,
         include_title: bool,
     ) -> anyhow::Result<()> {
         if porcelain {
             // Use to_rows to get key-value pairs and format with columns
-            crate::cli_format::format_columns(info.to_rows(title_position, include_title));
+            crate::cli_format::format_columns(info.to_rows(include_title));
         } else {
             self.writeln(info)?;
         }
@@ -801,11 +800,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
 
             let title = conv.title.as_deref().unwrap();
-            let title = if title.len() > 30 {
-                format!("{}...", &title[..30])
-            } else {
-                title.to_string()
-            };
 
             // Format time using humantime library (same as conversation_selector.rs)
             let duration = chrono::Utc::now().signed_duration_since(
@@ -821,12 +815,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
             // Add conversation: Title=<title>, Updated=<time_ago>, with ID as section title
             info = info
-                .add_title(conv.id.to_string())
-                .add_key_value("Title", title)
+                .add_title(title.to_string())
+                .add_key_value("Id", conv.id)
                 .add_key_value("Updated", time_ago);
         }
 
-        self.write_info_or_porcelain(info, porcelain, usize::MAX, true)?;
+        self.write_info_or_porcelain(info, porcelain, true)?;
 
         Ok(())
     }

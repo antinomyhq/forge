@@ -65,7 +65,7 @@ impl Info {
     ///   first column, usize::MAX = last column)
     /// * `include_title` - Whether to include the title in the output row
     ///   (false for section headers, true for IDs)
-    pub fn to_rows(&self, title_position: usize, include_title: bool) -> Vec<Vec<String>> {
+    pub fn to_rows(&self, include_title: bool) -> Vec<Vec<String>> {
         let mut rows = Vec::new();
         let mut current_title = String::new();
         let mut current_row_values = Vec::new();
@@ -80,7 +80,7 @@ impl Info {
                             self.build_row(
                                 current_row_values,
                                 current_title.clone(),
-                                title_position,
+                                0
                             )
                         } else {
                             // This shouldn't happen for include_title=false, but handle it
@@ -113,7 +113,7 @@ impl Info {
         // Push the last accumulated row for list commands
         if !current_row_values.is_empty() {
             let row = if include_title {
-                self.build_row(current_row_values, current_title, title_position)
+                self.build_row(current_row_values, current_title, 0)
             } else {
                 current_row_values
             };
