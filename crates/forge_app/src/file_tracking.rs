@@ -64,9 +64,9 @@ impl<F: FsReadService> FileChangeDetector<F> {
 
     /// Detects files that have changed since the last recorded hash
     ///
-    /// Iterates through all tracked files, recomputes the SHA-256 hash of each file's
-    /// current content, and compares it with the stored hash. Returns a list of file
-    /// paths that have different hashes.
+    /// Iterates through all tracked files, recomputes the SHA-256 hash of each
+    /// file's current content, and compares it with the stored hash.
+    /// Returns a list of file paths that have different hashes.
     ///
     /// # Arguments
     ///
@@ -150,12 +150,13 @@ fn is_not_found_error(error: &anyhow::Error) -> bool {
     })
 }
 
-
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use pretty_assertions::assert_eq;
     use std::collections::HashMap;
+
+    use pretty_assertions::assert_eq;
+
+    use super::*;
 
     /// Mock FsReadService for testing
     struct MockFsReadService {
@@ -306,10 +307,7 @@ mod tests {
         let actual = detector.detect(&tracked_files).await;
         assert_eq!(actual.len(), 2);
 
-        let modified = actual
-            .iter()
-            .find(|c| c.operation() == "modified")
-            .unwrap();
+        let modified = actual.iter().find(|c| c.operation() == "modified").unwrap();
         assert_eq!(modified.path(), &PathBuf::from("/test/file2.txt"));
 
         let deleted = actual.iter().find(|c| c.operation() == "deleted").unwrap();
@@ -328,4 +326,3 @@ mod tests {
         assert_eq!(actual.len(), expected.len());
     }
 }
-

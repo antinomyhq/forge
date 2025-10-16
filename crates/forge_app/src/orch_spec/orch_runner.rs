@@ -158,7 +158,10 @@ impl AgentService for Runner {
         Ok(())
     }
 
-    async fn detect_file_changes(&self, _conversation: &Conversation) -> Vec<crate::file_tracking::FileChange> {
+    async fn detect_file_changes(
+        &self,
+        _conversation: &Conversation,
+    ) -> Vec<crate::file_tracking::FileChange> {
         // No file change detection needed for tests
         Vec::new()
     }
