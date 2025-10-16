@@ -8,5 +8,6 @@ diesel::table! {
         context -> Nullable<Text>,
         created_at -> Timestamp,
         updated_at -> Nullable<Timestamp>,
+        metrics -> Nullable<Text>,
     }
 }
