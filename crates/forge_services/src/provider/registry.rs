@@ -1,12 +1,14 @@
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex, OnceLock};
 
+use chrono::Utc;
 use forge_app::ProviderRegistry;
 use forge_app::domain::{AgentId, ModelId};
 use forge_app::dto::{Provider, ProviderId, ProviderResponse};
 use handlebars::Handlebars;
 use serde::Deserialize;
 use tokio::sync::OnceCell;
+use tracing;
 use url::Url;
 
 use crate::{AppConfigRepository, EnvironmentInfra, ProviderCredentialRepository, ProviderError};
@@ -159,10 +161,31 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository>
         }
 
         // Try to create provider from database credential first
-        if let Some(credential) = self.infra.get_credential(&id).await?
-            && let Ok(provider) = self.create_provider_from_credential(&id, &credential).await
-        {
-            return Ok(provider);
+        if let Some(mut credential) = self.infra.get_credential(&id).await? {
+            // Check if OAuth tokens need refresh (within 5 minutes of expiry)
+            if credential.needs_token_refresh() {
+                tracing::debug!(provider = ?id, "OAuth token needs refresh, attempting to refresh");
+
+                // Attempt to refresh tokens
+                match self.refresh_credential_tokens(&id, &credential).await {
+                    Ok(refreshed_credential) => {
+                        tracing::info!(provider = ?id, "Successfully refreshed OAuth tokens");
+                        credential = refreshed_credential;
+                    }
+                    Err(e) => {
+                        // Log error but don't fail - the existing token might still work
+                        tracing::warn!(
+                            provider = ?id,
+                            error = %e,
+                            "Failed to refresh OAuth tokens, will attempt with existing credential"
+                        );
+                    }
+                }
+            }
+
+            if let Ok(provider) = self.create_provider_from_credential(&id, &credential).await {
+                return Ok(provider);
+            }
         }
 
         // Fall back to cached env-based providers
@@ -174,6 +197,112 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository>
                 Ok(provider)
             }
             None => Err(ProviderError::provider_not_available(id).into()),
+        }
+    }
+
+    /// Refreshes OAuth tokens for a credential
+    ///
+    /// Handles both standard OAuth refresh and GitHub Copilot API key refresh
+    ///
+    /// # Arguments
+    ///
+    /// * `provider_id` - The provider ID
+    /// * `credential` - The credential with tokens to refresh
+    ///
+    /// # Returns
+    ///
+    /// Updated credential with refreshed tokens
+    ///
+    /// # Errors
+    ///
+    /// Returns error if refresh fails or provider metadata not found
+    async fn refresh_credential_tokens(
+        &self,
+        provider_id: &ProviderId,
+        credential: &forge_app::dto::ProviderCredential,
+    ) -> anyhow::Result<forge_app::dto::ProviderCredential> {
+        use forge_app::dto::AuthType;
+
+        // Get OAuth configuration from metadata
+        let auth_methods =
+            crate::provider::metadata::ProviderMetadataService::get_auth_methods(provider_id);
+        let oauth_config = auth_methods
+            .iter()
+            .find_map(|method| method.oauth_config.as_ref())
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "No OAuth configuration found for provider {:?}",
+                    provider_id
+                )
+            })?;
+
+        let oauth_tokens = credential
+            .oauth_tokens
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No OAuth tokens found for credential"))?;
+
+        // Create OAuth service for refresh
+        let oauth_service = crate::provider::ForgeOAuthService::new();
+
+        match credential.auth_type {
+            AuthType::OAuth => {
+                // Standard OAuth refresh
+                tracing::debug!(provider = ?provider_id, "Refreshing standard OAuth tokens");
+
+                let refreshed_tokens = oauth_service
+                    .refresh_access_token(oauth_config, &oauth_tokens.refresh_token)
+                    .await?;
+
+                // Build new OAuth tokens
+                let expires_in = refreshed_tokens.expires_in.unwrap_or(3600); // Default to 1 hour if not specified
+                let new_tokens = forge_app::dto::OAuthTokens::new(
+                    refreshed_tokens
+                        .refresh_token
+                        .unwrap_or(oauth_tokens.refresh_token.clone()),
+                    refreshed_tokens.access_token.clone(),
+                    Utc::now() + chrono::Duration::seconds(expires_in as i64),
+                );
+
+                // Update credential in database
+                self.infra
+                    .update_oauth_tokens(provider_id, new_tokens.clone())
+                    .await?;
+
+                // Return updated credential
+                let mut updated_credential = credential.clone();
+                updated_credential.oauth_tokens = Some(new_tokens);
+                Ok(updated_credential)
+            }
+            AuthType::OAuthWithApiKey => {
+                // GitHub Copilot API key refresh
+                tracing::debug!(provider = ?provider_id, "Refreshing GitHub Copilot API key");
+
+                let (api_key, expires_at) = oauth_service
+                    .get_copilot_api_key(&oauth_tokens.refresh_token)
+                    .await?;
+
+                // Build new OAuth tokens with updated expiration
+                let new_tokens = forge_app::dto::OAuthTokens::new(
+                    oauth_tokens.refresh_token.clone(),
+                    oauth_tokens.access_token.clone(),
+                    expires_at,
+                );
+
+                // Update both API key and OAuth tokens in database
+                let mut updated_credential = credential.clone();
+                updated_credential.api_key = Some(api_key);
+                updated_credential.oauth_tokens = Some(new_tokens.clone());
+
+                self.infra
+                    .upsert_credential(updated_credential.clone())
+                    .await?;
+
+                Ok(updated_credential)
+            }
+            AuthType::ApiKey => {
+                // API keys don't have refresh mechanism
+                Err(anyhow::anyhow!("Cannot refresh API key authentication"))
+            }
         }
     }
 

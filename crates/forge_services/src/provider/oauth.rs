@@ -462,6 +462,7 @@ impl ForgeOAuthService {
             token: String,
             expires_at: i64,
             #[serde(default)]
+            #[allow(dead_code)]
             refresh_in: Option<i64>,
         }
 
