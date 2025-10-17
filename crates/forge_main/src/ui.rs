@@ -829,8 +829,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             // Add conversation: Title=<title>, Updated=<time_ago>, with ID as section title
             info = info
                 .add_title(title.to_string())
-                .add_key_value("Id", conv.id)
-                .add_key_value("Updated", time_ago);
+                .add_key_value("Updated", time_ago)
+                .add_key_value("Id", conv.id);
         }
 
         self.write_info_or_porcelain(info, porcelain, true)?;
