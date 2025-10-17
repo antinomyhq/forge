@@ -493,7 +493,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         skip_validation: bool,
     ) -> anyhow::Result<()> {
         use colored::Colorize;
-        use inquire::Select;
 
         println!("\n{}", "Add Provider Credential".bold());
         println!("{}", "─".repeat(50).dimmed());
@@ -547,9 +546,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 }
             });
 
-            let selection = Select::new("Select a provider:", options)
-                .with_page_size(10)
-                .prompt()?;
+            let selection = ForgeSelect::select("Select a provider:", options)
+                .prompt()?
+                .ok_or_else(|| anyhow::anyhow!("No provider selected"))?;
 
             // Extract provider ID from selection (before the status indicator)
             selection.split_whitespace().next().unwrap().to_string()
@@ -575,10 +574,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         // Step 2: Prompt for API key
-        let api_key = inquire::Password::new(&format!("Enter your {} API key:", provider_id))
+        let api_key = ForgeSelect::password(format!("Enter your {} API key:", provider_id))
             .with_display_toggle_enabled()
-            .with_display_mode(inquire::PasswordDisplayMode::Masked)
-            .prompt()?;
+            .prompt()?
+            .ok_or_else(|| anyhow::anyhow!("API key input cancelled"))?;
 
         if api_key.trim().is_empty() {
             anyhow::bail!("API key cannot be empty");
@@ -731,7 +730,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 "Import all provider credentials from environment?".to_string()
             };
 
-            let proceed = inquire::Confirm::new(&msg).with_default(true).prompt()?;
+            let proceed = ForgeSelect::confirm(msg)
+                .with_default(true)
+                .prompt()?
+                .unwrap_or(false);
 
             if !proceed {
                 println!("\n{} Import cancelled\n", "✗".red());
