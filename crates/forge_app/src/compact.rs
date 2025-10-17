@@ -176,7 +176,7 @@ impl<S: AgentService> Compactor<S> {
         + std::marker::Unpin
         + ResultStreamExt<anyhow::Error>,
     ) -> anyhow::Result<ChatCompletionMessageFull> {
-        let mut response = stream.into_full(false).await?;
+        let mut response = stream.into_full(false, None).await?;
 
         // Extract content from summary tag if present
         if let Some(extracted) = extract_tag_content(
