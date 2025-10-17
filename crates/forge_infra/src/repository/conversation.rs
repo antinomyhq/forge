@@ -505,10 +505,7 @@ mod tests {
         let main_metrics = actual.metrics.files_changed.get("src/main.rs").unwrap();
         assert_eq!(main_metrics.lines_added, 10);
         assert_eq!(main_metrics.lines_removed, 5);
-        assert_eq!(
-            main_metrics.file_hash,
-            Some("abc123def456".to_string())
-        );
+        assert_eq!(main_metrics.file_hash, Some("abc123def456".to_string()));
 
         let lib_metrics = actual.metrics.files_changed.get("src/lib.rs").unwrap();
         assert_eq!(lib_metrics.lines_added, 3);
