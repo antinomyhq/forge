@@ -183,17 +183,16 @@ mod tests {
 
     // Mock HTTP infrastructure for testing
     struct MockHttpInfra {
-        status_code: u16,
         should_error: bool,
     }
 
     impl MockHttpInfra {
-        fn new(status_code: u16) -> Self {
-            Self { status_code, should_error: false }
+        fn new() -> Self {
+            Self { should_error: false }
         }
 
         fn with_error() -> Self {
-            Self { status_code: 0, should_error: true }
+            Self { should_error: true }
         }
     }
 
@@ -254,7 +253,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_expired_oauth_token() {
-        let infra = Arc::new(MockHttpInfra::new(200));
+        let infra = Arc::new(MockHttpInfra::new());
         let service = ForgeProviderValidationService::new(infra);
 
         let credential = create_oauth_credential(true);
@@ -270,7 +269,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_api_key_missing() {
-        let infra = Arc::new(MockHttpInfra::new(200));
+        let infra = Arc::new(MockHttpInfra::new());
         let service = ForgeProviderValidationService::new(infra);
 
         // Create credential without API key
@@ -325,7 +324,7 @@ mod tests {
     #[tokio::test]
     async fn test_anthropic_auth_header() {
         // This test verifies that Anthropic uses x-api-key instead of Bearer
-        let infra = Arc::new(MockHttpInfra::new(200));
+        let infra = Arc::new(MockHttpInfra::new());
         let service = ForgeProviderValidationService::new(infra);
 
         let credential =
