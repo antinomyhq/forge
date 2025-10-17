@@ -532,10 +532,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         for model in models.iter() {
             let id = model.id.to_string();
-            
+
             // Build a single row with model name as key and context/tools as values
             let mut values = Vec::new();
-            
+
             // Add context length if available, otherwise use "unknown"
             if let Some(limit) = model.context_length {
                 let context = if limit >= 1_000_000 {
