@@ -36,7 +36,7 @@ impl CompactionResult {
         if self.original_tokens == 0 {
             return 0.0;
         }
-        ((self.original_tokens - self.compacted_tokens) as f64 / self.original_tokens as f64)
+        ((self.original_tokens.saturating_sub(self.compacted_tokens)) as f64 / self.original_tokens as f64)
             * 100.0
     }
 
@@ -45,7 +45,7 @@ impl CompactionResult {
         if self.original_messages == 0 {
             return 0.0;
         }
-        ((self.original_messages - self.compacted_messages) as f64 / self.original_messages as f64)
+        ((self.original_messages.saturating_sub(self.compacted_messages)) as f64 / self.original_messages as f64)
             * 100.0
     }
 }
