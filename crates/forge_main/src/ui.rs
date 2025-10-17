@@ -596,22 +596,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             println!("{} {}", "ℹ".blue(), msg);
         }
 
-        println!();
-        println!(
-            "{} {} configured successfully!",
-            "✓".green(),
-            provider_id.bold()
-        );
-        println!();
-        println!("Next steps:");
-        println!(
-            "  {} Set as active provider: {}",
-            "→".blue(),
-            format!("forge config set provider {}", provider_id).dimmed()
-        );
-
-        println!("  {} Start chatting: {}", "→".blue(), "forge".dimmed());
-        println!();
+        Self::display_credential_success(&provider_id);
 
         Ok(())
     }
@@ -641,59 +626,82 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // OAuth flow with callback for displaying device code
         let result = self
             .api
-            .authenticate_provider_oauth(provider_id, |display| {
-                // Display OAuth instructions to user
-                println!(
-                    "{} Please visit: {}",
-                    "→".blue(),
-                    display.verification_uri.underline().cyan()
-                );
-                println!(
-                    "{} Enter code: {}",
-                    "→".blue(),
-                    display.user_code.bold().green()
-                );
-                println!();
-                println!(
-                    "{} Code expires in: {}",
-                    "ℹ".blue(),
-                    format!("{}m {}s", display.expires_in / 60, display.expires_in % 60).dimmed()
-                );
-                println!();
-
-                // Try to open browser automatically
-                if let Err(e) = open::that(&display.verification_uri) {
-                    eprintln!(
-                        "{} Could not open browser automatically: {}",
-                        "⚠".yellow(),
-                        e
-                    );
-                    println!("{} Please open the URL manually", "→".yellow());
-                    println!();
-                }
-            })
+            .authenticate_provider_oauth(provider_id, Self::display_oauth_device_info)
             .await;
 
         self.spinner.stop(None)?;
         result?;
 
+        Self::display_credential_success(&display_name);
+
+        Ok(())
+    }
+
+    /// Displays OAuth device authorization instructions to user
+    ///
+    /// Shows verification URI, user code, and expiration time. Attempts to
+    /// open browser automatically.
+    ///
+    /// # Arguments
+    /// * `display` - OAuth device display information from provider
+    fn display_oauth_device_info(display: forge_services::provider::OAuthDeviceDisplay) {
+        use colored::Colorize;
+
+        println!(
+            "{} Please visit: {}",
+            "→".blue(),
+            display.verification_uri.underline().cyan()
+        );
+        println!(
+            "{} Enter code: {}",
+            "→".blue(),
+            display.user_code.bold().green()
+        );
+        println!();
+        println!(
+            "{} Code expires in: {}",
+            "ℹ".blue(),
+            format!("{}m {}s", display.expires_in / 60, display.expires_in % 60).dimmed()
+        );
+        println!();
+
+        // Try to open browser automatically
+        if let Err(e) = open::that(&display.verification_uri) {
+            eprintln!(
+                "{} Could not open browser automatically: {}",
+                "⚠".yellow(),
+                e
+            );
+            println!("{} Please open the URL manually", "→".yellow());
+            println!();
+        }
+    }
+
+    /// Displays credential configuration success message with next steps
+    ///
+    /// Shows success confirmation and suggests next actions (set as active
+    /// provider, start chatting).
+    ///
+    /// # Arguments
+    /// * `provider_name` - Display name of the configured provider
+    fn display_credential_success(provider_name: &str) {
+        use colored::Colorize;
+
         println!();
         println!(
             "{} {} configured successfully!",
             "✓".green(),
-            display_name.bold()
+            provider_name.bold()
         );
         println!();
         println!("Next steps:");
         println!(
             "  {} Set as active provider: {}",
             "→".blue(),
-            format!("forge config set provider {}", provider_id).dimmed()
+            format!("forge config set provider {}", provider_name).dimmed()
         );
         println!("  {} Start chatting: {}", "→".blue(), "forge".dimmed());
         println!();
-
-        Ok(())
     }
 
     async fn handle_auth_import_env(
