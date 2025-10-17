@@ -84,24 +84,7 @@ impl ForgeOAuthService {
 
     /// Complete device authorization flow with callback (single-method design)
     ///
-    /// This method handles the entire OAuth device flow in one call:
-    /// 1. Initiates device authorization
-    /// 2. Calls display_callback with user info
-    /// 3. Polls for completion (oauth2 handles loop automatically)
-    /// 4. Returns final tokens
-    ///
-    /// The oauth2 crate handles all polling logic with exponential backoff.
-    /// This method BLOCKS until authorization completes or times out.
-    ///
-    /// # Arguments
-    /// * `config` - OAuth configuration
-    /// * `display_callback` - Callback to display user_code and verification_uri
-    ///
-    /// # Returns
-    /// OAuth tokens once user authorizes
-    ///
-    /// # Errors
-    /// Returns error if authorization fails, expires, or times out
+    
     pub async fn device_flow_with_callback<F>(
         &self,
         config: &OAuthConfig,

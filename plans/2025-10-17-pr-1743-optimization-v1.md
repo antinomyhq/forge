@@ -119,8 +119,8 @@ Reduce PR #1743 from 40 files/8,246 additions to ~36 files/3,600 additions (56% 
   - All tests passing with oauth2 crate implementation
   - Rationale: oauth2 crate's types are transparent to our wrapper, tests work seamlessly.
 
-- [x] 4.7. **Redesign OAuth API to use single-method flow** (COMPLETE - commit 57ae8b439) 
-  - **Critical Discovery**: Split initiate/poll API causes double-polling bug (both UI and oauth2 crate poll)
+- [x] 4.7. **Redesign OAuth API to use single-method flow** (COMPLETE - commits 57ae8b439, a3adc317e, 52586cf04) 
+  - **Critical Discovery #1**: Split initiate/poll API causes double-polling bug (both UI and oauth2 crate poll)
   - **Root Cause**: oauth2 crate designed for single end-to-end flow, not split into separate API calls
   - **New Design**: Replace `initiate_oauth_device()` + `complete_oauth_device()` with single `authenticate_with_oauth(provider_id, display_callback)`
   - Display callback receives `OAuthDeviceDisplay { user_code, verification_uri, expires_in }` for UI rendering
@@ -128,7 +128,11 @@ Reduce PR #1743 from 40 files/8,246 additions to ~36 files/3,600 additions (56% 
   - Removed `OAuthDeviceInit` and `OAuthDeviceState` DTOs - no longer needed
   - Removed `initiate_device_auth()` and `poll_device_auth()` methods
   - Updated `crates/forge_main/src/ui.rs` to use callback-based flow
-  - **Impact**: oauth.rs 670 → 543 lines (-127 lines, -19%), simpler API, no double-polling, cleaner UI integration
+  - **Critical Discovery #2**: GitHub violates RFC 8628 by returning HTTP 200 OK with error responses
+  - **GitHub RFC Violation**: Returns `{"error": "authorization_pending"}` with 200 OK instead of 400 Bad Request
+  - **Solution**: Added `github_compliant_http_request()` wrapper that intercepts responses and fixes status codes
+  - Wrapper checks for `"error"` field in JSON body and converts 200 → 400 for oauth2 crate compatibility
+  - **Impact**: oauth.rs 670 → 543 lines (-127 lines, -19%), simpler API, no double-polling, GitHub OAuth working end-to-end
 
 ### Phase 5: Verification & Testing (Both Phases)
 
