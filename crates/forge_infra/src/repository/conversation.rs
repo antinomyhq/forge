@@ -18,6 +18,7 @@ use crate::database::schema::conversations;
 struct FileChangeMetricsRecord {
     lines_added: u64,
     lines_removed: u64,
+    file_hash: Option<String>,
 }
 
 impl From<&FileChangeMetrics> for FileChangeMetricsRecord {
@@ -25,6 +26,7 @@ impl From<&FileChangeMetrics> for FileChangeMetricsRecord {
         Self {
             lines_added: metrics.lines_added,
             lines_removed: metrics.lines_removed,
+            file_hash: metrics.file_hash.clone(),
         }
     }
 }
@@ -34,6 +36,7 @@ impl From<FileChangeMetricsRecord> for FileChangeMetrics {
         Self {
             lines_added: record.lines_added,
             lines_removed: record.lines_removed,
+            file_hash: record.file_hash,
         }
     }
 }
