@@ -135,8 +135,11 @@ impl ForgeOAuthService {
             request = request.add_scope(Scope::new(scope.clone()));
         }
 
+        // Create HTTP client closure for GitHub-compliant requests
+        let http_fn = |req| Self::github_compliant_http_request(http_client.clone(), req);
+
         let device_auth_response: StandardDeviceAuthorizationResponse =
-            request.request_async(&http_client).await?;
+            request.request_async(&http_fn).await?;
 
         // Step 2: Call display callback with user info
         display_callback(OAuthDeviceDisplay {
@@ -145,11 +148,11 @@ impl ForgeOAuthService {
             expires_in: device_auth_response.expires_in().as_secs(),
         });
 
-        // Step 3: Poll for authorization (oauth2 handles the loop)
-        // Pass None for unlimited polling (respects expires_in from device_auth_response)
+        // Step 3: Poll for authorization with GitHub-compliant HTTP handling
+        // The custom HTTP function fixes GitHub's non-RFC-compliant 200 OK error responses
         let token_result = client
             .exchange_device_access_token(&device_auth_response)
-            .request_async(&http_client, tokio::time::sleep, None)
+            .request_async(&http_fn, tokio::time::sleep, None)
             .await?;
 
         // Step 4: Convert to OAuthTokens format
@@ -204,6 +207,73 @@ impl ForgeOAuthService {
                 .redirect(reqwest::redirect::Policy::none())
                 .build()?)
         }
+    }
+
+    /// Custom async HTTP function that fixes GitHub's non-compliant OAuth responses.
+    ///
+    /// **Problem**: GitHub returns HTTP 200 OK with error responses like `authorization_pending`
+    /// in the JSON body, violating RFC 8628 which requires HTTP 400 for errors.
+    ///
+    /// **Solution**: Intercept responses, check for `"error"` field in JSON body, and convert
+    /// 200 OK responses with errors to 400 Bad Request so oauth2 crate can parse them correctly.
+    ///
+    /// # Arguments
+    /// * `client` - The reqwest HTTP client to use
+    /// * `request` - The OAuth2 HTTP request to execute
+    ///
+    /// # Returns
+    /// HTTP response with corrected status code for RFC compliance
+    ///
+    /// # Errors
+    /// Returns error if HTTP request fails
+    async fn github_compliant_http_request(
+        client: reqwest::Client,
+        request: http::Request<Vec<u8>>,
+    ) -> Result<http::Response<Vec<u8>>, reqwest::Error> {
+        // Execute the request
+        let mut req_builder = client
+            .request(request.method().clone(), request.uri().to_string())
+            .body(request.body().clone());
+
+        for (name, value) in request.headers() {
+            req_builder = req_builder.header(name.as_str(), value.as_bytes());
+        }
+
+        let response = req_builder.send().await?;
+
+        // Get status and body
+        let status_code = response.status();
+        let headers = response.headers().clone();
+        let body = response.bytes().await?;
+
+        // GitHub-specific fix: If status is 200 but body contains "error" field,
+        // change status to 400 so oauth2 crate recognizes it as an error response
+        let fixed_status = if status_code.is_success() {
+            if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&body) {
+                if json.get("error").is_some() {
+                    // This is actually an error response masquerading as success
+                    http::StatusCode::BAD_REQUEST
+                } else {
+                    status_code
+                }
+            } else {
+                status_code
+            }
+        } else {
+            status_code
+        };
+
+        // Build http::Response with corrected status
+        let mut response_builder = http::Response::builder().status(fixed_status);
+
+        // Add headers
+        for (name, value) in headers.iter() {
+            response_builder = response_builder.header(name, value);
+        }
+
+        Ok(response_builder
+            .body(body.to_vec())
+            .expect("Failed to build HTTP response"))
     }
 
 

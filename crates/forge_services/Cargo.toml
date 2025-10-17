@@ -23,6 +23,7 @@ forge_fs.workspace = true
 
 anyhow.workspace = true
 futures.workspace = true
+http.workspace = true
 reqwest.workspace = true
 regex.workspace = true
 humantime.workspace = true
