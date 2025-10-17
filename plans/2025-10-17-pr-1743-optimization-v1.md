@@ -72,6 +72,14 @@ Reduce PR #1743 from 40 files/8,246 additions to ~36 files/3,600 additions (56% 
 
 **Note:** OAuth token refresh mechanism was added in commit 662ebf87 (134 additions to registry.rs). This functionality will need to be preserved/adapted when integrating oauth2 crate.
 
+**Completed in commit ce4e297b2:**
+- Added oauth2 crate dependency
+- Refactored PKCE to use oauth2 wrappers (185 → 157 lines)
+- Made OAuth flow provider-agnostic with custom headers support
+- Removed 3 dependencies (sha2, hex, rand)
+- Created GitHubCopilotService for provider-specific logic
+- Refactored oauth.rs to use oauth2 BasicClient (652 → 586 lines before final cleanup)
+
 - [x] 4.1. **Add oauth2 crate dependency**
   - Add `oauth2 = "5.0"` to workspace `Cargo.toml`
   - Add `oauth2.workspace = true` to `crates/forge_services/Cargo.toml`
@@ -110,22 +118,15 @@ Reduce PR #1743 from 40 files/8,246 additions to ~36 files/3,600 additions (56% 
   - Maintained existing test coverage (12 tests in pkce.rs + oauth.rs tests)
   - All tests passing with oauth2 crate implementation
   - Rationale: oauth2 crate's types are transparent to our wrapper, tests work seamlessly.
-- [~] 4.7. **Replace manual OAuth HTTP calls with oauth2 crate's client** (IN PROGRESS)
-  - **Status**: Implementing oauth2 BasicClient integration
-  - **Goal**: Use oauth2 crate's `BasicClient` for device flow and authorization code flow
-  - **Approach**: Build reqwest client with custom headers from OAuthConfig, pass to oauth2's `.request_async()`
-  - Replace manual HTTP requests in `initiate_device_auth()` with oauth2's device authorization
-  - Replace manual polling in `poll_device_auth()` with oauth2's `exchange_device_access_token()`
-  - Replace manual URL building in `build_auth_code_url()` with oauth2's authorization URL builder
-  - Replace manual token exchange in `exchange_auth_code()` with oauth2's `exchange_code()`
-  - Replace manual refresh in `refresh_access_token()` with oauth2's `exchange_refresh_token()`
-  - **Remove GitHub Copilot-specific `get_copilot_api_key()`** - This is provider-specific logic that doesn't belong in generic OAuth service
-  - GitHub Copilot's API key exchange should be handled separately in provider-specific code, not in OAuth flow
-  - Keep custom headers support by building reqwest client with default headers
-  - **Expected Impact**: Reduce oauth.rs from ~629 lines to ~150-200 lines (-65-75%)
-  - Keep `get_copilot_api_key()` as separate provider-specific extension
-  - Rationale: oauth2 crate handles device flow polling with exponential backoff, error handling, and RFC compliance automatically
-  - **Impact:** Reduce oauth.rs from ~650 lines to ~200 lines (~450 line reduction, -70%)
+
+- [~] 4.7. **Redesign OAuth API to use single-method flow** (IN PROGRESS) 
+  - **Critical Discovery**: Split initiate/poll API causes double-polling bug (both UI and oauth2 crate poll)
+  - **Root Cause**: oauth2 crate designed for single end-to-end flow, not split into separate API calls
+  - **New Design**: Replace `initiate_oauth_device()` + `complete_oauth_device()` with single `authenticate_with_oauth(provider_id, display_callback)`
+  - Display callback receives `OAuthDeviceDisplay { user_code, verification_uri, expires_in }` for UI rendering
+  - oauth2 crate handles entire flow internally: initiate → display → poll → return tokens
+  - Remove `OAuthDeviceInit` and `OAuthDeviceState` DTOs - no longer needed with single-method design
+  - **Impact**: Simpler API, eliminates architecture mismatch, oauth2 handles polling automatically
 
 ### Phase 5: Verification & Testing (Both Phases)
 
@@ -179,16 +180,17 @@ Reduce PR #1743 from 40 files/8,246 additions to ~36 files/3,600 additions (56% 
 - ✓ All tests pass: `cargo test --workspace`
 - ✓ PR reduced to ~36 files, ~4,200 additions
 
-### Phase 4-6 (OAuth Refactor):
-- ✓ oauth2 crate integrated successfully (v5.0.0)
-- ✓ pkce.rs refactored to use oauth2 (reduced from 185 to 157 lines)
-- ✓ Custom PKCE implementation replaced with industry-standard oauth2 crate
-- ✓ 3 dependencies removed (sha2, hex, rand from forge_services)
-- ✓ All provider authentication tests pass (86 tests)
+### Phase 4-6 (OAuth Refactor Follow-up):
+- ✓ oauth2 crate integrated successfully
+- ✓ pkce.rs refactored, functionality replaced with oauth2 wrappers
+- ✓ oauth.rs reduced from 652 to ~586 lines (before final cleanup)
+- ✓ OAuth flow made provider-agnostic with custom headers
+- ✓ GitHub Copilot flow still works end-to-end
+- ✓ All provider authentication tests pass
 - ✓ Manual testing successful for OAuth and API key flows
-- ✓ OAuth flow made provider-agnostic with custom headers support
-- ~ In Progress: Replace manual HTTP calls with oauth2 BasicClient
-- Expected: oauth.rs reduced from ~650 lines to ~200 lines (-70%)
+- ✓ 3 dependencies removed (sha2, hex, rand)
+- [ ] Final API simplification complete (single-method OAuth)
+- [ ] UI updated to use callback-based OAuth flow
 
 ## Potential Risks and Mitigations
 
@@ -254,18 +256,21 @@ Reduce PR #1743 from 40 files/8,246 additions to ~36 files/3,600 additions (56% 
 - ✓ All functionality preserved
 
 ### Follow-up Success (Phase 4-6):
-- ✓ Additional 520+ lines reduced (OAuth refactor)
+- ✓ Additional 28+ lines reduced (PKCE refactor)
+- ✓ OAuth flow made provider-agnostic
 - ✓ Using industry-standard OAuth library
 - ✓ Improved security (oauth2 crate is audited)
 - ✓ Better maintainability (less custom crypto code)
 - ✓ Faster OAuth implementation for future providers
+- [ ] Final API simplification (awaiting Phase 4.7 completion)
 
 ### Overall Success:
-- ✓ Final PR: ~36 files, ~3,600 additions (vs current 40 files, 8,246 additions)
-- ✓ 58% reduction in additions
-- ✓ More maintainable codebase
-- ✓ Better tested OAuth implementation
-- ✓ Cleaner dependency tree
+- Target: Final PR ~36 files, ~3,600 additions (vs current 40 files, 8,246 additions)
+- Current: ~40 files after Phase 4 refactor
+- 58% reduction in additions (goal)
+- More maintainable codebase
+- Better tested OAuth implementation
+- Cleaner dependency tree
 
 ## Migration Timeline
 
@@ -281,6 +286,7 @@ Reduce PR #1743 from 40 files/8,246 additions to ~36 files/3,600 additions (56% 
 - Phase 6: Documentation (30 min)
 
 **Total Effort:** 4-6 hours across two PRs
+**Actual Time (Phase 4):** ~3 hours so far
 
 ## Rollback Plan
 
@@ -302,3 +308,4 @@ Reduce PR #1743 from 40 files/8,246 additions to ~36 files/3,600 additions (56% 
 - **Two PR strategy recommended:** Immediate wins first, OAuth refactor second
 - **All changes maintain functionality:** No features removed, only implementation improved
 - **Follows project guidelines:** Uses battle-tested libraries, maintains test coverage
+- **Critical Discovery:** oauth2 crate expects single-method flow, not split initiate/poll API
