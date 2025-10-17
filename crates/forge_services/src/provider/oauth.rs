@@ -83,15 +83,14 @@ impl ForgeOAuthService {
     }
 
     /// Complete device authorization flow with callback (single-method design)
-    ///
-    
+
     pub async fn device_flow_with_callback<F>(
         &self,
         config: &OAuthConfig,
         display_callback: F,
     ) -> anyhow::Result<forge_app::dto::OAuthTokens>
     where
-        F: FnOnce(crate::provider::provider_authenticator::OAuthDeviceDisplay) -> (),
+        F: FnOnce(crate::provider::provider_authenticator::OAuthDeviceDisplay),
     {
         use crate::provider::provider_authenticator::OAuthDeviceDisplay;
 
@@ -132,7 +131,8 @@ impl ForgeOAuthService {
         });
 
         // Step 3: Poll for authorization with GitHub-compliant HTTP handling
-        // The custom HTTP function fixes GitHub's non-RFC-compliant 200 OK error responses
+        // The custom HTTP function fixes GitHub's non-RFC-compliant 200 OK error
+        // responses
         let token_result = client
             .exchange_device_access_token(&device_auth_response)
             .request_async(&http_fn, tokio::time::sleep, None)
@@ -149,11 +149,7 @@ impl ForgeOAuthService {
             .map(|d| chrono::Utc::now() + chrono::Duration::seconds(d.as_secs() as i64))
             .unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::days(365)); // Default to 1 year
 
-        Ok(forge_app::dto::OAuthTokens {
-            access_token,
-            refresh_token,
-            expires_at,
-        })
+        Ok(forge_app::dto::OAuthTokens { access_token, refresh_token, expires_at })
     }
 
     /// Builds a reqwest HTTP client with custom headers from config
@@ -192,13 +188,16 @@ impl ForgeOAuthService {
         }
     }
 
-    /// Custom async HTTP function that fixes GitHub's non-compliant OAuth responses.
+    /// Custom async HTTP function that fixes GitHub's non-compliant OAuth
+    /// responses.
     ///
-    /// **Problem**: GitHub returns HTTP 200 OK with error responses like `authorization_pending`
-    /// in the JSON body, violating RFC 8628 which requires HTTP 400 for errors.
+    /// **Problem**: GitHub returns HTTP 200 OK with error responses like
+    /// `authorization_pending` in the JSON body, violating RFC 8628 which
+    /// requires HTTP 400 for errors.
     ///
-    /// **Solution**: Intercept responses, check for `"error"` field in JSON body, and convert
-    /// 200 OK responses with errors to 400 Bad Request so oauth2 crate can parse them correctly.
+    /// **Solution**: Intercept responses, check for `"error"` field in JSON
+    /// body, and convert 200 OK responses with errors to 400 Bad Request so
+    /// oauth2 crate can parse them correctly.
     ///
     /// # Arguments
     /// * `client` - The reqwest HTTP client to use
@@ -258,8 +257,6 @@ impl ForgeOAuthService {
             .body(body.to_vec())
             .expect("Failed to build HTTP response"))
     }
-
-
 
     /// Builds authorization URL for code flow
     ///

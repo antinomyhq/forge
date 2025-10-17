@@ -313,7 +313,7 @@ impl<
         display_callback: Cb,
     ) -> Result<()>
     where
-        Cb: FnOnce(OAuthDeviceDisplay) -> () + Send,
+        Cb: FnOnce(OAuthDeviceDisplay) + Send,
     {
         use forge_services::provider::ProviderAuthenticator;
 

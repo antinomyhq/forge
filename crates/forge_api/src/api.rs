@@ -161,9 +161,10 @@ pub trait API: Sync + Send {
 
     /// Authenticates with a provider using OAuth device flow
     ///
-    /// This method handles the complete OAuth flow with a callback for displaying
-    /// the user code and verification URL. The callback is invoked once the device
-    /// code is obtained, then the method blocks while polling for authorization.
+    /// This method handles the complete OAuth flow with a callback for
+    /// displaying the user code and verification URL. The callback is
+    /// invoked once the device code is obtained, then the method blocks
+    /// while polling for authorization.
     ///
     /// # Arguments
     ///
@@ -175,7 +176,7 @@ pub trait API: Sync + Send {
         display_callback: Cb,
     ) -> Result<()>
     where
-        Cb: FnOnce(OAuthDeviceDisplay) -> () + Send;
+        Cb: FnOnce(OAuthDeviceDisplay) + Send;
 
     /// Imports provider credentials from environment variables
     ///

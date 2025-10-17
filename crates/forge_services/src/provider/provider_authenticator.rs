@@ -202,7 +202,7 @@ where
         display_callback: F,
     ) -> anyhow::Result<()>
     where
-        F: FnOnce(OAuthDeviceDisplay) -> (),
+        F: FnOnce(OAuthDeviceDisplay),
     {
         // Get OAuth config from metadata service
         let auth_method = ProviderMetadataService::get_oauth_method(&provider_id)
@@ -316,11 +316,10 @@ where
 
         for provider_id in all_provider_ids {
             // Apply filter if provided
-            if let Some(filter_id) = filter {
-                if filter_id != provider_id {
+            if let Some(filter_id) = filter
+                && filter_id != provider_id {
                     continue;
                 }
-            }
 
             // Get env var names for this provider
             let env_var_names = ProviderMetadataService::get_env_var_names(&provider_id);
