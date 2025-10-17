@@ -895,9 +895,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         for model in models.iter() {
             let id = model.id.to_string();
-            info = info.add_title(id);
 
-            // Add context length if available
+            // Build a single row with model name as key and context/tools as values
+            let mut values = Vec::new();
+
+            // Add context length if available, otherwise use "unknown"
             if let Some(limit) = model.context_length {
                 let context = if limit >= 1_000_000 {
                     format!("{}M", limit / 1_000_000)
@@ -906,16 +908,27 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 } else {
                     format!("{limit}")
                 };
-                info = info.add_key_value("Context", context);
+                values.push(context);
+            } else {
+                values.push("<unspecified>".to_string());
             }
 
             // Add tools support indicator if explicitly supported
             if model.tools_supported == Some(true) {
-                info = info.add_key_value("Tools", "🛠️");
+                values.push("🛠️".to_string());
+            } else {
+                values.push("".to_string());
+            }
+
+            // Add the model as a key with combined values
+            if values.len() == 2 {
+                info = info.add_key_value(id, values.join(" "));
+            } else {
+                info = info.add_key(id);
             }
         }
 
-        self.write_info_or_porcelain(info, porcelain, true)?;
+        self.write_info_or_porcelain(info, porcelain, false)?;
 
         Ok(())
     }
