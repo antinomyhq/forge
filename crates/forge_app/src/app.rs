@@ -195,7 +195,8 @@ impl<S: Services> ForgeApp<S> {
             .clone();
 
         // Configure agent with model and workflow settings before compaction.
-        // This ensures compaction parameters are properly set (otherwise they'd be None).
+        // This ensures compaction parameters are properly set (otherwise they'd be
+        // None).
         let model = self.services.get_active_model().await?;
         let workflow = self.services.read_merged(None).await.unwrap_or_default();
         let agent = agent
@@ -212,7 +213,8 @@ impl<S: Services> ForgeApp<S> {
         // The compactor returns an accumulated total (original + compacted tokens).
         // Formula: compacted_tokens = accumulated_total - original_tokens
         // Uses saturating_sub to prevent underflow panics.
-        let compacted_token_count = (*compacted_context.token_count()).saturating_sub(original_token_count);
+        let compacted_token_count =
+            (*compacted_context.token_count()).saturating_sub(original_token_count);
 
         // Update the conversation with the compacted context
         conversation.context = Some(compacted_context);
