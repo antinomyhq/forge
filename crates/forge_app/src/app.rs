@@ -201,9 +201,9 @@ impl<S: Services> ForgeApp<S> {
             .apply_workflow_config(&workflow);
 
         // Apply compaction using the Compactor
-        let compactor = Compactor::new(self.services.clone());
-
-        let compacted_context = compactor.compact(&agent, context, true).await?;
+        let compacted_context = Compactor::new(self.services.clone())
+            .compact(&agent, context, true)
+            .await?;
 
         // Calculate compacted metrics
         let compacted_messages = compacted_context.messages.len();
