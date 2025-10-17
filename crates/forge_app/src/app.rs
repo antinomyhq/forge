@@ -182,7 +182,7 @@ impl<S: Services> ForgeApp<S> {
 
         // Calculate original metrics
         let original_messages = context.messages.len();
-        let original_tokens_approx = context.token_count_approx();
+        let original_tokens_approx = *context.token_count();
 
         // Find the main agent (first agent in the conversation)
         // In most cases, there should be a primary agent for compaction
@@ -193,6 +193,13 @@ impl<S: Services> ForgeApp<S> {
             .first()
             .ok_or_else(|| anyhow::anyhow!("No agents found in conversation"))?
             .clone();
+        let model = self.services.get_active_model().await?;
+        let workflow = self.services.read_merged(None).await.unwrap_or_default();
+
+        let agent = agent
+            .set_model_deeply(model.clone())
+            .apply_workflow_config(&workflow);
+
 
         // Apply compaction using the Compactor
         let compactor = Compactor::new(self.services.clone());
