@@ -1,16 +1,18 @@
 /// OAuth flow implementation for provider authentication
 ///
-/// Supports both device authorization flow (GitHub Copilot) and authorization
-/// code flow with manual paste (Anthropic). No local server required.
-use std::time::Duration;
+/// Uses the oauth2 crate for RFC-compliant OAuth flows.
+/// Supports both device authorization flow and authorization code flow.
+use std::collections::HashMap;
 
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use tokio::time::sleep;
-
-use crate::provider::{
-    OAuthConfig, generate_code_challenge, generate_code_verifier, generate_state,
+use oauth2::basic::BasicClient;
+use oauth2::{
+    AuthUrl, AuthorizationCode, ClientId, CsrfToken, DeviceAuthorizationUrl, EmptyExtraDeviceAuthorizationFields, PkceCodeChallenge,
+    PkceCodeVerifier, RedirectUrl, RefreshToken, Scope, StandardDeviceAuthorizationResponse,
+    TokenResponse, TokenUrl,
 };
+use serde::{Deserialize, Serialize};
+
+use crate::provider::OAuthConfig;
 
 /// Response from device authorization initiation
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,42 +72,61 @@ pub struct AuthCodeParams {
     pub code_verifier: Option<String>,
 }
 
-/// OAuth service for handling device and code flows
-pub struct ForgeOAuthService {
-    client: reqwest::Client,
-}
+/// OAuth service for handling device and code flows using oauth2 crate
+#[derive(Clone)]
+pub struct ForgeOAuthService;
 
 impl ForgeOAuthService {
     /// Creates a new OAuth service
     pub fn new() -> Self {
-        Self { client: reqwest::Client::new() }
+        Self
     }
 
-    /// Creates OAuth service with custom HTTP client
-    pub fn with_client(client: reqwest::Client) -> Self {
-        Self { client }
-    }
-}
-
-impl Default for ForgeOAuthService {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl ForgeOAuthService {
-    /// Initiates device authorization flow (GitHub Copilot pattern)
+    /// Builds a reqwest HTTP client with custom headers from config
     ///
     /// # Arguments
+    /// * `custom_headers` - Optional map of custom headers to include in all
+    ///   requests
     ///
+    /// # Returns
+    /// Configured reqwest client with custom headers set as defaults
+    fn build_http_client(
+        &self,
+        custom_headers: Option<&HashMap<String, String>>,
+    ) -> anyhow::Result<reqwest::Client> {
+        if let Some(headers) = custom_headers {
+            let mut header_map = reqwest::header::HeaderMap::new();
+
+            for (key, value) in headers {
+                let header_name = reqwest::header::HeaderName::try_from(key.as_str())
+                    .map_err(|e| anyhow::anyhow!("Invalid header name '{}': {}", key, e))?;
+                let header_value = value
+                    .parse()
+                    .map_err(|e| anyhow::anyhow!("Invalid header value for '{}': {}", key, e))?;
+                header_map.insert(header_name, header_value);
+            }
+
+            Ok(reqwest::Client::builder()
+                .default_headers(header_map)
+                // Disable redirects to prevent SSRF vulnerabilities
+                .redirect(reqwest::redirect::Policy::none())
+                .build()?)
+        } else {
+            Ok(reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .build()?)
+        }
+    }
+
+    /// Initiates device authorization flow
+    ///
+    /// # Arguments
     /// * `config` - OAuth configuration with device_code_url and client_id
     ///
     /// # Returns
-    ///
     /// Device authorization response with user_code and verification_uri
     ///
     /// # Errors
-    ///
     /// Returns error if HTTP request fails or response is invalid
     pub async fn initiate_device_auth(
         &self,
@@ -115,227 +136,181 @@ impl ForgeOAuthService {
             .device_code_url
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("device_code_url not configured"))?;
-
-        // Build form params
-        let scopes = config.scopes.join(" ");
-        let params = vec![("client_id", config.client_id.as_str()), ("scope", &scopes)];
-
-        // Build headers with provider-specific customizations if provided
-        let mut headers = reqwest::header::HeaderMap::new();
-        headers.insert(reqwest::header::ACCEPT, "application/json".parse().unwrap());
-
-        // Apply custom headers from config (e.g., User-Agent for GitHub)
-        if let Some(custom_headers) = &config.custom_headers {
-            for (key, value) in custom_headers {
-                if let (Ok(header_name), Ok(header_value)) = (
-                    reqwest::header::HeaderName::try_from(key.as_str()),
-                    value.parse(),
-                ) {
-                    headers.insert(header_name, header_value);
-                }
-            }
-        }
-
-        let response = self
-            .client
-            .post(device_code_url)
-            .headers(headers)
-            .form(&params)
-            .send()
-            .await?;
-
-        let status = response.status();
-        if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
-            anyhow::bail!("Device authorization failed ({}): {}", status, body);
-        }
-
-        let device_response: DeviceAuthorizationResponse = response.json().await?;
-        Ok(device_response)
-    }
-
-    /// Polls for device authorization completion
-    ///
-    /// Polls the token endpoint until user completes authorization or timeout.
-    /// Implements exponential backoff for rate limit errors.
-    ///
-    /// # Arguments
-    ///
-    /// * `config` - OAuth configuration with device_token_url
-    /// * `device_code` - Device code from initiation response
-    /// * `interval` - Base polling interval in seconds
-    ///
-    /// # Returns
-    ///
-    /// OAuth tokens once user authorizes
-    ///
-    /// # Errors
-    ///
-    /// Returns error if authorization fails, expires, or times out
-    pub async fn poll_device_auth(
-        &self,
-        config: &OAuthConfig,
-        device_code: &str,
-        interval: u64,
-    ) -> anyhow::Result<OAuthTokenResponse> {
-        let token_url = config
+        let device_token_url = config
             .device_token_url
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("device_token_url not configured"))?;
 
-        let mut current_interval = Duration::from_secs(interval);
-        let max_attempts = 100; // Prevents infinite loop
-        let mut attempts = 0;
+        // Build oauth2 client for device flow
+        let client = BasicClient::new(ClientId::new(config.client_id.clone()))
+            .set_device_authorization_url(DeviceAuthorizationUrl::new(device_code_url.clone())?)
+            .set_token_uri(TokenUrl::new(device_token_url.clone())?);
 
-        loop {
-            if attempts >= max_attempts {
-                anyhow::bail!(
-                    "Device authorization timed out after {} attempts",
-                    max_attempts
-                );
-            }
-            attempts += 1;
+        // Build HTTP client with custom headers
+        let http_client = self.build_http_client(config.custom_headers.as_ref())?;
 
-            sleep(current_interval).await;
-
-            let params = vec![
-                ("client_id", config.client_id.as_str()),
-                ("device_code", device_code),
-                ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
-            ];
-
-            // Build headers with provider-specific customizations if provided
-            let mut headers = reqwest::header::HeaderMap::new();
-            headers.insert(reqwest::header::ACCEPT, "application/json".parse().unwrap());
-
-            // Apply custom headers from config (e.g., User-Agent for GitHub)
-            if let Some(custom_headers) = &config.custom_headers {
-                for (key, value) in custom_headers {
-                    if let (Ok(header_name), Ok(header_value)) = (
-                        reqwest::header::HeaderName::try_from(key.as_str()),
-                        value.parse(),
-                    ) {
-                        headers.insert(header_name, header_value);
-                    }
-                }
-            }
-
-            let response = self
-                .client
-                .post(token_url)
-                .headers(headers)
-                .form(&params)
-                .send()
-                .await?;
-
-            let status = response.status();
-            let body = response.text().await?;
-
-            // GitHub returns 200 OK even for pending/error states
-            // Check for error field first
-            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&body) {
-                if let Some(error) = json.get("error").and_then(|e| e.as_str()) {
-                    match error {
-                        "authorization_pending" => {
-                            // User hasn't authorized yet, keep polling
-                            continue;
-                        }
-                        "slow_down" => {
-                            // Rate limited, increase interval by 5 seconds
-                            current_interval += Duration::from_secs(5);
-                            continue;
-                        }
-                        "expired_token" => {
-                            anyhow::bail!("Device code expired. Please restart authorization.");
-                        }
-                        "access_denied" => {
-                            anyhow::bail!("User denied authorization.");
-                        }
-                        _ => {
-                            anyhow::bail!("Authorization failed: {}", error);
-                        }
-                    }
-                }
-
-                // No error field, try to parse as token response
-                if status.is_success() {
-                    let token_response: OAuthTokenResponse = serde_json::from_str(&body)?;
-                    return Ok(token_response);
-                }
-            }
-
-            // Unknown error format
-            anyhow::bail!("Device authorization error: {}", body);
+        // Build device authorization request with scopes
+        let mut request = client.exchange_device_code();
+        for scope in &config.scopes {
+            request = request.add_scope(Scope::new(scope.clone()));
         }
+
+        // Execute the request
+        let details: StandardDeviceAuthorizationResponse =
+            request.request_async(&http_client).await?;
+
+        Ok(DeviceAuthorizationResponse {
+            device_code: details.device_code().secret().to_string(),
+            user_code: details.user_code().secret().to_string(),
+            verification_uri: details.verification_uri().to_string(),
+            verification_uri_complete: details
+                .verification_uri_complete()
+                .map(|uri| uri.secret().to_string()),
+            expires_in: details.expires_in().as_secs(),
+            interval: details.interval().as_secs(),
+        })
     }
 
-    /// Builds authorization URL for code flow (Anthropic pattern)
+    /// Polls for device authorization completion
     ///
-    /// Generates URL with state and optionally PKCE parameters. User visits
-    /// URL, authorizes, and manually copies code from provider's callback page.
+    /// Uses oauth2 crate's automatic polling with exponential backoff.
+    /// The crate handles authorization_pending and slow_down errors automatically.
     ///
     /// # Arguments
+    /// * `config` - OAuth configuration with device_token_url
+    /// * `device_auth_response` - Full device authorization response from
+    ///   `initiate_device_auth()`
     ///
+    /// # Returns
+    /// OAuth tokens once user authorizes
+    ///
+    /// # Errors
+    /// Returns error if authorization fails, expires, or times out
+    pub async fn poll_device_auth(
+        &self,
+        config: &OAuthConfig,
+        device_auth_response: &DeviceAuthorizationResponse,
+    ) -> anyhow::Result<OAuthTokenResponse> {
+        let device_code_url = config
+            .device_code_url
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("device_code_url not configured"))?;
+        let device_token_url = config
+            .device_token_url
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("device_token_url not configured"))?;
+
+        // Build oauth2 client for device flow
+        let client = BasicClient::new(ClientId::new(config.client_id.clone()))
+            .set_device_authorization_url(DeviceAuthorizationUrl::new(device_code_url.clone())?)
+            .set_token_uri(TokenUrl::new(device_token_url.clone())?);
+
+        // Build HTTP client with custom headers
+        let http_client = self.build_http_client(config.custom_headers.as_ref())?;
+
+        // Reconstruct the StandardDeviceAuthorizationResponse from our response
+        // We need this because oauth2 crate's exchange_device_access_token expects it
+        let details = StandardDeviceAuthorizationResponse {
+            device_code: oauth2::DeviceCode::new(device_auth_response.device_code.clone()),
+            user_code: oauth2::UserCode::new(device_auth_response.user_code.clone()),
+            verification_uri: oauth2::EndUserVerificationUrl::new(
+                device_auth_response.verification_uri.clone(),
+            )?,
+            verification_uri_complete: device_auth_response
+                .verification_uri_complete
+                .as_ref()
+                .map(|uri| oauth2::VerificationUriComplete::new(uri.clone())),
+            expires_in: device_auth_response.expires_in,
+            interval: device_auth_response.interval,
+            extra_fields: EmptyExtraDeviceAuthorizationFields {},
+        };
+
+        // Poll for token with automatic backoff - oauth2 crate handles the polling loop
+        // Pass None for unlimited polling (will respect expires_in from details)
+        let token_result = client
+            .exchange_device_access_token(&details)
+            .request_async(&http_client, tokio::time::sleep, None)
+            .await?;
+
+        Ok(OAuthTokenResponse {
+            access_token: token_result.access_token().secret().to_string(),
+            refresh_token: token_result.refresh_token().map(|t| t.secret().to_string()),
+            expires_in: token_result.expires_in().map(|d| d.as_secs()),
+            token_type: "Bearer".to_string(),
+            scope: token_result.scopes().map(|scopes| {
+                scopes
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            }),
+        })
+    }
+
+    /// Builds authorization URL for code flow
+    ///
+    /// Generates URL with state and optionally PKCE parameters.
+    ///
+    /// # Arguments
     /// * `config` - OAuth configuration with auth_url, client_id, etc.
     ///
     /// # Returns
-    ///
-    /// Tuple of (authorization_url, state, code_verifier)
-    /// Store state and code_verifier securely for validation/exchange
+    /// Authorization parameters including URL, state, and optional code
+    /// verifier
     ///
     /// # Errors
-    ///
-    /// Returns error if URL building or PKCE generation fails
+    /// Returns error if URL building fails
     pub fn build_auth_code_url(&self, config: &OAuthConfig) -> anyhow::Result<AuthCodeParams> {
         let auth_url = config
             .auth_url
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("auth_url not configured"))?;
+        let token_url = config
+            .token_url
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("token_url not configured"))?;
 
-        let state = generate_state();
-        let code_verifier = if config.use_pkce {
-            Some(generate_code_verifier())
-        } else {
-            None
-        };
+        // Build oauth2 client for authorization code flow
+        let client = BasicClient::new(ClientId::new(config.client_id.clone()))
+            .set_auth_uri(AuthUrl::new(auth_url.clone())?)
+            .set_token_uri(TokenUrl::new(token_url.clone())?)
+            .set_redirect_uri(RedirectUrl::new(config.redirect_uri.clone())?);
 
-        let mut url = reqwest::Url::parse(auth_url)?;
+        let mut request = client.authorize_url(CsrfToken::new_random);
 
-        {
-            let mut query = url.query_pairs_mut();
-            query.append_pair("client_id", &config.client_id);
-            query.append_pair("redirect_uri", &config.redirect_uri);
-            query.append_pair("response_type", "code");
-            query.append_pair("scope", &config.scopes.join(" "));
-            query.append_pair("state", &state);
-
-            if let Some(verifier) = &code_verifier {
-                let challenge = generate_code_challenge(verifier)?;
-                query.append_pair("code_challenge", &challenge);
-                query.append_pair("code_challenge_method", "S256");
-            }
+        // Add scopes
+        for scope in &config.scopes {
+            request = request.add_scope(Scope::new(scope.clone()));
         }
 
-        Ok(AuthCodeParams { auth_url: url.to_string(), state, code_verifier })
+        // Add PKCE if configured
+        let (auth_url, csrf_state, pkce_verifier) = if config.use_pkce {
+            let (challenge, verifier) = PkceCodeChallenge::new_random_sha256();
+            let (url, state) = request.set_pkce_challenge(challenge).url();
+            (url, state, Some(verifier))
+        } else {
+            let (url, state) = request.url();
+            (url, state, None)
+        };
+
+        Ok(AuthCodeParams {
+            auth_url: auth_url.to_string(),
+            state: csrf_state.secret().to_string(),
+            code_verifier: pkce_verifier.map(|v| v.secret().to_string()),
+        })
     }
 
     /// Exchanges authorization code for tokens
     ///
-    /// Called after user pastes authorization code from provider's callback
-    /// page.
-    ///
     /// # Arguments
-    ///
     /// * `config` - OAuth configuration with token_url
     /// * `auth_code` - Authorization code from user
     /// * `code_verifier` - PKCE verifier (if PKCE was used)
     ///
     /// # Returns
-    ///
     /// OAuth tokens (access_token, refresh_token, etc.)
     ///
     /// # Errors
-    ///
     /// Returns error if HTTP request fails or code is invalid
     pub async fn exchange_auth_code(
         &self,
@@ -343,152 +318,108 @@ impl ForgeOAuthService {
         auth_code: &str,
         code_verifier: Option<&str>,
     ) -> anyhow::Result<OAuthTokenResponse> {
+        let auth_url = config
+            .auth_url
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("auth_url not configured"))?;
         let token_url = config
             .token_url
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("token_url not configured"))?;
 
-        let mut params = vec![
-            ("grant_type", "authorization_code"),
-            ("code", auth_code),
-            ("client_id", &config.client_id),
-            ("redirect_uri", &config.redirect_uri),
-        ];
+        // Build oauth2 client for authorization code flow
+        let client = BasicClient::new(ClientId::new(config.client_id.clone()))
+            .set_auth_uri(AuthUrl::new(auth_url.clone())?)
+            .set_token_uri(TokenUrl::new(token_url.clone())?)
+            .set_redirect_uri(RedirectUrl::new(config.redirect_uri.clone())?);
+
+        // Build HTTP client with custom headers
+        let http_client = self.build_http_client(config.custom_headers.as_ref())?;
+
+        let code = AuthorizationCode::new(auth_code.to_string());
+
+        // Build token exchange request
+        let mut request = client.exchange_code(code);
 
         // Add PKCE verifier if provided
-        let verifier_owned: String;
         if let Some(verifier) = code_verifier {
-            verifier_owned = verifier.to_string();
-            params.push(("code_verifier", &verifier_owned));
+            request = request.set_pkce_verifier(PkceCodeVerifier::new(verifier.to_string()));
         }
 
-        let response = self.client.post(token_url).form(&params).send().await?;
+        // Execute token exchange
+        let token_result = request.request_async(&http_client).await?;
 
-        let status = response.status();
-        if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
-            anyhow::bail!("Token exchange failed ({}): {}", status, body);
-        }
-
-        let token_response: OAuthTokenResponse = response.json().await?;
-        Ok(token_response)
+        Ok(OAuthTokenResponse {
+            access_token: token_result.access_token().secret().to_string(),
+            refresh_token: token_result.refresh_token().map(|t| t.secret().to_string()),
+            expires_in: token_result.expires_in().map(|d| d.as_secs()),
+            token_type: "Bearer".to_string(),
+            scope: token_result.scopes().map(|scopes| {
+                scopes
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            }),
+        })
     }
 
     /// Refreshes access token using refresh token
     ///
     /// # Arguments
-    ///
     /// * `config` - OAuth configuration with token_url
     /// * `refresh_token` - Refresh token from previous authorization
     ///
     /// # Returns
-    ///
     /// New OAuth tokens
     ///
     /// # Errors
-    ///
     /// Returns error if refresh token is invalid or expired
     pub async fn refresh_access_token(
         &self,
         config: &OAuthConfig,
         refresh_token: &str,
     ) -> anyhow::Result<OAuthTokenResponse> {
+        // Try code flow token URL first, fallback to device flow token URL
         let token_url = config
             .token_url
             .as_ref()
             .or(config.device_token_url.as_ref())
-            .ok_or_else(|| anyhow::anyhow!("token_url not configured"))?;
+            .ok_or_else(|| anyhow::anyhow!("token_url not configured for refresh"))?;
 
-        let params = vec![
-            ("grant_type", "refresh_token"),
-            ("refresh_token", refresh_token),
-            ("client_id", &config.client_id),
-        ];
+        // Build minimal oauth2 client (just need token endpoint)
+        let client = BasicClient::new(ClientId::new(config.client_id.clone()))
+            .set_token_uri(TokenUrl::new(token_url.clone())?);
 
-        let response = self.client.post(token_url).form(&params).send().await?;
+        // Build HTTP client with custom headers
+        let http_client = self.build_http_client(config.custom_headers.as_ref())?;
 
-        let status = response.status();
-        if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
-            anyhow::bail!("Token refresh failed ({}): {}", status, body);
-        }
+        let refresh_token = RefreshToken::new(refresh_token.to_string());
 
-        let token_response: OAuthTokenResponse = response.json().await?;
-        Ok(token_response)
+        let token_result = client
+            .exchange_refresh_token(&refresh_token)
+            .request_async(&http_client)
+            .await?;
+
+        Ok(OAuthTokenResponse {
+            access_token: token_result.access_token().secret().to_string(),
+            refresh_token: token_result.refresh_token().map(|t| t.secret().to_string()),
+            expires_in: token_result.expires_in().map(|d| d.as_secs()),
+            token_type: "Bearer".to_string(),
+            scope: token_result.scopes().map(|scopes| {
+                scopes
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            }),
+        })
     }
+}
 
-    /// Fetches GitHub Copilot API key from OAuth token
-    ///
-    /// GitHub Copilot specific: Uses OAuth token to fetch time-limited API key.
-    /// The API key is what's actually used for Copilot API requests.
-    ///
-    /// # Arguments
-    ///
-    /// * `github_token` - GitHub OAuth access token from device flow
-    ///
-    /// # Returns
-    ///
-    /// Tuple of (api_key, expires_at)
-    ///
-    /// # Errors
-    ///
-    /// Returns error if user doesn't have Copilot access or request fails
-    pub async fn get_copilot_api_key(
-        &self,
-        github_token: &str,
-    ) -> anyhow::Result<(String, DateTime<Utc>)> {
-        let url = "https://api.github.com/copilot_internal/v2/token";
-
-        let mut headers = reqwest::header::HeaderMap::new();
-        headers.insert(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", github_token).parse().unwrap(),
-        );
-        headers.insert(reqwest::header::ACCEPT, "application/json".parse().unwrap());
-        headers.insert(
-            reqwest::header::USER_AGENT,
-            "GitHubCopilotChat/0.26.7".parse().unwrap(),
-        );
-        // Add editor headers like opencode does
-        headers.insert(
-            reqwest::header::HeaderName::from_static("editor-version"),
-            "vscode/1.99.3".parse().unwrap(),
-        );
-        headers.insert(
-            reqwest::header::HeaderName::from_static("editor-plugin-version"),
-            "copilot-chat/0.26.7".parse().unwrap(),
-        );
-
-        let response = self.client.get(url).headers(headers).send().await?;
-
-        let status = response.status();
-        if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
-
-            if status.as_u16() == 403 {
-                anyhow::bail!(
-                    "GitHub Copilot access denied. Ensure you have an active Copilot subscription."
-                );
-            }
-
-            anyhow::bail!("Copilot API key fetch failed ({}): {}", status, body);
-        }
-
-        #[derive(Deserialize)]
-        struct CopilotTokenResponse {
-            token: String,
-            expires_at: i64,
-            #[serde(default)]
-            #[allow(dead_code)]
-            refresh_in: Option<i64>,
-        }
-
-        let copilot_response: CopilotTokenResponse = response.json().await?;
-
-        let expires_at =
-            DateTime::from_timestamp(copilot_response.expires_at, 0).unwrap_or_else(Utc::now);
-
-        Ok((copilot_response.token, expires_at))
+impl Default for ForgeOAuthService {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -521,7 +452,7 @@ mod tests {
 
         let config = OAuthConfig {
             device_code_url: Some(format!("{}/device/code", server.url())),
-            device_token_url: None,
+            device_token_url: Some(format!("{}/token", server.url())),
             auth_url: None,
             token_url: None,
             client_id: "test-client".to_string(),
@@ -574,7 +505,6 @@ mod tests {
         assert!(params.auth_url.contains("code_challenge="));
         assert!(params.auth_url.contains("code_challenge_method=S256"));
         assert!(params.code_verifier.is_some());
-        // oauth2 crate generates variable-length state tokens
         assert!(!params.state.is_empty());
     }
 

@@ -11,6 +11,7 @@ use tokio::sync::OnceCell;
 use tracing;
 use url::Url;
 
+use crate::provider::GitHubCopilotService;
 use crate::{AppConfigRepository, EnvironmentInfra, ProviderCredentialRepository, ProviderError};
 
 #[derive(Debug, Deserialize)]
@@ -277,7 +278,8 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository>
                 // GitHub Copilot API key refresh
                 tracing::debug!(provider = ?provider_id, "Refreshing GitHub Copilot API key");
 
-                let (api_key, expires_at) = oauth_service
+                let copilot_service = GitHubCopilotService::new();
+                let (api_key, expires_at) = copilot_service
                     .get_copilot_api_key(&oauth_tokens.refresh_token)
                     .await?;
 

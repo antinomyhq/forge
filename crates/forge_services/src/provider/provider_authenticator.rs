@@ -9,8 +9,7 @@ pub struct OAuthDeviceInit {
 
 #[derive(Debug, Clone)]
 pub struct OAuthDeviceState {
-    pub device_code: String,
-    pub interval: u64,
+    pub device_auth_response: super::oauth::DeviceAuthorizationResponse,
     pub oauth_config: super::OAuthConfig,
     pub provider_id: ProviderId,
 }
@@ -71,7 +70,8 @@ use forge_app::ProviderRegistry;
 use forge_app::dto::{OAuthTokens, ProviderCredential, ProviderId};
 
 use super::{
-    ForgeOAuthService, ForgeProviderValidationService, ProviderMetadataService, ValidationResult,
+    ForgeOAuthService, ForgeProviderValidationService, GitHubCopilotService,
+    ProviderMetadataService, ValidationResult,
 };
 use crate::infra::ProviderCredentialRepository;
 
@@ -211,12 +211,11 @@ where
 
         // Return display info + opaque state
         Ok(OAuthDeviceInit {
-            user_code: device_response.user_code,
-            verification_uri: device_response.verification_uri,
+            user_code: device_response.user_code.clone(),
+            verification_uri: device_response.verification_uri.clone(),
             expires_in: device_response.expires_in,
             state: OAuthDeviceState {
-                device_code: device_response.device_code,
-                interval: device_response.interval,
+                device_auth_response: device_response,
                 oauth_config,
                 provider_id,
             },
@@ -244,7 +243,7 @@ where
 
         // Poll until authorized (BLOCKING)
         let oauth_tokens = oauth_service
-            .poll_device_auth(&state.oauth_config, &state.device_code, state.interval)
+            .poll_device_auth(&state.oauth_config, &state.device_auth_response)
             .await?;
 
         // Provider-specific post-processing
@@ -281,8 +280,8 @@ where
         match provider_id {
             ProviderId::GitHubCopilot => {
                 // GitHub Copilot: Exchange OAuth token for API key
-                let oauth_service = ForgeOAuthService::new();
-                let (api_key, expires_at) = oauth_service
+                let copilot_service = GitHubCopilotService::new();
+                let (api_key, expires_at) = copilot_service
                     .get_copilot_api_key(&oauth_tokens.access_token)
                     .await?;
 
