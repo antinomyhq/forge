@@ -35,8 +35,6 @@ struct FileOperationStats {
     file_hash: Option<String>,
 }
 
-
-
 fn file_change_stats(operation: FileOperationStats, metrics: &mut Metrics) {
     tracing::info!(path = %operation.path, type = %operation.tool_name, lines_added = %operation.lines_added, lines_removed = %operation.lines_removed, "File change stats");
     match operation.operation_type {
@@ -395,9 +393,7 @@ impl ToolOperation {
                     output.after_undo.as_deref().unwrap_or(""),
                     output.before_undo.as_deref().unwrap_or(""),
                 );
-                let file_hash = Some(compute_hash(
-                    output.after_undo.as_deref().unwrap_or(""),
-                ));
+                let file_hash = Some(compute_hash(output.after_undo.as_deref().unwrap_or("")));
 
                 file_change_stats(
                     FileOperationStats {

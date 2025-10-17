@@ -79,8 +79,6 @@ impl<F: FsReadService> FileChangeDetector<F> {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;

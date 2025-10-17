@@ -66,12 +66,11 @@ pub fn format_match(matched: &Match, base_dir: &Path) -> String {
     }
 }
 
-
 /// Computes SHA-256 hash of the given content
 ///
-/// General-purpose utility function that computes a SHA-256 hash of string content.
-/// Returns a consistent hexadecimal representation that can be used for content
-/// comparison, caching, or change detection.
+/// General-purpose utility function that computes a SHA-256 hash of string
+/// content. Returns a consistent hexadecimal representation that can be used
+/// for content comparison, caching, or change detection.
 ///
 /// # Arguments
 /// * `content` - The content string to hash
