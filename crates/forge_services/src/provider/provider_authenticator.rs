@@ -317,9 +317,10 @@ where
         for provider_id in all_provider_ids {
             // Apply filter if provided
             if let Some(filter_id) = filter
-                && filter_id != provider_id {
-                    continue;
-                }
+                && filter_id != provider_id
+            {
+                continue;
+            }
 
             // Get env var names for this provider
             let env_var_names = ProviderMetadataService::get_env_var_names(&provider_id);
