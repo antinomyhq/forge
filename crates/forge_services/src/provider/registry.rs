@@ -280,7 +280,8 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository>
                 // We use it directly to fetch a new Copilot API key from GitHub's API
                 tracing::debug!(provider = ?provider_id, "Refreshing GitHub Copilot API key");
 
-                // Use the OAuth access token (stored as refresh_token) to get new Copilot API key
+                // Use the OAuth access token (stored as refresh_token) to get new Copilot API
+                // key
                 let copilot_service = GitHubCopilotService::new();
                 let (api_key, expires_at) = copilot_service
                     .get_copilot_api_key(&oauth_tokens.refresh_token)
