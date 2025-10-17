@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 use oauth2::basic::BasicClient;
 use oauth2::{
-    AuthUrl, AuthorizationCode, ClientId, CsrfToken, DeviceAuthorizationUrl, EmptyExtraDeviceAuthorizationFields, PkceCodeChallenge,
+    AuthUrl, AuthorizationCode, ClientId, CsrfToken, DeviceAuthorizationUrl, PkceCodeChallenge,
     PkceCodeVerifier, RedirectUrl, RefreshToken, Scope, StandardDeviceAuthorizationResponse,
     TokenResponse, TokenUrl,
 };
@@ -82,6 +82,94 @@ impl ForgeOAuthService {
         Self
     }
 
+    /// Complete device authorization flow with callback (single-method design)
+    ///
+    /// This method handles the entire OAuth device flow in one call:
+    /// 1. Initiates device authorization
+    /// 2. Calls display_callback with user info
+    /// 3. Polls for completion (oauth2 handles loop automatically)
+    /// 4. Returns final tokens
+    ///
+    /// The oauth2 crate handles all polling logic with exponential backoff.
+    /// This method BLOCKS until authorization completes or times out.
+    ///
+    /// # Arguments
+    /// * `config` - OAuth configuration
+    /// * `display_callback` - Callback to display user_code and verification_uri
+    ///
+    /// # Returns
+    /// OAuth tokens once user authorizes
+    ///
+    /// # Errors
+    /// Returns error if authorization fails, expires, or times out
+    pub async fn device_flow_with_callback<F>(
+        &self,
+        config: &OAuthConfig,
+        display_callback: F,
+    ) -> anyhow::Result<forge_app::dto::OAuthTokens>
+    where
+        F: FnOnce(crate::provider::provider_authenticator::OAuthDeviceDisplay) -> (),
+    {
+        use crate::provider::provider_authenticator::OAuthDeviceDisplay;
+
+        let device_code_url = config
+            .device_code_url
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("device_code_url not configured"))?;
+        let device_token_url = config
+            .device_token_url
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("device_token_url not configured"))?;
+
+        // Build oauth2 client for device flow
+        let client = BasicClient::new(ClientId::new(config.client_id.clone()))
+            .set_device_authorization_url(DeviceAuthorizationUrl::new(device_code_url.clone())?)
+            .set_token_uri(TokenUrl::new(device_token_url.clone())?);
+
+        // Build HTTP client with custom headers
+        let http_client = self.build_http_client(config.custom_headers.as_ref())?;
+
+        // Step 1: Initiate device authorization
+        let mut request = client.exchange_device_code();
+        for scope in &config.scopes {
+            request = request.add_scope(Scope::new(scope.clone()));
+        }
+
+        let device_auth_response: StandardDeviceAuthorizationResponse =
+            request.request_async(&http_client).await?;
+
+        // Step 2: Call display callback with user info
+        display_callback(OAuthDeviceDisplay {
+            user_code: device_auth_response.user_code().secret().to_string(),
+            verification_uri: device_auth_response.verification_uri().to_string(),
+            expires_in: device_auth_response.expires_in().as_secs(),
+        });
+
+        // Step 3: Poll for authorization (oauth2 handles the loop)
+        // Pass None for unlimited polling (respects expires_in from device_auth_response)
+        let token_result = client
+            .exchange_device_access_token(&device_auth_response)
+            .request_async(&http_client, tokio::time::sleep, None)
+            .await?;
+
+        // Step 4: Convert to OAuthTokens format
+        let access_token = token_result.access_token().secret().to_string();
+        let refresh_token = token_result
+            .refresh_token()
+            .map(|t| t.secret().to_string())
+            .unwrap_or_else(|| access_token.clone()); // Use access token as fallback
+        let expires_at = token_result
+            .expires_in()
+            .map(|d| chrono::Utc::now() + chrono::Duration::seconds(d.as_secs() as i64))
+            .unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::days(365)); // Default to 1 year
+
+        Ok(forge_app::dto::OAuthTokens {
+            access_token,
+            refresh_token,
+            expires_at,
+        })
+    }
+
     /// Builds a reqwest HTTP client with custom headers from config
     ///
     /// # Arguments
@@ -118,134 +206,7 @@ impl ForgeOAuthService {
         }
     }
 
-    /// Initiates device authorization flow
-    ///
-    /// # Arguments
-    /// * `config` - OAuth configuration with device_code_url and client_id
-    ///
-    /// # Returns
-    /// Device authorization response with user_code and verification_uri
-    ///
-    /// # Errors
-    /// Returns error if HTTP request fails or response is invalid
-    pub async fn initiate_device_auth(
-        &self,
-        config: &OAuthConfig,
-    ) -> anyhow::Result<DeviceAuthorizationResponse> {
-        let device_code_url = config
-            .device_code_url
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("device_code_url not configured"))?;
-        let device_token_url = config
-            .device_token_url
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("device_token_url not configured"))?;
 
-        // Build oauth2 client for device flow
-        let client = BasicClient::new(ClientId::new(config.client_id.clone()))
-            .set_device_authorization_url(DeviceAuthorizationUrl::new(device_code_url.clone())?)
-            .set_token_uri(TokenUrl::new(device_token_url.clone())?);
-
-        // Build HTTP client with custom headers
-        let http_client = self.build_http_client(config.custom_headers.as_ref())?;
-
-        // Build device authorization request with scopes
-        let mut request = client.exchange_device_code();
-        for scope in &config.scopes {
-            request = request.add_scope(Scope::new(scope.clone()));
-        }
-
-        // Execute the request
-        let details: StandardDeviceAuthorizationResponse =
-            request.request_async(&http_client).await?;
-
-        Ok(DeviceAuthorizationResponse {
-            device_code: details.device_code().secret().to_string(),
-            user_code: details.user_code().secret().to_string(),
-            verification_uri: details.verification_uri().to_string(),
-            verification_uri_complete: details
-                .verification_uri_complete()
-                .map(|uri| uri.secret().to_string()),
-            expires_in: details.expires_in().as_secs(),
-            interval: details.interval().as_secs(),
-        })
-    }
-
-    /// Polls for device authorization completion
-    ///
-    /// Uses oauth2 crate's automatic polling with exponential backoff.
-    /// The crate handles authorization_pending and slow_down errors automatically.
-    ///
-    /// # Arguments
-    /// * `config` - OAuth configuration with device_token_url
-    /// * `device_auth_response` - Full device authorization response from
-    ///   `initiate_device_auth()`
-    ///
-    /// # Returns
-    /// OAuth tokens once user authorizes
-    ///
-    /// # Errors
-    /// Returns error if authorization fails, expires, or times out
-    pub async fn poll_device_auth(
-        &self,
-        config: &OAuthConfig,
-        device_auth_response: &DeviceAuthorizationResponse,
-    ) -> anyhow::Result<OAuthTokenResponse> {
-        let device_code_url = config
-            .device_code_url
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("device_code_url not configured"))?;
-        let device_token_url = config
-            .device_token_url
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("device_token_url not configured"))?;
-
-        // Build oauth2 client for device flow
-        let client = BasicClient::new(ClientId::new(config.client_id.clone()))
-            .set_device_authorization_url(DeviceAuthorizationUrl::new(device_code_url.clone())?)
-            .set_token_uri(TokenUrl::new(device_token_url.clone())?);
-
-        // Build HTTP client with custom headers
-        let http_client = self.build_http_client(config.custom_headers.as_ref())?;
-
-        // Reconstruct the StandardDeviceAuthorizationResponse from our response
-        // We need this because oauth2 crate's exchange_device_access_token expects it
-        let details = StandardDeviceAuthorizationResponse {
-            device_code: oauth2::DeviceCode::new(device_auth_response.device_code.clone()),
-            user_code: oauth2::UserCode::new(device_auth_response.user_code.clone()),
-            verification_uri: oauth2::EndUserVerificationUrl::new(
-                device_auth_response.verification_uri.clone(),
-            )?,
-            verification_uri_complete: device_auth_response
-                .verification_uri_complete
-                .as_ref()
-                .map(|uri| oauth2::VerificationUriComplete::new(uri.clone())),
-            expires_in: device_auth_response.expires_in,
-            interval: device_auth_response.interval,
-            extra_fields: EmptyExtraDeviceAuthorizationFields {},
-        };
-
-        // Poll for token with automatic backoff - oauth2 crate handles the polling loop
-        // Pass None for unlimited polling (will respect expires_in from details)
-        let token_result = client
-            .exchange_device_access_token(&details)
-            .request_async(&http_client, tokio::time::sleep, None)
-            .await?;
-
-        Ok(OAuthTokenResponse {
-            access_token: token_result.access_token().secret().to_string(),
-            refresh_token: token_result.refresh_token().map(|t| t.secret().to_string()),
-            expires_in: token_result.expires_in().map(|d| d.as_secs()),
-            token_type: "Bearer".to_string(),
-            scope: token_result.scopes().map(|scopes| {
-                scopes
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            }),
-        })
-    }
 
     /// Builds authorization URL for code flow
     ///
