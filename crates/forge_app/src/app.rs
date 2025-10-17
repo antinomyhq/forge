@@ -200,7 +200,6 @@ impl<S: Services> ForgeApp<S> {
             .set_model_deeply(model.clone())
             .apply_workflow_config(&workflow);
 
-
         // Apply compaction using the Compactor
         let compactor = Compactor::new(self.services.clone());
 
