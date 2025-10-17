@@ -476,8 +476,18 @@ mod tests {
 
         // Create a conversation with metrics
         let mut metrics = Metrics::new().with_time(Utc::now());
-        metrics.record_file_operation("src/main.rs".to_string(), 10, 5);
-        metrics.record_file_operation("src/lib.rs".to_string(), 3, 2);
+        metrics.record_file_operation(
+            "src/main.rs".to_string(),
+            Some("abc123def456".to_string()),
+            10,
+            5,
+        );
+        metrics.record_file_operation(
+            "src/lib.rs".to_string(),
+            Some("789xyz456abc".to_string()),
+            3,
+            2,
+        );
 
         let fixture = Conversation::generate().metrics(metrics.clone());
 
@@ -495,10 +505,15 @@ mod tests {
         let main_metrics = actual.metrics.files_changed.get("src/main.rs").unwrap();
         assert_eq!(main_metrics.lines_added, 10);
         assert_eq!(main_metrics.lines_removed, 5);
+        assert_eq!(
+            main_metrics.file_hash,
+            Some("abc123def456".to_string())
+        );
 
         let lib_metrics = actual.metrics.files_changed.get("src/lib.rs").unwrap();
         assert_eq!(lib_metrics.lines_added, 3);
         assert_eq!(lib_metrics.lines_removed, 2);
+        assert_eq!(lib_metrics.file_hash, Some("789xyz456abc".to_string()));
 
         Ok(())
     }
@@ -508,7 +523,12 @@ mod tests {
         // This test ensures compile-time safety: if Metrics schema changes,
         // this test will fail to compile, alerting us to update MetricsRecord
         let mut fixture = Metrics::new().with_time(Utc::now());
-        fixture.record_file_operation("test.rs".to_string(), 5, 3);
+        fixture.record_file_operation(
+            "test.rs".to_string(),
+            Some("test_hash_123".to_string()),
+            5,
+            3,
+        );
 
         // Convert to record and back
         let record = MetricsRecord::from(&fixture);
@@ -522,5 +542,6 @@ mod tests {
         let expected_file = fixture.files_changed.get("test.rs").unwrap();
         assert_eq!(actual_file.lines_added, expected_file.lines_added);
         assert_eq!(actual_file.lines_removed, expected_file.lines_removed);
+        assert_eq!(actual_file.file_hash, expected_file.file_hash);
     }
 }
