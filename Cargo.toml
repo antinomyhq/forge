@@ -65,7 +65,6 @@ sha2 = "0.10"
 ring = "0.17"
 rand = "0.8"
 indicatif = "0.17"
-opener = "0.7"
 serde_urlencoded = "0.7"
 similar = { version = "2.4", features = ["inline"] }
 strip-ansi-escapes = "0.2.1"

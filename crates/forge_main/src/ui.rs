@@ -658,7 +658,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         println!();
 
         // Try to open browser automatically
-        if let Err(e) = opener::open(&init.verification_uri) {
+        if let Err(e) = open::that(&init.verification_uri) {
             eprintln!(
                 "{} Could not open browser automatically: {}",
                 "⚠".yellow(),
