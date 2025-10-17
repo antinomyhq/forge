@@ -207,9 +207,10 @@ impl<S: Services> ForgeApp<S> {
 
         // Calculate compacted metrics
         let compacted_messages = compacted_context.messages.len();
-        // In compact, we accumulate the usage so in order to get the compacted context usage we've to deduct the 
-        // original token count from it.
-        let compacted_token_count = (*compacted_context.token_count()).saturating_sub(original_token_count);
+        // In compact, we accumulate the usage so in order to get the compacted context
+        // usage we've to deduct the original token count from it.
+        let compacted_token_count =
+            (*compacted_context.token_count()).saturating_sub(original_token_count);
 
         // Update the conversation with the compacted context
         conversation.context = Some(compacted_context);
