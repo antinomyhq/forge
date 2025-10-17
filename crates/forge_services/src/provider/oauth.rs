@@ -415,9 +415,12 @@ impl ForgeOAuthService {
 
         let refresh_token = RefreshToken::new(refresh_token.to_string());
 
+        // Use GitHub-compliant HTTP function to handle non-RFC responses
+        let http_fn = |req| Self::github_compliant_http_request(http_client.clone(), req);
+
         let token_result = client
             .exchange_refresh_token(&refresh_token)
-            .request_async(&http_client)
+            .request_async(&http_fn)
             .await?;
 
         Ok(Self::convert_token_response(token_result))

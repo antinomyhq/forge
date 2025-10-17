@@ -259,14 +259,20 @@ where
                     .get_copilot_api_key(&oauth_tokens.access_token)
                     .await?;
 
-                // Create OAuth tokens with Copilot-specific values
+                // Store the GitHub OAuth token as refresh_token for later use
+                // The API key gets stored separately
                 let copilot_tokens = OAuthTokens {
-                    access_token: api_key, // Use API key as access token
+                    access_token: oauth_tokens.access_token.clone(), // GitHub OAuth token
                     refresh_token: oauth_tokens.refresh_token,
-                    expires_at, // Use Copilot-specific expiry
+                    expires_at, // Use Copilot API key expiry
                 };
 
-                Ok(ProviderCredential::new_oauth(provider_id, copilot_tokens))
+                // Use new_oauth_with_api_key to set AuthType::OAuthWithApiKey
+                Ok(ProviderCredential::new_oauth_with_api_key(
+                    provider_id,
+                    api_key,
+                    copilot_tokens,
+                ))
             }
             _ => {
                 // Standard OAuth flow - save tokens directly

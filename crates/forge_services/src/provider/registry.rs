@@ -276,14 +276,17 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository>
             }
             AuthType::OAuthWithApiKey => {
                 // GitHub Copilot API key refresh
+                // Note: For GitHub device flow, the "refresh_token" IS the OAuth access token
+                // We use it directly to fetch a new Copilot API key from GitHub's API
                 tracing::debug!(provider = ?provider_id, "Refreshing GitHub Copilot API key");
 
+                // Use the OAuth access token (stored as refresh_token) to get new Copilot API key
                 let copilot_service = GitHubCopilotService::new();
                 let (api_key, expires_at) = copilot_service
                     .get_copilot_api_key(&oauth_tokens.refresh_token)
                     .await?;
 
-                // Build new OAuth tokens with updated expiration
+                // Update OAuth tokens with new expiration (access token stays the same)
                 let new_tokens = forge_app::dto::OAuthTokens::new(
                     oauth_tokens.refresh_token.clone(),
                     oauth_tokens.access_token.clone(),
