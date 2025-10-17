@@ -67,7 +67,7 @@ impl<F: FsReadService> FileChangeDetector<F> {
     }
 
     /// Reads file content using the FsReadService
-    async fn read_file_content(&self, path: &std::path::PathBuf) -> anyhow::Result<String> {
+    async fn read_file_content(&self, path: &std::path::Path) -> anyhow::Result<String> {
         let output = self
             .fs_read_service
             .read(path.to_string_lossy().to_string(), None, None)
