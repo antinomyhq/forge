@@ -1,10 +1,12 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use chrono::{DateTime, Utc};
 use forge_app::dto::{InitAuth, ProviderId, ToolsOverview};
 use forge_app::{User, UserUsage};
 use forge_domain::{AgentId, ModelId};
+use forge_services::provider::{
+    ImportSummary, OAuthDeviceInit, OAuthDeviceState, ValidationOutcome,
+};
 use forge_stream::MpscStream;
 
 use crate::*;
@@ -142,21 +144,51 @@ pub trait API: Sync + Send {
     /// Updates the last_verified_at timestamp for a credential
     async fn mark_credential_verified(&self, provider_id: &ProviderId) -> Result<()>;
 
-    // OAuth device flow methods
-    async fn initiate_device_auth(
-        &self,
-        device_code_url: &str,
-        client_id: &str,
-        scopes: &[String],
-    ) -> Result<forge_services::provider::DeviceAuthorizationResponse>;
+    // High-level provider authentication methods (use metadata-driven flow)
 
-    async fn poll_device_auth(
+    /// Adds a provider API key with optional validation
+    ///
+    /// # Arguments
+    ///
+    /// * `provider_id` - Provider to add credential for
+    /// * `api_key` - API key to add
+    /// * `skip_validation` - If true, skip validation
+    async fn add_provider_api_key(
         &self,
-        token_url: &str,
-        client_id: &str,
-        device_code: &str,
-        interval: u64,
-    ) -> Result<forge_services::provider::OAuthTokenResponse>;
+        provider_id: ProviderId,
+        api_key: String,
+        skip_validation: bool,
+    ) -> Result<ValidationOutcome>;
 
-    async fn get_copilot_api_key(&self, github_token: &str) -> Result<(String, DateTime<Utc>)>;
+    /// Initiates OAuth device flow for a provider
+    ///
+    /// Gets OAuth configuration from provider metadata and returns display info
+    /// for the user along with opaque state to complete the flow.
+    ///
+    /// # Arguments
+    ///
+    /// * `provider_id` - Provider to authenticate with
+    async fn start_provider_oauth(&self, provider_id: ProviderId) -> Result<OAuthDeviceInit>;
+
+    /// Completes OAuth device flow by polling for authorization
+    ///
+    /// This method blocks until the user completes authorization.
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - Opaque state from start_provider_oauth
+    async fn complete_provider_oauth(&self, state: OAuthDeviceState) -> Result<()>;
+
+    /// Imports provider credentials from environment variables
+    ///
+    /// Uses provider metadata to determine which environment variables to
+    /// check.
+    ///
+    /// # Arguments
+    ///
+    /// * `filter` - Optional provider ID to import only that provider
+    async fn import_provider_credentials_from_env(
+        &self,
+        filter: Option<ProviderId>,
+    ) -> Result<ImportSummary>;
 }

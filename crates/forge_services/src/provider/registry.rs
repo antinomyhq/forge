@@ -160,9 +160,10 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository>
 
         // Try to create provider from database credential first
         if let Some(credential) = self.infra.get_credential(&id).await?
-            && let Ok(provider) = self.create_provider_from_credential(&id, &credential).await {
-                return Ok(provider);
-            }
+            && let Ok(provider) = self.create_provider_from_credential(&id, &credential).await
+        {
+            return Ok(provider);
+        }
 
         // Fall back to cached env-based providers
         let providers = self.get_providers().await;
@@ -295,23 +296,26 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository> P
 
     async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
         use std::collections::HashSet;
-        
+
         // Start with env-based providers
         let mut providers = self.get_providers().await.clone();
         let mut provider_ids: HashSet<ProviderId> = providers.iter().map(|p| p.id).collect();
-        
+
         // Add database-based providers that aren't already in the list
         let db_credentials = self.infra.get_all_credentials().await?;
         for credential in db_credentials {
             if !provider_ids.contains(&credential.provider_id) {
                 // Try to create provider from credential
-                if let Ok(provider) = self.create_provider_from_credential(&credential.provider_id, &credential).await {
+                if let Ok(provider) = self
+                    .create_provider_from_credential(&credential.provider_id, &credential)
+                    .await
+                {
                     providers.push(provider);
                     provider_ids.insert(credential.provider_id);
                 }
             }
         }
-        
+
         Ok(providers)
     }
 

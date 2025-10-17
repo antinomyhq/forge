@@ -213,7 +213,7 @@ impl ForgeOAuthService {
 
             let status = response.status();
             let body = response.text().await?;
-            
+
             // GitHub returns 200 OK even for pending/error states
             // Check for error field first
             if let Ok(json) = serde_json::from_str::<serde_json::Value>(&body) {
@@ -239,7 +239,7 @@ impl ForgeOAuthService {
                         }
                     }
                 }
-                
+
                 // No error field, try to parse as token response
                 if status.is_success() {
                     let token_response: OAuthTokenResponse = serde_json::from_str(&body)?;
@@ -447,11 +447,13 @@ impl ForgeOAuthService {
         let status = response.status();
         if !status.is_success() {
             let body = response.text().await.unwrap_or_default();
-            
+
             if status.as_u16() == 403 {
-                anyhow::bail!("GitHub Copilot access denied. Ensure you have an active Copilot subscription.");
+                anyhow::bail!(
+                    "GitHub Copilot access denied. Ensure you have an active Copilot subscription."
+                );
             }
-            
+
             anyhow::bail!("Copilot API key fetch failed ({}): {}", status, body);
         }
 

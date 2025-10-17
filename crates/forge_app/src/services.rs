@@ -356,8 +356,9 @@ pub trait ProviderRegistry: Send + Sync {
     async fn set_active_model(&self, model: ModelId) -> anyhow::Result<()>;
     async fn get_active_agent(&self) -> anyhow::Result<Option<AgentId>>;
     async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()>;
-    
-    /// Get all available provider IDs from configuration (regardless of initialization status)
+
+    /// Get all available provider IDs from configuration (regardless of
+    /// initialization status)
     fn available_provider_ids(&self) -> Vec<ProviderId>;
 }
 
@@ -431,7 +432,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn provider_registry(&self) -> &Self::ProviderRegistry;
     fn agent_loader_service(&self) -> &Self::AgentLoaderService;
     fn policy_service(&self) -> &Self::PolicyService;
-    
+
     /// Get all available provider IDs from configuration
     fn available_provider_ids(&self) -> Vec<ProviderId> {
         self.provider_registry().available_provider_ids()

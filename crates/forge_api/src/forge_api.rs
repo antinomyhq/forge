@@ -2,7 +2,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use chrono::{DateTime, Utc};
 use forge_app::dto::{
     InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId, ToolsOverview,
 };
@@ -13,6 +12,9 @@ use forge_app::{
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
+use forge_services::provider::{
+    ImportSummary, OAuthDeviceInit, OAuthDeviceState, ValidationOutcome,
+};
 use forge_services::{
     AppConfigRepository, CommandInfra, ForgeServices, HttpInfra, ProviderCredentialRepository,
 };
@@ -40,8 +42,10 @@ impl ForgeAPI<ForgeServices<ForgeInfra>, ForgeInfra> {
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: CommandInfra + AppConfigRepository + ProviderCredentialRepository + HttpInfra>
-    API for ForgeAPI<A, F>
+impl<
+    A: Services + ProviderCredentialRepository + HttpInfra,
+    F: CommandInfra + AppConfigRepository + ProviderCredentialRepository + HttpInfra,
+> API for ForgeAPI<A, F>
 {
     async fn discover(&self) -> Result<Vec<File>> {
         let environment = self.services.get_environment();
@@ -290,59 +294,42 @@ impl<A: Services, F: CommandInfra + AppConfigRepository + ProviderCredentialRepo
         self.infra.mark_verified(provider_id).await
     }
 
-    async fn initiate_device_auth(
+    // High-level provider authentication methods
+    async fn add_provider_api_key(
         &self,
-        device_code_url: &str,
-        client_id: &str,
-        scopes: &[String],
-    ) -> Result<forge_services::provider::DeviceAuthorizationResponse> {
-        use forge_services::provider::{ForgeOAuthService, OAuthConfig};
+        provider_id: ProviderId,
+        api_key: String,
+        skip_validation: bool,
+    ) -> Result<ValidationOutcome> {
+        use forge_services::provider::ProviderAuthenticator;
 
-        let config = OAuthConfig {
-            device_code_url: Some(device_code_url.to_string()),
-            device_token_url: None,
-            auth_url: None,
-            token_url: None,
-            client_id: client_id.to_string(),
-            scopes: scopes.to_vec(),
-            redirect_uri: String::new(),
-            use_pkce: false,
-            token_refresh_url: None,
-        };
-
-        let oauth_service = ForgeOAuthService::new();
-        oauth_service.initiate_device_auth(&config).await
+        let authenticator = ProviderAuthenticator::new(self.services.clone());
+        authenticator
+            .add_api_key_credential(provider_id, api_key, skip_validation)
+            .await
     }
 
-    async fn poll_device_auth(
-        &self,
-        token_url: &str,
-        client_id: &str,
-        device_code: &str,
-        interval: u64,
-    ) -> Result<forge_services::provider::OAuthTokenResponse> {
-        use forge_services::provider::{ForgeOAuthService, OAuthConfig};
+    async fn start_provider_oauth(&self, provider_id: ProviderId) -> Result<OAuthDeviceInit> {
+        use forge_services::provider::ProviderAuthenticator;
 
-        let config = OAuthConfig {
-            device_code_url: None,
-            device_token_url: Some(token_url.to_string()),
-            auth_url: None,
-            token_url: None,
-            client_id: client_id.to_string(),
-            scopes: vec![],
-            redirect_uri: String::new(),
-            use_pkce: false,
-            token_refresh_url: None,
-        };
-
-        let oauth_service = ForgeOAuthService::new();
-        oauth_service.poll_device_auth(&config, device_code, interval).await
+        let authenticator = ProviderAuthenticator::new(self.services.clone());
+        authenticator.initiate_oauth_device(provider_id).await
     }
 
-    async fn get_copilot_api_key(&self, github_token: &str) -> Result<(String, DateTime<Utc>)> {
-        use forge_services::provider::ForgeOAuthService;
+    async fn complete_provider_oauth(&self, state: OAuthDeviceState) -> Result<()> {
+        use forge_services::provider::ProviderAuthenticator;
 
-        let oauth_service = ForgeOAuthService::new();
-        oauth_service.get_copilot_api_key(github_token).await
+        let authenticator = ProviderAuthenticator::new(self.services.clone());
+        authenticator.complete_oauth_device(state).await
+    }
+
+    async fn import_provider_credentials_from_env(
+        &self,
+        filter: Option<ProviderId>,
+    ) -> Result<ImportSummary> {
+        use forge_services::provider::ProviderAuthenticator;
+
+        let authenticator = ProviderAuthenticator::new(self.services.clone());
+        authenticator.import_from_environment(filter).await
     }
 }

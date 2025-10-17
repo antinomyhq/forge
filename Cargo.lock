@@ -1347,6 +1347,7 @@ dependencies = [
  "forge_domain",
  "forge_fs",
  "forge_select",
+ "forge_services",
  "forge_spinner",
  "forge_tracker",
  "forge_walker",

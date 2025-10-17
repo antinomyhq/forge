@@ -647,5 +647,4 @@ pub enum AuthCommand {
         #[arg(long)]
         yes: bool,
     },
-
 }

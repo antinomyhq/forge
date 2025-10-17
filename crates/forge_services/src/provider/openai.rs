@@ -34,14 +34,20 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         if let Some(ref api_key) = self.provider.key {
             headers.push((AUTHORIZATION.to_string(), format!("Bearer {api_key}")));
         }
-        
+
         // Add GitHub Copilot required headers
         if self.provider.id == forge_app::dto::ProviderId::GitHubCopilot {
             headers.push(("Editor-Version".to_string(), "vscode/1.95.0".to_string()));
-            headers.push(("Editor-Plugin-Version".to_string(), "copilot-chat/0.22.0".to_string()));
-            headers.push(("User-Agent".to_string(), "GitHubCopilotChat/0.22.0".to_string()));
+            headers.push((
+                "Editor-Plugin-Version".to_string(),
+                "copilot-chat/0.22.0".to_string(),
+            ));
+            headers.push((
+                "User-Agent".to_string(),
+                "GitHubCopilotChat/0.22.0".to_string(),
+            ));
         }
-        
+
         headers
     }
 
