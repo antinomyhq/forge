@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use chrono::Utc;
 use forge_app::dto::{AuthType, ProviderCredential, ProviderId};
+use reqwest::StatusCode;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use url::Url;
 
@@ -65,80 +66,8 @@ impl<I: HttpInfra> ForgeProviderValidationService<I> {
             return Ok(ValidationResult::TokenExpired);
         }
 
-        // Get the credential for validation (API key or OAuth access token)
-        let auth_value = match &credential.auth_type {
-            AuthType::ApiKey => credential.get_api_key(),
-            AuthType::OAuth | AuthType::OAuthWithApiKey => {
-                // For OAuth, use the access token
-                credential.get_access_token()
-            }
-        };
-
-        let api_key = match auth_value {
-            Some(key) => key,
-            None => {
-                return Ok(ValidationResult::Invalid(
-                    "No credential available for validation".to_string(),
-                ));
-            }
-        };
-
-        // Build authorization header
-        let mut headers = HeaderMap::new();
-        let auth_header = match provider_id {
-            ProviderId::Anthropic => format!("x-api-key: {}", api_key),
-            _ => format!("Bearer {}", api_key),
-        };
-
-        headers.insert(
-            AUTHORIZATION,
-            HeaderValue::from_str(&auth_header)
-                .map_err(|e| anyhow::anyhow!("Invalid authorization header: {}", e))?,
-        );
-
-        // Make validation request
-        let response = self.infra.get(validation_url, Some(headers)).await;
-
-        // Analyze response
-        match response {
-            Ok(resp) => {
-                let status = resp.status();
-                match status.as_u16() {
-                    // Success - credential is valid
-                    200 | 201 | 202 | 204 => Ok(ValidationResult::Valid),
-                    // Not found is OK - endpoint exists, auth worked
-                    404 => Ok(ValidationResult::Valid),
-                    // Auth failures - credential is invalid
-                    401 => Ok(ValidationResult::Invalid(
-                        "Unauthorized - invalid API key".to_string(),
-                    )),
-                    403 => Ok(ValidationResult::Invalid(
-                        "Forbidden - API key lacks permissions".to_string(),
-                    )),
-                    // Rate limiting or temporary issues
-                    429 => Ok(ValidationResult::Inconclusive(
-                        "Rate limited - try again later".to_string(),
-                    )),
-                    // Server errors
-                    500..=599 => Ok(ValidationResult::Inconclusive(format!(
-                        "Server error ({})",
-                        status
-                    ))),
-                    // Other statuses
-                    _ => Ok(ValidationResult::Inconclusive(format!(
-                        "Unexpected status code: {}",
-                        status
-                    ))),
-                }
-            }
-            Err(e) => {
-                // Network errors are inconclusive
-                Ok(ValidationResult::Inconclusive(format!(
-                    "Network error: {}",
-                    e
-                )))
-            }
-        }
+        self.validate_credential_internal(provider_id, credential, validation_url)
+            .await
     }
 
     /// Validates credential without checking expiration
@@ -150,25 +79,64 @@ impl<I: HttpInfra> ForgeProviderValidationService<I> {
         credential: &ProviderCredential,
         validation_url: &Url,
     ) -> Result<ValidationResult> {
-        // Get the credential for validation (API key or OAuth access token)
+        self.validate_credential_internal(provider_id, credential, validation_url)
+            .await
+    }
+
+    /// Internal validation logic shared by both public methods
+    async fn validate_credential_internal(
+        &self,
+        provider_id: &ProviderId,
+        credential: &ProviderCredential,
+        validation_url: &Url,
+    ) -> Result<ValidationResult> {
+        // Extract credential for validation
+        let api_key = match self.extract_credential_for_validation(credential) {
+            Ok(key) => key,
+            Err(result) => return Ok(result),
+        };
+
+        // Build authorization headers
+        let headers = self.build_auth_headers(provider_id, &api_key)?;
+
+        // Make validation request
+        let response = self.infra.get(validation_url, Some(headers)).await;
+
+        // Interpret response
+        match response {
+            Ok(resp) => Ok(Self::interpret_validation_response(resp.status())),
+            Err(e) => Ok(ValidationResult::Inconclusive(format!(
+                "Network error: {}",
+                e
+            ))),
+        }
+    }
+
+    /// Extracts credential value for validation
+    ///
+    /// Returns the credential string on success, or a ValidationResult error on
+    /// failure
+    fn extract_credential_for_validation(
+        &self,
+        credential: &ProviderCredential,
+    ) -> Result<String, ValidationResult> {
         let auth_value = match &credential.auth_type {
             AuthType::ApiKey => credential.get_api_key(),
-            AuthType::OAuth | AuthType::OAuthWithApiKey => {
-                // For OAuth, use the access token
-                credential.get_access_token()
-            }
+            AuthType::OAuth | AuthType::OAuthWithApiKey => credential.get_access_token(),
         };
 
-        let api_key = match auth_value {
-            Some(key) => key,
-            None => {
-                return Ok(ValidationResult::Invalid(
-                    "No credential available for validation".to_string(),
-                ));
-            }
-        };
+        match auth_value {
+            Some(key) => Ok(key.to_string()),
+            None => Err(ValidationResult::Invalid(
+                "No credential available for validation".to_string(),
+            )),
+        }
+    }
 
-        // Build authorization header
+    /// Builds authorization headers for the given provider
+    ///
+    /// Handles provider-specific header formats (e.g., Anthropic's x-api-key)
+    fn build_auth_headers(&self, provider_id: &ProviderId, api_key: &str) -> Result<HeaderMap> {
         let mut headers = HeaderMap::new();
         let auth_header = match provider_id {
             ProviderId::Anthropic => format!("x-api-key: {}", api_key),
@@ -181,39 +149,25 @@ impl<I: HttpInfra> ForgeProviderValidationService<I> {
                 .map_err(|e| anyhow::anyhow!("Invalid authorization header: {}", e))?,
         );
 
-        // Make validation request
-        let response = self.infra.get(validation_url, Some(headers)).await;
+        Ok(headers)
+    }
 
-        // Analyze response
-        match response {
-            Ok(resp) => {
-                let status = resp.status();
-                match status.as_u16() {
-                    200 | 201 | 202 | 204 => Ok(ValidationResult::Valid),
-                    404 => Ok(ValidationResult::Valid),
-                    401 => Ok(ValidationResult::Invalid(
-                        "Unauthorized - invalid API key".to_string(),
-                    )),
-                    403 => Ok(ValidationResult::Invalid(
-                        "Forbidden - API key lacks permissions".to_string(),
-                    )),
-                    429 => Ok(ValidationResult::Inconclusive(
-                        "Rate limited - try again later".to_string(),
-                    )),
-                    500..=599 => Ok(ValidationResult::Inconclusive(format!(
-                        "Server error ({})",
-                        status
-                    ))),
-                    _ => Ok(ValidationResult::Inconclusive(format!(
-                        "Unexpected status code: {}",
-                        status
-                    ))),
-                }
-            }
-            Err(e) => Ok(ValidationResult::Inconclusive(format!(
-                "Network error: {}",
-                e
-            ))),
+    /// Interprets HTTP status code into validation result
+    fn interpret_validation_response(status: StatusCode) -> ValidationResult {
+        match status.as_u16() {
+            // Success - credential is valid
+            200 | 201 | 202 | 204 => ValidationResult::Valid,
+            // Not found is OK - endpoint exists, auth worked
+            404 => ValidationResult::Valid,
+            // Auth failures - credential is invalid
+            401 => ValidationResult::Invalid("Unauthorized - invalid API key".to_string()),
+            403 => ValidationResult::Invalid("Forbidden - API key lacks permissions".to_string()),
+            // Rate limiting or temporary issues
+            429 => ValidationResult::Inconclusive("Rate limited - try again later".to_string()),
+            // Server errors
+            500..=599 => ValidationResult::Inconclusive(format!("Server error ({})", status)),
+            // Other statuses
+            _ => ValidationResult::Inconclusive(format!("Unexpected status code: {}", status)),
         }
     }
 }

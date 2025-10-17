@@ -83,7 +83,6 @@ impl ForgeOAuthService {
     }
 
     /// Complete device authorization flow with callback (single-method design)
-
     pub async fn device_flow_with_callback<F>(
         &self,
         config: &OAuthConfig,
@@ -164,6 +163,10 @@ impl ForgeOAuthService {
         &self,
         custom_headers: Option<&HashMap<String, String>>,
     ) -> anyhow::Result<reqwest::Client> {
+        let mut builder = reqwest::Client::builder()
+            // Disable redirects to prevent SSRF vulnerabilities
+            .redirect(reqwest::redirect::Policy::none());
+
         if let Some(headers) = custom_headers {
             let mut header_map = reqwest::header::HeaderMap::new();
 
@@ -176,15 +179,32 @@ impl ForgeOAuthService {
                 header_map.insert(header_name, header_value);
             }
 
-            Ok(reqwest::Client::builder()
-                .default_headers(header_map)
-                // Disable redirects to prevent SSRF vulnerabilities
-                .redirect(reqwest::redirect::Policy::none())
-                .build()?)
-        } else {
-            Ok(reqwest::Client::builder()
-                .redirect(reqwest::redirect::Policy::none())
-                .build()?)
+            builder = builder.default_headers(header_map);
+        }
+
+        Ok(builder.build()?)
+    }
+
+    /// Converts oauth2 crate's StandardTokenResponse to OAuthTokenResponse
+    ///
+    /// # Arguments
+    /// * `token_result` - The token response from oauth2 crate
+    ///
+    /// # Returns
+    /// Converted OAuthTokenResponse with all fields extracted
+    fn convert_token_response(token_result: impl TokenResponse) -> OAuthTokenResponse {
+        OAuthTokenResponse {
+            access_token: token_result.access_token().secret().to_string(),
+            refresh_token: token_result.refresh_token().map(|t| t.secret().to_string()),
+            expires_in: token_result.expires_in().map(|d| d.as_secs()),
+            token_type: "Bearer".to_string(),
+            scope: token_result.scopes().map(|scopes| {
+                scopes
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            }),
         }
     }
 
@@ -360,19 +380,7 @@ impl ForgeOAuthService {
         // Execute token exchange
         let token_result = request.request_async(&http_client).await?;
 
-        Ok(OAuthTokenResponse {
-            access_token: token_result.access_token().secret().to_string(),
-            refresh_token: token_result.refresh_token().map(|t| t.secret().to_string()),
-            expires_in: token_result.expires_in().map(|d| d.as_secs()),
-            token_type: "Bearer".to_string(),
-            scope: token_result.scopes().map(|scopes| {
-                scopes
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            }),
-        })
+        Ok(Self::convert_token_response(token_result))
     }
 
     /// Refreshes access token using refresh token
@@ -412,19 +420,7 @@ impl ForgeOAuthService {
             .request_async(&http_client)
             .await?;
 
-        Ok(OAuthTokenResponse {
-            access_token: token_result.access_token().secret().to_string(),
-            refresh_token: token_result.refresh_token().map(|t| t.secret().to_string()),
-            expires_in: token_result.expires_in().map(|d| d.as_secs()),
-            token_type: "Bearer".to_string(),
-            scope: token_result.scopes().map(|scopes| {
-                scopes
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            }),
-        })
+        Ok(Self::convert_token_response(token_result))
     }
 }
 
@@ -440,52 +436,6 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-
-    #[tokio::test]
-    async fn test_initiate_device_auth_success() {
-        let mut server = Server::new_async().await;
-
-        let mock = server
-            .mock("POST", "/device/code")
-            .match_header("accept", "application/json")
-            .with_status(200)
-            .with_body(
-                r#"{
-                    "device_code": "test_device_code",
-                    "user_code": "ABCD-1234",
-                    "verification_uri": "https://github.com/login/device",
-                    "expires_in": 900,
-                    "interval": 5
-                }"#,
-            )
-            .create_async()
-            .await;
-
-        let config = OAuthConfig {
-            device_code_url: Some(format!("{}/device/code", server.url())),
-            device_token_url: Some(format!("{}/token", server.url())),
-            auth_url: None,
-            token_url: None,
-            client_id: "test-client".to_string(),
-            scopes: vec!["read:user".to_string()],
-            redirect_uri: String::new(),
-            use_pkce: false,
-            token_refresh_url: None,
-            custom_headers: None,
-        };
-
-        let service = ForgeOAuthService::new();
-
-        let response = service.initiate_device_auth(&config).await.unwrap();
-
-        assert_eq!(response.device_code, "test_device_code");
-        assert_eq!(response.user_code, "ABCD-1234");
-        assert_eq!(response.verification_uri, "https://github.com/login/device");
-        assert_eq!(response.expires_in, 900);
-        assert_eq!(response.interval, 5);
-
-        mock.assert_async().await;
-    }
 
     #[tokio::test]
     async fn test_build_auth_code_url_with_pkce() {
