@@ -43,7 +43,8 @@ impl ProviderMetadataService {
                     "Iv1.b507a08c87ecfe98",
                     vec!["read:user".to_string()],
                 )
-                .with_token_refresh_url("https://api.github.com/copilot_internal/v2/token"),
+                .with_token_refresh_url("https://api.github.com/copilot_internal/v2/token")
+                .with_custom_header("User-Agent", "GitHubCopilotChat/0.26.7"),
             )],
             ProviderId::Forge => vec![AuthMethod::api_key("API Key", None)],
             ProviderId::OpenAI => vec![AuthMethod::api_key("API Key", None)],

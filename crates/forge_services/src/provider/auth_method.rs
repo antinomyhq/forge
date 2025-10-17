@@ -134,6 +134,12 @@ pub struct OAuthConfig {
     /// Example: "https://api.github.com/copilot_internal/v2/token"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token_refresh_url: Option<String>,
+
+    /// Custom HTTP headers for OAuth requests (provider-specific)
+    /// Allows providers like GitHub to specify required headers (e.g.,
+    /// User-Agent)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_headers: Option<std::collections::HashMap<String, String>>,
 }
 
 impl OAuthConfig {
@@ -154,6 +160,7 @@ impl OAuthConfig {
             redirect_uri: String::new(),
             use_pkce: false,
             token_refresh_url: None,
+            custom_headers: None,
         }
     }
 
@@ -176,12 +183,46 @@ impl OAuthConfig {
             redirect_uri: redirect_uri.into(),
             use_pkce,
             token_refresh_url: None,
+            custom_headers: None,
         }
     }
 
     /// Sets the token refresh URL (for GitHub Copilot pattern)
     pub fn with_token_refresh_url(mut self, url: impl Into<String>) -> Self {
         self.token_refresh_url = Some(url.into());
+        self
+    }
+
+    /// Sets custom HTTP headers for OAuth requests (provider-specific)
+    ///
+    /// # Arguments
+    /// * `headers` - HashMap of header names to values
+    ///
+    /// # Example
+    /// ```ignore
+    /// let config = OAuthConfig::device_flow(...)
+    ///     .with_custom_headers(HashMap::from([
+    ///         ("User-Agent".to_string(), "GitHubCopilotChat/0.26.7".to_string())
+    ///     ]));
+    /// ```
+    pub fn with_custom_headers(
+        mut self,
+        headers: std::collections::HashMap<String, String>,
+    ) -> Self {
+        self.custom_headers = Some(headers);
+        self
+    }
+
+    /// Adds a single custom header
+    ///
+    /// # Arguments
+    /// * `key` - Header name
+    /// * `value` - Header value
+    pub fn with_custom_header(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        let headers = self
+            .custom_headers
+            .get_or_insert_with(std::collections::HashMap::new);
+        headers.insert(key.into(), value.into());
         self
     }
 }
