@@ -34,7 +34,7 @@ impl ProviderMetadataService {
     /// * `provider_id` - The provider to get authentication methods for
     pub fn get_auth_methods(provider_id: &ProviderId) -> Vec<AuthMethod> {
         match provider_id {
-            ProviderId::GitHubCopilot => vec![AuthMethod::oauth_device(
+            ProviderId::GithubCopilot => vec![AuthMethod::oauth_device(
                 "GitHub OAuth",
                 Some("Use your GitHub account to access Copilot".to_string()),
                 OAuthConfig::device_flow(
@@ -73,7 +73,7 @@ impl ProviderMetadataService {
     pub fn get_env_var_names(provider_id: &ProviderId) -> Vec<String> {
         match provider_id {
             ProviderId::Forge => vec!["FORGE_API_KEY".to_string()],
-            ProviderId::GitHubCopilot => vec![
+            ProviderId::GithubCopilot => vec![
                 "GITHUB_COPILOT_API_KEY".to_string(),
                 "GITHUB_TOKEN".to_string(),
             ],
@@ -116,7 +116,7 @@ impl ProviderMetadataService {
     pub fn get_display_name(provider_id: &ProviderId) -> String {
         match provider_id {
             ProviderId::Forge => "Forge".to_string(),
-            ProviderId::GitHubCopilot => "GitHub Copilot".to_string(),
+            ProviderId::GithubCopilot => "GitHub Copilot".to_string(),
             ProviderId::OpenAI => "OpenAI".to_string(),
             ProviderId::Anthropic => "Anthropic".to_string(),
             ProviderId::OpenRouter => "OpenRouter".to_string(),
@@ -156,7 +156,7 @@ mod tests {
 
     #[test]
     fn test_github_copilot_oauth_method() {
-        let method = ProviderMetadataService::get_oauth_method(&ProviderId::GitHubCopilot);
+        let method = ProviderMetadataService::get_oauth_method(&ProviderId::GithubCopilot);
 
         assert!(method.is_some());
         let method = method.unwrap();
@@ -195,7 +195,7 @@ mod tests {
         let vars = ProviderMetadataService::get_env_var_names(&ProviderId::OpenAI);
         assert_eq!(vars, vec!["OPENAI_API_KEY"]);
 
-        let vars = ProviderMetadataService::get_env_var_names(&ProviderId::GitHubCopilot);
+        let vars = ProviderMetadataService::get_env_var_names(&ProviderId::GithubCopilot);
         assert_eq!(vars, vec!["GITHUB_COPILOT_API_KEY", "GITHUB_TOKEN"]);
 
         let vars = ProviderMetadataService::get_env_var_names(&ProviderId::Anthropic);
@@ -205,7 +205,7 @@ mod tests {
     #[test]
     fn test_display_names() {
         assert_eq!(
-            ProviderMetadataService::get_display_name(&ProviderId::GitHubCopilot),
+            ProviderMetadataService::get_display_name(&ProviderId::GithubCopilot),
             "GitHub Copilot"
         );
         assert_eq!(
@@ -220,9 +220,9 @@ mod tests {
 
     #[test]
     fn test_complete_metadata() {
-        let metadata = ProviderMetadataService::get_metadata(&ProviderId::GitHubCopilot);
+        let metadata = ProviderMetadataService::get_metadata(&ProviderId::GithubCopilot);
 
-        assert_eq!(metadata.provider_id, ProviderId::GitHubCopilot);
+        assert_eq!(metadata.provider_id, ProviderId::GithubCopilot);
         assert_eq!(metadata.display_name, "GitHub Copilot");
         assert_eq!(metadata.auth_methods.len(), 1);
         assert_eq!(

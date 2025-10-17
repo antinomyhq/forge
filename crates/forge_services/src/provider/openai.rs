@@ -36,7 +36,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         }
 
         // Add GitHub Copilot required headers
-        if self.provider.id == forge_app::dto::ProviderId::GitHubCopilot {
+        if self.provider.id == forge_app::dto::ProviderId::GithubCopilot {
             headers.push(("Editor-Version".to_string(), "vscode/1.95.0".to_string()));
             headers.push((
                 "Editor-Plugin-Version".to_string(),

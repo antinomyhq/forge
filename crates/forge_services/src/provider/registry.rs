@@ -497,6 +497,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_github_copilot_config() {
+        let configs = get_provider_configs();
+        let config = configs
+            .iter()
+            .find(|c| c.id == ProviderId::GithubCopilot)
+            .expect("GithubCopilot config should exist");
+        assert_eq!(config.id, ProviderId::GithubCopilot);
+        assert_eq!(config.url, "https://api.githubcopilot.com/chat/completions");
+        assert_eq!(config.model_url, "https://api.githubcopilot.com/models");
+    }
+
+    #[test]
     fn test_load_provider_configs() {
         let configs = get_provider_configs();
         assert!(!configs.is_empty());

@@ -252,7 +252,7 @@ where
         oauth_tokens: OAuthTokens,
     ) -> anyhow::Result<ProviderCredential> {
         match provider_id {
-            ProviderId::GitHubCopilot => {
+            ProviderId::GithubCopilot => {
                 // GitHub Copilot requires exchanging OAuth token for API key
                 let copilot_service = GitHubCopilotService::new();
                 let (api_key, expires_at) = copilot_service
@@ -300,7 +300,7 @@ where
         // Get all provider IDs
         let all_provider_ids = vec![
             ProviderId::Forge,
-            ProviderId::GitHubCopilot,
+            ProviderId::GithubCopilot,
             ProviderId::OpenAI,
             ProviderId::Anthropic,
             ProviderId::OpenRouter,
