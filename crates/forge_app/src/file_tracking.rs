@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use sha2::{Digest, Sha256};
 use tracing::debug;
 
+use crate::utils::compute_hash;
 use crate::{Content, FsReadService};
 
 /// Information about a detected file change
@@ -47,7 +47,7 @@ impl<F: FsReadService> FileChangeDetector<F> {
 
             // Get current hash: Some(hash) if readable, None if unreadable
             let current_hash = match self.read_file_content(&file_path).await {
-                Ok(content) => Some(compute_content_hash(&content)),
+                Ok(content) => Some(compute_hash(&content)),
                 Err(_) => None,
             };
 
@@ -79,12 +79,7 @@ impl<F: FsReadService> FileChangeDetector<F> {
     }
 }
 
-/// Computes SHA-256 hash of the given content
-fn compute_content_hash(content: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(content.as_bytes());
-    format!("{:x}", hasher.finalize())
-}
+
 
 #[cfg(test)]
 mod tests {
@@ -148,7 +143,7 @@ mod tests {
     #[tokio::test]
     async fn test_no_change() {
         let content = "hello world";
-        let file_hash = compute_content_hash(content);
+        let file_hash = compute_hash(content);
 
         let fs = MockFsReadService::new().with_file("/test/file.txt", content);
         let detector = FileChangeDetector::new(Arc::new(fs));
@@ -164,9 +159,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_file_modified() {
-        let old_hash = compute_content_hash("old content");
+        let old_hash = compute_hash("old content");
         let new_content = "new content";
-        let new_hash = compute_content_hash(new_content);
+        let new_hash = compute_hash(new_content);
 
         let fs = MockFsReadService::new().with_file("/test/file.txt", new_content);
         let detector = FileChangeDetector::new(Arc::new(fs));
@@ -185,7 +180,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_file_becomes_unreadable() {
-        let old_hash = compute_content_hash("old content");
+        let old_hash = compute_hash("old content");
 
         let fs = MockFsReadService::new().with_not_found("/test/file.txt");
         let detector = FileChangeDetector::new(Arc::new(fs));
@@ -205,7 +200,7 @@ mod tests {
     #[tokio::test]
     async fn test_no_duplicate_notification() {
         let new_content = "new content";
-        let new_hash = compute_content_hash(new_content);
+        let new_hash = compute_hash(new_content);
         let old_hash = "old_hash".to_string();
 
         let fs = MockFsReadService::new().with_file("/test/file.txt", new_content);

@@ -30,6 +30,7 @@ pub use error::*;
 pub use services::*;
 pub use tool_resolver::*;
 pub use user::*;
+pub use utils::compute_hash;
 pub use walker::*;
 pub mod domain {
     pub use forge_domain::*;

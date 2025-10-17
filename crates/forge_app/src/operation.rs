@@ -9,13 +9,12 @@ use forge_domain::{
     PlanCreate, ToolName,
 };
 use forge_template::Element;
-use sha2::{Digest, Sha256};
 
 use crate::truncation::{
     Stderr, Stdout, TruncationMode, truncate_fetch_content, truncate_search_output,
     truncate_shell_output,
 };
-use crate::utils::format_display_path;
+use crate::utils::{compute_hash, format_display_path};
 use crate::{
     Content, FsCreateOutput, FsRemoveOutput, FsUndoOutput, HttpResponse, PatchOutput,
     PlanCreateOutput, ReadOutput, ResponseContext, SearchResult, ShellOutput,
@@ -36,12 +35,7 @@ struct FileOperationStats {
     file_hash: Option<String>,
 }
 
-/// Computes SHA-256 hash of the given content
-fn compute_content_hash(content: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(content.as_bytes());
-    format!("{:x}", hasher.finalize())
-}
+
 
 fn file_change_stats(operation: FileOperationStats, metrics: &mut Metrics) {
     tracing::info!(path = %operation.path, type = %operation.tool_name, lines_added = %operation.lines_added, lines_removed = %operation.lines_removed, "File change stats");
@@ -251,7 +245,7 @@ impl ToolOperation {
                     &input.content,
                 );
                 let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
-                let file_hash = Some(compute_content_hash(&input.content));
+                let file_hash = Some(compute_hash(&input.content));
 
                 file_change_stats(
                     FileOperationStats {
@@ -369,7 +363,7 @@ impl ToolOperation {
             ToolOperation::FsPatch { input, output } => {
                 let diff_result = DiffFormat::format(&output.before, &output.after);
                 let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
-                let file_hash = Some(compute_content_hash(&output.after));
+                let file_hash = Some(compute_hash(&output.after));
 
                 let mut elm = Element::new("file_diff")
                     .attr("path", &input.path)
@@ -401,7 +395,7 @@ impl ToolOperation {
                     output.after_undo.as_deref().unwrap_or(""),
                     output.before_undo.as_deref().unwrap_or(""),
                 );
-                let file_hash = Some(compute_content_hash(
+                let file_hash = Some(compute_hash(
                     output.after_undo.as_deref().unwrap_or(""),
                 ));
 
