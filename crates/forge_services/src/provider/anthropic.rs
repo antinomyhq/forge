@@ -6,7 +6,7 @@ use forge_app::domain::{
     ChatCompletionMessage, Context, Model, ModelId, ResultStream, Transformer,
 };
 use forge_app::dto::anthropic::{
-    EventData, ListModelResponse, ReasoningTransform, Request, SetCache,
+    DropInvalidToolUse, EventData, ListModelResponse, ReasoningTransform, Request, SetCache,
 };
 use reqwest::Url;
 use tracing::debug;
@@ -67,7 +67,7 @@ impl<T: HttpClientService> Anthropic<T> {
             .stream(true)
             .max_tokens(max_tokens as u64);
 
-        let request = SetCache.transform(request);
+        let request = DropInvalidToolUse.pipe(SetCache).transform(request);
 
         let url = &self.chat_url;
         debug!(url = %url, model = %model, "Connecting Upstream");

@@ -92,7 +92,7 @@ where
     }
 
     async fn init_mcp(&self) -> anyhow::Result<()> {
-        let mcp = self.manager.read_mcp_config().await?;
+        let mcp = self.manager.read_mcp_config(None).await?;
 
         // If config is unchanged, skip reinitialization
         if !self.is_config_modified(&mcp).await {
@@ -190,7 +190,7 @@ where
 {
     async fn get_mcp_servers(&self) -> anyhow::Result<McpServers> {
         // Read current configs to compute merged hash
-        let mcp_config = self.manager.read_mcp_config().await?;
+        let mcp_config = self.manager.read_mcp_config(None).await?;
 
         // Compute unified hash from merged config
         let config_hash = mcp_config.cache_key();
