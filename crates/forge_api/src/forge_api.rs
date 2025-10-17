@@ -12,9 +12,7 @@ use forge_app::{
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
-use forge_services::provider::{
-    ImportSummary, OAuthDeviceInit, OAuthDeviceState, ValidationOutcome,
-};
+use forge_services::provider::{ImportSummary, OAuthDeviceDisplay, ValidationOutcome};
 use forge_services::{
     AppConfigRepository, CommandInfra, ForgeServices, HttpInfra, ProviderCredentialRepository,
 };
@@ -309,18 +307,20 @@ impl<
             .await
     }
 
-    async fn start_provider_oauth(&self, provider_id: ProviderId) -> Result<OAuthDeviceInit> {
+    async fn authenticate_provider_oauth<Cb>(
+        &self,
+        provider_id: ProviderId,
+        display_callback: Cb,
+    ) -> Result<()>
+    where
+        Cb: FnOnce(OAuthDeviceDisplay) -> () + Send,
+    {
         use forge_services::provider::ProviderAuthenticator;
 
         let authenticator = ProviderAuthenticator::new(self.services.clone());
-        authenticator.initiate_oauth_device(provider_id).await
-    }
-
-    async fn complete_provider_oauth(&self, state: OAuthDeviceState) -> Result<()> {
-        use forge_services::provider::ProviderAuthenticator;
-
-        let authenticator = ProviderAuthenticator::new(self.services.clone());
-        authenticator.complete_oauth_device(state).await
+        authenticator
+            .authenticate_with_oauth(provider_id, display_callback)
+            .await
     }
 
     async fn import_provider_credentials_from_env(
@@ -330,6 +330,6 @@ impl<
         use forge_services::provider::ProviderAuthenticator;
 
         let authenticator = ProviderAuthenticator::new(self.services.clone());
-        authenticator.import_from_environment(filter).await
+        authenticator.import_from_env(filter).await
     }
 }

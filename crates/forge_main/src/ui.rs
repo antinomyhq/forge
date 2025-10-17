@@ -635,43 +635,47 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         );
         println!();
 
-        // Start OAuth flow
-        let init = self.api.start_provider_oauth(provider_id).await?;
-
-        // Display OAuth instructions
-        println!(
-            "{} Please visit: {}",
-            "→".blue(),
-            init.verification_uri.underline().cyan()
-        );
-        println!(
-            "{} Enter code: {}",
-            "→".blue(),
-            init.user_code.bold().green()
-        );
-        println!();
-        println!(
-            "{} Code expires in: {}",
-            "ℹ".blue(),
-            format!("{}m {}s", init.expires_in / 60, init.expires_in % 60).dimmed()
-        );
-        println!();
-
-        // Try to open browser automatically
-        if let Err(e) = open::that(&init.verification_uri) {
-            eprintln!(
-                "{} Could not open browser automatically: {}",
-                "⚠".yellow(),
-                e
-            );
-            println!("{} Please open the URL manually", "→".yellow());
-            println!();
-        }
-
-        // Complete OAuth flow
+        // Start spinner before OAuth flow
         self.spinner.start(Some("Waiting for authorization..."))?;
-        self.api.complete_provider_oauth(init.state).await?;
+
+        // OAuth flow with callback for displaying device code
+        let result = self
+            .api
+            .authenticate_provider_oauth(provider_id, |display| {
+                // Display OAuth instructions to user
+                println!(
+                    "{} Please visit: {}",
+                    "→".blue(),
+                    display.verification_uri.underline().cyan()
+                );
+                println!(
+                    "{} Enter code: {}",
+                    "→".blue(),
+                    display.user_code.bold().green()
+                );
+                println!();
+                println!(
+                    "{} Code expires in: {}",
+                    "ℹ".blue(),
+                    format!("{}m {}s", display.expires_in / 60, display.expires_in % 60).dimmed()
+                );
+                println!();
+
+                // Try to open browser automatically
+                if let Err(e) = open::that(&display.verification_uri) {
+                    eprintln!(
+                        "{} Could not open browser automatically: {}",
+                        "⚠".yellow(),
+                        e
+                    );
+                    println!("{} Please open the URL manually", "→".yellow());
+                    println!();
+                }
+            })
+            .await;
+
         self.spinner.stop(None)?;
+        result?;
 
         println!();
         println!(

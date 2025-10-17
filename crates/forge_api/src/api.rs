@@ -4,9 +4,7 @@ use anyhow::Result;
 use forge_app::dto::{InitAuth, ProviderId, ToolsOverview};
 use forge_app::{User, UserUsage};
 use forge_domain::{AgentId, ModelId};
-use forge_services::provider::{
-    ImportSummary, OAuthDeviceInit, OAuthDeviceState, ValidationOutcome,
-};
+use forge_services::provider::{ImportSummary, OAuthDeviceDisplay, ValidationOutcome};
 use forge_stream::MpscStream;
 
 use crate::*;
@@ -161,24 +159,23 @@ pub trait API: Sync + Send {
         skip_validation: bool,
     ) -> Result<ValidationOutcome>;
 
-    /// Initiates OAuth device flow for a provider
+    /// Authenticates with a provider using OAuth device flow
     ///
-    /// Gets OAuth configuration from provider metadata and returns display info
-    /// for the user along with opaque state to complete the flow.
+    /// This method handles the complete OAuth flow with a callback for displaying
+    /// the user code and verification URL. The callback is invoked once the device
+    /// code is obtained, then the method blocks while polling for authorization.
     ///
     /// # Arguments
     ///
     /// * `provider_id` - Provider to authenticate with
-    async fn start_provider_oauth(&self, provider_id: ProviderId) -> Result<OAuthDeviceInit>;
-
-    /// Completes OAuth device flow by polling for authorization
-    ///
-    /// This method blocks until the user completes authorization.
-    ///
-    /// # Arguments
-    ///
-    /// * `state` - Opaque state from start_provider_oauth
-    async fn complete_provider_oauth(&self, state: OAuthDeviceState) -> Result<()>;
+    /// * `display_callback` - Callback to display OAuth device info to user
+    async fn authenticate_provider_oauth<Cb>(
+        &self,
+        provider_id: ProviderId,
+        display_callback: Cb,
+    ) -> Result<()>
+    where
+        Cb: FnOnce(OAuthDeviceDisplay) -> () + Send;
 
     /// Imports provider credentials from environment variables
     ///
