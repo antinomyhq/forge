@@ -128,6 +128,9 @@ pub enum TopLevelCommand {
 
     /// Session management commands (dump, retry, resume, list)
     Session(SessionCommandGroup),
+
+    /// Authentication and credential management
+    Auth(AuthCommandGroup),
 }
 
 /// Group of MCP-related commands
@@ -610,4 +613,39 @@ mod tests {
         let expected = AgentId::new("sage");
         assert_eq!(actual, expected);
     }
+}
+
+/// Group of authentication-related commands
+#[derive(Parser, Debug, Clone)]
+pub struct AuthCommandGroup {
+    /// Subcommands under `auth`
+    #[command(subcommand)]
+    pub command: AuthCommand,
+}
+
+/// Authentication commands for managing provider credentials
+#[derive(Subcommand, Debug, Clone)]
+pub enum AuthCommand {
+    /// Interactive login to add/update provider credentials
+    Login {
+        /// Optional provider ID to skip selection
+        #[arg(long)]
+        provider: Option<String>,
+
+        /// Skip validation (advanced users)
+        #[arg(long)]
+        skip_validation: bool,
+    },
+
+    /// Import credentials from environment variables
+    ImportEnv {
+        /// Only import specific provider (optional)
+        #[arg(long)]
+        provider: Option<String>,
+
+        /// Skip confirmation prompts
+        #[arg(long)]
+        yes: bool,
+    },
+
 }

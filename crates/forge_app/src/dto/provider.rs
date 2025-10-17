@@ -24,6 +24,9 @@ use url::Url;
 #[serde(rename_all = "snake_case")]
 pub enum ProviderId {
     Forge,
+    #[serde(rename = "github_copilot")]
+    #[strum(serialize = "github_copilot")]
+    GitHubCopilot,
     #[serde(rename = "openai")]
     OpenAI,
     OpenRouter,

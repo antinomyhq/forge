@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use forge_app::dto::{InitAuth, ProviderId, ToolsOverview};
 use forge_app::{User, UserUsage};
 use forge_domain::{AgentId, ModelId};
@@ -121,4 +122,41 @@ pub trait API: Sync + Send {
 
     /// Refresh MCP caches by fetching fresh data
     async fn reload_mcp(&self) -> Result<()>;
+
+    /// Get all available provider IDs (regardless of configuration status)
+    async fn available_provider_ids(&self) -> Result<Vec<ProviderId>>;
+
+    // Provider credential management
+    async fn list_provider_credentials(&self) -> Result<Vec<ProviderCredential>>;
+    async fn get_provider_credential(
+        &self,
+        provider_id: &ProviderId,
+    ) -> Result<Option<ProviderCredential>>;
+    async fn upsert_provider_credential(&self, credential: ProviderCredential) -> Result<()>;
+    async fn delete_provider_credential(&self, provider_id: &ProviderId) -> Result<()>;
+
+    /// Validates a provider credential
+    /// Returns true if valid, false if invalid, error if inconclusive
+    async fn validate_provider_credential(&self, credential: &ProviderCredential) -> Result<bool>;
+
+    /// Updates the last_verified_at timestamp for a credential
+    async fn mark_credential_verified(&self, provider_id: &ProviderId) -> Result<()>;
+
+    // OAuth device flow methods
+    async fn initiate_device_auth(
+        &self,
+        device_code_url: &str,
+        client_id: &str,
+        scopes: &[String],
+    ) -> Result<forge_services::provider::DeviceAuthorizationResponse>;
+
+    async fn poll_device_auth(
+        &self,
+        token_url: &str,
+        client_id: &str,
+        device_code: &str,
+        interval: u64,
+    ) -> Result<forge_services::provider::OAuthTokenResponse>;
+
+    async fn get_copilot_api_key(&self, github_token: &str) -> Result<(String, DateTime<Utc>)>;
 }

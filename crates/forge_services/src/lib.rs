@@ -13,7 +13,7 @@ mod http;
 mod infra;
 mod mcp;
 mod policy;
-mod provider;
+pub mod provider;
 mod range;
 mod template;
 mod tool_services;

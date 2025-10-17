@@ -384,6 +384,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.handle_session_command(session_group).await?;
                 return Ok(());
             }
+
+            TopLevelCommand::Auth(auth_group) => {
+                self.handle_auth_command(auth_group).await?;
+                return Ok(());
+            }
         }
         Ok(())
     }
@@ -463,6 +468,557 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         Ok(())
     }
+
+    async fn handle_auth_command(
+        &mut self,
+        auth_group: crate::cli::AuthCommandGroup,
+    ) -> anyhow::Result<()> {
+        use crate::cli::AuthCommand;
+
+        match auth_group.command {
+            AuthCommand::Login { provider, skip_validation } => {
+                self.handle_auth_login(provider, skip_validation).await?;
+            }
+            AuthCommand::ImportEnv { provider, yes } => {
+                self.handle_auth_import_env(provider, yes).await?;
+            }
+
+        }
+
+        Ok(())
+    }
+
+    async fn handle_auth_login(
+        &mut self,
+        provider: Option<String>,
+        skip_validation: bool,
+    ) -> anyhow::Result<()> {
+        use colored::Colorize;
+        use inquire::Select;
+
+        println!("\n{}", "Add Provider Credential".bold());
+        println!("{}", "─".repeat(50).dimmed());
+
+        // Step 1: Get or select provider
+        let provider_id = if let Some(id) = provider {
+            // Validate provider exists
+            let available_ids = self.api.available_provider_ids().await?;
+            if !available_ids.iter().any(|p| p.to_string() == id) {
+                anyhow::bail!(
+                    "Provider '{}' not found. Available providers can be viewed in the selection prompt.",
+                    id
+                );
+            }
+            id
+        } else {
+            // Interactive selection
+            let available_ids = self.api.available_provider_ids().await?;
+            if available_ids.is_empty() {
+                anyhow::bail!("No providers available");
+            }
+
+            // Get existing credentials to show status
+            let credentials = self.api.list_provider_credentials().await?;
+            let configured: std::collections::HashSet<_> = credentials
+                .iter()
+                .map(|c| c.provider_id.to_string())
+                .collect();
+
+            // Create display options with status indicators
+            let mut options: Vec<String> = available_ids
+                .iter()
+                .map(|id| {
+                    let id_str = id.to_string();
+                    if configured.contains(&id_str) {
+                        format!("{} {}", id_str, "[✓ configured]".green())
+                    } else {
+                        format!("{} {}", id_str, "[+ new]".dimmed())
+                    }
+                })
+                .collect();
+
+            // Sort: configured first, then alphabetical
+            options.sort_by(|a, b| {
+                let a_configured = a.contains("[✓");
+                let b_configured = b.contains("[✓");
+                match (a_configured, b_configured) {
+                    (true, false) => std::cmp::Ordering::Less,
+                    (false, true) => std::cmp::Ordering::Greater,
+                    _ => a.cmp(b),
+                }
+            });
+
+            let selection = Select::new("Select a provider:", options)
+                .with_page_size(10)
+                .prompt()?;
+
+            // Extract provider ID from selection (before the status indicator)
+            selection.split_whitespace().next().unwrap().to_string()
+        };
+
+        println!(
+            "\n{} Configuring provider: {}",
+            "→".blue(),
+            provider_id.bold()
+        );
+
+        // Check if this is GitHub Copilot - use OAuth device flow
+        if provider_id == "github_copilot" {
+            return self.handle_github_copilot_auth().await;
+        }
+
+        // Step 2: Prompt for API key
+        let api_key = inquire::Password::new(&format!("Enter your {} API key:", provider_id))
+            .with_display_toggle_enabled()
+            .with_display_mode(inquire::PasswordDisplayMode::Masked)
+            .prompt()?;
+
+        if api_key.trim().is_empty() {
+            anyhow::bail!("API key cannot be empty");
+        }
+
+        // Step 3: Check if provider requires URL parameters
+        // For now, we'll skip URL parameters and implement that in a follow-up
+        // TODO: Add URL parameter prompting for Azure, Vertex AI, etc.
+
+        // Step 4: Create credential
+        use std::str::FromStr;
+
+        use forge_app::dto::ProviderCredential;
+
+        let provider_id_enum = forge_app::dto::ProviderId::from_str(&provider_id)
+            .map_err(|_| anyhow::anyhow!("Invalid provider ID: {}", provider_id))?;
+
+        let credential = ProviderCredential::new_api_key(provider_id_enum, api_key.clone());
+
+        // Step 5: Validate credentials (unless skip_validation)
+        if !skip_validation {
+            use indicatif::{ProgressBar, ProgressStyle};
+
+            println!();
+            let spinner = ProgressBar::new_spinner();
+            spinner.set_style(
+                ProgressStyle::default_spinner()
+                    .template("{spinner:.blue} {msg}")
+                    .unwrap(),
+            );
+            spinner.set_message(format!("Validating {} credentials...", provider_id));
+            spinner.enable_steady_tick(std::time::Duration::from_millis(100));
+
+            // Validate the credential
+            match self.api.validate_provider_credential(&credential).await {
+                Ok(true) => {
+                    spinner.finish_with_message(format!("{} Credentials validated", "✓".green()));
+                }
+                Ok(false) => {
+                    spinner.finish_with_message(format!("{} Validation returned false", "✗".red()));
+                    anyhow::bail!("Credential validation failed");
+                }
+                Err(e) => {
+                    spinner.finish_with_message(format!("{} Validation failed", "✗".red()));
+
+                    // Check if it's a network/inconclusive error
+                    let error_msg = e.to_string();
+                    if error_msg.contains("Could not validate") {
+                        // Inconclusive - offer to save anyway
+                        println!();
+                        println!("{} {}", "⚠".yellow(), error_msg.yellow());
+                        let save_anyway = inquire::Confirm::new("Save credentials anyway?")
+                            .with_default(false)
+                            .prompt()?;
+
+                        if !save_anyway {
+                            anyhow::bail!("Credential validation failed: {}", error_msg);
+                        }
+                        println!("{} Saving without validation", "→".dimmed());
+                    } else {
+                        // Authentication error - don't save
+                        anyhow::bail!("Credential validation failed: {}", error_msg);
+                    }
+                }
+            }
+        }
+
+        // Step 6: Save to database
+        self.api.upsert_provider_credential(credential).await?;
+
+        println!();
+        println!(
+            "{} {} configured successfully!",
+            "✓".green(),
+            provider_id.bold()
+        );
+        println!();
+        println!("Next steps:");
+        println!(
+            "  {} Set as active provider: {}",
+            "→".blue(),
+            format!("forge config set provider {}", provider_id).dimmed()
+        );
+
+        println!("  {} Start chatting: {}", "→".blue(), "forge".dimmed());
+        println!();
+
+        Ok(())
+    }
+
+    async fn handle_github_copilot_auth(&mut self) -> anyhow::Result<()> {
+        use std::time::Duration;
+
+        use chrono::Utc;
+        use colored::Colorize;
+        use forge_app::dto::{OAuthTokens, ProviderCredential, ProviderId};
+        use indicatif::{ProgressBar, ProgressStyle};
+
+        println!();
+        println!("{}", "GitHub OAuth (Device Authorization)".bold());
+        println!("{}", "This will use your GitHub account to access Copilot".dimmed());
+        println!();
+
+        // GitHub Copilot OAuth configuration (same as opencode)
+        let device_code_url = "https://github.com/login/device/code";
+        let token_url = "https://github.com/login/oauth/access_token";
+        let client_id = "Iv1.b507a08c87ecfe98";
+        let scopes = vec!["read:user".to_string()];
+
+        // Step 1: Initiate device authorization
+        let device_response = self.api.initiate_device_auth(
+            device_code_url,
+            client_id,
+            &scopes,
+        ).await?;
+
+        println!(
+            "{} Please visit: {}",
+            "→".blue(),
+            device_response.verification_uri.underline().cyan()
+        );
+        println!(
+            "{} Enter code: {}",
+            "→".blue(),
+            device_response.user_code.bold().green()
+        );
+        println!();
+        println!(
+            "{} Code expires in: {}",
+            "ℹ".blue(),
+            format!("{}m {}s",
+                device_response.expires_in / 60,
+                device_response.expires_in % 60
+            ).dimmed()
+        );
+        println!();
+
+        // Try to open browser automatically
+        if let Err(e) = opener::open(&device_response.verification_uri) {
+            eprintln!("{} Could not open browser automatically: {}", "⚠".yellow(), e);
+            println!("{} Please open the URL manually", "→".yellow());
+            println!();
+        }
+
+        // Step 2: Poll for authorization
+        let spinner = ProgressBar::new_spinner();
+        spinner.set_style(
+            ProgressStyle::default_spinner()
+                .template("{spinner:.blue} {msg}")
+                .unwrap(),
+        );
+        spinner.set_message("Waiting for authorization...");
+        spinner.enable_steady_tick(Duration::from_millis(100));
+
+        // Poll with timeout
+        let github_token = self.api
+            .poll_device_auth(token_url, client_id, &device_response.device_code, device_response.interval)
+            .await?;
+
+        spinner.finish_with_message(format!("{} Authorization successful!", "✓".green()));
+
+        // Step 3: Fetch Copilot API key
+        println!();
+        let spinner = ProgressBar::new_spinner();
+        spinner.set_style(
+            ProgressStyle::default_spinner()
+                .template("{spinner:.blue} {msg}")
+                .unwrap(),
+        );
+        spinner.set_message("Fetching Copilot API access...");
+        spinner.enable_steady_tick(Duration::from_millis(100));
+
+        let (copilot_api_key, expires_at) = self.api
+            .get_copilot_api_key(&github_token.access_token)
+            .await?;
+
+        // Calculate time until expiration
+        let now = Utc::now();
+        let duration_until_expiry = expires_at.signed_duration_since(now);
+        let days = duration_until_expiry.num_days();
+        let hours = duration_until_expiry.num_hours() % 24;
+        
+        let expiry_msg = if days > 0 {
+            format!("in {} days", days)
+        } else if hours > 0 {
+            format!("in {} hours", hours)
+        } else {
+            "soon".to_string()
+        };
+
+        spinner.finish_with_message(format!(
+            "{} API key retrieved (expires {})",
+            "✓".green(),
+            expiry_msg
+        ));
+
+        // Step 4: Create and save credential
+        let credential = ProviderCredential::new_oauth_with_api_key(
+            ProviderId::GitHubCopilot,
+            copilot_api_key,
+            OAuthTokens {
+                refresh_token: github_token.access_token.clone(),
+                access_token: github_token.access_token,
+                expires_at,
+            },
+        );
+
+        self.api.upsert_provider_credential(credential).await?;
+
+        println!();
+        println!(
+            "{} {} configured successfully!",
+            "✓".green(),
+            "GitHub Copilot".bold()
+        );
+        println!();
+        println!("{} Token will auto-refresh when needed", "ℹ".blue());
+        println!();
+        println!("Next steps:");
+        println!(
+            "  {} Set as active provider: {}",
+            "→".blue(),
+            "forge config set provider github_copilot".dimmed()
+        );
+
+        println!("  {} Start chatting: {}", "→".blue(), "forge".dimmed());
+        println!();
+
+        Ok(())
+    }
+
+    async fn handle_auth_import_env(
+        &mut self,
+        provider_filter: Option<String>,
+        yes: bool,
+    ) -> anyhow::Result<()> {
+        use std::collections::HashMap;
+
+        use colored::Colorize;
+
+        println!("\n{}", "Import Credentials from Environment".bold());
+        println!("{}", "─".repeat(50).dimmed());
+
+        // Get all providers to check their env vars
+        let providers = self.api.providers().await?;
+
+        // Get existing credentials to check for conflicts
+        let existing_credentials = self.api.list_provider_credentials().await?;
+        let existing_ids: HashMap<_, _> = existing_credentials
+            .iter()
+            .map(|c| (c.provider_id.to_string(), c))
+            .collect();
+
+        // Scan environment for API keys
+        let mut importable = Vec::new();
+        let mut already_configured = Vec::new();
+        let mut not_found = Vec::new();
+
+        for provider in &providers {
+            let provider_id = provider.id.to_string();
+
+            // Skip if filter specified and doesn't match
+            if let Some(ref filter) = provider_filter
+                && provider_id != *filter {
+                    continue;
+                }
+
+            // Check if already in database
+            if existing_ids.contains_key(&provider_id) {
+                already_configured.push(provider_id.clone());
+                continue;
+            }
+
+            // Try to read env var - we need to load provider config
+            // For now, use common naming pattern: PROVIDER_API_KEY
+            let env_var_name = format!("{}_API_KEY", provider_id.to_uppercase());
+
+            // Also check specific known names
+            let api_key = match provider_id.as_str() {
+                "openai" => std::env::var("OPENAI_API_KEY").ok(),
+                "anthropic" => std::env::var("ANTHROPIC_API_KEY").ok(),
+                "openrouter" | "open_router" => std::env::var("OPENROUTER_API_KEY").ok(),
+                "xai" => std::env::var("XAI_API_KEY").ok(),
+                "cerebras" => std::env::var("CEREBRAS_API_KEY").ok(),
+                "forge" => std::env::var("FORGE_API_KEY").ok(),
+                "zai" => std::env::var("ZAI_API_KEY").ok(),
+                "requesty" => std::env::var("REQUESTY_API_KEY").ok(),
+                "big_model" => std::env::var("BIG_MODEL_API_KEY").ok(),
+                "vertex_ai" => std::env::var("VERTEX_AI_AUTH_TOKEN").ok(),
+                "azure" => std::env::var("AZURE_API_KEY").ok(),
+                _ => std::env::var(&env_var_name).ok(),
+            };
+
+            if let Some(key) = api_key {
+                importable.push((provider_id, key));
+            } else {
+                not_found.push(provider_id);
+            }
+        }
+
+        // Display summary
+        println!("\n{}", "Environment Scan Results:".bold());
+        println!();
+
+        if !importable.is_empty() {
+            println!("{} {}", "✓".green(), "Importable providers:".green());
+            for (id, _) in &importable {
+                println!("  {} {}", "•".dimmed(), id);
+            }
+            println!();
+        }
+
+        if !already_configured.is_empty() {
+            println!(
+                "{} {}",
+                "⊗".yellow(),
+                "Already configured (skipped):".yellow()
+            );
+            for id in &already_configured {
+                println!("  {} {}", "•".dimmed(), id);
+            }
+            println!();
+        }
+
+        if importable.is_empty() {
+            println!(
+                "{}",
+                "No new credentials found in environment variables.\n".yellow()
+            );
+            println!("Configured providers are already in the database.");
+            println!("To add a new provider: {}", "forge auth login".dimmed());
+            println!();
+            return Ok(());
+        }
+
+        // Confirm import (unless --yes flag)
+        if !yes {
+            let proceed =
+                inquire::Confirm::new(&format!("Import {} credential(s)?", importable.len()))
+                    .with_default(true)
+                    .prompt()?;
+
+            if !proceed {
+                println!("\n{} Import cancelled\n", "✗".red());
+                return Ok(());
+            }
+        }
+
+        // Import each credential
+        println!();
+        println!("{}", "Importing credentials...".bold());
+        println!();
+
+        let mut imported = 0;
+        let mut failed = 0;
+
+        for (provider_id, api_key) in importable {
+            use std::str::FromStr;
+
+            
+
+            print!("  {} {}... ", "→".blue(), provider_id);
+            std::io::Write::flush(&mut std::io::stdout())?;
+
+            // Create credential
+            let provider_id_enum = match forge_app::dto::ProviderId::from_str(&provider_id) {
+                Ok(id) => id,
+                Err(_) => {
+                    println!("{} Invalid provider ID", "✗".red());
+                    failed += 1;
+                    continue;
+                }
+            };
+
+            let credential =
+                forge_app::dto::ProviderCredential::new_api_key(provider_id_enum, api_key);
+
+            // Validate (with progress indicator)
+            let validation_result = self.api.validate_provider_credential(&credential).await;
+
+            match validation_result {
+                Ok(true) => {
+                    // Save to database
+                    if let Err(e) = self.api.upsert_provider_credential(credential).await {
+                        println!("{} Failed to save: {}", "✗".red(), e);
+                        failed += 1;
+                    } else {
+                        println!("{} Imported and validated", "✓".green());
+                        imported += 1;
+                    }
+                }
+                Ok(false) => {
+                    println!("{} Validation returned false", "✗".red());
+                    failed += 1;
+                }
+                Err(e) => {
+                    let error_msg = e.to_string();
+                    if error_msg.contains("Could not validate") {
+                        // Network error - save anyway with warning
+                        if let Err(e) = self.api.upsert_provider_credential(credential).await {
+                            println!("{} Failed to save: {}", "✗".red(), e);
+                            failed += 1;
+                        } else {
+                            println!("{} Imported (validation inconclusive)", "⚠".yellow());
+                            imported += 1;
+                        }
+                    } else {
+                        // Authentication error - don't save
+                        println!("{} Validation failed: {}", "✗".red(), error_msg);
+                        failed += 1;
+                    }
+                }
+            }
+        }
+
+        // Summary
+        println!();
+        println!("{}", "─".repeat(50).dimmed());
+        println!();
+
+        if imported > 0 {
+            println!(
+                "{} Successfully imported {} credential(s)",
+                "✓".green(),
+                imported
+            );
+        }
+
+        if failed > 0 {
+            println!("{} Failed to import {} credential(s)", "✗".red(), failed);
+        }
+
+        println!();
+        println!("Next steps:");
+        println!(
+            "  {} Set active provider: {}",
+            "→".blue(),
+            "forge config set provider <id>".dimmed()
+        );
+        println!();
+
+        Ok(())
+    }
+
+
+
+
 
     async fn validate_session_exists(
         &self,

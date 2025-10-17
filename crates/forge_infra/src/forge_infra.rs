@@ -8,8 +8,8 @@ use forge_fs::FileInfo as FileInfoData;
 use forge_services::{
     AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
     DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra,
-    WalkerInfra,
+    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, ProviderCredentialRepository,
+    SnapshotInfra, UserInfra, WalkerInfra,
 };
 use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
@@ -29,7 +29,10 @@ use crate::http::ForgeHttpInfra;
 use crate::inquire::ForgeInquire;
 use crate::mcp_client::ForgeMcpClient;
 use crate::mcp_server::ForgeMcpServer;
-use crate::repository::{AppConfigRepositoryImpl, CacacheRepository, ConversationRepositoryImpl};
+use crate::repository::{
+    AppConfigRepositoryImpl, CacacheRepository, ConversationRepositoryImpl,
+    ProviderCredentialRepositoryImpl,
+};
 use crate::walker::ForgeWalkerService;
 
 #[derive(Clone)]
@@ -52,6 +55,7 @@ pub struct ForgeInfra {
     conversation_repository: Arc<ConversationRepositoryImpl>,
     app_config_repository: Arc<AppConfigRepositoryImpl>,
     mcp_cache_repository: Arc<CacacheRepository>,
+    provider_credential_repository: Arc<ProviderCredentialRepositoryImpl>,
 }
 
 impl ForgeInfra {
@@ -62,8 +66,10 @@ impl ForgeInfra {
         let http_service = Arc::new(ForgeHttpInfra::new(env.http.clone()));
         let db_pool =
             Arc::new(DatabasePool::try_from(PoolConfig::new(env.database_path())).unwrap());
-        let conversation_repository =
-            Arc::new(ConversationRepositoryImpl::new(db_pool, env.workspace_id()));
+        let conversation_repository = Arc::new(ConversationRepositoryImpl::new(
+            db_pool.clone(),
+            env.workspace_id(),
+        ));
 
         let app_config_repository = Arc::new(AppConfigRepositoryImpl::new(
             env.app_config().as_path().to_path_buf(),
@@ -73,6 +79,9 @@ impl ForgeInfra {
             env.cache_dir().join("mcp_cache"),
             Some(3600),
         )); // 1 hour TTL
+
+        let provider_credential_repository =
+            Arc::new(ProviderCredentialRepositoryImpl::new(db_pool.clone()));
 
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
@@ -96,6 +105,7 @@ impl ForgeInfra {
             conversation_repository,
             app_config_repository,
             mcp_cache_repository,
+            provider_credential_repository,
         }
     }
 }
@@ -334,6 +344,58 @@ impl AppConfigRepository for ForgeInfra {
 
     async fn set_app_config(&self, config: &forge_app::dto::AppConfig) -> anyhow::Result<()> {
         self.app_config_repository.set_app_config(config).await
+    }
+}
+
+#[async_trait::async_trait]
+impl ProviderCredentialRepository for ForgeInfra {
+    async fn upsert_credential(
+        &self,
+        credential: forge_app::dto::ProviderCredential,
+    ) -> anyhow::Result<()> {
+        self.provider_credential_repository
+            .upsert_credential(credential)
+            .await
+    }
+
+    async fn get_credential(
+        &self,
+        provider_id: &forge_app::dto::ProviderId,
+    ) -> anyhow::Result<Option<forge_app::dto::ProviderCredential>> {
+        self.provider_credential_repository
+            .get_credential(provider_id)
+            .await
+    }
+
+    async fn get_all_credentials(&self) -> anyhow::Result<Vec<forge_app::dto::ProviderCredential>> {
+        self.provider_credential_repository
+            .get_all_credentials()
+            .await
+    }
+
+    async fn delete_credential(
+        &self,
+        provider_id: &forge_app::dto::ProviderId,
+    ) -> anyhow::Result<()> {
+        self.provider_credential_repository
+            .delete_credential(provider_id)
+            .await
+    }
+
+    async fn mark_verified(&self, provider_id: &forge_app::dto::ProviderId) -> anyhow::Result<()> {
+        self.provider_credential_repository
+            .mark_verified(provider_id)
+            .await
+    }
+
+    async fn update_oauth_tokens(
+        &self,
+        provider_id: &forge_app::dto::ProviderId,
+        tokens: forge_app::dto::OAuthTokens,
+    ) -> anyhow::Result<()> {
+        self.provider_credential_repository
+            .update_oauth_tokens(provider_id, tokens)
+            .await
     }
 }
 

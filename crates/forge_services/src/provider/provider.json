@@ -8,6 +8,14 @@
     "model_url": "https://antinomy.ai/api/v1/models"
   },
   {
+    "id": "github_copilot",
+    "api_key_vars": "",
+    "url_param_vars": [],
+    "response_type": "OpenAI",
+    "url": "https://api.githubcopilot.com/chat/completions",
+    "model_url": "https://api.githubcopilot.com/models"
+  },
+  {
     "id": "open_router",
     "api_key_vars": "OPENROUTER_API_KEY",
     "url_param_vars": [],

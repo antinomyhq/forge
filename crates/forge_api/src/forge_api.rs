@@ -2,7 +2,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::dto::{InitAuth, LoginInfo, Provider, ProviderId, ToolsOverview};
+use chrono::{DateTime, Utc};
+use forge_app::dto::{
+    InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId, ToolsOverview,
+};
 use forge_app::{
     AgentLoaderService, AuthService, ConversationService, EnvironmentService, FileDiscoveryService,
     ForgeApp, McpConfigManager, McpService, ProviderRegistry, ProviderService, Services, User,
@@ -10,7 +13,9 @@ use forge_app::{
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
-use forge_services::{AppConfigRepository, CommandInfra, ForgeServices};
+use forge_services::{
+    AppConfigRepository, CommandInfra, ForgeServices, HttpInfra, ProviderCredentialRepository,
+};
 use forge_stream::MpscStream;
 
 use crate::API;
@@ -35,7 +40,9 @@ impl ForgeAPI<ForgeServices<ForgeInfra>, ForgeInfra> {
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> {
+impl<A: Services, F: CommandInfra + AppConfigRepository + ProviderCredentialRepository + HttpInfra>
+    API for ForgeAPI<A, F>
+{
     async fn discover(&self) -> Result<Vec<File>> {
         let environment = self.services.get_environment();
         let config = Walker::unlimited().cwd(environment.cwd);
@@ -224,5 +231,118 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
 
     async fn reload_mcp(&self) -> Result<()> {
         self.services.mcp_service().reload_mcp().await
+    }
+
+    async fn available_provider_ids(&self) -> Result<Vec<ProviderId>> {
+        Ok(self.services.available_provider_ids())
+    }
+
+    async fn list_provider_credentials(&self) -> Result<Vec<ProviderCredential>> {
+        self.infra.get_all_credentials().await
+    }
+
+    async fn get_provider_credential(
+        &self,
+        provider_id: &ProviderId,
+    ) -> Result<Option<ProviderCredential>> {
+        self.infra.get_credential(provider_id).await
+    }
+
+    async fn upsert_provider_credential(&self, credential: ProviderCredential) -> Result<()> {
+        self.infra.upsert_credential(credential).await
+    }
+
+    async fn delete_provider_credential(&self, provider_id: &ProviderId) -> Result<()> {
+        self.infra.delete_credential(provider_id).await
+    }
+
+    async fn validate_provider_credential(&self, credential: &ProviderCredential) -> Result<bool> {
+        use forge_services::provider::validation::{
+            ForgeProviderValidationService, ValidationResult,
+        };
+
+        // Get the provider to access validation URL
+        let providers = self.providers().await?;
+        let provider = providers
+            .iter()
+            .find(|p| p.id == credential.provider_id)
+            .ok_or_else(|| anyhow::anyhow!("Provider not found: {}", credential.provider_id))?;
+
+        // Create validation service and validate
+        let validation_service = ForgeProviderValidationService::new(self.infra.clone());
+        let result = validation_service
+            .validate_credential(&credential.provider_id, credential, &provider.model_url)
+            .await?;
+
+        match result {
+            ValidationResult::Valid => Ok(true),
+            ValidationResult::Invalid(msg) => Err(anyhow::anyhow!("Invalid credentials: {}", msg)),
+            ValidationResult::TokenExpired => Err(anyhow::anyhow!("OAuth token has expired")),
+            ValidationResult::Inconclusive(msg) => {
+                // For inconclusive results, we'll treat as an error but with a different
+                // message
+                Err(anyhow::anyhow!("Could not validate credentials: {}", msg))
+            }
+        }
+    }
+
+    async fn mark_credential_verified(&self, provider_id: &ProviderId) -> Result<()> {
+        self.infra.mark_verified(provider_id).await
+    }
+
+    async fn initiate_device_auth(
+        &self,
+        device_code_url: &str,
+        client_id: &str,
+        scopes: &[String],
+    ) -> Result<forge_services::provider::DeviceAuthorizationResponse> {
+        use forge_services::provider::{ForgeOAuthService, OAuthConfig};
+
+        let config = OAuthConfig {
+            device_code_url: Some(device_code_url.to_string()),
+            device_token_url: None,
+            auth_url: None,
+            token_url: None,
+            client_id: client_id.to_string(),
+            scopes: scopes.to_vec(),
+            redirect_uri: String::new(),
+            use_pkce: false,
+            token_refresh_url: None,
+        };
+
+        let oauth_service = ForgeOAuthService::new();
+        oauth_service.initiate_device_auth(&config).await
+    }
+
+    async fn poll_device_auth(
+        &self,
+        token_url: &str,
+        client_id: &str,
+        device_code: &str,
+        interval: u64,
+    ) -> Result<forge_services::provider::OAuthTokenResponse> {
+        use forge_services::provider::{ForgeOAuthService, OAuthConfig};
+
+        let config = OAuthConfig {
+            device_code_url: None,
+            device_token_url: Some(token_url.to_string()),
+            auth_url: None,
+            token_url: None,
+            client_id: client_id.to_string(),
+            scopes: vec![],
+            redirect_uri: String::new(),
+            use_pkce: false,
+            token_refresh_url: None,
+        };
+
+        let oauth_service = ForgeOAuthService::new();
+        oauth_service.poll_device_auth(&config, device_code, interval).await
+    }
+
+    async fn get_copilot_api_key(&self, github_token: &str) -> Result<(String, DateTime<Utc>)> {
+        use forge_services::provider::ForgeOAuthService;
+
+        let oauth_service = ForgeOAuthService::new();
+        oauth_service.get_copilot_api_key(github_token).await
     }
 }
