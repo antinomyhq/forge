@@ -159,6 +159,7 @@ impl From<ResponseUsage> for Usage {
                 .prompt_tokens_details
                 .map(|token_details| TokenCount::Actual(token_details.cached_tokens))
                 .unwrap_or_default(),
+            context_tokens: TokenCount::Actual(0),
             cost,
         }
     }

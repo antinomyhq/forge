@@ -187,6 +187,7 @@ mod tests {
                     completion_tokens: TokenCount::Actual(5),
                     total_tokens: TokenCount::Actual(15),
                     cached_tokens: TokenCount::Actual(0),
+                    context_tokens: TokenCount::Actual(0),
                     cost: None,
                 })),
             Ok(ChatCompletionMessage::default()
@@ -196,6 +197,7 @@ mod tests {
                     completion_tokens: TokenCount::Actual(10),
                     total_tokens: TokenCount::Actual(20),
                     cached_tokens: TokenCount::Actual(0),
+                    context_tokens: TokenCount::Actual(0),
                     cost: None,
                 })),
         ];
@@ -215,8 +217,10 @@ mod tests {
                 completion_tokens: TokenCount::Actual(10),
                 total_tokens: TokenCount::Actual(20),
                 cached_tokens: TokenCount::Actual(0),
+                context_tokens: TokenCount::Actual(0),
                 cost: None,
             },
+
             reasoning: None,
             reasoning_details: None,
             finish_reason: None,
@@ -417,6 +421,7 @@ mod tests {
                 completion_tokens: TokenCount::Actual(15),
                 total_tokens: TokenCount::Actual(20),
                 cached_tokens: TokenCount::Actual(0),
+                context_tokens: TokenCount::Actual(0),
                 cost: None,
             })),
         ];
@@ -433,8 +438,10 @@ mod tests {
             completion_tokens: TokenCount::Actual(15),
             total_tokens: TokenCount::Actual(20),
             cached_tokens: TokenCount::Actual(0),
+            context_tokens: TokenCount::Actual(0),
             cost: None,
         };
+
         assert_eq!(actual.usage, expected_final_usage);
         assert_eq!(actual.tool_calls.len(), 1);
         assert_eq!(actual.tool_calls[0].name.as_str(), "test_tool");
@@ -457,6 +464,7 @@ mod tests {
                     completion_tokens: TokenCount::Actual(15),
                     total_tokens: TokenCount::Actual(20),
                     cached_tokens: TokenCount::Actual(0),
+                    context_tokens: TokenCount::Actual(0),
                     cost: None,
                 })),
         ];
@@ -477,8 +485,10 @@ mod tests {
                 completion_tokens: TokenCount::Actual(15),
                 total_tokens: TokenCount::Actual(20),
                 cached_tokens: TokenCount::Actual(0),
+                context_tokens: TokenCount::Actual(0),
                 cost: None,
             },
+
             reasoning: None,
             reasoning_details: None,
             finish_reason: None,
@@ -499,6 +509,7 @@ mod tests {
                 completion_tokens: TokenCount::Actual(15),
                 total_tokens: TokenCount::Actual(20),
                 cached_tokens: TokenCount::Actual(0),
+                context_tokens: TokenCount::Actual(0),
                 cost: None,
             })),
         ];
@@ -518,8 +529,10 @@ mod tests {
                 completion_tokens: TokenCount::Actual(15),
                 total_tokens: TokenCount::Actual(20),
                 cached_tokens: TokenCount::Actual(0),
+                context_tokens: TokenCount::Actual(0),
                 cost: None,
             },
+
             reasoning: None,
             reasoning_details: None,
             finish_reason: None,
@@ -639,6 +652,7 @@ mod tests {
                 completion_tokens: TokenCount::Actual(20),
                 total_tokens: TokenCount::Actual(25),
                 cached_tokens: TokenCount::Actual(0),
+                context_tokens: TokenCount::Actual(0),
                 cost: None,
             })),
         ];
