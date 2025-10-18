@@ -1,0 +1,58 @@
+.PHONY: help build run dev clean push shell test
+
+# Variables
+IMAGE_NAME := forge
+IMAGE_TAG := latest
+CONTAINER_NAME := forge-app
+
+help: ## Show this help message
+	@echo 'Usage: make [target]'
+	@echo ''
+	@echo 'Available targets:'
+	@awk 'BEGIN {FS = ":.*##"; printf "\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  %-15s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+
+build: ## Build the Docker image
+	docker build -t $(IMAGE_NAME):$(IMAGE_TAG) .
+
+build-nocache: ## Build the Docker image without cache
+	docker build --no-cache -t $(IMAGE_NAME):$(IMAGE_TAG) .
+
+run: ## Run the container
+	docker run -it --rm \
+		--name $(CONTAINER_NAME) \
+		-v $(PWD)/workspace:/home/forge/workspace \
+		--env-file .env \
+		$(IMAGE_NAME):$(IMAGE_TAG)
+
+dev: ## Run with docker-compose for development
+	docker-compose up --build
+
+dev-bg: ## Run in background with docker-compose
+	docker-compose up -d --build
+
+shell: ## Open a shell in the running container
+	docker exec -it $(CONTAINER_NAME) /bin/bash
+
+logs: ## Show container logs
+	docker-compose logs -f
+
+stop: ## Stop all containers
+	docker-compose down
+
+clean: ## Clean up containers, images, and volumes
+	docker-compose down -v
+	docker rmi $(IMAGE_NAME):$(IMAGE_TAG) || true
+
+test: ## Run tests in container
+	docker run --rm \
+		-v $(PWD):/usr/src \
+		-w /usr/src \
+		rust:1.89-bookworm \
+		cargo test --workspace
+
+lint: ## Run linting in container
+	docker run --rm \
+		-v $(PWD):/usr/src \
+		-w /usr/src \
+		rust:1.89-bookworm \
+		bash -c "cargo +nightly fmt --all --check && cargo +nightly clippy --workspace"
