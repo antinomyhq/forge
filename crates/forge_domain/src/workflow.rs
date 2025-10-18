@@ -3,9 +3,10 @@ use lazy_static::lazy_static;
 use merge::Merge;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
 use crate::temperature::Temperature;
 use crate::update::Update;
-use crate::{Compact, MaxTokens, TopK, TopP, BannerConfig};
+use crate::{BannerConfig, Compact, MaxTokens, TopK, TopP};
 
 /// Configuration for a workflow that contains all settings
 /// required to initialize a workflow.

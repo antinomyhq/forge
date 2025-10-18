@@ -1,7 +1,8 @@
+use std::path::PathBuf;
+
 use merge::Merge;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 
 /// Configuration for banner display behavior
 #[derive(Debug, Clone, JsonSchema, PartialEq)]

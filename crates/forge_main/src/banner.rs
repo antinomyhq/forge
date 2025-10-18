@@ -1,18 +1,34 @@
-use std::io;
+use std::path::Path;
 
+use anyhow::{Context, Result};
 use colored::Colorize;
 use forge_tracker::VERSION;
 
 const BANNER: &str = include_str!("banner");
 
-/// Displays the banner with version and command tips.
+/// Source for banner content
+pub enum BannerSource<'a> {
+    /// Use the default built-in banner
+    Default,
+    /// Use a custom banner from file path
+    File(&'a Path),
+}
+
+/// Displays a banner with version and command tips.
 ///
 /// # Arguments
 ///
+/// * `source` - Banner source (default or custom file path)
 /// * `cli_mode` - If true, shows CLI-relevant commands with `:` prefix. If
 ///   false, shows all interactive commands with `/` prefix.
-pub fn display(cli_mode: bool) -> io::Result<()> {
-    let mut banner = BANNER.to_string();
+pub fn display(source: BannerSource<'_>, cli_mode: bool) -> Result<()> {
+    let banner_content = match source {
+        BannerSource::Default => BANNER.to_string(),
+        BannerSource::File(path) => std::fs::read_to_string(path)
+            .with_context(|| format!("Failed to read custom banner from '{}'", path.display()))?,
+    };
+
+    let mut banner = banner_content;
 
     // Always show version
     let version_label = ("Version:", VERSION);
@@ -59,4 +75,14 @@ pub fn display(cli_mode: bool) -> io::Result<()> {
 
     println!("{banner}\n");
     Ok(())
+}
+
+/// Displays the default banner with version and command tips.
+///
+/// # Arguments
+///
+/// * `cli_mode` - If true, shows CLI-relevant commands with `:` prefix. If
+///   false, shows all interactive commands with `/` prefix.
+pub fn display_default(cli_mode: bool) -> Result<()> {
+    display(BannerSource::Default, cli_mode)
 }

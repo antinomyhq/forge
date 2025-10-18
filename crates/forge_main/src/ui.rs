@@ -71,17 +71,33 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(models)
     }
 
-    /// Displays banner only if user is in interactive mode and hidebanner is not set to true.
-    async fn display_banner(&self) -> Result<()> {
+    /// Displays banner based on configuration if user is in interactive mode.
+    async fn display_banner(&mut self) -> Result<()> {
         if self.cli.is_interactive() {
             match self.api.read_workflow(self.cli.workflow.as_deref()).await {
                 Ok(workflow) => {
-                    if !workflow.hidebanner.unwrap_or(false) {
-                        banner::display(false)?;
+                    match workflow.banner.as_ref() {
+                        Some(forge_domain::BannerConfig::Disabled) => {
+                            // Don't display banner when disabled
+                        }
+                        Some(forge_domain::BannerConfig::Custom(path)) => {
+                            if let Err(e) = banner::display(banner::BannerSource::File(path), false)
+                            {
+                                self.writeln_title(TitleFormat::error(format!(
+                                    "Failed to load custom banner from '{}': {}. Using default banner.",
+                                    path.display(),
+                                    e
+                                )))?;
+                                banner::display_default(false)?;
+                            }
+                        }
+                        Some(forge_domain::BannerConfig::None) | None => {
+                            banner::display_default(false)?;
+                        }
                     }
-                },
+                }
                 Err(_) => {
-                    banner::display(false)?;
+                    banner::display_default(false)?;
                 }
             }
         }
@@ -387,7 +403,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 return Ok(());
             }
             TopLevelCommand::ShowBanner => {
-                banner::display(true)?;
+                banner::display_default(true)?;
                 return Ok(());
             }
             TopLevelCommand::Config(config_group) => {
