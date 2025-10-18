@@ -9,21 +9,18 @@ impl FormatContent for ToolOperation {
     fn to_content(&self, env: &Environment) -> Option<ChatResponseContent> {
         match self {
             ToolOperation::FsRead { input: _, output: _ } => None,
-            ToolOperation::FsCreate { input: _, output: _ } => None,
+            ToolOperation::FsCreate { input, output } => {
+                if let Some(ref before) = output.before {
+                    let after = &input.content;
+                    Some(ChatResponseContent::PlainText(
+                        DiffFormat::format(before, after).diff().to_string(),
+                    ))
+                } else {
+                    None
+                }
+            }
             ToolOperation::FsRemove { input: _, output: _ } => None,
             ToolOperation::FsSearch { input: _, output: _ } => None,
-            // ToolOperation::FsSearch { input: _, output } => output.as_ref().map(|result| {
-            //     ChatResponseContent::PlainText(
-            //         GrepFormat::new(
-            //             result
-            //                 .matches
-            //                 .iter()
-            //                 .map(|matched| format_match(matched, env.cwd.as_path()))
-            //                 .collect::<Vec<_>>(),
-            //         )
-            //         .format(),
-            //     )
-            // }),
             ToolOperation::FsPatch { input: _, output } => Some(ChatResponseContent::PlainText(
                 DiffFormat::format(&output.before, &output.after)
                     .diff()
@@ -33,7 +30,6 @@ impl FormatContent for ToolOperation {
             ToolOperation::NetFetch { input: _, output: _ } => None,
             ToolOperation::Shell { output: _ } => None,
             ToolOperation::FollowUp { output: _ } => None,
-            ToolOperation::AttemptCompletion => None,
             ToolOperation::PlanCreate { input: _, output } => Some({
                 let title = TitleFormat::debug(format!(
                     "Create {}",
@@ -50,6 +46,7 @@ mod tests {
     use std::path::PathBuf;
 
     use console::strip_ansi_codes;
+    use forge_display::DiffFormat;
     use forge_domain::{ChatResponseContent, Environment, PatchOperation, TitleFormat};
     use insta::assert_snapshot;
     use pretty_assertions::assert_eq;
@@ -96,6 +93,7 @@ mod tests {
             forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
             auto_open_dump: false,
             custom_history_path: None,
+            max_conversations: 100,
         }
     }
 
@@ -186,7 +184,11 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
-        let expected = None;
+        let expected = Some(ChatResponseContent::PlainText(
+            DiffFormat::format("old content", "new content")
+                .diff()
+                .to_string(),
+        ));
 
         assert_eq!(actual, expected);
     }
@@ -496,17 +498,6 @@ mod tests {
     #[test]
     fn test_follow_up_no_response() {
         let fixture = ToolOperation::FollowUp { output: None };
-        let env = fixture_environment();
-
-        let actual = fixture.to_content(&env);
-        let expected = None;
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_attempt_completion() {
-        let fixture = ToolOperation::AttemptCompletion;
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);

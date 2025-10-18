@@ -26,8 +26,15 @@ impl<S: AgentService> Compactor<S> {
         context: Context,
         max: bool,
     ) -> anyhow::Result<Context> {
-        if let Some(ref compact) = agent.compact {
+        if let Some(mut compact) = agent.compact.clone() {
             debug!(agent_id = %agent.id, "Context compaction triggered");
+
+            // If compact doesn't have a model but agent does, use agent's model
+            if compact.model.is_none()
+                && let Some(ref agent_model) = agent.model
+            {
+                compact.model = Some(agent_model.clone());
+            }
 
             let eviction = CompactionStrategy::evict(compact.eviction_window);
             let retention = CompactionStrategy::retain(compact.retention_window);
@@ -41,7 +48,7 @@ impl<S: AgentService> Compactor<S> {
             match strategy.eviction_range(&context) {
                 Some(sequence) => {
                     debug!(agent_id = %agent.id, "Compressing sequence");
-                    self.compress_single_sequence(compact, context, sequence)
+                    self.compress_single_sequence(&compact, context, sequence)
                         .await
                 }
                 None => {

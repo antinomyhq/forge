@@ -1,12 +1,76 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use chrono::{NaiveDateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use diesel::prelude::*;
-use forge_domain::{Context, Conversation, ConversationId, MetaData, WorkspaceId};
+use forge_domain::{
+    Context, Conversation, ConversationId, FileChangeMetrics, MetaData, Metrics, WorkspaceId,
+};
 use forge_services::ConversationRepository;
+use serde::{Deserialize, Serialize};
 
 use crate::database::DatabasePool;
 use crate::database::schema::conversations;
+
+/// Database representation of file change metrics
+/// Mirrors `forge_domain::FileChangeMetrics` for compile-time safety
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct FileChangeMetricsRecord {
+    lines_added: u64,
+    lines_removed: u64,
+}
+
+impl From<&FileChangeMetrics> for FileChangeMetricsRecord {
+    fn from(metrics: &FileChangeMetrics) -> Self {
+        Self {
+            lines_added: metrics.lines_added,
+            lines_removed: metrics.lines_removed,
+        }
+    }
+}
+
+impl From<FileChangeMetricsRecord> for FileChangeMetrics {
+    fn from(record: FileChangeMetricsRecord) -> Self {
+        Self {
+            lines_added: record.lines_added,
+            lines_removed: record.lines_removed,
+        }
+    }
+}
+
+/// Database representation of session metrics
+/// Mirrors `forge_domain::Metrics` for compile-time safety
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct MetricsRecord {
+    started_at: Option<DateTime<Utc>>,
+    files_changed: HashMap<String, FileChangeMetricsRecord>,
+}
+
+impl From<&Metrics> for MetricsRecord {
+    fn from(metrics: &Metrics) -> Self {
+        Self {
+            started_at: metrics.started_at,
+            files_changed: metrics
+                .files_changed
+                .iter()
+                .map(|(path, file_metrics)| (path.clone(), file_metrics.into()))
+                .collect(),
+        }
+    }
+}
+
+impl From<MetricsRecord> for Metrics {
+    fn from(record: MetricsRecord) -> Self {
+        let mut metrics = Self::new();
+        metrics.started_at = record.started_at;
+        metrics.files_changed = record
+            .files_changed
+            .into_iter()
+            .map(|(path, file_record)| (path, file_record.into()))
+            .collect();
+        metrics
+    }
+}
 
 // Database model for conversations table
 #[derive(Debug, Queryable, Selectable, Insertable, AsChangeset)]
@@ -19,6 +83,7 @@ struct ConversationRecord {
     context: Option<String>,
     created_at: NaiveDateTime,
     updated_at: Option<NaiveDateTime>,
+    metrics: Option<String>,
 }
 
 impl ConversationRecord {
@@ -29,6 +94,8 @@ impl ConversationRecord {
             .filter(|ctx| !ctx.messages.is_empty())
             .and_then(|ctx| serde_json::to_string(ctx).ok());
         let updated_at = context.as_ref().map(|_| Utc::now().naive_utc());
+        let metrics_record = MetricsRecord::from(&conversation.metrics);
+        let metrics = serde_json::to_string(&metrics_record).ok();
 
         Self {
             conversation_id: conversation.id.into_string(),
@@ -37,6 +104,7 @@ impl ConversationRecord {
             created_at: conversation.metadata.created_at.naive_utc(),
             updated_at,
             workspace_id: workspace_id.id() as i64,
+            metrics,
         }
     }
 }
@@ -48,9 +116,18 @@ impl TryFrom<ConversationRecord> for Conversation {
         let context = record
             .context
             .and_then(|ctx| serde_json::from_str::<Context>(&ctx).ok());
+
+        // Deserialize metrics using MetricsRecord for compile-time safety
+        let metrics = record
+            .metrics
+            .and_then(|m| serde_json::from_str::<MetricsRecord>(&m).ok())
+            .map(Metrics::from)
+            .unwrap_or_else(|| Metrics::new().with_time(record.created_at.and_utc()));
+
         Ok(Conversation::new(id)
             .context(context)
             .title(record.title)
+            .metrics(metrics)
             .metadata(
                 MetaData::new(record.created_at.and_utc())
                     .updated_at(record.updated_at.map(|updated_at| updated_at.and_utc())),
@@ -84,6 +161,7 @@ impl ConversationRepository for ConversationRepositoryImpl {
                 conversations::title.eq(&record.title),
                 conversations::context.eq(&record.context),
                 conversations::updated_at.eq(record.updated_at),
+                conversations::metrics.eq(&record.metrics),
             ))
             .execute(&mut connection)?;
         Ok(())
@@ -378,6 +456,7 @@ mod tests {
             created_at: Utc::now().naive_utc(),
             updated_at: None,
             workspace_id: 0,
+            metrics: None,
         };
 
         let actual = Conversation::try_from(fixture)?;
@@ -386,5 +465,59 @@ mod tests {
         assert_eq!(actual.title, Some("Test Conversation".to_string()));
         assert_eq!(actual.context, None);
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_upsert_and_retrieve_conversation_with_metrics() -> anyhow::Result<()> {
+        let repo = repository()?;
+
+        // Create a conversation with metrics
+        let mut metrics = Metrics::new().with_time(Utc::now());
+        metrics.record_file_operation("src/main.rs".to_string(), 10, 5);
+        metrics.record_file_operation("src/lib.rs".to_string(), 3, 2);
+
+        let fixture = Conversation::generate().metrics(metrics.clone());
+
+        // Save the conversation
+        repo.upsert_conversation(fixture.clone()).await?;
+
+        // Retrieve the conversation
+        let actual = repo
+            .get_conversation(&fixture.id)
+            .await?
+            .expect("Conversation should exist");
+
+        // Verify metrics are preserved
+        assert_eq!(actual.metrics.files_changed.len(), 2);
+        let main_metrics = actual.metrics.files_changed.get("src/main.rs").unwrap();
+        assert_eq!(main_metrics.lines_added, 10);
+        assert_eq!(main_metrics.lines_removed, 5);
+
+        let lib_metrics = actual.metrics.files_changed.get("src/lib.rs").unwrap();
+        assert_eq!(lib_metrics.lines_added, 3);
+        assert_eq!(lib_metrics.lines_removed, 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_metrics_record_conversion_preserves_all_fields() {
+        // This test ensures compile-time safety: if Metrics schema changes,
+        // this test will fail to compile, alerting us to update MetricsRecord
+        let mut fixture = Metrics::new().with_time(Utc::now());
+        fixture.record_file_operation("test.rs".to_string(), 5, 3);
+
+        // Convert to record and back
+        let record = MetricsRecord::from(&fixture);
+        let actual = Metrics::from(record);
+
+        // Verify all fields are preserved
+        assert_eq!(actual.started_at, fixture.started_at);
+        assert_eq!(actual.files_changed.len(), fixture.files_changed.len());
+
+        let actual_file = actual.files_changed.get("test.rs").unwrap();
+        let expected_file = fixture.files_changed.get("test.rs").unwrap();
+        assert_eq!(actual_file.lines_added, expected_file.lines_added);
+        assert_eq!(actual_file.lines_removed, expected_file.lines_removed);
     }
 }
