@@ -2,6 +2,7 @@ mod agent_loader;
 mod attachment;
 mod auth;
 mod clipper;
+mod command_loader;
 mod custom_instructions;
 mod error;
 
@@ -22,6 +23,7 @@ mod workflow;
 
 pub use agent_loader::*;
 pub use clipper::*;
+pub use command_loader::*;
 pub use custom_instructions::*;
 pub use discovery::*;
 pub use error::*;

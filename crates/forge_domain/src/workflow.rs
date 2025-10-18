@@ -25,7 +25,7 @@ pub struct Workflow {
     pub updates: Option<Update>,
 
     /// Commands that can be used to interact with the workflow
-    #[merge(strategy = crate::merge::vec::append)]
+    #[merge(strategy = merge::vec::append)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub commands: Vec<Command>,
 
@@ -155,7 +155,6 @@ impl Workflow {
     /// scratch.
     pub fn new() -> Self {
         Self {
-            commands: Vec::new(),
             max_walker_depth: None,
             custom_rules: None,
             temperature: None,
@@ -168,6 +167,7 @@ impl Workflow {
             max_tool_failure_per_turn: None,
             max_requests_per_turn: None,
             compact: None,
+            commands: vec![],
         }
     }
 }
@@ -187,7 +187,6 @@ mod tests {
         let actual = Workflow::new();
 
         // Assert
-        assert!(actual.commands.is_empty());
         assert_eq!(actual.max_walker_depth, None);
         assert_eq!(actual.custom_rules, None);
         assert_eq!(actual.temperature, None);

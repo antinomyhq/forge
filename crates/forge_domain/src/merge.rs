@@ -12,7 +12,6 @@ pub mod vec {
     use std::collections::HashMap;
 
     use merge::Merge;
-    pub use merge::vec::*;
 
     use super::Key;
 

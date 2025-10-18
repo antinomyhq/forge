@@ -122,4 +122,7 @@ pub trait API: Sync + Send {
 
     /// Refresh MCP caches by fetching fresh data
     async fn reload_mcp(&self) -> Result<()>;
+
+    /// List of commands defined in .md file(s)
+    async fn get_commands(&self) -> Result<Vec<Command>>;
 }

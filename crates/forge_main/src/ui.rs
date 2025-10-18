@@ -1267,6 +1267,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         if first {
             // only call on_update if this is the first initialization
             on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
+            if !workflow.commands.is_empty() {
+                self.writeln_title(TitleFormat::error("Commands defined in forge.yaml are ignored, they must be defined in .md files in ~/forge/commands/ dir"))?;
+            }
         }
 
         // Execute independent operations in parallel to improve performance
@@ -1304,6 +1307,19 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Finalize UI state initialization by registering commands and setting up the
         // state
         self.command.register_all(&base_workflow);
+
+        // Register workflow commands from API
+        match self.api.get_commands().await {
+            Ok(workflow_commands) => {
+                self.command.register_commands(workflow_commands);
+            }
+            Err(e) => {
+                self.writeln_title(TitleFormat::error(format!(
+                    "Failed to load workflow commands: {e}"
+                )))?;
+            }
+        }
+
         let operating_model = self.api.get_operating_model().await;
         self.state = UIState::new(self.api.environment());
         self.update_model(operating_model);

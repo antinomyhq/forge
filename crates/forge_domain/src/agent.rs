@@ -11,8 +11,8 @@ use crate::merge::Key;
 use crate::temperature::Temperature;
 use crate::template::Template;
 use crate::{
-    Context, Error, EventContext, MaxTokens, ModelId, Result, SystemContext, ToolDefinition,
-    ToolName, TopK, TopP, Workflow,
+    Command, Context, Error, EventContext, MaxTokens, ModelId, Result, SystemContext,
+    ToolDefinition, ToolName, TopK, TopP, Workflow,
 };
 
 // Unique identifier for an agent
@@ -297,7 +297,7 @@ impl Agent {
     }
 
     /// Helper to prepare agents with workflow settings
-    pub fn apply_workflow_config(self, workflow: &Workflow) -> Agent {
+    pub fn apply_workflow_config(self, workflow: &Workflow, commands: &[Command]) -> Agent {
         let mut agent = self;
         if let Some(custom_rules) = workflow.custom_rules.clone() {
             if let Some(existing_rules) = &agent.custom_rules {
@@ -358,11 +358,7 @@ impl Agent {
 
         // Subscribe the main agent to all commands
         if agent.id == AgentId::default() {
-            let commands = workflow
-                .commands
-                .iter()
-                .map(|c| c.name.clone())
-                .collect::<Vec<_>>();
+            let commands = commands.iter().map(|c| c.name.clone()).collect::<Vec<_>>();
             if let Some(ref mut subscriptions) = agent.subscribe {
                 subscriptions.extend(commands);
             } else {
