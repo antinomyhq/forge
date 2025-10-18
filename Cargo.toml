@@ -2,6 +2,14 @@
 members = ["crates/*"]
 resolver = "2"
 
+[profile.dev]
+# Optimize dependencies but not our code for faster debug builds
+opt-level = 1
+# Maximum parallel compilation across cores
+codegen-units = 256
+# Keep incremental compilation enabled
+incremental = true
+
 [profile.release]
 lto = true
 codegen-units = 1
