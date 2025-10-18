@@ -129,19 +129,6 @@ pub trait API: Sync + Send {
 
     // Provider credential management
     async fn list_provider_credentials(&self) -> Result<Vec<ProviderCredential>>;
-    async fn get_provider_credential(
-        &self,
-        provider_id: &ProviderId,
-    ) -> Result<Option<ProviderCredential>>;
-    async fn upsert_provider_credential(&self, credential: ProviderCredential) -> Result<()>;
-    async fn delete_provider_credential(&self, provider_id: &ProviderId) -> Result<()>;
-
-    /// Validates a provider credential
-    /// Returns true if valid, false if invalid, error if inconclusive
-    async fn validate_provider_credential(&self, credential: &ProviderCredential) -> Result<bool>;
-
-    /// Updates the last_verified_at timestamp for a credential
-    async fn mark_credential_verified(&self, provider_id: &ProviderId) -> Result<()>;
 
     // High-level provider authentication methods (use metadata-driven flow)
 

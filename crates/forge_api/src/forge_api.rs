@@ -253,55 +253,6 @@ impl<
         self.infra.get_all_credentials().await
     }
 
-    async fn get_provider_credential(
-        &self,
-        provider_id: &ProviderId,
-    ) -> Result<Option<ProviderCredential>> {
-        self.infra.get_credential(provider_id).await
-    }
-
-    async fn upsert_provider_credential(&self, credential: ProviderCredential) -> Result<()> {
-        self.infra.upsert_credential(credential).await
-    }
-
-    async fn delete_provider_credential(&self, provider_id: &ProviderId) -> Result<()> {
-        self.infra.delete_credential(provider_id).await
-    }
-
-    async fn validate_provider_credential(&self, credential: &ProviderCredential) -> Result<bool> {
-        use forge_services::provider::validation::{
-            ForgeProviderValidationService, ValidationResult,
-        };
-
-        // Get the provider to access validation URL
-        let providers = self.providers().await?;
-        let provider = providers
-            .iter()
-            .find(|p| p.id == credential.provider_id)
-            .ok_or_else(|| anyhow::anyhow!("Provider not found: {}", credential.provider_id))?;
-
-        // Create validation service and validate
-        let validation_service = ForgeProviderValidationService::new(self.infra.clone());
-        let result = validation_service
-            .validate_credential(&credential.provider_id, credential, &provider.model_url)
-            .await?;
-
-        match result {
-            ValidationResult::Valid => Ok(true),
-            ValidationResult::Invalid(msg) => Err(anyhow::anyhow!("Invalid credentials: {}", msg)),
-            ValidationResult::TokenExpired => Err(anyhow::anyhow!("OAuth token has expired")),
-            ValidationResult::Inconclusive(msg) => {
-                // For inconclusive results, we'll treat as an error but with a different
-                // message
-                Err(anyhow::anyhow!("Could not validate credentials: {}", msg))
-            }
-        }
-    }
-
-    async fn mark_credential_verified(&self, provider_id: &ProviderId) -> Result<()> {
-        self.infra.mark_verified(provider_id).await
-    }
-
     // High-level provider authentication methods
     async fn add_provider_api_key(
         &self,
