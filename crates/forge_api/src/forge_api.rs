@@ -13,7 +13,7 @@ use forge_app::{
 use forge_domain::*;
 use forge_infra::ForgeInfra;
 use forge_services::provider::{
-    ImportSummary, OAuthDeviceDisplay, ValidationOutcome, ValidationResult,
+    ImportSummary, OAuthDeviceDisplay, ProviderMetadataService, ValidationOutcome, ValidationResult,
 };
 use forge_services::{
     AppConfigRepository, CommandInfra, EnvironmentInfra, ForgeServices, HttpInfra, OAuthFlowInfra,
@@ -406,23 +406,7 @@ impl<
     ) -> Result<ImportSummary> {
         let mut summary = ImportSummary::new();
 
-        let all_provider_ids = vec![
-            ProviderId::Forge,
-            ProviderId::GithubCopilot,
-            ProviderId::OpenAI,
-            ProviderId::Anthropic,
-            ProviderId::OpenRouter,
-            ProviderId::Requesty,
-            ProviderId::Zai,
-            ProviderId::ZaiCoding,
-            ProviderId::Cerebras,
-            ProviderId::Xai,
-            ProviderId::VertexAi,
-            ProviderId::BigModel,
-            ProviderId::Azure,
-        ];
-
-        for provider_id in all_provider_ids {
+        for provider_id in ProviderMetadataService::provider_ids() {
             if let Some(filter_id) = filter
                 && filter_id != provider_id
             {

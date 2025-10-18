@@ -17,13 +17,13 @@ use crate::{
 };
 
 #[derive(Debug, Deserialize)]
-struct ProviderConfig {
-    id: ProviderId,
-    api_key_vars: String,
-    url_param_vars: Vec<String>,
-    response_type: ProviderResponse,
-    url: String,
-    model_url: String,
+pub(crate) struct ProviderConfig {
+    pub(crate) id: ProviderId,
+    pub(crate) api_key_vars: String,
+    pub(crate) url_param_vars: Vec<String>,
+    pub(crate) response_type: ProviderResponse,
+    pub(crate) url: String,
+    pub(crate) model_url: String,
 }
 
 static HANDLEBARS: OnceLock<Handlebars<'static>> = OnceLock::new();
@@ -34,13 +34,19 @@ fn get_handlebars() -> &'static Handlebars<'static> {
     HANDLEBARS.get_or_init(Handlebars::new)
 }
 
-fn get_provider_configs() -> &'static Vec<ProviderConfig> {
+pub(crate) fn get_provider_configs() -> &'static Vec<ProviderConfig> {
     PROVIDER_CONFIGS.get_or_init(|| {
         let json_str = include_str!("provider.json");
         serde_json::from_str(json_str)
             .map_err(|e| anyhow::anyhow!("Failed to parse provider configs: {}", e))
             .unwrap()
     })
+}
+
+pub(crate) fn get_provider_config(provider_id: &ProviderId) -> Option<&'static ProviderConfig> {
+    get_provider_configs()
+        .iter()
+        .find(|config| &config.id == provider_id)
 }
 
 fn get_env_var_warnings() -> &'static Mutex<HashSet<ProviderId>> {

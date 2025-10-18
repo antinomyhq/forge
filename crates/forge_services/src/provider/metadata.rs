@@ -5,7 +5,7 @@
 /// variable names, and display names.
 use forge_app::dto::ProviderId;
 
-use super::{AuthMethod, AuthMethodType, OAuthConfig};
+use super::{AuthMethod, AuthMethodType, OAuthConfig, registry};
 
 /// Provider metadata containing configuration for authentication and display
 pub struct ProviderMetadata {
@@ -71,24 +71,16 @@ impl ProviderMetadataService {
     /// # Arguments
     /// * `provider_id` - The provider to get environment variables for
     pub fn get_env_var_names(provider_id: &ProviderId) -> Vec<String> {
-        match provider_id {
-            ProviderId::Forge => vec!["FORGE_API_KEY".to_string()],
-            ProviderId::GithubCopilot => vec![
-                "GITHUB_COPILOT_API_KEY".to_string(),
-                "GITHUB_TOKEN".to_string(),
-            ],
-            ProviderId::OpenAI => vec!["OPENAI_API_KEY".to_string()],
-            ProviderId::Anthropic => vec!["ANTHROPIC_API_KEY".to_string()],
-            ProviderId::OpenRouter => vec!["OPENROUTER_API_KEY".to_string()],
-            ProviderId::Requesty => vec!["REQUESTY_API_KEY".to_string()],
-            ProviderId::Zai => vec!["ZAI_API_KEY".to_string()],
-            ProviderId::ZaiCoding => vec!["ZAI_CODING_API_KEY".to_string()],
-            ProviderId::Cerebras => vec!["CEREBRAS_API_KEY".to_string()],
-            ProviderId::Xai => vec!["XAI_API_KEY".to_string()],
-            ProviderId::VertexAi => vec!["VERTEX_AI_AUTH_TOKEN".to_string()],
-            ProviderId::BigModel => vec!["BIG_MODEL_API_KEY".to_string()],
-            ProviderId::Azure => vec!["AZURE_API_KEY".to_string()],
-        }
+        registry::get_provider_config(provider_id)
+            .and_then(|config| {
+                let key = config.api_key_vars.trim();
+                if key.is_empty() {
+                    None
+                } else {
+                    Some(vec![key.to_string()])
+                }
+            })
+            .unwrap_or_default()
     }
 
     /// Get the primary OAuth authentication method for a provider
@@ -146,6 +138,14 @@ impl ProviderMetadataService {
             display_name: Self::get_display_name(provider_id),
         }
     }
+
+    /// Get provider identifiers defined in the registry configuration.
+    pub fn provider_ids() -> Vec<ProviderId> {
+        registry::get_provider_configs()
+            .iter()
+            .map(|config| config.id)
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -196,7 +196,7 @@ mod tests {
         assert_eq!(vars, vec!["OPENAI_API_KEY"]);
 
         let vars = ProviderMetadataService::get_env_var_names(&ProviderId::GithubCopilot);
-        assert_eq!(vars, vec!["GITHUB_COPILOT_API_KEY", "GITHUB_TOKEN"]);
+        assert_eq!(vars, vec!["GITHUB_COPILOT_API_KEY"]);
 
         let vars = ProviderMetadataService::get_env_var_names(&ProviderId::Anthropic);
         assert_eq!(vars, vec!["ANTHROPIC_API_KEY"]);
@@ -225,10 +225,7 @@ mod tests {
         assert_eq!(metadata.provider_id, ProviderId::GithubCopilot);
         assert_eq!(metadata.display_name, "GitHub Copilot");
         assert_eq!(metadata.auth_methods.len(), 1);
-        assert_eq!(
-            metadata.env_var_names,
-            vec!["GITHUB_COPILOT_API_KEY", "GITHUB_TOKEN"]
-        );
+        assert_eq!(metadata.env_var_names, vec!["GITHUB_COPILOT_API_KEY"]);
     }
 
     #[test]
@@ -271,5 +268,41 @@ mod tests {
                 provider_id
             );
         }
+    }
+
+    #[test]
+    fn test_metadata_and_registry_provider_ids_are_in_sync() {
+        use std::collections::BTreeSet;
+
+        let registry_ids = super::registry::get_provider_configs()
+            .iter()
+            .map(|config| config.id)
+            .collect::<BTreeSet<_>>();
+        let metadata_ids = ProviderMetadataService::provider_ids()
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(
+            metadata_ids, registry_ids,
+            "Metadata provider list differs from provider.json"
+        );
+    }
+
+    #[test]
+    fn test_provider_enum_matches_provider_json() {
+        use std::collections::BTreeSet;
+
+        use strum::IntoEnumIterator;
+
+        let enum_ids = ProviderId::iter().collect::<BTreeSet<_>>();
+        let registry_ids = super::registry::get_provider_configs()
+            .iter()
+            .map(|config| config.id)
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(
+            enum_ids, registry_ids,
+            "ProviderId enum differs from provider.json definitions"
+        );
     }
 }

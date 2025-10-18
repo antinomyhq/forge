@@ -713,6 +713,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         use colored::Colorize;
         use forge_app::dto::ProviderId;
+        use forge_services::provider::ProviderMetadataService;
 
         println!("\n{}", "Import Credentials from Environment".bold());
         println!("{}", "─".repeat(50).dimmed());
@@ -723,10 +724,45 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .transpose()
             .map_err(|_| anyhow::anyhow!("Invalid provider ID"))?;
 
+        let provider_ids = if let Some(id) = filter {
+            vec![id]
+        } else {
+            ProviderMetadataService::provider_ids()
+        };
+
+        if provider_ids.is_empty() {
+            println!(
+                "{}",
+                "No providers available for environment import.".yellow()
+            );
+            return Ok(());
+        }
+
+        println!("Environment variables to scan:");
+        for provider_id in &provider_ids {
+            let metadata = ProviderMetadataService::get_metadata(provider_id);
+            if metadata.env_var_names.is_empty() {
+                println!(
+                    "  {} {} (No environment import support)",
+                    "•".dimmed(),
+                    provider_id
+                );
+            } else {
+                println!(
+                    "  {} {} ({}): {}",
+                    "•".dimmed(),
+                    provider_id,
+                    metadata.display_name,
+                    metadata.env_var_names.join(", ")
+                );
+            }
+        }
+        println!();
+
         // Confirm import (unless --yes flag)
         if !yes {
-            let msg = if let Some(ref id) = filter {
-                format!("Import {} credentials from environment?", id)
+            let msg = if provider_ids.len() == 1 {
+                format!("Import {} credentials from environment?", provider_ids[0])
             } else {
                 "Import all provider credentials from environment?".to_string()
             };

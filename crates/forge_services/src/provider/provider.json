@@ -9,7 +9,7 @@
   },
   {
     "id": "github_copilot",
-    "api_key_vars": "",
+    "api_key_vars": "GITHUB_COPILOT_API_KEY",
     "url_param_vars": [],
     "response_type": "OpenAI",
     "url": "https://api.githubcopilot.com/chat/completions",
