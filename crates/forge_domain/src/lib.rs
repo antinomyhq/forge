@@ -1,5 +1,6 @@
 mod agent;
 mod attachment;
+mod banner;
 mod chat_request;
 mod chat_response;
 mod compact;
@@ -50,6 +51,7 @@ mod xml;
 
 pub use agent::*;
 pub use attachment::*;
+pub use banner::*;
 pub use chat_request::*;
 pub use chat_response::*;
 pub use compact::*;

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::temperature::Temperature;
 use crate::update::Update;
-use crate::{Compact, MaxTokens, TopK, TopP};
+use crate::{BannerConfig, Compact, MaxTokens, TopK, TopP};
 
 /// Configuration for a workflow that contains all settings
 /// required to initialize a workflow.
@@ -123,6 +123,13 @@ pub struct Workflow {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub compact: Option<Compact>,
+    /// Configuration for banner display behavior
+    /// If not specified, shows the default banner
+    /// Can be set to "disabled" to hide banner or a file path for custom banner
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub banner: Option<BannerConfig>,
 }
 
 lazy_static! {
@@ -168,6 +175,7 @@ impl Workflow {
             max_tool_failure_per_turn: None,
             max_requests_per_turn: None,
             compact: None,
+            banner: None,
         }
     }
 }
@@ -196,6 +204,7 @@ mod tests {
         assert_eq!(actual.max_tokens, None);
         assert_eq!(actual.tool_supported, None);
         assert_eq!(actual.compact, None);
+        assert_eq!(actual.banner, None);
     }
 
     #[test]

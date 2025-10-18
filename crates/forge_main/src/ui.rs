@@ -67,10 +67,35 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(models)
     }
 
-    /// Displays banner only if user is in interactive mode.
-    fn display_banner(&self) -> Result<()> {
+    /// Displays banner based on configuration if user is in interactive mode.
+    async fn display_banner(&mut self) -> Result<()> {
         if self.cli.is_interactive() {
-            banner::display(false)?;
+            match self.api.read_workflow(self.cli.workflow.as_deref()).await {
+                Ok(workflow) => {
+                    match workflow.banner.as_ref() {
+                        Some(forge_domain::BannerConfig::Disabled) => {
+                            // Don't display banner when disabled
+                        }
+                        Some(forge_domain::BannerConfig::Custom(path)) => {
+                            if let Err(e) = banner::display(banner::BannerSource::File(path), false)
+                            {
+                                self.writeln_title(TitleFormat::error(format!(
+                                    "Failed to load custom banner from '{}': {}. Using default banner.",
+                                    path.display(),
+                                    e
+                                )))?;
+                                banner::display_default(false)?;
+                            }
+                        }
+                        Some(forge_domain::BannerConfig::None) | None => {
+                            banner::display_default(false)?;
+                        }
+                    }
+                }
+                Err(_) => {
+                    banner::display_default(false)?;
+                }
+            }
         }
         Ok(())
     }
@@ -83,7 +108,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Reset previously set CLI parameters by the user
         self.cli.conversation = None;
 
-        self.display_banner()?;
+        self.display_banner().await?;
         self.trace_user();
         self.hydrate_caches();
         Ok(())
@@ -169,8 +194,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return self.handle_subcommands(mcp).await;
         }
 
-        // Display the banner in dimmed colors since we're in interactive mode
-        self.display_banner()?;
+        // Handle --generate-conversation-id flag
+        if self.cli.generate_conversation_id {
+            return self.handle_generate_conversation_id().await;
+        }
+
+        // // Display the banner in dimmed colors since we're in interactive mode
+        self.display_banner().await?;
         self.init_state(true).await?;
         self.trace_user();
         self.hydrate_caches();
@@ -363,8 +393,28 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_info(porcelain).await?;
                 return Ok(());
             }
-            TopLevelCommand::Banner => {
-                banner::display(true)?;
+            TopLevelCommand::ShowAgents => {
+                self.on_show_agents().await?;
+                return Ok(());
+            }
+            TopLevelCommand::ShowProviders => {
+                self.on_show_providers().await?;
+                return Ok(());
+            }
+            TopLevelCommand::ShowModels => {
+                self.on_show_models().await?;
+                return Ok(());
+            }
+            TopLevelCommand::ShowCommands => {
+                self.on_show_commands().await?;
+                return Ok(());
+            }
+            TopLevelCommand::ShowTools { agent } => {
+                self.on_show_tools(agent).await?;
+                return Ok(());
+            }
+            TopLevelCommand::ShowBanner => {
+                banner::display_default(true)?;
                 return Ok(());
             }
             TopLevelCommand::Config(config_group) => {
