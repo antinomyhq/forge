@@ -14,7 +14,7 @@ use crate::truncation::{
     Stderr, Stdout, TruncationMode, truncate_fetch_content, truncate_search_output,
     truncate_shell_output,
 };
-use crate::utils::format_display_path;
+use crate::utils::{compute_hash, format_display_path};
 use crate::{
     Content, FsCreateOutput, FsRemoveOutput, FsUndoOutput, HttpResponse, PatchOutput,
     PlanCreateOutput, ReadOutput, ResponseContext, SearchResult, ShellOutput,
@@ -32,15 +32,16 @@ struct FileOperationStats {
     lines_added: u64,
     lines_removed: u64,
     operation_type: OperationType,
+    file_hash: Option<String>,
 }
 
 fn file_change_stats(operation: FileOperationStats, metrics: &mut Metrics) {
     tracing::info!(path = %operation.path, type = %operation.tool_name, lines_added = %operation.lines_added, lines_removed = %operation.lines_removed, "File change stats");
-
     match operation.operation_type {
         OperationType::Undo => {
             metrics.record_file_undo(
                 operation.path,
+                operation.file_hash,
                 operation.lines_added,
                 operation.lines_removed,
             );
@@ -48,6 +49,7 @@ fn file_change_stats(operation: FileOperationStats, metrics: &mut Metrics) {
         OperationType::Change => {
             metrics.record_file_operation(
                 operation.path,
+                operation.file_hash,
                 operation.lines_added,
                 operation.lines_removed,
             );
@@ -241,6 +243,7 @@ impl ToolOperation {
                     &input.content,
                 );
                 let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
+                let file_hash = Some(compute_hash(&input.content));
 
                 file_change_stats(
                     FileOperationStats {
@@ -249,6 +252,7 @@ impl ToolOperation {
                         lines_added: diff_result.lines_added(),
                         lines_removed: diff_result.lines_removed(),
                         operation_type: OperationType::Change,
+                        file_hash,
                     },
                     metrics,
                 );
@@ -270,6 +274,9 @@ impl ToolOperation {
                 forge_domain::ToolOutput::text(elm)
             }
             ToolOperation::FsRemove { input, output } => {
+                // None since file was removed
+                let file_hash = None;
+
                 file_change_stats(
                     FileOperationStats {
                         path: input.path.clone(),
@@ -277,6 +284,7 @@ impl ToolOperation {
                         lines_added: 0,
                         lines_removed: output.content.lines().count() as u64,
                         operation_type: OperationType::Change,
+                        file_hash,
                     },
                     metrics,
                 );
@@ -353,6 +361,8 @@ impl ToolOperation {
             ToolOperation::FsPatch { input, output } => {
                 let diff_result = DiffFormat::format(&output.before, &output.after);
                 let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
+                let file_hash = Some(compute_hash(&output.after));
+
                 let mut elm = Element::new("file_diff")
                     .attr("path", &input.path)
                     .attr("total_lines", output.after.lines().count())
@@ -369,6 +379,7 @@ impl ToolOperation {
                         lines_added: diff_result.lines_added(),
                         lines_removed: diff_result.lines_removed(),
                         operation_type: OperationType::Change,
+                        file_hash,
                     },
                     metrics,
                 );
@@ -382,6 +393,7 @@ impl ToolOperation {
                     output.after_undo.as_deref().unwrap_or(""),
                     output.before_undo.as_deref().unwrap_or(""),
                 );
+                let file_hash = Some(compute_hash(output.after_undo.as_deref().unwrap_or("")));
 
                 file_change_stats(
                     FileOperationStats {
@@ -390,6 +402,7 @@ impl ToolOperation {
                         lines_added: diff.lines_added(),
                         lines_removed: diff.lines_removed(),
                         operation_type: OperationType::Undo,
+                        file_hash,
                     },
                     metrics,
                 );

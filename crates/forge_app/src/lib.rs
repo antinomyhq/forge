@@ -5,6 +5,7 @@ mod authenticator;
 mod compact;
 pub mod dto;
 mod error;
+mod file_tracking;
 mod fmt;
 mod mcp_executor;
 mod operation;
@@ -29,6 +30,7 @@ pub use error::*;
 pub use services::*;
 pub use tool_resolver::*;
 pub use user::*;
+pub use utils::compute_hash;
 pub use walker::*;
 pub mod domain {
     pub use forge_domain::*;
