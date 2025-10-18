@@ -78,22 +78,24 @@ use crate::infra::ProviderCredentialRepository;
 /// It uses `ProviderMetadataService` to get OAuth configurations and
 /// environment variable names, ensuring no hardcoded configuration in the
 /// authentication logic.
-pub struct ProviderAuthenticator<S> {
+pub struct ProviderAuthenticator<S, I> {
     services: Arc<S>,
+    infra: Arc<I>,
 }
 
-impl<S> ProviderAuthenticator<S>
+impl<S, I> ProviderAuthenticator<S, I>
 where
-    S: ProviderCredentialRepository + ProviderRegistry + crate::infra::HttpInfra + Send + Sync,
+    S: ProviderRegistry + Send + Sync,
+    I: ProviderCredentialRepository + crate::infra::HttpInfra + Send + Sync,
 {
     /// Creates a new provider authenticator
     ///
     /// # Arguments
     ///
-    /// * `services` - Services providing credential storage and provider
-    ///   registry
-    pub fn new(services: Arc<S>) -> Self {
-        Self { services }
+    /// * `services` - Services providing provider registry
+    /// * `infra` - Infrastructure providing credential storage and HTTP client
+    pub fn new(services: Arc<S>, infra: Arc<I>) -> Self {
+        Self { services, infra }
     }
 
     /// Add an API key credential with optional validation
@@ -130,8 +132,7 @@ where
                 .ok_or_else(|| anyhow::anyhow!("Provider {} not found", provider_id))?;
 
             // Validate credential
-            let validation_service =
-                ForgeProviderValidationService::new(Arc::clone(&self.services));
+            let validation_service = ForgeProviderValidationService::new(Arc::clone(&self.infra));
             let result = validation_service
                 .validate_credential(&provider_id, &credential, &provider.model_url)
                 .await?;
@@ -139,7 +140,7 @@ where
             match result {
                 ValidationResult::Valid => {
                     // Save and return success
-                    self.services.upsert_credential(credential).await?;
+                    self.infra.upsert_credential(credential).await?;
                     Ok(ValidationOutcome::success_with_message(
                         "API key validated and saved",
                     ))
@@ -150,7 +151,7 @@ where
                 ))),
                 ValidationResult::Inconclusive(msg) => {
                     // Save anyway but warn user
-                    self.services.upsert_credential(credential).await?;
+                    self.infra.upsert_credential(credential).await?;
                     Ok(ValidationOutcome::success_with_message(format!(
                         "API key saved (validation inconclusive: {})",
                         msg
@@ -162,7 +163,7 @@ where
             }
         } else {
             // Skip validation, save directly
-            self.services.upsert_credential(credential).await?;
+            self.infra.upsert_credential(credential).await?;
             Ok(ValidationOutcome::success_with_message(
                 "API key saved without validation",
             ))
@@ -224,7 +225,7 @@ where
             .await?;
 
         // Save credential
-        self.services.upsert_credential(credential).await?;
+        self.infra.upsert_credential(credential).await?;
 
         Ok(())
     }
@@ -341,7 +342,7 @@ where
                 Some(key) => {
                     // Create and save credential
                     let credential = ProviderCredential::new_api_key(provider_id, key);
-                    match self.services.upsert_credential(credential).await {
+                    match self.infra.upsert_credential(credential).await {
                         Ok(_) => summary.imported.push(provider_id),
                         Err(e) => summary.failed.push((provider_id, e.to_string())),
                     }

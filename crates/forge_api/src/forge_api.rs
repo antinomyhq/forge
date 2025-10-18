@@ -40,10 +40,8 @@ impl ForgeAPI<ForgeServices<ForgeInfra>, ForgeInfra> {
 }
 
 #[async_trait::async_trait]
-impl<
-    A: Services + ProviderCredentialRepository + HttpInfra,
-    F: CommandInfra + AppConfigRepository + ProviderCredentialRepository + HttpInfra,
-> API for ForgeAPI<A, F>
+impl<A: Services, F: CommandInfra + AppConfigRepository + ProviderCredentialRepository + HttpInfra>
+    API for ForgeAPI<A, F>
 {
     async fn discover(&self) -> Result<Vec<File>> {
         let environment = self.services.get_environment();
@@ -301,7 +299,7 @@ impl<
     ) -> Result<ValidationOutcome> {
         use forge_services::provider::ProviderAuthenticator;
 
-        let authenticator = ProviderAuthenticator::new(self.services.clone());
+        let authenticator = ProviderAuthenticator::new(self.services.clone(), self.infra.clone());
         authenticator
             .add_api_key_credential(provider_id, api_key, skip_validation)
             .await
@@ -317,7 +315,7 @@ impl<
     {
         use forge_services::provider::ProviderAuthenticator;
 
-        let authenticator = ProviderAuthenticator::new(self.services.clone());
+        let authenticator = ProviderAuthenticator::new(self.services.clone(), self.infra.clone());
         authenticator
             .authenticate_with_oauth(provider_id, display_callback)
             .await
@@ -329,7 +327,7 @@ impl<
     ) -> Result<ImportSummary> {
         use forge_services::provider::ProviderAuthenticator;
 
-        let authenticator = ProviderAuthenticator::new(self.services.clone());
+        let authenticator = ProviderAuthenticator::new(self.services.clone(), self.infra.clone());
         authenticator.import_from_env(filter).await
     }
 }
