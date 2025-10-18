@@ -379,6 +379,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.handle_session_command(session_group).await?;
                 return Ok(());
             }
+
+            TopLevelCommand::Auth(auth_group) => {
+                self.handle_auth_command(auth_group).await?;
+                return Ok(());
+            }
         }
         Ok(())
     }
@@ -449,6 +454,400 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 // Interactive mode will be handled by the main loop
             }
         }
+
+        Ok(())
+    }
+
+    async fn handle_auth_command(
+        &mut self,
+        auth_group: crate::cli::AuthCommandGroup,
+    ) -> anyhow::Result<()> {
+        use crate::cli::AuthCommand;
+
+        match auth_group.command {
+            AuthCommand::Login { provider, skip_validation } => {
+                self.handle_auth_login(provider, skip_validation).await?;
+            }
+            AuthCommand::ImportEnv { provider, yes } => {
+                self.handle_auth_import_env(provider, yes).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn handle_auth_login(
+        &mut self,
+        provider: Option<String>,
+        skip_validation: bool,
+    ) -> anyhow::Result<()> {
+        use colored::Colorize;
+
+        println!("\n{}", "Add Provider Credential".bold());
+        println!("{}", "─".repeat(50).dimmed());
+
+        // Step 1: Get or select provider
+        let provider_id = if let Some(id) = provider {
+            // Validate provider exists
+            let available_ids = self.api.available_provider_ids().await?;
+            if !available_ids.iter().any(|p| p.to_string() == id) {
+                anyhow::bail!(
+                    "Provider '{}' not found. Available providers can be viewed in the selection prompt.",
+                    id
+                );
+            }
+            id
+        } else {
+            // Interactive selection
+            let available_ids = self.api.available_provider_ids().await?;
+            if available_ids.is_empty() {
+                anyhow::bail!("No providers available");
+            }
+
+            // Get existing credentials to show status
+            let credentials = self.api.list_provider_credentials().await?;
+            let configured: std::collections::HashSet<_> = credentials
+                .iter()
+                .map(|c| c.provider_id.to_string())
+                .collect();
+
+            // Create display options with status indicators
+            let mut options: Vec<String> = available_ids
+                .iter()
+                .map(|id| {
+                    let id_str = id.to_string();
+                    if configured.contains(&id_str) {
+                        format!("{} {}", id_str, "[✓ configured]".green())
+                    } else {
+                        format!("{} {}", id_str, "[+ new]".dimmed())
+                    }
+                })
+                .collect();
+
+            // Sort: configured first, then alphabetical
+            options.sort_by(|a, b| {
+                let a_configured = a.contains("[✓");
+                let b_configured = b.contains("[✓");
+                match (a_configured, b_configured) {
+                    (true, false) => std::cmp::Ordering::Less,
+                    (false, true) => std::cmp::Ordering::Greater,
+                    _ => a.cmp(b),
+                }
+            });
+
+            let selection = ForgeSelect::select("Select a provider:", options)
+                .prompt()?
+                .ok_or_else(|| anyhow::anyhow!("No provider selected"))?;
+
+            // Extract provider ID from selection (before the status indicator)
+            selection.split_whitespace().next().unwrap().to_string()
+        };
+
+        println!(
+            "\n{} Configuring provider: {}",
+            "→".blue(),
+            provider_id.bold()
+        );
+
+        // Check if provider uses OAuth
+        use std::str::FromStr;
+
+        let provider_id_enum = forge_app::dto::ProviderId::from_str(&provider_id)
+            .map_err(|_| anyhow::anyhow!("Invalid provider ID: {}", provider_id))?;
+
+        // Check if this provider uses OAuth (via metadata)
+        use forge_services::provider::ProviderMetadataService;
+
+        if ProviderMetadataService::get_oauth_method(&provider_id_enum).is_some() {
+            return self.handle_provider_oauth_flow(provider_id_enum).await;
+        }
+
+        // Step 2: Prompt for API key
+        let api_key = ForgeSelect::password(format!("Enter your {} API key:", provider_id))
+            .with_display_toggle_enabled()
+            .prompt()?
+            .ok_or_else(|| anyhow::anyhow!("API key input cancelled"))?;
+
+        if api_key.trim().is_empty() {
+            anyhow::bail!("API key cannot be empty");
+        }
+
+        // Step 3: Add API key using new high-level method
+        println!();
+        self.spinner
+            .start(Some(&format!("Validating {} credentials...", provider_id)))?;
+
+        let outcome = self
+            .api
+            .add_provider_api_key(provider_id_enum, api_key, skip_validation)
+            .await?;
+
+        self.spinner.stop(None)?;
+
+        // Handle validation outcome
+        if !outcome.success
+            && let Some(msg) = &outcome.message
+        {
+            println!("{} {}", "✗".red(), msg);
+            anyhow::bail!("Failed to add credential");
+        }
+
+        if let Some(msg) = outcome.message {
+            println!("{} {}", "ℹ".blue(), msg);
+        }
+
+        Self::display_credential_success(&provider_id);
+
+        Ok(())
+    }
+
+    /// Generic OAuth handler for any provider with OAuth configuration in
+    /// metadata
+    async fn handle_provider_oauth_flow(
+        &mut self,
+        provider_id: forge_app::dto::ProviderId,
+    ) -> anyhow::Result<()> {
+        use colored::Colorize;
+        use forge_services::provider::ProviderMetadataService;
+
+        let display_name = ProviderMetadataService::get_display_name(&provider_id);
+
+        println!();
+        println!("{} OAuth Authentication", display_name.bold());
+        println!(
+            "{}",
+            format!("Authenticate using your {} account", display_name).dimmed()
+        );
+        println!();
+
+        // Start spinner before OAuth flow
+        self.spinner.start(Some("Waiting for authorization..."))?;
+
+        // OAuth flow with callback for displaying device code
+        let result = self
+            .api
+            .authenticate_provider_oauth(provider_id, Self::display_oauth_device_info)
+            .await;
+
+        self.spinner.stop(None)?;
+        result?;
+
+        Self::display_credential_success(&display_name);
+
+        Ok(())
+    }
+
+    /// Displays OAuth device authorization instructions to user
+    ///
+    /// Shows verification URI, user code, and expiration time. Attempts to
+    /// open browser automatically.
+    ///
+    /// # Arguments
+    /// * `display` - OAuth device display information from provider
+    fn display_oauth_device_info(display: forge_services::provider::OAuthDeviceDisplay) {
+        use colored::Colorize;
+
+        println!(
+            "{} Please visit: {}",
+            "→".blue(),
+            display.verification_uri.underline().cyan()
+        );
+        println!(
+            "{} Enter code: {}",
+            "→".blue(),
+            display.user_code.bold().green()
+        );
+        println!();
+        println!(
+            "{} Code expires in: {}",
+            "ℹ".blue(),
+            format!("{}m {}s", display.expires_in / 60, display.expires_in % 60).dimmed()
+        );
+        println!();
+
+        // Try to open browser automatically
+        if let Err(e) = open::that(&display.verification_uri) {
+            eprintln!(
+                "{} Could not open browser automatically: {}",
+                "⚠".yellow(),
+                e
+            );
+            println!("{} Please open the URL manually", "→".yellow());
+            println!();
+        }
+    }
+
+    /// Displays credential configuration success message with next steps
+    ///
+    /// Shows success confirmation and suggests next actions (set as active
+    /// provider, start chatting).
+    ///
+    /// # Arguments
+    /// * `provider_name` - Display name of the configured provider
+    fn display_credential_success(provider_name: &str) {
+        use colored::Colorize;
+
+        println!();
+        println!(
+            "{} {} configured successfully!",
+            "✓".green(),
+            provider_name.bold()
+        );
+        println!();
+        println!("Next steps:");
+        println!(
+            "  {} Set as active provider: {}",
+            "→".blue(),
+            format!("forge config set provider {}", provider_name).dimmed()
+        );
+        println!("  {} Start chatting: {}", "→".blue(), "forge".dimmed());
+        println!();
+    }
+
+    async fn handle_auth_import_env(
+        &mut self,
+        provider_filter: Option<String>,
+        yes: bool,
+    ) -> anyhow::Result<()> {
+        use std::str::FromStr;
+
+        use colored::Colorize;
+        use forge_app::dto::ProviderId;
+        use forge_services::provider::ProviderMetadataService;
+
+        println!("\n{}", "Import Credentials from Environment".bold());
+        println!("{}", "─".repeat(50).dimmed());
+
+        // Parse filter if provided
+        let filter = provider_filter
+            .map(|s| ProviderId::from_str(&s))
+            .transpose()
+            .map_err(|_| anyhow::anyhow!("Invalid provider ID"))?;
+
+        let provider_ids = if let Some(id) = filter {
+            vec![id]
+        } else {
+            ProviderMetadataService::provider_ids()
+        };
+
+        if provider_ids.is_empty() {
+            println!(
+                "{}",
+                "No providers available for environment import.".yellow()
+            );
+            return Ok(());
+        }
+
+        println!("Environment variables to scan:");
+        for provider_id in &provider_ids {
+            let metadata = ProviderMetadataService::get_metadata(provider_id);
+            if metadata.env_var_names.is_empty() {
+                println!(
+                    "  {} {} (No environment import support)",
+                    "•".dimmed(),
+                    provider_id
+                );
+            } else {
+                println!(
+                    "  {} {} ({}): {}",
+                    "•".dimmed(),
+                    provider_id,
+                    metadata.display_name,
+                    metadata.env_var_names.join(", ")
+                );
+            }
+        }
+        println!();
+
+        // Confirm import (unless --yes flag)
+        if !yes {
+            let msg = if provider_ids.len() == 1 {
+                format!("Import {} credentials from environment?", provider_ids[0])
+            } else {
+                "Import all provider credentials from environment?".to_string()
+            };
+
+            let proceed = ForgeSelect::confirm(msg)
+                .with_default(true)
+                .prompt()?
+                .unwrap_or(false);
+
+            if !proceed {
+                println!("\n{} Import cancelled\n", "✗".red());
+                return Ok(());
+            }
+        }
+
+        // Import using high-level API method
+        self.spinner.start(Some("Scanning environment..."))?;
+        let summary = self
+            .api
+            .import_provider_credentials_from_env(filter)
+            .await?;
+        self.spinner.stop(None)?;
+
+        // Display results
+        println!("\n{}", "Import Results:".bold());
+        println!();
+
+        if !summary.imported.is_empty() {
+            println!("{} {}", "✓".green(), "Successfully imported:".green());
+            for id in &summary.imported {
+                println!("  {} {}", "•".dimmed(), id);
+            }
+            println!();
+        }
+
+        if !summary.failed.is_empty() {
+            println!("{} {}", "✗".red(), "Failed to import:".red());
+            for (id, error) in &summary.failed {
+                println!("  {} {}: {}", "•".dimmed(), id, error);
+            }
+            println!();
+        }
+
+        if !summary.skipped.is_empty() {
+            println!(
+                "{} {}",
+                "⊗".yellow(),
+                "Already configured (skipped):".yellow()
+            );
+            for id in &summary.skipped {
+                println!("  {} {}", "•".dimmed(), id);
+            }
+            println!();
+        }
+
+        if summary.imported.is_empty() && summary.failed.is_empty() && summary.skipped.is_empty() {
+            println!(
+                "{}",
+                "No credentials found in environment variables.\n".yellow()
+            );
+            println!(
+                "To add a provider manually: {}",
+                "forge auth login".dimmed()
+            );
+            println!();
+        }
+
+        // Summary
+        if summary.has_imports() {
+            println!(
+                "{} Successfully imported {} credential(s)",
+                "✓".green(),
+                summary.imported.len()
+            );
+            println!();
+        }
+
+        println!();
+        println!("Next steps:");
+        println!(
+            "  {} Set active provider: {}",
+            "→".blue(),
+            "forge config set provider <id>".dimmed()
+        );
+        println!();
 
         Ok(())
     }

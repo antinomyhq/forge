@@ -9,7 +9,7 @@ use crate::conversation::ForgeConversationService;
 use crate::custom_instructions::ForgeCustomInstructionsService;
 use crate::discovery::ForgeDiscoveryService;
 use crate::env::ForgeEnvironmentService;
-use crate::infra::HttpInfra;
+use crate::infra::{HttpInfra, OAuthFlowInfra, ProviderSpecificProcessingInfra};
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::policy::ForgePolicyService;
 use crate::provider::{ForgeProviderRegistry, ForgeProviderService};
@@ -22,7 +22,8 @@ use crate::workflow::ForgeWorkflowService;
 use crate::{
     AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
     DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-    FileRemoverInfra, FileWriterInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
+    FileRemoverInfra, FileWriterInfra, McpServerInfra, ProviderCredentialRepository, SnapshotInfra,
+    UserInfra, WalkerInfra,
 };
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client>;
@@ -69,13 +70,16 @@ impl<
         + FileInfoInfra
         + FileReaderInfra
         + HttpInfra
+        + OAuthFlowInfra
+        + ProviderSpecificProcessingInfra
         + WalkerInfra
         + DirectoryReaderInfra
         + CommandInfra
         + UserInfra
         + ConversationRepository
         + AppConfigRepository
-        + CacheRepository,
+        + CacheRepository
+        + ProviderCredentialRepository,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -147,10 +151,13 @@ impl<
         + EnvironmentInfra
         + DirectoryReaderInfra
         + HttpInfra
+        + OAuthFlowInfra
+        + ProviderSpecificProcessingInfra
         + WalkerInfra
         + ConversationRepository
         + AppConfigRepository
         + CacheRepository
+        + ProviderCredentialRepository
         + Clone,
 > Services for ForgeServices<F>
 {
@@ -271,5 +278,109 @@ impl<
 
     fn policy_service(&self) -> &Self::PolicyService {
         &self.policy_service
+    }
+}
+
+// Delegate ProviderCredentialRepository to underlying infrastructure
+#[async_trait::async_trait]
+impl<F> crate::infra::ProviderCredentialRepository for ForgeServices<F>
+where
+    F: HttpInfra
+        + EnvironmentInfra
+        + McpServerInfra
+        + WalkerInfra
+        + ProviderCredentialRepository
+        + Send
+        + Sync,
+{
+    async fn upsert_credential(
+        &self,
+        credential: forge_app::dto::ProviderCredential,
+    ) -> anyhow::Result<()> {
+        self.chat_service
+            .http_infra
+            .upsert_credential(credential)
+            .await
+    }
+
+    async fn get_credential(
+        &self,
+        provider_id: &forge_app::dto::ProviderId,
+    ) -> anyhow::Result<Option<forge_app::dto::ProviderCredential>> {
+        self.chat_service
+            .http_infra
+            .get_credential(provider_id)
+            .await
+    }
+
+    async fn get_all_credentials(&self) -> anyhow::Result<Vec<forge_app::dto::ProviderCredential>> {
+        self.chat_service.http_infra.get_all_credentials().await
+    }
+
+    async fn delete_credential(
+        &self,
+        provider_id: &forge_app::dto::ProviderId,
+    ) -> anyhow::Result<()> {
+        self.chat_service
+            .http_infra
+            .delete_credential(provider_id)
+            .await
+    }
+
+    async fn mark_verified(&self, provider_id: &forge_app::dto::ProviderId) -> anyhow::Result<()> {
+        self.chat_service
+            .http_infra
+            .mark_verified(provider_id)
+            .await
+    }
+
+    async fn update_oauth_tokens(
+        &self,
+        provider_id: &forge_app::dto::ProviderId,
+        tokens: forge_app::dto::OAuthTokens,
+    ) -> anyhow::Result<()> {
+        self.chat_service
+            .http_infra
+            .update_oauth_tokens(provider_id, tokens)
+            .await
+    }
+}
+
+// Delegate HttpInfra to underlying infrastructure
+#[async_trait::async_trait]
+impl<F> crate::infra::HttpInfra for ForgeServices<F>
+where
+    F: HttpInfra + EnvironmentInfra + McpServerInfra + WalkerInfra + Send + Sync,
+{
+    async fn get(
+        &self,
+        url: &reqwest::Url,
+        headers: Option<reqwest::header::HeaderMap>,
+    ) -> anyhow::Result<reqwest::Response> {
+        self.chat_service.http_infra.get(url, headers).await
+    }
+
+    async fn post(
+        &self,
+        url: &reqwest::Url,
+        body: bytes::Bytes,
+    ) -> anyhow::Result<reqwest::Response> {
+        self.chat_service.http_infra.post(url, body).await
+    }
+
+    async fn delete(&self, url: &reqwest::Url) -> anyhow::Result<reqwest::Response> {
+        self.chat_service.http_infra.delete(url).await
+    }
+
+    async fn eventsource(
+        &self,
+        url: &reqwest::Url,
+        headers: Option<reqwest::header::HeaderMap>,
+        body: bytes::Bytes,
+    ) -> anyhow::Result<reqwest_eventsource::EventSource> {
+        self.chat_service
+            .http_infra
+            .eventsource(url, headers, body)
+            .await
     }
 }

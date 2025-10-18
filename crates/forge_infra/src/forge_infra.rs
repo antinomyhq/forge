@@ -2,14 +2,21 @@ use std::path::{Path, PathBuf};
 use std::process::ExitStatus;
 use std::sync::Arc;
 
+use anyhow::ensure;
 use bytes::Bytes;
+use forge_app::dto::{OAuthTokens, ProviderId};
 use forge_domain::{CommandOutput, Conversation, ConversationId, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
+use forge_services::provider::{
+    ForgeOAuthService, ForgeProviderValidationService, OAuthDeviceDisplay, OAuthTokenResponse,
+    ProviderMetadata, ProviderProcessingService, ValidationResult,
+};
 use forge_services::{
     AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
     DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra,
-    WalkerInfra,
+    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, OAuthFlowInfra,
+    ProviderCredentialRepository, ProviderSpecificProcessingInfra, ProviderValidationInfra,
+    SnapshotInfra, UserInfra, WalkerInfra,
 };
 use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
@@ -29,7 +36,10 @@ use crate::http::ForgeHttpInfra;
 use crate::inquire::ForgeInquire;
 use crate::mcp_client::ForgeMcpClient;
 use crate::mcp_server::ForgeMcpServer;
-use crate::repository::{AppConfigRepositoryImpl, CacacheRepository, ConversationRepositoryImpl};
+use crate::repository::{
+    AppConfigRepositoryImpl, CacacheRepository, ConversationRepositoryImpl,
+    ProviderCredentialRepositoryImpl,
+};
 use crate::walker::ForgeWalkerService;
 
 #[derive(Clone)]
@@ -52,6 +62,7 @@ pub struct ForgeInfra {
     conversation_repository: Arc<ConversationRepositoryImpl>,
     app_config_repository: Arc<AppConfigRepositoryImpl>,
     mcp_cache_repository: Arc<CacacheRepository>,
+    provider_credential_repository: Arc<ProviderCredentialRepositoryImpl>,
 }
 
 impl ForgeInfra {
@@ -62,8 +73,10 @@ impl ForgeInfra {
         let http_service = Arc::new(ForgeHttpInfra::new(env.http.clone()));
         let db_pool =
             Arc::new(DatabasePool::try_from(PoolConfig::new(env.database_path())).unwrap());
-        let conversation_repository =
-            Arc::new(ConversationRepositoryImpl::new(db_pool, env.workspace_id()));
+        let conversation_repository = Arc::new(ConversationRepositoryImpl::new(
+            db_pool.clone(),
+            env.workspace_id(),
+        ));
 
         let app_config_repository = Arc::new(AppConfigRepositoryImpl::new(
             env.app_config().as_path().to_path_buf(),
@@ -73,6 +86,9 @@ impl ForgeInfra {
             env.cache_dir().join("mcp_cache"),
             Some(3600),
         )); // 1 hour TTL
+
+        let provider_credential_repository =
+            Arc::new(ProviderCredentialRepositoryImpl::new(db_pool.clone()));
 
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
@@ -96,6 +112,7 @@ impl ForgeInfra {
             conversation_repository,
             app_config_repository,
             mcp_cache_repository,
+            provider_credential_repository,
         }
     }
 }
@@ -337,6 +354,58 @@ impl AppConfigRepository for ForgeInfra {
     }
 }
 
+#[async_trait::async_trait]
+impl ProviderCredentialRepository for ForgeInfra {
+    async fn upsert_credential(
+        &self,
+        credential: forge_app::dto::ProviderCredential,
+    ) -> anyhow::Result<()> {
+        self.provider_credential_repository
+            .upsert_credential(credential)
+            .await
+    }
+
+    async fn get_credential(
+        &self,
+        provider_id: &forge_app::dto::ProviderId,
+    ) -> anyhow::Result<Option<forge_app::dto::ProviderCredential>> {
+        self.provider_credential_repository
+            .get_credential(provider_id)
+            .await
+    }
+
+    async fn get_all_credentials(&self) -> anyhow::Result<Vec<forge_app::dto::ProviderCredential>> {
+        self.provider_credential_repository
+            .get_all_credentials()
+            .await
+    }
+
+    async fn delete_credential(
+        &self,
+        provider_id: &forge_app::dto::ProviderId,
+    ) -> anyhow::Result<()> {
+        self.provider_credential_repository
+            .delete_credential(provider_id)
+            .await
+    }
+
+    async fn mark_verified(&self, provider_id: &forge_app::dto::ProviderId) -> anyhow::Result<()> {
+        self.provider_credential_repository
+            .mark_verified(provider_id)
+            .await
+    }
+
+    async fn update_oauth_tokens(
+        &self,
+        provider_id: &forge_app::dto::ProviderId,
+        tokens: forge_app::dto::OAuthTokens,
+    ) -> anyhow::Result<()> {
+        self.provider_credential_repository
+            .update_oauth_tokens(provider_id, tokens)
+            .await
+    }
+}
+
 // Note: ForgeInfra implements CacheInfra<String, McpToolCache> directly
 // via delegation to mcp_cache_repository (CacacheRepository<String,
 // McpToolCache>). This provides a cleaner interface without the need for a
@@ -362,5 +431,86 @@ impl CacheRepository for ForgeInfra {
 
     async fn cache_clear(&self) -> anyhow::Result<()> {
         self.mcp_cache_repository.cache_clear().await
+    }
+}
+
+#[async_trait::async_trait]
+impl ProviderValidationInfra for ForgeInfra {
+    fn validate_api_key_format(
+        &self,
+        _provider_id: &ProviderId,
+        api_key: &str,
+    ) -> anyhow::Result<()> {
+        ensure!(!api_key.trim().is_empty(), "API key must not be empty");
+        Ok(())
+    }
+
+    fn validate_model_url(&self, url: &Url) -> anyhow::Result<()> {
+        ensure!(
+            url.scheme() == "https",
+            "Model URL must use https scheme: {}",
+            url
+        );
+        ensure!(
+            url.host_str().is_some(),
+            "Model URL must include a hostname: {}",
+            url
+        );
+        Ok(())
+    }
+
+    async fn validate_credential(
+        &self,
+        provider_id: &ProviderId,
+        credential: &forge_app::dto::ProviderCredential,
+        validation_url: &Url,
+    ) -> anyhow::Result<ValidationResult> {
+        let infra = Arc::new(self.clone());
+        let service = ForgeProviderValidationService::new(infra);
+        service
+            .validate_credential(provider_id, credential, validation_url)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl OAuthFlowInfra for ForgeInfra {
+    async fn device_flow_with_callback<F>(
+        &self,
+        config: &forge_services::provider::OAuthConfig,
+        display_callback: F,
+    ) -> anyhow::Result<OAuthTokens>
+    where
+        F: FnOnce(OAuthDeviceDisplay) + Send,
+    {
+        let service = ForgeOAuthService::new();
+        service
+            .device_flow_with_callback(config, display_callback)
+            .await
+    }
+
+    async fn refresh_token(
+        &self,
+        config: &forge_services::provider::OAuthConfig,
+        refresh_token: &str,
+    ) -> anyhow::Result<OAuthTokenResponse> {
+        let service = ForgeOAuthService::new();
+        service.refresh_access_token(config, refresh_token).await
+    }
+}
+
+#[async_trait::async_trait]
+impl ProviderSpecificProcessingInfra for ForgeInfra {
+    async fn process_github_copilot_token(
+        &self,
+        access_token: &str,
+    ) -> anyhow::Result<(String, Option<chrono::DateTime<chrono::Utc>>)> {
+        let service = ProviderProcessingService::new();
+        service.process_github_copilot_token(access_token).await
+    }
+
+    fn get_provider_metadata(&self, provider_id: &ProviderId) -> ProviderMetadata {
+        let service = ProviderProcessingService::new();
+        service.get_provider_metadata(provider_id)
     }
 }

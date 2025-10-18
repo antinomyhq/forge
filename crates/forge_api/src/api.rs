@@ -4,6 +4,7 @@ use anyhow::Result;
 use forge_app::dto::{InitAuth, ProviderId, ToolsOverview};
 use forge_app::{User, UserUsage};
 use forge_domain::{AgentId, ModelId};
+use forge_services::provider::{ImportSummary, OAuthDeviceDisplay, ValidationOutcome};
 use forge_stream::MpscStream;
 
 use crate::*;
@@ -122,4 +123,58 @@ pub trait API: Sync + Send {
 
     /// Refresh MCP caches by fetching fresh data
     async fn reload_mcp(&self) -> Result<()>;
+
+    /// Get all available provider IDs (regardless of configuration status)
+    async fn available_provider_ids(&self) -> Result<Vec<ProviderId>>;
+
+    // Provider credential management
+    async fn list_provider_credentials(&self) -> Result<Vec<ProviderCredential>>;
+
+    // High-level provider authentication methods (use metadata-driven flow)
+
+    /// Adds a provider API key with optional validation
+    ///
+    /// # Arguments
+    ///
+    /// * `provider_id` - Provider to add credential for
+    /// * `api_key` - API key to add
+    /// * `skip_validation` - If true, skip validation
+    async fn add_provider_api_key(
+        &self,
+        provider_id: ProviderId,
+        api_key: String,
+        skip_validation: bool,
+    ) -> Result<ValidationOutcome>;
+
+    /// Authenticates with a provider using OAuth device flow
+    ///
+    /// This method handles the complete OAuth flow with a callback for
+    /// displaying the user code and verification URL. The callback is
+    /// invoked once the device code is obtained, then the method blocks
+    /// while polling for authorization.
+    ///
+    /// # Arguments
+    ///
+    /// * `provider_id` - Provider to authenticate with
+    /// * `display_callback` - Callback to display OAuth device info to user
+    async fn authenticate_provider_oauth<Cb>(
+        &self,
+        provider_id: ProviderId,
+        display_callback: Cb,
+    ) -> Result<()>
+    where
+        Cb: FnOnce(OAuthDeviceDisplay) + Send;
+
+    /// Imports provider credentials from environment variables
+    ///
+    /// Uses provider metadata to determine which environment variables to
+    /// check.
+    ///
+    /// # Arguments
+    ///
+    /// * `filter` - Optional provider ID to import only that provider
+    async fn import_provider_credentials_from_env(
+        &self,
+        filter: Option<ProviderId>,
+    ) -> Result<ImportSummary>;
 }

@@ -24,6 +24,9 @@ use url::Url;
 #[serde(rename_all = "snake_case")]
 pub enum ProviderId {
     Forge,
+    #[serde(rename = "github_copilot")]
+    #[strum(to_string = "GithubCopilot", serialize = "github_copilot")]
+    GithubCopilot,
     #[serde(rename = "openai")]
     OpenAI,
     OpenRouter,
@@ -277,5 +280,26 @@ mod tests {
             Url::parse("https://east-us.openai.azure.com/openai/models?api-version=2023-05-15")
                 .unwrap();
         assert_eq!(actual_model, expected_model);
+    }
+
+    #[test]
+    fn test_github_copilot_display_name() {
+        let actual = ProviderId::GithubCopilot.to_string();
+        let expected = "GithubCopilot";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_github_copilot_parse_from_snake_case() {
+        let actual = ProviderId::from_str("github_copilot").unwrap();
+        let expected = ProviderId::GithubCopilot;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_github_copilot_parse_from_pascal_case() {
+        let actual = ProviderId::from_str("GithubCopilot").unwrap();
+        let expected = ProviderId::GithubCopilot;
+        assert_eq!(actual, expected);
     }
 }

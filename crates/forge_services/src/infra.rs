@@ -3,10 +3,12 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bytes::Bytes;
+use chrono::{DateTime, Utc};
 use forge_app::domain::{
     CommandOutput, Conversation, ConversationId, Environment, McpServerConfig, ToolDefinition,
     ToolName, ToolOutput,
 };
+use forge_app::dto::{OAuthTokens, ProviderCredential, ProviderId};
 use forge_app::{WalkedFile, Walker};
 use forge_snaps::Snapshot;
 use reqwest::Response;
@@ -14,6 +16,10 @@ use reqwest::header::HeaderMap;
 use reqwest_eventsource::EventSource;
 use serde::de::DeserializeOwned;
 use url::Url;
+
+use crate::provider::{
+    OAuthConfig, OAuthDeviceDisplay, OAuthTokenResponse, ProviderMetadata, ValidationResult,
+};
 
 /// Infrastructure trait for accessing environment configuration and system
 /// variables.
@@ -211,6 +217,51 @@ pub trait HttpInfra: Send + Sync + 'static {
         body: Bytes,
     ) -> anyhow::Result<EventSource>;
 }
+
+#[async_trait::async_trait]
+pub trait ProviderValidationInfra: Send + Sync {
+    fn validate_api_key_format(
+        &self,
+        provider_id: &ProviderId,
+        api_key: &str,
+    ) -> anyhow::Result<()>;
+
+    fn validate_model_url(&self, url: &Url) -> anyhow::Result<()>;
+
+    async fn validate_credential(
+        &self,
+        provider_id: &ProviderId,
+        credential: &ProviderCredential,
+        validation_url: &Url,
+    ) -> anyhow::Result<ValidationResult>;
+}
+
+#[async_trait::async_trait]
+pub trait OAuthFlowInfra: Send + Sync {
+    async fn device_flow_with_callback<F>(
+        &self,
+        config: &OAuthConfig,
+        display_callback: F,
+    ) -> anyhow::Result<OAuthTokens>
+    where
+        F: FnOnce(OAuthDeviceDisplay) + Send;
+
+    async fn refresh_token(
+        &self,
+        config: &OAuthConfig,
+        refresh_token: &str,
+    ) -> anyhow::Result<OAuthTokenResponse>;
+}
+
+#[async_trait::async_trait]
+pub trait ProviderSpecificProcessingInfra: Send + Sync {
+    async fn process_github_copilot_token(
+        &self,
+        access_token: &str,
+    ) -> anyhow::Result<(String, Option<DateTime<Utc>>)>;
+
+    fn get_provider_metadata(&self, provider_id: &ProviderId) -> ProviderMetadata;
+}
 /// Service for reading multiple files from a directory asynchronously
 #[async_trait::async_trait]
 pub trait DirectoryReaderInfra: Send + Sync {
@@ -281,4 +332,62 @@ pub trait ConversationRepository: Send + Sync {
 pub trait AppConfigRepository: Send + Sync {
     async fn get_app_config(&self) -> anyhow::Result<forge_app::dto::AppConfig>;
     async fn set_app_config(&self, config: &forge_app::dto::AppConfig) -> anyhow::Result<()>;
+}
+
+#[async_trait::async_trait]
+pub trait ProviderCredentialRepository: Send + Sync {
+    /// Inserts or updates a provider credential
+    ///
+    /// # Errors
+    ///
+    /// Returns error if database operation fails or encryption fails
+    async fn upsert_credential(
+        &self,
+        credential: forge_app::dto::ProviderCredential,
+    ) -> anyhow::Result<()>;
+
+    /// Gets a credential for the specified provider
+    ///
+    /// # Errors
+    ///
+    /// Returns error if database operation fails or decryption fails
+    async fn get_credential(
+        &self,
+        provider_id: &forge_app::dto::ProviderId,
+    ) -> anyhow::Result<Option<forge_app::dto::ProviderCredential>>;
+
+    /// Gets all stored credentials
+    ///
+    /// # Errors
+    ///
+    /// Returns error if database operation fails or decryption fails
+    async fn get_all_credentials(&self) -> anyhow::Result<Vec<forge_app::dto::ProviderCredential>>;
+
+    /// Deletes a credential for the specified provider
+    ///
+    /// # Errors
+    ///
+    /// Returns error if database operation fails
+    async fn delete_credential(
+        &self,
+        provider_id: &forge_app::dto::ProviderId,
+    ) -> anyhow::Result<()>;
+
+    /// Marks a credential as verified with current timestamp
+    ///
+    /// # Errors
+    ///
+    /// Returns error if database operation fails
+    async fn mark_verified(&self, provider_id: &forge_app::dto::ProviderId) -> anyhow::Result<()>;
+
+    /// Updates OAuth tokens for a provider
+    ///
+    /// # Errors
+    ///
+    /// Returns error if database operation fails or encryption fails
+    async fn update_oauth_tokens(
+        &self,
+        provider_id: &forge_app::dto::ProviderId,
+        tokens: forge_app::dto::OAuthTokens,
+    ) -> anyhow::Result<()>;
 }
