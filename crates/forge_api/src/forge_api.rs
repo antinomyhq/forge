@@ -3,10 +3,8 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::dto::{
-    InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId, ToolsOverview,
+    InitAuth, LoginInfo, OAuthTokens, Provider, ProviderCredential, ProviderId, ToolsOverview,
 };
-use forge_app::dto::OAuthTokens;
-use forge_services::provider::ValidationResult;
 use forge_app::{
     AgentLoaderService, AuthService, ConversationService, EnvironmentService, FileDiscoveryService,
     ForgeApp, McpConfigManager, McpService, ProviderRegistry, ProviderService, Services, User,
@@ -14,7 +12,9 @@ use forge_app::{
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
-use forge_services::provider::{ImportSummary, OAuthDeviceDisplay, ValidationOutcome};
+use forge_services::provider::{
+    ImportSummary, OAuthDeviceDisplay, ValidationOutcome, ValidationResult,
+};
 use forge_services::{
     AppConfigRepository, CommandInfra, EnvironmentInfra, ForgeServices, HttpInfra, OAuthFlowInfra,
     ProviderCredentialRepository, ProviderSpecificProcessingInfra, ProviderValidationInfra,
