@@ -9,7 +9,7 @@ use crate::conversation::ForgeConversationService;
 use crate::custom_instructions::ForgeCustomInstructionsService;
 use crate::discovery::ForgeDiscoveryService;
 use crate::env::ForgeEnvironmentService;
-use crate::infra::HttpInfra;
+use crate::infra::{HttpInfra, OAuthFlowInfra, ProviderSpecificProcessingInfra};
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::policy::ForgePolicyService;
 use crate::provider::{ForgeProviderRegistry, ForgeProviderService};
@@ -70,6 +70,8 @@ impl<
         + FileInfoInfra
         + FileReaderInfra
         + HttpInfra
+        + OAuthFlowInfra
+        + ProviderSpecificProcessingInfra
         + WalkerInfra
         + DirectoryReaderInfra
         + CommandInfra
@@ -149,6 +151,8 @@ impl<
         + EnvironmentInfra
         + DirectoryReaderInfra
         + HttpInfra
+        + OAuthFlowInfra
+        + ProviderSpecificProcessingInfra
         + WalkerInfra
         + ConversationRepository
         + AppConfigRepository

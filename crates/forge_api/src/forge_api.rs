@@ -5,6 +5,8 @@ use anyhow::{Context, Result};
 use forge_app::dto::{
     InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId, ToolsOverview,
 };
+use forge_app::dto::OAuthTokens;
+use forge_services::provider::ValidationResult;
 use forge_app::{
     AgentLoaderService, AuthService, ConversationService, EnvironmentService, FileDiscoveryService,
     ForgeApp, McpConfigManager, McpService, ProviderRegistry, ProviderService, Services, User,
@@ -14,7 +16,8 @@ use forge_domain::*;
 use forge_infra::ForgeInfra;
 use forge_services::provider::{ImportSummary, OAuthDeviceDisplay, ValidationOutcome};
 use forge_services::{
-    AppConfigRepository, CommandInfra, ForgeServices, HttpInfra, ProviderCredentialRepository,
+    AppConfigRepository, CommandInfra, EnvironmentInfra, ForgeServices, HttpInfra, OAuthFlowInfra,
+    ProviderCredentialRepository, ProviderSpecificProcessingInfra, ProviderValidationInfra,
 };
 use forge_stream::MpscStream;
 
@@ -40,8 +43,17 @@ impl ForgeAPI<ForgeServices<ForgeInfra>, ForgeInfra> {
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: CommandInfra + AppConfigRepository + ProviderCredentialRepository + HttpInfra>
-    API for ForgeAPI<A, F>
+impl<
+    A: Services,
+    F: CommandInfra
+        + AppConfigRepository
+        + ProviderCredentialRepository
+        + HttpInfra
+        + EnvironmentInfra
+        + ProviderValidationInfra
+        + OAuthFlowInfra
+        + ProviderSpecificProcessingInfra,
+> API for ForgeAPI<A, F>
 {
     async fn discover(&self) -> Result<Vec<File>> {
         let environment = self.services.get_environment();
@@ -297,12 +309,52 @@ impl<A: Services, F: CommandInfra + AppConfigRepository + ProviderCredentialRepo
         api_key: String,
         skip_validation: bool,
     ) -> Result<ValidationOutcome> {
-        use forge_services::provider::ProviderAuthenticator;
+        if !skip_validation {
+            self.infra.validate_api_key_format(&provider_id, &api_key)?;
+        }
 
-        let authenticator = ProviderAuthenticator::new(self.services.clone(), self.infra.clone());
-        authenticator
-            .add_api_key_credential(provider_id, api_key, skip_validation)
-            .await
+        let credential = ProviderCredential::new_api_key(provider_id, api_key);
+
+        if !skip_validation {
+            let providers = self.services.get_all_providers().await?;
+            let provider = providers
+                .iter()
+                .find(|p| p.id == credential.provider_id)
+                .ok_or_else(|| anyhow::anyhow!("Provider not found: {}", credential.provider_id))?;
+
+            let result = self
+                .infra
+                .validate_credential(&credential.provider_id, &credential, &provider.model_url)
+                .await?;
+
+            match result {
+                ValidationResult::Valid => {
+                    self.infra.upsert_credential(credential).await?;
+                    Ok(ValidationOutcome::success_with_message(
+                        "API key validated and saved",
+                    ))
+                }
+                ValidationResult::Invalid(msg) => Ok(ValidationOutcome::failure(format!(
+                    "API key validation failed: {}",
+                    msg
+                ))),
+                ValidationResult::Inconclusive(msg) => {
+                    self.infra.upsert_credential(credential).await?;
+                    Ok(ValidationOutcome::success_with_message(format!(
+                        "API key saved (validation inconclusive: {})",
+                        msg
+                    )))
+                }
+                ValidationResult::TokenExpired => {
+                    Ok(ValidationOutcome::failure("Token has expired"))
+                }
+            }
+        } else {
+            self.infra.upsert_credential(credential).await?;
+            Ok(ValidationOutcome::success_with_message(
+                "API key saved without validation",
+            ))
+        }
     }
 
     async fn authenticate_provider_oauth<Cb>(
@@ -313,21 +365,88 @@ impl<A: Services, F: CommandInfra + AppConfigRepository + ProviderCredentialRepo
     where
         Cb: FnOnce(OAuthDeviceDisplay) + Send,
     {
-        use forge_services::provider::ProviderAuthenticator;
+        let metadata = self.infra.get_provider_metadata(&provider_id);
+        let oauth_config = metadata
+            .auth_methods
+            .iter()
+            .find_map(|method| method.oauth_config.clone())
+            .ok_or_else(|| anyhow::anyhow!("Provider {} does not support OAuth", provider_id))?;
 
-        let authenticator = ProviderAuthenticator::new(self.services.clone(), self.infra.clone());
-        authenticator
-            .authenticate_with_oauth(provider_id, display_callback)
-            .await
+        let oauth_tokens = self
+            .infra
+            .device_flow_with_callback(&oauth_config, display_callback)
+            .await?;
+
+        let credential = match provider_id {
+            ProviderId::GithubCopilot => {
+                let (api_key, expires_at) = self
+                    .infra
+                    .process_github_copilot_token(&oauth_tokens.access_token)
+                    .await?;
+                let expires_at = expires_at.unwrap_or(oauth_tokens.expires_at);
+
+                let copilot_tokens = OAuthTokens {
+                    access_token: oauth_tokens.access_token.clone(),
+                    refresh_token: oauth_tokens.refresh_token.clone(),
+                    expires_at,
+                };
+
+                ProviderCredential::new_oauth_with_api_key(provider_id, api_key, copilot_tokens)
+            }
+            _ => ProviderCredential::new_oauth(provider_id, oauth_tokens),
+        };
+
+        self.infra.upsert_credential(credential).await?;
+        Ok(())
     }
 
     async fn import_provider_credentials_from_env(
         &self,
         filter: Option<ProviderId>,
     ) -> Result<ImportSummary> {
-        use forge_services::provider::ProviderAuthenticator;
+        let mut summary = ImportSummary::new();
 
-        let authenticator = ProviderAuthenticator::new(self.services.clone(), self.infra.clone());
-        authenticator.import_from_env(filter).await
+        let all_provider_ids = vec![
+            ProviderId::Forge,
+            ProviderId::GithubCopilot,
+            ProviderId::OpenAI,
+            ProviderId::Anthropic,
+            ProviderId::OpenRouter,
+            ProviderId::Requesty,
+            ProviderId::Zai,
+            ProviderId::ZaiCoding,
+            ProviderId::Cerebras,
+            ProviderId::Xai,
+            ProviderId::VertexAi,
+            ProviderId::BigModel,
+            ProviderId::Azure,
+        ];
+
+        for provider_id in all_provider_ids {
+            if let Some(filter_id) = filter
+                && filter_id != provider_id
+            {
+                continue;
+            }
+
+            let env_var_names = self.infra.get_provider_metadata(&provider_id).env_var_names;
+            let api_key = env_var_names
+                .iter()
+                .find_map(|var_name| self.infra.get_env_var(var_name))
+                .filter(|key| !key.is_empty());
+
+            match api_key {
+                Some(key) => {
+                    let credential = ProviderCredential::new_api_key(provider_id, key);
+                    match self.infra.upsert_credential(credential).await {
+                        Ok(_) => summary.imported.push(provider_id),
+                        Err(e) => summary.failed.push((provider_id, e.to_string())),
+                    }
+                }
+                None => summary.skipped.push(provider_id),
+            }
+        }
+
+        Ok(summary)
     }
 }

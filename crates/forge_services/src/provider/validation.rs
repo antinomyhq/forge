@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Result, ensure};
 use chrono::Utc;
 use forge_app::dto::{AuthType, ProviderCredential, ProviderId};
 use reqwest::StatusCode;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use url::Url;
 
-use crate::infra::HttpInfra;
+use crate::infra::{HttpInfra, ProviderValidationInfra};
 
 /// Result of credential validation
 #[derive(Debug, Clone, PartialEq)]
@@ -336,5 +336,45 @@ mod tests {
         let _ = service
             .validate_credential_skip_expiry_check(&ProviderId::Anthropic, &credential, &url)
             .await;
+    }
+}
+
+#[async_trait::async_trait]
+impl<I> ProviderValidationInfra for ForgeProviderValidationService<I>
+where
+    I: HttpInfra + Send + Sync + 'static,
+{
+    fn validate_api_key_format(&self, _provider_id: &ProviderId, api_key: &str) -> Result<()> {
+        ensure!(!api_key.trim().is_empty(), "API key must not be empty");
+        Ok(())
+    }
+
+    fn validate_model_url(&self, url: &Url) -> Result<()> {
+        ensure!(
+            url.scheme() == "https",
+            "Model URL must use https scheme: {}",
+            url
+        );
+        ensure!(
+            url.host_str().is_some(),
+            "Model URL must include a hostname: {}",
+            url
+        );
+        Ok(())
+    }
+
+    async fn validate_credential(
+        &self,
+        provider_id: &ProviderId,
+        credential: &ProviderCredential,
+        validation_url: &Url,
+    ) -> Result<ValidationResult> {
+        ForgeProviderValidationService::validate_credential(
+            self,
+            provider_id,
+            credential,
+            validation_url,
+        )
+        .await
     }
 }

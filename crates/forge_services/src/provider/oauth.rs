@@ -12,7 +12,8 @@ use oauth2::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::provider::OAuthConfig;
+use crate::infra::OAuthFlowInfra;
+use crate::provider::{OAuthConfig, OAuthDeviceDisplay};
 
 /// Response from device authorization initiation
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -89,10 +90,8 @@ impl ForgeOAuthService {
         display_callback: F,
     ) -> anyhow::Result<forge_app::dto::OAuthTokens>
     where
-        F: FnOnce(crate::provider::provider_authenticator::OAuthDeviceDisplay),
+        F: FnOnce(OAuthDeviceDisplay) + Send,
     {
-        use crate::provider::provider_authenticator::OAuthDeviceDisplay;
-
         let device_code_url = config
             .device_code_url
             .as_ref()
@@ -430,6 +429,28 @@ impl ForgeOAuthService {
 impl Default for ForgeOAuthService {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[async_trait::async_trait]
+impl OAuthFlowInfra for ForgeOAuthService {
+    async fn device_flow_with_callback<F>(
+        &self,
+        config: &OAuthConfig,
+        display_callback: F,
+    ) -> anyhow::Result<forge_app::dto::OAuthTokens>
+    where
+        F: FnOnce(OAuthDeviceDisplay) + Send,
+    {
+        ForgeOAuthService::device_flow_with_callback(self, config, display_callback).await
+    }
+
+    async fn refresh_token(
+        &self,
+        config: &OAuthConfig,
+        refresh_token: &str,
+    ) -> anyhow::Result<OAuthTokenResponse> {
+        ForgeOAuthService::refresh_access_token(self, config, refresh_token).await
     }
 }
 

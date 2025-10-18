@@ -11,8 +11,10 @@ use tokio::sync::OnceCell;
 use tracing;
 use url::Url;
 
-use crate::provider::GitHubCopilotService;
-use crate::{AppConfigRepository, EnvironmentInfra, ProviderCredentialRepository, ProviderError};
+use crate::{
+    AppConfigRepository, EnvironmentInfra, OAuthFlowInfra, ProviderCredentialRepository,
+    ProviderError, ProviderSpecificProcessingInfra,
+};
 
 #[derive(Debug, Deserialize)]
 struct ProviderConfig {
@@ -64,8 +66,13 @@ pub struct ForgeProviderRegistry<F> {
     providers: OnceCell<Vec<Provider>>,
 }
 
-impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository>
-    ForgeProviderRegistry<F>
+impl<
+    F: EnvironmentInfra
+        + AppConfigRepository
+        + ProviderCredentialRepository
+        + OAuthFlowInfra
+        + ProviderSpecificProcessingInfra,
+> ForgeProviderRegistry<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
         Self {
@@ -225,11 +232,11 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository>
         use forge_app::dto::AuthType;
 
         // Get OAuth configuration from metadata
-        let auth_methods =
-            crate::provider::metadata::ProviderMetadataService::get_auth_methods(provider_id);
-        let oauth_config = auth_methods
+        let metadata = self.infra.get_provider_metadata(provider_id);
+        let oauth_config = metadata
+            .auth_methods
             .iter()
-            .find_map(|method| method.oauth_config.as_ref())
+            .find_map(|method| method.oauth_config.clone())
             .ok_or_else(|| {
                 anyhow::anyhow!(
                     "No OAuth configuration found for provider {:?}",
@@ -242,16 +249,14 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository>
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("No OAuth tokens found for credential"))?;
 
-        // Create OAuth service for refresh
-        let oauth_service = crate::provider::ForgeOAuthService::new();
-
         match credential.auth_type {
             AuthType::OAuth => {
                 // Standard OAuth refresh
                 tracing::debug!(provider = ?provider_id, "Refreshing standard OAuth tokens");
 
-                let refreshed_tokens = oauth_service
-                    .refresh_access_token(oauth_config, &oauth_tokens.refresh_token)
+                let refreshed_tokens = self
+                    .infra
+                    .refresh_token(&oauth_config, &oauth_tokens.refresh_token)
                     .await?;
 
                 // Build new OAuth tokens
@@ -282,10 +287,13 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository>
 
                 // Use the OAuth access token (stored as refresh_token) to get new Copilot API
                 // key
-                let copilot_service = GitHubCopilotService::new();
-                let (api_key, expires_at) = copilot_service
-                    .get_copilot_api_key(&oauth_tokens.refresh_token)
+                let (api_key, expires_at) = self
+                    .infra
+                    .process_github_copilot_token(&oauth_tokens.refresh_token)
                     .await?;
+                let expires_at = expires_at.ok_or_else(|| {
+                    anyhow::anyhow!("GitHub Copilot token refresh did not include an expiry")
+                })?;
 
                 // Update OAuth tokens with new expiration (access token stays the same)
                 let new_tokens = forge_app::dto::OAuthTokens::new(
@@ -409,8 +417,13 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository>
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository> ProviderRegistry
-    for ForgeProviderRegistry<F>
+impl<
+    F: EnvironmentInfra
+        + AppConfigRepository
+        + ProviderCredentialRepository
+        + OAuthFlowInfra
+        + ProviderSpecificProcessingInfra,
+> ProviderRegistry for ForgeProviderRegistry<F>
 {
     async fn get_active_provider(&self) -> anyhow::Result<Provider> {
         let app_config = self.infra.get_app_config().await?;
@@ -655,10 +668,17 @@ mod env_tests {
     use std::collections::HashMap;
     use std::sync::Arc;
 
+    use anyhow::bail;
+    use chrono::{DateTime, Utc};
     use forge_app::domain::Environment;
     use pretty_assertions::assert_eq;
 
     use super::*;
+    use crate::infra::{OAuthFlowInfra, ProviderSpecificProcessingInfra};
+    use crate::provider::{
+        OAuthConfig, OAuthDeviceDisplay, OAuthTokenResponse, ProviderMetadata,
+        ProviderMetadataService,
+    };
 
     // Mock infrastructure that provides environment variables
     struct MockInfra {
@@ -695,6 +715,42 @@ mod env_tests {
 
         fn get_env_var(&self, key: &str) -> Option<String> {
             self.env_vars.get(key).cloned()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl OAuthFlowInfra for MockInfra {
+        async fn device_flow_with_callback<F>(
+            &self,
+            _config: &OAuthConfig,
+            _display_callback: F,
+        ) -> anyhow::Result<forge_app::dto::OAuthTokens>
+        where
+            F: FnOnce(OAuthDeviceDisplay) + Send,
+        {
+            bail!("device flow not supported in MockInfra")
+        }
+
+        async fn refresh_token(
+            &self,
+            _config: &OAuthConfig,
+            _refresh_token: &str,
+        ) -> anyhow::Result<OAuthTokenResponse> {
+            bail!("token refresh not supported in MockInfra")
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ProviderSpecificProcessingInfra for MockInfra {
+        async fn process_github_copilot_token(
+            &self,
+            _access_token: &str,
+        ) -> anyhow::Result<(String, Option<DateTime<Utc>>)> {
+            bail!("GitHub Copilot processing not supported in MockInfra")
+        }
+
+        fn get_provider_metadata(&self, provider_id: &ProviderId) -> ProviderMetadata {
+            ProviderMetadataService::get_metadata(provider_id)
         }
     }
 

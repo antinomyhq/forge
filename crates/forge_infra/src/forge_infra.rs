@@ -2,13 +2,20 @@ use std::path::{Path, PathBuf};
 use std::process::ExitStatus;
 use std::sync::Arc;
 
+use anyhow::ensure;
 use bytes::Bytes;
+use forge_app::dto::{OAuthTokens, ProviderId};
 use forge_domain::{CommandOutput, Conversation, ConversationId, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
+use forge_services::provider::{
+    ForgeOAuthService, ForgeProviderValidationService, OAuthDeviceDisplay, OAuthTokenResponse,
+    ProviderMetadata, ProviderProcessingService, ValidationResult,
+};
 use forge_services::{
     AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
     DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, ProviderCredentialRepository,
+    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, OAuthFlowInfra,
+    ProviderCredentialRepository, ProviderSpecificProcessingInfra, ProviderValidationInfra,
     SnapshotInfra, UserInfra, WalkerInfra,
 };
 use reqwest::header::HeaderMap;
@@ -424,5 +431,86 @@ impl CacheRepository for ForgeInfra {
 
     async fn cache_clear(&self) -> anyhow::Result<()> {
         self.mcp_cache_repository.cache_clear().await
+    }
+}
+
+#[async_trait::async_trait]
+impl ProviderValidationInfra for ForgeInfra {
+    fn validate_api_key_format(
+        &self,
+        _provider_id: &ProviderId,
+        api_key: &str,
+    ) -> anyhow::Result<()> {
+        ensure!(!api_key.trim().is_empty(), "API key must not be empty");
+        Ok(())
+    }
+
+    fn validate_model_url(&self, url: &Url) -> anyhow::Result<()> {
+        ensure!(
+            url.scheme() == "https",
+            "Model URL must use https scheme: {}",
+            url
+        );
+        ensure!(
+            url.host_str().is_some(),
+            "Model URL must include a hostname: {}",
+            url
+        );
+        Ok(())
+    }
+
+    async fn validate_credential(
+        &self,
+        provider_id: &ProviderId,
+        credential: &forge_app::dto::ProviderCredential,
+        validation_url: &Url,
+    ) -> anyhow::Result<ValidationResult> {
+        let infra = Arc::new(self.clone());
+        let service = ForgeProviderValidationService::new(infra);
+        service
+            .validate_credential(provider_id, credential, validation_url)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl OAuthFlowInfra for ForgeInfra {
+    async fn device_flow_with_callback<F>(
+        &self,
+        config: &forge_services::provider::OAuthConfig,
+        display_callback: F,
+    ) -> anyhow::Result<OAuthTokens>
+    where
+        F: FnOnce(OAuthDeviceDisplay) + Send,
+    {
+        let service = ForgeOAuthService::new();
+        service
+            .device_flow_with_callback(config, display_callback)
+            .await
+    }
+
+    async fn refresh_token(
+        &self,
+        config: &forge_services::provider::OAuthConfig,
+        refresh_token: &str,
+    ) -> anyhow::Result<OAuthTokenResponse> {
+        let service = ForgeOAuthService::new();
+        service.refresh_access_token(config, refresh_token).await
+    }
+}
+
+#[async_trait::async_trait]
+impl ProviderSpecificProcessingInfra for ForgeInfra {
+    async fn process_github_copilot_token(
+        &self,
+        access_token: &str,
+    ) -> anyhow::Result<(String, Option<chrono::DateTime<chrono::Utc>>)> {
+        let service = ProviderProcessingService::new();
+        service.process_github_copilot_token(access_token).await
+    }
+
+    fn get_provider_metadata(&self, provider_id: &ProviderId) -> ProviderMetadata {
+        let service = ProviderProcessingService::new();
+        service.get_provider_metadata(provider_id)
     }
 }
