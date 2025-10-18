@@ -13,7 +13,7 @@ use forge_app::{
 use forge_domain::*;
 use forge_infra::ForgeInfra;
 use forge_services::provider::{
-    ImportSummary, OAuthDeviceDisplay, ProviderMetadataService, ValidationOutcome, ValidationResult,
+    ImportSummary, OAuthDeviceDisplay, ValidationOutcome, ValidationResult,
 };
 use forge_services::{
     AppConfigRepository, CommandInfra, EnvironmentInfra, ForgeServices, HttpInfra, OAuthFlowInfra,
@@ -406,13 +406,12 @@ impl<
     ) -> Result<ImportSummary> {
         let mut summary = ImportSummary::new();
 
-        for provider_id in ProviderMetadataService::provider_ids() {
-            if let Some(filter_id) = filter
-                && filter_id != provider_id
-            {
-                continue;
-            }
+        let provider_ids = match filter {
+            Some(provider_id) => vec![provider_id],
+            None => self.services.available_provider_ids(),
+        };
 
+        for provider_id in provider_ids {
             let env_var_names = self.infra.get_provider_metadata(&provider_id).env_var_names;
             let api_key = env_var_names
                 .iter()
