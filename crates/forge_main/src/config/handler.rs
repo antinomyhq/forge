@@ -89,11 +89,11 @@ impl<A: API> ConfigManager<A> {
             }
             "provider" => {
                 let provider = self
-                        .api
-                        .get_provider(None)
-                        .await
-                        .ok()
-                        .map(|p| p.id.to_string());
+                    .api
+                    .get_provider(None)
+                    .await
+                    .ok()
+                    .map(|p| p.id.to_string());
                 display_single_field("provider", provider);
             }
             _ => {
@@ -117,11 +117,11 @@ impl<A: API> ConfigManager<A> {
             .await
             .map(|m| m.as_str().to_string());
         let provider = self
-                .api
-                .get_provider(None)
-                .await
-                .ok()
-                .map(|p| p.id.to_string());
+            .api
+            .get_provider(None)
+            .await
+            .ok()
+            .map(|p| p.id.to_string());
 
         let info = super::helpers::build_config_info(agent, model, provider);
         if porcelain {
