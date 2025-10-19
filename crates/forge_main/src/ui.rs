@@ -149,7 +149,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Prompt the user for input
         let agent_id = self.api.get_active_agent().await.unwrap_or_default();
-        let model = self.api.get_active_model(self.api.get_active_agent().await).await;
+        let model = self
+            .api
+            .get_active_model(self.api.get_active_agent().await)
+            .await;
         let forge_prompt = ForgePrompt { cwd: self.state.cwd.clone(), usage, model, agent_id };
         self.console.prompt(forge_prompt).await
     }
@@ -633,19 +636,24 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     /// Lists current configuration values
     async fn on_show_config(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let agent = self
-            .api
-            .get_operating_agent()
-            .await
-            .map(|a| a.as_str().to_string());
+        let agent = self.api.get_active_agent().await;
         let model = self
             .api
-            .get_operating_model()
+            .get_active_model(agent.clone())
             .await
             .map(|m| m.as_str().to_string());
-        let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
+        let provider = self
+            .api
+            .get_provider(agent.clone())
+            .await
+            .ok()
+            .map(|p| p.id.to_string());
 
-        let info = crate::config::build_config_info(agent, model, provider);
+        let info = crate::config::build_config_info(
+            agent.map(|v| v.as_str().to_string()),
+            model,
+            provider,
+        );
         self.write_info_or_porcelain(info, porcelain, false)?;
         Ok(())
     }
@@ -705,7 +713,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         let key_info = self.api.get_login_info().await;
         let operating_agent = self.api.get_active_agent().await;
-        let operating_model = self.api.get_active_model(self.api.get_active_agent().await).await;
+        let operating_model = self
+            .api
+            .get_active_model(self.api.get_active_agent().await)
+            .await;
 
         // Fetch both default provider and agent-specific provider
         let default_provider = self
@@ -1042,7 +1053,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         models.sort_by(|a, b| a.0.name.cmp(&b.0.name));
 
         // Find the index of the current model
-        let current_model = self.api.get_active_model(self.api.get_active_agent().await).await;
+        let current_model = self
+            .api
+            .get_active_model(self.api.get_active_agent().await)
+            .await;
         let starting_cursor = current_model
             .as_ref()
             .and_then(|current| models.iter().position(|m| &m.0.id == current))
@@ -1139,7 +1153,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         )))?;
 
         // Check if the current model is available for the new provider
-        let current_model = self.api.get_active_model(self.api.get_active_agent().await).await;
+        let current_model = self
+            .api
+            .get_active_model(self.api.get_active_agent().await)
+            .await;
         if let Some(current_model) = current_model {
             let models = self.get_models().await?;
             let model_available = models.iter().any(|m| m.id == current_model);
@@ -1269,7 +1286,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             sub_title.push_str(format!("via {}", agent).as_str());
         }
 
-        if let Some(ref model) = self.api.get_active_model(self.api.get_active_agent().await).await {
+        if let Some(ref model) = self
+            .api
+            .get_active_model(self.api.get_active_agent().await)
+            .await
+        {
             sub_title.push_str(format!("/{}", model.as_str()).as_str());
         }
 
@@ -1285,7 +1306,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
 
         // Ensure we have a model selected before proceeding with initialization
-        if self.api.get_active_model(self.api.get_active_agent().await).await.is_none() {
+        if self
+            .api
+            .get_active_model(self.api.get_active_agent().await)
+            .await
+            .is_none()
+        {
             let model = self
                 .select_model()
                 .await?
@@ -1336,7 +1362,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Finalize UI state initialization by registering commands and setting up the
         // state
         self.command.register_all(&base_workflow);
-        let operating_model = self.api.get_active_model(self.api.get_active_agent().await).await;
+        let operating_model = self
+            .api
+            .get_active_model(self.api.get_active_agent().await)
+            .await;
         self.state = UIState::new(self.api.environment());
         self.update_model(operating_model);
 
