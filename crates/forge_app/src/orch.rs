@@ -30,6 +30,7 @@ pub struct Orchestrator<S> {
     event: Event,
     error_tracker: ToolErrorTracker,
     user_prompt_service: UserPromptBuilder<S>,
+    current_time: chrono::DateTime<chrono::Local>,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -59,6 +60,7 @@ impl<S: AgentService> Orchestrator<S> {
             files: Default::default(),
             custom_instructions: Default::default(),
             error_tracker: Default::default(),
+            current_time,
         }
     }
 
@@ -284,6 +286,9 @@ impl<S: AgentService> Orchestrator<S> {
 
         // Render user prompts
         context = self.user_prompt_service.set_user_prompt(context).await?;
+
+        // Reset metrics timer for this turn
+        self.conversation.metrics.started_at = Some(self.current_time.with_timezone(&chrono::Utc));
 
         // Create agent reference for the rest of the method
         let agent = &self.agent;

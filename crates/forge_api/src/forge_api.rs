@@ -140,9 +140,9 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
             .execute_command(command.to_string(), working_dir, false, None)
             .await
     }
-    async fn read_mcp_config(&self) -> Result<McpConfig> {
+    async fn read_mcp_config(&self, scope: Option<&Scope>) -> Result<McpConfig> {
         self.services
-            .read_mcp_config()
+            .read_mcp_config(scope)
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }
