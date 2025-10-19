@@ -61,6 +61,9 @@ pub struct Environment {
     /// Custom history file path from FORGE_HISTORY_FILE environment variable.
     /// If None, uses the default history path.
     pub custom_history_path: Option<PathBuf>,
+    /// Maximum number of conversations to show in list.
+    /// Controlled by FORGE_MAX_CONVERSATIONS environment variable.
+    pub max_conversations: usize,
 }
 
 impl Environment {
@@ -164,6 +167,7 @@ mod tests {
             tool_timeout: 300,
             auto_open_dump: false,
             custom_history_path: None,
+            max_conversations: 100,
         };
 
         let actual = fixture.agent_cwd_path();
@@ -196,6 +200,7 @@ mod tests {
             tool_timeout: 300,
             auto_open_dump: false,
             custom_history_path: None,
+            max_conversations: 100,
         };
 
         let agent_path = fixture.agent_path();
