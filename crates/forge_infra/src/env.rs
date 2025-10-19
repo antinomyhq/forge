@@ -97,7 +97,7 @@ impl ForgeEnvironmentInfra {
         for path in paths {
             let env_file = path.join(".env");
             if env_file.is_file() {
-                dotenv::from_path(&env_file).ok();
+                dotenvy::from_path(&env_file).ok();
             }
         }
 
@@ -669,6 +669,30 @@ mod tests {
 
         unsafe {
             std::env::remove_var("FORGE_MAX_CONVERSATIONS");
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_multiline_env_vars() {
+        let content = r#"MULTI_LINE='line1
+line2
+line3'
+SIMPLE=value"#;
+
+        let (_root, cwd) = setup_envs(vec![("", content)]);
+        ForgeEnvironmentInfra::dot_env(&cwd);
+
+        // Verify multiline variable
+        let multi = env::var("MULTI_LINE").expect("MULTI_LINE should be set");
+        assert_eq!(multi, "line1\nline2\nline3");
+
+        // Verify simple var
+        assert_eq!(env::var("SIMPLE").unwrap(), "value");
+
+        unsafe {
+            env::remove_var("MULTI_LINE");
+            env::remove_var("SIMPLE");
         }
     }
 
