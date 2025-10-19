@@ -89,7 +89,13 @@ impl<S: Services> ForgeApp<S> {
         let custom_instructions = services.get_custom_instructions().await;
 
         // Prepare agents with user configuration and subscriptions
-        let agents = services.get_agents().await?;
+        let agents = services
+            .get_agents()
+            .await?
+            .into_iter()
+            .map(|agent| agent.apply_workflow_config(&workflow));
+
+        // Find agent with matching subscription
         let mut agent = agents
             .into_iter()
             .find(|agent| agent.has_subscription(&chat.event.name))
@@ -250,8 +256,8 @@ impl<S: Services> ForgeApp<S> {
         // set yet.
         self.services.get_default_provider().await
     }
-    pub async fn get_active_model(&self) -> anyhow::Result<ModelId> {
-        let provider_id = self.get_provider(None).await?.id;
+    pub async fn get_active_model(&self, agent_id: Option<AgentId>) -> anyhow::Result<ModelId> {
+        let provider_id = self.get_provider(agent_id).await?.id;
         self.services.get_default_model(&provider_id).await
     }
 

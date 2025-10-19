@@ -114,7 +114,7 @@ pub trait API: Sync + Send {
     async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()>;
 
     /// Gets the currently operating model
-    async fn get_default_model(&self) -> Option<ModelId>;
+    async fn get_active_model(&self, agent_id: Option<AgentId>) -> Option<ModelId>;
 
     /// Sets the operating model
     async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()>;

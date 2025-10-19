@@ -80,7 +80,7 @@ impl<A: API> ConfigManager<A> {
                 "model" => {
                     let model = self
                         .api
-                        .get_default_model()
+                        .get_active_model(self.api.get_active_agent().await)
                         .await
                         .map(|m| m.as_str().to_string());
                     display_single_field("model", model);
@@ -107,7 +107,7 @@ impl<A: API> ConfigManager<A> {
                 .map(|a| a.as_str().to_string());
             let model = self
                 .api
-                .get_default_model()
+                .get_active_model(self.api.get_active_agent().await)
                 .await
                 .map(|m| m.as_str().to_string());
             let provider = self

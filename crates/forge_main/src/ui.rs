@@ -150,7 +150,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Prompt the user for input
         let agent_id = self.api.get_active_agent().await.unwrap_or_default();
-        let model = self.api.get_default_model().await;
+        let model = self.api.get_active_model(self.api.get_active_agent().await).await;
         let forge_prompt = ForgePrompt { cwd: self.state.cwd.clone(), usage, model, agent_id };
         self.console.prompt(forge_prompt).await
     }
@@ -662,10 +662,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         let key_info = self.api.get_login_info().await;
         let operating_agent = self.api.get_active_agent().await;
-        let operating_model = self.api.get_default_model().await;
+        let operating_model = self.api.get_active_model(self.api.get_active_agent().await).await;
 
         // Fetch both default provider and agent-specific provider
-        let default_provider = self.api.get_provider(None).await.ok();
+        let default_provider = self
+            .api
+            .get_provider(self.api.get_active_agent().await)
+            .await
+            .ok();
         let agent_provider = if let Some(ref agent_id) = operating_agent {
             self.api.get_provider(Some(agent_id.clone())).await.ok()
         } else {
@@ -971,7 +975,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         models.sort_by(|a, b| a.0.name.cmp(&b.0.name));
 
         // Find the index of the current model
-        let current_model = self.api.get_default_model().await;
+        let current_model = self.api.get_active_model(self.api.get_active_agent().await).await;
         let starting_cursor = current_model
             .as_ref()
             .and_then(|current| models.iter().position(|m| &m.0.id == current))
@@ -1006,7 +1010,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         providers.sort_by_key(|a| a.to_string());
 
         // Find the index of the current provider
-        let current_provider = self.api.get_provider(None).await.ok();
+        let current_provider = self
+            .api
+            .get_provider(self.api.get_active_agent().await)
+            .await
+            .ok();
         let starting_cursor = current_provider
             .as_ref()
             .and_then(|current| providers.iter().position(|p| p.0.id == current.id))
@@ -1064,7 +1072,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         )))?;
 
         // Check if the current model is available for the new provider
-        let current_model = self.api.get_default_model().await;
+        let current_model = self.api.get_active_model(self.api.get_active_agent().await).await;
         if let Some(current_model) = current_model {
             let models = self.get_models().await?;
             let model_available = models.iter().any(|m| m.id == current_model);
@@ -1194,7 +1202,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             sub_title.push_str(format!("via {}", agent).as_str());
         }
 
-        if let Some(ref model) = self.api.get_default_model().await {
+        if let Some(ref model) = self.api.get_active_model(self.api.get_active_agent().await).await {
             sub_title.push_str(format!("/{}", model.as_str()).as_str());
         }
 
@@ -1210,7 +1218,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
 
         // Ensure we have a model selected before proceeding with initialization
-        if self.api.get_default_model().await.is_none() {
+        if self.api.get_active_model(self.api.get_active_agent().await).await.is_none() {
             let model = self
                 .select_model()
                 .await?
@@ -1261,7 +1269,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Finalize UI state initialization by registering commands and setting up the
         // state
         self.command.register_all(&base_workflow);
-        let operating_model = self.api.get_default_model().await;
+        let operating_model = self.api.get_active_model(self.api.get_active_agent().await).await;
         self.state = UIState::new(self.api.environment());
         self.update_model(operating_model);
 
