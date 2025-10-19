@@ -125,6 +125,7 @@ pub mod tests {
                 forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
                 auto_open_dump: false,
                 custom_history_path: None,
+                max_conversations: 100,
             }
         }
 
