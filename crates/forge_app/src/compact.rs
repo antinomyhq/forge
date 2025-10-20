@@ -111,8 +111,9 @@ impl<S: AgentService> Compactor<S> {
             )
             .await?;
 
-        // Extract only the LAST reasoning from compacted messages to prevent accumulation
-        // This maintains reasoning chain continuity without exponential growth
+        // Extract only the LAST reasoning from compacted messages to prevent
+        // accumulation This maintains reasoning chain continuity without
+        // exponential growth
         let reasoning_details: Option<Vec<_>> = context.messages[start..=end]
             .iter()
             .rev() // Start from the most recent message
@@ -126,23 +127,21 @@ impl<S: AgentService> Compactor<S> {
             std::iter::once(ContextMessage::user(summary, None)),
         );
 
-        // Inject the preserved reasoning into the first assistant message after compaction
-        // This ensures reasoning chain continuity (first assistant message has reasoning)
-        if let Some(reasoning) = reasoning_details {
-            if let Some(ContextMessage::Text(msg)) = context
+        // Inject the preserved reasoning into the first assistant message after
+        // compaction This ensures reasoning chain continuity (first assistant
+        // message has reasoning)
+        if let Some(reasoning) = reasoning_details
+            && let Some(ContextMessage::Text(msg)) = context
                 .messages
                 .iter_mut()
                 .find(|msg| msg.has_role(forge_domain::Role::Assistant))
-            {
-                if msg
+                && msg
                     .reasoning_details
                     .as_ref()
                     .is_none_or(|rd| rd.is_empty())
                 {
                     msg.reasoning_details = Some(reasoning);
                 }
-            }
-        }
         Ok(context)
     }
 
@@ -385,7 +384,11 @@ mod tests {
         // First compaction
         let context = Context::default()
             .add_message(ContextMessage::user("M1", None))
-            .add_message(ContextMessage::assistant("R1", Some(reasoning.clone()), None))
+            .add_message(ContextMessage::assistant(
+                "R1",
+                Some(reasoning.clone()),
+                None,
+            ))
             .add_message(ContextMessage::user("M2", None))
             .add_message(ContextMessage::assistant("R2", None, None));
 
