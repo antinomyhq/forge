@@ -82,7 +82,7 @@ pub struct CliProvider(pub Provider);
 
 impl Display for CliProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = self.0.id.to_string();
+        let name = self.0.id.display_name();
         write!(f, "{}", name)?;
         if let Some(domain) = self.0.url.domain() {
             write!(f, " [{}]", domain)?;

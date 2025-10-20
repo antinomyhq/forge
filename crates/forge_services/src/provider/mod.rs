@@ -1,4 +1,5 @@
 mod anthropic;
+pub mod auth_flow;
 mod auth_method;
 mod client;
 mod event;
@@ -9,6 +10,7 @@ mod mock_server;
 mod oauth;
 mod openai;
 mod processing;
+mod provider_auth_service;
 mod registry;
 mod retry;
 mod service;
@@ -16,11 +18,13 @@ mod types;
 mod utils;
 pub mod validation;
 
+pub use auth_flow::*;
 pub use auth_method::*;
 pub use github_copilot::*;
 pub use metadata::*;
 pub use oauth::*;
 pub use processing::*;
+pub use provider_auth_service::*;
 pub use registry::*;
 pub use service::*;
 pub use types::*;

@@ -53,16 +53,29 @@ impl ProviderCredentialRecord {
                 (None, None, None)
             };
 
-        // Serialize URL params
-        let url_params = if !cred.url_params.is_empty() {
-            Some(serde_json::to_string(&cred.url_params)?)
+        // Serialize URL params, including custom provider fields
+        let mut params_map = cred.url_params.clone();
+
+        // Add custom provider fields to url_params for storage
+        if let Some(compat_mode) = &cred.compatibility_mode {
+            params_map.insert("compatibility_mode".to_string(), compat_mode.to_string());
+        }
+        if let Some(base_url) = &cred.custom_base_url {
+            params_map.insert("custom_base_url".to_string(), base_url.clone());
+        }
+        if let Some(model_id) = &cred.custom_model_id {
+            params_map.insert("custom_model_id".to_string(), model_id.clone());
+        }
+
+        let url_params = if !params_map.is_empty() {
+            Some(serde_json::to_string(&params_map)?)
         } else {
             None
         };
 
         Ok(Self {
             id: None, // Auto-generated
-            provider_id: cred.provider_id.to_string(),
+            provider_id: serde_json::to_string(&cred.provider_id)?,
             auth_type: cred.auth_type.as_str().to_string(),
             api_key,
             refresh_token,
@@ -82,11 +95,23 @@ impl TryFrom<ProviderCredentialRecord> for ProviderCredential {
 
     /// Converts database record to domain model
     fn try_from(record: ProviderCredentialRecord) -> anyhow::Result<Self> {
-        // Parse provider ID
-        let provider_id: ProviderId = record
-            .provider_id
-            .parse()
-            .map_err(|_| anyhow::anyhow!("Invalid provider ID: {}", record.provider_id))?;
+        // Parse provider ID - handle both old (plain string) and new (JSON) formats
+        let provider_id: ProviderId =
+            if record.provider_id.starts_with('"') || record.provider_id.starts_with('{') {
+                // New JSON format: "\"openai\"" or "{\"Custom\":\"name\"}"
+                serde_json::from_str(&record.provider_id).map_err(|e| {
+                    anyhow::anyhow!("Invalid provider ID JSON '{}': {}", record.provider_id, e)
+                })?
+            } else if let Some(custom_name) = record.provider_id.strip_prefix("custom_") {
+                // Old custom provider format: "custom_bedrock" -> Custom("bedrock")
+                ProviderId::Custom(custom_name.to_string())
+            } else {
+                // Old plain string format: "openai", "Xai", etc.
+                // Wrap in quotes and try deserializing
+                let quoted = format!("\"{}\"", record.provider_id);
+                serde_json::from_str(&quoted)
+                    .map_err(|_| anyhow::anyhow!("Invalid provider ID: {}", record.provider_id))?
+            };
 
         // Parse auth type
         let auth_type: AuthType = record
@@ -113,11 +138,19 @@ impl TryFrom<ProviderCredentialRecord> for ProviderCredential {
         };
 
         // Deserialize URL params
-        let url_params = if let Some(json) = record.url_params {
+        let mut url_params: HashMap<String, String> = if let Some(json) = record.url_params {
             serde_json::from_str(&json)?
         } else {
             HashMap::new()
         };
+
+        // Extract custom provider fields from url_params if present
+        let compatibility_mode = url_params
+            .get("compatibility_mode")
+            .and_then(|s| serde_json::from_str(&format!("\"{}\"", s)).ok());
+
+        let custom_base_url = url_params.remove("custom_base_url");
+        let custom_model_id = url_params.remove("custom_model_id");
 
         Ok(ProviderCredential {
             provider_id,
@@ -125,6 +158,9 @@ impl TryFrom<ProviderCredentialRecord> for ProviderCredential {
             api_key,
             oauth_tokens,
             url_params,
+            compatibility_mode,
+            custom_base_url,
+            custom_model_id,
             created_at: record.created_at.and_utc(),
             updated_at: record.updated_at.and_utc(),
             last_verified_at: record.last_verified_at.map(|dt| dt.and_utc()),

@@ -1,44 +1,118 @@
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
-use strum_macros::{Display, EnumIter, EnumString};
 use url::Url;
 
 /// --- IMPORTANT ---
 /// The order of providers is important because that would be order in which the
 /// providers will be resolved
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    PartialEq,
-    Eq,
-    Hash,
-    Serialize,
-    Deserialize,
-    Display,
-    EnumString,
-    EnumIter,
-    PartialOrd,
-    Ord,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
 pub enum ProviderId {
+    #[serde(alias = "Forge")]
     Forge,
-    #[serde(rename = "github_copilot")]
-    #[strum(to_string = "GithubCopilot", serialize = "github_copilot")]
+    #[serde(rename = "github_copilot", alias = "GithubCopilot")]
     GithubCopilot,
-    #[serde(rename = "openai")]
+    #[serde(rename = "openai", alias = "OpenAI")]
     OpenAI,
+    #[serde(alias = "OpenRouter")]
     OpenRouter,
+    #[serde(alias = "Requesty")]
     Requesty,
+    #[serde(alias = "Zai")]
     Zai,
+    #[serde(rename = "zai_coding", alias = "ZaiCoding")]
     ZaiCoding,
+    #[serde(alias = "Cerebras")]
     Cerebras,
+    #[serde(alias = "Xai")]
     Xai,
+    #[serde(alias = "Anthropic")]
     Anthropic,
+    #[serde(rename = "vertex_ai", alias = "VertexAi")]
     VertexAi,
+    #[serde(rename = "big_model", alias = "BigModel")]
     BigModel,
+    #[serde(alias = "Azure")]
     Azure,
+    /// Custom user-defined provider
+    #[serde(rename = "custom", alias = "Custom")]
+    Custom(String),
+}
+
+impl std::fmt::Display for ProviderId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ProviderId::Forge => write!(f, "forge"),
+            ProviderId::GithubCopilot => write!(f, "github_copilot"),
+            ProviderId::OpenAI => write!(f, "openai"),
+            ProviderId::OpenRouter => write!(f, "open_router"),
+            ProviderId::Requesty => write!(f, "requesty"),
+            ProviderId::Zai => write!(f, "zai"),
+            ProviderId::ZaiCoding => write!(f, "zai_coding"),
+            ProviderId::Cerebras => write!(f, "cerebras"),
+            ProviderId::Xai => write!(f, "xai"),
+            ProviderId::Anthropic => write!(f, "anthropic"),
+            ProviderId::VertexAi => write!(f, "vertex_ai"),
+            ProviderId::BigModel => write!(f, "big_model"),
+            ProviderId::Azure => write!(f, "azure"),
+            ProviderId::Custom(name) => write!(f, "custom_{}", name),
+        }
+    }
+}
+
+impl ProviderId {
+    /// Returns true if this is a custom provider
+    pub fn is_custom(&self) -> bool {
+        matches!(self, ProviderId::Custom(_))
+    }
+
+    /// Returns the custom provider name if this is a custom provider
+    pub fn custom_name(&self) -> Option<&str> {
+        match self {
+            ProviderId::Custom(name) => Some(name.as_str()),
+            _ => None,
+        }
+    }
+
+    /// Returns all built-in provider IDs (excludes Custom)
+    pub fn built_in_providers() -> Vec<ProviderId> {
+        vec![
+            ProviderId::Forge,
+            ProviderId::GithubCopilot,
+            ProviderId::OpenAI,
+            ProviderId::OpenRouter,
+            ProviderId::Requesty,
+            ProviderId::Zai,
+            ProviderId::ZaiCoding,
+            ProviderId::Cerebras,
+            ProviderId::Xai,
+            ProviderId::Anthropic,
+            ProviderId::VertexAi,
+            ProviderId::BigModel,
+            ProviderId::Azure,
+        ]
+    }
+
+    /// Returns human-readable display name (PascalCase)
+    /// Used for UI display, not serialization
+    pub fn display_name(&self) -> String {
+        match self {
+            ProviderId::Forge => "Forge".to_string(),
+            ProviderId::GithubCopilot => "GitHub Copilot".to_string(),
+            ProviderId::OpenAI => "OpenAI".to_string(),
+            ProviderId::OpenRouter => "OpenRouter".to_string(),
+            ProviderId::Requesty => "Requesty".to_string(),
+            ProviderId::Zai => "Zai".to_string(),
+            ProviderId::ZaiCoding => "ZaiCoding".to_string(),
+            ProviderId::Cerebras => "Cerebras".to_string(),
+            ProviderId::Xai => "Xai".to_string(),
+            ProviderId::Anthropic => "Anthropic".to_string(),
+            ProviderId::VertexAi => "Vertex AI".to_string(),
+            ProviderId::BigModel => "BigModel".to_string(),
+            ProviderId::Azure => "Azure".to_string(),
+            ProviderId::Custom(name) => name.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -285,21 +359,62 @@ mod tests {
     #[test]
     fn test_github_copilot_display_name() {
         let actual = ProviderId::GithubCopilot.to_string();
-        let expected = "GithubCopilot";
+        let expected = "github_copilot";
         assert_eq!(actual, expected);
     }
 
     #[test]
-    fn test_github_copilot_parse_from_snake_case() {
-        let actual = ProviderId::from_str("github_copilot").unwrap();
-        let expected = ProviderId::GithubCopilot;
-        assert_eq!(actual, expected);
+    fn test_provider_id_display() {
+        assert_eq!(ProviderId::OpenAI.to_string(), "openai");
+        assert_eq!(ProviderId::GithubCopilot.to_string(), "github_copilot");
+        assert_eq!(
+            ProviderId::Custom("my-llm".to_string()).to_string(),
+            "custom_my-llm"
+        );
     }
 
     #[test]
-    fn test_github_copilot_parse_from_pascal_case() {
-        let actual = ProviderId::from_str("GithubCopilot").unwrap();
-        let expected = ProviderId::GithubCopilot;
-        assert_eq!(actual, expected);
+    fn test_provider_id_is_custom() {
+        assert!(!ProviderId::OpenAI.is_custom());
+        assert!(!ProviderId::Anthropic.is_custom());
+        assert!(ProviderId::Custom("test".to_string()).is_custom());
+    }
+
+    #[test]
+    fn test_provider_id_custom_name() {
+        assert_eq!(ProviderId::OpenAI.custom_name(), None);
+        assert_eq!(
+            ProviderId::Custom("my-provider".to_string()).custom_name(),
+            Some("my-provider")
+        );
+    }
+
+    #[test]
+    fn test_provider_id_built_in_providers() {
+        let built_in = ProviderId::built_in_providers();
+        assert_eq!(built_in.len(), 13); // All non-Custom variants
+        assert!(built_in.contains(&ProviderId::OpenAI));
+        assert!(built_in.contains(&ProviderId::Anthropic));
+        assert!(!built_in.iter().any(|p| p.is_custom()));
+    }
+
+    #[test]
+    fn test_provider_id_serialization() {
+        let openai = ProviderId::OpenAI;
+        let json = serde_json::to_string(&openai).unwrap();
+        assert_eq!(json, r#""openai""#);
+
+        let custom = ProviderId::Custom("my-llm".to_string());
+        let json = serde_json::to_string(&custom).unwrap();
+        assert_eq!(json, r#"{"custom":"my-llm"}"#);
+    }
+
+    #[test]
+    fn test_provider_id_deserialization() {
+        let openai: ProviderId = serde_json::from_str(r#""openai""#).unwrap();
+        assert_eq!(openai, ProviderId::OpenAI);
+
+        let custom: ProviderId = serde_json::from_str(r#"{"custom":"my-llm"}"#).unwrap();
+        assert_eq!(custom, ProviderId::Custom("my-llm".to_string()));
     }
 }

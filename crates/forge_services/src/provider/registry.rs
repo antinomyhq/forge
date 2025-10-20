@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex, OnceLock};
 
-use chrono::Utc;
 use forge_app::ProviderRegistry;
 use forge_app::domain::{AgentId, ModelId};
 use forge_app::dto::{Provider, ProviderId, ProviderResponse};
@@ -11,9 +10,10 @@ use tokio::sync::OnceCell;
 use tracing;
 use url::Url;
 
+use crate::provider::{AuthFlowFactory, ForgeOAuthService, GitHubCopilotService};
 use crate::{
-    AppConfigRepository, EnvironmentInfra, OAuthFlowInfra, ProviderCredentialRepository,
-    ProviderError, ProviderSpecificProcessingInfra,
+    AppConfigRepository, EnvironmentInfra, ProviderCredentialRepository, ProviderError,
+    ProviderSpecificProcessingInfra,
 };
 
 #[derive(Debug, Deserialize)]
@@ -57,7 +57,7 @@ fn log_env_var_deprecation_warning(provider_id: ProviderId) {
     let mut warned = get_env_var_warnings().lock().unwrap();
 
     // Only warn once per provider per session
-    if warned.insert(provider_id) {
+    if warned.insert(provider_id.clone()) {
         eprintln!(
             "⚠️  Warning: Using environment variable for {}. \
             Run `forge auth import-env` to migrate to secure storage.",
@@ -72,11 +72,29 @@ pub struct ForgeProviderRegistry<F> {
     providers: OnceCell<Vec<Provider>>,
 }
 
+/// Infrastructure adapter for auth flows within the registry.
+///
+/// This adapter provides the required services (OAuth, GitHub Copilot)
+/// needed by authentication flows for token refresh operations.
+struct RegistryInfraAdapter {
+    oauth_service: Arc<ForgeOAuthService>,
+    github_service: Arc<GitHubCopilotService>,
+}
+
+impl crate::provider::auth_flow::AuthFlowInfra for RegistryInfraAdapter {
+    fn oauth_service(&self) -> Arc<ForgeOAuthService> {
+        self.oauth_service.clone()
+    }
+
+    fn github_copilot_service(&self) -> Arc<GitHubCopilotService> {
+        self.github_service.clone()
+    }
+}
+
 impl<
     F: EnvironmentInfra
         + AppConfigRepository
         + ProviderCredentialRepository
-        + OAuthFlowInfra
         + ProviderSpecificProcessingInfra,
 > ForgeProviderRegistry<F>
 {
@@ -116,7 +134,9 @@ impl<
         let api_key = self
             .infra
             .get_env_var(&config.api_key_vars)
-            .ok_or_else(|| ProviderError::env_var_not_found(config.id, &config.api_key_vars))?;
+            .ok_or_else(|| {
+                ProviderError::env_var_not_found(config.id.clone(), &config.api_key_vars)
+            })?;
 
         // Check URL parameter environment variables and build template data
         // URL parameters are optional - only add them if they exist
@@ -130,7 +150,7 @@ impl<
             } else if env_var == "ANTHROPIC_URL" {
                 template_data.insert(env_var, "https://api.anthropic.com/v1".to_string());
             } else {
-                return Err(ProviderError::env_var_not_found(config.id, env_var).into());
+                return Err(ProviderError::env_var_not_found(config.id.clone(), env_var).into());
             }
         }
 
@@ -159,7 +179,7 @@ impl<
         )?;
 
         Ok(Provider {
-            id: config.id,
+            id: config.id.clone(),
             response: config.response_type.clone(),
             url: final_url,
             key: Some(api_key),
@@ -235,95 +255,35 @@ impl<
         provider_id: &ProviderId,
         credential: &forge_app::dto::ProviderCredential,
     ) -> anyhow::Result<forge_app::dto::ProviderCredential> {
-        use forge_app::dto::AuthType;
+        tracing::debug!(provider = ?provider_id, "Refreshing credential tokens");
 
-        // Get OAuth configuration from metadata
+        // Get authentication method from metadata
         let metadata = self.infra.get_provider_metadata(provider_id);
-        let oauth_config = metadata
-            .auth_methods
-            .iter()
-            .find_map(|method| method.oauth_config.clone())
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "No OAuth configuration found for provider {:?}",
-                    provider_id
-                )
-            })?;
+        let auth_method = metadata.auth_methods.first().ok_or_else(|| {
+            anyhow::anyhow!(
+                "No authentication method found for provider {:?}",
+                provider_id
+            )
+        })?;
 
-        let oauth_tokens = credential
-            .oauth_tokens
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("No OAuth tokens found for credential"))?;
+        // Create an infrastructure adapter for the auth flow
+        let infra_adapter = RegistryInfraAdapter {
+            oauth_service: Arc::new(ForgeOAuthService),
+            github_service: Arc::new(GitHubCopilotService::new()),
+        };
 
-        match credential.auth_type {
-            AuthType::OAuth => {
-                // Standard OAuth refresh
-                tracing::debug!(provider = ?provider_id, "Refreshing standard OAuth tokens");
+        // Create the appropriate auth flow using the factory
+        let flow = AuthFlowFactory::create_flow(provider_id, auth_method, Arc::new(infra_adapter))?;
 
-                let refreshed_tokens = self
-                    .infra
-                    .refresh_token(&oauth_config, &oauth_tokens.refresh_token)
-                    .await?;
+        // Use the flow's refresh method
+        let refreshed_credential = flow.refresh(credential).await?;
 
-                // Build new OAuth tokens
-                let expires_in = refreshed_tokens.expires_in.unwrap_or(3600); // Default to 1 hour if not specified
-                let new_tokens = forge_app::dto::OAuthTokens::new(
-                    refreshed_tokens
-                        .refresh_token
-                        .unwrap_or(oauth_tokens.refresh_token.clone()),
-                    refreshed_tokens.access_token.clone(),
-                    Utc::now() + chrono::Duration::seconds(expires_in as i64),
-                );
+        // Update credential in database
+        self.infra
+            .upsert_credential(refreshed_credential.clone())
+            .await?;
 
-                // Update credential in database
-                self.infra
-                    .update_oauth_tokens(provider_id, new_tokens.clone())
-                    .await?;
-
-                // Return updated credential
-                let mut updated_credential = credential.clone();
-                updated_credential.oauth_tokens = Some(new_tokens);
-                Ok(updated_credential)
-            }
-            AuthType::OAuthWithApiKey => {
-                // GitHub Copilot API key refresh
-                // Note: For GitHub device flow, the "refresh_token" IS the OAuth access token
-                // We use it directly to fetch a new Copilot API key from GitHub's API
-                tracing::debug!(provider = ?provider_id, "Refreshing GitHub Copilot API key");
-
-                // Use the OAuth access token (stored as refresh_token) to get new Copilot API
-                // key
-                let (api_key, expires_at) = self
-                    .infra
-                    .process_github_copilot_token(&oauth_tokens.refresh_token)
-                    .await?;
-                let expires_at = expires_at.ok_or_else(|| {
-                    anyhow::anyhow!("GitHub Copilot token refresh did not include an expiry")
-                })?;
-
-                // Update OAuth tokens with new expiration (access token stays the same)
-                let new_tokens = forge_app::dto::OAuthTokens::new(
-                    oauth_tokens.refresh_token.clone(),
-                    oauth_tokens.access_token.clone(),
-                    expires_at,
-                );
-
-                // Update both API key and OAuth tokens in database
-                let mut updated_credential = credential.clone();
-                updated_credential.api_key = Some(api_key);
-                updated_credential.oauth_tokens = Some(new_tokens.clone());
-
-                self.infra
-                    .upsert_credential(updated_credential.clone())
-                    .await?;
-
-                Ok(updated_credential)
-            }
-            AuthType::ApiKey => {
-                // API keys don't have refresh mechanism
-                Err(anyhow::anyhow!("Cannot refresh API key authentication"))
-            }
-        }
+        Ok(refreshed_credential)
     }
 
     async fn create_provider_from_credential(
@@ -332,6 +292,11 @@ impl<
         credential: &forge_app::dto::ProviderCredential,
     ) -> anyhow::Result<Provider> {
         use forge_app::dto::AuthType;
+
+        // Handle custom providers separately
+        if provider_id.is_custom() {
+            return self.create_custom_provider(provider_id, credential);
+        }
 
         // Get provider config for URL templates
         let config = get_provider_configs()
@@ -395,11 +360,83 @@ impl<
             })?;
 
         Ok(Provider {
-            id: *provider_id,
+            id: provider_id.clone(),
             response: config.response_type.clone(),
             url: Url::parse(&url)?,
             key: Some(api_key),
             model_url: Url::parse(&model_url)?,
+        })
+    }
+
+    /// Creates a Provider instance for custom user-defined providers
+    ///
+    /// # Arguments
+    /// * `provider_id` - Custom provider ID
+    /// * `credential` - Provider credential with custom provider metadata
+    ///
+    /// # Returns
+    /// A Provider configured to use the custom base URL and model ID
+    ///
+    /// # Errors
+    /// Returns error if required custom provider fields are missing
+    fn create_custom_provider(
+        &self,
+        provider_id: &ProviderId,
+        credential: &forge_app::dto::ProviderCredential,
+    ) -> anyhow::Result<Provider> {
+        use forge_app::dto::CompatibilityMode;
+
+        // Validate custom provider has required fields
+        let base_url = credential.custom_base_url.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("Missing base_url for custom provider {:?}", provider_id)
+        })?;
+
+        let _model_id = credential.custom_model_id.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("Missing model_id for custom provider {:?}", provider_id)
+        })?;
+
+        let compatibility_mode = credential.compatibility_mode.as_ref().ok_or_else(|| {
+            anyhow::anyhow!(
+                "Missing compatibility_mode for custom provider {:?}",
+                provider_id
+            )
+        })?;
+
+        // Determine response type based on compatibility mode
+        let response_type = match compatibility_mode {
+            CompatibilityMode::OpenAI => ProviderResponse::OpenAI,
+            CompatibilityMode::Anthropic => ProviderResponse::Anthropic,
+        };
+
+        // Build chat completions and models URLs based on compatibility mode
+        let (chat_url, models_url) = match compatibility_mode {
+            CompatibilityMode::OpenAI => {
+                // OpenAI-compatible: /v1/chat/completions and /v1/models
+                let chat = format!("{}/chat/completions", base_url.trim_end_matches('/'));
+                let models = format!("{}/models", base_url.trim_end_matches('/'));
+                (chat, models)
+            }
+            CompatibilityMode::Anthropic => {
+                // Anthropic-compatible: /v1/messages and /v1/models
+                let chat = format!("{}/messages", base_url.trim_end_matches('/'));
+                let models = format!("{}/models", base_url.trim_end_matches('/'));
+                (chat, models)
+            }
+        };
+
+        // API key is optional for custom providers (local servers may not require auth)
+        let api_key = credential.api_key.clone();
+
+        Ok(Provider {
+            id: provider_id.clone(),
+            response: response_type,
+            url: Url::parse(&chat_url).map_err(|e| {
+                anyhow::anyhow!("Invalid custom provider URL '{}': {}", chat_url, e)
+            })?,
+            key: api_key,
+            model_url: Url::parse(&models_url).map_err(|e| {
+                anyhow::anyhow!("Invalid custom provider model URL '{}': {}", models_url, e)
+            })?,
         })
     }
 
@@ -420,6 +457,84 @@ impl<
         self.infra.set_app_config(&config).await?;
         Ok(())
     }
+
+    /// Lists all custom provider credentials
+    ///
+    /// # Returns
+    /// Vector of credentials for custom providers only (ProviderId::Custom)
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn list_custom_providers(
+        &self,
+    ) -> anyhow::Result<Vec<forge_app::dto::ProviderCredential>> {
+        let all_credentials = self.infra.get_all_credentials().await?;
+        Ok(all_credentials
+            .into_iter()
+            .filter(|c| c.is_custom_provider())
+            .collect())
+    }
+
+    /// Deletes a custom provider credential
+    ///
+    /// # Arguments
+    /// * `provider_id` - The custom provider ID to delete
+    ///
+    /// # Returns
+    /// Ok if deleted successfully
+    ///
+    /// # Errors
+    /// * Returns error if provider_id is not a custom provider
+    /// * Returns error if database operation fails
+    pub async fn delete_custom_provider(
+        &self,
+        provider_id: &forge_app::dto::ProviderId,
+    ) -> anyhow::Result<()> {
+        if !provider_id.is_custom() {
+            return Err(anyhow::anyhow!(
+                "Cannot delete built-in provider: {}",
+                provider_id
+            ));
+        }
+
+        self.infra.delete_credential(provider_id).await?;
+
+        // If this was the active provider, clear it
+        let app_config = self.infra.get_app_config().await?;
+        if app_config.provider.as_ref() == Some(provider_id) {
+            self.update(|config| {
+                config.provider = None;
+            })
+            .await?;
+        }
+
+        Ok(())
+    }
+
+    /// Stores a custom provider credential
+    ///
+    /// # Arguments
+    /// * `credential` - The custom provider credential to store
+    ///
+    /// # Returns
+    /// Ok if stored successfully
+    ///
+    /// # Errors
+    /// * Returns error if credential is not for a custom provider
+    /// * Returns error if database operation fails
+    pub async fn store_custom_provider(
+        &self,
+        credential: forge_app::dto::ProviderCredential,
+    ) -> anyhow::Result<()> {
+        if !credential.is_custom_provider() {
+            return Err(anyhow::anyhow!(
+                "Cannot store as custom provider: credential is for built-in provider {}",
+                credential.provider_id
+            ));
+        }
+
+        self.infra.upsert_credential(credential).await
+    }
 }
 
 #[async_trait::async_trait]
@@ -427,7 +542,6 @@ impl<
     F: EnvironmentInfra
         + AppConfigRepository
         + ProviderCredentialRepository
-        + OAuthFlowInfra
         + ProviderSpecificProcessingInfra,
 > ProviderRegistry for ForgeProviderRegistry<F>
 {
@@ -453,7 +567,8 @@ impl<
 
         // Start with env-based providers
         let mut providers = self.get_providers().await.clone();
-        let mut provider_ids: HashSet<ProviderId> = providers.iter().map(|p| p.id).collect();
+        let mut provider_ids: HashSet<ProviderId> =
+            providers.iter().map(|p| p.id.clone()).collect();
 
         // Add database-based providers that aren't already in the list
         let db_credentials = self.infra.get_all_credentials().await?;
@@ -504,12 +619,24 @@ impl<
         .await
     }
 
-    fn available_provider_ids(&self) -> Vec<ProviderId> {
-        get_provider_configs()
+    async fn available_provider_ids(&self) -> Vec<ProviderId> {
+        // Get built-in providers
+        let mut provider_ids: Vec<ProviderId> = get_provider_configs()
             .iter()
             .filter(|config| config.id != ProviderId::Forge) // Exclude internal Forge provider
-            .map(|config| config.id)
-            .collect()
+            .map(|config| config.id.clone())
+            .collect();
+
+        // Add custom providers from credentials (they're already registered)
+        if let Ok(credentials) = self.infra.get_all_credentials().await {
+            for cred in credentials {
+                if cred.provider_id.is_custom() && !provider_ids.contains(&cred.provider_id) {
+                    provider_ids.push(cred.provider_id.clone());
+                }
+            }
+        }
+
+        provider_ids
     }
 }
 
@@ -977,5 +1104,314 @@ mod env_tests {
         // Verify warning tracking state exists (warning was logged at least once)
         let warned = get_env_var_warnings().lock().unwrap();
         assert!(warned.contains(&ProviderId::OpenAI));
+    }
+
+    #[tokio::test]
+    async fn test_create_custom_provider_openai_compatible() {
+        use forge_app::dto::{CompatibilityMode, ProviderCredential};
+
+        let infra = Arc::new(MockInfra { env_vars: HashMap::new() });
+        let registry = ForgeProviderRegistry::new(infra);
+
+        let credential = ProviderCredential::new_custom_provider(
+            ProviderId::Custom("LocalAI".to_string()),
+            Some("test-api-key".to_string()),
+            CompatibilityMode::OpenAI,
+            "http://localhost:8080/v1".to_string(),
+            "gpt-4-local".to_string(),
+        );
+
+        let provider = registry
+            .create_custom_provider(&credential.provider_id, &credential)
+            .unwrap();
+
+        assert_eq!(provider.id, ProviderId::Custom("LocalAI".to_string()));
+        assert_eq!(provider.response, ProviderResponse::OpenAI);
+        assert_eq!(
+            provider.url.as_str(),
+            "http://localhost:8080/v1/chat/completions"
+        );
+        assert_eq!(
+            provider.model_url.as_str(),
+            "http://localhost:8080/v1/models"
+        );
+        assert_eq!(provider.key, Some("test-api-key".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_create_custom_provider_anthropic_compatible() {
+        use forge_app::dto::{CompatibilityMode, ProviderCredential};
+
+        let infra = Arc::new(MockInfra { env_vars: HashMap::new() });
+        let registry = ForgeProviderRegistry::new(infra);
+
+        let credential = ProviderCredential::new_custom_provider(
+            ProviderId::Custom("Corporate Claude".to_string()),
+            Some("corp-key".to_string()),
+            CompatibilityMode::Anthropic,
+            "https://llm.corp.example.com/api".to_string(),
+            "claude-3-opus-internal".to_string(),
+        );
+
+        let provider = registry
+            .create_custom_provider(&credential.provider_id, &credential)
+            .unwrap();
+
+        assert_eq!(
+            provider.id,
+            ProviderId::Custom("Corporate Claude".to_string())
+        );
+        assert_eq!(provider.response, ProviderResponse::Anthropic);
+        assert_eq!(
+            provider.url.as_str(),
+            "https://llm.corp.example.com/api/messages"
+        );
+        assert_eq!(
+            provider.model_url.as_str(),
+            "https://llm.corp.example.com/api/models"
+        );
+        assert_eq!(provider.key, Some("corp-key".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_create_custom_provider_without_api_key() {
+        use forge_app::dto::{CompatibilityMode, ProviderCredential};
+
+        let infra = Arc::new(MockInfra { env_vars: HashMap::new() });
+        let registry = ForgeProviderRegistry::new(infra);
+
+        let credential = ProviderCredential::new_custom_provider(
+            ProviderId::Custom("Local Server".to_string()),
+            None, // No API key for local server
+            CompatibilityMode::OpenAI,
+            "http://localhost:11434/v1".to_string(),
+            "llama3".to_string(),
+        );
+
+        let provider = registry
+            .create_custom_provider(&credential.provider_id, &credential)
+            .unwrap();
+
+        assert_eq!(provider.id, ProviderId::Custom("Local Server".to_string()));
+        assert_eq!(provider.response, ProviderResponse::OpenAI);
+        assert_eq!(provider.key, None); // No API key
+    }
+
+    #[tokio::test]
+    async fn test_create_custom_provider_with_trailing_slash() {
+        use forge_app::dto::{CompatibilityMode, ProviderCredential};
+
+        let infra = Arc::new(MockInfra { env_vars: HashMap::new() });
+        let registry = ForgeProviderRegistry::new(infra);
+
+        let credential = ProviderCredential::new_custom_provider(
+            ProviderId::Custom("Test".to_string()),
+            None,
+            CompatibilityMode::OpenAI,
+            "http://localhost:8080/v1/".to_string(), // Trailing slash
+            "model".to_string(),
+        );
+
+        let provider = registry
+            .create_custom_provider(&credential.provider_id, &credential)
+            .unwrap();
+
+        // Should handle trailing slash correctly
+        assert_eq!(
+            provider.url.as_str(),
+            "http://localhost:8080/v1/chat/completions"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_create_custom_provider_missing_base_url() {
+        use forge_app::dto::{CompatibilityMode, ProviderCredential};
+
+        let infra = Arc::new(MockInfra { env_vars: HashMap::new() });
+        let registry = ForgeProviderRegistry::new(infra);
+
+        // Create credential without custom_base_url
+        let mut credential = ProviderCredential::new_api_key(
+            ProviderId::Custom("Test".to_string()),
+            "key".to_string(),
+        );
+        credential.custom_model_id = Some("model".to_string());
+        credential.compatibility_mode = Some(CompatibilityMode::OpenAI);
+
+        let result = registry.create_custom_provider(&credential.provider_id, &credential);
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Missing base_url"));
+    }
+
+    #[tokio::test]
+    async fn test_create_custom_provider_missing_compatibility_mode() {
+        use forge_app::dto::ProviderCredential;
+
+        let infra = Arc::new(MockInfra { env_vars: HashMap::new() });
+        let registry = ForgeProviderRegistry::new(infra);
+
+        // Create credential without compatibility_mode
+        let mut credential = ProviderCredential::new_api_key(
+            ProviderId::Custom("Test".to_string()),
+            "key".to_string(),
+        );
+        credential.custom_base_url = Some("http://localhost:8080".to_string());
+        credential.custom_model_id = Some("model".to_string());
+
+        let result = registry.create_custom_provider(&credential.provider_id, &credential);
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Missing compatibility_mode")
+        );
+    }
+
+    // Tests for custom provider management methods
+    #[tokio::test]
+    async fn test_list_custom_providers_empty() {
+        let infra = Arc::new(MockInfra { env_vars: HashMap::new() });
+        let registry = ForgeProviderRegistry::new(infra);
+
+        let custom_providers = registry.list_custom_providers().await.unwrap();
+        assert_eq!(custom_providers.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_store_custom_provider_success() {
+        use forge_app::dto::CompatibilityMode;
+
+        let infra = Arc::new(MockInfra { env_vars: HashMap::new() });
+        let registry = ForgeProviderRegistry::new(infra);
+
+        let credential = forge_app::dto::ProviderCredential::new_custom_provider(
+            ProviderId::Custom("TestProvider".to_string()),
+            Some("key".to_string()),
+            CompatibilityMode::OpenAI,
+            "http://localhost:8080".to_string(),
+            "model".to_string(),
+        );
+
+        let result = registry.store_custom_provider(credential).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_store_custom_provider_rejects_builtin() {
+        let infra = Arc::new(MockInfra { env_vars: HashMap::new() });
+        let registry = ForgeProviderRegistry::new(infra);
+
+        let credential =
+            forge_app::dto::ProviderCredential::new_api_key(ProviderId::OpenAI, "key".to_string());
+
+        let result = registry.store_custom_provider(credential).await;
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("built-in provider")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_delete_custom_provider_success() {
+        let infra = Arc::new(MockInfra { env_vars: HashMap::new() });
+        let registry = ForgeProviderRegistry::new(infra);
+
+        let provider_id = ProviderId::Custom("TestProvider".to_string());
+        let result = registry.delete_custom_provider(&provider_id).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_delete_custom_provider_rejects_builtin() {
+        let infra = Arc::new(MockInfra { env_vars: HashMap::new() });
+        let registry = ForgeProviderRegistry::new(infra);
+
+        let result = registry.delete_custom_provider(&ProviderId::OpenAI).await;
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Cannot delete built-in provider")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_validate_credential_valid_api_key() {
+        let infra = Arc::new(MockInfra { env_vars: HashMap::new() });
+        let registry = ForgeProviderRegistry::new(infra);
+
+        let credential = forge_app::dto::ProviderCredential::new_api_key(
+            ProviderId::OpenAI,
+            "test-api-key".to_string(),
+        );
+
+        let is_valid = registry
+            .validate_credential(&ProviderId::OpenAI, &credential)
+            .await
+            .unwrap();
+
+        // API keys always validate as true
+        assert!(is_valid);
+    }
+
+    #[tokio::test]
+    async fn test_validate_credential_expired_oauth() {
+        let infra = Arc::new(MockInfra { env_vars: HashMap::new() });
+        let registry = ForgeProviderRegistry::new(infra);
+
+        // Create an OAuth credential with expired token (1 hour and 1 minute ago to
+        // ensure it's definitely expired)
+        let expired_at =
+            chrono::Utc::now() - chrono::Duration::hours(1) - chrono::Duration::minutes(1);
+        let oauth_tokens = forge_app::dto::OAuthTokens::new(
+            "refresh-token".to_string(),
+            "access-token".to_string(),
+            expired_at,
+        );
+
+        // Use GithubCopilot which supports OAuth
+        let credential =
+            forge_app::dto::ProviderCredential::new_oauth(ProviderId::GithubCopilot, oauth_tokens);
+
+        let is_valid = registry
+            .validate_credential(&ProviderId::GithubCopilot, &credential)
+            .await
+            .unwrap();
+
+        // Expired OAuth tokens should validate as false
+        assert!(!is_valid);
+    }
+
+    #[tokio::test]
+    async fn test_validate_credential_valid_oauth() {
+        let infra = Arc::new(MockInfra { env_vars: HashMap::new() });
+        let registry = ForgeProviderRegistry::new(infra);
+
+        // Create an OAuth credential with future expiration
+        let expires_at = chrono::Utc::now() + chrono::Duration::hours(1);
+        let oauth_tokens = forge_app::dto::OAuthTokens::new(
+            "refresh-token".to_string(),
+            "access-token".to_string(),
+            expires_at,
+        );
+
+        // Use GithubCopilot which supports OAuth
+        let credential =
+            forge_app::dto::ProviderCredential::new_oauth(ProviderId::GithubCopilot, oauth_tokens);
+
+        let is_valid = registry
+            .validate_credential(&ProviderId::GithubCopilot, &credential)
+            .await
+            .unwrap();
+
+        // Valid OAuth tokens should validate as true
+        assert!(is_valid);
     }
 }

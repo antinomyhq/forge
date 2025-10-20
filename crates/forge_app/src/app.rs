@@ -23,15 +23,19 @@ use crate::{
 pub struct ForgeApp<S> {
     services: Arc<S>,
     tool_registry: ToolRegistry<S>,
-    authenticator: Authenticator<S>,
+    authenticator: Authenticator<S, S>,
 }
 
 impl<S: Services> ForgeApp<S> {
     /// Creates a new ForgeApp instance with the provided services.
+    ///
+    /// # Arguments
+    /// * `services` - Application services (provides both auth and provider
+    ///   auth)
     pub fn new(services: Arc<S>) -> Self {
         Self {
             tool_registry: ToolRegistry::new(services.clone()),
-            authenticator: Authenticator::new(services.clone()),
+            authenticator: Authenticator::new(services.clone(), services.clone()),
             services,
         }
     }
@@ -221,15 +225,128 @@ impl<S: Services> ForgeApp<S> {
     pub async fn list_tools(&self) -> Result<ToolsOverview> {
         self.tool_registry.tools_overview().await
     }
+
+    /// Initializes Forge platform authentication
     pub async fn login(&self, init_auth: &InitAuth) -> Result<()> {
         self.authenticator.login(init_auth).await
     }
+
+    /// Returns device code information for user authorization
     pub async fn init_auth(&self) -> Result<InitAuth> {
         self.authenticator.init().await
     }
+
+    /// Logs out of Forge platform
     pub async fn logout(&self) -> Result<()> {
         self.authenticator.logout().await
     }
+
+    // ========== Provider Authentication ==========
+
+    /// Initiates authentication for an LLM provider
+    ///
+    /// Returns authentication initiation details that vary by provider:
+    /// - API Key: Prompt for key input
+    /// - OAuth Device Flow: User code and verification URL
+    /// - OAuth Code Flow: Authorization URL for browser
+    /// - Cloud Providers: Prompts for additional parameters (project_id,
+    ///   location, etc.)
+    ///
+    /// # Arguments
+    /// * `provider_id` - The provider to authenticate (e.g.,
+    ///   ProviderId::OpenAI)
+    pub async fn init_provider_auth(
+        &self,
+        provider_id: crate::dto::ProviderId,
+    ) -> Result<crate::dto::AuthInitiation> {
+        self.authenticator.init_provider_auth(provider_id).await
+    }
+
+    /// Polls until provider authentication completes (for OAuth flows)
+    ///
+    /// This blocks until authentication completes or timeout is reached.
+    /// Should NOT be called for manual input flows (API keys).
+    ///
+    /// # Arguments
+    /// * `provider_id` - The provider being authenticated
+    /// * `context` - Context from initiation (device code, session ID, etc.)
+    /// * `timeout` - Maximum duration to wait
+    pub async fn poll_provider_auth(
+        &self,
+        provider_id: crate::dto::ProviderId,
+        context: &crate::dto::AuthContext,
+        timeout: std::time::Duration,
+    ) -> Result<crate::dto::AuthResult> {
+        self.authenticator
+            .poll_provider_auth(provider_id, context, timeout)
+            .await
+    }
+
+    /// Completes provider authentication and saves credentials
+    ///
+    /// # Arguments
+    /// * `provider_id` - The provider being authenticated
+    /// * `result` - Authentication result from user input or polling
+    pub async fn complete_provider_auth(
+        &self,
+        provider_id: crate::dto::ProviderId,
+        result: crate::dto::AuthResult,
+    ) -> Result<()> {
+        self.authenticator
+            .complete_provider_auth(provider_id, result)
+            .await?;
+        Ok(())
+    }
+
+    /// Initiates custom provider registration
+    ///
+    /// Returns prompts for user to provide:
+    /// - Provider name
+    /// - Base URL
+    /// - Model ID
+    /// - API key (optional)
+    ///
+    /// # Arguments
+    /// * `compatibility_mode` - OpenAI or Anthropic API compatibility
+    pub async fn init_custom_provider(
+        &self,
+        compatibility_mode: crate::dto::CompatibilityMode,
+    ) -> Result<crate::dto::AuthInitiation> {
+        self.authenticator
+            .init_custom_provider_auth(compatibility_mode)
+            .await
+    }
+
+    /// Registers a custom provider with provided configuration
+    ///
+    /// # Arguments
+    /// * `result` - AuthResult::CustomProvider with all configuration
+    ///
+    /// # Returns
+    /// The generated ProviderId for the custom provider
+    pub async fn register_custom_provider(
+        &self,
+        result: crate::dto::AuthResult,
+    ) -> Result<crate::dto::ProviderId> {
+        self.authenticator.register_custom_provider(result).await
+    }
+
+    /// Lists all registered custom providers
+    pub async fn list_custom_providers(&self) -> Result<Vec<crate::dto::ProviderCredential>> {
+        self.authenticator.list_custom_providers().await
+    }
+
+    /// Deletes a custom provider
+    ///
+    /// # Arguments
+    /// * `provider_id` - The custom provider to delete (must be
+    ///   ProviderId::Custom)
+    pub async fn delete_custom_provider(&self, provider_id: crate::dto::ProviderId) -> Result<()> {
+        self.authenticator.delete_custom_provider(provider_id).await
+    }
+
+    // ========== Workflow Management ==========
+
     pub async fn read_workflow(&self, path: Option<&Path>) -> Result<Workflow> {
         self.services.read_workflow(path).await
     }

@@ -6,14 +6,12 @@ use std::collections::HashMap;
 
 use oauth2::basic::BasicClient;
 use oauth2::{
-    AuthUrl, AuthorizationCode, ClientId, CsrfToken, DeviceAuthorizationUrl, PkceCodeChallenge,
-    PkceCodeVerifier, RedirectUrl, RefreshToken, Scope, StandardDeviceAuthorizationResponse,
-    TokenResponse, TokenUrl,
+    AuthUrl, AuthorizationCode, ClientId, CsrfToken, PkceCodeChallenge, PkceCodeVerifier,
+    RedirectUrl, RefreshToken, Scope, TokenResponse, TokenUrl,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::infra::OAuthFlowInfra;
-use crate::provider::{OAuthConfig, OAuthDeviceDisplay};
+use crate::provider::OAuthConfig;
 
 /// Response from device authorization initiation
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -83,73 +81,6 @@ impl ForgeOAuthService {
         Self
     }
 
-    /// Complete device authorization flow with callback (single-method design)
-    pub async fn device_flow_with_callback<F>(
-        &self,
-        config: &OAuthConfig,
-        display_callback: F,
-    ) -> anyhow::Result<forge_app::dto::OAuthTokens>
-    where
-        F: FnOnce(OAuthDeviceDisplay) + Send,
-    {
-        let device_code_url = config
-            .device_code_url
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("device_code_url not configured"))?;
-        let device_token_url = config
-            .device_token_url
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("device_token_url not configured"))?;
-
-        // Build oauth2 client for device flow
-        let client = BasicClient::new(ClientId::new(config.client_id.clone()))
-            .set_device_authorization_url(DeviceAuthorizationUrl::new(device_code_url.clone())?)
-            .set_token_uri(TokenUrl::new(device_token_url.clone())?);
-
-        // Build HTTP client with custom headers
-        let http_client = self.build_http_client(config.custom_headers.as_ref())?;
-
-        // Step 1: Initiate device authorization
-        let mut request = client.exchange_device_code();
-        for scope in &config.scopes {
-            request = request.add_scope(Scope::new(scope.clone()));
-        }
-
-        // Create HTTP client closure for GitHub-compliant requests
-        let http_fn = |req| Self::github_compliant_http_request(http_client.clone(), req);
-
-        let device_auth_response: StandardDeviceAuthorizationResponse =
-            request.request_async(&http_fn).await?;
-
-        // Step 2: Call display callback with user info
-        display_callback(OAuthDeviceDisplay {
-            user_code: device_auth_response.user_code().secret().to_string(),
-            verification_uri: device_auth_response.verification_uri().to_string(),
-            expires_in: device_auth_response.expires_in().as_secs(),
-        });
-
-        // Step 3: Poll for authorization with GitHub-compliant HTTP handling
-        // The custom HTTP function fixes GitHub's non-RFC-compliant 200 OK error
-        // responses
-        let token_result = client
-            .exchange_device_access_token(&device_auth_response)
-            .request_async(&http_fn, tokio::time::sleep, None)
-            .await?;
-
-        // Step 4: Convert to OAuthTokens format
-        let access_token = token_result.access_token().secret().to_string();
-        let refresh_token = token_result
-            .refresh_token()
-            .map(|t| t.secret().to_string())
-            .unwrap_or_else(|| access_token.clone()); // Use access token as fallback
-        let expires_at = token_result
-            .expires_in()
-            .map(|d| chrono::Utc::now() + chrono::Duration::seconds(d.as_secs() as i64))
-            .unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::days(365)); // Default to 1 year
-
-        Ok(forge_app::dto::OAuthTokens { access_token, refresh_token, expires_at })
-    }
-
     /// Builds a reqwest HTTP client with custom headers from config
     ///
     /// # Arguments
@@ -158,7 +89,7 @@ impl ForgeOAuthService {
     ///
     /// # Returns
     /// Configured reqwest client with custom headers set as defaults
-    fn build_http_client(
+    pub fn build_http_client(
         &self,
         custom_headers: Option<&HashMap<String, String>>,
     ) -> anyhow::Result<reqwest::Client> {
@@ -227,7 +158,7 @@ impl ForgeOAuthService {
     ///
     /// # Errors
     /// Returns error if HTTP request fails
-    async fn github_compliant_http_request(
+    pub async fn github_compliant_http_request(
         client: reqwest::Client,
         request: http::Request<Vec<u8>>,
     ) -> Result<http::Response<Vec<u8>>, reqwest::Error> {
@@ -429,28 +360,6 @@ impl ForgeOAuthService {
 impl Default for ForgeOAuthService {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[async_trait::async_trait]
-impl OAuthFlowInfra for ForgeOAuthService {
-    async fn device_flow_with_callback<F>(
-        &self,
-        config: &OAuthConfig,
-        display_callback: F,
-    ) -> anyhow::Result<forge_app::dto::OAuthTokens>
-    where
-        F: FnOnce(OAuthDeviceDisplay) + Send,
-    {
-        ForgeOAuthService::device_flow_with_callback(self, config, display_callback).await
-    }
-
-    async fn refresh_token(
-        &self,
-        config: &OAuthConfig,
-        refresh_token: &str,
-    ) -> anyhow::Result<OAuthTokenResponse> {
-        ForgeOAuthService::refresh_access_token(self, config, refresh_token).await
     }
 }
 

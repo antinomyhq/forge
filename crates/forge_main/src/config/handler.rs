@@ -1,4 +1,3 @@
-use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -160,14 +159,15 @@ impl<A: API> ConfigManager<A> {
 
     /// Validate provider exists and has API key
     async fn validate_provider(&self, provider_str: &str) -> ConfigResult<ProviderId> {
-        // Parse provider ID from string
-        let provider_id = ProviderId::from_str(provider_str).with_context(|| {
-            format!(
-                "Invalid provider: '{}'. Valid providers are: {}",
-                provider_str,
-                get_valid_provider_names().join(", ")
-            )
-        })?;
+        // Parse provider ID from string using serde deserialization
+        let provider_id: ProviderId = serde_json::from_str(&format!("\"{}\"", provider_str))
+            .with_context(|| {
+                format!(
+                    "Invalid provider: '{}'. Valid providers are: {}",
+                    provider_str,
+                    get_valid_provider_names().join(", ")
+                )
+            })?;
 
         // Check if provider has valid API key
         let providers = self.api.providers().await?;
@@ -188,8 +188,10 @@ impl<A: API> ConfigManager<A> {
 
 /// Get list of valid provider names
 fn get_valid_provider_names() -> Vec<String> {
-    use strum::IntoEnumIterator;
-    ProviderId::iter().map(|p| p.to_string()).collect()
+    ProviderId::built_in_providers()
+        .into_iter()
+        .map(|p| p.to_string())
+        .collect()
 }
 
 #[cfg(test)]

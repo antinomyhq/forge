@@ -4,7 +4,7 @@ use anyhow::Result;
 use forge_app::dto::{InitAuth, ProviderId, ToolsOverview};
 use forge_app::{User, UserUsage};
 use forge_domain::{AgentId, ModelId};
-use forge_services::provider::{ImportSummary, OAuthDeviceDisplay, ValidationOutcome};
+use forge_services::provider::{ImportSummary, ValidationOutcome};
 use forge_stream::MpscStream;
 
 use crate::*;
@@ -146,25 +146,6 @@ pub trait API: Sync + Send {
         skip_validation: bool,
     ) -> Result<ValidationOutcome>;
 
-    /// Authenticates with a provider using OAuth device flow
-    ///
-    /// This method handles the complete OAuth flow with a callback for
-    /// displaying the user code and verification URL. The callback is
-    /// invoked once the device code is obtained, then the method blocks
-    /// while polling for authorization.
-    ///
-    /// # Arguments
-    ///
-    /// * `provider_id` - Provider to authenticate with
-    /// * `display_callback` - Callback to display OAuth device info to user
-    async fn authenticate_provider_oauth<Cb>(
-        &self,
-        provider_id: ProviderId,
-        display_callback: Cb,
-    ) -> Result<()>
-    where
-        Cb: FnOnce(OAuthDeviceDisplay) + Send;
-
     /// Imports provider credentials from environment variables
     ///
     /// Uses provider metadata to determine which environment variables to
@@ -177,4 +158,78 @@ pub trait API: Sync + Send {
         &self,
         filter: Option<ProviderId>,
     ) -> Result<ImportSummary>;
+
+    // New trait-based authentication methods (Phase 7)
+
+    /// Initiates provider authentication flow
+    ///
+    /// Returns authentication initiation details based on provider type:
+    /// - API key providers: Returns prompt for API key input
+    /// - OAuth providers: Returns device code and verification URL
+    /// - Code flow providers: Returns authorization URL
+    ///
+    /// # Arguments
+    ///
+    /// * `provider_id` - Provider to authenticate with
+    async fn init_provider_auth(
+        &self,
+        provider_id: ProviderId,
+    ) -> Result<forge_app::dto::AuthInitiation>;
+
+    /// Polls for OAuth authentication completion
+    ///
+    /// Blocks until user completes OAuth authorization or timeout is reached.
+    /// Only applicable for OAuth providers.
+    ///
+    /// # Arguments
+    ///
+    /// * `provider_id` - Provider being authenticated
+    /// * `context` - Authentication context from initiation
+    /// * `timeout` - Maximum time to wait for authorization
+    async fn poll_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        context: &forge_app::dto::AuthContext,
+        timeout: std::time::Duration,
+    ) -> Result<forge_app::dto::AuthResult>;
+
+    /// Completes provider authentication and saves credentials
+    ///
+    /// Processes authentication result and stores credential in database.
+    ///
+    /// # Arguments
+    ///
+    /// * `provider_id` - Provider being authenticated
+    /// * `result` - Authentication result from user input or OAuth flow
+    async fn complete_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        result: forge_app::dto::AuthResult,
+    ) -> Result<()>;
+
+    /// Initiates custom provider registration
+    ///
+    /// Returns prompts for custom provider configuration (name, base URL,
+    /// model ID, API key).
+    ///
+    /// # Arguments
+    ///
+    /// * `compatibility_mode` - Whether provider is OpenAI or Anthropic
+    ///   compatible
+    async fn init_custom_provider(
+        &self,
+        compatibility_mode: forge_app::dto::CompatibilityMode,
+    ) -> Result<forge_app::dto::AuthInitiation>;
+
+    /// Registers a custom provider
+    ///
+    /// Validates and stores custom provider configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `result` - Custom provider details from user input
+    async fn register_custom_provider(
+        &self,
+        result: forge_app::dto::AuthResult,
+    ) -> Result<ProviderId>;
 }

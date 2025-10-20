@@ -15,6 +15,7 @@ async-recursion.workspace = true
 forge_snaps.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+serde_urlencoded.workspace = true
 derive_setters.workspace = true
 tokio-stream.workspace = true
 handlebars.workspace = true

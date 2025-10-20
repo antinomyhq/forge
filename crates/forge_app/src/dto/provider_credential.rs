@@ -7,6 +7,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
 use super::ProviderId;
+use super::auth_flow::CompatibilityMode;
 
 /// Type of authentication used for a provider
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -103,6 +104,21 @@ pub struct ProviderCredential {
     #[serde(default)]
     pub url_params: HashMap<String, String>,
 
+    /// Custom provider compatibility mode (OpenAI or Anthropic)
+    /// Only set for custom user-defined providers
+    #[serde(default)]
+    pub compatibility_mode: Option<CompatibilityMode>,
+
+    /// Custom provider base URL
+    /// Only set for custom user-defined providers
+    #[serde(default)]
+    pub custom_base_url: Option<String>,
+
+    /// Custom provider model ID
+    /// Only set for custom user-defined providers
+    #[serde(default)]
+    pub custom_model_id: Option<String>,
+
     /// When the credential was created
     pub created_at: DateTime<Utc>,
 
@@ -126,6 +142,9 @@ impl ProviderCredential {
             api_key: Some(api_key),
             oauth_tokens: None,
             url_params: HashMap::new(),
+            compatibility_mode: None,
+            custom_base_url: None,
+            custom_model_id: None,
             created_at: now,
             updated_at: now,
             last_verified_at: None,
@@ -142,6 +161,9 @@ impl ProviderCredential {
             api_key: None,
             oauth_tokens: Some(oauth_tokens),
             url_params: HashMap::new(),
+            compatibility_mode: None,
+            custom_base_url: None,
+            custom_model_id: None,
             created_at: now,
             updated_at: now,
             last_verified_at: None,
@@ -162,11 +184,51 @@ impl ProviderCredential {
             api_key: Some(api_key),
             oauth_tokens: Some(oauth_tokens),
             url_params: HashMap::new(),
+            compatibility_mode: None,
+            custom_base_url: None,
+            custom_model_id: None,
             created_at: now,
             updated_at: now,
             last_verified_at: None,
             is_active: true,
         }
+    }
+
+    /// Creates a new custom provider credential
+    ///
+    /// # Arguments
+    /// * `provider_id` - Custom provider ID (ProviderId::Custom)
+    /// * `api_key` - Optional API key (None for local servers without auth)
+    /// * `compatibility_mode` - OpenAI or Anthropic compatibility
+    /// * `base_url` - Custom provider base URL
+    /// * `model_id` - Model identifier to use
+    pub fn new_custom_provider(
+        provider_id: ProviderId,
+        api_key: Option<String>,
+        compatibility_mode: CompatibilityMode,
+        base_url: String,
+        model_id: String,
+    ) -> Self {
+        let now = Utc::now();
+        Self {
+            provider_id,
+            auth_type: AuthType::ApiKey,
+            api_key,
+            oauth_tokens: None,
+            url_params: HashMap::new(),
+            compatibility_mode: Some(compatibility_mode),
+            custom_base_url: Some(base_url),
+            custom_model_id: Some(model_id),
+            created_at: now,
+            updated_at: now,
+            last_verified_at: None,
+            is_active: true,
+        }
+    }
+
+    /// Checks if this is a custom provider credential
+    pub fn is_custom_provider(&self) -> bool {
+        self.provider_id.is_custom()
     }
 
     /// Checks if OAuth tokens need refresh
@@ -210,6 +272,9 @@ impl Default for ProviderCredential {
             api_key: None,
             oauth_tokens: None,
             url_params: HashMap::new(),
+            compatibility_mode: None,
+            custom_base_url: None,
+            custom_model_id: None,
             created_at: now,
             updated_at: now,
             last_verified_at: None,
@@ -402,5 +467,76 @@ mod tests {
         assert_eq!(cred.provider_id, ProviderId::Anthropic);
         assert_eq!(cred.api_key, Some("test-key".to_string()));
         assert!(!cred.is_active);
+    }
+
+    #[test]
+    fn test_new_custom_provider_with_api_key() {
+        let cred = ProviderCredential::new_custom_provider(
+            ProviderId::Custom("LocalAI".to_string()),
+            Some("test-key".to_string()),
+            CompatibilityMode::OpenAI,
+            "http://localhost:8080/v1".to_string(),
+            "gpt-4-local".to_string(),
+        );
+
+        assert_eq!(cred.provider_id, ProviderId::Custom("LocalAI".to_string()));
+        assert_eq!(cred.auth_type, AuthType::ApiKey);
+        assert_eq!(cred.api_key, Some("test-key".to_string()));
+        assert_eq!(cred.compatibility_mode, Some(CompatibilityMode::OpenAI));
+        assert_eq!(
+            cred.custom_base_url,
+            Some("http://localhost:8080/v1".to_string())
+        );
+        assert_eq!(cred.custom_model_id, Some("gpt-4-local".to_string()));
+        assert!(cred.is_custom_provider());
+    }
+
+    #[test]
+    fn test_new_custom_provider_without_api_key() {
+        let cred = ProviderCredential::new_custom_provider(
+            ProviderId::Custom("Ollama".to_string()),
+            None,
+            CompatibilityMode::OpenAI,
+            "http://localhost:11434/v1".to_string(),
+            "llama3".to_string(),
+        );
+
+        assert_eq!(cred.provider_id, ProviderId::Custom("Ollama".to_string()));
+        assert_eq!(cred.api_key, None);
+        assert!(cred.is_custom_provider());
+    }
+
+    #[test]
+    fn test_new_custom_provider_anthropic_compatible() {
+        let cred = ProviderCredential::new_custom_provider(
+            ProviderId::Custom("Corp Claude".to_string()),
+            Some("corp-key".to_string()),
+            CompatibilityMode::Anthropic,
+            "https://llm.corp.com/api".to_string(),
+            "claude-3-opus".to_string(),
+        );
+
+        assert_eq!(cred.compatibility_mode, Some(CompatibilityMode::Anthropic));
+        assert_eq!(
+            cred.custom_base_url,
+            Some("https://llm.corp.com/api".to_string())
+        );
+    }
+
+    #[test]
+    fn test_is_custom_provider() {
+        let custom_cred = ProviderCredential::new_custom_provider(
+            ProviderId::Custom("Test".to_string()),
+            None,
+            CompatibilityMode::OpenAI,
+            "http://localhost".to_string(),
+            "test-model".to_string(),
+        );
+
+        let regular_cred =
+            ProviderCredential::new_api_key(ProviderId::OpenAI, "sk-test".to_string());
+
+        assert!(custom_cred.is_custom_provider());
+        assert!(!regular_cred.is_custom_provider());
     }
 }

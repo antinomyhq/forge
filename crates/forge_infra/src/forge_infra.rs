@@ -4,19 +4,18 @@ use std::sync::Arc;
 
 use anyhow::ensure;
 use bytes::Bytes;
-use forge_app::dto::{OAuthTokens, ProviderId};
+use forge_app::dto::ProviderId;
 use forge_domain::{CommandOutput, Conversation, ConversationId, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::provider::{
-    ForgeOAuthService, ForgeProviderValidationService, OAuthDeviceDisplay, OAuthTokenResponse,
-    ProviderMetadata, ProviderProcessingService, ValidationResult,
+    ForgeProviderValidationService, ProviderMetadata, ProviderProcessingService, ValidationResult,
 };
 use forge_services::{
     AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
     DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, OAuthFlowInfra,
-    ProviderCredentialRepository, ProviderSpecificProcessingInfra, ProviderValidationInfra,
-    SnapshotInfra, UserInfra, WalkerInfra,
+    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, ProviderCredentialRepository,
+    ProviderSpecificProcessingInfra, ProviderValidationInfra, SnapshotInfra, UserInfra,
+    WalkerInfra,
 };
 use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
@@ -63,6 +62,8 @@ pub struct ForgeInfra {
     app_config_repository: Arc<AppConfigRepositoryImpl>,
     mcp_cache_repository: Arc<CacacheRepository>,
     provider_credential_repository: Arc<ProviderCredentialRepositoryImpl>,
+    oauth_service: Arc<forge_services::provider::ForgeOAuthService>,
+    github_copilot_service: Arc<forge_services::provider::GitHubCopilotService>,
 }
 
 impl ForgeInfra {
@@ -90,6 +91,10 @@ impl ForgeInfra {
         let provider_credential_repository =
             Arc::new(ProviderCredentialRepositoryImpl::new(db_pool.clone()));
 
+        let oauth_service = Arc::new(forge_services::provider::ForgeOAuthService::new());
+        let github_copilot_service =
+            Arc::new(forge_services::provider::GitHubCopilotService::new());
+
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
             file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),
@@ -113,6 +118,8 @@ impl ForgeInfra {
             app_config_repository,
             mcp_cache_repository,
             provider_credential_repository,
+            oauth_service,
+            github_copilot_service,
         }
     }
 }
@@ -474,32 +481,6 @@ impl ProviderValidationInfra for ForgeInfra {
 }
 
 #[async_trait::async_trait]
-impl OAuthFlowInfra for ForgeInfra {
-    async fn device_flow_with_callback<F>(
-        &self,
-        config: &forge_services::provider::OAuthConfig,
-        display_callback: F,
-    ) -> anyhow::Result<OAuthTokens>
-    where
-        F: FnOnce(OAuthDeviceDisplay) + Send,
-    {
-        let service = ForgeOAuthService::new();
-        service
-            .device_flow_with_callback(config, display_callback)
-            .await
-    }
-
-    async fn refresh_token(
-        &self,
-        config: &forge_services::provider::OAuthConfig,
-        refresh_token: &str,
-    ) -> anyhow::Result<OAuthTokenResponse> {
-        let service = ForgeOAuthService::new();
-        service.refresh_access_token(config, refresh_token).await
-    }
-}
-
-#[async_trait::async_trait]
 impl ProviderSpecificProcessingInfra for ForgeInfra {
     async fn process_github_copilot_token(
         &self,
@@ -512,5 +493,15 @@ impl ProviderSpecificProcessingInfra for ForgeInfra {
     fn get_provider_metadata(&self, provider_id: &ProviderId) -> ProviderMetadata {
         let service = ProviderProcessingService::new();
         service.get_provider_metadata(provider_id)
+    }
+}
+
+impl forge_services::provider::auth_flow::AuthFlowInfra for ForgeInfra {
+    fn oauth_service(&self) -> Arc<forge_services::provider::ForgeOAuthService> {
+        self.oauth_service.clone()
+    }
+
+    fn github_copilot_service(&self) -> Arc<forge_services::provider::GitHubCopilotService> {
+        self.github_copilot_service.clone()
     }
 }

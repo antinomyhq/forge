@@ -8,7 +8,7 @@ use forge_app::domain::{
     CommandOutput, Conversation, ConversationId, Environment, McpServerConfig, ToolDefinition,
     ToolName, ToolOutput,
 };
-use forge_app::dto::{OAuthTokens, ProviderCredential, ProviderId};
+use forge_app::dto::{ProviderCredential, ProviderId};
 use forge_app::{WalkedFile, Walker};
 use forge_snaps::Snapshot;
 use reqwest::Response;
@@ -17,9 +17,7 @@ use reqwest_eventsource::EventSource;
 use serde::de::DeserializeOwned;
 use url::Url;
 
-use crate::provider::{
-    OAuthConfig, OAuthDeviceDisplay, OAuthTokenResponse, ProviderMetadata, ValidationResult,
-};
+use crate::provider::{ProviderMetadata, ValidationResult};
 
 /// Infrastructure trait for accessing environment configuration and system
 /// variables.
@@ -234,23 +232,6 @@ pub trait ProviderValidationInfra: Send + Sync {
         credential: &ProviderCredential,
         validation_url: &Url,
     ) -> anyhow::Result<ValidationResult>;
-}
-
-#[async_trait::async_trait]
-pub trait OAuthFlowInfra: Send + Sync {
-    async fn device_flow_with_callback<F>(
-        &self,
-        config: &OAuthConfig,
-        display_callback: F,
-    ) -> anyhow::Result<OAuthTokens>
-    where
-        F: FnOnce(OAuthDeviceDisplay) + Send;
-
-    async fn refresh_token(
-        &self,
-        config: &OAuthConfig,
-        refresh_token: &str,
-    ) -> anyhow::Result<OAuthTokenResponse>;
 }
 
 #[async_trait::async_trait]

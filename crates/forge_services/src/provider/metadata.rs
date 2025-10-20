@@ -58,6 +58,9 @@ impl ProviderMetadataService {
             ProviderId::VertexAi => vec![AuthMethod::api_key("Auth Token", None)],
             ProviderId::BigModel => vec![AuthMethod::api_key("API Key", None)],
             ProviderId::Azure => vec![AuthMethod::api_key("API Key", None)],
+            // Custom providers use API key authentication
+            // The authentication flow is determined by the compatibility mode stored in credentials
+            ProviderId::Custom(_) => vec![AuthMethod::api_key("API Key", None)],
         }
     }
 
@@ -120,6 +123,8 @@ impl ProviderMetadataService {
             ProviderId::VertexAi => "Google Vertex AI".to_string(),
             ProviderId::BigModel => "BigModel".to_string(),
             ProviderId::Azure => "Azure OpenAI".to_string(),
+            // Custom providers use their name directly
+            ProviderId::Custom(name) => name.clone(),
         }
     }
 
@@ -132,7 +137,7 @@ impl ProviderMetadataService {
     /// * `provider_id` - The provider to get metadata for
     pub fn get_metadata(provider_id: &ProviderId) -> ProviderMetadata {
         ProviderMetadata {
-            provider_id: *provider_id,
+            provider_id: provider_id.clone(),
             auth_methods: Self::get_auth_methods(provider_id),
             env_var_names: Self::get_env_var_names(provider_id),
             display_name: Self::get_display_name(provider_id),
@@ -143,7 +148,7 @@ impl ProviderMetadataService {
     pub fn provider_ids() -> Vec<ProviderId> {
         registry::get_provider_configs()
             .iter()
-            .map(|config| config.id)
+            .map(|config| config.id.clone())
             .collect()
     }
 }
@@ -230,9 +235,7 @@ mod tests {
 
     #[test]
     fn test_all_providers_have_auth_methods() {
-        use strum::IntoEnumIterator;
-
-        for provider_id in ProviderId::iter() {
+        for provider_id in ProviderId::built_in_providers() {
             let methods = ProviderMetadataService::get_auth_methods(&provider_id);
             assert!(
                 !methods.is_empty(),
@@ -244,9 +247,7 @@ mod tests {
 
     #[test]
     fn test_all_providers_have_env_vars() {
-        use strum::IntoEnumIterator;
-
-        for provider_id in ProviderId::iter() {
+        for provider_id in ProviderId::built_in_providers() {
             let env_vars = ProviderMetadataService::get_env_var_names(&provider_id);
             assert!(
                 !env_vars.is_empty(),
@@ -258,9 +259,7 @@ mod tests {
 
     #[test]
     fn test_all_providers_have_display_names() {
-        use strum::IntoEnumIterator;
-
-        for provider_id in ProviderId::iter() {
+        for provider_id in ProviderId::built_in_providers() {
             let display_name = ProviderMetadataService::get_display_name(&provider_id);
             assert!(
                 !display_name.is_empty(),
@@ -276,7 +275,7 @@ mod tests {
 
         let registry_ids = super::registry::get_provider_configs()
             .iter()
-            .map(|config| config.id)
+            .map(|config| config.id.clone())
             .collect::<BTreeSet<_>>();
         let metadata_ids = ProviderMetadataService::provider_ids()
             .into_iter()
@@ -292,12 +291,12 @@ mod tests {
     fn test_provider_enum_matches_provider_json() {
         use std::collections::BTreeSet;
 
-        use strum::IntoEnumIterator;
-
-        let enum_ids = ProviderId::iter().collect::<BTreeSet<_>>();
+        let enum_ids = ProviderId::built_in_providers()
+            .into_iter()
+            .collect::<BTreeSet<_>>();
         let registry_ids = super::registry::get_provider_configs()
             .iter()
-            .map(|config| config.id)
+            .map(|config| config.id.clone())
             .collect::<BTreeSet<_>>();
 
         assert_eq!(

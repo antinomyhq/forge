@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::dto::{
-    InitAuth, LoginInfo, OAuthTokens, Provider, ProviderCredential, ProviderId, ToolsOverview,
+    InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId, ToolsOverview,
 };
 use forge_app::{
     AgentLoaderService, AuthService, ConversationService, EnvironmentService, FileDiscoveryService,
@@ -12,11 +12,9 @@ use forge_app::{
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
-use forge_services::provider::{
-    ImportSummary, OAuthDeviceDisplay, ValidationOutcome, ValidationResult,
-};
+use forge_services::provider::{ImportSummary, ValidationOutcome, ValidationResult};
 use forge_services::{
-    AppConfigRepository, CommandInfra, EnvironmentInfra, ForgeServices, HttpInfra, OAuthFlowInfra,
+    AppConfigRepository, CommandInfra, EnvironmentInfra, ForgeServices, HttpInfra,
     ProviderCredentialRepository, ProviderSpecificProcessingInfra, ProviderValidationInfra,
 };
 use forge_stream::MpscStream;
@@ -51,7 +49,6 @@ impl<
         + HttpInfra
         + EnvironmentInfra
         + ProviderValidationInfra
-        + OAuthFlowInfra
         + ProviderSpecificProcessingInfra,
 > API for ForgeAPI<A, F>
 {
@@ -246,7 +243,7 @@ impl<
     }
 
     async fn available_provider_ids(&self) -> Result<Vec<ProviderId>> {
-        Ok(self.services.available_provider_ids())
+        Ok(self.services.available_provider_ids().await)
     }
 
     async fn list_provider_credentials(&self) -> Result<Vec<ProviderCredential>> {
@@ -308,49 +305,6 @@ impl<
         }
     }
 
-    async fn authenticate_provider_oauth<Cb>(
-        &self,
-        provider_id: ProviderId,
-        display_callback: Cb,
-    ) -> Result<()>
-    where
-        Cb: FnOnce(OAuthDeviceDisplay) + Send,
-    {
-        let metadata = self.infra.get_provider_metadata(&provider_id);
-        let oauth_config = metadata
-            .auth_methods
-            .iter()
-            .find_map(|method| method.oauth_config.clone())
-            .ok_or_else(|| anyhow::anyhow!("Provider {} does not support OAuth", provider_id))?;
-
-        let oauth_tokens = self
-            .infra
-            .device_flow_with_callback(&oauth_config, display_callback)
-            .await?;
-
-        let credential = match provider_id {
-            ProviderId::GithubCopilot => {
-                let (api_key, expires_at) = self
-                    .infra
-                    .process_github_copilot_token(&oauth_tokens.access_token)
-                    .await?;
-                let expires_at = expires_at.unwrap_or(oauth_tokens.expires_at);
-
-                let copilot_tokens = OAuthTokens {
-                    access_token: oauth_tokens.access_token.clone(),
-                    refresh_token: oauth_tokens.refresh_token.clone(),
-                    expires_at,
-                };
-
-                ProviderCredential::new_oauth_with_api_key(provider_id, api_key, copilot_tokens)
-            }
-            _ => ProviderCredential::new_oauth(provider_id, oauth_tokens),
-        };
-
-        self.infra.upsert_credential(credential).await?;
-        Ok(())
-    }
-
     async fn import_provider_credentials_from_env(
         &self,
         filter: Option<ProviderId>,
@@ -359,7 +313,7 @@ impl<
 
         let provider_ids = match filter {
             Some(provider_id) => vec![provider_id],
-            None => self.services.available_provider_ids(),
+            None => self.services.available_provider_ids().await,
         };
 
         for provider_id in provider_ids {
@@ -371,7 +325,7 @@ impl<
 
             match api_key {
                 Some(key) => {
-                    let credential = ProviderCredential::new_api_key(provider_id, key);
+                    let credential = ProviderCredential::new_api_key(provider_id.clone(), key);
                     match self.infra.upsert_credential(credential).await {
                         Ok(_) => summary.imported.push(provider_id),
                         Err(e) => summary.failed.push((provider_id, e.to_string())),
@@ -382,5 +336,54 @@ impl<
         }
 
         Ok(summary)
+    }
+
+    // New trait-based authentication methods (Phase 10.2)
+
+    async fn init_provider_auth(
+        &self,
+        provider_id: ProviderId,
+    ) -> Result<forge_app::dto::AuthInitiation> {
+        let forge_app = ForgeApp::new(self.services.clone());
+        Ok(forge_app.init_provider_auth(provider_id).await?)
+    }
+
+    async fn poll_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        context: &forge_app::dto::AuthContext,
+        timeout: std::time::Duration,
+    ) -> Result<forge_app::dto::AuthResult> {
+        let forge_app = ForgeApp::new(self.services.clone());
+        Ok(forge_app
+            .poll_provider_auth(provider_id, context, timeout)
+            .await?)
+    }
+
+    async fn complete_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        result: forge_app::dto::AuthResult,
+    ) -> Result<()> {
+        let forge_app = ForgeApp::new(self.services.clone());
+        Ok(forge_app
+            .complete_provider_auth(provider_id, result)
+            .await?)
+    }
+
+    async fn init_custom_provider(
+        &self,
+        compatibility_mode: forge_app::dto::CompatibilityMode,
+    ) -> Result<forge_app::dto::AuthInitiation> {
+        let forge_app = ForgeApp::new(self.services.clone());
+        Ok(forge_app.init_custom_provider(compatibility_mode).await?)
+    }
+
+    async fn register_custom_provider(
+        &self,
+        result: forge_app::dto::AuthResult,
+    ) -> Result<ProviderId> {
+        let forge_app = ForgeApp::new(self.services.clone());
+        Ok(forge_app.register_custom_provider(result).await?)
     }
 }
