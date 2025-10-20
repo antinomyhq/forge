@@ -134,9 +134,11 @@ impl<S: AgentService> Compactor<S> {
                 .iter_mut()
                 .find(|msg| msg.has_role(forge_domain::Role::Assistant))
             {
-                if let Some(reasonings) = msg.reasoning_details.as_mut() {
-                    reasonings.splice(0..0, reasoning_details);
-                } else {
+                if msg
+                    .reasoning_details
+                    .as_ref()
+                    .is_none_or(|rd| rd.is_empty())
+                {
                     msg.reasoning_details = Some(reasoning_details);
                 }
             }
@@ -312,5 +314,54 @@ mod tests {
             .unwrap();
 
         assert_eq!(actual.usage.unwrap().cost, Some(0.015));
+    }
+
+    #[tokio::test]
+    async fn test_compress_single_sequence_preserves_reasoning_details() {
+        use forge_domain::ReasoningFull;
+
+        let compactor = Compactor::new(Arc::new(MockService::with_usage(0.005)));
+
+        let reasoning_details = vec![
+            ReasoningFull {
+                text: Some("First thought".to_string()),
+                signature: Some("sig1".to_string()),
+            },
+            ReasoningFull {
+                text: Some("Second thought".to_string()),
+                signature: Some("sig2".to_string()),
+            },
+        ];
+
+        let context = Context::default()
+            .add_message(ContextMessage::user("M1", None))
+            .add_message(ContextMessage::assistant(
+                "R1",
+                Some(reasoning_details.clone()),
+                None,
+            ))
+            .add_message(ContextMessage::user("M2", None))
+            .add_message(ContextMessage::assistant("R2", None, None));
+
+        let actual = compactor
+            .compress_single_sequence(&Compact::new().model(ModelId::new("m")), context, (0, 2))
+            .await
+            .unwrap();
+
+        // Verify reasoning_details were preserved in the first assistant message
+        let assistant_msg = actual
+            .messages
+            .iter()
+            .find(|msg| msg.has_role(forge_domain::Role::Assistant))
+            .expect("Should have an assistant message");
+
+        if let ContextMessage::Text(text_msg) = assistant_msg {
+            assert_eq!(
+                text_msg.reasoning_details.as_ref(),
+                Some(&reasoning_details)
+            );
+        } else {
+            panic!("Expected TextMessage");
+        }
     }
 }
