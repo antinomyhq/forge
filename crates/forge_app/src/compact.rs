@@ -135,13 +135,13 @@ impl<S: AgentService> Compactor<S> {
                 .messages
                 .iter_mut()
                 .find(|msg| msg.has_role(forge_domain::Role::Assistant))
-                && msg
-                    .reasoning_details
-                    .as_ref()
-                    .is_none_or(|rd| rd.is_empty())
-                {
-                    msg.reasoning_details = Some(reasoning);
-                }
+            && msg
+                .reasoning_details
+                .as_ref()
+                .is_none_or(|rd| rd.is_empty())
+        {
+            msg.reasoning_details = Some(reasoning);
+        }
         Ok(context)
     }
 
