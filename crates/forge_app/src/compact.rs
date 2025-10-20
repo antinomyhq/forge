@@ -111,24 +111,24 @@ impl<S: AgentService> Compactor<S> {
             )
             .await?;
 
-        // Collect reasoning blocks from messages being compacted
-        let reasoning_details: Vec<_> = context.messages[start..=end]
+        // Extract only the LAST reasoning from compacted messages to prevent accumulation
+        // This maintains reasoning chain continuity without exponential growth
+        let reasoning_details: Option<Vec<_>> = context.messages[start..=end]
             .iter()
-            .filter_map(|msg| match msg {
-                ContextMessage::Text(text) => text.reasoning_details.as_ref(),
+            .rev() // Start from the most recent message
+            .find_map(|msg| match msg {
+                ContextMessage::Text(text) => text.reasoning_details.as_ref().cloned(),
                 _ => None,
-            })
-            .flatten()
-            .cloned()
-            .collect();
+            });
 
         context.messages.splice(
             start..=end,
             std::iter::once(ContextMessage::user(summary, None)),
         );
 
-        // Find 1st assistant message and prepend reasoning_details at position 0
-        if !reasoning_details.is_empty() {
+        // Inject the preserved reasoning into the first assistant message after compaction
+        // This ensures reasoning chain continuity (first assistant message has reasoning)
+        if let Some(reasoning) = reasoning_details {
             if let Some(ContextMessage::Text(msg)) = context
                 .messages
                 .iter_mut()
@@ -139,7 +139,7 @@ impl<S: AgentService> Compactor<S> {
                     .as_ref()
                     .is_none_or(|rd| rd.is_empty())
                 {
-                    msg.reasoning_details = Some(reasoning_details);
+                    msg.reasoning_details = Some(reasoning);
                 }
             }
         }
@@ -317,38 +317,43 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_compress_single_sequence_preserves_reasoning_details() {
+    async fn test_compress_single_sequence_preserves_only_last_reasoning() {
         use forge_domain::ReasoningFull;
 
         let compactor = Compactor::new(Arc::new(MockService::with_usage(0.005)));
 
-        let reasoning_details = vec![
-            ReasoningFull {
-                text: Some("First thought".to_string()),
-                signature: Some("sig1".to_string()),
-            },
-            ReasoningFull {
-                text: Some("Second thought".to_string()),
-                signature: Some("sig2".to_string()),
-            },
-        ];
+        let first_reasoning = vec![ReasoningFull {
+            text: Some("First thought".to_string()),
+            signature: Some("sig1".to_string()),
+        }];
+
+        let last_reasoning = vec![ReasoningFull {
+            text: Some("Last thought".to_string()),
+            signature: Some("sig2".to_string()),
+        }];
 
         let context = Context::default()
             .add_message(ContextMessage::user("M1", None))
             .add_message(ContextMessage::assistant(
                 "R1",
-                Some(reasoning_details.clone()),
+                Some(first_reasoning.clone()),
                 None,
             ))
             .add_message(ContextMessage::user("M2", None))
-            .add_message(ContextMessage::assistant("R2", None, None));
+            .add_message(ContextMessage::assistant(
+                "R2",
+                Some(last_reasoning.clone()),
+                None,
+            ))
+            .add_message(ContextMessage::user("M3", None))
+            .add_message(ContextMessage::assistant("R3", None, None));
 
         let actual = compactor
-            .compress_single_sequence(&Compact::new().model(ModelId::new("m")), context, (0, 2))
+            .compress_single_sequence(&Compact::new().model(ModelId::new("m")), context, (0, 3))
             .await
             .unwrap();
 
-        // Verify reasoning_details were preserved in the first assistant message
+        // Verify only LAST reasoning_details were preserved
         let assistant_msg = actual
             .messages
             .iter()
@@ -358,10 +363,71 @@ mod tests {
         if let ContextMessage::Text(text_msg) = assistant_msg {
             assert_eq!(
                 text_msg.reasoning_details.as_ref(),
-                Some(&reasoning_details)
+                Some(&last_reasoning),
+                "Should preserve only the last reasoning, not the first"
             );
         } else {
             panic!("Expected TextMessage");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_compress_single_sequence_no_reasoning_accumulation() {
+        use forge_domain::ReasoningFull;
+
+        let compactor = Compactor::new(Arc::new(MockService::with_usage(0.005)));
+
+        let reasoning = vec![ReasoningFull {
+            text: Some("Original thought".to_string()),
+            signature: Some("sig1".to_string()),
+        }];
+
+        // First compaction
+        let context = Context::default()
+            .add_message(ContextMessage::user("M1", None))
+            .add_message(ContextMessage::assistant("R1", Some(reasoning.clone()), None))
+            .add_message(ContextMessage::user("M2", None))
+            .add_message(ContextMessage::assistant("R2", None, None));
+
+        let context = compactor
+            .compress_single_sequence(&Compact::new().model(ModelId::new("m")), context, (0, 1))
+            .await
+            .unwrap();
+
+        // Verify first assistant has the reasoning
+        let first_assistant = context
+            .messages
+            .iter()
+            .find(|msg| msg.has_role(forge_domain::Role::Assistant))
+            .unwrap();
+
+        if let ContextMessage::Text(text_msg) = first_assistant {
+            assert_eq!(text_msg.reasoning_details.as_ref().unwrap().len(), 1);
+        }
+
+        // Second compaction - add more messages
+        let context = context
+            .add_message(ContextMessage::user("M3", None))
+            .add_message(ContextMessage::assistant("R3", None, None));
+
+        let context = compactor
+            .compress_single_sequence(&Compact::new().model(ModelId::new("m")), context, (0, 2))
+            .await
+            .unwrap();
+
+        // Verify reasoning didn't accumulate - should still be just 1 reasoning block
+        let first_assistant = context
+            .messages
+            .iter()
+            .find(|msg| msg.has_role(forge_domain::Role::Assistant))
+            .unwrap();
+
+        if let ContextMessage::Text(text_msg) = first_assistant {
+            assert_eq!(
+                text_msg.reasoning_details.as_ref().unwrap().len(),
+                1,
+                "Reasoning should not accumulate across compactions"
+            );
         }
     }
 }
