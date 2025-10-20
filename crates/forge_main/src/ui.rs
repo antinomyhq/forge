@@ -614,7 +614,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Step 2: Prompt for API key
         let api_key = ForgeSelect::password(format!(
             "Enter your {} API key:",
-            provider_id_enum.to_string()
+            provider_id_enum
         ))
         .with_display_toggle_enabled()
         .prompt()?
@@ -628,7 +628,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         println!();
         self.spinner.start(Some(&format!(
             "Validating {} credentials...",
-            provider_id_enum.to_string()
+            provider_id_enum
         )))?;
 
         let outcome = self
