@@ -33,7 +33,7 @@ impl CompactionResult {
 
     /// Calculate the percentage reduction in tokens
     pub fn token_reduction_percentage(&self) -> f64 {
-        if self.original_tokens == 0 {
+        if self.original_tokens == 0 || self.compacted_tokens == 0 {
             return 0.0;
         }
         ((self.original_tokens.saturating_sub(self.compacted_tokens)) as f64
@@ -43,7 +43,7 @@ impl CompactionResult {
 
     /// Calculate the percentage reduction in messages
     pub fn message_reduction_percentage(&self) -> f64 {
-        if self.original_messages == 0 {
+        if self.original_messages == 0 || self.compacted_messages == 0 {
             return 0.0;
         }
         ((self
