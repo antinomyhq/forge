@@ -130,7 +130,11 @@ impl<S: AgentService> Compactor<S> {
             .iter()
             .rev() // Get LAST reasoning (most recent)
             .find_map(|msg| match msg {
-                ContextMessage::Text(text) => text.reasoning_details.as_ref().cloned(),
+                ContextMessage::Text(text) => text
+                    .reasoning_details
+                    .as_ref()
+                    .filter(|rd| !rd.is_empty())
+                    .cloned(),
                 _ => None,
             });
 
@@ -441,6 +445,54 @@ mod tests {
                 1,
                 "Reasoning should not accumulate across compactions"
             );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_compress_single_sequence_filters_empty_reasoning() {
+        use forge_domain::ReasoningFull;
+
+        let compactor = Compactor::new(Arc::new(MockService::with_usage(0.005)));
+
+        let non_empty_reasoning = vec![ReasoningFull {
+            text: Some("Valid thought".to_string()),
+            signature: Some("sig1".to_string()),
+        }];
+
+        // Most recent message in range has empty reasoning, earlier has non-empty
+        let context = Context::default()
+            .add_message(ContextMessage::user("M1", None))
+            .add_message(ContextMessage::assistant(
+                "R1",
+                Some(non_empty_reasoning.clone()),
+                None,
+            ))
+            .add_message(ContextMessage::user("M2", None))
+            .add_message(ContextMessage::assistant("R2", Some(vec![]), None)) // Empty - most recent in range
+            .add_message(ContextMessage::user("M3", None))
+            .add_message(ContextMessage::assistant("R3", None, None)); // Outside range
+
+        let actual = compactor
+            .compress_single_sequence(&Compact::new().model(ModelId::new("m")), context, (0, 3))
+            .await
+            .unwrap();
+
+        // After compression: [U-summary, U3, A3]
+        // The reasoning from R1 (non-empty) should be injected into A3
+        let assistant_msg = actual
+            .messages
+            .iter()
+            .find(|msg| msg.has_role(forge_domain::Role::Assistant))
+            .expect("Should have an assistant message");
+
+        if let ContextMessage::Text(text_msg) = assistant_msg {
+            assert_eq!(
+                text_msg.reasoning_details.as_ref(),
+                Some(&non_empty_reasoning),
+                "Should skip most recent empty reasoning and preserve earlier non-empty"
+            );
+        } else {
+            panic!("Expected TextMessage");
         }
     }
 }
