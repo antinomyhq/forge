@@ -111,11 +111,36 @@ impl<S: AgentService> Compactor<S> {
             )
             .await?;
 
+        // Collect reasoning blocks from messages being compacted
+        let reasoning_details: Vec<_> = context.messages[start..=end]
+            .iter()
+            .filter_map(|msg| match msg {
+                ContextMessage::Text(text) => text.reasoning_details.as_ref(),
+                _ => None,
+            })
+            .flatten()
+            .cloned()
+            .collect();
+
         context.messages.splice(
             start..=end,
             std::iter::once(ContextMessage::user(summary, None)),
         );
 
+        // Find 1st assistant message and prepend reasoning_details at position 0
+        if !reasoning_details.is_empty() {
+            if let Some(ContextMessage::Text(msg)) = context
+                .messages
+                .iter_mut()
+                .find(|msg| msg.has_role(forge_domain::Role::Assistant))
+            {
+                if let Some(reasonings) = msg.reasoning_details.as_mut() {
+                    reasonings.splice(0..0, reasoning_details);
+                } else {
+                    msg.reasoning_details = Some(reasoning_details);
+                }
+            }
+        }
         Ok(context)
     }
 
