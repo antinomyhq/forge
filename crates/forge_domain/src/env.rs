@@ -80,7 +80,7 @@ impl Environment {
         self.base_path.join("snapshots")
     }
     pub fn mcp_user_config(&self) -> PathBuf {
-        self.base_path.join(".mcp.json")
+        self.base_path.join(".mcp.jsonc")
     }
 
     pub fn templates(&self) -> PathBuf {
@@ -97,7 +97,7 @@ impl Environment {
     }
 
     pub fn mcp_local_config(&self) -> PathBuf {
-        self.cwd.join(".mcp.json")
+        self.cwd.join(".mcp.jsonc")
     }
 
     pub fn version(&self) -> String {
