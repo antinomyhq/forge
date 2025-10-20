@@ -111,12 +111,21 @@ impl<S: AgentService> Compactor<S> {
             )
             .await?;
 
-        // Extract only the LAST reasoning from compacted messages to prevent
-        // accumulation This maintains reasoning chain continuity without
-        // exponential growth
+        // Extended thinking reasoning chain preservation
+        //
+        // Extended thinking requires the first assistant message to have reasoning_details
+        // for subsequent messages to maintain reasoning chains. After compaction, this
+        // consistency can break if the first remaining assistant lacks reasoning.
+        //
+        // Solution: Extract the LAST reasoning from compacted messages and inject it into
+        // the first assistant message after compaction. This preserves chain continuity
+        // while preventing exponential accumulation across multiple compactions.
+        //
+        // Example: [U, A+r, U, A+r, U, A] → compact → [U-summary, A+r, U, A]
+        //                                                          └─from last compacted
         let reasoning_details: Option<Vec<_>> = context.messages[start..=end]
             .iter()
-            .rev() // Start from the most recent message
+            .rev() // Get LAST reasoning (most recent)
             .find_map(|msg| match msg {
                 ContextMessage::Text(text) => text.reasoning_details.as_ref().cloned(),
                 _ => None,
@@ -127,11 +136,9 @@ impl<S: AgentService> Compactor<S> {
             std::iter::once(ContextMessage::user(summary, None)),
         );
 
-        // Inject the preserved reasoning into the first assistant message after
-        // compaction This ensures reasoning chain continuity (first assistant
-        // message has reasoning)
-        if let Some(reasoning) = reasoning_details
-            && let Some(ContextMessage::Text(msg)) = context
+        // Inject preserved reasoning into first assistant message (if empty)
+        if let Some(reasoning) = reasoning_details {
+            if let Some(ContextMessage::Text(msg)) = context
                 .messages
                 .iter_mut()
                 .find(|msg| msg.has_role(forge_domain::Role::Assistant))
