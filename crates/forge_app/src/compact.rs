@@ -113,16 +113,19 @@ impl<S: AgentService> Compactor<S> {
 
         // Extended thinking reasoning chain preservation
         //
-        // Extended thinking requires the first assistant message to have reasoning_details
-        // for subsequent messages to maintain reasoning chains. After compaction, this
-        // consistency can break if the first remaining assistant lacks reasoning.
+        // Extended thinking requires the first assistant message to have
+        // reasoning_details for subsequent messages to maintain reasoning
+        // chains. After compaction, this consistency can break if the first
+        // remaining assistant lacks reasoning.
         //
-        // Solution: Extract the LAST reasoning from compacted messages and inject it into
-        // the first assistant message after compaction. This preserves chain continuity
-        // while preventing exponential accumulation across multiple compactions.
+        // Solution: Extract the LAST reasoning from compacted messages and inject it
+        // into the first assistant message after compaction. This preserves
+        // chain continuity while preventing exponential accumulation across
+        // multiple compactions.
         //
         // Example: [U, A+r, U, A+r, U, A] → compact → [U-summary, A+r, U, A]
-        //                                                          └─from last compacted
+        //                                                          └─from last
+        // compacted
         let reasoning_details: Option<Vec<_>> = context.messages[start..=end]
             .iter()
             .rev() // Get LAST reasoning (most recent)
@@ -142,12 +145,13 @@ impl<S: AgentService> Compactor<S> {
                 .messages
                 .iter_mut()
                 .find(|msg| msg.has_role(forge_domain::Role::Assistant))
-            && msg
-                .reasoning_details
-                .as_ref()
-                .is_none_or(|rd| rd.is_empty())
-        {
-            msg.reasoning_details = Some(reasoning);
+                && msg
+                    .reasoning_details
+                    .as_ref()
+                    .is_none_or(|rd| rd.is_empty())
+            {
+                msg.reasoning_details = Some(reasoning);
+            }
         }
         Ok(context)
     }
