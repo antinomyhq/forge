@@ -140,8 +140,8 @@ impl<S: AgentService> Compactor<S> {
         );
 
         // Inject preserved reasoning into first assistant message (if empty)
-        if let Some(reasoning) = reasoning_details {
-            if let Some(ContextMessage::Text(msg)) = context
+        if let Some(reasoning) = reasoning_details
+            && let Some(ContextMessage::Text(msg)) = context
                 .messages
                 .iter_mut()
                 .find(|msg| msg.has_role(forge_domain::Role::Assistant))
@@ -152,7 +152,6 @@ impl<S: AgentService> Compactor<S> {
             {
                 msg.reasoning_details = Some(reasoning);
             }
-        }
         Ok(context)
     }
 
