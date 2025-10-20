@@ -807,11 +807,8 @@ mod env_tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::infra::{ProviderSpecificProcessingInfra};
-    use crate::provider::{
-        ProviderMetadata,
-        ProviderMetadataService,
-    };
+    use crate::infra::ProviderSpecificProcessingInfra;
+    use crate::provider::{ProviderMetadata, ProviderMetadataService};
 
     // Mock infrastructure that provides environment variables
     struct MockInfra {
