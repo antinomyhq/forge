@@ -612,13 +612,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         // Step 2: Prompt for API key
-        let api_key = ForgeSelect::password(format!(
-            "Enter your {} API key:",
-            provider_id_enum
-        ))
-        .with_display_toggle_enabled()
-        .prompt()?
-        .ok_or_else(|| anyhow::anyhow!("API key input cancelled"))?;
+        let api_key = ForgeSelect::password(format!("Enter your {} API key:", provider_id_enum))
+            .with_display_toggle_enabled()
+            .prompt()?
+            .ok_or_else(|| anyhow::anyhow!("API key input cancelled"))?;
 
         if api_key.trim().is_empty() {
             anyhow::bail!("API key cannot be empty");
