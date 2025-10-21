@@ -28,68 +28,44 @@ struct ProviderCredentialRecord {
     last_verified_at: Option<NaiveDateTime>,
     is_active: bool,
 }
+impl TryFrom<&ProviderCredential> for ProviderCredentialRecord {
+    type Error = anyhow::Error;
 
-impl ProviderCredentialRecord {
     /// Converts domain model to database record
-    ///
-    /// # Errors
-    ///
-    /// Returns error if serialization fails
-    fn from_credential(cred: &ProviderCredential) -> anyhow::Result<Self> {
-        let now = Utc::now().naive_utc();
-
-        // Store API key directly
-        let api_key = cred.api_key.clone();
-
-        // Store OAuth tokens directly
-        let (refresh_token, access_token, token_expires_at) =
-            if let Some(tokens) = &cred.oauth_tokens {
-                (
-                    Some(tokens.refresh_token.clone()),
-                    Some(tokens.access_token.clone()),
-                    Some(tokens.expires_at.naive_utc()),
-                )
-            } else {
-                (None, None, None)
-            };
-
-        // Serialize URL params, including custom provider fields
-        let mut params_map = cred.url_params.clone();
-
-        // Add custom provider fields to url_params for storage
-        if let Some(compat_mode) = &cred.compatibility_mode {
-            params_map.insert("compatibility_mode".to_string(), compat_mode.to_string());
-        }
-        if let Some(base_url) = &cred.custom_base_url {
-            params_map.insert("custom_base_url".to_string(), base_url.clone());
-        }
-        if let Some(model_id) = &cred.custom_model_id {
-            params_map.insert("custom_model_id".to_string(), model_id.clone());
-        }
-
-        let url_params = if !params_map.is_empty() {
-            Some(serde_json::to_string(&params_map)?)
-        } else {
+    fn try_from(credential: &ProviderCredential) -> anyhow::Result<Self> {
+        let url_params = if credential.url_params.is_empty() {
             None
+        } else {
+            Some(serde_json::to_string(&credential.url_params)?)
         };
 
-        Ok(Self {
-            id: None, // Auto-generated
-            provider_id: cred.provider_id.to_string(),
-            auth_type: cred.auth_type.as_str().to_string(),
-            api_key,
-            refresh_token,
-            access_token,
-            token_expires_at,
+        Ok(ProviderCredentialRecord {
+            id: None,
+            provider_id: credential.provider_id.to_string(),
+            auth_type: credential.auth_type.as_str().to_string(),
+            api_key: credential.api_key.clone(),
+            refresh_token: credential
+                .oauth_tokens
+                .as_ref()
+                .map(|tokens| tokens.refresh_token.clone()),
+            access_token: credential
+                .oauth_tokens
+                .as_ref()
+                .map(|tokens| tokens.access_token.clone()),
+            token_expires_at: credential
+                .oauth_tokens
+                .as_ref()
+                .map(|tokens| tokens.expires_at.naive_utc()),
             url_params,
-            created_at: cred.created_at.naive_utc(),
-            updated_at: now,
-            last_verified_at: cred.last_verified_at.map(|dt| dt.naive_utc()),
-            is_active: cred.is_active,
+            created_at: credential.created_at.naive_utc(),
+            updated_at: credential.updated_at.naive_utc(),
+            last_verified_at: credential
+                .last_verified_at
+                .map(|dt| dt.naive_utc()),
+            is_active: credential.is_active,
         })
     }
 }
-
 impl TryFrom<ProviderCredentialRecord> for ProviderCredential {
     type Error = anyhow::Error;
 
@@ -175,7 +151,7 @@ impl ProviderCredentialRepository for ProviderCredentialRepositoryImpl {
     /// This maintains one credential per provider while allowing auth type
     /// changes.
     async fn upsert_credential(&self, credential: ProviderCredential) -> anyhow::Result<()> {
-        let record = ProviderCredentialRecord::from_credential(&credential)?;
+        let record = ProviderCredentialRecord::try_from(&credential)?;
         let mut conn = self.db_pool.get_connection()?;
 
         // Try to update existing credential first
