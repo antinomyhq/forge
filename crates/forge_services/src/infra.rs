@@ -8,7 +8,7 @@ use forge_app::domain::{
     CommandOutput, Conversation, ConversationId, Environment, McpServerConfig, ToolDefinition,
     ToolName, ToolOutput,
 };
-use forge_app::dto::{ProviderCredential, ProviderId};
+use forge_app::dto::{ProviderId};
 use forge_app::{WalkedFile, Walker};
 use forge_snaps::Snapshot;
 use reqwest::Response;
@@ -17,7 +17,6 @@ use reqwest_eventsource::EventSource;
 use serde::de::DeserializeOwned;
 use url::Url;
 
-use crate::provider::ValidationResult;
 
 /// Infrastructure trait for accessing environment configuration and system
 /// variables.
@@ -225,13 +224,6 @@ pub trait ProviderValidationInfra: Send + Sync {
     ) -> anyhow::Result<()>;
 
     fn validate_model_url(&self, url: &Url) -> anyhow::Result<()>;
-
-    async fn validate_credential(
-        &self,
-        provider_id: &ProviderId,
-        credential: &ProviderCredential,
-        validation_url: &Url,
-    ) -> anyhow::Result<ValidationResult>;
 }
 
 #[async_trait::async_trait]

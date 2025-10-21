@@ -14,7 +14,6 @@ mod retry;
 mod service;
 mod types;
 mod utils;
-pub mod validation;
 
 pub use auth_flow::*;
 pub use forge_app::dto::{AuthMethod, AuthMethodType, OAuthConfig};
@@ -28,4 +27,3 @@ pub use registry::{
 };
 pub use service::*;
 pub use types::*;
-pub use validation::*;

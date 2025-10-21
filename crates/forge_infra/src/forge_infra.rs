@@ -8,7 +8,7 @@ use forge_app::dto::ProviderId;
 use forge_domain::{CommandOutput, Conversation, ConversationId, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::provider::{
-    ForgeProviderValidationService, ProviderProcessingService, ValidationResult,
+    ProviderProcessingService
 };
 use forge_services::{
     AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
@@ -455,19 +455,6 @@ impl ProviderValidationInfra for ForgeInfra {
             url
         );
         Ok(())
-    }
-
-    async fn validate_credential(
-        &self,
-        provider_id: &ProviderId,
-        credential: &forge_app::dto::ProviderCredential,
-        validation_url: &Url,
-    ) -> anyhow::Result<ValidationResult> {
-        let infra = Arc::new(self.clone());
-        let service = ForgeProviderValidationService::new(infra);
-        service
-            .validate_credential(provider_id, credential, validation_url)
-            .await
     }
 }
 
