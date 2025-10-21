@@ -21,11 +21,7 @@ pub enum AuthMethodType {
     /// OAuth device flow (display code to user)
     OAuthDevice,
     /// OAuth authorization code flow (redirect to browser)
-    OAuthCode,
-    /// OAuth that exchanges for API key (GitHub Copilot pattern)
-    OAuthWithApiKeyExchange,
-    /// Custom provider registration (OpenAI or Anthropic compatible)
-    CustomProvider,
+    OAuthCode
 }
 
 /// Result of initiating authentication.

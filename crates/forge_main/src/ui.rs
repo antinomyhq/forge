@@ -682,12 +682,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 // OAuth flows
                 return self.handle_provider_oauth_flow(provider_id_enum).await;
             }
-            AuthMethodType::OAuthWithApiKeyExchange => {
-                anyhow::bail!("OAuthWithApiKeyExchange method not yet implemented");
-            }
-            AuthMethodType::CustomProvider => {
-                anyhow::bail!("CustomProvider method should not be used directly");
-            }
         }
 
         Ok(())

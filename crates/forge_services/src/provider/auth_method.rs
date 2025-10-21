@@ -62,16 +62,6 @@ impl AuthMethod {
             oauth_config: Some(config),
         }
     }
-
-    /// Creates a new OAuth API key method (browser-assisted)
-    pub fn oauth_api_key(label: impl Into<String>, description: Option<String>) -> Self {
-        Self {
-            method_type: AuthMethodType::OAuthWithApiKeyExchange,
-            label: label.into(),
-            description,
-            oauth_config: None,
-        }
-    }
 }
 
 /// OAuth configuration for device and code flows

@@ -134,7 +134,7 @@ impl CustomProviderAuthFlow {
 #[async_trait::async_trait]
 impl AuthenticationFlow for CustomProviderAuthFlow {
     fn auth_method_type(&self) -> AuthMethodType {
-        AuthMethodType::CustomProvider
+        AuthMethodType::ApiKey
     }
 
     async fn initiate(&self) -> Result<AuthInitiation, AuthFlowError> {
@@ -218,7 +218,7 @@ mod tests {
     #[test]
     fn test_auth_method_type() {
         let flow = openai_fixture();
-        assert_eq!(flow.auth_method_type(), AuthMethodType::CustomProvider);
+        assert_eq!(flow.auth_method_type(), AuthMethodType::ApiKey);
     }
 
     #[tokio::test]

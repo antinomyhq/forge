@@ -69,7 +69,7 @@ impl OAuthWithApiKeyFlow {
 #[async_trait]
 impl AuthenticationFlow for OAuthWithApiKeyFlow {
     fn auth_method_type(&self) -> AuthMethodType {
-        AuthMethodType::OAuthWithApiKeyExchange
+        AuthMethodType::OAuthDevice
     }
 
     async fn initiate(&self) -> Result<AuthInitiation, AuthFlowError> {
@@ -434,7 +434,7 @@ mod tests {
         );
 
         let actual = flow.auth_method_type();
-        let expected = AuthMethodType::OAuthWithApiKeyExchange;
+        let expected = AuthMethodType::OAuthDevice;
 
         assert_eq!(actual, expected);
     }
