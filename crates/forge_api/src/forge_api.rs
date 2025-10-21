@@ -285,11 +285,9 @@ impl<
                         .success(true)
                         .message(format!("API key saved (validation inconclusive: {})", msg)))
                 }
-                ValidationResult::TokenExpired => {
-                    Ok(ValidationOutcome::default()
-                        .success(false)
-                        .message("Token has expired"))
-                }
+                ValidationResult::TokenExpired => Ok(ValidationOutcome::default()
+                    .success(false)
+                    .message("Token has expired")),
             }
         } else {
             self.infra.upsert_credential(credential).await?;
