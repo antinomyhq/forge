@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_api::{API, AgentId, ModelId, ProviderId};
+use strum::IntoEnumIterator;
 
 use super::display::{display_single_field, display_success};
 use super::error::{ConfigError, Result as ConfigResult};
@@ -188,8 +189,7 @@ impl<A: API> ConfigManager<A> {
 
 /// Get list of valid provider names
 fn get_valid_provider_names() -> Vec<String> {
-    ProviderId::built_in_providers()
-        .into_iter()
+    ProviderId::iter()
         .map(|p| p.to_string())
         .collect()
 }

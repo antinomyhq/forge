@@ -1,6 +1,6 @@
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
-use strum_macros::Display;
+use strum_macros::{Display, EnumIter};
 use url::Url;
 
 use super::AuthType;
@@ -8,7 +8,7 @@ use super::AuthType;
 /// --- IMPORTANT ---
 /// The order of providers is important because that would be order in which the
 /// providers will be resolved
-#[derive(Debug, Display, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
+#[derive(Debug, Display, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord, EnumIter)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum ProviderId {
@@ -42,25 +42,6 @@ impl ProviderId {
             ProviderId::Custom(name) => Some(name.as_str()),
             _ => None,
         }
-    }
-
-    /// Returns all built-in provider IDs (excludes Custom)
-    pub fn built_in_providers() -> Vec<ProviderId> {
-        vec![
-            ProviderId::Forge,
-            ProviderId::GithubCopilot,
-            ProviderId::OpenAI,
-            ProviderId::OpenRouter,
-            ProviderId::Requesty,
-            ProviderId::Zai,
-            ProviderId::ZaiCoding,
-            ProviderId::Cerebras,
-            ProviderId::Xai,
-            ProviderId::Anthropic,
-            ProviderId::VertexAi,
-            ProviderId::BigModel,
-            ProviderId::Azure,
-        ]
     }
 }
 
@@ -203,6 +184,7 @@ mod tests {
     use std::str::FromStr;
 
     use pretty_assertions::assert_eq;
+    use strum::IntoEnumIterator;
 
     use super::test_helpers::*;
     use super::*;
@@ -353,7 +335,9 @@ mod tests {
 
     #[test]
     fn test_provider_id_built_in_providers() {
-        let built_in = ProviderId::built_in_providers();
+        let built_in = ProviderId::iter()
+            .filter(|p| !p.is_custom())
+            .collect::<Vec<_>>();
         assert_eq!(built_in.len(), 13); // All non-Custom variants
         assert!(built_in.contains(&ProviderId::OpenAI));
         assert!(built_in.contains(&ProviderId::Anthropic));
