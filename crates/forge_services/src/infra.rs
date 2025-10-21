@@ -17,7 +17,7 @@ use reqwest_eventsource::EventSource;
 use serde::de::DeserializeOwned;
 use url::Url;
 
-use crate::provider::{ProviderMetadata, ValidationResult};
+use crate::provider::ValidationResult;
 
 /// Infrastructure trait for accessing environment configuration and system
 /// variables.
@@ -241,7 +241,7 @@ pub trait ProviderSpecificProcessingInfra: Send + Sync {
         access_token: &str,
     ) -> anyhow::Result<(String, Option<DateTime<Utc>>)>;
 
-    fn get_provider_metadata(&self, provider_id: &ProviderId) -> ProviderMetadata;
+    fn get_provider_config(&self, provider_id: &ProviderId) -> Option<&'static crate::provider::registry::ProviderConfig>;
 }
 /// Service for reading multiple files from a directory asynchronously
 #[async_trait::async_trait]

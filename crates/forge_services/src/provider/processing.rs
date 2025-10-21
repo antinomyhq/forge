@@ -3,7 +3,6 @@ use forge_app::dto::ProviderId;
 
 use crate::infra::ProviderSpecificProcessingInfra;
 use crate::provider::GitHubCopilotService;
-use crate::provider::metadata::{ProviderMetadata, ProviderMetadataService};
 
 /// Infrastructure adapter providing provider-specific processing capabilities.
 ///
@@ -30,7 +29,7 @@ impl ProviderSpecificProcessingInfra for ProviderProcessingService {
         Ok((api_key, Some(expires_at)))
     }
 
-    fn get_provider_metadata(&self, provider_id: &ProviderId) -> ProviderMetadata {
-        ProviderMetadataService::get_metadata(provider_id)
+    fn get_provider_config(&self, provider_id: &ProviderId) -> Option<&'static crate::provider::registry::ProviderConfig> {
+        crate::provider::registry::get_provider_config(provider_id)
     }
 }

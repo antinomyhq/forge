@@ -16,13 +16,15 @@ use crate::{
 };
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct ProviderConfig {
+pub struct ProviderConfig {
     pub(crate) id: ProviderId,
+    pub(crate) display_name: String,
     pub(crate) api_key_vars: String,
     pub(crate) url_param_vars: Vec<String>,
     pub(crate) response_type: ProviderResponse,
     pub(crate) url: String,
     pub(crate) model_url: String,
+    pub(crate) auth_methods: Vec<crate::provider::AuthMethod>,
 }
 
 static HANDLEBARS: OnceLock<Handlebars<'static>> = OnceLock::new();
@@ -46,6 +48,54 @@ pub(crate) fn get_provider_config(provider_id: &ProviderId) -> Option<&'static P
         .iter()
         .find(|config| &config.id == provider_id)
 }
+
+
+/// Get display name for a provider
+pub fn get_provider_display_name(provider_id: &ProviderId) -> String {
+    get_provider_config(provider_id)
+        .map(|config| config.display_name.clone())
+        .unwrap_or_else(|| match provider_id {
+            ProviderId::Custom(name) => name.clone(),
+            _ => format!("{:?}", provider_id),
+        })
+}
+
+/// Get auth methods for a provider
+pub fn get_provider_auth_methods(provider_id: &ProviderId) -> Vec<crate::provider::AuthMethod> {
+    get_provider_config(provider_id)
+        .map(|config| config.auth_methods.clone())
+        .unwrap_or_else(|| {
+            // Fallback for custom providers
+            vec![crate::provider::AuthMethod::api_key("API Key", None)]
+        })
+}
+
+/// Get environment variable names for a provider
+pub fn get_provider_env_vars(provider_id: &ProviderId) -> Vec<String> {
+    get_provider_config(provider_id)
+        .and_then(|config| {
+            let key = config.api_key_vars.trim();
+            if key.is_empty() {
+                None
+            } else {
+                Some(vec![key.to_string()])
+            }
+        })
+        .unwrap_or_default()
+}
+
+/// Get OAuth method for a provider
+pub fn get_provider_oauth_method(provider_id: &ProviderId) -> Option<crate::provider::AuthMethod> {
+    use forge_app::dto::AuthMethodType;
+    
+    get_provider_auth_methods(provider_id).into_iter().find(|m| {
+        matches!(
+            m.method_type,
+            AuthMethodType::OAuthDevice | AuthMethodType::OAuthCode
+        )
+    })
+}
+
 
 pub struct ForgeProviderRegistry<F> {
     infra: Arc<F>,
@@ -231,9 +281,9 @@ impl<
     ) -> anyhow::Result<forge_app::dto::ProviderCredential> {
         tracing::debug!(provider = ?provider_id, "Refreshing credential tokens");
 
-        // Get authentication method from metadata
-        let metadata = self.infra.get_provider_metadata(provider_id);
-        let auth_method = metadata.auth_methods.first().ok_or_else(|| {
+        // Get authentication method from provider config
+        let auth_methods = get_provider_auth_methods(provider_id);
+        let auth_method = auth_methods.first().ok_or_else(|| {
             anyhow::anyhow!(
                 "No authentication method found for provider {:?}",
                 provider_id
@@ -748,7 +798,6 @@ mod env_tests {
 
     use super::*;
     use crate::infra::ProviderSpecificProcessingInfra;
-    use crate::provider::{ProviderMetadata, ProviderMetadataService};
 
     // Mock infrastructure that provides environment variables
     struct MockInfra {
@@ -797,8 +846,8 @@ mod env_tests {
             bail!("GitHub Copilot processing not supported in MockInfra")
         }
 
-        fn get_provider_metadata(&self, provider_id: &ProviderId) -> ProviderMetadata {
-            ProviderMetadataService::get_metadata(provider_id)
+        fn get_provider_config(&self, provider_id: &ProviderId) -> Option<&'static ProviderConfig> {
+            get_provider_config(provider_id)
         }
     }
 

@@ -1,102 +1,238 @@
 [
   {
     "id": "forge",
+    "display_name": "Forge",
     "api_key_vars": "FORGE_API_KEY",
     "url_param_vars": [],
     "response_type": "openai",
     "url": "https://antinomy.ai/api/v1/chat/completions",
-    "model_url": "https://antinomy.ai/api/v1/models"
+    "model_url": "https://antinomy.ai/api/v1/models",
+    "auth_methods": [
+      {
+        "method_type": "api_key",
+        "label": "API Key",
+        "description": null,
+        "oauth_config": null
+      }
+    ]
   },
   {
     "id": "github_copilot",
+    "display_name": "GitHub Copilot",
     "api_key_vars": "GITHUB_COPILOT_API_KEY",
     "url_param_vars": [],
     "response_type": "openai",
     "url": "https://api.githubcopilot.com/chat/completions",
-    "model_url": "https://api.githubcopilot.com/models"
+    "model_url": "https://api.githubcopilot.com/models",
+    "auth_methods": [
+      {
+        "method_type": "oauth_device",
+        "label": "GitHub OAuth",
+        "description": "Use your GitHub account to access Copilot",
+        "oauth_config": {
+          "device_code_url": "https://github.com/login/device/code",
+          "device_token_url": "https://github.com/login/oauth/access_token",
+          "client_id": "Iv1.b507a08c87ecfe98",
+          "scopes": ["read:user"],
+          "redirect_uri": "",
+          "use_pkce": false,
+          "token_refresh_url": "https://api.github.com/copilot_internal/v2/token",
+          "custom_headers": {
+            "User-Agent": "GitHubCopilotChat/0.26.7"
+          }
+        }
+      }
+    ]
   },
   {
     "id": "open_router",
+    "display_name": "OpenRouter",
     "api_key_vars": "OPENROUTER_API_KEY",
     "url_param_vars": [],
     "response_type": "openai",
     "url": "https://openrouter.ai/api/v1/chat/completions",
-    "model_url": "https://openrouter.ai/api/v1/models"
+    "model_url": "https://openrouter.ai/api/v1/models",
+    "auth_methods": [
+      {
+        "method_type": "api_key",
+        "label": "API Key",
+        "description": null,
+        "oauth_config": null
+      }
+    ]
   },
   {
     "id": "requesty",
+    "display_name": "Requesty",
     "api_key_vars": "REQUESTY_API_KEY",
     "url_param_vars": [],
     "response_type": "openai",
     "url": "https://router.requesty.ai/v1/chat/completions",
-    "model_url": "https://router.requesty.ai/v1/models"
+    "model_url": "https://router.requesty.ai/v1/models",
+    "auth_methods": [
+      {
+        "method_type": "api_key",
+        "label": "API Key",
+        "description": null,
+        "oauth_config": null
+      }
+    ]
   },
   {
     "id": "xai",
+    "display_name": "xAI",
     "api_key_vars": "XAI_API_KEY",
     "url_param_vars": [],
     "response_type": "openai",
     "url": "https://api.x.ai/v1/chat/completions",
-    "model_url": "https://api.x.ai/v1/models"
+    "model_url": "https://api.x.ai/v1/models",
+    "auth_methods": [
+      {
+        "method_type": "api_key",
+        "label": "API Key",
+        "description": null,
+        "oauth_config": null
+      }
+    ]
   },
   {
     "id": "openai",
+    "display_name": "OpenAI",
     "api_key_vars": "OPENAI_API_KEY",
     "url_param_vars": ["OPENAI_URL"],
     "response_type": "openai",
     "url": "{{#if OPENAI_URL}}{{OPENAI_URL}}{{else}}https://api.openai.com/v1{{/if}}/chat/completions",
-    "model_url": "{{#if OPENAI_URL}}{{OPENAI_URL}}{{else}}https://api.openai.com/v1{{/if}}/models"
+    "model_url": "{{#if OPENAI_URL}}{{OPENAI_URL}}{{else}}https://api.openai.com/v1{{/if}}/models",
+    "auth_methods": [
+      {
+        "method_type": "api_key",
+        "label": "API Key",
+        "description": null,
+        "oauth_config": null
+      }
+    ]
   },
   {
     "id": "anthropic",
+    "display_name": "Anthropic",
     "api_key_vars": "ANTHROPIC_API_KEY",
     "url_param_vars": ["ANTHROPIC_URL"],
     "response_type": "anthropic",
     "url": "{{ANTHROPIC_URL}}/messages",
-    "model_url": "{{ANTHROPIC_URL}}/models"
+    "model_url": "{{ANTHROPIC_URL}}/models",
+    "auth_methods": [
+      {
+        "method_type": "api_key",
+        "label": "API Key",
+        "description": "Use your Anthropic API key for authentication",
+        "oauth_config": null
+      },
+      {
+        "method_type": "oauth_code",
+        "label": "Claude Code",
+        "description": "Sign in with your Claude Pro/Max account via OAuth",
+        "oauth_config": {
+          "auth_url": "https://claude.ai/oauth/authorize",
+          "token_url": "https://console.anthropic.com/v1/oauth/token",
+          "client_id": "9d1c250a-e61b-44d9-88ed-5944d1962f5e",
+          "scopes": ["org:create_api_key", "user:profile", "user:inference"],
+          "redirect_uri": "https://console.anthropic.com/oauth/code/callback",
+          "use_pkce": true,
+          "extra_auth_params": {
+            "code": "true"
+          }
+        }
+      }
+    ]
   },
   {
     "id": "cerebras",
+    "display_name": "Cerebras",
     "api_key_vars": "CEREBRAS_API_KEY",
     "url_param_vars": [],
     "response_type": "openai",
     "url": "https://api.cerebras.ai/v1/chat/completions",
-    "model_url": "https://api.cerebras.ai/v1/models"
+    "model_url": "https://api.cerebras.ai/v1/models",
+    "auth_methods": [
+      {
+        "method_type": "api_key",
+        "label": "API Key",
+        "description": null,
+        "oauth_config": null
+      }
+    ]
   },
   {
     "id": "zai",
+    "display_name": "ZAI",
     "api_key_vars": "ZAI_API_KEY",
     "url_param_vars": [],
     "response_type": "openai",
     "url": "https://api.z.ai/api/paas/v4/chat/completions",
-    "model_url": "https://api.z.ai/api/paas/v4/models"
+    "model_url": "https://api.z.ai/api/paas/v4/models",
+    "auth_methods": [
+      {
+        "method_type": "api_key",
+        "label": "API Key",
+        "description": null,
+        "oauth_config": null
+      }
+    ]
   },
   {
     "id": "zai_coding",
+    "display_name": "ZAI Coding",
     "api_key_vars": "ZAI_CODING_API_KEY",
     "url_param_vars": [],
     "response_type": "openai",
     "url": "https://api.z.ai/api/coding/paas/v4/chat/completions",
-    "model_url": "https://api.z.ai/api/paas/v4/models"
+    "model_url": "https://api.z.ai/api/paas/v4/models",
+    "auth_methods": [
+      {
+        "method_type": "api_key",
+        "label": "API Key",
+        "description": null,
+        "oauth_config": null
+      }
+    ]
   },
   {
     "id": "big_model",
+    "display_name": "BigModel",
     "api_key_vars": "BIG_MODEL_API_KEY",
     "url_param_vars": [],
     "response_type": "openai",
     "url": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
-    "model_url": "https://open.bigmodel.cn/api/paas/v4/models"
+    "model_url": "https://open.bigmodel.cn/api/paas/v4/models",
+    "auth_methods": [
+      {
+        "method_type": "api_key",
+        "label": "API Key",
+        "description": null,
+        "oauth_config": null
+      }
+    ]
   },
   {
     "id": "vertex_ai",
+    "display_name": "Google Vertex AI",
     "api_key_vars": "VERTEX_AI_AUTH_TOKEN",
     "url_param_vars": ["PROJECT_ID", "LOCATION"],
     "response_type": "openai",
     "url": "{{#if (eq LOCATION \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/chat/completions{{else}}https://{{LOCATION}}-aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/chat/completions{{/if}}",
-    "model_url": "{{#if (eq LOCATION \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/models{{else}}https://{{LOCATION}}-aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/models{{/if}}"
+    "model_url": "{{#if (eq LOCATION \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/models{{else}}https://{{LOCATION}}-aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/models{{/if}}",
+    "auth_methods": [
+      {
+        "method_type": "api_key",
+        "label": "Auth Token",
+        "description": null,
+        "oauth_config": null
+      }
+    ]
   },
   {
     "id": "azure",
+    "display_name": "Azure OpenAI",
     "api_key_vars": "AZURE_API_KEY",
     "url_param_vars": [
       "AZURE_RESOURCE_NAME",
@@ -105,6 +241,14 @@
     ],
     "response_type": "openai",
     "url": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/deployments/{{AZURE_DEPLOYMENT_NAME}}/chat/completions?api-version={{AZURE_API_VERSION}}",
-    "model_url": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/models?api-version={{AZURE_API_VERSION}}"
+    "model_url": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/models?api-version={{AZURE_API_VERSION}}",
+    "auth_methods": [
+      {
+        "method_type": "api_key",
+        "label": "API Key",
+        "description": null,
+        "oauth_config": null
+      }
+    ]
   }
 ]

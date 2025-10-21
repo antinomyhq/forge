@@ -21,8 +21,10 @@ pub enum AuthMethodType {
     /// Direct API key entry
     ApiKey,
     /// OAuth device flow (display code to user)
+    #[serde(rename = "oauth_device")]
     OAuthDevice,
     /// OAuth authorization code flow (redirect to browser)
+    #[serde(rename = "oauth_code")]
     OAuthCode,
 }
 
@@ -358,6 +360,6 @@ mod tests {
         assert_eq!(json, r#""api_key""#);
 
         let json = serde_json::to_string(&AuthMethodType::OAuthDevice).unwrap();
-        assert_eq!(json, r#""o_auth_device""#);
+        assert_eq!(json, r#""oauth_device""#);
     }
 }

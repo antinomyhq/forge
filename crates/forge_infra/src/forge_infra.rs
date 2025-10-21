@@ -8,7 +8,7 @@ use forge_app::dto::ProviderId;
 use forge_domain::{CommandOutput, Conversation, ConversationId, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
 use forge_services::provider::{
-    ForgeProviderValidationService, ProviderMetadata, ProviderProcessingService, ValidationResult,
+    ForgeProviderValidationService, ProviderProcessingService, ValidationResult,
 };
 use forge_services::{
     AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
@@ -481,9 +481,9 @@ impl ProviderSpecificProcessingInfra for ForgeInfra {
         service.process_github_copilot_token(access_token).await
     }
 
-    fn get_provider_metadata(&self, provider_id: &ProviderId) -> ProviderMetadata {
+    fn get_provider_config(&self, provider_id: &ProviderId) -> Option<&'static forge_services::provider::registry::ProviderConfig> {
         let service = ProviderProcessingService::new();
-        service.get_provider_metadata(provider_id)
+        service.get_provider_config(provider_id)
     }
 }
 

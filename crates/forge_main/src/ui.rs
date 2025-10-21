@@ -602,9 +602,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         );
 
         // Step 2: Get available authentication methods
-        use forge_services::provider::ProviderMetadataService;
+        use forge_services::provider::registry::get_provider_auth_methods;
 
-        let auth_methods = ProviderMetadataService::get_auth_methods(&provider_id_enum);
+        let auth_methods = get_provider_auth_methods(&provider_id_enum);
 
         // If multiple auth methods available, let user choose
         let selected_method = if auth_methods.len() > 1 {
@@ -697,9 +697,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         use colored::Colorize;
         use forge_app::dto::AuthInitiation;
-        use forge_services::provider::ProviderMetadataService;
+        use forge_services::provider::registry::get_provider_display_name;
 
-        let display_name = ProviderMetadataService::get_display_name(&provider_id);
+        let display_name = get_provider_display_name(&provider_id);
 
         println!();
         println!("{} OAuth Authentication", display_name.bold());

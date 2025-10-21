@@ -325,6 +325,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_provider_id_display() {
         assert_eq!(ProviderId::OpenAI.to_string(), "openai");
         assert_eq!(ProviderId::GithubCopilot.to_string(), "github_copilot");

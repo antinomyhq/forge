@@ -13,7 +13,6 @@ use forge_app::dto::{
 };
 
 use super::auth_flow::{AuthFlowFactory, AuthFlowInfra};
-use super::metadata::ProviderMetadataService;
 use super::registry::ForgeProviderRegistry;
 use crate::infra::{
     AppConfigRepository, EnvironmentInfra, ProviderCredentialRepository,
@@ -57,7 +56,7 @@ where
 {
     async fn init_provider_auth(&self, provider_id: ProviderId) -> anyhow::Result<AuthInitiation> {
         // Get provider metadata to determine auth method (static method)
-        let auth_method = ProviderMetadataService::get_oauth_method(&provider_id)
+        let auth_method = crate::provider::registry::get_provider_oauth_method(&provider_id)
             .ok_or_else(|| anyhow::anyhow!("No auth method found for provider: {}", provider_id))?;
 
         // Create appropriate auth flow using factory
@@ -74,7 +73,7 @@ where
         timeout: Duration,
     ) -> anyhow::Result<AuthResult> {
         // Get auth method and create flow
-        let auth_method = ProviderMetadataService::get_oauth_method(&provider_id)
+        let auth_method = crate::provider::registry::get_provider_oauth_method(&provider_id)
             .ok_or_else(|| anyhow::anyhow!("No auth method found for provider: {}", provider_id))?;
 
         let flow = AuthFlowFactory::create_flow(&provider_id, &auth_method, self.infra.clone())?;
@@ -91,7 +90,7 @@ where
         result: AuthResult,
     ) -> anyhow::Result<ProviderCredential> {
         // Get auth method and create flow
-        let auth_method = ProviderMetadataService::get_oauth_method(&provider_id)
+        let auth_method = crate::provider::registry::get_provider_oauth_method(&provider_id)
             .ok_or_else(|| anyhow::anyhow!("No auth method found for provider: {}", provider_id))?;
 
         let flow = AuthFlowFactory::create_flow(&provider_id, &auth_method, self.infra.clone())?;
