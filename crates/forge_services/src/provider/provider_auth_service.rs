@@ -12,7 +12,7 @@ use forge_app::dto::{
     AuthContext, AuthInitiation, AuthResult, ProviderCredential, ProviderId, ProviderResponse,
 };
 
-use super::auth_flow::{AuthFlowFactory, AuthFlowInfra};
+use super::auth_flow::{AuthFlow, AuthFlowInfra, AuthenticationFlow};
 use super::registry::ForgeProviderRegistry;
 use crate::infra::{
     AppConfigRepository, EnvironmentInfra, ProviderCredentialRepository,
@@ -60,7 +60,7 @@ where
             .ok_or_else(|| anyhow::anyhow!("No auth method found for provider: {}", provider_id))?;
 
         // Create appropriate auth flow using factory
-        let flow = AuthFlowFactory::create_flow(&provider_id, &auth_method, self.infra.clone())?;
+        let flow = AuthFlow::try_new(&provider_id, &auth_method, self.infra.clone())?;
 
         // Initiate the authentication flow
         flow.initiate().await.map_err(|e| anyhow::anyhow!(e))
@@ -76,7 +76,7 @@ where
         let auth_method = crate::provider::registry::get_provider_oauth_method(&provider_id)
             .ok_or_else(|| anyhow::anyhow!("No auth method found for provider: {}", provider_id))?;
 
-        let flow = AuthFlowFactory::create_flow(&provider_id, &auth_method, self.infra.clone())?;
+        let flow = AuthFlow::try_new(&provider_id, &auth_method, self.infra.clone())?;
 
         // Poll until complete
         flow.poll_until_complete(context, timeout)
@@ -93,7 +93,7 @@ where
         let auth_method = crate::provider::registry::get_provider_oauth_method(&provider_id)
             .ok_or_else(|| anyhow::anyhow!("No auth method found for provider: {}", provider_id))?;
 
-        let flow = AuthFlowFactory::create_flow(&provider_id, &auth_method, self.infra.clone())?;
+        let flow = AuthFlow::try_new(&provider_id, &auth_method, self.infra.clone())?;
 
         // Complete authentication and create credential
         let credential = flow
@@ -112,7 +112,7 @@ where
         compatibility_mode: ProviderResponse,
     ) -> anyhow::Result<AuthInitiation> {
         // Create custom provider flow using factory
-        let flow = AuthFlowFactory::create_custom_provider_flow(compatibility_mode);
+        let flow = AuthFlow::new_custom_provider(compatibility_mode);
 
         // Initiate custom provider registration
         flow.initiate().await.map_err(|e| anyhow::anyhow!(e))
@@ -133,7 +133,7 @@ where
         };
 
         // Create custom provider flow to complete registration
-        let flow = AuthFlowFactory::create_custom_provider_flow(compatibility_mode);
+        let flow = AuthFlow::new_custom_provider(compatibility_mode);
 
         // Complete and get credential
         let credential = flow

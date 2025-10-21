@@ -9,7 +9,9 @@ use tokio::sync::OnceCell;
 use tracing;
 use url::Url;
 
-use crate::provider::{AuthFlowFactory, ForgeOAuthService, GitHubCopilotService};
+use crate::provider::{
+    AuthFlow, AuthenticationFlow, ForgeOAuthService, GitHubCopilotService,
+};
 use crate::{
     AppConfigRepository, EnvironmentInfra, ProviderCredentialRepository, ProviderError,
     ProviderSpecificProcessingInfra,
@@ -296,8 +298,8 @@ impl<
             github_service: Arc::new(GitHubCopilotService::new()),
         };
 
-        // Create the appropriate auth flow using the factory
-        let flow = AuthFlowFactory::create_flow(provider_id, auth_method, Arc::new(infra_adapter))?;
+        // Create the appropriate auth flow
+        let flow = AuthFlow::try_new(provider_id, auth_method, Arc::new(infra_adapter))?;
 
         // Use the flow's refresh method
         let refreshed_credential = flow.refresh(credential).await?;
