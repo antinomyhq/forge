@@ -11,8 +11,7 @@ use forge_services::{
     AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
     DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
     FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, ProviderCredentialRepository,
-    ProviderSpecificProcessingInfra, SnapshotInfra, UserInfra,
-    WalkerInfra,
+    ProviderSpecificProcessingInfra, SnapshotInfra, UserInfra, WalkerInfra,
 };
 use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
