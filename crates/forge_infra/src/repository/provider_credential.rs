@@ -75,7 +75,7 @@ impl ProviderCredentialRecord {
 
         Ok(Self {
             id: None, // Auto-generated
-            provider_id: serde_json::to_string(&cred.provider_id)?,
+            provider_id: cred.provider_id.to_string(),
             auth_type: cred.auth_type.as_str().to_string(),
             api_key,
             refresh_token,
@@ -184,18 +184,44 @@ impl ProviderCredentialRepositoryImpl {
 #[async_trait::async_trait]
 impl ProviderCredentialRepository for ProviderCredentialRepositoryImpl {
     /// Upserts a provider credential
+    ///
+    /// Updates existing credential for the provider or inserts a new one.
+    /// This maintains one credential per provider while allowing auth type
+    /// changes.
     async fn upsert_credential(&self, credential: ProviderCredential) -> anyhow::Result<()> {
         let record = ProviderCredentialRecord::from_credential(&credential)?;
         let mut conn = self.db_pool.get_connection()?;
 
-        diesel::replace_into(provider_credentials::table)
-            .values(&record)
-            .execute(&mut conn)?;
+        // Try to update existing credential first
+        let updated = diesel::update(
+            provider_credentials::table
+                .filter(provider_credentials::provider_id.eq(credential.provider_id.to_string())),
+        )
+        .set((
+            provider_credentials::auth_type.eq(&record.auth_type),
+            provider_credentials::api_key.eq(&record.api_key),
+            provider_credentials::refresh_token.eq(&record.refresh_token),
+            provider_credentials::access_token.eq(&record.access_token),
+            provider_credentials::token_expires_at.eq(&record.token_expires_at),
+            provider_credentials::url_params.eq(&record.url_params),
+            provider_credentials::updated_at.eq(Utc::now().naive_utc()),
+            provider_credentials::is_active.eq(true),
+        ))
+        .execute(&mut conn)?;
+
+        // If no rows were updated, insert new credential
+        if updated == 0 {
+            diesel::insert_into(provider_credentials::table)
+                .values(&record)
+                .execute(&mut conn)?;
+        }
 
         Ok(())
     }
 
     /// Gets a credential by provider ID
+    ///
+    /// Returns the credential for the provider.
     async fn get_credential(
         &self,
         provider_id: &ProviderId,
@@ -269,5 +295,89 @@ impl ProviderCredentialRepository for ProviderCredentialRepositoryImpl {
         .execute(&mut conn)?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::Duration;
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+    use crate::database::DatabasePool;
+
+    fn setup() -> ProviderCredentialRepositoryImpl {
+        let pool = DatabasePool::in_memory().unwrap();
+        ProviderCredentialRepositoryImpl::new(Arc::new(pool))
+    }
+
+    #[tokio::test]
+    async fn test_upsert_updates_existing_credential() {
+        let repo = setup();
+
+        // Create first credential (API Key)
+        let api_key_credential =
+            ProviderCredential::new_api_key(ProviderId::Anthropic, "sk-ant-api-key".to_string());
+
+        // Insert first credential
+        repo.upsert_credential(api_key_credential.clone())
+            .await
+            .unwrap();
+
+        // Verify it's retrievable
+        let retrieved = repo
+            .get_credential(&ProviderId::Anthropic)
+            .await
+            .unwrap()
+            .expect("Should find API key credential");
+
+        assert_eq!(retrieved.auth_type, AuthType::ApiKey);
+        assert_eq!(retrieved.api_key, Some("sk-ant-api-key".to_string()));
+
+        // Create second credential (OAuth) - should update the same record
+        let oauth_tokens = OAuthTokens {
+            access_token: "access_123".to_string(),
+            refresh_token: "refresh_456".to_string(),
+            expires_at: Utc::now() + Duration::hours(1),
+        };
+        let oauth_credential =
+            ProviderCredential::new_oauth(ProviderId::Anthropic, oauth_tokens.clone());
+
+        // Insert second credential - should UPDATE not INSERT
+        repo.upsert_credential(oauth_credential.clone())
+            .await
+            .unwrap();
+
+        // Verify OAuth credential replaced the API key in the same record
+        let retrieved = repo
+            .get_credential(&ProviderId::Anthropic)
+            .await
+            .unwrap()
+            .expect("Should find OAuth credential");
+
+        assert_eq!(retrieved.auth_type, AuthType::OAuth);
+        assert_eq!(
+            retrieved.oauth_tokens.as_ref().unwrap().access_token,
+            "access_123"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_upsert_inserts_new_provider() {
+        let repo = setup();
+
+        let api_key_credential =
+            ProviderCredential::new_api_key(ProviderId::Anthropic, "sk-ant-test".to_string());
+
+        let result = repo.upsert_credential(api_key_credential).await;
+        println!("Upsert result: {:?}", result);
+        result.unwrap();
+
+        let retrieved = repo.get_credential(&ProviderId::Anthropic).await;
+        println!("Get credential result: {:?}", retrieved);
+
+        let retrieved = retrieved.unwrap().expect("Should find credential");
+
+        assert_eq!(retrieved.api_key, Some("sk-ant-test".to_string()));
     }
 }

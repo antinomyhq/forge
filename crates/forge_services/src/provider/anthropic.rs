@@ -22,6 +22,7 @@ pub struct Anthropic<T> {
     chat_url: Url,
     model_url: Url,
     anthropic_version: String,
+    use_oauth: bool,
 }
 
 impl<H: HttpClientService> Anthropic<H> {
@@ -31,6 +32,7 @@ impl<H: HttpClientService> Anthropic<H> {
         chat_url: Url,
         model_url: Url,
         version: String,
+        use_oauth: bool,
     ) -> Self {
         Self {
             http,
@@ -38,17 +40,32 @@ impl<H: HttpClientService> Anthropic<H> {
             chat_url,
             model_url,
             anthropic_version: version,
+            use_oauth,
         }
     }
 
     fn get_headers(&self) -> Vec<(String, String)> {
-        vec![
-            ("x-api-key".to_string(), self.api_key.clone()),
-            (
-                "anthropic-version".to_string(),
-                self.anthropic_version.clone(),
-            ),
-        ]
+        let mut headers = vec![(
+            "anthropic-version".to_string(),
+            self.anthropic_version.clone(),
+        )];
+
+        // Use Authorization: Bearer for OAuth, x-api-key for API key auth
+        if self.use_oauth {
+            headers.push((
+                "authorization".to_string(),
+                format!("Bearer {}", self.api_key),
+            ));
+            // OAuth requires multiple beta flags as per opencode implementation
+            headers.push((
+                "anthropic-beta".to_string(),
+                "oauth-2025-04-20,claude-code-20250219,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14".to_string(),
+            ));
+        } else {
+            headers.push(("x-api-key".to_string(), self.api_key.clone()));
+        }
+
+        headers
     }
 }
 
@@ -192,6 +209,7 @@ mod tests {
             chat_url,
             model_url,
             "2023-06-01".to_string(),
+            false,
         ))
     }
 
@@ -242,6 +260,7 @@ mod tests {
             chat_url,
             model_url.clone(),
             "v1".to_string(),
+            false,
         );
         assert_eq!(
             anthropic.model_url.as_str(),

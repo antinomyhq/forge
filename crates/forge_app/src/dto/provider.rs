@@ -2,6 +2,8 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+use super::AuthType;
+
 /// --- IMPORTANT ---
 /// The order of providers is important because that would be order in which the
 /// providers will be resolved
@@ -129,6 +131,7 @@ pub struct Provider {
     pub url: Url,
     pub key: Option<String>,
     pub model_url: Url,
+    pub auth_type: Option<AuthType>,
 }
 
 #[cfg(test)]
@@ -142,6 +145,7 @@ mod test_helpers {
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
             key: Some(key.into()),
             model_url: Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+            auth_type: None,
         }
     }
 
@@ -153,6 +157,7 @@ mod test_helpers {
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
             key: Some(key.into()),
             model_url: Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+            auth_type: None,
         }
     }
 
@@ -164,6 +169,7 @@ mod test_helpers {
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some(key.into()),
             model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
+            auth_type: None,
         }
     }
 
@@ -175,6 +181,7 @@ mod test_helpers {
             url: Url::parse("https://api.x.ai/v1/chat/completions").unwrap(),
             key: Some(key.into()),
             model_url: Url::parse("https://api.x.ai/v1/models").unwrap(),
+            auth_type: None,
         }
     }
 
@@ -209,6 +216,7 @@ mod test_helpers {
             url: Url::parse(&chat_url).unwrap(),
             key: Some(key.into()),
             model_url: Url::parse(&model_url).unwrap(),
+            auth_type: None,
         }
     }
 
@@ -234,6 +242,7 @@ mod test_helpers {
             url: Url::parse(&chat_url).unwrap(),
             key: Some(key.into()),
             model_url: Url::parse(&model_url).unwrap(),
+            auth_type: None,
         }
     }
 }
@@ -257,6 +266,7 @@ mod tests {
             url: Url::from_str("https://api.x.ai/v1/chat/completions").unwrap(),
             key: Some(fixture.to_string()),
             model_url: Url::from_str("https://api.x.ai/v1/models").unwrap(),
+            auth_type: None,
         };
         assert_eq!(actual, expected);
     }

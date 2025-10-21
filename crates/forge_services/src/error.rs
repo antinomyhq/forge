@@ -9,7 +9,9 @@ pub enum ProviderError {
         env_var: String,
     },
 
-    #[error("Provider {provider} is not available via environment configuration")]
+    #[error(
+        "Provider '{provider}' is not configured. Run 'forge auth login' to authenticate or 'forge auth import-env' to migrate environment variables."
+    )]
     ProviderNotAvailable { provider: ProviderId },
 
     #[error("Failed to create VertexAI provider: {message}")]

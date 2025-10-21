@@ -210,6 +210,7 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some(key.into()),
             model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
+            auth_type: None,
         }
     }
 
@@ -220,6 +221,7 @@ mod tests {
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
             key: Some(key.into()),
             model_url: Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+            auth_type: None,
         }
     }
 
@@ -230,6 +232,7 @@ mod tests {
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
             key: Some(key.into()),
             model_url: Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+            auth_type: None,
         }
     }
 
@@ -240,6 +243,7 @@ mod tests {
             url: Url::parse("https://api.anthropic.com/v1/messages").unwrap(),
             key: Some(key.into()),
             model_url: Url::parse("https://api.anthropic.com/v1/models").unwrap(),
+            auth_type: None,
         }
     }
 
@@ -298,6 +302,7 @@ mod tests {
             url: reqwest::Url::parse(base_url)?,
             key: Some("test-api-key".to_string()),
             model_url: reqwest::Url::parse(base_url)?.join("models")?,
+            auth_type: None,
         };
 
         Ok(OpenAIProvider::new(

@@ -1,5 +1,4 @@
-use std::collections::HashSet;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, OnceLock};
 
 use forge_app::ProviderRegistry;
 use forge_app::domain::{AgentId, ModelId};
@@ -28,7 +27,6 @@ pub(crate) struct ProviderConfig {
 
 static HANDLEBARS: OnceLock<Handlebars<'static>> = OnceLock::new();
 static PROVIDER_CONFIGS: OnceLock<Vec<ProviderConfig>> = OnceLock::new();
-static ENV_VAR_WARNINGS: OnceLock<Mutex<HashSet<ProviderId>>> = OnceLock::new();
 
 fn get_handlebars() -> &'static Handlebars<'static> {
     HANDLEBARS.get_or_init(Handlebars::new)
@@ -47,23 +45,6 @@ pub(crate) fn get_provider_config(provider_id: &ProviderId) -> Option<&'static P
     get_provider_configs()
         .iter()
         .find(|config| &config.id == provider_id)
-}
-
-fn get_env_var_warnings() -> &'static Mutex<HashSet<ProviderId>> {
-    ENV_VAR_WARNINGS.get_or_init(|| Mutex::new(HashSet::new()))
-}
-
-fn log_env_var_deprecation_warning(provider_id: ProviderId) {
-    let mut warned = get_env_var_warnings().lock().unwrap();
-
-    // Only warn once per provider per session
-    if warned.insert(provider_id.clone()) {
-        eprintln!(
-            "⚠️  Warning: Using environment variable for {}. \
-            Run `forge auth import-env` to migrate to secure storage.",
-            provider_id
-        );
-    }
 }
 
 pub struct ForgeProviderRegistry<F> {
@@ -184,6 +165,7 @@ impl<
             url: final_url,
             key: Some(api_key),
             model_url,
+            auth_type: None, // Environment-based providers don't track auth type
         })
     }
 
@@ -222,16 +204,8 @@ impl<
             }
         }
 
-        // Fall back to cached env-based providers
-        let providers = self.get_providers().await;
-        match providers.iter().find(|p| p.id == id).cloned() {
-            Some(provider) => {
-                // Log deprecation warning for env-var based providers
-                log_env_var_deprecation_warning(id);
-                Ok(provider)
-            }
-            None => Err(ProviderError::provider_not_available(id).into()),
-        }
+        // Database credential required - no environment variable fallback
+        Err(ProviderError::provider_not_available(id).into())
     }
 
     /// Refreshes OAuth tokens for a credential
@@ -365,6 +339,7 @@ impl<
             url: Url::parse(&url)?,
             key: Some(api_key),
             model_url: Url::parse(&model_url)?,
+            auth_type: Some(credential.auth_type.clone()),
         })
     }
 
@@ -437,12 +412,14 @@ impl<
             model_url: Url::parse(&models_url).map_err(|e| {
                 anyhow::anyhow!("Invalid custom provider model URL '{}': {}", models_url, e)
             })?,
+            auth_type: Some(credential.auth_type.clone()),
         })
     }
 
     async fn get_first_available_provider(&self) -> anyhow::Result<Provider> {
-        self.get_providers()
-            .await
+        // Get all providers (database first, then env fallback)
+        let all_providers = self.get_all_providers().await?;
+        all_providers
             .first()
             .cloned()
             .ok_or_else(|| forge_app::Error::NoActiveProvider.into())
@@ -565,23 +542,28 @@ impl<
     async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
         use std::collections::HashSet;
 
-        // Start with env-based providers
-        let mut providers = self.get_providers().await.clone();
-        let mut provider_ids: HashSet<ProviderId> =
-            providers.iter().map(|p| p.id.clone()).collect();
-
-        // Add database-based providers that aren't already in the list
+        // Start with database-based providers (highest priority)
         let db_credentials = self.infra.get_all_credentials().await?;
+        let mut providers = Vec::new();
+        let mut provider_ids: HashSet<ProviderId> = HashSet::new();
+
         for credential in db_credentials {
-            if !provider_ids.contains(&credential.provider_id) {
-                // Try to create provider from credential
-                if let Ok(provider) = self
-                    .create_provider_from_credential(&credential.provider_id, &credential)
-                    .await
-                {
-                    providers.push(provider);
-                    provider_ids.insert(credential.provider_id);
-                }
+            // Try to create provider from credential
+            if let Ok(provider) = self
+                .create_provider_from_credential(&credential.provider_id, &credential)
+                .await
+            {
+                providers.push(provider);
+                provider_ids.insert(credential.provider_id.clone());
+            }
+        }
+
+        // Add env-based providers that aren't already in the list (fallback)
+        let env_providers = self.get_providers().await.clone();
+        for provider in env_providers {
+            if !provider_ids.contains(&provider.id) {
+                provider_ids.insert(provider.id.clone());
+                providers.push(provider);
             }
         }
 
@@ -971,32 +953,6 @@ mod env_tests {
     }
 
     #[tokio::test]
-    async fn test_custom_anthropic_provider_with_env_var() {
-        let mut env_vars = HashMap::new();
-        env_vars.insert("ANTHROPIC_API_KEY".to_string(), "test-key".to_string());
-        env_vars.insert(
-            "ANTHROPIC_URL".to_string(),
-            "https://custom.anthropic.com/v1".to_string(),
-        );
-
-        let infra = Arc::new(MockInfra { env_vars });
-        let registry = ForgeProviderRegistry::new(infra);
-        let provider = registry
-            .provider_from_id(ProviderId::Anthropic)
-            .await
-            .unwrap();
-
-        assert_eq!(
-            provider.url.as_str(),
-            "https://custom.anthropic.com/v1/messages"
-        );
-        assert_eq!(
-            provider.model_url.as_str(),
-            "https://custom.anthropic.com/v1/models"
-        );
-    }
-
-    #[tokio::test]
     async fn test_openai_no_custom_url() {
         let mut env_vars = HashMap::new();
         env_vars.insert("OPENAI_API_KEY".to_string(), "test-key".to_string());
@@ -1056,29 +1012,6 @@ mod env_tests {
             anthropic_provider.url.as_str(),
             "https://custom.anthropic.com/v1/messages"
         );
-    }
-
-    #[tokio::test]
-    async fn test_deprecation_warning_for_env_vars() {
-        let mut env_vars = HashMap::new();
-        env_vars.insert("OPENAI_API_KEY".to_string(), "test-key".to_string());
-
-        let infra = Arc::new(MockInfra { env_vars });
-        let registry = ForgeProviderRegistry::new(infra);
-
-        // First call should trigger warning (we can't easily capture stderr in test,
-        // but we can verify the provider is created successfully)
-        let provider1 = registry.provider_from_id(ProviderId::OpenAI).await.unwrap();
-        assert_eq!(provider1.id, ProviderId::OpenAI);
-
-        // Second call in same session - should still work (warning suppressed
-        // internally)
-        let provider2 = registry.provider_from_id(ProviderId::OpenAI).await.unwrap();
-        assert_eq!(provider2.id, ProviderId::OpenAI);
-
-        // Verify warning tracking state exists (warning was logged at least once)
-        let warned = get_env_var_warnings().lock().unwrap();
-        assert!(warned.contains(&ProviderId::OpenAI));
     }
 
     #[tokio::test]
