@@ -23,7 +23,7 @@ use crate::{
 pub struct ForgeApp<S> {
     services: Arc<S>,
     tool_registry: ToolRegistry<S>,
-    authenticator: Authenticator<S, S>,
+    authenticator: Authenticator<S>,
 }
 
 impl<S: Services> ForgeApp<S> {
@@ -35,7 +35,7 @@ impl<S: Services> ForgeApp<S> {
     pub fn new(services: Arc<S>) -> Self {
         Self {
             tool_registry: ToolRegistry::new(services.clone()),
-            authenticator: Authenticator::new(services.clone(), services.clone()),
+            authenticator: Authenticator::new(services.clone()),
             services,
         }
     }
@@ -241,7 +241,6 @@ impl<S: Services> ForgeApp<S> {
         self.authenticator.logout().await
     }
 
-    // ========== Provider Authentication ==========
 
     /// Initiates authentication for an LLM provider
     ///
@@ -287,13 +286,13 @@ impl<S: Services> ForgeApp<S> {
     /// # Arguments
     /// * `provider_id` - The provider being authenticated
     /// * `result` - Authentication result from user input or polling
-    pub async fn complete_provider_auth(
+    pub async fn save_provider_credentials(
         &self,
         provider_id: crate::dto::ProviderId,
         result: crate::dto::AuthResult,
     ) -> Result<()> {
         self.authenticator
-            .complete_provider_auth(provider_id, result)
+            .save_provider_credentials(provider_id, result)
             .await?;
         Ok(())
     }

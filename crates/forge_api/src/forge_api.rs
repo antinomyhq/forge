@@ -326,7 +326,7 @@ impl<
     ) -> Result<()> {
         let forge_app = ForgeApp::new(self.services.clone());
         Ok(forge_app
-            .complete_provider_auth(provider_id, result)
+            .save_provider_credentials(provider_id, result)
             .await?)
     }
 

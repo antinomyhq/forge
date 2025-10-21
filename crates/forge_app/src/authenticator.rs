@@ -14,20 +14,19 @@ use crate::{AuthService, Error, ProviderAuthService};
 /// Supports two authentication flows:
 /// 1. **Forge Platform Auth**: init() → login() → logout() for Forge API access
 /// 2. **Provider Auth**: authenticate_provider() for LLM provider credentials
-pub struct Authenticator<S, P> {
+pub struct Authenticator<S> {
     auth_service: Arc<S>,
-    provider_auth_service: Arc<P>,
 }
 
-impl<S: AuthService, P: ProviderAuthService> Authenticator<S, P> {
+impl<S: AuthService + ProviderAuthService> Authenticator<S> {
     /// Creates a new authenticator with both platform and provider auth
     /// services
     ///
     /// # Arguments
     /// * `auth_service` - Service for Forge platform authentication
     /// * `provider_auth_service` - Service for LLM provider authentication
-    pub fn new(auth_service: Arc<S>, provider_auth_service: Arc<P>) -> Self {
-        Self { auth_service, provider_auth_service }
+    pub fn new(auth_service: Arc<S>) -> Self {
+        Self { auth_service }
     }
 
     // ========== Forge Platform Authentication ==========
@@ -97,7 +96,6 @@ impl<S: AuthService, P: ProviderAuthService> Authenticator<S, P> {
             .await
     }
 
-    // ========== Provider Authentication (Low-Level Primitives) ==========
 
     /// Initiates authentication for an LLM provider
     ///
@@ -106,32 +104,11 @@ impl<S: AuthService, P: ProviderAuthService> Authenticator<S, P> {
     /// - OAuth Device Flow: Returns user code and verification URL
     /// - OAuth Code Flow: Returns authorization URL for browser redirect
     /// - Custom Providers: Prompts for base URL, model ID, compatibility mode
-    ///
-    /// # Arguments
-    /// * `provider_id` - The provider to authenticate (e.g., OpenAI,
-    ///   GithubCopilot)
-    ///
-    /// # Returns
-    /// `AuthInitiation` enum with provider-specific instructions for the UI
-    ///
-    /// # Example
-    /// ```ignore
-    /// let initiation = authenticator.init_provider_auth(ProviderId::OpenAI).await?;
-    /// match initiation {
-    ///     AuthInitiation::ApiKeyPrompt { label, .. } => {
-    ///         // Display prompt to user
-    ///     }
-    ///     AuthInitiation::DeviceFlow { user_code, verification_uri, .. } => {
-    ///         // Display code and URL to user
-    ///     }
-    ///     _ => {}
-    /// }
-    /// ```
     pub async fn init_provider_auth(
         &self,
         provider_id: ProviderId,
     ) -> anyhow::Result<AuthInitiation> {
-        self.provider_auth_service
+        self.auth_service
             .init_provider_auth(provider_id)
             .await
     }
@@ -157,7 +134,7 @@ impl<S: AuthService, P: ProviderAuthService> Authenticator<S, P> {
         context: &AuthContext,
         timeout: Duration,
     ) -> anyhow::Result<AuthResult> {
-        self.provider_auth_service
+        self.auth_service
             .poll_provider_auth(provider_id, context, timeout)
             .await
     }
@@ -173,12 +150,12 @@ impl<S: AuthService, P: ProviderAuthService> Authenticator<S, P> {
     ///
     /// # Returns
     /// The created and saved `ProviderCredential`
-    pub async fn complete_provider_auth(
+    pub async fn save_provider_credentials(
         &self,
         provider_id: ProviderId,
         result: AuthResult,
     ) -> anyhow::Result<crate::dto::ProviderCredential> {
-        self.provider_auth_service
+        self.auth_service
             .complete_provider_auth(provider_id, result)
             .await
     }
@@ -199,7 +176,7 @@ impl<S: AuthService, P: ProviderAuthService> Authenticator<S, P> {
         &self,
         compatibility_mode: ProviderResponse,
     ) -> anyhow::Result<AuthInitiation> {
-        self.provider_auth_service
+        self.auth_service
             .init_custom_provider(compatibility_mode)
             .await
     }
@@ -212,7 +189,7 @@ impl<S: AuthService, P: ProviderAuthService> Authenticator<S, P> {
     /// # Returns
     /// The generated ProviderId for the custom provider
     pub async fn register_custom_provider(&self, result: AuthResult) -> anyhow::Result<ProviderId> {
-        self.provider_auth_service
+        self.auth_service
             .register_custom_provider(result)
             .await
     }
@@ -221,7 +198,7 @@ impl<S: AuthService, P: ProviderAuthService> Authenticator<S, P> {
     pub async fn list_custom_providers(
         &self,
     ) -> anyhow::Result<Vec<crate::dto::ProviderCredential>> {
-        self.provider_auth_service.list_custom_providers().await
+        self.auth_service.list_custom_providers().await
     }
 }
 
