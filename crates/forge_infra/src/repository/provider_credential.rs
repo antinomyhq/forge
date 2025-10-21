@@ -96,7 +96,8 @@ impl TryFrom<ProviderCredentialRecord> for ProviderCredential {
     /// Converts database record to domain model
     fn try_from(record: ProviderCredentialRecord) -> anyhow::Result<Self> {
         // Parse provider ID - handle both old (plain string) and new (JSON) formats
-        let provider_id: ProviderId = serde_json::from_str(&format!("\"{}\"", &record.provider_id))?;
+        let provider_id: ProviderId =
+            serde_json::from_str(&format!("\"{}\"", &record.provider_id))?;
 
         // Parse auth type
         let auth_type: AuthType = record
