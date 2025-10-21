@@ -75,7 +75,7 @@ impl TryFrom<ProviderCredentialRecord> for ProviderCredential {
 
         // Parse auth type
         let auth_type: AuthType = serde_json::from_str(&format!("\"{}\"", &record.auth_type))?;
-        
+
         // Store API key directly
         let api_key = record.api_key;
 

@@ -1,10 +1,10 @@
 use std::collections::HashMap;
-use strum_macros::Display;
 
 /// Domain models for provider credentials with OAuth support
 use chrono::{DateTime, Utc};
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
+use strum_macros::Display;
 
 use super::{ProviderId, ProviderResponse};
 
@@ -17,12 +17,12 @@ pub enum AuthType {
     ApiKey,
 
     /// OAuth authentication (device or code flow)
-    #[serde(rename="oauth")]
+    #[serde(rename = "oauth")]
     #[strum(serialize = "oauth")]
     OAuth,
 
     /// OAuth token used to fetch an API key (GitHub Copilot pattern)
-    #[serde(rename="oauth_with_api_key")]
+    #[serde(rename = "oauth_with_api_key")]
     #[strum(serialize = "oauth_with_api_key")]
     OAuthWithApiKey,
 }
