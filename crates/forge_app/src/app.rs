@@ -241,7 +241,6 @@ impl<S: Services> ForgeApp<S> {
         self.authenticator.logout().await
     }
 
-
     /// Initiates authentication for an LLM provider
     ///
     /// Returns authentication initiation details that vary by provider:

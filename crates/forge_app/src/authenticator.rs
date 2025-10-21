@@ -96,7 +96,6 @@ impl<S: AuthService + ProviderAuthService> Authenticator<S> {
             .await
     }
 
-
     /// Initiates authentication for an LLM provider
     ///
     /// Returns the initial authentication state which varies by provider:
@@ -108,9 +107,7 @@ impl<S: AuthService + ProviderAuthService> Authenticator<S> {
         &self,
         provider_id: ProviderId,
     ) -> anyhow::Result<AuthInitiation> {
-        self.auth_service
-            .init_provider_auth(provider_id)
-            .await
+        self.auth_service.init_provider_auth(provider_id).await
     }
 
     /// Polls until provider authentication completes
@@ -189,9 +186,7 @@ impl<S: AuthService + ProviderAuthService> Authenticator<S> {
     /// # Returns
     /// The generated ProviderId for the custom provider
     pub async fn register_custom_provider(&self, result: AuthResult) -> anyhow::Result<ProviderId> {
-        self.auth_service
-            .register_custom_provider(result)
-            .await
+        self.auth_service.register_custom_provider(result).await
     }
 
     /// Lists all registered custom providers
