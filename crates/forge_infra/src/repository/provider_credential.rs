@@ -42,7 +42,7 @@ impl TryFrom<&ProviderCredential> for ProviderCredentialRecord {
         Ok(ProviderCredentialRecord {
             id: None,
             provider_id: credential.provider_id.to_string(),
-            auth_type: credential.auth_type.as_str().to_string(),
+            auth_type: credential.auth_type.to_string(),
             api_key: credential.api_key.clone(),
             refresh_token: credential
                 .oauth_tokens
@@ -74,11 +74,8 @@ impl TryFrom<ProviderCredentialRecord> for ProviderCredential {
             serde_json::from_str(&format!("\"{}\"", &record.provider_id))?;
 
         // Parse auth type
-        let auth_type: AuthType = record
-            .auth_type
-            .parse()
-            .map_err(|e| anyhow::anyhow!("Invalid auth type: {}", e))?;
-
+        let auth_type: AuthType = serde_json::from_str(&format!("\"{}\"", &record.auth_type))?;
+        
         // Store API key directly
         let api_key = record.api_key;
 

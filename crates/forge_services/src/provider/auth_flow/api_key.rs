@@ -157,7 +157,7 @@ mod tests {
     #[tokio::test]
     async fn test_poll_returns_error() {
         let flow = create_flow();
-        let context = AuthContext::new();
+        let context = AuthContext::default();
         let result = flow
             .poll_until_complete(&context, Duration::from_secs(60))
             .await;

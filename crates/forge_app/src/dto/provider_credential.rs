@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::str::FromStr;
+use strum_macros::Display;
 
 /// Domain models for provider credentials with OAuth support
 use chrono::{DateTime, Utc};
@@ -9,46 +9,22 @@ use serde::{Deserialize, Serialize};
 use super::{ProviderId, ProviderResponse};
 
 /// Type of authentication used for a provider
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Display, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum AuthType {
     /// Traditional API key authentication
     ApiKey,
 
     /// OAuth authentication (device or code flow)
+    #[serde(rename="oauth")]
+    #[strum(serialize = "oauth")]
     OAuth,
 
     /// OAuth token used to fetch an API key (GitHub Copilot pattern)
+    #[serde(rename="oauth_with_api_key")]
+    #[strum(serialize = "oauth_with_api_key")]
     OAuthWithApiKey,
-}
-
-impl AuthType {
-    /// Returns string representation for database storage
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            AuthType::ApiKey => "api_key",
-            AuthType::OAuth => "oauth",
-            AuthType::OAuthWithApiKey => "oauth_with_api_key",
-        }
-    }
-}
-
-impl FromStr for AuthType {
-    type Err = String;
-
-    /// Parses auth type from database string
-    ///
-    /// # Errors
-    ///
-    /// Returns error if string doesn't match any known auth type
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "api_key" => Ok(AuthType::ApiKey),
-            "oauth" => Ok(AuthType::OAuth),
-            "oauth_with_api_key" => Ok(AuthType::OAuthWithApiKey),
-            _ => Err(format!("Unknown auth type: {}", s)),
-        }
-    }
 }
 
 /// OAuth tokens for providers using OAuth authentication

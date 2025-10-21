@@ -98,47 +98,14 @@ pub enum AuthInitiation {
 /// This is an opaque container for flow-specific data like device codes,
 /// session IDs, PKCE verifiers, etc. The data is stored as key-value pairs
 /// to keep the types generic.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, derive_setters::Setters)]
+#[setters(strip_option, into)]
 pub struct AuthContext {
     /// Opaque data needed for polling (device_code, session_id, etc.)
     pub polling_data: HashMap<String, String>,
 
     /// Opaque data needed for completion (PKCE verifier, state, etc.)
     pub completion_data: HashMap<String, String>,
-}
-
-impl AuthContext {
-    /// Creates a new empty authentication context.
-    pub fn new() -> Self {
-        Self {
-            polling_data: HashMap::new(),
-            completion_data: HashMap::new(),
-        }
-    }
-
-    /// Creates a context with polling data only.
-    pub fn with_polling_data(polling_data: HashMap<String, String>) -> Self {
-        Self { polling_data, completion_data: HashMap::new() }
-    }
-
-    /// Creates a context with completion data only.
-    pub fn with_completion_data(completion_data: HashMap<String, String>) -> Self {
-        Self { polling_data: HashMap::new(), completion_data }
-    }
-
-    /// Creates a context with both polling and completion data.
-    pub fn with_both(
-        polling_data: HashMap<String, String>,
-        completion_data: HashMap<String, String>,
-    ) -> Self {
-        Self { polling_data, completion_data }
-    }
-}
-
-impl Default for AuthContext {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 /// Result data from successful authentication.
@@ -298,8 +265,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_auth_context_new() {
-        let context = AuthContext::new();
+    fn test_auth_context_default() {
+        let context = AuthContext::default();
         assert!(context.polling_data.is_empty());
         assert!(context.completion_data.is_empty());
     }
@@ -309,7 +276,7 @@ mod tests {
         let mut polling_data = HashMap::new();
         polling_data.insert("device_code".to_string(), "ABC123".to_string());
 
-        let context = AuthContext::with_polling_data(polling_data.clone());
+        let context = AuthContext::default().polling_data(polling_data.clone());
         assert_eq!(context.polling_data, polling_data);
         assert!(context.completion_data.is_empty());
     }
@@ -319,7 +286,7 @@ mod tests {
         let mut completion_data = HashMap::new();
         completion_data.insert("pkce_verifier".to_string(), "XYZ789".to_string());
 
-        let context = AuthContext::with_completion_data(completion_data.clone());
+        let context = AuthContext::default().completion_data(completion_data.clone());
         assert!(context.polling_data.is_empty());
         assert_eq!(context.completion_data, completion_data);
     }

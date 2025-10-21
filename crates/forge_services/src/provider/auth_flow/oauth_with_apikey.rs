@@ -127,7 +127,7 @@ impl AuthenticationFlow for OAuthWithApiKeyFlow {
             device_auth_response.device_code().secret().to_string(),
         );
 
-        let context = AuthContext::with_polling_data(polling_data);
+        let context = AuthContext::default().polling_data(polling_data);
 
         Ok(AuthInitiation::DeviceFlow {
             user_code: device_auth_response.user_code().secret().to_string(),
