@@ -49,7 +49,6 @@ pub(crate) fn get_provider_config(provider_id: &ProviderId) -> Option<&'static P
         .find(|config| &config.id == provider_id)
 }
 
-
 /// Get display name for a provider
 pub fn get_provider_display_name(provider_id: &ProviderId) -> String {
     get_provider_config(provider_id)
@@ -87,15 +86,16 @@ pub fn get_provider_env_vars(provider_id: &ProviderId) -> Vec<String> {
 /// Get OAuth method for a provider
 pub fn get_provider_oauth_method(provider_id: &ProviderId) -> Option<crate::provider::AuthMethod> {
     use forge_app::dto::AuthMethodType;
-    
-    get_provider_auth_methods(provider_id).into_iter().find(|m| {
-        matches!(
-            m.method_type,
-            AuthMethodType::OAuthDevice | AuthMethodType::OAuthCode
-        )
-    })
-}
 
+    get_provider_auth_methods(provider_id)
+        .into_iter()
+        .find(|m| {
+            matches!(
+                m.method_type,
+                AuthMethodType::OAuthDevice | AuthMethodType::OAuthCode
+            )
+        })
+}
 
 pub struct ForgeProviderRegistry<F> {
     infra: Arc<F>,

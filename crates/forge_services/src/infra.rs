@@ -241,7 +241,10 @@ pub trait ProviderSpecificProcessingInfra: Send + Sync {
         access_token: &str,
     ) -> anyhow::Result<(String, Option<DateTime<Utc>>)>;
 
-    fn get_provider_config(&self, provider_id: &ProviderId) -> Option<&'static crate::provider::registry::ProviderConfig>;
+    fn get_provider_config(
+        &self,
+        provider_id: &ProviderId,
+    ) -> Option<&'static crate::provider::registry::ProviderConfig>;
 }
 /// Service for reading multiple files from a directory asynchronously
 #[async_trait::async_trait]

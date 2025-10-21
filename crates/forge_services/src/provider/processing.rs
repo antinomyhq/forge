@@ -29,7 +29,10 @@ impl ProviderSpecificProcessingInfra for ProviderProcessingService {
         Ok((api_key, Some(expires_at)))
     }
 
-    fn get_provider_config(&self, provider_id: &ProviderId) -> Option<&'static crate::provider::registry::ProviderConfig> {
+    fn get_provider_config(
+        &self,
+        provider_id: &ProviderId,
+    ) -> Option<&'static crate::provider::registry::ProviderConfig> {
         crate::provider::registry::get_provider_config(provider_id)
     }
 }

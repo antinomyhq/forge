@@ -481,7 +481,10 @@ impl ProviderSpecificProcessingInfra for ForgeInfra {
         service.process_github_copilot_token(access_token).await
     }
 
-    fn get_provider_config(&self, provider_id: &ProviderId) -> Option<&'static forge_services::provider::registry::ProviderConfig> {
+    fn get_provider_config(
+        &self,
+        provider_id: &ProviderId,
+    ) -> Option<&'static forge_services::provider::registry::ProviderConfig> {
         let service = ProviderProcessingService::new();
         service.get_provider_config(provider_id)
     }
