@@ -14,11 +14,13 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use forge_app::dto::{
-    AuthContext, AuthInitiation, AuthMethodType, AuthResult, ProviderId, ProviderCredential,
+    AuthContext, AuthInitiation, AuthMethodType, AuthResult, ProviderCredential, ProviderId,
     ProviderResponse, UrlParameter,
 };
 
-use crate::provider::{AuthMethod, AuthMethodType as AuthMethodTypeInternal, ForgeOAuthService, GitHubCopilotService};
+use crate::provider::{
+    AuthMethod, AuthMethodType as AuthMethodTypeInternal, ForgeOAuthService, GitHubCopilotService,
+};
 
 pub mod api_key;
 pub mod error;
@@ -290,7 +292,6 @@ impl AuthenticationFlow for AuthFlow {
         }
     }
 }
-
 
 /// Generic authentication flow trait supporting all provider auth patterns.
 ///

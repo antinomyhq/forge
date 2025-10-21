@@ -9,9 +9,7 @@ use tokio::sync::OnceCell;
 use tracing;
 use url::Url;
 
-use crate::provider::{
-    AuthFlow, AuthenticationFlow, ForgeOAuthService, GitHubCopilotService,
-};
+use crate::provider::{AuthFlow, AuthenticationFlow, ForgeOAuthService, GitHubCopilotService};
 use crate::{
     AppConfigRepository, EnvironmentInfra, ProviderCredentialRepository, ProviderError,
     ProviderSpecificProcessingInfra,
