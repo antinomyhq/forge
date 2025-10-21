@@ -9,7 +9,7 @@
 /// - Cloud Service Account with Parameters (Vertex AI, Azure)
 /// - Custom Provider Registration (OpenAI/Anthropic-compatible endpoints)
 use std::collections::HashMap;
-
+use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
 use super::ProviderResponse;
@@ -98,7 +98,7 @@ pub enum AuthInitiation {
 /// This is an opaque container for flow-specific data like device codes,
 /// session IDs, PKCE verifiers, etc. The data is stored as key-value pairs
 /// to keep the types generic.
-#[derive(Debug, Clone, Serialize, Deserialize, Default, derive_setters::Setters)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, Setters)]
 #[setters(strip_option, into)]
 pub struct AuthContext {
     /// Opaque data needed for polling (device_code, session_id, etc.)
@@ -170,7 +170,8 @@ pub enum AuthResult {
 ///
 /// Used for cloud providers (Vertex AI, Azure) that need parameters like
 /// project_id, location, etc., and for custom provider registration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, Setters)]
+#[setters(strip_option, into)]
 pub struct UrlParameter {
     /// Parameter key (e.g., "project_id", "location", "base_url", "model_id")
     pub key: String,
@@ -181,6 +182,7 @@ pub struct UrlParameter {
     /// Optional default value to pre-fill
     pub default_value: Option<String>,
     /// Whether this parameter is required
+    #[setters(skip)]
     pub required: bool,
     /// Optional validation pattern (regex)
     pub validation_pattern: Option<String>,
@@ -192,10 +194,8 @@ impl UrlParameter {
         Self {
             key: key.into(),
             label: label.into(),
-            description: None,
-            default_value: None,
             required: false,
-            validation_pattern: None,
+            ..Default::default()
         }
     }
 
@@ -204,10 +204,8 @@ impl UrlParameter {
         Self {
             key: key.into(),
             label: label.into(),
-            description: None,
-            default_value: None,
             required: true,
-            validation_pattern: None,
+            ..Default::default()
         }
     }
 
@@ -216,45 +214,9 @@ impl UrlParameter {
         Self {
             key: key.into(),
             label: label.into(),
-            description: None,
-            default_value: None,
             required: false,
-            validation_pattern: None,
+            ..Default::default()
         }
-    }
-
-    /// Adds a description to the parameter.
-    pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = Some(description.into());
-        self
-    }
-
-    /// Adds a default value to the parameter.
-    pub fn with_default(mut self, default: impl Into<String>) -> Self {
-        self.default_value = Some(default.into());
-        self
-    }
-
-    /// Adds a validation pattern to the parameter.
-    pub fn with_validation(mut self, pattern: impl Into<String>) -> Self {
-        self.validation_pattern = Some(pattern.into());
-        self
-    }
-
-    /// Sets the required flag on the parameter.
-    pub fn with_required(mut self, required: bool) -> Self {
-        self.required = required;
-        self
-    }
-
-    /// Alias for with_default for consistency with factory usage.
-    pub fn with_default_value(self, default: impl Into<String>) -> Self {
-        self.with_default(default)
-    }
-
-    /// Alias for with_validation for consistency with factory usage.
-    pub fn with_validation_pattern(self, pattern: impl Into<String>) -> Self {
-        self.with_validation(pattern)
     }
 }
 
@@ -294,8 +256,8 @@ mod tests {
     #[test]
     fn test_url_parameter_builder() {
         let param = UrlParameter::required("project_id", "GCP Project ID")
-            .with_description("Your Google Cloud project ID")
-            .with_validation(r"^[a-z][a-z0-9-]{4,28}[a-z0-9]$");
+            .description("Your Google Cloud project ID")
+            .validation_pattern(r"^[a-z][a-z0-9-]{4,28}[a-z0-9]$");
 
         assert_eq!(param.key, "project_id");
         assert_eq!(param.label, "GCP Project ID");
@@ -313,8 +275,8 @@ mod tests {
     #[test]
     fn test_url_parameter_optional() {
         let param = UrlParameter::optional("api_key", "API Key")
-            .with_default("default-key")
-            .with_description("Optional API key");
+            .default_value("default-key")
+            .description("Optional API key");
 
         assert_eq!(param.key, "api_key");
         assert!(!param.required);

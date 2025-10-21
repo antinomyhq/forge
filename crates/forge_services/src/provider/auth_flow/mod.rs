@@ -189,30 +189,25 @@ impl AuthFlow {
     /// Returns Vertex AI required parameters
     fn vertex_ai_params() -> Vec<UrlParameter> {
         vec![
-            UrlParameter::new("project_id", "GCP Project ID")
-                .with_description("Your Google Cloud project ID")
-                .with_required(true)
-                .with_validation_pattern(r"^[a-z][a-z0-9-]{4,28}[a-z0-9]$"),
-            UrlParameter::new("location", "Location")
-                .with_description("GCP region (e.g., us-central1) or 'global'")
-                .with_default_value("us-central1")
-                .with_required(true),
+            UrlParameter::required("project_id", "GCP Project ID")
+                .description("Your Google Cloud project ID")
+                .validation_pattern(r"^[a-z][a-z0-9-]{4,28}[a-z0-9]$"),
+            UrlParameter::required("location", "Location")
+                .description("GCP region (e.g., us-central1) or 'global'")
+                .default_value("us-central1"),
         ]
     }
 
     /// Returns Azure OpenAI required parameters
     fn azure_params() -> Vec<UrlParameter> {
         vec![
-            UrlParameter::new("resource_name", "Azure Resource Name")
-                .with_description("Your Azure OpenAI resource name")
-                .with_required(true),
-            UrlParameter::new("deployment_name", "Deployment Name")
-                .with_description("Your model deployment name")
-                .with_required(true),
-            UrlParameter::new("api_version", "API Version")
-                .with_description("Azure API version")
-                .with_default_value("2024-02-15-preview")
-                .with_required(true),
+            UrlParameter::required("resource_name", "Azure Resource Name")
+                .description("Your Azure OpenAI resource name"),
+            UrlParameter::required("deployment_name", "Deployment Name")
+                .description("Your model deployment name"),
+            UrlParameter::required("api_version", "API Version")
+                .description("Azure API version")
+                .default_value("2024-02-15-preview"),
         ]
     }
 }

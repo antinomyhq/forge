@@ -68,11 +68,11 @@ impl CloudServiceAuthFlow {
     pub fn vertex_ai(provider_id: ProviderId) -> Self {
         let params = vec![
             UrlParameter::required("project_id", "GCP Project ID")
-                .with_description("Your Google Cloud project ID")
-                .with_validation(r"^[a-z][a-z0-9-]{4,28}[a-z0-9]$"),
+                .description("Your Google Cloud project ID")
+                .validation_pattern(r"^[a-z][a-z0-9-]{4,28}[a-z0-9]$"),
             UrlParameter::required("location", "Location")
-                .with_description("GCP region (e.g., us-central1) or 'global'")
-                .with_default("us-central1"),
+                .description("GCP region (e.g., us-central1) or 'global'")
+                .default_value("us-central1"),
         ];
 
         Self::new(provider_id, params, "Vertex AI Auth Token")
@@ -83,12 +83,12 @@ impl CloudServiceAuthFlow {
     pub fn azure_openai(provider_id: ProviderId) -> Self {
         let params = vec![
             UrlParameter::required("resource_name", "Azure Resource Name")
-                .with_description("Your Azure OpenAI resource name"),
+                .description("Your Azure OpenAI resource name"),
             UrlParameter::required("deployment_name", "Deployment Name")
-                .with_description("Your model deployment name"),
+                .description("Your model deployment name"),
             UrlParameter::required("api_version", "API Version")
-                .with_description("Azure API version")
-                .with_default("2024-02-15-preview"),
+                .description("Azure API version")
+                .default_value("2024-02-15-preview"),
         ];
 
         Self::new(provider_id, params, "Azure API Key")

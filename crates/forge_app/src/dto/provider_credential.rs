@@ -266,20 +266,26 @@ mod tests {
 
     #[test]
     fn test_auth_type_serialization() {
-        assert_eq!(AuthType::ApiKey.as_str(), "api_key");
-        assert_eq!(AuthType::OAuth.as_str(), "oauth");
-        assert_eq!(AuthType::OAuthWithApiKey.as_str(), "oauth_with_api_key");
+        assert_eq!(AuthType::ApiKey.to_string().as_str(), "api_key");
+        assert_eq!(AuthType::OAuth.to_string().as_str(), "oauth");
+        assert_eq!(AuthType::OAuthWithApiKey.to_string().as_str(), "oauth_with_api_key");
     }
 
     #[test]
     fn test_auth_type_parsing() {
-        assert_eq!(AuthType::from_str("api_key").unwrap(), AuthType::ApiKey);
-        assert_eq!(AuthType::from_str("oauth").unwrap(), AuthType::OAuth);
         assert_eq!(
-            AuthType::from_str("oauth_with_api_key").unwrap(),
+            serde_json::from_str::<AuthType>(r#""api_key""#).unwrap(),
+            AuthType::ApiKey
+        );
+        assert_eq!(
+            serde_json::from_str::<AuthType>(r#""oauth""#).unwrap(),
+            AuthType::OAuth
+        );
+        assert_eq!(
+            serde_json::from_str::<AuthType>(r#""oauth_with_api_key""#).unwrap(),
             AuthType::OAuthWithApiKey
         );
-        assert!(AuthType::from_str("unknown").is_err());
+        assert!(serde_json::from_str::<AuthType>(r#""unknown""#).is_err());
     }
 
     #[test]

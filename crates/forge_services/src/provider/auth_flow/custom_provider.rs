@@ -60,15 +60,14 @@ impl CustomProviderAuthFlow {
     fn required_params() -> Vec<UrlParameter> {
         vec![
             UrlParameter::required("provider_name", "Provider Name")
-                .with_description("Display name for this provider (e.g., 'My Local LLM')"),
+                .description("Display name for this provider (e.g., 'My Local LLM')"),
             UrlParameter::required("base_url", "Base URL")
-                .with_description("API endpoint (e.g., http://localhost:8080/v1)")
-                .with_validation(r"^https?://.+"),
-            UrlParameter::required("model_id", "Model Name").with_description(
-                "Model identifier to use in API requests (e.g., 'gpt-4', 'llama-3-70b')",
-            ),
+                .description("API endpoint (e.g., http://localhost:8080/v1)")
+                .validation_pattern(r"^https?://.+"),
+            UrlParameter::required("model_id", "Model Name")
+                .description("Model identifier to use in API requests (e.g., 'gpt-4', 'llama-3-70b')"),
             UrlParameter::optional("api_key", "API Key")
-                .with_description("Leave empty for local servers without authentication"),
+                .description("Leave empty for local servers without authentication"),
         ]
     }
 
