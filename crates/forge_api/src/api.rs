@@ -130,15 +130,7 @@ pub trait API: Sync + Send {
     // Provider credential management
     async fn list_provider_credentials(&self) -> Result<Vec<ProviderCredential>>;
 
-    // High-level provider authentication methods (use metadata-driven flow)
-
     /// Adds a provider API key with optional validation
-    ///
-    /// # Arguments
-    ///
-    /// * `provider_id` - Provider to add credential for
-    /// * `api_key` - API key to add
-    /// * `skip_validation` - If true, skip validation
     async fn add_provider_api_key(
         &self,
         provider_id: ProviderId,
@@ -146,33 +138,13 @@ pub trait API: Sync + Send {
         skip_validation: bool,
     ) -> Result<ValidationOutcome>;
 
-    // New trait-based authentication methods (Phase 7)
-
     /// Initiates provider authentication flow
-    ///
-    /// Returns authentication initiation details based on provider type:
-    /// - API key providers: Returns prompt for API key input
-    /// - OAuth providers: Returns device code and verification URL
-    /// - Code flow providers: Returns authorization URL
-    ///
-    /// # Arguments
-    ///
-    /// * `provider_id` - Provider to authenticate with
     async fn init_provider_auth(
         &self,
         provider_id: ProviderId,
     ) -> Result<forge_app::dto::AuthInitiation>;
 
     /// Polls for OAuth authentication completion
-    ///
-    /// Blocks until user completes OAuth authorization or timeout is reached.
-    /// Only applicable for OAuth providers.
-    ///
-    /// # Arguments
-    ///
-    /// * `provider_id` - Provider being authenticated
-    /// * `context` - Authentication context from initiation
-    /// * `timeout` - Maximum time to wait for authorization
     async fn poll_provider_auth(
         &self,
         provider_id: ProviderId,
