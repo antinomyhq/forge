@@ -64,8 +64,9 @@ impl CustomProviderAuthFlow {
             UrlParameter::required("base_url", "Base URL")
                 .description("API endpoint (e.g., http://localhost:8080/v1)")
                 .validation_pattern(r"^https?://.+"),
-            UrlParameter::required("model_id", "Model Name")
-                .description("Model identifier to use in API requests (e.g., 'gpt-4', 'llama-3-70b')"),
+            UrlParameter::required("model_id", "Model Name").description(
+                "Model identifier to use in API requests (e.g., 'gpt-4', 'llama-3-70b')",
+            ),
             UrlParameter::optional("api_key", "API Key")
                 .description("Leave empty for local servers without authentication"),
         ]

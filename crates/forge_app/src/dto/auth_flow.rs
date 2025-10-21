@@ -9,6 +9,7 @@
 /// - Cloud Service Account with Parameters (Vertex AI, Azure)
 /// - Custom Provider Registration (OpenAI/Anthropic-compatible endpoints)
 use std::collections::HashMap;
+
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 

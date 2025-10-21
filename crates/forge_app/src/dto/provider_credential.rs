@@ -268,7 +268,10 @@ mod tests {
     fn test_auth_type_serialization() {
         assert_eq!(AuthType::ApiKey.to_string().as_str(), "api_key");
         assert_eq!(AuthType::OAuth.to_string().as_str(), "oauth");
-        assert_eq!(AuthType::OAuthWithApiKey.to_string().as_str(), "oauth_with_api_key");
+        assert_eq!(
+            AuthType::OAuthWithApiKey.to_string().as_str(),
+            "oauth_with_api_key"
+        );
     }
 
     #[test]
