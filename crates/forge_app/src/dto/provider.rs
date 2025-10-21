@@ -8,7 +8,9 @@ use super::AuthType;
 /// --- IMPORTANT ---
 /// The order of providers is important because that would be order in which the
 /// providers will be resolved
-#[derive(Debug, Display, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord, EnumIter)]
+#[derive(
+    Debug, Display, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord, EnumIter,
+)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum ProviderId {

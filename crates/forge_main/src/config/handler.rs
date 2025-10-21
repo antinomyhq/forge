@@ -189,9 +189,7 @@ impl<A: API> ConfigManager<A> {
 
 /// Get list of valid provider names
 fn get_valid_provider_names() -> Vec<String> {
-    ProviderId::iter()
-        .map(|p| p.to_string())
-        .collect()
+    ProviderId::iter().map(|p| p.to_string()).collect()
 }
 
 #[cfg(test)]
