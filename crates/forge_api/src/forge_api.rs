@@ -43,10 +43,7 @@ impl ForgeAPI<ForgeServices<ForgeInfra>, ForgeInfra> {
 #[async_trait::async_trait]
 impl<
     A: Services,
-    F: CommandInfra
-        + AppConfigRepository
-        + ProviderCredentialRepository
-        + ProviderValidationInfra
+    F: CommandInfra + AppConfigRepository + ProviderCredentialRepository + ProviderValidationInfra,
 > API for ForgeAPI<A, F>
 {
     async fn discover(&self) -> Result<Vec<File>> {
