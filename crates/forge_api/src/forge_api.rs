@@ -14,8 +14,8 @@ use forge_domain::*;
 use forge_infra::ForgeInfra;
 use forge_services::provider::{ValidationOutcome, ValidationResult};
 use forge_services::{
-    AppConfigRepository, CommandInfra, ForgeServices,
-    ProviderCredentialRepository, ProviderSpecificProcessingInfra, ProviderValidationInfra,
+    AppConfigRepository, CommandInfra, ForgeServices, ProviderCredentialRepository,
+    ProviderSpecificProcessingInfra, ProviderValidationInfra,
 };
 use forge_stream::MpscStream;
 
