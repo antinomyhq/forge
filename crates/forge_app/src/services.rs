@@ -358,10 +358,6 @@ pub trait ProviderRegistry: Send + Sync {
     async fn get_active_agent(&self) -> anyhow::Result<Option<AgentId>>;
     async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()>;
 
-    /// Get all available provider IDs from configuration (regardless of
-    /// initialization status)
-    /// Includes both built-in providers and registered custom providers
-    async fn available_provider_ids(&self) -> Vec<ProviderId>;
 }
 
 /// Provider authentication service
@@ -439,7 +435,6 @@ pub trait PolicyService: Send + Sync {
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
-#[async_trait::async_trait]
 pub trait Services: Send + Sync + 'static + Clone {
     type ProviderService: ProviderService;
     type ConversationService: ConversationService;
@@ -493,10 +488,6 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn policy_service(&self) -> &Self::PolicyService;
     fn provider_auth_service(&self) -> &Self::ProviderAuthService;
 
-    /// Get all available provider IDs from configuration
-    async fn available_provider_ids(&self) -> Vec<ProviderId> {
-        self.provider_registry().available_provider_ids().await
-    }
 }
 
 #[async_trait::async_trait]
@@ -796,9 +787,6 @@ impl<I: Services> ProviderRegistry for I {
         self.provider_registry().set_active_agent(agent_id).await
     }
 
-    async fn available_provider_ids(&self) -> Vec<ProviderId> {
-        self.provider_registry().available_provider_ids().await
-    }
 }
 
 #[async_trait::async_trait]

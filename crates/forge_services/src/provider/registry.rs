@@ -596,25 +596,6 @@ impl<
         .await
     }
 
-    async fn available_provider_ids(&self) -> Vec<ProviderId> {
-        // Get built-in providers
-        let mut provider_ids: Vec<ProviderId> = get_provider_configs()
-            .iter()
-            .filter(|config| config.id != ProviderId::Forge) // Exclude internal Forge provider
-            .map(|config| config.id.clone())
-            .collect();
-
-        // Add custom providers from credentials (they're already registered)
-        if let Ok(credentials) = self.infra.get_all_credentials().await {
-            for cred in credentials {
-                if cred.provider_id.is_custom() && !provider_ids.contains(&cred.provider_id) {
-                    provider_ids.push(cred.provider_id.clone());
-                }
-            }
-        }
-
-        provider_ids
-    }
 }
 
 #[cfg(test)]

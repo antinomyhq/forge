@@ -285,7 +285,6 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
             last_verified_at: None,
-            is_active: true,
         };
 
         let url = Url::parse("https://api.openai.com/v1/models").unwrap();

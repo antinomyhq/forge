@@ -235,9 +235,6 @@ impl<
         self.services.mcp_service().reload_mcp().await
     }
 
-    async fn available_provider_ids(&self) -> Result<Vec<ProviderId>> {
-        Ok(self.services.available_provider_ids().await)
-    }
 
     async fn list_provider_credentials(&self) -> Result<Vec<ProviderCredential>> {
         self.infra.get_all_credentials().await

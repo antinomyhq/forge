@@ -538,18 +538,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             serde_json::from_str(&format!("\"{}\"", id))
                 .map_err(|_| anyhow::anyhow!("Invalid provider ID: {}", id))?
         } else {
-            // Interactive selection
-            let available_ids = self.api.available_provider_ids().await?;
-            if available_ids.is_empty() {
-                anyhow::bail!("No providers available");
-            }
-
             // Get existing credentials to show status
+            // TODO: Get all the configured providers from `get_provider_configs`.
             let credentials = self.api.list_provider_credentials().await?;
-            let configured: std::collections::HashSet<_> = credentials
-                .iter()
-                .map(|c| c.provider_id.to_string())
-                .collect();
 
             // Create display options with status indicators, keeping track of original IDs
             // or special actions
@@ -560,16 +551,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 AnthropicCompatible,
             }
 
-            let mut options_with_actions: Vec<(String, SelectionType)> = available_ids
+            let mut options_with_actions: Vec<(String, SelectionType)> = credentials
                 .iter()
-                .map(|id| {
-                    let id_str = id.to_string();
-                    let display = if configured.contains(&id_str) {
-                        format!("{} {}", id_str, "[✓ configured]".green())
-                    } else {
-                        format!("{} {}", id_str, "[+ new]".dimmed())
-                    };
-                    (display, SelectionType::ExistingProvider(id.clone()))
+                .map(|cred| {
+                    let id_str = cred.provider_id.to_string();
+                    let display = format!("{} {}", id_str, "[✓ configured]".green());
+                    (display, SelectionType::ExistingProvider(cred.provider_id.clone()))
                 })
                 .collect();
 

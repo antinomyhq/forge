@@ -18,16 +18,12 @@ CREATE TABLE IF NOT EXISTS provider_credentials (
     -- Metadata
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    last_verified_at TIMESTAMP,
-    is_active BOOLEAN NOT NULL DEFAULT 1
+    last_verified_at TIMESTAMP
 );
 
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_provider_credentials_provider_id 
     ON provider_credentials(provider_id);
-
-CREATE INDEX IF NOT EXISTS idx_provider_credentials_active 
-    ON provider_credentials(is_active);
 
 CREATE INDEX IF NOT EXISTS idx_provider_credentials_auth_type
     ON provider_credentials(auth_type);

@@ -123,8 +123,6 @@ pub trait API: Sync + Send {
     /// Refresh MCP caches by fetching fresh data
     async fn reload_mcp(&self) -> Result<()>;
 
-    /// Get all available provider IDs (regardless of configuration status)
-    async fn available_provider_ids(&self) -> Result<Vec<ProviderId>>;
 
     // Provider credential management
     async fn list_provider_credentials(&self) -> Result<Vec<ProviderCredential>>;
