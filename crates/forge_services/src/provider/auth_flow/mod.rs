@@ -250,16 +250,6 @@ impl AuthenticationFlow for AuthFlow {
             Self::OAuthWithApiKey(flow) => flow.refresh(credential).await,
         }
     }
-
-    async fn validate(&self, credential: &ProviderCredential) -> Result<bool, AuthFlowError> {
-        match self {
-            Self::ApiKey(flow) => flow.validate(credential).await,
-            Self::CloudService(flow) => flow.validate(credential).await,
-            Self::OAuthDevice(flow) => flow.validate(credential).await,
-            Self::OAuthCode(flow) => flow.validate(credential).await,
-            Self::OAuthWithApiKey(flow) => flow.validate(credential).await,
-        }
-    }
 }
 
 /// Generic authentication flow trait supporting all provider auth patterns.
@@ -269,44 +259,9 @@ pub trait AuthenticationFlow: Send + Sync {
     fn auth_method_type(&self) -> AuthMethodType;
 
     /// Initiates the authentication flow.
-    ///
-    /// Returns display information for the user (if interactive).
-    /// For providers requiring parameters (Vertex AI, Azure, Custom Providers),
-    /// returns `ApiKeyPrompt` with `required_params`.
-    ///
-    /// # Errors
-    ///
-    /// Returns `AuthFlowError::InitiationFailed` if the flow cannot be started.
     async fn initiate(&self) -> Result<AuthInitiation, AuthFlowError>;
 
     /// Polls until authentication completes or times out.
-    ///
-    /// This is a blocking async function that handles all polling internally.
-    /// For non-pollable flows (manual API key entry, authorization code),
-    /// this method returns an error immediately.
-    ///
-    /// # Arguments
-    ///
-    /// * `context` - Context data from initiation (device code, session ID,
-    ///   etc.)
-    /// * `timeout` - Maximum duration to wait for completion
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(AuthResult)` - Authentication completed successfully
-    /// * `Err(AuthFlowError::Timeout)` - Timed out waiting for user
-    /// * `Err(AuthFlowError::Expired)` - Device code/session expired
-    /// * `Err(AuthFlowError::Denied)` - User denied authorization
-    /// * `Err(AuthFlowError::PollFailed)` - Network or server error
-    ///
-    /// # Note for UI Progress
-    ///
-    /// If you need progress updates, wrap this in your own task and track
-    /// elapsed time. See the trait-level documentation for an example.
-    ///
-    /// # Errors
-    ///
-    /// Returns various `AuthFlowError` variants depending on the failure mode.
     async fn poll_until_complete(
         &self,
         context: &AuthContext,
@@ -314,34 +269,11 @@ pub trait AuthenticationFlow: Send + Sync {
     ) -> Result<AuthResult, AuthFlowError>;
 
     /// Completes the authentication flow.
-    ///
-    /// Processes final tokens/credentials and returns credential.
-    /// For cloud providers and custom providers, uses `url_params` from
-    /// `AuthResult::ApiKey`.
-    ///
-    /// # Errors
-    ///
-    /// Returns `AuthFlowError::CompletionFailed` if credentials cannot be
-    /// created.
     async fn complete(&self, result: AuthResult) -> Result<ProviderCredential, AuthFlowError>;
 
     /// Refreshes expired credentials.
-    ///
-    /// Returns updated credential with fresh tokens.
-    ///
-    /// # Errors
-    ///
-    /// Returns `AuthFlowError::RefreshFailed` if the refresh operation fails.
     async fn refresh(
         &self,
         credential: &ProviderCredential,
     ) -> Result<ProviderCredential, AuthFlowError>;
-
-    /// Validates if credentials are still valid.
-    ///
-    /// # Errors
-    ///
-    /// Returns `AuthFlowError::ValidationFailed` if validation cannot be
-    /// performed.
-    async fn validate(&self, credential: &ProviderCredential) -> Result<bool, AuthFlowError>;
 }

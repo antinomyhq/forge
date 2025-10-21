@@ -96,12 +96,6 @@ impl AuthenticationFlow for ApiKeyAuthFlow {
             "API key credentials cannot be refreshed".to_string(),
         ))
     }
-
-    async fn validate(&self, _credential: &ProviderCredential) -> Result<bool, AuthFlowError> {
-        // Assume static API keys are always valid
-        // Actual validation would require making an API call to the provider
-        Ok(true)
-    }
 }
 
 #[cfg(test)]
@@ -205,14 +199,5 @@ mod tests {
         assert!(result.is_err());
         let error = result.unwrap_err();
         assert!(matches!(error, AuthFlowError::RefreshFailed(_)));
-    }
-
-    #[tokio::test]
-    async fn test_validate_always_returns_true() {
-        let flow = create_flow();
-        let credential = ProviderCredential::new_api_key(ProviderId::OpenAI, "sk-test".to_string());
-
-        let is_valid = flow.validate(&credential).await.unwrap();
-        assert!(is_valid);
     }
 }

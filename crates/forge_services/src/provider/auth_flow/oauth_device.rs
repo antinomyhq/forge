@@ -345,15 +345,6 @@ impl AuthenticationFlow for OAuthDeviceFlow {
 
         Ok(updated_credential)
     }
-
-    async fn validate(&self, credential: &ProviderCredential) -> Result<bool, AuthFlowError> {
-        // Check if token is expired
-        if let Some(tokens) = &credential.oauth_tokens {
-            Ok(!tokens.is_expired())
-        } else {
-            Ok(false)
-        }
-    }
 }
 
 #[cfg(test)]
@@ -430,33 +421,5 @@ mod tests {
 
         let error = flow.complete(result).await.unwrap_err();
         assert!(matches!(error, AuthFlowError::CompletionFailed(_)));
-    }
-
-    #[tokio::test]
-    async fn test_validate_expired_token() {
-        let flow = create_flow();
-        let tokens = OAuthTokens::new(
-            "refresh".to_string(),
-            "access".to_string(),
-            Utc::now() - chrono::Duration::minutes(1), // Expired 1 minute ago
-        );
-        let credential = ProviderCredential::new_oauth(ProviderId::GithubCopilot, tokens);
-
-        let is_valid = flow.validate(&credential).await.unwrap();
-        assert!(!is_valid);
-    }
-
-    #[tokio::test]
-    async fn test_validate_valid_token() {
-        let flow = create_flow();
-        let tokens = OAuthTokens::new(
-            "refresh".to_string(),
-            "access".to_string(),
-            Utc::now() + chrono::Duration::hours(1), // Expires in 1 hour
-        );
-        let credential = ProviderCredential::new_oauth(ProviderId::GithubCopilot, tokens);
-
-        let is_valid = flow.validate(&credential).await.unwrap();
-        assert!(is_valid);
     }
 }

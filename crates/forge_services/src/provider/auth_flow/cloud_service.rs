@@ -172,12 +172,6 @@ impl AuthenticationFlow for CloudServiceAuthFlow {
             "Cloud service credentials do not support automatic refresh".to_string(),
         ))
     }
-
-    async fn validate(&self, _credential: &ProviderCredential) -> Result<bool, AuthFlowError> {
-        // Cloud service tokens are assumed to be managed externally
-        // (e.g., through gcloud CLI, Azure CLI, or IAM)
-        Ok(true)
-    }
 }
 
 #[cfg(test)]
@@ -351,16 +345,6 @@ mod tests {
 
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("do not support"));
-    }
-
-    #[tokio::test]
-    async fn test_validate_always_true() {
-        let flow = vertex_ai_fixture();
-        let credential =
-            ProviderCredential::new_api_key(ProviderId::VertexAi, "test-key".to_string());
-
-        let is_valid = flow.validate(&credential).await.unwrap();
-        assert!(is_valid);
     }
 
     #[tokio::test]

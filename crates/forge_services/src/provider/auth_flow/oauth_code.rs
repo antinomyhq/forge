@@ -195,15 +195,6 @@ impl AuthenticationFlow for OAuthCodeFlow {
 
         Ok(refreshed)
     }
-
-    async fn validate(&self, credential: &ProviderCredential) -> Result<bool, AuthFlowError> {
-        // Check if access token has expired
-        if let Some(tokens) = &credential.oauth_tokens {
-            Ok(!tokens.is_expired())
-        } else {
-            Ok(false)
-        }
-    }
 }
 
 #[cfg(test)]
@@ -313,65 +304,5 @@ mod tests {
                 .to_string()
                 .contains("Expected AuthorizationCode")
         );
-    }
-
-    #[tokio::test]
-    async fn test_validate_with_expired_token() {
-        let config = fixture_oauth_config();
-        let oauth_service = Arc::new(ForgeOAuthService::new());
-
-        let flow = OAuthCodeFlow::new(ProviderId::OpenAI, config, oauth_service);
-
-        // Create credential with expired token
-        let expired_tokens = OAuthTokens::new(
-            "refresh-token".to_string(),
-            "access-token".to_string(),
-            chrono::Utc::now() - chrono::Duration::hours(1), // Expired 1 hour ago
-        );
-
-        let credential = ProviderCredential::new_oauth(ProviderId::OpenAI, expired_tokens);
-
-        let actual = flow.validate(&credential).await.unwrap();
-        let expected = false;
-
-        assert_eq!(actual, expected);
-    }
-
-    #[tokio::test]
-    async fn test_validate_with_valid_token() {
-        let config = fixture_oauth_config();
-        let oauth_service = Arc::new(ForgeOAuthService::new());
-
-        let flow = OAuthCodeFlow::new(ProviderId::OpenAI, config, oauth_service);
-
-        // Create credential with valid token (expires in 1 hour)
-        let valid_tokens = OAuthTokens::new(
-            "refresh-token".to_string(),
-            "access-token".to_string(),
-            chrono::Utc::now() + chrono::Duration::hours(1),
-        );
-
-        let credential = ProviderCredential::new_oauth(ProviderId::OpenAI, valid_tokens);
-
-        let actual = flow.validate(&credential).await.unwrap();
-        let expected = true;
-
-        assert_eq!(actual, expected);
-    }
-
-    #[tokio::test]
-    async fn test_validate_with_missing_oauth_tokens() {
-        let config = fixture_oauth_config();
-        let oauth_service = Arc::new(ForgeOAuthService::new());
-
-        let flow = OAuthCodeFlow::new(ProviderId::OpenAI, config, oauth_service);
-
-        // Create credential without OAuth tokens (invalid state)
-        let credential = ProviderCredential::new_api_key(ProviderId::OpenAI, "api-key".to_string());
-
-        let actual = flow.validate(&credential).await.unwrap();
-        let expected = false;
-
-        assert_eq!(actual, expected);
     }
 }

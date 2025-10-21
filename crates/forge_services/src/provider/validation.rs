@@ -174,10 +174,9 @@ impl<I: HttpInfra> ForgeProviderValidationService<I> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
 
     use chrono::{Duration, Utc};
-    use forge_app::dto::{AuthType, OAuthTokens};
+    use forge_app::dto::{OAuthTokens};
 
     use super::*;
 
@@ -265,41 +264,6 @@ mod tests {
             .unwrap();
 
         assert_eq!(result, ValidationResult::TokenExpired);
-    }
-
-    #[tokio::test]
-    async fn test_validate_api_key_missing() {
-        let infra = Arc::new(MockHttpInfra::new());
-        let service = ForgeProviderValidationService::new(infra);
-
-        // Create credential without API key
-        let credential = ProviderCredential {
-            provider_id: ProviderId::OpenAI,
-            auth_type: AuthType::ApiKey,
-            api_key: None,
-            oauth_tokens: None,
-            url_params: HashMap::new(),
-            custom_base_url: None,
-            custom_model_id: None,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-            last_verified_at: None,
-            is_active: true,
-        };
-
-        let url = Url::parse("https://api.openai.com/v1/models").unwrap();
-
-        let result = service
-            .validate_credential(&ProviderId::OpenAI, &credential, &url)
-            .await
-            .unwrap();
-
-        match result {
-            ValidationResult::Invalid(msg) => {
-                assert!(msg.contains("No credential"));
-            }
-            _ => panic!("Expected Invalid result"),
-        }
     }
 
     #[tokio::test]

@@ -387,15 +387,6 @@ impl AuthenticationFlow for OAuthWithApiKeyFlow {
 
         Ok(refreshed)
     }
-
-    async fn validate(&self, credential: &ProviderCredential) -> Result<bool, AuthFlowError> {
-        // Check if API key has expired
-        if let Some(tokens) = &credential.oauth_tokens {
-            Ok(!tokens.is_expired())
-        } else {
-            Ok(false)
-        }
-    }
 }
 
 #[cfg(test)]
@@ -464,92 +455,5 @@ mod tests {
                 .to_string()
                 .contains("Expected OAuthTokens")
         );
-    }
-
-    #[tokio::test]
-    async fn test_validate_with_expired_token() {
-        let config = fixture_oauth_config();
-        let oauth_service = Arc::new(ForgeOAuthService::new());
-        let copilot_service = Arc::new(GitHubCopilotService::new());
-
-        let flow = OAuthWithApiKeyFlow::new(
-            ProviderId::GithubCopilot,
-            config,
-            oauth_service,
-            copilot_service,
-        );
-
-        // Create credential with expired token
-        let expired_tokens = OAuthTokens::new(
-            "refresh-token".to_string(),
-            "access-token".to_string(),
-            chrono::Utc::now() - chrono::Duration::hours(1), // Expired 1 hour ago
-        );
-
-        let credential = ProviderCredential::new_oauth_with_api_key(
-            ProviderId::GithubCopilot,
-            "api-key".to_string(),
-            expired_tokens,
-        );
-
-        let actual = flow.validate(&credential).await.unwrap();
-        let expected = false;
-
-        assert_eq!(actual, expected);
-    }
-
-    #[tokio::test]
-    async fn test_validate_with_valid_token() {
-        let config = fixture_oauth_config();
-        let oauth_service = Arc::new(ForgeOAuthService::new());
-        let copilot_service = Arc::new(GitHubCopilotService::new());
-
-        let flow = OAuthWithApiKeyFlow::new(
-            ProviderId::GithubCopilot,
-            config,
-            oauth_service,
-            copilot_service,
-        );
-
-        // Create credential with valid token (expires in 1 hour)
-        let valid_tokens = OAuthTokens::new(
-            "refresh-token".to_string(),
-            "access-token".to_string(),
-            chrono::Utc::now() + chrono::Duration::hours(1),
-        );
-
-        let credential = ProviderCredential::new_oauth_with_api_key(
-            ProviderId::GithubCopilot,
-            "api-key".to_string(),
-            valid_tokens,
-        );
-
-        let actual = flow.validate(&credential).await.unwrap();
-        let expected = true;
-
-        assert_eq!(actual, expected);
-    }
-
-    #[tokio::test]
-    async fn test_validate_with_missing_oauth_tokens() {
-        let config = fixture_oauth_config();
-        let oauth_service = Arc::new(ForgeOAuthService::new());
-        let copilot_service = Arc::new(GitHubCopilotService::new());
-
-        let flow = OAuthWithApiKeyFlow::new(
-            ProviderId::GithubCopilot,
-            config,
-            oauth_service,
-            copilot_service,
-        );
-
-        // Create credential without OAuth tokens (invalid state)
-        let credential =
-            ProviderCredential::new_api_key(ProviderId::GithubCopilot, "api-key".to_string());
-
-        let actual = flow.validate(&credential).await.unwrap();
-        let expected = false;
-
-        assert_eq!(actual, expected);
     }
 }
