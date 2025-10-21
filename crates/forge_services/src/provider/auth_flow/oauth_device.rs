@@ -354,12 +354,19 @@ mod tests {
     use super::*;
 
     fn create_config() -> OAuthConfig {
-        OAuthConfig::device_flow(
-            "https://github.com/login/device/code",
-            "https://github.com/login/oauth/access_token",
-            "Iv1.test123",
-            vec!["read:user".to_string()],
-        )
+        OAuthConfig {
+            device_code_url: Some("https://github.com/login/device/code".to_string()),
+            device_token_url: Some("https://github.com/login/oauth/access_token".to_string()),
+            auth_url: None,
+            token_url: None,
+            client_id: "Iv1.test123".to_string(),
+            scopes: vec!["read:user".to_string()],
+            redirect_uri: String::new(),
+            use_pkce: false,
+            token_refresh_url: None,
+            custom_headers: None,
+            extra_auth_params: None,
+        }
     }
 
     fn create_flow() -> OAuthDeviceFlow {

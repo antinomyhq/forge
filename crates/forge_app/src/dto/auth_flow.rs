@@ -66,54 +66,6 @@ pub struct OAuthConfig {
     pub extra_auth_params: Option<std::collections::HashMap<String, String>>,
 }
 
-impl OAuthConfig {
-    /// Creates a new OAuth device flow configuration
-    pub fn device_flow(
-        device_code_url: impl Into<String>,
-        device_token_url: impl Into<String>,
-        client_id: impl Into<String>,
-        scopes: Vec<String>,
-    ) -> Self {
-        Self {
-            device_code_url: Some(device_code_url.into()),
-            device_token_url: Some(device_token_url.into()),
-            auth_url: None,
-            token_url: None,
-            client_id: client_id.into(),
-            scopes,
-            redirect_uri: String::new(),
-            use_pkce: false,
-            token_refresh_url: None,
-            custom_headers: None,
-            extra_auth_params: None,
-        }
-    }
-
-    /// Creates a new OAuth authorization code flow configuration
-    pub fn code_flow(
-        auth_url: impl Into<String>,
-        token_url: impl Into<String>,
-        client_id: impl Into<String>,
-        scopes: Vec<String>,
-        redirect_uri: impl Into<String>,
-        use_pkce: bool,
-    ) -> Self {
-        Self {
-            device_code_url: None,
-            device_token_url: None,
-            auth_url: Some(auth_url.into()),
-            token_url: Some(token_url.into()),
-            client_id: client_id.into(),
-            scopes,
-            redirect_uri: redirect_uri.into(),
-            use_pkce,
-            token_refresh_url: None,
-            custom_headers: None,
-            extra_auth_params: None,
-        }
-    }
-}
-
 /// Authentication method type.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -126,12 +78,6 @@ pub enum AuthMethod {
     /// OAuth authorization code flow (redirect to browser)
     #[serde(rename = "oauth_code")]
     OAuthCode(OAuthConfig),
-}
-
-impl Default for AuthMethod {
-    fn default() -> Self {
-        Self::ApiKey
-    }
 }
 
 impl AuthMethod {
@@ -388,24 +334,36 @@ mod tests {
         let json = serde_json::to_string(&AuthMethod::ApiKey).unwrap();
         assert_eq!(json, r#""api_key""#);
 
-        let oauth_device = AuthMethod::OAuthDevice(OAuthConfig::device_flow(
-            "https://example.com/device",
-            "https://example.com/token",
-            "client-id",
-            vec!["read".to_string()],
-        ));
+        let oauth_device = AuthMethod::OAuthDevice(OAuthConfig {
+            device_code_url: Some("https://example.com/device".to_string()),
+            device_token_url: Some("https://example.com/token".to_string()),
+            auth_url: None,
+            token_url: None,
+            client_id: "client-id".to_string(),
+            scopes: vec!["read".to_string()],
+            redirect_uri: String::new(),
+            use_pkce: false,
+            token_refresh_url: None,
+            custom_headers: None,
+            extra_auth_params: None,
+        });
         let json = serde_json::to_string(&oauth_device).unwrap();
         assert!(json.contains("oauth_device"));
         assert!(json.contains("client-id"));
 
-        let oauth_code = AuthMethod::OAuthCode(OAuthConfig::code_flow(
-            "https://example.com/auth",
-            "https://example.com/token",
-            "client-id",
-            vec!["read".to_string()],
-            "https://example.com/callback",
-            true,
-        ));
+        let oauth_code = AuthMethod::OAuthCode(OAuthConfig {
+            device_code_url: None,
+            device_token_url: None,
+            auth_url: Some("https://example.com/auth".to_string()),
+            token_url: Some("https://example.com/token".to_string()),
+            client_id: "client-id".to_string(),
+            scopes: vec!["read".to_string()],
+            redirect_uri: "https://example.com/callback".to_string(),
+            use_pkce: true,
+            token_refresh_url: None,
+            custom_headers: None,
+            extra_auth_params: None,
+        });
         let json = serde_json::to_string(&oauth_code).unwrap();
         assert!(json.contains("oauth_code"));
         assert!(json.contains("client-id"));
@@ -413,12 +371,19 @@ mod tests {
 
     #[test]
     fn test_auth_method_oauth_config() {
-        let config = OAuthConfig::device_flow(
-            "https://example.com/device",
-            "https://example.com/token",
-            "client-id",
-            vec!["read".to_string()],
-        );
+        let config = OAuthConfig {
+            device_code_url: Some("https://example.com/device".to_string()),
+            device_token_url: Some("https://example.com/token".to_string()),
+            auth_url: None,
+            token_url: None,
+            client_id: "client-id".to_string(),
+            scopes: vec!["read".to_string()],
+            redirect_uri: String::new(),
+            use_pkce: false,
+            token_refresh_url: None,
+            custom_headers: None,
+            extra_auth_params: None,
+        };
 
         let method = AuthMethod::oauth_device(config.clone());
         assert!(method.oauth_config().is_some());
