@@ -263,30 +263,6 @@ impl AuthenticationFlow for AuthFlow {
 }
 
 /// Generic authentication flow trait supporting all provider auth patterns.
-///
-/// This trait provides a simple, focused interface for authentication flows.
-/// The core polling method `poll_until_complete` is intentionally blocking
-/// to keep the trait simple - UIs can add their own progress tracking by
-/// wrapping the poll call in their own task.
-///
-/// # Example: Adding Progress Tracking
-///
-/// ```ignore
-/// use std::time::Instant;
-/// use tokio::time::sleep;
-///
-/// let start = Instant::now();
-/// let progress_task = tokio::spawn(async move {
-///     loop {
-///         let elapsed = start.elapsed();
-///         println!("Waiting for auth... {:?}", elapsed);
-///         sleep(Duration::from_secs(1)).await;
-///     }
-/// });
-///
-/// let result = flow.poll_until_complete(context, timeout).await?;
-/// progress_task.abort(); // Stop progress tracking
-/// ```
 #[async_trait::async_trait]
 pub trait AuthenticationFlow: Send + Sync {
     /// Returns the authentication method type.

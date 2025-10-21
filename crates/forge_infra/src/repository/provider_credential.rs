@@ -303,11 +303,9 @@ mod tests {
             ProviderCredential::new_api_key(ProviderId::Anthropic, "sk-ant-test".to_string());
 
         let result = repo.upsert_credential(api_key_credential).await;
-        println!("Upsert result: {:?}", result);
         result.unwrap();
 
         let retrieved = repo.get_credential(&ProviderId::Anthropic).await;
-        println!("Get credential result: {:?}", retrieved);
 
         let retrieved = retrieved.unwrap().expect("Should find credential");
 
