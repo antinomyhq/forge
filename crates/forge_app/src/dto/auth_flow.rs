@@ -16,10 +16,11 @@ use serde::{Deserialize, Serialize};
 use super::ProviderResponse;
 
 /// Authentication method type.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AuthMethodType {
     /// Direct API key entry
+    #[default]
     ApiKey,
     /// OAuth device flow (display code to user)
     #[serde(rename = "oauth_device")]
@@ -39,10 +40,6 @@ pub enum AuthInitiation {
     /// For cloud providers (Vertex AI, Azure), includes parameters like
     /// project_id, location, etc.
     ApiKeyPrompt {
-        /// Label for the API key input field
-        label: String,
-        /// Optional description explaining what the key is for
-        description: Option<String>,
         /// Required parameters for cloud providers (project_id, location, etc.)
         /// Empty for simple API key providers (OpenAI, Anthropic)
         required_params: Vec<UrlParameter>,

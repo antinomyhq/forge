@@ -1,66 +1,42 @@
+use serde::{Deserialize, Serialize};
+
 /// Authentication method definitions for providers
 ///
 /// This module defines the types and structures for declaring multiple
 /// authentication methods per provider (API Key, OAuth Device Flow, OAuth Code
 /// Flow).
-use forge_app::dto::AuthMethodType;
-use serde::{Deserialize, Serialize};
+use super::AuthMethodType;
 
 /// Authentication method configuration for a provider
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AuthMethod {
     /// Type of authentication method
     pub method_type: AuthMethodType,
-
-    /// Human-readable label for UI display
-    /// Examples: "API Key", "GitHub OAuth", "Claude Pro/Max"
-    pub label: String,
-
-    /// Optional description explaining when to use this method
-    pub description: Option<String>,
-
     /// OAuth-specific configuration (required for OAuth methods)
     #[serde(default)]
     pub oauth_config: Option<OAuthConfig>,
 }
 
 impl AuthMethod {
-    /// Creates a new API key authentication method
-    pub fn api_key(label: impl Into<String>, description: Option<String>) -> Self {
-        Self {
-            method_type: AuthMethodType::ApiKey,
-            label: label.into(),
-            description,
-            oauth_config: None,
-        }
-    }
-
     /// Creates a new OAuth device flow authentication method
-    pub fn oauth_device(
-        label: impl Into<String>,
-        description: Option<String>,
-        config: OAuthConfig,
-    ) -> Self {
+    pub fn oauth_device(config: OAuthConfig) -> Self {
         Self {
             method_type: AuthMethodType::OAuthDevice,
-            label: label.into(),
-            description,
             oauth_config: Some(config),
         }
     }
 
     /// Creates a new OAuth code flow authentication method
-    pub fn oauth_code(
-        label: impl Into<String>,
-        description: Option<String>,
-        config: OAuthConfig,
-    ) -> Self {
+    pub fn oauth_code(config: OAuthConfig) -> Self {
         Self {
             method_type: AuthMethodType::OAuthCode,
-            label: label.into(),
-            description,
             oauth_config: Some(config),
         }
+    }
+
+    /// Creates a new API key authentication method
+    pub fn api_key() -> Self {
+        Self { method_type: AuthMethodType::ApiKey, oauth_config: None }
     }
 }
 
@@ -221,16 +197,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_auth_method_api_key() {
-        let method = AuthMethod::api_key("API Key", Some("Use your API key".to_string()));
-
-        assert_eq!(method.method_type, AuthMethodType::ApiKey);
-        assert_eq!(method.label, "API Key");
-        assert_eq!(method.description, Some("Use your API key".to_string()));
-        assert!(method.oauth_config.is_none());
-    }
-
-    #[test]
     fn test_auth_method_oauth_device() {
         let config = OAuthConfig::device_flow(
             "https://example.com/device",
@@ -239,10 +205,9 @@ mod tests {
             vec!["read".to_string()],
         );
 
-        let method = AuthMethod::oauth_device("GitHub OAuth", None, config.clone());
+        let method = AuthMethod::oauth_device(config.clone());
 
         assert_eq!(method.method_type, AuthMethodType::OAuthDevice);
-        assert_eq!(method.label, "GitHub OAuth");
         assert!(method.oauth_config.is_some());
 
         let oauth = method.oauth_config.unwrap();
@@ -261,7 +226,7 @@ mod tests {
             true,
         );
 
-        let method = AuthMethod::oauth_code("Claude Pro", None, config);
+        let method = AuthMethod::oauth_code(config);
 
         assert_eq!(method.method_type, AuthMethodType::OAuthCode);
         assert!(method.oauth_config.is_some());
@@ -285,16 +250,6 @@ mod tests {
             config.token_refresh_url,
             Some("https://api.github.com/copilot_internal/v2/token".to_string())
         );
-    }
-
-    #[test]
-    fn test_auth_method_serialization() {
-        let method = AuthMethod::api_key("Test", None);
-        let json = serde_json::to_string(&method).unwrap();
-        let deserialized: AuthMethod = serde_json::from_str(&json).unwrap();
-
-        assert_eq!(method.method_type, deserialized.method_type);
-        assert_eq!(method.label, deserialized.label);
     }
 
     #[test]

@@ -14,12 +14,12 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use forge_app::dto::{
-    AuthContext, AuthInitiation, AuthMethodType, AuthResult, ProviderCredential, ProviderId,
-    ProviderResponse, UrlParameter,
+    AuthContext, AuthInitiation, AuthMethod, AuthMethodType, AuthResult, ProviderCredential,
+    ProviderId, ProviderResponse, UrlParameter,
 };
 
 use crate::provider::{
-    AuthMethod, AuthMethodType as AuthMethodTypeInternal, ForgeOAuthService, GitHubCopilotService,
+    AuthMethodType as AuthMethodTypeInternal, ForgeOAuthService, GitHubCopilotService,
 };
 
 pub mod api_key;
@@ -101,23 +101,10 @@ impl AuthFlow {
 
                 if required_params.is_empty() {
                     // Simple API key authentication
-                    Ok(Self::ApiKey(ApiKeyAuthFlow::new(
-                        provider_id.clone(),
-                        auth_method.label.clone(),
-                        auth_method.description.clone(),
-                    )))
+                    Ok(Self::ApiKey(ApiKeyAuthFlow::new(provider_id.clone())))
                 } else {
                     // Cloud service with URL parameters
-                    let flow = CloudServiceAuthFlow::new(
-                        provider_id.clone(),
-                        required_params,
-                        auth_method.label.clone(),
-                    );
-                    let flow = if let Some(desc) = &auth_method.description {
-                        flow.with_description(desc)
-                    } else {
-                        flow
-                    };
+                    let flow = CloudServiceAuthFlow::new(provider_id.clone(), required_params);
                     Ok(Self::CloudService(flow))
                 }
             }

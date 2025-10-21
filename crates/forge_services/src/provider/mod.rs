@@ -1,6 +1,5 @@
 mod anthropic;
 pub mod auth_flow;
-mod auth_method;
 mod client;
 mod event;
 mod github_copilot;
@@ -18,15 +17,14 @@ mod utils;
 pub mod validation;
 
 pub use auth_flow::*;
-pub use auth_method::*;
-pub use forge_app::dto::AuthMethodType;
+pub use forge_app::dto::{AuthMethod, AuthMethodType, OAuthConfig};
 pub use github_copilot::*;
 pub use oauth::*;
 pub use processing::*;
 pub use provider_auth_service::*;
 pub use registry::{
     ForgeProviderRegistry, get_provider_auth_methods, get_provider_display_name,
-    get_provider_env_vars, get_provider_oauth_method,
+    get_provider_env_vars,
 };
 pub use service::*;
 pub use types::*;

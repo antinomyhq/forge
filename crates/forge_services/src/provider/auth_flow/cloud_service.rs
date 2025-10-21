@@ -35,33 +35,12 @@ pub struct CloudServiceAuthFlow {
 
     /// Provider-specific parameters to collect
     required_params: Vec<UrlParameter>,
-
-    /// Label for the API key prompt
-    api_key_label: String,
-
-    /// Description for the API key
-    api_key_description: Option<String>,
 }
 
 impl CloudServiceAuthFlow {
     /// Creates a new cloud service auth flow
-    pub fn new(
-        provider_id: ProviderId,
-        required_params: Vec<UrlParameter>,
-        api_key_label: impl Into<String>,
-    ) -> Self {
-        Self {
-            provider_id,
-            required_params,
-            api_key_label: api_key_label.into(),
-            api_key_description: None,
-        }
-    }
-
-    /// Sets the API key description
-    pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.api_key_description = Some(description.into());
-        self
+    pub fn new(provider_id: ProviderId, required_params: Vec<UrlParameter>) -> Self {
+        Self { provider_id, required_params }
     }
 
     /// Creates Vertex AI configuration
@@ -75,8 +54,7 @@ impl CloudServiceAuthFlow {
                 .default_value("us-central1"),
         ];
 
-        Self::new(provider_id, params, "Vertex AI Auth Token")
-            .with_description("Your Google Cloud authentication token or API key")
+        Self::new(provider_id, params)
     }
 
     /// Creates Azure OpenAI configuration
@@ -91,8 +69,7 @@ impl CloudServiceAuthFlow {
                 .default_value("2024-02-15-preview"),
         ];
 
-        Self::new(provider_id, params, "Azure API Key")
-            .with_description("Your Azure OpenAI API key")
+        Self::new(provider_id, params)
     }
 
     /// Validates a parameter value against its validation pattern
@@ -148,11 +125,7 @@ impl AuthenticationFlow for CloudServiceAuthFlow {
     }
 
     async fn initiate(&self) -> Result<AuthInitiation, AuthFlowError> {
-        Ok(AuthInitiation::ApiKeyPrompt {
-            label: self.api_key_label.clone(),
-            description: self.api_key_description.clone(),
-            required_params: self.required_params.clone(),
-        })
+        Ok(AuthInitiation::ApiKeyPrompt { required_params: self.required_params.clone() })
     }
 
     async fn poll_until_complete(
@@ -233,8 +206,7 @@ mod tests {
         let result = flow.initiate().await.unwrap();
 
         match result {
-            AuthInitiation::ApiKeyPrompt { label, required_params, .. } => {
-                assert_eq!(label, "Vertex AI Auth Token");
+            AuthInitiation::ApiKeyPrompt { required_params, .. } => {
                 assert_eq!(required_params.len(), 2);
                 assert_eq!(required_params[0].key, "project_id");
                 assert_eq!(required_params[1].key, "location");
@@ -251,8 +223,7 @@ mod tests {
         let result = flow.initiate().await.unwrap();
 
         match result {
-            AuthInitiation::ApiKeyPrompt { label, required_params, .. } => {
-                assert_eq!(label, "Azure API Key");
+            AuthInitiation::ApiKeyPrompt { required_params, .. } => {
                 assert_eq!(required_params.len(), 3);
                 assert_eq!(required_params[0].key, "resource_name");
                 assert_eq!(required_params[1].key, "deployment_name");

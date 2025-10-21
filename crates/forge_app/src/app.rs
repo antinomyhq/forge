@@ -256,8 +256,11 @@ impl<S: Services> ForgeApp<S> {
     pub async fn init_provider_auth(
         &self,
         provider_id: crate::dto::ProviderId,
+        method: crate::dto::AuthMethod,
     ) -> Result<crate::dto::AuthInitiation> {
-        self.authenticator.init_provider_auth(provider_id).await
+        self.authenticator
+            .init_provider_auth(provider_id, method)
+            .await
     }
 
     /// Polls until provider authentication completes (for OAuth flows)
@@ -274,9 +277,10 @@ impl<S: Services> ForgeApp<S> {
         provider_id: crate::dto::ProviderId,
         context: &crate::dto::AuthContext,
         timeout: std::time::Duration,
+        method: crate::dto::AuthMethod,
     ) -> Result<crate::dto::AuthResult> {
         self.authenticator
-            .poll_provider_auth(provider_id, context, timeout)
+            .poll_provider_auth(provider_id, context, timeout, method)
             .await
     }
 
@@ -289,9 +293,10 @@ impl<S: Services> ForgeApp<S> {
         &self,
         provider_id: crate::dto::ProviderId,
         result: crate::dto::AuthResult,
+        method: crate::dto::AuthMethod,
     ) -> Result<()> {
         self.authenticator
-            .save_provider_credentials(provider_id, result)
+            .save_provider_credentials(provider_id, result, method)
             .await?;
         Ok(())
     }

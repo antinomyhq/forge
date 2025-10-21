@@ -14,7 +14,7 @@ use reqwest_eventsource::EventSource;
 use url::Url;
 
 use crate::Walker;
-use crate::dto::{InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId};
+use crate::dto::{AuthMethod, InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId};
 use crate::user::{User, UserUsage};
 
 #[derive(Debug)]
@@ -381,6 +381,7 @@ pub trait ProviderAuthService: Send + Sync {
     async fn init_provider_auth(
         &self,
         provider_id: ProviderId,
+        method: AuthMethod,
     ) -> anyhow::Result<crate::dto::AuthInitiation>;
 
     /// Polls until provider authentication completes (for OAuth flows)
@@ -391,6 +392,7 @@ pub trait ProviderAuthService: Send + Sync {
         provider_id: ProviderId,
         context: &crate::dto::AuthContext,
         timeout: std::time::Duration,
+        method: AuthMethod,
     ) -> anyhow::Result<crate::dto::AuthResult>;
 
     /// Completes provider authentication and saves credential
@@ -398,6 +400,7 @@ pub trait ProviderAuthService: Send + Sync {
         &self,
         provider_id: ProviderId,
         result: crate::dto::AuthResult,
+        method: AuthMethod,
     ) -> anyhow::Result<ProviderCredential>;
 
     /// Initiates custom provider registration
@@ -830,9 +833,10 @@ impl<I: Services> ProviderAuthService for I {
     async fn init_provider_auth(
         &self,
         provider_id: ProviderId,
+        method: crate::dto::AuthMethod,
     ) -> anyhow::Result<crate::dto::AuthInitiation> {
         self.provider_auth_service()
-            .init_provider_auth(provider_id)
+            .init_provider_auth(provider_id, method)
             .await
     }
 
@@ -841,9 +845,10 @@ impl<I: Services> ProviderAuthService for I {
         provider_id: ProviderId,
         context: &crate::dto::AuthContext,
         timeout: std::time::Duration,
+        method: AuthMethod,
     ) -> anyhow::Result<crate::dto::AuthResult> {
         self.provider_auth_service()
-            .poll_provider_auth(provider_id, context, timeout)
+            .poll_provider_auth(provider_id, context, timeout, method)
             .await
     }
 
@@ -851,9 +856,10 @@ impl<I: Services> ProviderAuthService for I {
         &self,
         provider_id: ProviderId,
         result: crate::dto::AuthResult,
+        method: AuthMethod,
     ) -> anyhow::Result<ProviderCredential> {
         self.provider_auth_service()
-            .complete_provider_auth(provider_id, result)
+            .complete_provider_auth(provider_id, result, method)
             .await
     }
 

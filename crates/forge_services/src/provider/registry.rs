@@ -65,7 +65,7 @@ pub fn get_provider_auth_methods(provider_id: &ProviderId) -> Vec<crate::provide
         .map(|config| config.auth_methods.clone())
         .unwrap_or_else(|| {
             // Fallback for custom providers
-            vec![crate::provider::AuthMethod::api_key("API Key", None)]
+            vec![crate::provider::AuthMethod::api_key()]
         })
 }
 
@@ -81,20 +81,6 @@ pub fn get_provider_env_vars(provider_id: &ProviderId) -> Vec<String> {
             }
         })
         .unwrap_or_default()
-}
-
-/// Get OAuth method for a provider
-pub fn get_provider_oauth_method(provider_id: &ProviderId) -> Option<crate::provider::AuthMethod> {
-    use forge_app::dto::AuthMethodType;
-
-    get_provider_auth_methods(provider_id)
-        .into_iter()
-        .find(|m| {
-            matches!(
-                m.method_type,
-                AuthMethodType::OAuthDevice | AuthMethodType::OAuthCode
-            )
-        })
 }
 
 pub struct ForgeProviderRegistry<F> {

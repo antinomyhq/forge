@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::Arc;
 
@@ -5,8 +6,8 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
-    InterruptionReason, Model, ModelId, Provider, Workflow,
+    API, AgentId, AuthResult, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
+    InterruptionReason, Model, ModelId, Provider, UrlParameter, Workflow,
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
@@ -472,19 +473,71 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         Ok(())
     }
+    async fn handle_api_key_prompt(
+        &self,
+        provider_id: forge_app::dto::ProviderId,
+        method: forge_app::dto::AuthMethod,
+        required_params: Vec<UrlParameter>,
+    ) -> anyhow::Result<()> {
+        
 
+        let mut url_params = HashMap::new();
+
+        // Collect URL parameters if required
+        for param in required_params {
+            let prompt_message = if let Some(description) = &param.description {
+                format!("{} ({})", param.label, description)
+            } else {
+                param.label.clone()
+            };
+
+            let mut input = ForgeSelect::input(format!("Enter {}:", prompt_message));
+
+            if let Some(default) = &param.default_value {
+                input = input.with_default(default);
+            }
+
+            let param_value = input
+                .prompt()?
+                .ok_or_else(|| anyhow::anyhow!("Parameter input cancelled"))?;
+
+            if param.required && param_value.trim().is_empty() {
+                anyhow::bail!("{} cannot be empty", param.label);
+            }
+
+            url_params.insert(param.key.clone(), param_value);
+        }
+
+        let api_key =
+            ForgeSelect::password(format!("Enter your {} API key:", provider_id))
+                .with_display_toggle_enabled()
+                .prompt()?
+                .ok_or_else(|| anyhow::anyhow!("API key input cancelled"))?;
+
+        if api_key.trim().is_empty() {
+            anyhow::bail!("API key cannot be empty");
+        }
+        
+        let auth_res = AuthResult::ApiKey { api_key: api_key.clone(), url_params };
+
+        self
+            .api
+            .save_provider_credentials(provider_id.clone(), auth_res, method)
+            .await?;
+
+        Self::display_credential_success(&provider_id.to_string());
+
+        Ok(())
+    }
     async fn handle_auth_login(
         &mut self,
         provider: Option<String>,
-        skip_validation: bool,
+        _skip_validation: bool,
     ) -> anyhow::Result<()> {
         use colored::Colorize;
 
-        println!("\n{}", "Add Provider Credential".bold());
-        println!("{}", "─".repeat(50).dimmed());
-
         // Step 1: Get or select provider
-        let provider_id_enum = if let Some(id) = provider {
+        let provider_id = if let Some(id) = provider {
             // Validate provider exists and convert to enum
             serde_json::from_str(&format!("\"{}\"", id))
                 .map_err(|_| anyhow::anyhow!("Invalid provider ID: {}", id))?
@@ -534,31 +587,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 SelectionType::AnthropicCompatible,
             ));
 
-            // Sort pairs: configured first, then unconfigured, then custom options at the
-            // end
-            options_with_actions.sort_by(|(a, a_type), (b, b_type)| {
-                let a_is_custom = matches!(
-                    a_type,
-                    SelectionType::OpenAICompatible | SelectionType::AnthropicCompatible
-                );
-                let b_is_custom = matches!(
-                    b_type,
-                    SelectionType::OpenAICompatible | SelectionType::AnthropicCompatible
-                );
-                let a_configured = a.contains("[✓");
-                let b_configured = b.contains("[✓");
-
-                match (a_is_custom, b_is_custom) {
-                    (true, false) => std::cmp::Ordering::Greater, // Custom options go last
-                    (false, true) => std::cmp::Ordering::Less,
-                    _ => match (a_configured, b_configured) {
-                        (true, false) => std::cmp::Ordering::Less,
-                        (false, true) => std::cmp::Ordering::Greater,
-                        _ => a.cmp(b),
-                    },
-                }
-            });
-
             // Extract just the display strings for the selector
             let options: Vec<String> = options_with_actions
                 .iter()
@@ -598,26 +626,20 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         println!(
             "\n{} Configuring provider: {}",
             "→".blue(),
-            provider_id_enum.to_string().bold()
+            provider_id.to_string().bold()
         );
 
         // Step 2: Get available authentication methods
         use forge_services::provider::registry::get_provider_auth_methods;
 
-        let auth_methods = get_provider_auth_methods(&provider_id_enum);
+        let auth_methods = get_provider_auth_methods(&provider_id);
 
         // If multiple auth methods available, let user choose
         let selected_method = if auth_methods.len() > 1 {
             println!("\nSelect authentication method:");
             let options: Vec<String> = auth_methods
                 .iter()
-                .map(|method| {
-                    if let Some(desc) = &method.description {
-                        format!("{} - {}", method.label, desc)
-                    } else {
-                        method.label.clone()
-                    }
-                })
+                .map(|method| format!("{:?}", method.method_type))
                 .collect();
 
             let selection = ForgeSelect::select("Authentication method:", options.clone())
@@ -634,56 +656,26 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             &auth_methods[0]
         };
 
-        // Handle based on selected authentication method
-        use forge_services::provider::AuthMethodType;
+        let init = self
+            .api
+            .init_provider_auth(provider_id.clone(), selected_method.clone())
+            .await?;
 
-        match selected_method.method_type {
-            AuthMethodType::ApiKey => {
-                // Step 3: Prompt for API key
-                let api_key =
-                    ForgeSelect::password(format!("Enter your {} API key:", provider_id_enum))
-                        .with_display_toggle_enabled()
-                        .prompt()?
-                        .ok_or_else(|| anyhow::anyhow!("API key input cancelled"))?;
-
-                if api_key.trim().is_empty() {
-                    anyhow::bail!("API key cannot be empty");
-                }
-
-                // Step 4: Add API key using new high-level method
-                println!();
-                self.spinner.start(Some(&format!(
-                    "Validating {} credentials...",
-                    provider_id_enum
-                )))?;
-
-                let outcome = self
-                    .api
-                    .add_provider_api_key(provider_id_enum.clone(), api_key, skip_validation)
-                    .await?;
-
-                self.spinner.stop(None)?;
-
-                // Handle validation outcome
-                if !outcome.success
-                    && let Some(msg) = &outcome.message
-                {
-                    println!("{} {}", "✗".red(), msg);
-                    anyhow::bail!("Failed to add credential");
-                }
-
-                if let Some(msg) = outcome.message {
-                    println!("{} {}", "ℹ".blue(), msg);
-                }
-
-                Self::display_credential_success(&provider_id_enum.to_string());
+        match init {
+            forge_api::AuthInitiation::ApiKeyPrompt { required_params, .. } => {
+                self.handle_api_key_prompt(provider_id, selected_method.clone(), required_params)
+                    .await?
             }
-            AuthMethodType::OAuthDevice | AuthMethodType::OAuthCode => {
-                // OAuth flows
-                return self.handle_provider_oauth_flow(provider_id_enum).await;
+            forge_api::AuthInitiation::DeviceFlow { .. } => {
+                self.handle_provider_oauth_flow(provider_id, selected_method.clone())
+                    .await?
             }
+            forge_api::AuthInitiation::CodeFlow { .. } => {
+                self.handle_provider_oauth_flow(provider_id, selected_method.clone())
+                    .await?
+            }
+            forge_api::AuthInitiation::CustomProviderPrompt { .. } => todo!(),
         }
-
         Ok(())
     }
 
@@ -692,6 +684,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn handle_provider_oauth_flow(
         &mut self,
         provider_id: forge_app::dto::ProviderId,
+        method: forge_app::dto::AuthMethod,
     ) -> anyhow::Result<()> {
         use std::time::Duration;
 
@@ -712,7 +705,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Step 1: Initiate authentication
         self.spinner.start(Some("Initiating authentication..."))?;
 
-        let initiation = self.api.init_provider_auth(provider_id.clone()).await?;
+        let initiation = self
+            .api
+            .init_provider_auth(provider_id.clone(), method.clone())
+            .await?;
 
         self.spinner.stop(None)?;
 
@@ -736,7 +732,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                 let auth_result = self
                     .api
-                    .poll_provider_auth(provider_id.clone(), &context, Duration::from_secs(600))
+                    .poll_provider_auth(
+                        provider_id.clone(),
+                        &context,
+                        Duration::from_secs(600),
+                        method.clone(),
+                    )
                     .await?;
 
                 self.spinner.stop(None)?;
@@ -745,7 +746,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.spinner.start(Some("Saving credentials..."))?;
 
                 self.api
-                    .save_provider_credentials(provider_id.clone(), auth_result)
+                    .save_provider_credentials(provider_id.clone(), auth_result, method.clone())
                     .await?;
 
                 self.spinner.stop(None)?;
@@ -786,7 +787,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 };
 
                 self.api
-                    .save_provider_credentials(provider_id.clone(), auth_result)
+                    .save_provider_credentials(provider_id.clone(), auth_result, method)
                     .await?;
 
                 self.spinner.stop(None)?;

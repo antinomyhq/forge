@@ -5,7 +5,9 @@ use std::time::Duration;
 use backon::{ExponentialBuilder, Retryable};
 use forge_domain::RetryConfig;
 
-use crate::dto::{AuthContext, AuthInitiation, AuthResult, InitAuth, ProviderId, ProviderResponse};
+use crate::dto::{
+    AuthContext, AuthInitiation, AuthMethod, AuthResult, InitAuth, ProviderId, ProviderResponse,
+};
 use crate::{AuthService, Error, ProviderAuthService};
 
 /// Authenticator handles both Forge platform authentication and provider
@@ -106,8 +108,11 @@ impl<S: AuthService + ProviderAuthService> Authenticator<S> {
     pub async fn init_provider_auth(
         &self,
         provider_id: ProviderId,
+        method: AuthMethod,
     ) -> anyhow::Result<AuthInitiation> {
-        self.auth_service.init_provider_auth(provider_id).await
+        self.auth_service
+            .init_provider_auth(provider_id, method)
+            .await
     }
 
     /// Polls until provider authentication completes
@@ -130,9 +135,10 @@ impl<S: AuthService + ProviderAuthService> Authenticator<S> {
         provider_id: ProviderId,
         context: &AuthContext,
         timeout: Duration,
+        method: crate::dto::AuthMethod,
     ) -> anyhow::Result<AuthResult> {
         self.auth_service
-            .poll_provider_auth(provider_id, context, timeout)
+            .poll_provider_auth(provider_id, context, timeout, method)
             .await
     }
 
@@ -151,9 +157,10 @@ impl<S: AuthService + ProviderAuthService> Authenticator<S> {
         &self,
         provider_id: ProviderId,
         result: AuthResult,
+        method: crate::dto::AuthMethod,
     ) -> anyhow::Result<crate::dto::ProviderCredential> {
         self.auth_service
-            .complete_provider_auth(provider_id, result)
+            .complete_provider_auth(provider_id, result, method)
             .await
     }
 

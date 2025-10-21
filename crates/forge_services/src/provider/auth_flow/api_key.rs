@@ -22,8 +22,6 @@ use super::{AuthFlowError, AuthenticationFlow};
 /// key) or refresh.
 pub struct ApiKeyAuthFlow {
     provider_id: ProviderId,
-    label: String,
-    description: Option<String>,
 }
 
 impl ApiKeyAuthFlow {
@@ -35,12 +33,8 @@ impl ApiKeyAuthFlow {
     /// * `label` - Display label for the API key prompt (e.g., "OpenAI API
     ///   Key")
     /// * `description` - Optional description explaining where to get the key
-    pub fn new(
-        provider_id: ProviderId,
-        label: impl Into<String>,
-        description: Option<String>,
-    ) -> Self {
-        Self { provider_id, label: label.into(), description }
+    pub fn new(provider_id: ProviderId) -> Self {
+        Self { provider_id }
     }
 }
 
@@ -51,11 +45,7 @@ impl AuthenticationFlow for ApiKeyAuthFlow {
     }
 
     async fn initiate(&self) -> Result<AuthInitiation, AuthFlowError> {
-        Ok(AuthInitiation::ApiKeyPrompt {
-            label: self.label.clone(),
-            description: self.description.clone(),
-            required_params: Vec::new(), // Simple API key providers don't need additional params
-        })
+        Ok(AuthInitiation::ApiKeyPrompt { required_params: Vec::new() })
     }
 
     async fn poll_until_complete(
@@ -123,11 +113,7 @@ mod tests {
     use super::*;
 
     fn create_flow() -> ApiKeyAuthFlow {
-        ApiKeyAuthFlow::new(
-            ProviderId::OpenAI,
-            "OpenAI API Key",
-            Some("Get your API key from https://platform.openai.com/api-keys".to_string()),
-        )
+        ApiKeyAuthFlow::new(ProviderId::OpenAI)
     }
 
     #[test]
@@ -142,12 +128,7 @@ mod tests {
         let result = flow.initiate().await.unwrap();
 
         match result {
-            AuthInitiation::ApiKeyPrompt { label, description, required_params } => {
-                assert_eq!(label, "OpenAI API Key");
-                assert_eq!(
-                    description,
-                    Some("Get your API key from https://platform.openai.com/api-keys".to_string())
-                );
+            AuthInitiation::ApiKeyPrompt { required_params } => {
                 assert!(required_params.is_empty());
             }
             _ => panic!("Expected ApiKeyPrompt"),

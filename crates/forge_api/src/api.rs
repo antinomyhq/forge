@@ -4,7 +4,6 @@ use anyhow::Result;
 use forge_app::dto::{InitAuth, ProviderId, ToolsOverview};
 use forge_app::{User, UserUsage};
 use forge_domain::{AgentId, ModelId};
-use forge_services::provider::ValidationOutcome;
 use forge_stream::MpscStream;
 
 use crate::*;
@@ -130,18 +129,11 @@ pub trait API: Sync + Send {
     // Provider credential management
     async fn list_provider_credentials(&self) -> Result<Vec<ProviderCredential>>;
 
-    /// Adds a provider API key with optional validation
-    async fn add_provider_api_key(
-        &self,
-        provider_id: ProviderId,
-        api_key: String,
-        skip_validation: bool,
-    ) -> Result<ValidationOutcome>;
-
     /// Initiates provider authentication flow
     async fn init_provider_auth(
         &self,
         provider_id: ProviderId,
+        method: forge_app::dto::AuthMethod,
     ) -> Result<forge_app::dto::AuthInitiation>;
 
     /// Polls for OAuth authentication completion
@@ -150,6 +142,7 @@ pub trait API: Sync + Send {
         provider_id: ProviderId,
         context: &forge_app::dto::AuthContext,
         timeout: std::time::Duration,
+        method: forge_app::dto::AuthMethod,
     ) -> Result<forge_app::dto::AuthResult>;
 
     /// Processes authentication result and stores credential in database.
@@ -157,6 +150,7 @@ pub trait API: Sync + Send {
         &self,
         provider_id: ProviderId,
         result: forge_app::dto::AuthResult,
+        method: forge_app::dto::AuthMethod,
     ) -> Result<()>;
 
     /// Initiates custom provider registration

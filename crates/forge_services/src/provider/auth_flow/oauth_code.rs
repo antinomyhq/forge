@@ -19,13 +19,12 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use forge_app::dto::{
-    AuthContext, AuthInitiation, AuthMethodType, AuthResult, OAuthTokens, ProviderCredential,
-    ProviderId,
+    AuthContext, AuthInitiation, AuthMethodType, AuthResult, OAuthConfig, OAuthTokens,
+    ProviderCredential, ProviderId,
 };
 
 use super::AuthenticationFlow;
 use super::error::AuthFlowError;
-use crate::provider::OAuthConfig;
 use crate::provider::oauth::ForgeOAuthService;
 
 /// OAuth authorization code flow with PKCE support

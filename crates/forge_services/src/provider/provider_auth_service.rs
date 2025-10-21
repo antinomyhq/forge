@@ -18,6 +18,7 @@ use crate::infra::{
     AppConfigRepository, EnvironmentInfra, ProviderCredentialRepository,
     ProviderSpecificProcessingInfra,
 };
+use crate::provider::AuthMethod;
 
 /// Provider authentication service implementation
 ///
@@ -54,13 +55,17 @@ where
         + Sync
         + 'static,
 {
-    async fn init_provider_auth(&self, provider_id: ProviderId) -> anyhow::Result<AuthInitiation> {
-        // Get provider metadata to determine auth method (static method)
-        let auth_method = crate::provider::registry::get_provider_oauth_method(&provider_id)
-            .ok_or_else(|| anyhow::anyhow!("No auth method found for provider: {}", provider_id))?;
-
+    async fn init_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        method: AuthMethod,
+    ) -> anyhow::Result<AuthInitiation> {
         // Create appropriate auth flow using factory
-        let flow = AuthFlow::try_new(&provider_id, &auth_method, self.infra.clone())?;
+        let flow = AuthFlow::try_new(
+            &provider_id,
+            &method,
+            self.infra.clone(),
+        )?;
 
         // Initiate the authentication flow
         flow.initiate().await.map_err(|e| anyhow::anyhow!(e))
@@ -71,12 +76,10 @@ where
         provider_id: ProviderId,
         context: &AuthContext,
         timeout: Duration,
+        method: AuthMethod,
     ) -> anyhow::Result<AuthResult> {
-        // Get auth method and create flow
-        let auth_method = crate::provider::registry::get_provider_oauth_method(&provider_id)
-            .ok_or_else(|| anyhow::anyhow!("No auth method found for provider: {}", provider_id))?;
-
-        let flow = AuthFlow::try_new(&provider_id, &auth_method, self.infra.clone())?;
+        // Create appropriate auth flow using factory
+        let flow = AuthFlow::try_new(&provider_id, &method, self.infra.clone())?;
 
         // Poll until complete
         flow.poll_until_complete(context, timeout)
@@ -88,12 +91,10 @@ where
         &self,
         provider_id: ProviderId,
         result: AuthResult,
+        method: AuthMethod,
     ) -> anyhow::Result<ProviderCredential> {
-        // Get auth method and create flow
-        let auth_method = crate::provider::registry::get_provider_oauth_method(&provider_id)
-            .ok_or_else(|| anyhow::anyhow!("No auth method found for provider: {}", provider_id))?;
-
-        let flow = AuthFlow::try_new(&provider_id, &auth_method, self.infra.clone())?;
+        // Create appropriate auth flow using factory
+        let flow = AuthFlow::try_new(&provider_id, &method, self.infra.clone())?;
 
         // Complete authentication and create credential
         let credential = flow
@@ -304,7 +305,7 @@ mod tests_disabled {
     async fn test_init_provider_auth_api_key() {
         let service = create_test_service();
 
-        let result = service.init_provider_auth(ProviderId::OpenAI).await;
+        let result = service.init_provider_auth(ProviderId::OpenAI, AuthMethod::ApiKey).await;
 
         assert!(result.is_ok());
         let initiation = result.unwrap();
@@ -392,7 +393,11 @@ mod tests_disabled {
         };
 
         let result = service
-            .complete_provider_auth(ProviderId::OpenAI, auth_result)
+            .complete_provider_auth(
+                ProviderId::OpenAI,
+                auth_result,
+                AuthMethod::default()
+            )
             .await;
 
         assert!(result.is_ok());

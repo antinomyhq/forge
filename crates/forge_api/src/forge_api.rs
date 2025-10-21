@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::dto::{
-    InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId, ToolsOverview,
+    AuthMethod, InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId, ToolsOverview,
 };
 use forge_app::{
     AgentLoaderService, AuthService, ConversationService, EnvironmentService, FileDiscoveryService,
@@ -12,7 +12,6 @@ use forge_app::{
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
-use forge_services::provider::{ValidationOutcome, ValidationResult};
 use forge_services::{
     AppConfigRepository, CommandInfra, ForgeServices, ProviderCredentialRepository,
     ProviderValidationInfra,
@@ -244,65 +243,13 @@ impl<
         self.infra.get_all_credentials().await
     }
 
-    // High-level provider authentication methods
-    async fn add_provider_api_key(
-        &self,
-        provider_id: ProviderId,
-        api_key: String,
-        skip_validation: bool,
-    ) -> Result<ValidationOutcome> {
-        if !skip_validation {
-            self.infra.validate_api_key_format(&provider_id, &api_key)?;
-        }
-
-        let credential = ProviderCredential::new_api_key(provider_id, api_key);
-
-        if !skip_validation {
-            let providers = self.services.get_all_providers().await?;
-            let provider = providers
-                .iter()
-                .find(|p| p.id == credential.provider_id)
-                .ok_or_else(|| anyhow::anyhow!("Provider not found: {}", credential.provider_id))?;
-
-            let result = self
-                .infra
-                .validate_credential(&credential.provider_id, &credential, &provider.model_url)
-                .await?;
-
-            match result {
-                ValidationResult::Valid => {
-                    self.infra.upsert_credential(credential).await?;
-                    Ok(ValidationOutcome::default()
-                        .success(true)
-                        .message("API key validated and saved"))
-                }
-                ValidationResult::Invalid(msg) => Ok(ValidationOutcome::default()
-                    .success(false)
-                    .message(format!("API key validation failed: {}", msg))),
-                ValidationResult::Inconclusive(msg) => {
-                    self.infra.upsert_credential(credential).await?;
-                    Ok(ValidationOutcome::default()
-                        .success(true)
-                        .message(format!("API key saved (validation inconclusive: {})", msg)))
-                }
-                ValidationResult::TokenExpired => Ok(ValidationOutcome::default()
-                    .success(false)
-                    .message("Token has expired")),
-            }
-        } else {
-            self.infra.upsert_credential(credential).await?;
-            Ok(ValidationOutcome::default()
-                .success(true)
-                .message("API key saved without validation"))
-        }
-    }
-
     async fn init_provider_auth(
         &self,
         provider_id: ProviderId,
+        method: AuthMethod,
     ) -> Result<forge_app::dto::AuthInitiation> {
         let forge_app = ForgeApp::new(self.services.clone());
-        Ok(forge_app.init_provider_auth(provider_id).await?)
+        Ok(forge_app.init_provider_auth(provider_id, method).await?)
     }
 
     async fn poll_provider_auth(
@@ -310,10 +257,11 @@ impl<
         provider_id: ProviderId,
         context: &forge_app::dto::AuthContext,
         timeout: std::time::Duration,
+        method: AuthMethod,
     ) -> Result<forge_app::dto::AuthResult> {
         let forge_app = ForgeApp::new(self.services.clone());
         Ok(forge_app
-            .poll_provider_auth(provider_id, context, timeout)
+            .poll_provider_auth(provider_id, context, timeout, method)
             .await?)
     }
 
@@ -321,10 +269,11 @@ impl<
         &self,
         provider_id: ProviderId,
         result: forge_app::dto::AuthResult,
+        method: AuthMethod,
     ) -> Result<()> {
         let forge_app = ForgeApp::new(self.services.clone());
         Ok(forge_app
-            .save_provider_credentials(provider_id, result)
+            .save_provider_credentials(provider_id, result, method)
             .await?)
     }
 
