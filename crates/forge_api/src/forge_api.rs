@@ -15,7 +15,7 @@ use forge_infra::ForgeInfra;
 use forge_services::provider::{ValidationOutcome, ValidationResult};
 use forge_services::{
     AppConfigRepository, CommandInfra, ForgeServices, ProviderCredentialRepository,
-    ProviderSpecificProcessingInfra, ProviderValidationInfra,
+    ProviderValidationInfra,
 };
 use forge_stream::MpscStream;
 
@@ -47,7 +47,6 @@ impl<
         + AppConfigRepository
         + ProviderCredentialRepository
         + ProviderValidationInfra
-        + ProviderSpecificProcessingInfra,
 > API for ForgeAPI<A, F>
 {
     async fn discover(&self) -> Result<Vec<File>> {
