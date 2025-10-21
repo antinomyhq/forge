@@ -748,7 +748,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.spinner.start(Some("Saving credentials..."))?;
 
                 self.api
-                    .complete_provider_auth(provider_id.clone(), auth_result)
+                    .save_provider_credentials(provider_id.clone(), auth_result)
                     .await?;
 
                 self.spinner.stop(None)?;
@@ -789,7 +789,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 };
 
                 self.api
-                    .complete_provider_auth(provider_id.clone(), auth_result)
+                    .save_provider_credentials(provider_id.clone(), auth_result)
                     .await?;
 
                 self.spinner.stop(None)?;

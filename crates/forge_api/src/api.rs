@@ -180,15 +180,9 @@ pub trait API: Sync + Send {
         timeout: std::time::Duration,
     ) -> Result<forge_app::dto::AuthResult>;
 
-    /// Completes provider authentication and saves credentials
-    ///
+    
     /// Processes authentication result and stores credential in database.
-    ///
-    /// # Arguments
-    ///
-    /// * `provider_id` - Provider being authenticated
-    /// * `result` - Authentication result from user input or OAuth flow
-    async fn complete_provider_auth(
+    async fn save_provider_credentials(
         &self,
         provider_id: ProviderId,
         result: forge_app::dto::AuthResult,

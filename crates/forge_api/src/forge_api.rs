@@ -325,7 +325,7 @@ impl<
             .await?)
     }
 
-    async fn complete_provider_auth(
+    async fn save_provider_credentials(
         &self,
         provider_id: ProviderId,
         result: forge_app::dto::AuthResult,
