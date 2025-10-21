@@ -305,7 +305,6 @@ impl<
         }
     }
 
-
     async fn init_provider_auth(
         &self,
         provider_id: ProviderId,

@@ -1,4 +1,3 @@
-
 /// Information to display to the user during OAuth device flow.
 #[derive(Debug, Clone)]
 pub struct OAuthDeviceDisplay {

@@ -4,7 +4,7 @@ use anyhow::Result;
 use forge_app::dto::{InitAuth, ProviderId, ToolsOverview};
 use forge_app::{User, UserUsage};
 use forge_domain::{AgentId, ModelId};
-use forge_services::provider::{ValidationOutcome};
+use forge_services::provider::ValidationOutcome;
 use forge_stream::MpscStream;
 
 use crate::*;
@@ -145,7 +145,6 @@ pub trait API: Sync + Send {
         api_key: String,
         skip_validation: bool,
     ) -> Result<ValidationOutcome>;
-
 
     // New trait-based authentication methods (Phase 7)
 

@@ -736,5 +736,5 @@ pub enum AuthCommand {
         /// Skip validation (advanced users)
         #[arg(long)]
         skip_validation: bool,
-    }
+    },
 }
