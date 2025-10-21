@@ -21,7 +21,7 @@ pub enum AuthMethodType {
     /// OAuth device flow (display code to user)
     OAuthDevice,
     /// OAuth authorization code flow (redirect to browser)
-    OAuthCode
+    OAuthCode,
 }
 
 /// Result of initiating authentication.
