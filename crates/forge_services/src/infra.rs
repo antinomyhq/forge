@@ -215,17 +215,6 @@ pub trait HttpInfra: Send + Sync + 'static {
 }
 
 #[async_trait::async_trait]
-pub trait ProviderValidationInfra: Send + Sync {
-    fn validate_api_key_format(
-        &self,
-        provider_id: &ProviderId,
-        api_key: &str,
-    ) -> anyhow::Result<()>;
-
-    fn validate_model_url(&self, url: &Url) -> anyhow::Result<()>;
-}
-
-#[async_trait::async_trait]
 pub trait ProviderSpecificProcessingInfra: Send + Sync {
     async fn process_github_copilot_token(
         &self,

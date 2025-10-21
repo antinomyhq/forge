@@ -2,7 +2,6 @@ use std::path::{Path, PathBuf};
 use std::process::ExitStatus;
 use std::sync::Arc;
 
-use anyhow::ensure;
 use bytes::Bytes;
 use forge_app::dto::ProviderId;
 use forge_domain::{CommandOutput, Conversation, ConversationId, Environment, McpServerConfig};
@@ -12,7 +11,7 @@ use forge_services::{
     AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
     DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
     FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, ProviderCredentialRepository,
-    ProviderSpecificProcessingInfra, ProviderValidationInfra, SnapshotInfra, UserInfra,
+    ProviderSpecificProcessingInfra, SnapshotInfra, UserInfra,
     WalkerInfra,
 };
 use reqwest::header::HeaderMap;
@@ -427,32 +426,6 @@ impl CacheRepository for ForgeInfra {
 
     async fn cache_clear(&self) -> anyhow::Result<()> {
         self.mcp_cache_repository.cache_clear().await
-    }
-}
-
-#[async_trait::async_trait]
-impl ProviderValidationInfra for ForgeInfra {
-    fn validate_api_key_format(
-        &self,
-        _provider_id: &ProviderId,
-        api_key: &str,
-    ) -> anyhow::Result<()> {
-        ensure!(!api_key.trim().is_empty(), "API key must not be empty");
-        Ok(())
-    }
-
-    fn validate_model_url(&self, url: &Url) -> anyhow::Result<()> {
-        ensure!(
-            url.scheme() == "https",
-            "Model URL must use https scheme: {}",
-            url
-        );
-        ensure!(
-            url.host_str().is_some(),
-            "Model URL must include a hostname: {}",
-            url
-        );
-        Ok(())
     }
 }
 
