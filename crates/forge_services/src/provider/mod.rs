@@ -16,7 +16,7 @@ mod types;
 mod utils;
 
 pub use auth_flow::*;
-pub use forge_app::dto::{AuthMethod, AuthMethodType, OAuthConfig};
+pub use forge_app::dto::{AuthMethod, OAuthConfig};
 pub use github_copilot::*;
 pub use oauth::*;
 pub use processing::*;

@@ -2,7 +2,7 @@
 use std::time::Duration;
 
 use forge_app::dto::{
-    AuthContext, AuthInitiation, AuthMethodType, AuthResult, ProviderCredential, ProviderId,
+    AuthContext, AuthInitiation, AuthMethod, AuthResult, ProviderCredential, ProviderId,
 };
 
 use super::{AuthFlowError, AuthenticationFlow};
@@ -40,8 +40,8 @@ impl ApiKeyAuthFlow {
 
 #[async_trait::async_trait]
 impl AuthenticationFlow for ApiKeyAuthFlow {
-    fn auth_method_type(&self) -> AuthMethodType {
-        AuthMethodType::ApiKey
+    fn auth_method_type(&self) -> AuthMethod {
+        AuthMethod::ApiKey
     }
 
     async fn initiate(&self) -> Result<AuthInitiation, AuthFlowError> {
@@ -113,7 +113,7 @@ mod tests {
     #[test]
     fn test_auth_method_type() {
         let flow = create_flow();
-        assert_eq!(flow.auth_method_type(), AuthMethodType::ApiKey);
+        assert_eq!(flow.auth_method_type(), AuthMethod::ApiKey);
     }
 
     #[tokio::test]

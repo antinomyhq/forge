@@ -12,13 +12,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use forge_app::dto::{
-    AuthContext, AuthInitiation, AuthMethod, AuthMethodType, AuthResult, ProviderCredential,
-    ProviderId, UrlParameter,
+    AuthContext, AuthInitiation, AuthMethod, AuthResult, ProviderCredential, ProviderId,
+    UrlParameter,
 };
 
-use crate::provider::{
-    AuthMethodType as AuthMethodTypeInternal, ForgeOAuthService, GitHubCopilotService,
-};
+use crate::provider::{ForgeOAuthService, GitHubCopilotService};
 
 pub mod api_key;
 pub mod error;
@@ -87,8 +85,8 @@ impl AuthFlow {
     where
         I: AuthFlowInfra + 'static,
     {
-        match auth_method.method_type {
-            AuthMethodTypeInternal::ApiKey => {
+        match auth_method {
+            AuthMethod::ApiKey => {
                 // Check if this is a cloud provider that needs URL parameters
                 let required_params = Self::get_provider_params(provider_id);
 
@@ -102,12 +100,7 @@ impl AuthFlow {
                 }
             }
 
-            AuthMethodTypeInternal::OAuthDevice => {
-                let config = auth_method
-                    .oauth_config
-                    .as_ref()
-                    .ok_or_else(|| anyhow::anyhow!("OAuth device flow requires oauth_config"))?;
-
+            AuthMethod::OAuthDevice(config) => {
                 // Check if this is GitHub Copilot (OAuth with API key exchange)
                 if config.token_refresh_url.is_some() {
                     let github_service = infra.github_copilot_service();
@@ -126,18 +119,11 @@ impl AuthFlow {
                 }
             }
 
-            AuthMethodTypeInternal::OAuthCode => {
-                let config = auth_method
-                    .oauth_config
-                    .as_ref()
-                    .ok_or_else(|| anyhow::anyhow!("OAuth code flow requires oauth_config"))?;
-
-                Ok(Self::OAuthCode(OAuthCodeFlow::new(
-                    provider_id.clone(),
-                    config.clone(),
-                    infra.oauth_service(),
-                )))
-            }
+            AuthMethod::OAuthCode(config) => Ok(Self::OAuthCode(OAuthCodeFlow::new(
+                provider_id.clone(),
+                config.clone(),
+                infra.oauth_service(),
+            ))),
         }
     }
 
@@ -194,7 +180,7 @@ impl AuthFlow {
 
 #[async_trait::async_trait]
 impl AuthenticationFlow for AuthFlow {
-    fn auth_method_type(&self) -> AuthMethodType {
+    fn auth_method_type(&self) -> AuthMethod {
         match self {
             Self::ApiKey(flow) => flow.auth_method_type(),
             Self::CloudService(flow) => flow.auth_method_type(),
@@ -256,7 +242,7 @@ impl AuthenticationFlow for AuthFlow {
 #[async_trait::async_trait]
 pub trait AuthenticationFlow: Send + Sync {
     /// Returns the authentication method type.
-    fn auth_method_type(&self) -> AuthMethodType;
+    fn auth_method_type(&self) -> AuthMethod;
 
     /// Initiates the authentication flow.
     async fn initiate(&self) -> Result<AuthInitiation, AuthFlowError>;

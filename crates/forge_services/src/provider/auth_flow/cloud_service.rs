@@ -20,7 +20,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use forge_app::dto::{
-    AuthContext, AuthInitiation, AuthMethodType, AuthResult, ProviderCredential, ProviderId,
+    AuthContext, AuthInitiation, AuthMethod, AuthResult, ProviderCredential, ProviderId,
     UrlParameter,
 };
 use regex::Regex;
@@ -120,8 +120,8 @@ impl CloudServiceAuthFlow {
 
 #[async_trait::async_trait]
 impl AuthenticationFlow for CloudServiceAuthFlow {
-    fn auth_method_type(&self) -> AuthMethodType {
-        AuthMethodType::ApiKey
+    fn auth_method_type(&self) -> AuthMethod {
+        AuthMethod::ApiKey
     }
 
     async fn initiate(&self) -> Result<AuthInitiation, AuthFlowError> {
@@ -191,7 +191,7 @@ mod tests {
     #[test]
     fn test_auth_method_type() {
         let flow = vertex_ai_fixture();
-        assert_eq!(flow.auth_method_type(), AuthMethodType::ApiKey);
+        assert_eq!(flow.auth_method_type(), AuthMethod::ApiKey);
     }
 
     #[tokio::test]

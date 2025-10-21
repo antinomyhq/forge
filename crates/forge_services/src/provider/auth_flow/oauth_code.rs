@@ -19,7 +19,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use forge_app::dto::{
-    AuthContext, AuthInitiation, AuthMethodType, AuthResult, OAuthConfig, OAuthTokens,
+    AuthContext, AuthInitiation, AuthMethod, AuthResult, OAuthConfig, OAuthTokens,
     ProviderCredential, ProviderId,
 };
 
@@ -66,8 +66,8 @@ impl OAuthCodeFlow {
 
 #[async_trait]
 impl AuthenticationFlow for OAuthCodeFlow {
-    fn auth_method_type(&self) -> AuthMethodType {
-        AuthMethodType::OAuthCode
+    fn auth_method_type(&self) -> AuthMethod {
+        AuthMethod::OAuthCode(self.config.clone())
     }
 
     async fn initiate(&self) -> Result<AuthInitiation, AuthFlowError> {
@@ -199,7 +199,6 @@ impl AuthenticationFlow for OAuthCodeFlow {
 
 #[cfg(test)]
 mod tests {
-    use pretty_assertions::assert_eq;
 
     use super::*;
 
@@ -227,9 +226,7 @@ mod tests {
         let flow = OAuthCodeFlow::new(ProviderId::OpenAI, config, oauth_service);
 
         let actual = flow.auth_method_type();
-        let expected = AuthMethodType::OAuthCode;
-
-        assert_eq!(actual, expected);
+        assert!(matches!(actual, AuthMethod::OAuthCode(_)));
     }
 
     #[tokio::test]

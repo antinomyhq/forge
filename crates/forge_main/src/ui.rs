@@ -593,7 +593,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             println!("\nSelect authentication method:");
             let options: Vec<String> = auth_methods
                 .iter()
-                .map(|method| format!("{:?}", method.method_type))
+                .map(|method| match method {
+                    forge_app::dto::AuthMethod::ApiKey => "ApiKey".to_string(),
+                    forge_app::dto::AuthMethod::OAuthDevice(_) => "OAuthDevice".to_string(),
+                    forge_app::dto::AuthMethod::OAuthCode(_) => "OAuthCode".to_string(),
+                })
                 .collect();
 
             let selection = ForgeSelect::select("Authentication method:", options.clone())

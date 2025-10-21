@@ -12,19 +12,151 @@ use std::collections::HashMap;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
+/// OAuth configuration for device and code flows
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OAuthConfig {
+    /// Device code URL (device flow only)
+    /// Example: "https://github.com/login/device/code"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device_code_url: Option<String>,
+
+    /// Device token URL (device flow only)
+    /// Example: "https://github.com/login/oauth/access_token"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device_token_url: Option<String>,
+
+    /// Authorization URL (code flow only)
+    /// Example: "https://claude.ai/oauth/authorize"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_url: Option<String>,
+
+    /// Token exchange URL (code flow only)
+    /// Example: "https://api.anthropic.com/oauth/token"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_url: Option<String>,
+
+    /// OAuth client ID provided by the service
+    pub client_id: String,
+
+    /// List of OAuth scopes to request
+    pub scopes: Vec<String>,
+
+    /// Redirect URI (for code flow, points to provider's callback page)
+    /// Example: "https://console.anthropic.com/oauth/code/callback"
+    pub redirect_uri: String,
+
+    /// Whether to use PKCE (Proof Key for Code Exchange) for security
+    #[serde(default)]
+    pub use_pkce: bool,
+
+    /// URL to fetch API key from OAuth token (GitHub Copilot pattern)
+    /// Example: "https://api.github.com/copilot_internal/v2/token"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_refresh_url: Option<String>,
+
+    /// Custom HTTP headers for OAuth requests (provider-specific)
+    /// Allows providers like GitHub to specify required headers (e.g.,
+    /// User-Agent)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_headers: Option<std::collections::HashMap<String, String>>,
+
+    /// Extra query parameters to add to authorization URL (provider-specific)
+    /// Example: For Claude.ai, add {"code": "true"}
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extra_auth_params: Option<std::collections::HashMap<String, String>>,
+}
+
+impl OAuthConfig {
+    /// Creates a new OAuth device flow configuration
+    pub fn device_flow(
+        device_code_url: impl Into<String>,
+        device_token_url: impl Into<String>,
+        client_id: impl Into<String>,
+        scopes: Vec<String>,
+    ) -> Self {
+        Self {
+            device_code_url: Some(device_code_url.into()),
+            device_token_url: Some(device_token_url.into()),
+            auth_url: None,
+            token_url: None,
+            client_id: client_id.into(),
+            scopes,
+            redirect_uri: String::new(),
+            use_pkce: false,
+            token_refresh_url: None,
+            custom_headers: None,
+            extra_auth_params: None,
+        }
+    }
+
+    /// Creates a new OAuth authorization code flow configuration
+    pub fn code_flow(
+        auth_url: impl Into<String>,
+        token_url: impl Into<String>,
+        client_id: impl Into<String>,
+        scopes: Vec<String>,
+        redirect_uri: impl Into<String>,
+        use_pkce: bool,
+    ) -> Self {
+        Self {
+            device_code_url: None,
+            device_token_url: None,
+            auth_url: Some(auth_url.into()),
+            token_url: Some(token_url.into()),
+            client_id: client_id.into(),
+            scopes,
+            redirect_uri: redirect_uri.into(),
+            use_pkce,
+            token_refresh_url: None,
+            custom_headers: None,
+            extra_auth_params: None,
+        }
+    }
+}
+
 /// Authentication method type.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum AuthMethodType {
+pub enum AuthMethod {
     /// Direct API key entry
-    #[default]
     ApiKey,
     /// OAuth device flow (display code to user)
     #[serde(rename = "oauth_device")]
-    OAuthDevice,
+    OAuthDevice(OAuthConfig),
     /// OAuth authorization code flow (redirect to browser)
     #[serde(rename = "oauth_code")]
-    OAuthCode,
+    OAuthCode(OAuthConfig),
+}
+
+impl Default for AuthMethod {
+    fn default() -> Self {
+        Self::ApiKey
+    }
+}
+
+impl AuthMethod {
+    /// Creates a new OAuth device flow authentication method
+    pub fn oauth_device(config: OAuthConfig) -> Self {
+        Self::OAuthDevice(config)
+    }
+
+    /// Creates a new OAuth code flow authentication method
+    pub fn oauth_code(config: OAuthConfig) -> Self {
+        Self::OAuthCode(config)
+    }
+
+    /// Creates a new API key authentication method
+    pub fn api_key() -> Self {
+        Self::ApiKey
+    }
+
+    /// Returns a reference to the OAuth config if this is an OAuth method
+    pub fn oauth_config(&self) -> Option<&OAuthConfig> {
+        match self {
+            Self::OAuthDevice(config) | Self::OAuthCode(config) => Some(config),
+            Self::ApiKey => None,
+        }
+    }
 }
 
 /// Result of initiating authentication.
@@ -252,11 +384,46 @@ mod tests {
     }
 
     #[test]
-    fn test_auth_method_type_serialization() {
-        let json = serde_json::to_string(&AuthMethodType::ApiKey).unwrap();
+    fn test_auth_method_serialization() {
+        let json = serde_json::to_string(&AuthMethod::ApiKey).unwrap();
         assert_eq!(json, r#""api_key""#);
 
-        let json = serde_json::to_string(&AuthMethodType::OAuthDevice).unwrap();
-        assert_eq!(json, r#""oauth_device""#);
+        let oauth_device = AuthMethod::OAuthDevice(OAuthConfig::device_flow(
+            "https://example.com/device",
+            "https://example.com/token",
+            "client-id",
+            vec!["read".to_string()],
+        ));
+        let json = serde_json::to_string(&oauth_device).unwrap();
+        assert!(json.contains("oauth_device"));
+        assert!(json.contains("client-id"));
+
+        let oauth_code = AuthMethod::OAuthCode(OAuthConfig::code_flow(
+            "https://example.com/auth",
+            "https://example.com/token",
+            "client-id",
+            vec!["read".to_string()],
+            "https://example.com/callback",
+            true,
+        ));
+        let json = serde_json::to_string(&oauth_code).unwrap();
+        assert!(json.contains("oauth_code"));
+        assert!(json.contains("client-id"));
+    }
+
+    #[test]
+    fn test_auth_method_oauth_config() {
+        let config = OAuthConfig::device_flow(
+            "https://example.com/device",
+            "https://example.com/token",
+            "client-id",
+            vec!["read".to_string()],
+        );
+
+        let method = AuthMethod::oauth_device(config.clone());
+        assert!(method.oauth_config().is_some());
+
+        let api_key_method = AuthMethod::api_key();
+        assert!(api_key_method.oauth_config().is_none());
     }
 }

@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use forge_app::dto::{
-    AuthContext, AuthInitiation, AuthMethodType, AuthResult, OAuthTokens, ProviderCredential,
+    AuthContext, AuthInitiation, AuthMethod, AuthResult, OAuthTokens, ProviderCredential,
     ProviderId,
 };
 
@@ -68,8 +68,8 @@ impl OAuthWithApiKeyFlow {
 
 #[async_trait]
 impl AuthenticationFlow for OAuthWithApiKeyFlow {
-    fn auth_method_type(&self) -> AuthMethodType {
-        AuthMethodType::OAuthDevice
+    fn auth_method_type(&self) -> AuthMethod {
+        AuthMethod::OAuthDevice(self.config.clone())
     }
 
     async fn initiate(&self) -> Result<AuthInitiation, AuthFlowError> {
@@ -391,7 +391,6 @@ impl AuthenticationFlow for OAuthWithApiKeyFlow {
 
 #[cfg(test)]
 mod tests {
-    use pretty_assertions::assert_eq;
 
     use super::*;
 
@@ -425,9 +424,7 @@ mod tests {
         );
 
         let actual = flow.auth_method_type();
-        let expected = AuthMethodType::OAuthDevice;
-
-        assert_eq!(actual, expected);
+        assert!(matches!(actual, AuthMethod::OAuthDevice(_)));
     }
 
     #[tokio::test]

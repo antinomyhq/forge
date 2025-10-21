@@ -8,12 +8,7 @@
     "url": "https://antinomy.ai/api/v1/chat/completions",
     "model_url": "https://antinomy.ai/api/v1/models",
     "auth_methods": [
-      {
-        "method_type": "api_key",
-        "label": "API Key",
-        "description": null,
-        "oauth_config": null
-      }
+      "api_key"
     ]
   },
   {
@@ -26,10 +21,7 @@
     "model_url": "https://api.githubcopilot.com/models",
     "auth_methods": [
       {
-        "method_type": "oauth_device",
-        "label": "GitHub OAuth",
-        "description": "Use your GitHub account to access Copilot",
-        "oauth_config": {
+        "oauth_device": {
           "device_code_url": "https://github.com/login/device/code",
           "device_token_url": "https://github.com/login/oauth/access_token",
           "client_id": "Iv1.b507a08c87ecfe98",
@@ -53,12 +45,7 @@
     "url": "https://openrouter.ai/api/v1/chat/completions",
     "model_url": "https://openrouter.ai/api/v1/models",
     "auth_methods": [
-      {
-        "method_type": "api_key",
-        "label": "API Key",
-        "description": null,
-        "oauth_config": null
-      }
+      "api_key"
     ]
   },
   {
@@ -70,12 +57,7 @@
     "url": "https://router.requesty.ai/v1/chat/completions",
     "model_url": "https://router.requesty.ai/v1/models",
     "auth_methods": [
-      {
-        "method_type": "api_key",
-        "label": "API Key",
-        "description": null,
-        "oauth_config": null
-      }
+      "api_key"
     ]
   },
   {
@@ -87,12 +69,7 @@
     "url": "https://api.x.ai/v1/chat/completions",
     "model_url": "https://api.x.ai/v1/models",
     "auth_methods": [
-      {
-        "method_type": "api_key",
-        "label": "API Key",
-        "description": null,
-        "oauth_config": null
-      }
+      "api_key"
     ]
   },
   {
@@ -104,12 +81,7 @@
     "url": "{{#if OPENAI_URL}}{{OPENAI_URL}}{{else}}https://api.openai.com/v1{{/if}}/chat/completions",
     "model_url": "{{#if OPENAI_URL}}{{OPENAI_URL}}{{else}}https://api.openai.com/v1{{/if}}/models",
     "auth_methods": [
-      {
-        "method_type": "api_key",
-        "label": "API Key",
-        "description": null,
-        "oauth_config": null
-      }
+      "api_key"
     ]
   },
   {
@@ -121,12 +93,7 @@
     "url": "{{BASE_URL}}/chat/completions",
     "model_url": "{{BASE_URL}}/models",
     "auth_methods": [
-      {
-        "method_type": "api_key",
-        "label": "API Key",
-        "description": "API key for your OpenAI-compatible provider (leave empty if not required)",
-        "oauth_config": null
-      }
+      "api_key"
     ]
   },
   {
@@ -138,17 +105,9 @@
     "url": "{{ANTHROPIC_URL}}/messages",
     "model_url": "{{ANTHROPIC_URL}}/models",
     "auth_methods": [
+      "api_key",
       {
-        "method_type": "api_key",
-        "label": "API Key",
-        "description": "Use your Anthropic API key for authentication",
-        "oauth_config": null
-      },
-      {
-        "method_type": "oauth_code",
-        "label": "Claude Code",
-        "description": "Sign in with your Claude Pro/Max account via OAuth",
-        "oauth_config": {
+        "oauth_code": {
           "auth_url": "https://claude.ai/oauth/authorize",
           "token_url": "https://console.anthropic.com/v1/oauth/token",
           "client_id": "9d1c250a-e61b-44d9-88ed-5944d1962f5e",
@@ -171,12 +130,7 @@
     "url": "{{BASE_URL}}/messages",
     "model_url": "{{BASE_URL}}/models",
     "auth_methods": [
-      {
-        "method_type": "api_key",
-        "label": "API Key",
-        "description": "API key for your Anthropic-compatible provider (leave empty if not required)",
-        "oauth_config": null
-      }
+      "api_key"
     ]
   },
   {
@@ -188,12 +142,7 @@
     "url": "https://api.cerebras.ai/v1/chat/completions",
     "model_url": "https://api.cerebras.ai/v1/models",
     "auth_methods": [
-      {
-        "method_type": "api_key",
-        "label": "API Key",
-        "description": null,
-        "oauth_config": null
-      }
+      "api_key"
     ]
   },
   {
@@ -205,12 +154,7 @@
     "url": "https://api.z.ai/api/paas/v4/chat/completions",
     "model_url": "https://api.z.ai/api/paas/v4/models",
     "auth_methods": [
-      {
-        "method_type": "api_key",
-        "label": "API Key",
-        "description": null,
-        "oauth_config": null
-      }
+      "api_key"
     ]
   },
   {
@@ -222,12 +166,7 @@
     "url": "https://api.z.ai/api/coding/paas/v4/chat/completions",
     "model_url": "https://api.z.ai/api/paas/v4/models",
     "auth_methods": [
-      {
-        "method_type": "api_key",
-        "label": "API Key",
-        "description": null,
-        "oauth_config": null
-      }
+      "api_key"
     ]
   },
   {
@@ -239,12 +178,7 @@
     "url": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
     "model_url": "https://open.bigmodel.cn/api/paas/v4/models",
     "auth_methods": [
-      {
-        "method_type": "api_key",
-        "label": "API Key",
-        "description": null,
-        "oauth_config": null
-      }
+      "api_key"
     ]
   },
   {
@@ -256,12 +190,7 @@
     "url": "{{#if (eq LOCATION \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/chat/completions{{else}}https://{{LOCATION}}-aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/chat/completions{{/if}}",
     "model_url": "{{#if (eq LOCATION \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/models{{else}}https://{{LOCATION}}-aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/models{{/if}}",
     "auth_methods": [
-      {
-        "method_type": "api_key",
-        "label": "Auth Token",
-        "description": null,
-        "oauth_config": null
-      }
+      "api_key"
     ]
   },
   {
@@ -277,12 +206,7 @@
     "url": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/deployments/{{AZURE_DEPLOYMENT_NAME}}/chat/completions?api-version={{AZURE_API_VERSION}}",
     "model_url": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/models?api-version={{AZURE_API_VERSION}}",
     "auth_methods": [
-      {
-        "method_type": "api_key",
-        "label": "API Key",
-        "description": null,
-        "oauth_config": null
-      }
+      "api_key"
     ]
   }
 ]
