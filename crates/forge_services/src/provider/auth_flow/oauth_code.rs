@@ -110,15 +110,13 @@ impl AuthenticationFlow for OAuthCodeFlow {
 
     async fn complete(&self, result: AuthResult) -> Result<ProviderCredential, AuthFlowError> {
         match result {
-            AuthResult::AuthorizationCode { code, state: _ } => {
-                // Get PKCE verifier from context (if used)
-                // Note: In real usage, the UI should pass the context's completion_data
-                // For now, we'll attempt the exchange without verifier validation
-
-                // Exchange code for tokens
+            AuthResult::AuthorizationCode { code, state: _, code_verifier } => {
+                // Exchange code for tokens with PKCE verifier (if provided)
+                // Note: For Anthropic, the code is in format "code#state" which is handled
+                // by the exchange_auth_code method
                 let token_response = self
                     .oauth_service
-                    .exchange_auth_code(&self.config, &code, None)
+                    .exchange_auth_code(&self.config, &code, code_verifier.as_deref())
                     .await
                     .map_err(|e| {
                         AuthFlowError::CompletionFailed(format!(
@@ -227,6 +225,7 @@ mod tests {
             use_pkce: true,
             token_refresh_url: None,
             custom_headers: None,
+            extra_auth_params: None,
         }
     }
 

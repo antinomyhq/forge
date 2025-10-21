@@ -58,6 +58,46 @@ pub struct OAuthTokenResponse {
     pub scope: Option<String>,
 }
 
+/// Anthropic-specific token exchange request body
+#[derive(Debug, Serialize)]
+struct AnthropicTokenRequest {
+    /// Authorization code from callback
+    code: String,
+    /// State parameter (equals PKCE verifier)
+    state: String,
+    /// Must be "authorization_code"
+    grant_type: String,
+    /// OAuth client ID
+    client_id: String,
+    /// Redirect URI (must match authorization request)
+    redirect_uri: String,
+    /// PKCE code verifier
+    code_verifier: String,
+}
+
+/// Anthropic-specific token exchange response
+#[derive(Debug, Deserialize)]
+struct AnthropicTokenResponse {
+    /// Access token for API requests
+    access_token: String,
+    /// Refresh token for obtaining new access tokens
+    #[serde(default)]
+    refresh_token: Option<String>,
+    /// Seconds until access token expires
+    #[serde(default)]
+    expires_in: Option<u64>,
+    /// Token type (usually "Bearer")
+    #[serde(default = "default_token_type")]
+    token_type: String,
+    /// OAuth scopes granted
+    #[serde(default)]
+    scope: Option<String>,
+}
+
+fn default_token_type() -> String {
+    "Bearer".to_string()
+}
+
 /// Parameters for building authorization code URL
 #[derive(Debug, Clone)]
 pub struct AuthCodeParams {
@@ -231,7 +271,41 @@ impl ForgeOAuthService {
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("token_url not configured"))?;
 
-        // Build oauth2 client for authorization code flow
+        // Check if this is Anthropic OAuth (non-standard: state = verifier)
+        let is_anthropic = auth_url.contains("claude.ai/oauth");
+
+        if is_anthropic && config.use_pkce {
+            // Anthropic requires state to be set to the PKCE verifier (non-standard)
+            // Build URL manually instead of using oauth2 library
+            let (challenge, verifier) = PkceCodeChallenge::new_random_sha256();
+
+            let mut url = url::Url::parse(auth_url)?;
+
+            // Add required OAuth parameters
+            url.query_pairs_mut()
+                .append_pair("client_id", &config.client_id)
+                .append_pair("response_type", "code")
+                .append_pair("redirect_uri", &config.redirect_uri)
+                .append_pair("scope", &config.scopes.join(" "))
+                .append_pair("code_challenge", challenge.as_str())
+                .append_pair("code_challenge_method", "S256")
+                .append_pair("state", verifier.secret()); // ← Set state to verifier!
+
+            // Add extra parameters (like code=true)
+            if let Some(extra_params) = &config.extra_auth_params {
+                for (key, value) in extra_params {
+                    url.query_pairs_mut().append_pair(key, value);
+                }
+            }
+
+            return Ok(AuthCodeParams {
+                auth_url: url.to_string(),
+                state: verifier.secret().to_string(),
+                code_verifier: Some(verifier.secret().to_string()),
+            });
+        }
+
+        // Standard OAuth flow for other providers
         let client = BasicClient::new(ClientId::new(config.client_id.clone()))
             .set_auth_uri(AuthUrl::new(auth_url.clone())?)
             .set_token_uri(TokenUrl::new(token_url.clone())?)
@@ -242,6 +316,13 @@ impl ForgeOAuthService {
         // Add scopes
         for scope in &config.scopes {
             request = request.add_scope(Scope::new(scope.clone()));
+        }
+
+        // Add extra authorization parameters (provider-specific)
+        if let Some(extra_params) = &config.extra_auth_params {
+            for (key, value) in extra_params {
+                request = request.add_extra_param(key, value);
+            }
         }
 
         // Add PKCE if configured
@@ -288,7 +369,17 @@ impl ForgeOAuthService {
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("token_url not configured"))?;
 
-        // Build oauth2 client for authorization code flow
+        // Check if this is Anthropic OAuth (requires special handling)
+        let is_anthropic = auth_url.contains("claude.ai/oauth");
+
+        if is_anthropic {
+            // Anthropic requires JSON body with code, state, and code_verifier
+            return self
+                .exchange_anthropic_token(token_url, auth_code, code_verifier, config)
+                .await;
+        }
+
+        // Standard OAuth flow for other providers
         let client = BasicClient::new(ClientId::new(config.client_id.clone()))
             .set_auth_uri(AuthUrl::new(auth_url.clone())?)
             .set_token_uri(TokenUrl::new(token_url.clone())?)
@@ -311,6 +402,68 @@ impl ForgeOAuthService {
         let token_result = request.request_async(&http_client).await?;
 
         Ok(Self::convert_token_response(token_result))
+    }
+
+    /// Exchanges authorization code for tokens using Anthropic's custom format
+    async fn exchange_anthropic_token(
+        &self,
+        token_url: &str,
+        auth_code: &str,
+        code_verifier: Option<&str>,
+        config: &OAuthConfig,
+    ) -> anyhow::Result<OAuthTokenResponse> {
+        // Parse code#state format
+        let (code, state) = if auth_code.contains('#') {
+            let parts: Vec<&str> = auth_code.split('#').collect();
+            (parts[0].to_string(), parts.get(1).map(|s| s.to_string()))
+        } else {
+            (auth_code.to_string(), None)
+        };
+
+        let verifier = code_verifier
+            .ok_or_else(|| anyhow::anyhow!("PKCE verifier required for Anthropic OAuth"))?;
+
+        // Build request body using concrete type
+        let request_body = AnthropicTokenRequest {
+            code,
+            state: state.unwrap_or_else(|| verifier.to_string()),
+            grant_type: "authorization_code".to_string(),
+            client_id: config.client_id.clone(),
+            redirect_uri: config.redirect_uri.clone(),
+            code_verifier: verifier.to_string(),
+        };
+
+        // Build HTTP client
+        let client = self.build_http_client(config.custom_headers.as_ref())?;
+
+        let response = client
+            .post(token_url)
+            .header("Content-Type", "application/json")
+            .json(&request_body)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_default();
+            anyhow::bail!(
+                "Token exchange failed with status {}: {}",
+                status,
+                error_text
+            );
+        }
+
+        // Parse response using concrete type
+        let anthropic_response: AnthropicTokenResponse = response.json().await?;
+
+        // Convert to common OAuthTokenResponse
+        Ok(OAuthTokenResponse {
+            access_token: anthropic_response.access_token,
+            refresh_token: anthropic_response.refresh_token,
+            expires_in: anthropic_response.expires_in,
+            token_type: anthropic_response.token_type,
+            scope: anthropic_response.scope,
+        })
     }
 
     /// Refreshes access token using refresh token
@@ -383,6 +536,7 @@ mod tests {
             use_pkce: true,
             token_refresh_url: None,
             custom_headers: None,
+            extra_auth_params: None,
         };
 
         let service = ForgeOAuthService::new();
@@ -415,6 +569,7 @@ mod tests {
             use_pkce: false,
             token_refresh_url: None,
             custom_headers: None,
+            extra_auth_params: None,
         };
 
         let service = ForgeOAuthService::new();
@@ -454,6 +609,7 @@ mod tests {
             use_pkce: false,
             token_refresh_url: None,
             custom_headers: None,
+            extra_auth_params: None,
         };
 
         let service = ForgeOAuthService::new();

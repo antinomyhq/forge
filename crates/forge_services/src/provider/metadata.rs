@@ -48,7 +48,33 @@ impl ProviderMetadataService {
             )],
             ProviderId::Forge => vec![AuthMethod::api_key("API Key", None)],
             ProviderId::OpenAI => vec![AuthMethod::api_key("API Key", None)],
-            ProviderId::Anthropic => vec![AuthMethod::api_key("API Key", None)],
+            ProviderId::Anthropic => vec![
+                AuthMethod::api_key(
+                    "API Key",
+                    Some("Use your Anthropic API key for authentication".to_string()),
+                ),
+                AuthMethod::oauth_code(
+                    "Claude Code",
+                    Some("Sign in with your Claude Pro/Max account via OAuth".to_string()),
+                    OAuthConfig::code_flow(
+                        "https://claude.ai/oauth/authorize",
+                        "https://console.anthropic.com/v1/oauth/token",
+                        "9d1c250a-e61b-44d9-88ed-5944d1962f5e",
+                        vec![
+                            "org:create_api_key".to_string(),
+                            "user:profile".to_string(),
+                            "user:inference".to_string(),
+                        ],
+                        "https://console.anthropic.com/oauth/code/callback",
+                        true, // use PKCE with S256
+                    )
+                    .with_extra_auth_params({
+                        let mut params = std::collections::HashMap::new();
+                        params.insert("code".to_string(), "true".to_string());
+                        params
+                    }),
+                ),
+            ],
             ProviderId::OpenRouter => vec![AuthMethod::api_key("API Key", None)],
             ProviderId::Requesty => vec![AuthMethod::api_key("API Key", None)],
             ProviderId::Zai => vec![AuthMethod::api_key("API Key", None)],

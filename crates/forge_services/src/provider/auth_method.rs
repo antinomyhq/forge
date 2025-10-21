@@ -140,6 +140,11 @@ pub struct OAuthConfig {
     /// User-Agent)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_headers: Option<std::collections::HashMap<String, String>>,
+
+    /// Extra query parameters to add to authorization URL (provider-specific)
+    /// Example: For Claude.ai, add {"code": "true"}
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extra_auth_params: Option<std::collections::HashMap<String, String>>,
 }
 
 impl OAuthConfig {
@@ -161,6 +166,7 @@ impl OAuthConfig {
             use_pkce: false,
             token_refresh_url: None,
             custom_headers: None,
+            extra_auth_params: None,
         }
     }
 
@@ -184,12 +190,22 @@ impl OAuthConfig {
             use_pkce,
             token_refresh_url: None,
             custom_headers: None,
+            extra_auth_params: None,
         }
     }
 
     /// Sets the token refresh URL (for GitHub Copilot pattern)
     pub fn with_token_refresh_url(mut self, url: impl Into<String>) -> Self {
         self.token_refresh_url = Some(url.into());
+        self
+    }
+
+    /// Sets extra authorization parameters (provider-specific)
+    pub fn with_extra_auth_params(
+        mut self,
+        params: std::collections::HashMap<String, String>,
+    ) -> Self {
+        self.extra_auth_params = Some(params);
         self
     }
 

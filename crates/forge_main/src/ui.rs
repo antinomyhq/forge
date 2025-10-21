@@ -604,50 +604,91 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             provider_id_enum.to_string().bold()
         );
 
-        // Check if this provider uses OAuth (via metadata)
+        // Step 2: Get available authentication methods
         use forge_services::provider::ProviderMetadataService;
 
-        if ProviderMetadataService::get_oauth_method(&provider_id_enum).is_some() {
-            return self.handle_provider_oauth_flow(provider_id_enum).await;
+        let auth_methods = ProviderMetadataService::get_auth_methods(&provider_id_enum);
+
+        // If multiple auth methods available, let user choose
+        let selected_method = if auth_methods.len() > 1 {
+            println!("\nSelect authentication method:");
+            let options: Vec<String> = auth_methods
+                .iter()
+                .map(|method| {
+                    if let Some(desc) = &method.description {
+                        format!("{} - {}", method.label, desc)
+                    } else {
+                        method.label.clone()
+                    }
+                })
+                .collect();
+
+            let selection = ForgeSelect::select("Authentication method:", options.clone())
+                .prompt()?
+                .ok_or_else(|| anyhow::anyhow!("No authentication method selected"))?;
+
+            let selected_idx = options
+                .iter()
+                .position(|opt| *opt == *selection)
+                .ok_or_else(|| anyhow::anyhow!("Invalid selection"))?;
+
+            &auth_methods[selected_idx]
+        } else {
+            &auth_methods[0]
+        };
+
+        // Handle based on selected authentication method
+        use forge_services::provider::AuthMethodType;
+
+        match selected_method.method_type {
+            AuthMethodType::ApiKey => {
+                // Step 3: Prompt for API key
+                let api_key =
+                    ForgeSelect::password(format!("Enter your {} API key:", provider_id_enum))
+                        .with_display_toggle_enabled()
+                        .prompt()?
+                        .ok_or_else(|| anyhow::anyhow!("API key input cancelled"))?;
+
+                if api_key.trim().is_empty() {
+                    anyhow::bail!("API key cannot be empty");
+                }
+
+                // Step 4: Add API key using new high-level method
+                println!();
+                self.spinner.start(Some(&format!(
+                    "Validating {} credentials...",
+                    provider_id_enum
+                )))?;
+
+                let outcome = self
+                    .api
+                    .add_provider_api_key(provider_id_enum.clone(), api_key, skip_validation)
+                    .await?;
+
+                self.spinner.stop(None)?;
+
+                // Handle validation outcome
+                if !outcome.success
+                    && let Some(msg) = &outcome.message
+                {
+                    println!("{} {}", "✗".red(), msg);
+                    anyhow::bail!("Failed to add credential");
+                }
+
+                if let Some(msg) = outcome.message {
+                    println!("{} {}", "ℹ".blue(), msg);
+                }
+
+                Self::display_credential_success(&provider_id_enum.to_string());
+            }
+            AuthMethodType::OAuthDevice | AuthMethodType::OAuthCode => {
+                // OAuth flows
+                return self.handle_provider_oauth_flow(provider_id_enum).await;
+            }
+            AuthMethodType::OAuthApiKey => {
+                anyhow::bail!("OAuthApiKey method not yet implemented");
+            }
         }
-
-        // Step 2: Prompt for API key
-        let api_key = ForgeSelect::password(format!("Enter your {} API key:", provider_id_enum))
-            .with_display_toggle_enabled()
-            .prompt()?
-            .ok_or_else(|| anyhow::anyhow!("API key input cancelled"))?;
-
-        if api_key.trim().is_empty() {
-            anyhow::bail!("API key cannot be empty");
-        }
-
-        // Step 3: Add API key using new high-level method
-        println!();
-        self.spinner.start(Some(&format!(
-            "Validating {} credentials...",
-            provider_id_enum
-        )))?;
-
-        let outcome = self
-            .api
-            .add_provider_api_key(provider_id_enum.clone(), api_key, skip_validation)
-            .await?;
-
-        self.spinner.stop(None)?;
-
-        // Handle validation outcome
-        if !outcome.success
-            && let Some(msg) = &outcome.message
-        {
-            println!("{} {}", "✗".red(), msg);
-            anyhow::bail!("Failed to add credential");
-        }
-
-        if let Some(msg) = outcome.message {
-            println!("{} {}", "ℹ".blue(), msg);
-        }
-
-        Self::display_credential_success(&provider_id_enum.to_string());
 
         Ok(())
     }
@@ -747,6 +788,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         .get("state")
                         .ok_or_else(|| anyhow::anyhow!("Missing state in context"))?
                         .clone(),
+                    code_verifier: context.completion_data.get("code_verifier").cloned(),
                 };
 
                 self.api

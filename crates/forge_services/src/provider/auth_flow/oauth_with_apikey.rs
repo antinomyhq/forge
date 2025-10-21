@@ -416,6 +416,7 @@ mod tests {
             use_pkce: false,
             token_refresh_url: None,
             custom_headers: None,
+            extra_auth_params: None,
         }
     }
 

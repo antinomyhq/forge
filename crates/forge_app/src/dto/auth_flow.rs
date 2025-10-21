@@ -197,6 +197,8 @@ pub enum AuthResult {
         code: String,
         /// State parameter for CSRF validation
         state: String,
+        /// PKCE code verifier (if PKCE was used)
+        code_verifier: Option<String>,
     },
 
     /// Custom provider registration completed.
