@@ -3,27 +3,8 @@
 /// This module defines the types and structures for declaring multiple
 /// authentication methods per provider (API Key, OAuth Device Flow, OAuth Code
 /// Flow).
+use forge_app::dto::AuthMethodType;
 use serde::{Deserialize, Serialize};
-
-/// Type of authentication method available for a provider
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum AuthMethodType {
-    /// Traditional API key authentication
-    ApiKey,
-
-    /// OAuth device authorization flow (GitHub Copilot pattern)
-    /// User visits URL, enters code, CLI polls for completion
-    OAuthDevice,
-
-    /// OAuth authorization code flow with manual paste (Anthropic pattern)
-    /// User visits URL, authorizes, manually pastes code back to CLI
-    OAuthCode,
-
-    /// OAuth flow that results in API key creation
-    /// Opens browser to provider's API key creation page
-    OAuthApiKey,
-}
 
 /// Authentication method configuration for a provider
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,7 +66,7 @@ impl AuthMethod {
     /// Creates a new OAuth API key method (browser-assisted)
     pub fn oauth_api_key(label: impl Into<String>, description: Option<String>) -> Self {
         Self {
-            method_type: AuthMethodType::OAuthApiKey,
+            method_type: AuthMethodType::OAuthWithApiKeyExchange,
             label: label.into(),
             description,
             oauth_config: None,

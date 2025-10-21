@@ -121,12 +121,20 @@ impl AuthFlowFactory {
                 )))
             }
 
-            AuthMethodType::OAuthApiKey => {
+            AuthMethodType::OAuthWithApiKeyExchange => {
                 // This is for browser-based OAuth flows where user manually creates API key
                 // Not yet implemented - will be added when needed
                 Err(anyhow::anyhow!(
                     "OAuth API key method not yet implemented for provider {:?}",
                     provider_id
+                ))
+            }
+
+            AuthMethodType::CustomProvider => {
+                // Custom provider registration is handled separately via
+                // create_custom_provider_flow
+                Err(anyhow::anyhow!(
+                    "Custom provider authentication should use create_custom_provider_flow instead"
                 ))
             }
         }

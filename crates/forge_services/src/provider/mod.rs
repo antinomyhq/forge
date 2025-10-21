@@ -20,6 +20,7 @@ pub mod validation;
 
 pub use auth_flow::*;
 pub use auth_method::*;
+pub use forge_app::dto::AuthMethodType;
 pub use github_copilot::*;
 pub use metadata::*;
 pub use oauth::*;
