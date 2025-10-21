@@ -7,9 +7,7 @@ use bytes::Bytes;
 use forge_app::dto::ProviderId;
 use forge_domain::{CommandOutput, Conversation, ConversationId, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
-use forge_services::provider::{
-    ProviderProcessingService
-};
+use forge_services::provider::ProviderProcessingService;
 use forge_services::{
     AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
     DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
