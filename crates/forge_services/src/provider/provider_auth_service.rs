@@ -152,10 +152,6 @@ where
     async fn list_custom_providers(&self) -> anyhow::Result<Vec<ProviderCredential>> {
         self.registry.list_custom_providers().await
     }
-
-    async fn delete_custom_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        self.registry.delete_custom_provider(&provider_id).await
-    }
 }
 
 // NOTE: Tests disabled due to complex mock infrastructure requirements.

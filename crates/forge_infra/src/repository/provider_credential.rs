@@ -96,22 +96,7 @@ impl TryFrom<ProviderCredentialRecord> for ProviderCredential {
     /// Converts database record to domain model
     fn try_from(record: ProviderCredentialRecord) -> anyhow::Result<Self> {
         // Parse provider ID - handle both old (plain string) and new (JSON) formats
-        let provider_id: ProviderId =
-            if record.provider_id.starts_with('"') || record.provider_id.starts_with('{') {
-                // New JSON format: "\"openai\"" or "{\"Custom\":\"name\"}"
-                serde_json::from_str(&record.provider_id).map_err(|e| {
-                    anyhow::anyhow!("Invalid provider ID JSON '{}': {}", record.provider_id, e)
-                })?
-            } else if let Some(custom_name) = record.provider_id.strip_prefix("custom_") {
-                // Old custom provider format: "custom_bedrock" -> Custom("bedrock")
-                ProviderId::Custom(custom_name.to_string())
-            } else {
-                // Old plain string format: "openai", "Xai", etc.
-                // Wrap in quotes and try deserializing
-                let quoted = format!("\"{}\"", record.provider_id);
-                serde_json::from_str(&quoted)
-                    .map_err(|_| anyhow::anyhow!("Invalid provider ID: {}", record.provider_id))?
-            };
+        let provider_id: ProviderId = serde_json::from_str(&format!("\"{}\"", &record.provider_id))?;
 
         // Parse auth type
         let auth_type: AuthType = record

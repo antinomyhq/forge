@@ -414,9 +414,6 @@ pub trait ProviderAuthService: Send + Sync {
 
     /// Lists all registered custom providers
     async fn list_custom_providers(&self) -> anyhow::Result<Vec<ProviderCredential>>;
-
-    /// Deletes a custom provider
-    async fn delete_custom_provider(&self, provider_id: ProviderId) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -880,12 +877,6 @@ impl<I: Services> ProviderAuthService for I {
 
     async fn list_custom_providers(&self) -> anyhow::Result<Vec<ProviderCredential>> {
         self.provider_auth_service().list_custom_providers().await
-    }
-
-    async fn delete_custom_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        self.provider_auth_service()
-            .delete_custom_provider(provider_id)
-            .await
     }
 }
 

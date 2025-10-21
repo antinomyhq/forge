@@ -452,42 +452,6 @@ impl<
             .collect())
     }
 
-    /// Deletes a custom provider credential
-    ///
-    /// # Arguments
-    /// * `provider_id` - The custom provider ID to delete
-    ///
-    /// # Returns
-    /// Ok if deleted successfully
-    ///
-    /// # Errors
-    /// * Returns error if provider_id is not a custom provider
-    /// * Returns error if database operation fails
-    pub async fn delete_custom_provider(
-        &self,
-        provider_id: &forge_app::dto::ProviderId,
-    ) -> anyhow::Result<()> {
-        if !provider_id.is_custom() {
-            return Err(anyhow::anyhow!(
-                "Cannot delete built-in provider: {}",
-                provider_id
-            ));
-        }
-
-        self.infra.delete_credential(provider_id).await?;
-
-        // If this was the active provider, clear it
-        let app_config = self.infra.get_app_config().await?;
-        if app_config.provider.as_ref() == Some(provider_id) {
-            self.update(|config| {
-                config.provider = None;
-            })
-            .await?;
-        }
-
-        Ok(())
-    }
-
     /// Stores a custom provider credential
     ///
     /// # Arguments

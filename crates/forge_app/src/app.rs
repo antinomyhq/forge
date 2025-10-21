@@ -336,15 +336,6 @@ impl<S: Services> ForgeApp<S> {
         self.authenticator.list_custom_providers().await
     }
 
-    /// Deletes a custom provider
-    ///
-    /// # Arguments
-    /// * `provider_id` - The custom provider to delete (must be
-    ///   ProviderId::Custom)
-    pub async fn delete_custom_provider(&self, provider_id: crate::dto::ProviderId) -> Result<()> {
-        self.authenticator.delete_custom_provider(provider_id).await
-    }
-
     // ========== Workflow Management ==========
 
     pub async fn read_workflow(&self, path: Option<&Path>) -> Result<Workflow> {

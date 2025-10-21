@@ -1,5 +1,7 @@
+
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
+use strum_macros::Display;
 use url::Url;
 
 use super::AuthType;
@@ -7,59 +9,26 @@ use super::AuthType;
 /// --- IMPORTANT ---
 /// The order of providers is important because that would be order in which the
 /// providers will be resolved
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
+#[derive(Debug,Display, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum ProviderId {
-    #[serde(alias = "Forge")]
     Forge,
-    #[serde(rename = "github_copilot", alias = "GithubCopilot")]
     GithubCopilot,
-    #[serde(rename = "openai", alias = "OpenAI")]
+    #[serde(rename = "openai")]
+    #[strum(serialize = "openai")]
     OpenAI,
-    #[serde(alias = "OpenRouter")]
     OpenRouter,
-    #[serde(alias = "Requesty")]
     Requesty,
-    #[serde(alias = "Zai")]
     Zai,
-    #[serde(rename = "zai_coding", alias = "ZaiCoding")]
     ZaiCoding,
-    #[serde(alias = "Cerebras")]
     Cerebras,
-    #[serde(alias = "Xai")]
     Xai,
-    #[serde(alias = "Anthropic")]
     Anthropic,
-    #[serde(rename = "vertex_ai", alias = "VertexAi")]
     VertexAi,
-    #[serde(rename = "big_model", alias = "BigModel")]
     BigModel,
-    #[serde(alias = "Azure")]
     Azure,
-    /// Custom user-defined provider
-    #[serde(rename = "custom", alias = "Custom")]
     Custom(String),
-}
-
-impl std::fmt::Display for ProviderId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ProviderId::Forge => write!(f, "forge"),
-            ProviderId::GithubCopilot => write!(f, "github_copilot"),
-            ProviderId::OpenAI => write!(f, "openai"),
-            ProviderId::OpenRouter => write!(f, "open_router"),
-            ProviderId::Requesty => write!(f, "requesty"),
-            ProviderId::Zai => write!(f, "zai"),
-            ProviderId::ZaiCoding => write!(f, "zai_coding"),
-            ProviderId::Cerebras => write!(f, "cerebras"),
-            ProviderId::Xai => write!(f, "xai"),
-            ProviderId::Anthropic => write!(f, "anthropic"),
-            ProviderId::VertexAi => write!(f, "vertex_ai"),
-            ProviderId::BigModel => write!(f, "big_model"),
-            ProviderId::Azure => write!(f, "azure"),
-            ProviderId::Custom(name) => write!(f, "custom_{}", name),
-        }
-    }
 }
 
 impl ProviderId {
@@ -93,27 +62,6 @@ impl ProviderId {
             ProviderId::BigModel,
             ProviderId::Azure,
         ]
-    }
-
-    /// Returns human-readable display name (PascalCase)
-    /// Used for UI display, not serialization
-    pub fn display_name(&self) -> String {
-        match self {
-            ProviderId::Forge => "Forge".to_string(),
-            ProviderId::GithubCopilot => "GitHub Copilot".to_string(),
-            ProviderId::OpenAI => "OpenAI".to_string(),
-            ProviderId::OpenRouter => "OpenRouter".to_string(),
-            ProviderId::Requesty => "Requesty".to_string(),
-            ProviderId::Zai => "Zai".to_string(),
-            ProviderId::ZaiCoding => "ZaiCoding".to_string(),
-            ProviderId::Cerebras => "Cerebras".to_string(),
-            ProviderId::Xai => "Xai".to_string(),
-            ProviderId::Anthropic => "Anthropic".to_string(),
-            ProviderId::VertexAi => "Vertex AI".to_string(),
-            ProviderId::BigModel => "BigModel".to_string(),
-            ProviderId::Azure => "Azure".to_string(),
-            ProviderId::Custom(name) => name.clone(),
-        }
     }
 }
 

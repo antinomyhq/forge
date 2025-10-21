@@ -225,17 +225,6 @@ impl<S: AuthService, P: ProviderAuthService> Authenticator<S, P> {
     ) -> anyhow::Result<Vec<crate::dto::ProviderCredential>> {
         self.provider_auth_service.list_custom_providers().await
     }
-
-    /// Deletes a custom provider
-    ///
-    /// # Arguments
-    /// * `provider_id` - The custom provider to delete (must be
-    ///   ProviderId::Custom)
-    pub async fn delete_custom_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        self.provider_auth_service
-            .delete_custom_provider(provider_id)
-            .await
-    }
 }
 
 #[cfg(test)]
