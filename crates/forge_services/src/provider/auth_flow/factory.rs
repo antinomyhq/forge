@@ -5,7 +5,7 @@
 /// authentication method configuration.
 use std::sync::Arc;
 
-use forge_app::dto::{CompatibilityMode, ProviderId, UrlParameter};
+use forge_app::dto::{ProviderId, ProviderResponse, UrlParameter};
 
 use super::{
     ApiKeyAuthFlow, AuthenticationFlow, CloudServiceAuthFlow, CustomProviderAuthFlow,
@@ -135,7 +135,7 @@ impl AuthFlowFactory {
     /// # Returns
     /// A boxed custom provider authentication flow
     pub fn create_custom_provider_flow(
-        compatibility_mode: CompatibilityMode,
+        compatibility_mode: ProviderResponse,
     ) -> Box<dyn AuthenticationFlow> {
         Box::new(CustomProviderAuthFlow::new(compatibility_mode))
     }
@@ -326,7 +326,7 @@ mod tests {
 
     #[test]
     fn test_create_custom_provider_flow() {
-        let flow = AuthFlowFactory::create_custom_provider_flow(CompatibilityMode::OpenAI);
+        let flow = AuthFlowFactory::create_custom_provider_flow(ProviderResponse::OpenAI);
 
         assert_eq!(
             flow.auth_method_type(),

@@ -403,7 +403,7 @@ pub trait ProviderAuthService: Send + Sync {
     /// Initiates custom provider registration
     async fn init_custom_provider(
         &self,
-        compatibility_mode: crate::dto::CompatibilityMode,
+        compatibility_mode: crate::dto::ProviderResponse,
     ) -> anyhow::Result<crate::dto::AuthInitiation>;
 
     /// Registers a custom provider
@@ -859,7 +859,7 @@ impl<I: Services> ProviderAuthService for I {
 
     async fn init_custom_provider(
         &self,
-        compatibility_mode: crate::dto::CompatibilityMode,
+        compatibility_mode: crate::dto::ProviderResponse,
     ) -> anyhow::Result<crate::dto::AuthInitiation> {
         self.provider_auth_service()
             .init_custom_provider(compatibility_mode)

@@ -359,7 +359,7 @@ impl<
         provider_id: &ProviderId,
         credential: &forge_app::dto::ProviderCredential,
     ) -> anyhow::Result<Provider> {
-        use forge_app::dto::CompatibilityMode;
+        use forge_app::dto::ProviderResponse;
 
         // Validate custom provider has required fields
         let base_url = credential.custom_base_url.as_ref().ok_or_else(|| {
@@ -370,28 +370,23 @@ impl<
             anyhow::anyhow!("Missing model_id for custom provider {:?}", provider_id)
         })?;
 
-        let compatibility_mode = credential.compatibility_mode.as_ref().ok_or_else(|| {
+        let response_type = credential.compatibility_mode.as_ref().ok_or_else(|| {
             anyhow::anyhow!(
                 "Missing compatibility_mode for custom provider {:?}",
                 provider_id
             )
         })?;
 
-        // Determine response type based on compatibility mode
-        let response_type = match compatibility_mode {
-            CompatibilityMode::OpenAI => ProviderResponse::OpenAI,
-            CompatibilityMode::Anthropic => ProviderResponse::Anthropic,
-        };
 
         // Build chat completions and models URLs based on compatibility mode
-        let (chat_url, models_url) = match compatibility_mode {
-            CompatibilityMode::OpenAI => {
+        let (chat_url, models_url) = match response_type {
+            ProviderResponse::OpenAI => {
                 // OpenAI-compatible: /v1/chat/completions and /v1/models
                 let chat = format!("{}/chat/completions", base_url.trim_end_matches('/'));
                 let models = format!("{}/models", base_url.trim_end_matches('/'));
                 (chat, models)
             }
-            CompatibilityMode::Anthropic => {
+            ProviderResponse::Anthropic => {
                 // Anthropic-compatible: /v1/messages and /v1/models
                 let chat = format!("{}/messages", base_url.trim_end_matches('/'));
                 let models = format!("{}/models", base_url.trim_end_matches('/'));
@@ -404,7 +399,7 @@ impl<
 
         Ok(Provider {
             id: provider_id.clone(),
-            response: response_type,
+            response: response_type.clone(),
             url: Url::parse(&chat_url).map_err(|e| {
                 anyhow::anyhow!("Invalid custom provider URL '{}': {}", chat_url, e)
             })?,
@@ -980,7 +975,7 @@ mod env_tests {
 
     #[tokio::test]
     async fn test_create_custom_provider_openai_compatible() {
-        use forge_app::dto::{CompatibilityMode, ProviderCredential};
+        use forge_app::dto::{ProviderCredential, ProviderResponse};
 
         let infra = Arc::new(MockInfra { env_vars: HashMap::new() });
         let registry = ForgeProviderRegistry::new(infra);
@@ -988,7 +983,7 @@ mod env_tests {
         let credential = ProviderCredential::new_custom_provider(
             ProviderId::Custom("LocalAI".to_string()),
             Some("test-api-key".to_string()),
-            CompatibilityMode::OpenAI,
+            ProviderResponse::OpenAI,
             "http://localhost:8080/v1".to_string(),
             "gpt-4-local".to_string(),
         );
@@ -1012,7 +1007,7 @@ mod env_tests {
 
     #[tokio::test]
     async fn test_create_custom_provider_anthropic_compatible() {
-        use forge_app::dto::{CompatibilityMode, ProviderCredential};
+        use forge_app::dto::{ProviderCredential, ProviderResponse};
 
         let infra = Arc::new(MockInfra { env_vars: HashMap::new() });
         let registry = ForgeProviderRegistry::new(infra);
@@ -1020,7 +1015,7 @@ mod env_tests {
         let credential = ProviderCredential::new_custom_provider(
             ProviderId::Custom("Corporate Claude".to_string()),
             Some("corp-key".to_string()),
-            CompatibilityMode::Anthropic,
+            ProviderResponse::Anthropic,
             "https://llm.corp.example.com/api".to_string(),
             "claude-3-opus-internal".to_string(),
         );
@@ -1047,7 +1042,7 @@ mod env_tests {
 
     #[tokio::test]
     async fn test_create_custom_provider_without_api_key() {
-        use forge_app::dto::{CompatibilityMode, ProviderCredential};
+        use forge_app::dto::{ProviderCredential, ProviderResponse};
 
         let infra = Arc::new(MockInfra { env_vars: HashMap::new() });
         let registry = ForgeProviderRegistry::new(infra);
@@ -1055,7 +1050,7 @@ mod env_tests {
         let credential = ProviderCredential::new_custom_provider(
             ProviderId::Custom("Local Server".to_string()),
             None, // No API key for local server
-            CompatibilityMode::OpenAI,
+            ProviderResponse::OpenAI,
             "http://localhost:11434/v1".to_string(),
             "llama3".to_string(),
         );
@@ -1071,7 +1066,7 @@ mod env_tests {
 
     #[tokio::test]
     async fn test_create_custom_provider_with_trailing_slash() {
-        use forge_app::dto::{CompatibilityMode, ProviderCredential};
+        use forge_app::dto::{ProviderCredential, ProviderResponse};
 
         let infra = Arc::new(MockInfra { env_vars: HashMap::new() });
         let registry = ForgeProviderRegistry::new(infra);
@@ -1079,7 +1074,7 @@ mod env_tests {
         let credential = ProviderCredential::new_custom_provider(
             ProviderId::Custom("Test".to_string()),
             None,
-            CompatibilityMode::OpenAI,
+            ProviderResponse::OpenAI,
             "http://localhost:8080/v1/".to_string(), // Trailing slash
             "model".to_string(),
         );

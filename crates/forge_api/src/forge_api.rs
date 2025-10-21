@@ -332,7 +332,7 @@ impl<
 
     async fn init_custom_provider(
         &self,
-        compatibility_mode: forge_app::dto::CompatibilityMode,
+        compatibility_mode: forge_app::dto::ProviderResponse,
     ) -> Result<forge_app::dto::AuthInitiation> {
         let forge_app = ForgeApp::new(self.services.clone());
         Ok(forge_app.init_custom_provider(compatibility_mode).await?)

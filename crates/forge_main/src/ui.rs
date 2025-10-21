@@ -581,14 +581,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 SelectionType::OpenAICompatible => {
                     return self
                         .handle_custom_provider_registration(
-                            forge_app::dto::CompatibilityMode::OpenAI,
+                            forge_app::dto::ProviderResponse::OpenAI,
                         )
                         .await;
                 }
                 SelectionType::AnthropicCompatible => {
                     return self
                         .handle_custom_provider_registration(
-                            forge_app::dto::CompatibilityMode::Anthropic,
+                            forge_app::dto::ProviderResponse::Anthropic,
                         )
                         .await;
                 }
@@ -858,7 +858,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Handles custom provider registration during auth login flow
     async fn handle_custom_provider_registration(
         &mut self,
-        compatibility_mode: forge_app::dto::CompatibilityMode,
+        compatibility_mode: forge_app::dto::ProviderResponse,
     ) -> anyhow::Result<()> {
         use colored::Colorize;
         use forge_app::dto::{AuthInitiation, AuthResult};

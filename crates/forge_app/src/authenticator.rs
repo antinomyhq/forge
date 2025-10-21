@@ -5,9 +5,7 @@ use std::time::Duration;
 use backon::{ExponentialBuilder, Retryable};
 use forge_domain::RetryConfig;
 
-use crate::dto::{
-    AuthContext, AuthInitiation, AuthResult, CompatibilityMode, InitAuth, ProviderId,
-};
+use crate::dto::{AuthContext, AuthInitiation, AuthResult, InitAuth, ProviderId, ProviderResponse};
 use crate::{AuthService, Error, ProviderAuthService};
 
 /// Authenticator handles both Forge platform authentication and provider
@@ -199,7 +197,7 @@ impl<S: AuthService, P: ProviderAuthService> Authenticator<S, P> {
     /// * `compatibility_mode` - OpenAI or Anthropic API compatibility
     pub async fn init_custom_provider_auth(
         &self,
-        compatibility_mode: CompatibilityMode,
+        compatibility_mode: ProviderResponse,
     ) -> anyhow::Result<AuthInitiation> {
         self.provider_auth_service
             .init_custom_provider(compatibility_mode)

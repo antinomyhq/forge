@@ -26,8 +26,8 @@
 use std::time::Duration;
 
 use forge_app::dto::{
-    AuthContext, AuthInitiation, AuthMethodType, AuthResult, CompatibilityMode, ProviderCredential,
-    ProviderId, UrlParameter,
+    AuthContext, AuthInitiation, AuthMethodType, AuthResult, ProviderCredential, ProviderId,
+    ProviderResponse, UrlParameter,
 };
 use url::Url;
 
@@ -37,23 +37,23 @@ use crate::provider::auth_flow::error::AuthFlowError;
 /// Custom provider authentication flow
 pub struct CustomProviderAuthFlow {
     /// Compatibility mode for this custom provider (OpenAI or Anthropic)
-    compatibility_mode: CompatibilityMode,
+    compatibility_mode: ProviderResponse,
 }
 
 impl CustomProviderAuthFlow {
     /// Creates a new custom provider auth flow
-    pub fn new(compatibility_mode: CompatibilityMode) -> Self {
+    pub fn new(compatibility_mode: ProviderResponse) -> Self {
         Self { compatibility_mode }
     }
 
     /// Creates an OpenAI-compatible custom provider flow
     pub fn openai_compatible() -> Self {
-        Self::new(CompatibilityMode::OpenAI)
+        Self::new(ProviderResponse::OpenAI)
     }
 
     /// Creates an Anthropic-compatible custom provider flow
     pub fn anthropic_compatible() -> Self {
-        Self::new(CompatibilityMode::Anthropic)
+        Self::new(ProviderResponse::Anthropic)
     }
 
     /// Gets the required parameters for custom provider registration
@@ -228,7 +228,7 @@ mod tests {
 
         match result {
             AuthInitiation::CustomProviderPrompt { compatibility_mode, required_params } => {
-                assert_eq!(compatibility_mode, CompatibilityMode::OpenAI);
+                assert_eq!(compatibility_mode, ProviderResponse::OpenAI);
                 assert_eq!(required_params.len(), 4);
                 assert_eq!(required_params[0].key, "provider_name");
                 assert_eq!(required_params[1].key, "base_url");
@@ -247,7 +247,7 @@ mod tests {
 
         match result {
             AuthInitiation::CustomProviderPrompt { compatibility_mode, .. } => {
-                assert_eq!(compatibility_mode, CompatibilityMode::Anthropic);
+                assert_eq!(compatibility_mode, ProviderResponse::Anthropic);
             }
             _ => panic!("Expected CustomProviderPrompt"),
         }
@@ -274,7 +274,7 @@ mod tests {
             base_url: "http://localhost:8080/v1".to_string(),
             model_id: "gpt-4-local".to_string(),
             api_key: Some("test-key".to_string()),
-            compatibility_mode: CompatibilityMode::OpenAI,
+            compatibility_mode: ProviderResponse::OpenAI,
         };
 
         let credential = flow.complete(auth_result).await.unwrap();
@@ -289,7 +289,7 @@ mod tests {
         assert_eq!(credential.api_key, Some("test-key".to_string()));
         assert_eq!(
             credential.compatibility_mode,
-            Some(CompatibilityMode::OpenAI)
+            Some(ProviderResponse::OpenAI)
         );
         assert_eq!(
             credential.custom_base_url,
@@ -308,7 +308,7 @@ mod tests {
             base_url: "http://localhost:11434/v1".to_string(),
             model_id: "llama3".to_string(),
             api_key: None, // No API key for local server
-            compatibility_mode: CompatibilityMode::OpenAI,
+            compatibility_mode: ProviderResponse::OpenAI,
         };
 
         let credential = flow.complete(auth_result).await.unwrap();
@@ -335,7 +335,7 @@ mod tests {
             base_url: "not-a-valid-url".to_string(),
             model_id: "model".to_string(),
             api_key: None,
-            compatibility_mode: CompatibilityMode::OpenAI,
+            compatibility_mode: ProviderResponse::OpenAI,
         };
 
         let result = flow.complete(auth_result).await;
@@ -354,7 +354,7 @@ mod tests {
             base_url: "http://localhost:8080/v1".to_string(),
             model_id: "model".to_string(),
             api_key: None,
-            compatibility_mode: CompatibilityMode::OpenAI,
+            compatibility_mode: ProviderResponse::OpenAI,
         };
 
         let result = flow.complete(auth_result).await;
@@ -373,7 +373,7 @@ mod tests {
             base_url: "http://localhost:8080/v1".to_string(),
             model_id: "".to_string(), // Empty
             api_key: None,
-            compatibility_mode: CompatibilityMode::OpenAI,
+            compatibility_mode: ProviderResponse::OpenAI,
         };
 
         let result = flow.complete(auth_result).await;
@@ -392,7 +392,7 @@ mod tests {
             base_url: "http://localhost:8080/v1".to_string(),
             model_id: "model".to_string(),
             api_key: None,
-            compatibility_mode: CompatibilityMode::Anthropic, // But got Anthropic
+            compatibility_mode: ProviderResponse::Anthropic, // But got Anthropic
         };
 
         let result = flow.complete(auth_result).await;
@@ -447,7 +447,7 @@ mod tests {
             base_url: "https://llm.corp.example.com/api".to_string(),
             model_id: "claude-3-opus-internal".to_string(),
             api_key: Some("corp-api-key-12345".to_string()),
-            compatibility_mode: CompatibilityMode::Anthropic,
+            compatibility_mode: ProviderResponse::Anthropic,
         };
 
         let credential = flow.complete(auth_result).await.unwrap();
@@ -455,7 +455,7 @@ mod tests {
         // Verify Anthropic compatibility mode is stored in dedicated field
         assert_eq!(
             credential.compatibility_mode,
-            Some(CompatibilityMode::Anthropic)
+            Some(ProviderResponse::Anthropic)
         );
         assert_eq!(
             credential.custom_base_url,

@@ -12,6 +12,8 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use super::ProviderResponse;
+
 /// Authentication method type.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -83,29 +85,10 @@ pub enum AuthInitiation {
     /// key.
     CustomProviderPrompt {
         /// Compatibility mode for this custom provider
-        compatibility_mode: CompatibilityMode,
+        compatibility_mode: ProviderResponse,
         /// Required parameters for custom provider setup
         required_params: Vec<UrlParameter>,
     },
-}
-
-/// Compatibility mode for custom providers.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum CompatibilityMode {
-    /// OpenAI-compatible API (chat completions, embeddings, etc.)
-    OpenAI,
-    /// Anthropic-compatible API (messages, streaming, etc.)
-    Anthropic,
-}
-
-impl std::fmt::Display for CompatibilityMode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CompatibilityMode::OpenAI => write!(f, "openai"),
-            CompatibilityMode::Anthropic => write!(f, "anthropic"),
-        }
-    }
 }
 
 /// Context data needed for polling/completion.
@@ -210,7 +193,7 @@ pub enum AuthResult {
         /// Optional API key (not required for local servers)
         api_key: Option<String>,
         /// Compatibility mode (OpenAI or Anthropic)
-        compatibility_mode: CompatibilityMode,
+        compatibility_mode: ProviderResponse,
     },
 }
 
@@ -376,14 +359,5 @@ mod tests {
 
         let json = serde_json::to_string(&AuthMethodType::OAuthDevice).unwrap();
         assert_eq!(json, r#""o_auth_device""#);
-    }
-
-    #[test]
-    fn test_compatibility_mode_serialization() {
-        let json = serde_json::to_string(&CompatibilityMode::OpenAI).unwrap();
-        assert_eq!(json, r#""open_a_i""#);
-
-        let json = serde_json::to_string(&CompatibilityMode::Anthropic).unwrap();
-        assert_eq!(json, r#""anthropic""#);
     }
 }

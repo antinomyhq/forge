@@ -310,7 +310,7 @@ impl<S: Services> ForgeApp<S> {
     /// * `compatibility_mode` - OpenAI or Anthropic API compatibility
     pub async fn init_custom_provider(
         &self,
-        compatibility_mode: crate::dto::CompatibilityMode,
+        compatibility_mode: crate::dto::ProviderResponse,
     ) -> Result<crate::dto::AuthInitiation> {
         self.authenticator
             .init_custom_provider_auth(compatibility_mode)

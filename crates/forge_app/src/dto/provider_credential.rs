@@ -6,8 +6,7 @@ use chrono::{DateTime, Utc};
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
-use super::ProviderId;
-use super::auth_flow::CompatibilityMode;
+use super::{ProviderId, ProviderResponse};
 
 /// Type of authentication used for a provider
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -107,7 +106,7 @@ pub struct ProviderCredential {
     /// Custom provider compatibility mode (OpenAI or Anthropic)
     /// Only set for custom user-defined providers
     #[serde(default)]
-    pub compatibility_mode: Option<CompatibilityMode>,
+    pub compatibility_mode: Option<ProviderResponse>,
 
     /// Custom provider base URL
     /// Only set for custom user-defined providers
@@ -205,7 +204,7 @@ impl ProviderCredential {
     pub fn new_custom_provider(
         provider_id: ProviderId,
         api_key: Option<String>,
-        compatibility_mode: CompatibilityMode,
+        compatibility_mode: ProviderResponse,
         base_url: String,
         model_id: String,
     ) -> Self {
@@ -474,7 +473,7 @@ mod tests {
         let cred = ProviderCredential::new_custom_provider(
             ProviderId::Custom("LocalAI".to_string()),
             Some("test-key".to_string()),
-            CompatibilityMode::OpenAI,
+            ProviderResponse::OpenAI,
             "http://localhost:8080/v1".to_string(),
             "gpt-4-local".to_string(),
         );
@@ -482,7 +481,7 @@ mod tests {
         assert_eq!(cred.provider_id, ProviderId::Custom("LocalAI".to_string()));
         assert_eq!(cred.auth_type, AuthType::ApiKey);
         assert_eq!(cred.api_key, Some("test-key".to_string()));
-        assert_eq!(cred.compatibility_mode, Some(CompatibilityMode::OpenAI));
+        assert_eq!(cred.compatibility_mode, Some(ProviderResponse::OpenAI));
         assert_eq!(
             cred.custom_base_url,
             Some("http://localhost:8080/v1".to_string())
@@ -496,7 +495,7 @@ mod tests {
         let cred = ProviderCredential::new_custom_provider(
             ProviderId::Custom("Ollama".to_string()),
             None,
-            CompatibilityMode::OpenAI,
+            ProviderResponse::OpenAI,
             "http://localhost:11434/v1".to_string(),
             "llama3".to_string(),
         );
@@ -511,12 +510,12 @@ mod tests {
         let cred = ProviderCredential::new_custom_provider(
             ProviderId::Custom("Corp Claude".to_string()),
             Some("corp-key".to_string()),
-            CompatibilityMode::Anthropic,
+            ProviderResponse::Anthropic,
             "https://llm.corp.com/api".to_string(),
             "claude-3-opus".to_string(),
         );
 
-        assert_eq!(cred.compatibility_mode, Some(CompatibilityMode::Anthropic));
+        assert_eq!(cred.compatibility_mode, Some(ProviderResponse::Anthropic));
         assert_eq!(
             cred.custom_base_url,
             Some("https://llm.corp.com/api".to_string())
@@ -528,7 +527,7 @@ mod tests {
         let custom_cred = ProviderCredential::new_custom_provider(
             ProviderId::Custom("Test".to_string()),
             None,
-            CompatibilityMode::OpenAI,
+            ProviderResponse::OpenAI,
             "http://localhost".to_string(),
             "test-model".to_string(),
         );

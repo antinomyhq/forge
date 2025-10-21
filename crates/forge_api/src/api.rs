@@ -198,7 +198,7 @@ pub trait API: Sync + Send {
     ///   compatible
     async fn init_custom_provider(
         &self,
-        compatibility_mode: forge_app::dto::CompatibilityMode,
+        compatibility_mode: forge_app::dto::ProviderResponse,
     ) -> Result<forge_app::dto::AuthInitiation>;
 
     /// Registers a custom provider

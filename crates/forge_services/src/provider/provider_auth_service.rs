@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use forge_app::ProviderAuthService;
 use forge_app::dto::{
-    AuthContext, AuthInitiation, AuthResult, CompatibilityMode, ProviderCredential, ProviderId,
+    AuthContext, AuthInitiation, AuthResult, ProviderCredential, ProviderId, ProviderResponse,
 };
 
 use super::auth_flow::{AuthFlowFactory, AuthFlowInfra};
@@ -110,7 +110,7 @@ where
 
     async fn init_custom_provider(
         &self,
-        compatibility_mode: CompatibilityMode,
+        compatibility_mode: ProviderResponse,
     ) -> anyhow::Result<AuthInitiation> {
         // Create custom provider flow using factory
         let flow = AuthFlowFactory::create_custom_provider_flow(compatibility_mode);
@@ -324,7 +324,7 @@ mod tests_disabled {
         let service = create_test_service();
 
         let result = service
-            .init_custom_provider(CompatibilityMode::OpenAI)
+            .init_custom_provider(ProviderResponse::OpenAI)
             .await;
 
         assert!(result.is_ok());
@@ -350,7 +350,7 @@ mod tests_disabled {
         let service = create_test_service();
 
         let result = service
-            .init_custom_provider(CompatibilityMode::Anthropic)
+            .init_custom_provider(ProviderResponse::Anthropic)
             .await;
 
         assert!(result.is_ok());
@@ -358,7 +358,7 @@ mod tests_disabled {
 
         match initiation {
             AuthInitiation::CustomProviderPrompt { compatibility_mode, .. } => {
-                assert_eq!(compatibility_mode, CompatibilityMode::Anthropic);
+                assert_eq!(compatibility_mode, ProviderResponse::Anthropic);
             }
             _ => panic!("Expected CustomProviderPrompt"),
         }

@@ -3,7 +3,7 @@
     "id": "forge",
     "api_key_vars": "FORGE_API_KEY",
     "url_param_vars": [],
-    "response_type": "OpenAI",
+    "response_type": "openai",
     "url": "https://antinomy.ai/api/v1/chat/completions",
     "model_url": "https://antinomy.ai/api/v1/models"
   },
@@ -11,7 +11,7 @@
     "id": "github_copilot",
     "api_key_vars": "GITHUB_COPILOT_API_KEY",
     "url_param_vars": [],
-    "response_type": "OpenAI",
+    "response_type": "openai",
     "url": "https://api.githubcopilot.com/chat/completions",
     "model_url": "https://api.githubcopilot.com/models"
   },
@@ -19,7 +19,7 @@
     "id": "open_router",
     "api_key_vars": "OPENROUTER_API_KEY",
     "url_param_vars": [],
-    "response_type": "OpenAI",
+    "response_type": "openai",
     "url": "https://openrouter.ai/api/v1/chat/completions",
     "model_url": "https://openrouter.ai/api/v1/models"
   },
@@ -27,7 +27,7 @@
     "id": "requesty",
     "api_key_vars": "REQUESTY_API_KEY",
     "url_param_vars": [],
-    "response_type": "OpenAI",
+    "response_type": "openai",
     "url": "https://router.requesty.ai/v1/chat/completions",
     "model_url": "https://router.requesty.ai/v1/models"
   },
@@ -35,7 +35,7 @@
     "id": "xai",
     "api_key_vars": "XAI_API_KEY",
     "url_param_vars": [],
-    "response_type": "OpenAI",
+    "response_type": "openai",
     "url": "https://api.x.ai/v1/chat/completions",
     "model_url": "https://api.x.ai/v1/models"
   },
@@ -43,7 +43,7 @@
     "id": "openai",
     "api_key_vars": "OPENAI_API_KEY",
     "url_param_vars": ["OPENAI_URL"],
-    "response_type": "OpenAI",
+    "response_type": "openai",
     "url": "{{#if OPENAI_URL}}{{OPENAI_URL}}{{else}}https://api.openai.com/v1{{/if}}/chat/completions",
     "model_url": "{{#if OPENAI_URL}}{{OPENAI_URL}}{{else}}https://api.openai.com/v1{{/if}}/models"
   },
@@ -51,7 +51,7 @@
     "id": "anthropic",
     "api_key_vars": "ANTHROPIC_API_KEY",
     "url_param_vars": ["ANTHROPIC_URL"],
-    "response_type": "Anthropic",
+    "response_type": "anthropic",
     "url": "{{ANTHROPIC_URL}}/messages",
     "model_url": "{{ANTHROPIC_URL}}/models"
   },
@@ -59,7 +59,7 @@
     "id": "cerebras",
     "api_key_vars": "CEREBRAS_API_KEY",
     "url_param_vars": [],
-    "response_type": "OpenAI",
+    "response_type": "openai",
     "url": "https://api.cerebras.ai/v1/chat/completions",
     "model_url": "https://api.cerebras.ai/v1/models"
   },
@@ -67,7 +67,7 @@
     "id": "zai",
     "api_key_vars": "ZAI_API_KEY",
     "url_param_vars": [],
-    "response_type": "OpenAI",
+    "response_type": "openai",
     "url": "https://api.z.ai/api/paas/v4/chat/completions",
     "model_url": "https://api.z.ai/api/paas/v4/models"
   },
@@ -75,7 +75,7 @@
     "id": "zai_coding",
     "api_key_vars": "ZAI_CODING_API_KEY",
     "url_param_vars": [],
-    "response_type": "OpenAI",
+    "response_type": "openai",
     "url": "https://api.z.ai/api/coding/paas/v4/chat/completions",
     "model_url": "https://api.z.ai/api/paas/v4/models"
   },
@@ -83,7 +83,7 @@
     "id": "big_model",
     "api_key_vars": "BIG_MODEL_API_KEY",
     "url_param_vars": [],
-    "response_type": "OpenAI",
+    "response_type": "openai",
     "url": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
     "model_url": "https://open.bigmodel.cn/api/paas/v4/models"
   },
@@ -91,7 +91,7 @@
     "id": "vertex_ai",
     "api_key_vars": "VERTEX_AI_AUTH_TOKEN",
     "url_param_vars": ["PROJECT_ID", "LOCATION"],
-    "response_type": "OpenAI",
+    "response_type": "openai",
     "url": "{{#if (eq LOCATION \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/chat/completions{{else}}https://{{LOCATION}}-aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/chat/completions{{/if}}",
     "model_url": "{{#if (eq LOCATION \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/models{{else}}https://{{LOCATION}}-aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/models{{/if}}"
   },
@@ -103,7 +103,7 @@
       "AZURE_DEPLOYMENT_NAME",
       "AZURE_API_VERSION"
     ],
-    "response_type": "OpenAI",
+    "response_type": "openai",
     "url": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/deployments/{{AZURE_DEPLOYMENT_NAME}}/chat/completions?api-version={{AZURE_API_VERSION}}",
     "model_url": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/models?api-version={{AZURE_API_VERSION}}"
   }

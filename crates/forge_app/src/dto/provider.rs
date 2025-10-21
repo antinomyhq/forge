@@ -64,8 +64,12 @@ impl ProviderId {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Display, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum ProviderResponse {
+    #[serde(rename = "openai")]
+    #[strum(serialize = "openai")]
     OpenAI,
     Anthropic,
 }
