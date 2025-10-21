@@ -377,7 +377,6 @@ impl<
             )
         })?;
 
-
         // Build chat completions and models URLs based on compatibility mode
         let (chat_url, models_url) = match response_type {
             ProviderResponse::OpenAI => {
