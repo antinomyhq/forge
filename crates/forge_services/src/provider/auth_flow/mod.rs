@@ -8,14 +8,12 @@
 /// - OAuth Authorization Code Flow (Web-based providers)
 /// - Cloud Service Account with Parameters (Google Vertex AI, Azure with
 ///   project/resource parameters)
-/// - Custom Provider Registration (User-defined OpenAI-compatible and
-///   Anthropic-compatible providers)
 use std::sync::Arc;
 use std::time::Duration;
 
 use forge_app::dto::{
     AuthContext, AuthInitiation, AuthMethod, AuthMethodType, AuthResult, ProviderCredential,
-    ProviderId, ProviderResponse, UrlParameter,
+    ProviderId, UrlParameter,
 };
 
 use crate::provider::{
@@ -34,9 +32,6 @@ pub use oauth_code::OAuthCodeFlow;
 
 mod cloud_service;
 pub use cloud_service::CloudServiceAuthFlow;
-
-mod custom_provider;
-pub use custom_provider::CustomProviderAuthFlow;
 pub use oauth_device::OAuthDeviceFlow;
 pub use oauth_with_apikey::OAuthWithApiKeyFlow;
 
@@ -68,8 +63,6 @@ pub enum AuthFlow {
     OAuthCode(OAuthCodeFlow),
     /// OAuth with API key exchange (GitHub Copilot)
     OAuthWithApiKey(OAuthWithApiKeyFlow),
-    /// Custom provider authentication
-    CustomProvider(CustomProviderAuthFlow),
 }
 
 impl AuthFlow {
@@ -148,18 +141,6 @@ impl AuthFlow {
         }
     }
 
-    /// Creates a custom provider authentication flow
-    ///
-    /// Custom providers use a separate flow that prompts for provider-specific
-    /// configuration (base URL, model ID, compatibility mode).
-    ///
-    /// # Arguments
-    /// * `compatibility_mode` - Whether the provider is OpenAI or Anthropic
-    ///   compatible
-    pub fn new_custom_provider(compatibility_mode: ProviderResponse) -> Self {
-        Self::CustomProvider(CustomProviderAuthFlow::new(compatibility_mode))
-    }
-
     /// Gets required URL parameters for cloud providers
     ///
     /// Returns parameter definitions for providers that require additional
@@ -169,8 +150,20 @@ impl AuthFlow {
         match provider_id {
             ProviderId::VertexAi => Self::vertex_ai_params(),
             ProviderId::Azure => Self::azure_params(),
+            ProviderId::OpenAICompatible | ProviderId::AnthropicCompatible => {
+                Self::compatible_provider_params()
+            }
             _ => vec![],
         }
+    }
+
+    /// Returns OpenAI/Anthropic compatible provider required parameters
+    fn compatible_provider_params() -> Vec<UrlParameter> {
+        vec![
+            UrlParameter::required("BASE_URL", "Base URL")
+                .description("API endpoint (e.g., http://localhost:8080/v1)")
+                .validation_pattern(r"^https?://.+"),
+        ]
     }
 
     /// Returns Vertex AI required parameters
@@ -208,7 +201,6 @@ impl AuthenticationFlow for AuthFlow {
             Self::OAuthDevice(flow) => flow.auth_method_type(),
             Self::OAuthCode(flow) => flow.auth_method_type(),
             Self::OAuthWithApiKey(flow) => flow.auth_method_type(),
-            Self::CustomProvider(flow) => flow.auth_method_type(),
         }
     }
 
@@ -219,7 +211,6 @@ impl AuthenticationFlow for AuthFlow {
             Self::OAuthDevice(flow) => flow.initiate().await,
             Self::OAuthCode(flow) => flow.initiate().await,
             Self::OAuthWithApiKey(flow) => flow.initiate().await,
-            Self::CustomProvider(flow) => flow.initiate().await,
         }
     }
 
@@ -234,7 +225,6 @@ impl AuthenticationFlow for AuthFlow {
             Self::OAuthDevice(flow) => flow.poll_until_complete(context, timeout).await,
             Self::OAuthCode(flow) => flow.poll_until_complete(context, timeout).await,
             Self::OAuthWithApiKey(flow) => flow.poll_until_complete(context, timeout).await,
-            Self::CustomProvider(flow) => flow.poll_until_complete(context, timeout).await,
         }
     }
 
@@ -245,7 +235,6 @@ impl AuthenticationFlow for AuthFlow {
             Self::OAuthDevice(flow) => flow.complete(result).await,
             Self::OAuthCode(flow) => flow.complete(result).await,
             Self::OAuthWithApiKey(flow) => flow.complete(result).await,
-            Self::CustomProvider(flow) => flow.complete(result).await,
         }
     }
 
@@ -259,7 +248,6 @@ impl AuthenticationFlow for AuthFlow {
             Self::OAuthDevice(flow) => flow.refresh(credential).await,
             Self::OAuthCode(flow) => flow.refresh(credential).await,
             Self::OAuthWithApiKey(flow) => flow.refresh(credential).await,
-            Self::CustomProvider(flow) => flow.refresh(credential).await,
         }
     }
 
@@ -270,7 +258,6 @@ impl AuthenticationFlow for AuthFlow {
             Self::OAuthDevice(flow) => flow.validate(credential).await,
             Self::OAuthCode(flow) => flow.validate(credential).await,
             Self::OAuthWithApiKey(flow) => flow.validate(credential).await,
-            Self::CustomProvider(flow) => flow.validate(credential).await,
         }
     }
 }

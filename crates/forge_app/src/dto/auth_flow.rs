@@ -7,13 +7,10 @@
 /// - OAuth + API Key Exchange (GitHub Copilot pattern)
 /// - OAuth Authorization Code Flow
 /// - Cloud Service Account with Parameters (Vertex AI, Azure)
-/// - Custom Provider Registration (OpenAI/Anthropic-compatible endpoints)
 use std::collections::HashMap;
 
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
-
-use super::ProviderResponse;
 
 /// Authentication method type.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -78,17 +75,6 @@ pub enum AuthInitiation {
         /// Context data needed for completion (PKCE verifier, etc.)
         context: AuthContext,
     },
-
-    /// Custom provider registration - prompt for provider details.
-    ///
-    /// User should provide provider name, base URL, model ID, and optional API
-    /// key.
-    CustomProviderPrompt {
-        /// Compatibility mode for this custom provider
-        compatibility_mode: ProviderResponse,
-        /// Required parameters for custom provider setup
-        required_params: Vec<UrlParameter>,
-    },
 }
 
 /// Context data needed for polling/completion.
@@ -114,12 +100,11 @@ pub enum AuthResult {
     ///
     /// For simple providers (OpenAI): `url_params` is empty.
     /// For cloud providers (Vertex, Azure): `url_params` contains project_id,
-    /// location, etc. For custom providers: `url_params` contains base_url,
-    /// model_id, compatibility_mode.
+    /// location, etc.
     ApiKey {
         /// The API key itself
         api_key: String,
-        /// Additional URL parameters for cloud/custom providers
+        /// Additional URL parameters for cloud providers
         url_params: HashMap<String, String>,
     },
 
@@ -146,32 +131,17 @@ pub enum AuthResult {
         /// PKCE code verifier (if PKCE was used)
         code_verifier: Option<String>,
     },
-
-    /// Custom provider registration completed.
-    ///
-    /// Contains all information needed to create a custom provider credential.
-    CustomProvider {
-        /// Display name for this provider
-        provider_name: String,
-        /// API endpoint base URL
-        base_url: String,
-        /// Model identifier to use
-        model_id: String,
-        /// Optional API key (not required for local servers)
-        api_key: Option<String>,
-        /// Compatibility mode (OpenAI or Anthropic)
-        compatibility_mode: ProviderResponse,
-    },
 }
 
 /// URL parameter for providers requiring additional configuration.
 ///
-/// Used for cloud providers (Vertex AI, Azure) that need parameters like
-/// project_id, location, etc., and for custom provider registration.
+/// Used for cloud providers (Vertex AI, Azure) and compatible providers
+/// (OpenAI/Anthropic compatible) that need parameters like project_id,
+/// location, base_url, model_id, etc.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, Setters)]
 #[setters(strip_option, into)]
 pub struct UrlParameter {
-    /// Parameter key (e.g., "project_id", "location", "base_url", "model_id")
+    /// Parameter key (e.g., "project_id", "location", "BASE_URL", "MODEL_ID")
     pub key: String,
     /// Human-readable label for UI display
     pub label: String,

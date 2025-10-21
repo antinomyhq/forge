@@ -301,44 +301,6 @@ impl<S: Services> ForgeApp<S> {
         Ok(())
     }
 
-    /// Initiates custom provider registration
-    ///
-    /// Returns prompts for user to provide:
-    /// - Provider name
-    /// - Base URL
-    /// - Model ID
-    /// - API key (optional)
-    ///
-    /// # Arguments
-    /// * `compatibility_mode` - OpenAI or Anthropic API compatibility
-    pub async fn init_custom_provider(
-        &self,
-        compatibility_mode: crate::dto::ProviderResponse,
-    ) -> Result<crate::dto::AuthInitiation> {
-        self.authenticator
-            .init_custom_provider_auth(compatibility_mode)
-            .await
-    }
-
-    /// Registers a custom provider with provided configuration
-    ///
-    /// # Arguments
-    /// * `result` - AuthResult::CustomProvider with all configuration
-    ///
-    /// # Returns
-    /// The generated ProviderId for the custom provider
-    pub async fn register_custom_provider(
-        &self,
-        result: crate::dto::AuthResult,
-    ) -> Result<crate::dto::ProviderId> {
-        self.authenticator.register_custom_provider(result).await
-    }
-
-    /// Lists all registered custom providers
-    pub async fn list_custom_providers(&self) -> Result<Vec<crate::dto::ProviderCredential>> {
-        self.authenticator.list_custom_providers().await
-    }
-
     // ========== Workflow Management ==========
 
     pub async fn read_workflow(&self, path: Option<&Path>) -> Result<Workflow> {

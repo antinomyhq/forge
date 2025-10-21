@@ -95,19 +95,11 @@ impl TryFrom<ProviderCredentialRecord> for ProviderCredential {
         };
 
         // Deserialize URL params
-        let mut url_params: HashMap<String, String> = if let Some(json) = record.url_params {
+        let url_params: HashMap<String, String> = if let Some(json) = record.url_params {
             serde_json::from_str(&json)?
         } else {
             HashMap::new()
         };
-
-        // Extract custom provider fields from url_params if present
-        let compatibility_mode = url_params
-            .get("compatibility_mode")
-            .and_then(|s| serde_json::from_str(&format!("\"{}\"", s)).ok());
-
-        let custom_base_url = url_params.remove("custom_base_url");
-        let custom_model_id = url_params.remove("custom_model_id");
 
         Ok(ProviderCredential {
             provider_id,
@@ -115,9 +107,6 @@ impl TryFrom<ProviderCredentialRecord> for ProviderCredential {
             api_key,
             oauth_tokens,
             url_params,
-            compatibility_mode,
-            custom_base_url,
-            custom_model_id,
             created_at: record.created_at.and_utc(),
             updated_at: record.updated_at.and_utc(),
             last_verified_at: record.last_verified_at.map(|dt| dt.and_utc()),

@@ -276,20 +276,4 @@ impl<
             .save_provider_credentials(provider_id, result, method)
             .await?)
     }
-
-    async fn init_custom_provider(
-        &self,
-        compatibility_mode: forge_app::dto::ProviderResponse,
-    ) -> Result<forge_app::dto::AuthInitiation> {
-        let forge_app = ForgeApp::new(self.services.clone());
-        Ok(forge_app.init_custom_provider(compatibility_mode).await?)
-    }
-
-    async fn register_custom_provider(
-        &self,
-        result: forge_app::dto::AuthResult,
-    ) -> Result<ProviderId> {
-        let forge_app = ForgeApp::new(self.services.clone());
-        Ok(forge_app.register_custom_provider(result).await?)
-    }
 }

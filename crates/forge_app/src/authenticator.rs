@@ -5,9 +5,7 @@ use std::time::Duration;
 use backon::{ExponentialBuilder, Retryable};
 use forge_domain::RetryConfig;
 
-use crate::dto::{
-    AuthContext, AuthInitiation, AuthMethod, AuthResult, InitAuth, ProviderId, ProviderResponse,
-};
+use crate::dto::{AuthContext, AuthInitiation, AuthMethod, AuthResult, InitAuth, ProviderId};
 use crate::{AuthService, Error, ProviderAuthService};
 
 /// Authenticator handles both Forge platform authentication and provider
@@ -162,45 +160,6 @@ impl<S: AuthService + ProviderAuthService> Authenticator<S> {
         self.auth_service
             .complete_provider_auth(provider_id, result, method)
             .await
-    }
-
-    // ========== Custom Provider Management ==========
-
-    /// Initiates custom provider registration
-    ///
-    /// Returns prompts for user to provide custom provider details:
-    /// - Provider name
-    /// - Base URL
-    /// - Model ID
-    /// - API key (optional for local servers)
-    ///
-    /// # Arguments
-    /// * `compatibility_mode` - OpenAI or Anthropic API compatibility
-    pub async fn init_custom_provider_auth(
-        &self,
-        compatibility_mode: ProviderResponse,
-    ) -> anyhow::Result<AuthInitiation> {
-        self.auth_service
-            .init_custom_provider(compatibility_mode)
-            .await
-    }
-
-    /// Registers a custom provider with the provided configuration
-    ///
-    /// # Arguments
-    /// * `result` - AuthResult::CustomProvider with all configuration
-    ///
-    /// # Returns
-    /// The generated ProviderId for the custom provider
-    pub async fn register_custom_provider(&self, result: AuthResult) -> anyhow::Result<ProviderId> {
-        self.auth_service.register_custom_provider(result).await
-    }
-
-    /// Lists all registered custom providers
-    pub async fn list_custom_providers(
-        &self,
-    ) -> anyhow::Result<Vec<crate::dto::ProviderCredential>> {
-        self.auth_service.list_custom_providers().await
     }
 }
 

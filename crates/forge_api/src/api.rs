@@ -152,30 +152,4 @@ pub trait API: Sync + Send {
         result: forge_app::dto::AuthResult,
         method: forge_app::dto::AuthMethod,
     ) -> Result<()>;
-
-    /// Initiates custom provider registration
-    ///
-    /// Returns prompts for custom provider configuration (name, base URL,
-    /// model ID, API key).
-    ///
-    /// # Arguments
-    ///
-    /// * `compatibility_mode` - Whether provider is OpenAI or Anthropic
-    ///   compatible
-    async fn init_custom_provider(
-        &self,
-        compatibility_mode: forge_app::dto::ProviderResponse,
-    ) -> Result<forge_app::dto::AuthInitiation>;
-
-    /// Registers a custom provider
-    ///
-    /// Validates and stores custom provider configuration.
-    ///
-    /// # Arguments
-    ///
-    /// * `result` - Custom provider details from user input
-    async fn register_custom_provider(
-        &self,
-        result: forge_app::dto::AuthResult,
-    ) -> Result<ProviderId>;
 }

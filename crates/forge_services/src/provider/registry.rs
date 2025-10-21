@@ -53,10 +53,7 @@ pub(crate) fn get_provider_config(provider_id: &ProviderId) -> Option<&'static P
 pub fn get_provider_display_name(provider_id: &ProviderId) -> String {
     get_provider_config(provider_id)
         .map(|config| config.display_name.clone())
-        .unwrap_or_else(|| match provider_id {
-            ProviderId::Custom(name) => name.clone(),
-            _ => format!("{:?}", provider_id),
-        })
+        .unwrap_or_else(|| format!("{:?}", provider_id))
 }
 
 /// Get auth methods for a provider
@@ -303,11 +300,6 @@ impl<
     ) -> anyhow::Result<Provider> {
         use forge_app::dto::AuthType;
 
-        // Handle custom providers separately
-        if provider_id.is_custom() {
-            return self.create_custom_provider(provider_id, credential);
-        }
-
         // Get provider config for URL templates
         let config = get_provider_configs()
             .iter()
@@ -383,73 +375,6 @@ impl<
         })
     }
 
-    /// Creates a Provider instance for custom user-defined providers
-    ///
-    /// # Arguments
-    /// * `provider_id` - Custom provider ID
-    /// * `credential` - Provider credential with custom provider metadata
-    ///
-    /// # Returns
-    /// A Provider configured to use the custom base URL and model ID
-    ///
-    /// # Errors
-    /// Returns error if required custom provider fields are missing
-    fn create_custom_provider(
-        &self,
-        provider_id: &ProviderId,
-        credential: &forge_app::dto::ProviderCredential,
-    ) -> anyhow::Result<Provider> {
-        use forge_app::dto::ProviderResponse;
-
-        // Validate custom provider has required fields
-        let base_url = credential.custom_base_url.as_ref().ok_or_else(|| {
-            anyhow::anyhow!("Missing base_url for custom provider {:?}", provider_id)
-        })?;
-
-        let _model_id = credential.custom_model_id.as_ref().ok_or_else(|| {
-            anyhow::anyhow!("Missing model_id for custom provider {:?}", provider_id)
-        })?;
-
-        let response_type = credential.compatibility_mode.as_ref().ok_or_else(|| {
-            anyhow::anyhow!(
-                "Missing compatibility_mode for custom provider {:?}",
-                provider_id
-            )
-        })?;
-
-        // Build chat completions and models URLs based on compatibility mode
-        let (chat_url, models_url) = match response_type {
-            ProviderResponse::OpenAI => {
-                // OpenAI-compatible: /v1/chat/completions and /v1/models
-                let chat = format!("{}/chat/completions", base_url.trim_end_matches('/'));
-                let models = format!("{}/models", base_url.trim_end_matches('/'));
-                (chat, models)
-            }
-            ProviderResponse::Anthropic => {
-                // Anthropic-compatible: /v1/messages and /v1/models
-                let chat = format!("{}/messages", base_url.trim_end_matches('/'));
-                let models = format!("{}/models", base_url.trim_end_matches('/'));
-                (chat, models)
-            }
-        };
-
-        // API key is optional for custom providers (local servers may not require auth)
-        let api_key = credential.api_key.clone();
-
-        Ok(Provider {
-            id: provider_id.clone(),
-            response: response_type.clone(),
-            url: Url::parse(&chat_url).map_err(|e| {
-                anyhow::anyhow!("Invalid custom provider URL '{}': {}", chat_url, e)
-            })?,
-            key: api_key,
-            model_url: Url::parse(&models_url).map_err(|e| {
-                anyhow::anyhow!("Invalid custom provider model URL '{}': {}", models_url, e)
-            })?,
-            auth_type: Some(credential.auth_type.clone()),
-        })
-    }
-
     async fn get_first_available_provider(&self) -> anyhow::Result<Provider> {
         // Get all providers (database first, then env fallback)
         let all_providers = self.get_all_providers().await?;
@@ -467,48 +392,6 @@ impl<
         updater(&mut config);
         self.infra.set_app_config(&config).await?;
         Ok(())
-    }
-
-    /// Lists all custom provider credentials
-    ///
-    /// # Returns
-    /// Vector of credentials for custom providers only (ProviderId::Custom)
-    ///
-    /// # Errors
-    /// Returns error if database operation fails
-    pub async fn list_custom_providers(
-        &self,
-    ) -> anyhow::Result<Vec<forge_app::dto::ProviderCredential>> {
-        let all_credentials = self.infra.get_all_credentials().await?;
-        Ok(all_credentials
-            .into_iter()
-            .filter(|c| c.is_custom_provider())
-            .collect())
-    }
-
-    /// Stores a custom provider credential
-    ///
-    /// # Arguments
-    /// * `credential` - The custom provider credential to store
-    ///
-    /// # Returns
-    /// Ok if stored successfully
-    ///
-    /// # Errors
-    /// * Returns error if credential is not for a custom provider
-    /// * Returns error if database operation fails
-    pub async fn store_custom_provider(
-        &self,
-        credential: forge_app::dto::ProviderCredential,
-    ) -> anyhow::Result<()> {
-        if !credential.is_custom_provider() {
-            return Err(anyhow::anyhow!(
-                "Cannot store as custom provider: credential is for built-in provider {}",
-                credential.provider_id
-            ));
-        }
-
-        self.infra.upsert_credential(credential).await
     }
 }
 
@@ -601,20 +484,14 @@ impl<
 
     async fn available_provider_ids(&self) -> Vec<ProviderId> {
         // Get built-in providers
-        let mut provider_ids: Vec<ProviderId> = get_provider_configs()
+        let provider_ids: Vec<ProviderId> = get_provider_configs()
             .iter()
             .filter(|config| config.id != ProviderId::Forge) // Exclude internal Forge provider
             .map(|config| config.id.clone())
             .collect();
 
-        // Add custom providers from credentials (they're already registered)
-        if let Ok(credentials) = self.infra.get_all_credentials().await {
-            for cred in credentials {
-                if cred.provider_id.is_custom() && !provider_ids.contains(&cred.provider_id) {
-                    provider_ids.push(cred.provider_id.clone());
-                }
-            }
-        }
+        // Note: Custom URLs don't add new provider IDs - they just override existing
+        // ones So we don't need to add anything here
 
         provider_ids
     }
@@ -1001,123 +878,6 @@ mod env_tests {
         assert_eq!(
             anthropic_provider.url.as_str(),
             "https://custom.anthropic.com/v1/messages"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_create_custom_provider_openai_compatible() {
-        use forge_app::dto::{ProviderCredential, ProviderResponse};
-
-        let infra = Arc::new(MockInfra { env_vars: HashMap::new() });
-        let registry = ForgeProviderRegistry::new(infra);
-
-        let credential = ProviderCredential::new_custom_provider(
-            ProviderId::Custom("LocalAI".to_string()),
-            Some("test-api-key".to_string()),
-            ProviderResponse::OpenAI,
-            "http://localhost:8080/v1".to_string(),
-            "gpt-4-local".to_string(),
-        );
-
-        let provider = registry
-            .create_custom_provider(&credential.provider_id, &credential)
-            .unwrap();
-
-        assert_eq!(provider.id, ProviderId::Custom("LocalAI".to_string()));
-        assert_eq!(provider.response, ProviderResponse::OpenAI);
-        assert_eq!(
-            provider.url.as_str(),
-            "http://localhost:8080/v1/chat/completions"
-        );
-        assert_eq!(
-            provider.model_url.as_str(),
-            "http://localhost:8080/v1/models"
-        );
-        assert_eq!(provider.key, Some("test-api-key".to_string()));
-    }
-
-    #[tokio::test]
-    async fn test_create_custom_provider_anthropic_compatible() {
-        use forge_app::dto::{ProviderCredential, ProviderResponse};
-
-        let infra = Arc::new(MockInfra { env_vars: HashMap::new() });
-        let registry = ForgeProviderRegistry::new(infra);
-
-        let credential = ProviderCredential::new_custom_provider(
-            ProviderId::Custom("Corporate Claude".to_string()),
-            Some("corp-key".to_string()),
-            ProviderResponse::Anthropic,
-            "https://llm.corp.example.com/api".to_string(),
-            "claude-3-opus-internal".to_string(),
-        );
-
-        let provider = registry
-            .create_custom_provider(&credential.provider_id, &credential)
-            .unwrap();
-
-        assert_eq!(
-            provider.id,
-            ProviderId::Custom("Corporate Claude".to_string())
-        );
-        assert_eq!(provider.response, ProviderResponse::Anthropic);
-        assert_eq!(
-            provider.url.as_str(),
-            "https://llm.corp.example.com/api/messages"
-        );
-        assert_eq!(
-            provider.model_url.as_str(),
-            "https://llm.corp.example.com/api/models"
-        );
-        assert_eq!(provider.key, Some("corp-key".to_string()));
-    }
-
-    #[tokio::test]
-    async fn test_create_custom_provider_without_api_key() {
-        use forge_app::dto::{ProviderCredential, ProviderResponse};
-
-        let infra = Arc::new(MockInfra { env_vars: HashMap::new() });
-        let registry = ForgeProviderRegistry::new(infra);
-
-        let credential = ProviderCredential::new_custom_provider(
-            ProviderId::Custom("Local Server".to_string()),
-            None, // No API key for local server
-            ProviderResponse::OpenAI,
-            "http://localhost:11434/v1".to_string(),
-            "llama3".to_string(),
-        );
-
-        let provider = registry
-            .create_custom_provider(&credential.provider_id, &credential)
-            .unwrap();
-
-        assert_eq!(provider.id, ProviderId::Custom("Local Server".to_string()));
-        assert_eq!(provider.response, ProviderResponse::OpenAI);
-        assert_eq!(provider.key, None); // No API key
-    }
-
-    #[tokio::test]
-    async fn test_create_custom_provider_with_trailing_slash() {
-        use forge_app::dto::{ProviderCredential, ProviderResponse};
-
-        let infra = Arc::new(MockInfra { env_vars: HashMap::new() });
-        let registry = ForgeProviderRegistry::new(infra);
-
-        let credential = ProviderCredential::new_custom_provider(
-            ProviderId::Custom("Test".to_string()),
-            None,
-            ProviderResponse::OpenAI,
-            "http://localhost:8080/v1/".to_string(), // Trailing slash
-            "model".to_string(),
-        );
-
-        let provider = registry
-            .create_custom_provider(&credential.provider_id, &credential)
-            .unwrap();
-
-        // Should handle trailing slash correctly
-        assert_eq!(
-            provider.url.as_str(),
-            "http://localhost:8080/v1/chat/completions"
         );
     }
 }

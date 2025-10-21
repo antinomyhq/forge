@@ -103,10 +103,7 @@ impl<
         let fetch_service = Arc::new(ForgeFetch::new());
         let followup_service = Arc::new(ForgeFollowup::new(infra.clone()));
         let provider_service = Arc::new(ForgeProviderRegistry::new(infra.clone()));
-        let provider_auth_service = Arc::new(ForgeProviderAuthService::new(
-            infra.clone(),
-            provider_service.clone(),
-        ));
+        let provider_auth_service = Arc::new(ForgeProviderAuthService::new(infra.clone()));
         let env_service = Arc::new(ForgeEnvironmentService::new(infra.clone()));
         let custom_instructions_service =
             Arc::new(ForgeCustomInstructionsService::new(infra.clone()));

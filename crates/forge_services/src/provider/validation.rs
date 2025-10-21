@@ -279,7 +279,6 @@ mod tests {
             api_key: None,
             oauth_tokens: None,
             url_params: HashMap::new(),
-            compatibility_mode: None,
             custom_base_url: None,
             custom_model_id: None,
             created_at: Utc::now(),

@@ -402,21 +402,6 @@ pub trait ProviderAuthService: Send + Sync {
         result: crate::dto::AuthResult,
         method: AuthMethod,
     ) -> anyhow::Result<ProviderCredential>;
-
-    /// Initiates custom provider registration
-    async fn init_custom_provider(
-        &self,
-        compatibility_mode: crate::dto::ProviderResponse,
-    ) -> anyhow::Result<crate::dto::AuthInitiation>;
-
-    /// Registers a custom provider
-    async fn register_custom_provider(
-        &self,
-        result: crate::dto::AuthResult,
-    ) -> anyhow::Result<ProviderId>;
-
-    /// Lists all registered custom providers
-    async fn list_custom_providers(&self) -> anyhow::Result<Vec<ProviderCredential>>;
 }
 
 #[async_trait::async_trait]
@@ -861,28 +846,6 @@ impl<I: Services> ProviderAuthService for I {
         self.provider_auth_service()
             .complete_provider_auth(provider_id, result, method)
             .await
-    }
-
-    async fn init_custom_provider(
-        &self,
-        compatibility_mode: crate::dto::ProviderResponse,
-    ) -> anyhow::Result<crate::dto::AuthInitiation> {
-        self.provider_auth_service()
-            .init_custom_provider(compatibility_mode)
-            .await
-    }
-
-    async fn register_custom_provider(
-        &self,
-        result: crate::dto::AuthResult,
-    ) -> anyhow::Result<ProviderId> {
-        self.provider_auth_service()
-            .register_custom_provider(result)
-            .await
-    }
-
-    async fn list_custom_providers(&self) -> anyhow::Result<Vec<ProviderCredential>> {
-        self.provider_auth_service().list_custom_providers().await
     }
 }
 

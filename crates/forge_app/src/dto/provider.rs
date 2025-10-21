@@ -19,6 +19,9 @@ pub enum ProviderId {
     #[serde(rename = "openai")]
     #[strum(serialize = "openai")]
     OpenAI,
+    #[serde(rename = "openai_compatible")]
+    #[strum(serialize = "openai_compatible")]
+    OpenAICompatible,
     OpenRouter,
     Requesty,
     Zai,
@@ -26,25 +29,12 @@ pub enum ProviderId {
     Cerebras,
     Xai,
     Anthropic,
+    #[serde(rename = "anthropic_compatible")]
+    #[strum(serialize = "anthropic_compatible")]
+    AnthropicCompatible,
     VertexAi,
     BigModel,
     Azure,
-    Custom(String),
-}
-
-impl ProviderId {
-    /// Returns true if this is a custom provider
-    pub fn is_custom(&self) -> bool {
-        matches!(self, ProviderId::Custom(_))
-    }
-
-    /// Returns the custom provider name if this is a custom provider
-    pub fn custom_name(&self) -> Option<&str> {
-        match self {
-            ProviderId::Custom(name) => Some(name.as_str()),
-            _ => None,
-        }
-    }
 }
 
 #[derive(Debug, Display, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -309,41 +299,19 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_provider_id_display() {
         assert_eq!(ProviderId::OpenAI.to_string(), "openai");
         assert_eq!(ProviderId::GithubCopilot.to_string(), "github_copilot");
-        assert_eq!(
-            ProviderId::Custom("my-llm".to_string()).to_string(),
-            "custom_my-llm"
-        );
-    }
-
-    #[test]
-    fn test_provider_id_is_custom() {
-        assert!(!ProviderId::OpenAI.is_custom());
-        assert!(!ProviderId::Anthropic.is_custom());
-        assert!(ProviderId::Custom("test".to_string()).is_custom());
-    }
-
-    #[test]
-    fn test_provider_id_custom_name() {
-        assert_eq!(ProviderId::OpenAI.custom_name(), None);
-        assert_eq!(
-            ProviderId::Custom("my-provider".to_string()).custom_name(),
-            Some("my-provider")
-        );
     }
 
     #[test]
     fn test_provider_id_built_in_providers() {
-        let built_in = ProviderId::iter()
-            .filter(|p| !p.is_custom())
-            .collect::<Vec<_>>();
-        assert_eq!(built_in.len(), 13); // All non-Custom variants
+        let built_in = ProviderId::iter().collect::<Vec<_>>();
+        assert_eq!(built_in.len(), 15); // All provider variants including OpenAICompatible and AnthropicCompatible
         assert!(built_in.contains(&ProviderId::OpenAI));
         assert!(built_in.contains(&ProviderId::Anthropic));
-        assert!(!built_in.iter().any(|p| p.is_custom()));
+        assert!(built_in.contains(&ProviderId::OpenAICompatible));
+        assert!(built_in.contains(&ProviderId::AnthropicCompatible));
     }
 
     #[test]
@@ -352,9 +320,9 @@ mod tests {
         let json = serde_json::to_string(&openai).unwrap();
         assert_eq!(json, r#""openai""#);
 
-        let custom = ProviderId::Custom("my-llm".to_string());
-        let json = serde_json::to_string(&custom).unwrap();
-        assert_eq!(json, r#"{"custom":"my-llm"}"#);
+        let anthropic = ProviderId::Anthropic;
+        let json = serde_json::to_string(&anthropic).unwrap();
+        assert_eq!(json, r#""anthropic""#);
     }
 
     #[test]
@@ -362,7 +330,7 @@ mod tests {
         let openai: ProviderId = serde_json::from_str(r#""openai""#).unwrap();
         assert_eq!(openai, ProviderId::OpenAI);
 
-        let custom: ProviderId = serde_json::from_str(r#"{"custom":"my-llm"}"#).unwrap();
-        assert_eq!(custom, ProviderId::Custom("my-llm".to_string()));
+        let anthropic: ProviderId = serde_json::from_str(r#""anthropic""#).unwrap();
+        assert_eq!(anthropic, ProviderId::Anthropic);
     }
 }

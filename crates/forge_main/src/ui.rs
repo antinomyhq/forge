@@ -551,72 +551,30 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .map(|c| c.provider_id.to_string())
                 .collect();
 
-            // Create display options with status indicators, keeping track of original IDs
-            // or special actions
-            #[derive(Clone)]
-            enum SelectionType {
-                ExistingProvider(forge_app::dto::ProviderId),
-                OpenAICompatible,
-                AnthropicCompatible,
-            }
-
-            let mut options_with_actions: Vec<(String, SelectionType)> = available_ids
+            // Create display options with status indicators
+            let options: Vec<String> = available_ids
                 .iter()
                 .map(|id| {
                     let id_str = id.to_string();
-                    let display = if configured.contains(&id_str) {
+                    if configured.contains(&id_str) {
                         format!("{} {}", id_str, "[✓ configured]".green())
                     } else {
                         format!("{} {}", id_str, "[+ new]".dimmed())
-                    };
-                    (display, SelectionType::ExistingProvider(id.clone()))
+                    }
                 })
-                .collect();
-
-            // Add special options for custom providers at the bottom
-            options_with_actions.push((
-                format!("{} {}", "openai_compatible", "[+ add custom]".cyan()),
-                SelectionType::OpenAICompatible,
-            ));
-            options_with_actions.push((
-                format!("{} {}", "anthropic_compatible", "[+ add custom]".cyan()),
-                SelectionType::AnthropicCompatible,
-            ));
-
-            // Extract just the display strings for the selector
-            let options: Vec<String> = options_with_actions
-                .iter()
-                .map(|(s, _)| s.clone())
                 .collect();
 
             let selection = ForgeSelect::select("Select a provider:", options.clone())
                 .prompt()?
                 .ok_or_else(|| anyhow::anyhow!("No provider selected"))?;
 
-            // Find which option was selected
+            // Find which provider was selected
             let selected_idx = options
                 .iter()
-                .position(|opt| *opt == *selection)
+                .position(|opt| opt.starts_with(selection.split_whitespace().next().unwrap()))
                 .ok_or_else(|| anyhow::anyhow!("Invalid selection"))?;
 
-            // Handle the selection based on type
-            match &options_with_actions[selected_idx].1 {
-                SelectionType::ExistingProvider(provider_id) => provider_id.clone(),
-                SelectionType::OpenAICompatible => {
-                    return self
-                        .handle_custom_provider_registration(
-                            forge_app::dto::ProviderResponse::OpenAI,
-                        )
-                        .await;
-                }
-                SelectionType::AnthropicCompatible => {
-                    return self
-                        .handle_custom_provider_registration(
-                            forge_app::dto::ProviderResponse::Anthropic,
-                        )
-                        .await;
-                }
-            }
+            available_ids[selected_idx].clone()
         };
 
         println!(
@@ -670,7 +628,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.handle_provider_oauth_flow(provider_id, selected_method.clone())
                     .await?
             }
-            forge_api::AuthInitiation::CustomProviderPrompt { .. } => todo!(),
         }
         Ok(())
     }
@@ -850,120 +807,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         );
         println!("  {} Start chatting: {}", "→".blue(), "forge".dimmed());
         println!();
-    }
-
-    /// Handles custom provider registration during auth login flow
-    async fn handle_custom_provider_registration(
-        &mut self,
-        compatibility_mode: forge_app::dto::ProviderResponse,
-    ) -> anyhow::Result<()> {
-        use colored::Colorize;
-        use forge_app::dto::{AuthInitiation, AuthResult};
-
-        println!("\n{}", "Add Custom Provider".bold());
-        println!("{}", "─".repeat(50).dimmed());
-        println!();
-        println!(
-            "Compatibility mode: {}",
-            format!("{}", compatibility_mode).cyan().bold()
-        );
-        println!();
-
-        // Initiate custom provider registration
-        self.spinner
-            .start(Some("Initializing custom provider registration..."))?;
-
-        let initiation = self
-            .api
-            .init_custom_provider(compatibility_mode.clone())
-            .await?;
-
-        self.spinner.stop(None)?;
-
-        // Collect parameters from user
-        let params =
-            if let AuthInitiation::CustomProviderPrompt { required_params, .. } = initiation {
-                let mut collected_params = std::collections::HashMap::new();
-
-                for param in required_params {
-                    let prompt = if param.required {
-                        format!("{} (required)", param.label)
-                    } else {
-                        format!("{} (optional)", param.label)
-                    };
-
-                    if let Some(desc) = &param.description {
-                        println!("{}", desc.dimmed());
-                    }
-
-                    let value = if param.key == "api_key" {
-                        // Use password input for API key
-                        ForgeSelect::password(&prompt)
-                            .with_display_toggle_enabled()
-                            .prompt()?
-                    } else {
-                        // Regular input for other fields
-                        ForgeSelect::input(&prompt)
-                            .with_default(param.default_value.unwrap_or_default())
-                            .prompt()?
-                    };
-
-                    if let Some(val) = value {
-                        if !val.trim().is_empty() {
-                            collected_params.insert(param.key, val.trim().to_string());
-                        } else if param.required {
-                            anyhow::bail!("Required parameter '{}' cannot be empty", param.label);
-                        }
-                    }
-                }
-
-                collected_params
-            } else {
-                anyhow::bail!("Unexpected authentication initiation type");
-            };
-
-        // Construct AuthResult
-        let result = AuthResult::CustomProvider {
-            provider_name: params
-                .get("provider_name")
-                .ok_or_else(|| anyhow::anyhow!("Provider name is required"))?
-                .clone(),
-            base_url: params
-                .get("base_url")
-                .ok_or_else(|| anyhow::anyhow!("Base URL is required"))?
-                .clone(),
-            model_id: params
-                .get("model_id")
-                .ok_or_else(|| anyhow::anyhow!("Model ID is required"))?
-                .clone(),
-            api_key: params.get("api_key").cloned(),
-            compatibility_mode,
-        };
-
-        // Register the custom provider
-        self.spinner.start(Some("Registering custom provider..."))?;
-
-        let provider_id = self.api.register_custom_provider(result).await?;
-
-        self.spinner.stop(None)?;
-
-        println!();
-        println!(
-            "{} Custom provider {} registered successfully!",
-            "✓".green(),
-            provider_id.to_string().bold()
-        );
-        println!();
-        println!("Next steps:");
-        println!(
-            "  {} Set as active provider: {}",
-            "→".blue(),
-            format!("forge config set provider {}", provider_id).dimmed()
-        );
-        println!("  {} Start chatting: {}", "→".blue(), "forge".dimmed());
-        println!();
-
-        Ok(())
     }
 
     async fn validate_session_exists(
