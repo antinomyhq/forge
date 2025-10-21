@@ -180,7 +180,6 @@ pub trait API: Sync + Send {
         timeout: std::time::Duration,
     ) -> Result<forge_app::dto::AuthResult>;
 
-    
     /// Processes authentication result and stores credential in database.
     async fn save_provider_credentials(
         &self,
