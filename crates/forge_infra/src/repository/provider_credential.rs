@@ -59,9 +59,7 @@ impl TryFrom<&ProviderCredential> for ProviderCredentialRecord {
             url_params,
             created_at: credential.created_at.naive_utc(),
             updated_at: credential.updated_at.naive_utc(),
-            last_verified_at: credential
-                .last_verified_at
-                .map(|dt| dt.naive_utc()),
+            last_verified_at: credential.last_verified_at.map(|dt| dt.naive_utc()),
             is_active: credential.is_active,
         })
     }
