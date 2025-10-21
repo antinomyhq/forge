@@ -736,16 +736,5 @@ pub enum AuthCommand {
         /// Skip validation (advanced users)
         #[arg(long)]
         skip_validation: bool,
-    },
-
-    /// Import credentials from environment variables
-    ImportEnv {
-        /// Only import specific provider (optional)
-        #[arg(long)]
-        provider: Option<String>,
-
-        /// Skip confirmation prompts
-        #[arg(long)]
-        yes: bool,
-    },
+    }
 }

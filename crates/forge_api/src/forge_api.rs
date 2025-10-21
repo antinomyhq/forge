@@ -12,7 +12,7 @@ use forge_app::{
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
-use forge_services::provider::{ImportSummary, ValidationOutcome, ValidationResult};
+use forge_services::provider::{ValidationOutcome, ValidationResult};
 use forge_services::{
     AppConfigRepository, CommandInfra, EnvironmentInfra, ForgeServices, HttpInfra,
     ProviderCredentialRepository, ProviderSpecificProcessingInfra, ProviderValidationInfra,
@@ -305,40 +305,6 @@ impl<
         }
     }
 
-    async fn import_provider_credentials_from_env(
-        &self,
-        filter: Option<ProviderId>,
-    ) -> Result<ImportSummary> {
-        let mut summary = ImportSummary::new();
-
-        let provider_ids = match filter {
-            Some(provider_id) => vec![provider_id],
-            None => self.services.available_provider_ids().await,
-        };
-
-        for provider_id in provider_ids {
-            let env_var_names = self.infra.get_provider_metadata(&provider_id).env_var_names;
-            let api_key = env_var_names
-                .iter()
-                .find_map(|var_name| self.infra.get_env_var(var_name))
-                .filter(|key| !key.is_empty());
-
-            match api_key {
-                Some(key) => {
-                    let credential = ProviderCredential::new_api_key(provider_id.clone(), key);
-                    match self.infra.upsert_credential(credential).await {
-                        Ok(_) => summary.imported.push(provider_id),
-                        Err(e) => summary.failed.push((provider_id, e.to_string())),
-                    }
-                }
-                None => summary.skipped.push(provider_id),
-            }
-        }
-
-        Ok(summary)
-    }
-
-    // New trait-based authentication methods (Phase 10.2)
 
     async fn init_provider_auth(
         &self,

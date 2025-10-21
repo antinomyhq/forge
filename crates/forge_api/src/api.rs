@@ -4,7 +4,7 @@ use anyhow::Result;
 use forge_app::dto::{InitAuth, ProviderId, ToolsOverview};
 use forge_app::{User, UserUsage};
 use forge_domain::{AgentId, ModelId};
-use forge_services::provider::{ImportSummary, ValidationOutcome};
+use forge_services::provider::{ValidationOutcome};
 use forge_stream::MpscStream;
 
 use crate::*;
@@ -146,18 +146,6 @@ pub trait API: Sync + Send {
         skip_validation: bool,
     ) -> Result<ValidationOutcome>;
 
-    /// Imports provider credentials from environment variables
-    ///
-    /// Uses provider metadata to determine which environment variables to
-    /// check.
-    ///
-    /// # Arguments
-    ///
-    /// * `filter` - Optional provider ID to import only that provider
-    async fn import_provider_credentials_from_env(
-        &self,
-        filter: Option<ProviderId>,
-    ) -> Result<ImportSummary>;
 
     // New trait-based authentication methods (Phase 7)
 
