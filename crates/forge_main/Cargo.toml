@@ -28,7 +28,6 @@ forge_fs.workspace = true
 tokio.workspace = true
 tokio-stream.workspace = true
 colored.workspace = true
-indicatif.workspace = true
 
 anyhow.workspace = true
 derive_setters.workspace = true
