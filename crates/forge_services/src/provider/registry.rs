@@ -339,15 +339,16 @@ impl<
         // Build template data from URL parameters
         let mut template_data = std::collections::HashMap::new();
         for (key, value) in &credential.url_params {
-            template_data.insert(key.as_str(), value.clone());
+            let upper_case = key.as_str().to_uppercase();
+            template_data.insert(upper_case ,value.clone());
         }
 
         // Add default URLs if not present
         if !template_data.contains_key("OPENAI_URL") {
-            template_data.insert("OPENAI_URL", "https://api.openai.com/v1".to_string());
+            template_data.insert("OPENAI_URL".into(), "https://api.openai.com/v1".to_string());
         }
         if !template_data.contains_key("ANTHROPIC_URL") {
-            template_data.insert("ANTHROPIC_URL", "https://api.anthropic.com/v1".to_string());
+            template_data.insert("ANTHROPIC_URL".into(), "https://api.anthropic.com/v1".to_string());
         }
 
         // Render URLs using handlebars
