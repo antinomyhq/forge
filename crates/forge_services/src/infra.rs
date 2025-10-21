@@ -344,16 +344,6 @@ pub trait ProviderCredentialRepository: Send + Sync {
     /// Returns error if database operation fails or decryption fails
     async fn get_all_credentials(&self) -> anyhow::Result<Vec<forge_app::dto::ProviderCredential>>;
 
-    /// Deletes a credential for the specified provider
-    ///
-    /// # Errors
-    ///
-    /// Returns error if database operation fails
-    async fn delete_credential(
-        &self,
-        provider_id: &forge_app::dto::ProviderId,
-    ) -> anyhow::Result<()>;
-
     /// Marks a credential as verified with current timestamp
     ///
     /// # Errors

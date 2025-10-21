@@ -207,19 +207,6 @@ impl ProviderCredentialRepository for ProviderCredentialRepositoryImpl {
         records.into_iter().map(|r| r.try_into()).collect()
     }
 
-    /// Deletes a credential by provider ID
-    async fn delete_credential(&self, provider_id: &ProviderId) -> anyhow::Result<()> {
-        let mut conn = self.db_pool.get_connection()?;
-
-        diesel::delete(
-            provider_credentials::table
-                .filter(provider_credentials::provider_id.eq(provider_id.to_string())),
-        )
-        .execute(&mut conn)?;
-
-        Ok(())
-    }
-
     /// Marks a credential as verified
     async fn mark_verified(&self, provider_id: &ProviderId) -> anyhow::Result<()> {
         let mut conn = self.db_pool.get_connection()?;

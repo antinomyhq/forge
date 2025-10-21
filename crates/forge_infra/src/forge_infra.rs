@@ -387,15 +387,6 @@ impl ProviderCredentialRepository for ForgeInfra {
             .await
     }
 
-    async fn delete_credential(
-        &self,
-        provider_id: &forge_app::dto::ProviderId,
-    ) -> anyhow::Result<()> {
-        self.provider_credential_repository
-            .delete_credential(provider_id)
-            .await
-    }
-
     async fn mark_verified(&self, provider_id: &forge_app::dto::ProviderId) -> anyhow::Result<()> {
         self.provider_credential_repository
             .mark_verified(provider_id)
