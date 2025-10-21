@@ -272,30 +272,30 @@ impl<
             match result {
                 ValidationResult::Valid => {
                     self.infra.upsert_credential(credential).await?;
-                    Ok(ValidationOutcome::success_with_message(
-                        "API key validated and saved",
-                    ))
+                    Ok(ValidationOutcome::default()
+                        .success(true)
+                        .message("API key validated and saved"))
                 }
-                ValidationResult::Invalid(msg) => Ok(ValidationOutcome::failure(format!(
-                    "API key validation failed: {}",
-                    msg
-                ))),
+                ValidationResult::Invalid(msg) => Ok(ValidationOutcome::default()
+                    .success(false)
+                    .message(format!("API key validation failed: {}", msg))),
                 ValidationResult::Inconclusive(msg) => {
                     self.infra.upsert_credential(credential).await?;
-                    Ok(ValidationOutcome::success_with_message(format!(
-                        "API key saved (validation inconclusive: {})",
-                        msg
-                    )))
+                    Ok(ValidationOutcome::default()
+                        .success(true)
+                        .message(format!("API key saved (validation inconclusive: {})", msg)))
                 }
                 ValidationResult::TokenExpired => {
-                    Ok(ValidationOutcome::failure("Token has expired"))
+                    Ok(ValidationOutcome::default()
+                        .success(false)
+                        .message("Token has expired"))
                 }
             }
         } else {
             self.infra.upsert_credential(credential).await?;
-            Ok(ValidationOutcome::success_with_message(
-                "API key saved without validation",
-            ))
+            Ok(ValidationOutcome::default()
+                .success(true)
+                .message("API key saved without validation"))
         }
     }
 

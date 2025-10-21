@@ -21,7 +21,7 @@ pub struct ForgeProviderService<I> {
     cached_models: Arc<Mutex<HashMap<ProviderId, Vec<Model>>>>,
     version: String,
     timeout_config: HttpConfig,
-    pub(crate) http_infra: Arc<I>,
+    http_infra: Arc<I>,
 }
 
 impl<I: EnvironmentInfra + HttpInfra + AppConfigRepository> ForgeProviderService<I> {

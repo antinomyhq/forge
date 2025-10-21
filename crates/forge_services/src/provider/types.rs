@@ -7,22 +7,9 @@ pub struct OAuthDeviceDisplay {
 }
 
 /// Result of validating provided credentials.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default, derive_setters::Setters)]
+#[setters(strip_option, into)]
 pub struct ValidationOutcome {
     pub success: bool,
     pub message: Option<String>,
-}
-
-impl ValidationOutcome {
-    pub fn success() -> Self {
-        Self { success: true, message: None }
-    }
-
-    pub fn success_with_message(message: impl Into<String>) -> Self {
-        Self { success: true, message: Some(message.into()) }
-    }
-
-    pub fn failure(message: impl Into<String>) -> Self {
-        Self { success: false, message: Some(message.into()) }
-    }
 }
