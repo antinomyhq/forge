@@ -61,11 +61,7 @@ where
         method: AuthMethod,
     ) -> anyhow::Result<AuthInitiation> {
         // Create appropriate auth flow using factory
-        let flow = AuthFlow::try_new(
-            &provider_id,
-            &method,
-            self.infra.clone(),
-        )?;
+        let flow = AuthFlow::try_new(&provider_id, &method, self.infra.clone())?;
 
         // Initiate the authentication flow
         flow.initiate().await.map_err(|e| anyhow::anyhow!(e))

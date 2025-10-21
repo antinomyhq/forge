@@ -479,8 +479,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         method: forge_app::dto::AuthMethod,
         required_params: Vec<UrlParameter>,
     ) -> anyhow::Result<()> {
-        
-
         let mut url_params = HashMap::new();
 
         // Collect URL parameters if required
@@ -508,20 +506,18 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             url_params.insert(param.key.clone(), param_value);
         }
 
-        let api_key =
-            ForgeSelect::password(format!("Enter your {} API key:", provider_id))
-                .with_display_toggle_enabled()
-                .prompt()?
-                .ok_or_else(|| anyhow::anyhow!("API key input cancelled"))?;
+        let api_key = ForgeSelect::password(format!("Enter your {} API key:", provider_id))
+            .with_display_toggle_enabled()
+            .prompt()?
+            .ok_or_else(|| anyhow::anyhow!("API key input cancelled"))?;
 
         if api_key.trim().is_empty() {
             anyhow::bail!("API key cannot be empty");
         }
-        
+
         let auth_res = AuthResult::ApiKey { api_key: api_key.clone(), url_params };
 
-        self
-            .api
+        self.api
             .save_provider_credentials(provider_id.clone(), auth_res, method)
             .await?;
 
