@@ -501,7 +501,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             })
             .collect::<anyhow::Result<HashMap<_, _>>>()?;
 
-        
         let api_key = ForgeSelect::password(format!("Enter your {} API key:", provider_id))
             .with_display_toggle_enabled()
             .prompt()?
