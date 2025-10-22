@@ -89,8 +89,6 @@ pub struct ProviderCredential {
     /// When the credential was last successfully verified
     pub last_verified_at: Option<DateTime<Utc>>,
 
-    /// Whether the credential is active
-    pub is_active: bool,
 }
 
 impl ProviderCredential {
@@ -106,7 +104,7 @@ impl ProviderCredential {
             created_at: now,
             updated_at: now,
             last_verified_at: None,
-            is_active: true,
+
         }
     }
 
@@ -122,7 +120,7 @@ impl ProviderCredential {
             created_at: now,
             updated_at: now,
             last_verified_at: None,
-            is_active: true,
+
         }
     }
 
@@ -142,7 +140,7 @@ impl ProviderCredential {
             created_at: now,
             updated_at: now,
             last_verified_at: None,
-            is_active: true,
+
         }
     }
 
@@ -190,7 +188,7 @@ impl Default for ProviderCredential {
             created_at: now,
             updated_at: now,
             last_verified_at: None,
-            is_active: true,
+
         }
     }
 }
@@ -265,7 +263,6 @@ mod tests {
         assert_eq!(cred.auth_type, AuthType::ApiKey);
         assert_eq!(cred.api_key, Some("sk-test".to_string()));
         assert!(cred.oauth_tokens.is_none());
-        assert!(cred.is_active);
     }
 
     #[test]
@@ -382,11 +379,9 @@ mod tests {
     fn test_setters() {
         let cred = ProviderCredential::default()
             .provider_id(ProviderId::Anthropic)
-            .api_key("test-key")
-            .is_active(false);
+            .api_key("test-key");
 
         assert_eq!(cred.provider_id, ProviderId::Anthropic);
         assert_eq!(cred.api_key, Some("test-key".to_string()));
-        assert!(!cred.is_active);
     }
 }

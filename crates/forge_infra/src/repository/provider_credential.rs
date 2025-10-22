@@ -26,7 +26,6 @@ struct ProviderCredentialRecord {
     created_at: NaiveDateTime,
     updated_at: NaiveDateTime,
     last_verified_at: Option<NaiveDateTime>,
-    is_active: bool,
 }
 impl TryFrom<&ProviderCredential> for ProviderCredentialRecord {
     type Error = anyhow::Error;
@@ -60,7 +59,6 @@ impl TryFrom<&ProviderCredential> for ProviderCredentialRecord {
             created_at: credential.created_at.naive_utc(),
             updated_at: credential.updated_at.naive_utc(),
             last_verified_at: credential.last_verified_at.map(|dt| dt.naive_utc()),
-            is_active: credential.is_active,
         })
     }
 }
@@ -110,7 +108,6 @@ impl TryFrom<ProviderCredentialRecord> for ProviderCredential {
             created_at: record.created_at.and_utc(),
             updated_at: record.updated_at.and_utc(),
             last_verified_at: record.last_verified_at.map(|dt| dt.and_utc()),
-            is_active: record.is_active,
         })
     }
 }
@@ -151,7 +148,6 @@ impl ProviderCredentialRepository for ProviderCredentialRepositoryImpl {
             provider_credentials::token_expires_at.eq(&record.token_expires_at),
             provider_credentials::url_params.eq(&record.url_params),
             provider_credentials::updated_at.eq(Utc::now().naive_utc()),
-            provider_credentials::is_active.eq(true),
         ))
         .execute(&mut conn)?;
 
@@ -182,12 +178,11 @@ impl ProviderCredentialRepository for ProviderCredentialRepositoryImpl {
         record.map(|r| r.try_into()).transpose()
     }
 
-    /// Gets all active credentials
+    /// Gets all credentials
     async fn get_all_credentials(&self) -> anyhow::Result<Vec<ProviderCredential>> {
         let mut conn = self.db_pool.get_connection()?;
 
         let records = provider_credentials::table
-            .filter(provider_credentials::is_active.eq(true))
             .load::<ProviderCredentialRecord>(&mut conn)?;
 
         records.into_iter().map(|r| r.try_into()).collect()

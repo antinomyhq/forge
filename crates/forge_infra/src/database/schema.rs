@@ -25,7 +25,6 @@ diesel::table! {
         created_at -> Timestamp,
         updated_at -> Timestamp,
         last_verified_at -> Nullable<Timestamp>,
-        is_active -> Bool,
     }
 }
 
