@@ -3,26 +3,15 @@ use forge_domain::Transformer;
 use crate::dto::anthropic::{Request, SystemMessage};
 
 /// Adds authentication system message when OAuth is enabled.
-pub struct AuthSystemMessage {
-    enabled: bool,
-}
+#[derive(Default)]
+pub struct AuthSystemMessage;
 
-impl AuthSystemMessage {
-    /// Creates new transformer.
-    pub fn new(enabled: bool) -> Self {
-        Self { enabled }
-    }
-}
 
 impl Transformer for AuthSystemMessage {
     type Value = Request;
 
     /// Prepends auth system message when enabled.
     fn transform(&mut self, mut request: Self::Value) -> Self::Value {
-        if !self.enabled {
-            return request;
-        }
-
         const AUTH_MESSAGE: &str = include_str!("claude_code.md");
 
         let auth_system_message = SystemMessage {
@@ -93,7 +82,7 @@ mod tests {
     #[test]
     fn test_enabled_adds_auth_message() {
         let fixture = create_request_with_system_messages(0);
-        let mut transformer = AuthSystemMessage::new(true);
+        let mut transformer = AuthSystemMessage::default().when(|_| true);
 
         let actual = transformer.transform(fixture);
 
@@ -106,7 +95,7 @@ mod tests {
     #[test]
     fn test_disabled_does_not_add_auth_message() {
         let fixture = create_request_with_system_messages(0);
-        let mut transformer = AuthSystemMessage::new(false);
+        let mut transformer = AuthSystemMessage::default().when(|_| false );
 
         let actual = transformer.transform(fixture);
 
@@ -118,7 +107,7 @@ mod tests {
     #[test]
     fn test_prepends_to_existing_system_messages() {
         let fixture = create_request_with_system_messages(2);
-        let mut transformer = AuthSystemMessage::new(true);
+        let mut transformer = AuthSystemMessage::default().when(|_| true);
 
         let actual = transformer.transform(fixture);
 
@@ -137,7 +126,8 @@ mod tests {
     #[test]
     fn test_auth_message_content_matches_file() {
         let fixture = create_request_with_system_messages(0);
-        let mut transformer = AuthSystemMessage::new(true);
+        let mut transformer = AuthSystemMessage::default().when(|_| true);
+
 
         let actual = transformer.transform(fixture);
 
@@ -149,7 +139,8 @@ mod tests {
     #[test]
     fn test_with_one_existing_system_message() {
         let fixture = create_request_with_system_messages(1);
-        let mut transformer = AuthSystemMessage::new(true);
+        let mut transformer = AuthSystemMessage::default().when(|_| true);
+
 
         let actual = transformer.transform(fixture);
 
@@ -164,7 +155,7 @@ mod tests {
         let fixture = create_request_with_system_messages(2);
         let expected_count = fixture.system.as_ref().unwrap().len();
 
-        let mut transformer = AuthSystemMessage::new(false);
+        let mut transformer = AuthSystemMessage::default().when(|_| false);
         let actual = transformer.transform(fixture);
 
         let system_messages = actual.system.unwrap();

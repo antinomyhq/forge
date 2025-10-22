@@ -85,7 +85,8 @@ impl<T: HttpClientService> Anthropic<T> {
             .stream(true)
             .max_tokens(max_tokens as u64);
 
-        let request = AuthSystemMessage::new(self.use_oauth)
+        let request = AuthSystemMessage::default()
+            .when(|_| self.use_oauth)
             .pipe(DropInvalidToolUse)
             .pipe(SetCache)
             .transform(request);
