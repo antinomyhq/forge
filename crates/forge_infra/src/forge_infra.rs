@@ -108,7 +108,7 @@ impl ForgeInfra {
 
         let oauth_service = Arc::new(forge_services::provider::ForgeOAuthService::default());
         let github_copilot_service =
-            Arc::new(forge_services::provider::GitHubCopilotService::new());
+            Arc::new(forge_services::provider::GitHubCopilotService::default());
 
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),

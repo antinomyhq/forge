@@ -24,7 +24,7 @@ impl ProviderSpecificProcessingInfra for ProviderProcessingService {
         &self,
         access_token: &str,
     ) -> anyhow::Result<(String, Option<DateTime<Utc>>)> {
-        let service = GitHubCopilotService::new();
+        let service = GitHubCopilotService::default();
         let (api_key, expires_at) = service.get_copilot_api_key(access_token).await?;
         Ok((api_key, Some(expires_at)))
     }

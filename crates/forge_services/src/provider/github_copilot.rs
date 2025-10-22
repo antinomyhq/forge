@@ -10,12 +10,13 @@ pub struct GitHubCopilotService {
     client: reqwest::Client,
 }
 
-impl GitHubCopilotService {
-    /// Creates a new GitHub Copilot service
-    pub fn new() -> Self {
+impl Default for GitHubCopilotService {
+    fn default() -> Self {
         Self { client: reqwest::Client::new() }
     }
+}
 
+impl GitHubCopilotService {
     /// Fetches GitHub Copilot API key from OAuth token
     ///
     /// GitHub Copilot specific: Uses OAuth token to fetch time-limited API key.
@@ -85,11 +86,5 @@ impl GitHubCopilotService {
             DateTime::from_timestamp(copilot_response.expires_at, 0).unwrap_or_else(Utc::now);
 
         Ok((copilot_response.token, expires_at))
-    }
-}
-
-impl Default for GitHubCopilotService {
-    fn default() -> Self {
-        Self::new()
     }
 }

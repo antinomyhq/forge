@@ -365,7 +365,7 @@ impl<
         // Create infrastructure adapter for the auth service
         let infra_adapter = Arc::new(RegistryInfraAdapter {
             oauth_service: Arc::new(ForgeOAuthService),
-            github_service: Arc::new(GitHubCopilotService::new()),
+            github_service: Arc::new(GitHubCopilotService::default()),
             main_infra: self.infra.clone(),
         });
 
