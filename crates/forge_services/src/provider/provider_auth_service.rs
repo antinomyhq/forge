@@ -75,28 +75,21 @@ where
         &self,
         config: &crate::provider::OAuthConfig,
     ) -> Result<AuthInitiation, super::AuthFlowError> {
-        use super::AuthFlowError;
-
         // Validate configuration
-        let device_code_url = config.device_code_url.as_ref().ok_or_else(|| {
-            AuthFlowError::InitiationFailed("device_code_url not configured".to_string())
-        })?;
-        let device_token_url = config.device_token_url.as_ref().ok_or_else(|| {
-            AuthFlowError::InitiationFailed("device_token_url not configured".to_string())
-        })?;
-
         // Build oauth2 client
         use oauth2::basic::BasicClient;
         use oauth2::{ClientId, DeviceAuthorizationUrl, Scope, TokenUrl};
 
+        use super::AuthFlowError;
+
         let client = BasicClient::new(ClientId::new(config.client_id.clone()))
             .set_device_authorization_url(
-                DeviceAuthorizationUrl::new(device_code_url.clone()).map_err(|e| {
-                    AuthFlowError::InitiationFailed(format!("Invalid device_code_url: {}", e))
+                DeviceAuthorizationUrl::new(config.auth_url.clone()).map_err(|e| {
+                    AuthFlowError::InitiationFailed(format!("Invalid auth_url: {}", e))
                 })?,
             )
-            .set_token_uri(TokenUrl::new(device_token_url.clone()).map_err(|e| {
-                AuthFlowError::InitiationFailed(format!("Invalid device_token_url: {}", e))
+            .set_token_uri(TokenUrl::new(config.token_url.clone()).map_err(|e| {
+                AuthFlowError::InitiationFailed(format!("Invalid token_url: {}", e))
             })?);
 
         // Request device authorization
@@ -163,22 +156,18 @@ where
 
         use super::AuthFlowError;
 
-        let device_code_url = config.device_code_url.as_ref().ok_or_else(|| {
-            AuthFlowError::PollFailed("device_code_url not configured".to_string())
-        })?;
-        let device_token_url = config.device_token_url.as_ref().ok_or_else(|| {
-            AuthFlowError::PollFailed("device_token_url not configured".to_string())
-        })?;
+        let auth_url = &config.auth_url;
+        let token_url = &config.token_url;
 
         let _client = BasicClient::new(ClientId::new(config.client_id.clone()))
             .set_device_authorization_url(
-                DeviceAuthorizationUrl::new(device_code_url.clone()).map_err(|e| {
-                    AuthFlowError::PollFailed(format!("Invalid device_code_url: {}", e))
-                })?,
+                DeviceAuthorizationUrl::new(auth_url.clone())
+                    .map_err(|e| AuthFlowError::PollFailed(format!("Invalid auth_url: {}", e)))?,
             )
-            .set_token_uri(TokenUrl::new(device_token_url.clone()).map_err(|e| {
-                AuthFlowError::PollFailed(format!("Invalid device_token_url: {}", e))
-            })?);
+            .set_token_uri(
+                TokenUrl::new(token_url.clone())
+                    .map_err(|e| AuthFlowError::PollFailed(format!("Invalid token_url: {}", e)))?,
+            );
 
         // Build HTTP client for manual polling
         let oauth_service = self.infra.oauth_service();
@@ -236,7 +225,7 @@ where
             }
 
             let response = http_client
-                .post(device_token_url)
+                .post(token_url)
                 .headers(headers)
                 .body(body)
                 .send()
@@ -437,12 +426,8 @@ where
         use super::AuthFlowError;
 
         // Validate configuration
-        let device_code_url = config.device_code_url.as_ref().ok_or_else(|| {
-            AuthFlowError::InitiationFailed("device_code_url not configured".to_string())
-        })?;
-        let device_token_url = config.device_token_url.as_ref().ok_or_else(|| {
-            AuthFlowError::InitiationFailed("device_token_url not configured".to_string())
-        })?;
+        let auth_url = &config.auth_url;
+        let token_url = &config.token_url;
 
         // Build oauth2 client
         use oauth2::basic::BasicClient;
@@ -450,12 +435,12 @@ where
 
         let client = BasicClient::new(ClientId::new(config.client_id.clone()))
             .set_device_authorization_url(
-                DeviceAuthorizationUrl::new(device_code_url.clone()).map_err(|e| {
-                    AuthFlowError::InitiationFailed(format!("Invalid device_code_url: {}", e))
+                DeviceAuthorizationUrl::new(auth_url.clone()).map_err(|e| {
+                    AuthFlowError::InitiationFailed(format!("Invalid auth_url: {}", e))
                 })?,
             )
-            .set_token_uri(TokenUrl::new(device_token_url.clone()).map_err(|e| {
-                AuthFlowError::InitiationFailed(format!("Invalid device_token_url: {}", e))
+            .set_token_uri(TokenUrl::new(token_url.clone()).map_err(|e| {
+                AuthFlowError::InitiationFailed(format!("Invalid token_url: {}", e))
             })?);
 
         // Request device authorization with scopes
@@ -518,9 +503,7 @@ where
     ) -> Result<AuthResult, super::AuthFlowError> {
         use super::AuthFlowError;
 
-        let device_token_url = config.device_token_url.as_ref().ok_or_else(|| {
-            AuthFlowError::PollFailed("device_token_url not configured".to_string())
-        })?;
+        let token_url = &config.token_url;
 
         // Build HTTP client for manual polling
         let http_client = self
@@ -579,7 +562,7 @@ where
             }
 
             let response = http_client
-                .post(device_token_url)
+                .post(token_url)
                 .headers(headers)
                 .body(body)
                 .send()

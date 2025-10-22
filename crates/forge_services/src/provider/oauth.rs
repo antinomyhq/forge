@@ -70,7 +70,8 @@ struct AnthropicTokenRequest {
     /// OAuth client ID
     client_id: String,
     /// Redirect URI (must match authorization request)
-    redirect_uri: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    redirect_uri: Option<String>,
     /// PKCE code verifier
     code_verifier: String,
 }
@@ -262,34 +263,29 @@ impl ForgeOAuthService {
     /// # Errors
     /// Returns error if URL building fails
     pub fn build_auth_code_url(&self, config: &OAuthConfig) -> anyhow::Result<AuthCodeParams> {
-        let auth_url = config
-            .auth_url
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("auth_url not configured"))?;
-        let token_url = config
-            .token_url
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("token_url not configured"))?;
-
         // Check if this is Anthropic OAuth (non-standard: state = verifier)
-        let is_anthropic = auth_url.contains("claude.ai/oauth");
+        let is_anthropic = config.auth_url.contains("claude.ai/oauth");
 
         if is_anthropic && config.use_pkce {
             // Anthropic requires state to be set to the PKCE verifier (non-standard)
             // Build URL manually instead of using oauth2 library
             let (challenge, verifier) = PkceCodeChallenge::new_random_sha256();
 
-            let mut url = url::Url::parse(auth_url)?;
+            let mut url = url::Url::parse(&config.auth_url)?;
 
             // Add required OAuth parameters
-            url.query_pairs_mut()
-                .append_pair("client_id", &config.client_id)
-                .append_pair("response_type", "code")
-                .append_pair("redirect_uri", &config.redirect_uri)
-                .append_pair("scope", &config.scopes.join(" "))
-                .append_pair("code_challenge", challenge.as_str())
-                .append_pair("code_challenge_method", "S256")
-                .append_pair("state", verifier.secret()); // ← Set state to verifier!
+                url.query_pairs_mut()
+                    .append_pair("client_id", &config.client_id)
+                    .append_pair("response_type", "code")
+                    .append_pair("scope", &config.scopes.join(" "))
+                    .append_pair("code_challenge", challenge.as_str())
+                    .append_pair("code_challenge_method", "S256")
+                    .append_pair("state", verifier.secret()); // ← Set state to verifier!
+
+                 // Add redirect_uri only if provided
+                if let Some(redirect_uri) = &config.redirect_uri {
+                    url.query_pairs_mut().append_pair("redirect_uri", redirect_uri);
+                }
 
             // Add extra parameters (like code=true)
             if let Some(extra_params) = &config.extra_auth_params {
@@ -306,10 +302,14 @@ impl ForgeOAuthService {
         }
 
         // Standard OAuth flow for other providers
-        let client = BasicClient::new(ClientId::new(config.client_id.clone()))
-            .set_auth_uri(AuthUrl::new(auth_url.clone())?)
-            .set_token_uri(TokenUrl::new(token_url.clone())?)
-            .set_redirect_uri(RedirectUrl::new(config.redirect_uri.clone())?);
+        let mut client = BasicClient::new(ClientId::new(config.client_id.clone()))
+            .set_auth_uri(AuthUrl::new(config.auth_url.clone())?)
+            .set_token_uri(TokenUrl::new(config.token_url.clone())?);
+
+        // Add redirect_uri if provided
+        if let Some(redirect_uri) = &config.redirect_uri {
+            client = client.set_redirect_uri(RedirectUrl::new(redirect_uri.clone())?);
+        }
 
         let mut request = client.authorize_url(CsrfToken::new_random);
 
@@ -360,14 +360,8 @@ impl ForgeOAuthService {
         auth_code: &str,
         code_verifier: Option<&str>,
     ) -> anyhow::Result<OAuthTokenResponse> {
-        let auth_url = config
-            .auth_url
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("auth_url not configured"))?;
-        let token_url = config
-            .token_url
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("token_url not configured"))?;
+        let auth_url = &config.auth_url;
+        let token_url = &config.token_url;
 
         // Check if this is Anthropic OAuth (requires special handling)
         let is_anthropic = auth_url.contains("claude.ai/oauth");
@@ -380,10 +374,14 @@ impl ForgeOAuthService {
         }
 
         // Standard OAuth flow for other providers
-        let client = BasicClient::new(ClientId::new(config.client_id.clone()))
+        let mut client = BasicClient::new(ClientId::new(config.client_id.clone()))
             .set_auth_uri(AuthUrl::new(auth_url.clone())?)
-            .set_token_uri(TokenUrl::new(token_url.clone())?)
-            .set_redirect_uri(RedirectUrl::new(config.redirect_uri.clone())?);
+            .set_token_uri(TokenUrl::new(token_url.clone())?);
+
+        // Add redirect_uri if provided
+        if let Some(redirect_uri) = &config.redirect_uri {
+            client = client.set_redirect_uri(RedirectUrl::new(redirect_uri.clone())?);
+        }
 
         // Build HTTP client with custom headers
         let http_client = self.build_http_client(config.custom_headers.as_ref())?;
@@ -482,12 +480,8 @@ impl ForgeOAuthService {
         config: &OAuthConfig,
         refresh_token: &str,
     ) -> anyhow::Result<OAuthTokenResponse> {
-        // Try code flow token URL first, fallback to device flow token URL
-        let token_url = config
-            .token_url
-            .as_ref()
-            .or(config.device_token_url.as_ref())
-            .ok_or_else(|| anyhow::anyhow!("token_url not configured for refresh"))?;
+        // Get token URL from config
+        let token_url = &config.token_url;
 
         // Build minimal oauth2 client (just need token endpoint)
         let client = BasicClient::new(ClientId::new(config.client_id.clone()))
@@ -526,13 +520,11 @@ mod tests {
     #[tokio::test]
     async fn test_build_auth_code_url_with_pkce() {
         let config = OAuthConfig {
-            device_code_url: None,
-            device_token_url: None,
-            auth_url: Some("https://provider.com/authorize".to_string()),
-            token_url: Some("https://provider.com/token".to_string()),
+            auth_url: "https://provider.com/authorize".to_string(),
+            token_url: "https://provider.com/token".to_string(),
             client_id: "test-client".to_string(),
             scopes: vec!["user:profile".to_string(), "user:email".to_string()],
-            redirect_uri: "https://provider.com/callback".to_string(),
+            redirect_uri: Some("https://provider.com/callback".to_string()),
             use_pkce: true,
             token_refresh_url: None,
             custom_headers: None,
@@ -559,13 +551,11 @@ mod tests {
     #[tokio::test]
     async fn test_build_auth_code_url_without_pkce() {
         let config = OAuthConfig {
-            device_code_url: None,
-            device_token_url: None,
-            auth_url: Some("https://provider.com/authorize".to_string()),
-            token_url: Some("https://provider.com/token".to_string()),
+            auth_url: "https://provider.com/authorize".to_string(),
+            token_url: "https://provider.com/token".to_string(),
             client_id: "test-client".to_string(),
             scopes: vec!["read".to_string()],
-            redirect_uri: "https://provider.com/callback".to_string(),
+            redirect_uri: Some("https://provider.com/callback".to_string()),
             use_pkce: false,
             token_refresh_url: None,
             custom_headers: None,
@@ -599,13 +589,11 @@ mod tests {
             .await;
 
         let config = OAuthConfig {
-            device_code_url: None,
-            device_token_url: None,
-            auth_url: Some("https://provider.com/auth".to_string()),
-            token_url: Some(format!("{}/token", server.url())),
+            auth_url: "https://provider.com/auth".to_string(),
+            token_url: format!("{}/token", server.url()),
             client_id: "test-client".to_string(),
             scopes: vec![],
-            redirect_uri: "https://provider.com/callback".to_string(),
+            redirect_uri: Some("https://provider.com/callback".to_string()),
             use_pkce: false,
             token_refresh_url: None,
             custom_headers: None,

@@ -14,25 +14,13 @@ use serde::{Deserialize, Serialize};
 /// OAuth configuration for device and code flows
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OAuthConfig {
-    /// Device code URL (device flow only)
-    /// Example: "https://github.com/login/device/code"
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub device_code_url: Option<String>,
+    /// Authorization URL
+    /// Example: "https://claude.ai/oauth/authorize" or "https://github.com/login/device/code"
+    pub auth_url: String,
 
-    /// Device token URL (device flow only)
-    /// Example: "https://github.com/login/oauth/access_token"
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub device_token_url: Option<String>,
-
-    /// Authorization URL (code flow only)
-    /// Example: "https://claude.ai/oauth/authorize"
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub auth_url: Option<String>,
-
-    /// Token exchange URL (code flow only)
-    /// Example: "https://api.anthropic.com/oauth/token"
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_url: Option<String>,
+    /// Token exchange URL
+    /// Example: "https://api.anthropic.com/oauth/token" or "https://github.com/login/oauth/access_token"
+    pub token_url: String,
 
     /// OAuth client ID provided by the service
     pub client_id: String,
@@ -42,7 +30,8 @@ pub struct OAuthConfig {
 
     /// Redirect URI (for code flow, points to provider's callback page)
     /// Example: "https://console.anthropic.com/oauth/code/callback"
-    pub redirect_uri: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub redirect_uri: Option<String>,
 
     /// Whether to use PKCE (Proof Key for Code Exchange) for security
     #[serde(default)]
@@ -368,13 +357,11 @@ mod tests {
         assert_eq!(json, r#""api_key""#);
 
         let oauth_device = AuthMethod::OAuthDevice(OAuthConfig {
-            device_code_url: Some("https://example.com/device".to_string()),
-            device_token_url: Some("https://example.com/token".to_string()),
-            auth_url: None,
-            token_url: None,
+            auth_url: "https://example.com/device".to_string(),
+            token_url: "https://example.com/token".to_string(),
             client_id: "client-id".to_string(),
             scopes: vec!["read".to_string()],
-            redirect_uri: String::new(),
+            redirect_uri: None,
             use_pkce: false,
             token_refresh_url: None,
             custom_headers: None,
@@ -385,13 +372,11 @@ mod tests {
         assert!(json.contains("client-id"));
 
         let oauth_code = AuthMethod::OAuthCode(OAuthConfig {
-            device_code_url: None,
-            device_token_url: None,
-            auth_url: Some("https://example.com/auth".to_string()),
-            token_url: Some("https://example.com/token".to_string()),
+            auth_url: "https://example.com/auth".to_string(),
+            token_url: "https://example.com/token".to_string(),
             client_id: "client-id".to_string(),
             scopes: vec!["read".to_string()],
-            redirect_uri: "https://example.com/callback".to_string(),
+            redirect_uri: Some("https://example.com/callback".to_string()),
             use_pkce: true,
             token_refresh_url: None,
             custom_headers: None,
@@ -405,13 +390,11 @@ mod tests {
     #[test]
     fn test_auth_method_oauth_config() {
         let config = OAuthConfig {
-            device_code_url: Some("https://example.com/device".to_string()),
-            device_token_url: Some("https://example.com/token".to_string()),
-            auth_url: None,
-            token_url: None,
+            auth_url: "https://example.com/device".to_string(),
+            token_url: "https://example.com/token".to_string(),
             client_id: "client-id".to_string(),
             scopes: vec!["read".to_string()],
-            redirect_uri: String::new(),
+            redirect_uri: None,
             use_pkce: false,
             token_refresh_url: None,
             custom_headers: None,
