@@ -61,21 +61,10 @@ pub enum AuthFlow {
 
 impl AuthFlow {
     /// Creates an authentication flow for the specified provider and method
-    ///
-    /// # Arguments
-    /// * `provider_id` - The provider to create a flow for
-    /// * `auth_method` - The authentication method configuration
-    /// * `infra` - Infrastructure services (OAuth, HTTP, etc.)
-    ///
-    /// # Returns
-    /// An `AuthFlow` enum wrapping the appropriate flow implementation
-    ///
-    /// # Errors
-    /// Returns error if the authentication method type is unsupported or
-    /// required configuration is missing
     pub fn try_new<I>(
         provider_id: &ProviderId,
         auth_method: &AuthMethod,
+        url_param_vars: Vec<String>,
         infra: Arc<I>,
     ) -> anyhow::Result<Self>
     where
@@ -83,9 +72,12 @@ impl AuthFlow {
     {
         match auth_method {
             AuthMethod::ApiKey => {
-                // Check if this is a cloud provider that needs URL parameters
-                let required_params = Self::get_provider_params(provider_id);
-                // API key with URL parameters
+                // Convert url_param_vars to UrlParameters with simple prompts
+                let required_params = url_param_vars
+                    .into_iter()
+                    .map(|var| UrlParameter::required(var.clone(), format!("{}", var)))
+                    .collect();
+
                 Ok(Self::ApiKey(ApiKeyAuthFlow::new(
                     provider_id.clone(),
                     required_params,
@@ -117,56 +109,6 @@ impl AuthFlow {
                 infra.oauth_service(),
             ))),
         }
-    }
-
-    /// Gets required URL parameters for cloud providers
-    ///
-    /// Returns parameter definitions for providers that require additional
-    /// configuration beyond API keys (e.g., Vertex AI project_id, Azure
-    /// resource_name).
-    fn get_provider_params(provider_id: &ProviderId) -> Vec<UrlParameter> {
-        match provider_id {
-            ProviderId::VertexAi => Self::vertex_ai_params(),
-            ProviderId::Azure => Self::azure_params(),
-            ProviderId::OpenAICompatible | ProviderId::AnthropicCompatible => {
-                Self::compatible_provider_params()
-            }
-            _ => vec![],
-        }
-    }
-
-    /// Returns OpenAI/Anthropic compatible provider required parameters
-    fn compatible_provider_params() -> Vec<UrlParameter> {
-        vec![
-            UrlParameter::required("BASE_URL", "Base URL")
-                .description("API endpoint (e.g., http://localhost:8080/v1)")
-                .validation_pattern(r"^https?://.+"),
-        ]
-    }
-
-    /// Returns Vertex AI required parameters
-    fn vertex_ai_params() -> Vec<UrlParameter> {
-        vec![
-            UrlParameter::required("project_id", "GCP Project ID")
-                .description("Your Google Cloud project ID")
-                .validation_pattern(r"^[a-z][a-z0-9-]{4,28}[a-z0-9]$"),
-            UrlParameter::required("location", "Location")
-                .description("GCP region (e.g., us-central1) or 'global'")
-                .default_value("us-central1"),
-        ]
-    }
-
-    /// Returns Azure OpenAI required parameters
-    fn azure_params() -> Vec<UrlParameter> {
-        vec![
-            UrlParameter::required("resource_name", "Azure Resource Name")
-                .description("Your Azure OpenAI resource name"),
-            UrlParameter::required("deployment_name", "Deployment Name")
-                .description("Your model deployment name"),
-            UrlParameter::required("api_version", "API Version")
-                .description("Azure API version")
-                .default_value("2024-02-15-preview"),
-        ]
     }
 }
 

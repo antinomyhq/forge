@@ -273,6 +273,11 @@ impl<
             )
         })?;
 
+        // Get URL parameters from provider config
+        let url_param_vars = get_provider_config(provider_id)
+            .map(|config| config.url_param_vars.clone())
+            .unwrap_or_default();
+
         // Create an infrastructure adapter for the auth flow
         let infra_adapter = RegistryInfraAdapter {
             oauth_service: Arc::new(ForgeOAuthService),
@@ -280,7 +285,12 @@ impl<
         };
 
         // Create the appropriate auth flow
-        let flow = AuthFlow::try_new(provider_id, auth_method, Arc::new(infra_adapter))?;
+        let flow = AuthFlow::try_new(
+            provider_id,
+            auth_method,
+            url_param_vars,
+            Arc::new(infra_adapter),
+        )?;
 
         // Use the flow's refresh method
         let refreshed_credential = flow.refresh(credential).await?;

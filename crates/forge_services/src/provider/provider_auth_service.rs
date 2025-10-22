@@ -54,8 +54,13 @@ where
         provider_id: ProviderId,
         method: AuthMethod,
     ) -> anyhow::Result<AuthInitiation> {
+        // Get URL parameters from provider config
+        let url_param_vars = crate::provider::registry::get_provider_config(&provider_id)
+            .map(|config| config.url_param_vars.clone())
+            .unwrap_or_default();
+
         // Create appropriate auth flow using factory
-        let flow = AuthFlow::try_new(&provider_id, &method, self.infra.clone())?;
+        let flow = AuthFlow::try_new(&provider_id, &method, url_param_vars, self.infra.clone())?;
 
         // Initiate the authentication flow
         flow.initiate().await.map_err(|e| anyhow::anyhow!(e))
@@ -68,8 +73,13 @@ where
         timeout: Duration,
         method: AuthMethod,
     ) -> anyhow::Result<AuthResult> {
+        // Get URL parameters from provider config
+        let url_param_vars = crate::provider::registry::get_provider_config(&provider_id)
+            .map(|config| config.url_param_vars.clone())
+            .unwrap_or_default();
+
         // Create appropriate auth flow using factory
-        let flow = AuthFlow::try_new(&provider_id, &method, self.infra.clone())?;
+        let flow = AuthFlow::try_new(&provider_id, &method, url_param_vars, self.infra.clone())?;
 
         // Poll until complete
         flow.poll_until_complete(context, timeout)
@@ -83,8 +93,13 @@ where
         result: AuthResult,
         method: AuthMethod,
     ) -> anyhow::Result<ProviderCredential> {
+        // Get URL parameters from provider config
+        let url_param_vars = crate::provider::registry::get_provider_config(&provider_id)
+            .map(|config| config.url_param_vars.clone())
+            .unwrap_or_default();
+
         // Create appropriate auth flow using factory
-        let flow = AuthFlow::try_new(&provider_id, &method, self.infra.clone())?;
+        let flow = AuthFlow::try_new(&provider_id, &method, url_param_vars, self.infra.clone())?;
 
         // Complete authentication and create credential
         let credential = flow
