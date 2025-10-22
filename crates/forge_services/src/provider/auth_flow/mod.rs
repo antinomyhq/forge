@@ -75,7 +75,7 @@ impl AuthFlow {
                 // Convert url_param_vars to UrlParameters with simple prompts
                 let required_params = url_param_vars
                     .into_iter()
-                    .map(|var| UrlParameter::required(var.clone(), format!("{}", var)))
+                    .map(|var| UrlParameter::required(var.clone(), var.to_string()))
                     .collect();
 
                 Ok(Self::ApiKey(ApiKeyAuthFlow::new(
