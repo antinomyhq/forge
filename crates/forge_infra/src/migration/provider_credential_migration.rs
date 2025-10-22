@@ -1,7 +1,9 @@
-use anyhow::Result;
-use forge_app::dto::{ProviderId, ProviderCredential};
-use forge_services::{provider::registry::get_provider_credential_vars, EnvironmentInfra, ProviderCredentialRepository};
 use std::sync::Arc;
+
+use anyhow::Result;
+use forge_app::dto::{ProviderCredential, ProviderId};
+use forge_services::provider::registry::get_provider_credential_vars;
+use forge_services::{EnvironmentInfra, ProviderCredentialRepository};
 use strum::IntoEnumIterator;
 
 pub struct ProviderCredentialMigration<E, R> {
@@ -35,23 +37,36 @@ impl<E: EnvironmentInfra, R: ProviderCredentialRepository> ProviderCredentialMig
         Ok(())
     }
 
-    async fn migrate_provider(&self, provider_id: &ProviderId) -> Result<Option<ProviderCredential>> {
+    async fn migrate_provider(
+        &self,
+        provider_id: &ProviderId,
+    ) -> Result<Option<ProviderCredential>> {
         let Some((api_key_var, url_param_vars)) = get_provider_credential_vars(provider_id) else {
             return Ok(None);
         };
 
-        let Some(api_key) = self.env_infra.get_env_var(&api_key_var).filter(|k| !k.trim().is_empty()) else {
+        let Some(api_key) = self
+            .env_infra
+            .get_env_var(&api_key_var)
+            .filter(|k| !k.trim().is_empty())
+        else {
             return Ok(None);
         };
 
         let credential = ProviderCredential::new_api_key(provider_id.clone(), api_key).url_params(
-            url_param_vars.iter()
-                .filter_map(|var| self.env_infra.get_env_var(var.as_str())
-                    .filter(|v| !v.trim().is_empty())
-                    .map(|val| (var.as_ref().to_string(), val)))
-                .collect::<std::collections::HashMap<_, _>>()
+            url_param_vars
+                .iter()
+                .filter_map(|var| {
+                    self.env_infra
+                        .get_env_var(var.as_str())
+                        .filter(|v| !v.trim().is_empty())
+                        .map(|val| (var.as_ref().to_string(), val))
+                })
+                .collect::<std::collections::HashMap<_, _>>(),
         );
-        self.credential_repo.upsert_credential(credential.clone()).await?;
+        self.credential_repo
+            .upsert_credential(credential.clone())
+            .await?;
 
         Ok(Some(credential))
     }

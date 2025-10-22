@@ -53,14 +53,13 @@ impl AuthenticationFlow for ApiKeyAuthFlow {
                 }
 
                 // Validate URL parameters if required
-                
 
-                    // Create credential with API key and URL parameters
-                    let mut credential =
-                        ProviderCredential::new_api_key(self.provider_id.clone(), api_key);
-                    credential.url_params = url_params;
+                // Create credential with API key and URL parameters
+                let mut credential =
+                    ProviderCredential::new_api_key(self.provider_id.clone(), api_key);
+                credential.url_params = url_params;
 
-                    Ok(credential)
+                Ok(credential)
             }
             _ => Err(AuthFlowError::CompletionFailed(
                 "Expected API key result".to_string(),

@@ -88,7 +88,11 @@ impl ForgeInfra {
             Arc::new(ProviderCredentialRepositoryImpl::new(db_pool.clone()));
 
         // Migrate provider credentials from environment if table was just created
-        if db_pool.executed_migrations.iter().any(|m| m.contains("20251021000000")) {
+        if db_pool
+            .executed_migrations
+            .iter()
+            .any(|m| m.contains("20251021000000"))
+        {
             use crate::ProviderCredentialMigration;
             tokio::task::block_in_place(|| {
                 tokio::runtime::Handle::current().block_on(async {
