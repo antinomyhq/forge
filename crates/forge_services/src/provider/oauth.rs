@@ -99,6 +99,36 @@ fn default_token_type() -> String {
     "Bearer".to_string()
 }
 
+impl From<AnthropicTokenResponse> for OAuthTokenResponse {
+    fn from(resp: AnthropicTokenResponse) -> Self {
+        Self {
+            access_token: resp.access_token,
+            refresh_token: resp.refresh_token,
+            expires_in: resp.expires_in,
+            token_type: resp.token_type,
+            scope: resp.scope,
+        }
+    }
+}
+
+impl<T: TokenResponse> From<T> for OAuthTokenResponse {
+    fn from(token: T) -> Self {
+        Self {
+            access_token: token.access_token().secret().to_string(),
+            refresh_token: token.refresh_token().map(|t| t.secret().to_string()),
+            expires_in: token.expires_in().map(|d| d.as_secs()),
+            token_type: "Bearer".to_string(),
+            scope: token.scopes().map(|scopes| {
+                scopes
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            }),
+        }
+    }
+}
+
 /// Parameters for building authorization code URL
 #[derive(Debug, Clone)]
 pub struct AuthCodeParams {
@@ -156,28 +186,7 @@ impl ForgeOAuthService {
         Ok(builder.build()?)
     }
 
-    /// Converts oauth2 crate's StandardTokenResponse to OAuthTokenResponse
-    ///
-    /// # Arguments
-    /// * `token_result` - The token response from oauth2 crate
-    ///
-    /// # Returns
-    /// Converted OAuthTokenResponse with all fields extracted
-    fn convert_token_response(token_result: impl TokenResponse) -> OAuthTokenResponse {
-        OAuthTokenResponse {
-            access_token: token_result.access_token().secret().to_string(),
-            refresh_token: token_result.refresh_token().map(|t| t.secret().to_string()),
-            expires_in: token_result.expires_in().map(|d| d.as_secs()),
-            token_type: "Bearer".to_string(),
-            scope: token_result.scopes().map(|scopes| {
-                scopes
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            }),
-        }
-    }
+
 
     /// Custom async HTTP function that fixes GitHub's non-compliant OAuth
     /// responses.
@@ -396,7 +405,7 @@ impl ForgeOAuthService {
         // Execute token exchange
         let token_result = request.request_async(&http_client).await?;
 
-        Ok(Self::convert_token_response(token_result))
+        Ok(token_result.into())
     }
 
     /// Exchanges authorization code for tokens using Anthropic's custom format
@@ -451,14 +460,8 @@ impl ForgeOAuthService {
         // Parse response using concrete type
         let anthropic_response: AnthropicTokenResponse = response.json().await?;
 
-        // Convert to common OAuthTokenResponse
-        Ok(OAuthTokenResponse {
-            access_token: anthropic_response.access_token,
-            refresh_token: anthropic_response.refresh_token,
-            expires_in: anthropic_response.expires_in,
-            token_type: anthropic_response.token_type,
-            scope: anthropic_response.scope,
-        })
+        // Convert to common OAuthTokenResponse using From trait
+        Ok(anthropic_response.into())
     }
 
     /// Refreshes access token using refresh token
@@ -495,7 +498,7 @@ impl ForgeOAuthService {
             .request_async(&http_fn)
             .await?;
 
-        Ok(Self::convert_token_response(token_result))
+        Ok(token_result.into())
     }
 }
 
