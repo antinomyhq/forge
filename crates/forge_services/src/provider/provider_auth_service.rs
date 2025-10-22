@@ -736,24 +736,22 @@ where
             .await
             .map_err(|e| AuthFlowError::RefreshFailed(format!("Token refresh failed: {}", e)))?;
 
-        // Calculate new expiration
-        let expires_at = if let Some(seconds) = token_response.expires_in {
-            Utc::now() + chrono::Duration::seconds(seconds as i64)
-        } else {
-            Utc::now() + chrono::Duration::days(365)
-        };
+        let expires_at = Utc::now()
+            + token_response
+                .expires_in
+                .map(|s| chrono::Duration::seconds(s as i64))
+                .unwrap_or(chrono::Duration::days(365));
 
         let new_tokens = OAuthTokens::new(
             token_response
                 .refresh_token
-                .unwrap_or_else(|| tokens.refresh_token.clone()),
+                .unwrap_or(tokens.refresh_token.clone()),
             token_response.access_token,
             expires_at,
         );
-
-        let mut updated_credential = credential.clone();
+        
+        let mut updated_credential= credential.clone();
         updated_credential.update_oauth_tokens(new_tokens);
-
         Ok(updated_credential)
     }
 
