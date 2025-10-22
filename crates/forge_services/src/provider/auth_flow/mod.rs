@@ -27,9 +27,6 @@ pub mod oauth_with_apikey;
 pub use api_key::ApiKeyAuthFlow;
 pub use error::AuthFlowError;
 pub use oauth_code::OAuthCodeFlow;
-
-mod cloud_service;
-pub use cloud_service::CloudServiceAuthFlow;
 pub use oauth_device::OAuthDeviceFlow;
 pub use oauth_with_apikey::OAuthWithApiKeyFlow;
 
@@ -53,8 +50,7 @@ pub trait AuthFlowInfra: Send + Sync {
 pub enum AuthFlow {
     /// Simple API key authentication
     ApiKey(ApiKeyAuthFlow),
-    /// Cloud service with URL parameters (Vertex AI, Azure)
-    CloudService(CloudServiceAuthFlow),
+
     /// OAuth device code flow
     OAuthDevice(OAuthDeviceFlow),
     /// OAuth authorization code flow
@@ -94,9 +90,11 @@ impl AuthFlow {
                     // Simple API key authentication
                     Ok(Self::ApiKey(ApiKeyAuthFlow::new(provider_id.clone())))
                 } else {
-                    // Cloud service with URL parameters
-                    let flow = CloudServiceAuthFlow::new(provider_id.clone(), required_params);
-                    Ok(Self::CloudService(flow))
+                    // API key with URL parameters
+                    Ok(Self::ApiKey(ApiKeyAuthFlow::with_params(
+                        provider_id.clone(),
+                        required_params,
+                    )))
                 }
             }
 
@@ -183,7 +181,7 @@ impl AuthenticationFlow for AuthFlow {
     fn auth_method_type(&self) -> AuthMethod {
         match self {
             Self::ApiKey(flow) => flow.auth_method_type(),
-            Self::CloudService(flow) => flow.auth_method_type(),
+
             Self::OAuthDevice(flow) => flow.auth_method_type(),
             Self::OAuthCode(flow) => flow.auth_method_type(),
             Self::OAuthWithApiKey(flow) => flow.auth_method_type(),
@@ -193,7 +191,7 @@ impl AuthenticationFlow for AuthFlow {
     async fn initiate(&self) -> Result<AuthInitiation, AuthFlowError> {
         match self {
             Self::ApiKey(flow) => flow.initiate().await,
-            Self::CloudService(flow) => flow.initiate().await,
+
             Self::OAuthDevice(flow) => flow.initiate().await,
             Self::OAuthCode(flow) => flow.initiate().await,
             Self::OAuthWithApiKey(flow) => flow.initiate().await,
@@ -207,7 +205,7 @@ impl AuthenticationFlow for AuthFlow {
     ) -> Result<AuthResult, AuthFlowError> {
         match self {
             Self::ApiKey(flow) => flow.poll_until_complete(context, timeout).await,
-            Self::CloudService(flow) => flow.poll_until_complete(context, timeout).await,
+
             Self::OAuthDevice(flow) => flow.poll_until_complete(context, timeout).await,
             Self::OAuthCode(flow) => flow.poll_until_complete(context, timeout).await,
             Self::OAuthWithApiKey(flow) => flow.poll_until_complete(context, timeout).await,
@@ -217,7 +215,7 @@ impl AuthenticationFlow for AuthFlow {
     async fn complete(&self, result: AuthResult) -> Result<ProviderCredential, AuthFlowError> {
         match self {
             Self::ApiKey(flow) => flow.complete(result).await,
-            Self::CloudService(flow) => flow.complete(result).await,
+
             Self::OAuthDevice(flow) => flow.complete(result).await,
             Self::OAuthCode(flow) => flow.complete(result).await,
             Self::OAuthWithApiKey(flow) => flow.complete(result).await,
@@ -230,7 +228,7 @@ impl AuthenticationFlow for AuthFlow {
     ) -> Result<ProviderCredential, AuthFlowError> {
         match self {
             Self::ApiKey(flow) => flow.refresh(credential).await,
-            Self::CloudService(flow) => flow.refresh(credential).await,
+
             Self::OAuthDevice(flow) => flow.refresh(credential).await,
             Self::OAuthCode(flow) => flow.refresh(credential).await,
             Self::OAuthWithApiKey(flow) => flow.refresh(credential).await,
