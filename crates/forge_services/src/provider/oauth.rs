@@ -13,29 +13,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::provider::OAuthConfig;
 
-/// Response from device authorization initiation
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeviceAuthorizationResponse {
-    /// Device verification code for polling
-    pub device_code: String,
-
-    /// User code to display (8-character format like "ABCD-1234")
-    pub user_code: String,
-
-    /// URL where user should visit to authorize
-    pub verification_uri: String,
-
-    /// Alternative URI with user_code embedded
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub verification_uri_complete: Option<String>,
-
-    /// Seconds until device_code expires
-    pub expires_in: u64,
-
-    /// Minimum seconds to wait between polling attempts
-    pub interval: u64,
-}
-
 /// OAuth token response (both device and code flows)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthTokenResponse {
@@ -86,37 +63,6 @@ struct AnthropicTokenRequest {
     code_verifier: String,
 }
 
-/// Anthropic-specific token exchange response
-#[derive(Debug, Deserialize)]
-struct AnthropicTokenResponse {
-    /// Access token for API requests
-    access_token: String,
-    /// Refresh token for obtaining new access tokens
-    #[serde(default)]
-    refresh_token: Option<String>,
-    /// Seconds until access token expires
-    #[serde(default)]
-    expires_in: Option<u64>,
-    /// Token type (usually "Bearer")
-    #[serde(default = "default_token_type")]
-    token_type: String,
-    /// OAuth scopes granted
-    #[serde(default)]
-    scope: Option<String>,
-}
-
-impl From<AnthropicTokenResponse> for OAuthTokenResponse {
-    fn from(resp: AnthropicTokenResponse) -> Self {
-        Self {
-            access_token: resp.access_token,
-            refresh_token: resp.refresh_token,
-            expires_in: resp.expires_in,
-            expires_at: None,
-            token_type: resp.token_type,
-            scope: resp.scope,
-        }
-    }
-}
 
 impl<T: TokenResponse> From<T> for OAuthTokenResponse {
     fn from(token: T) -> Self {
@@ -459,11 +405,7 @@ impl ForgeOAuthService {
             );
         }
 
-        // Parse response using concrete type
-        let anthropic_response: AnthropicTokenResponse = response.json().await?;
-
-        // Convert to common OAuthTokenResponse using From trait
-        Ok(anthropic_response.into())
+        Ok(response.json().await?)
     }
 
     /// Refreshes access token using refresh token
