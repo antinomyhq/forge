@@ -732,9 +732,5 @@ pub enum AuthCommand {
         /// Optional provider ID to skip selection
         #[arg(long)]
         provider: Option<String>,
-
-        /// Skip validation (advanced users)
-        #[arg(long)]
-        skip_validation: bool,
     },
 }

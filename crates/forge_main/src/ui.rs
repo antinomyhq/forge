@@ -466,8 +466,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         use crate::cli::AuthCommand;
 
         match auth_group.command {
-            AuthCommand::Login { provider, skip_validation } => {
-                self.handle_auth_login(provider, skip_validation).await?;
+            AuthCommand::Login { provider } => {
+                self.handle_auth_login(provider).await?;
             }
         }
 
@@ -514,11 +514,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         Ok(())
     }
-    async fn handle_auth_login(
-        &mut self,
-        provider: Option<String>,
-        _skip_validation: bool,
-    ) -> anyhow::Result<()> {
+    async fn handle_auth_login(&mut self, provider: Option<String>) -> anyhow::Result<()> {
         use colored::Colorize;
 
         // Step 1: Get or select provider
