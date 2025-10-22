@@ -42,6 +42,19 @@ pub struct OAuthTokens {
 }
 
 impl OAuthTokens {
+    /// Creates new OAuth tokens
+    pub fn new(
+        refresh_token: impl Into<String>,
+        access_token: impl Into<String>,
+        expires_at: DateTime<Utc>,
+    ) -> Self {
+        Self {
+            refresh_token: refresh_token.into(),
+            access_token: access_token.into(),
+            expires_at,
+        }
+    }
+
     /// Checks if token will expire within the given duration
     pub fn expires_within(&self, seconds: i64) -> bool {
         let threshold = Utc::now() + chrono::Duration::seconds(seconds);
@@ -74,9 +87,6 @@ pub struct ProviderCredential {
 
     /// When the credential was last updated
     pub updated_at: DateTime<Utc>,
-
-    /// When the credential was last successfully verified
-    pub last_verified_at: Option<DateTime<Utc>>,
 }
 
 impl ProviderCredential {
@@ -91,7 +101,6 @@ impl ProviderCredential {
             url_params: HashMap::new(),
             created_at: now,
             updated_at: now,
-            last_verified_at: None,
         }
     }
 
@@ -106,7 +115,6 @@ impl ProviderCredential {
             url_params: HashMap::new(),
             created_at: now,
             updated_at: now,
-            last_verified_at: None,
         }
     }
 
@@ -125,7 +133,6 @@ impl ProviderCredential {
             url_params: HashMap::new(),
             created_at: now,
             updated_at: now,
-            last_verified_at: None,
         }
     }
 
@@ -154,11 +161,6 @@ impl ProviderCredential {
         self.oauth_tokens = Some(tokens);
         self.updated_at = Utc::now();
     }
-
-    /// Marks the credential as verified
-    pub fn mark_verified(&mut self) {
-        self.last_verified_at = Some(Utc::now());
-    }
 }
 
 impl Default for ProviderCredential {
@@ -172,7 +174,6 @@ impl Default for ProviderCredential {
             url_params: HashMap::new(),
             created_at: now,
             updated_at: now,
-            last_verified_at: None,
         }
     }
 }

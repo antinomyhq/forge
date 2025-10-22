@@ -685,13 +685,6 @@ mod env_tests {
             Ok(Vec::new())
         }
 
-        async fn mark_verified(
-            &self,
-            _provider_id: &forge_app::dto::ProviderId,
-        ) -> anyhow::Result<()> {
-            Ok(())
-        }
-
         async fn update_oauth_tokens(
             &self,
             _provider_id: &forge_app::dto::ProviderId,

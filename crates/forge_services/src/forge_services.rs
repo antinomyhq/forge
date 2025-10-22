@@ -322,13 +322,6 @@ where
         self.chat_service.http_infra.get_all_credentials().await
     }
 
-    async fn mark_verified(&self, provider_id: &forge_app::dto::ProviderId) -> anyhow::Result<()> {
-        self.chat_service
-            .http_infra
-            .mark_verified(provider_id)
-            .await
-    }
-
     async fn update_oauth_tokens(
         &self,
         provider_id: &forge_app::dto::ProviderId,

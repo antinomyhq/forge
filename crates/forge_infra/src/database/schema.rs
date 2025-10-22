@@ -24,7 +24,6 @@ diesel::table! {
         url_params -> Nullable<Text>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
-        last_verified_at -> Nullable<Timestamp>,
     }
 }
 

@@ -392,12 +392,6 @@ impl ProviderCredentialRepository for ForgeInfra {
             .await
     }
 
-    async fn mark_verified(&self, provider_id: &forge_app::dto::ProviderId) -> anyhow::Result<()> {
-        self.provider_credential_repository
-            .mark_verified(provider_id)
-            .await
-    }
-
     async fn update_oauth_tokens(
         &self,
         provider_id: &forge_app::dto::ProviderId,
