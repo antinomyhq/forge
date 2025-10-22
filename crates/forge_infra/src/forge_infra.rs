@@ -87,6 +87,21 @@ impl ForgeInfra {
         let provider_credential_repository =
             Arc::new(ProviderCredentialRepositoryImpl::new(db_pool.clone()));
 
+        // Migrate provider credentials from environment if table was just created
+        if db_pool.executed_migrations.iter().any(|m| m.contains("20251021000000")) {
+            use crate::ProviderCredentialMigration;
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    if let Err(e) = ProviderCredentialMigration::new(
+                        environment_service.clone(),
+                        provider_credential_repository.clone(),
+                    ).run().await {
+                        tracing::warn!(error = %e, "Failed to migrate provider credentials from environment");
+                    }
+                })
+            });
+        }
+
         let oauth_service = Arc::new(forge_services::provider::ForgeOAuthService::new());
         let github_copilot_service =
             Arc::new(forge_services::provider::GitHubCopilotService::new());

@@ -49,6 +49,14 @@ pub(crate) fn get_provider_config(provider_id: &ProviderId) -> Option<&'static P
         .find(|config| &config.id == provider_id)
 }
 
+/// Get credential variable names for a provider (for migration purposes)
+pub fn get_provider_credential_vars(
+    provider_id: &ProviderId,
+) -> Option<(String, Vec<String>)> {
+    get_provider_config(provider_id)
+        .map(|config| (config.api_key_vars.clone(), config.url_param_vars.clone()))
+}
+
 /// Get display name for a provider
 pub fn get_provider_display_name(provider_id: &ProviderId) -> String {
     get_provider_config(provider_id)
