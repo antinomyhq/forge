@@ -108,7 +108,6 @@ impl AuthFlow {
 
 #[async_trait::async_trait]
 impl AuthenticationFlow for AuthFlow {
-
     async fn initiate(&self) -> Result<AuthInitiation, AuthFlowError> {
         match self {
             Self::ApiKey(flow) => flow.initiate().await,
@@ -160,7 +159,6 @@ impl AuthenticationFlow for AuthFlow {
 /// Generic authentication flow trait supporting all provider auth patterns.
 #[async_trait::async_trait]
 pub trait AuthenticationFlow: Send + Sync {
-
     /// Initiates the authentication flow.
     async fn initiate(&self) -> Result<AuthInitiation, AuthFlowError>;
 

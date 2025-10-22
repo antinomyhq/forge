@@ -19,8 +19,8 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use forge_app::dto::{
-    AuthContext, AuthInitiation, AuthResult, OAuthConfig, OAuthTokens,
-    ProviderCredential, ProviderId,
+    AuthContext, AuthInitiation, AuthResult, OAuthConfig, OAuthTokens, ProviderCredential,
+    ProviderId,
 };
 
 use super::AuthenticationFlow;
