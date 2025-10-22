@@ -46,9 +46,9 @@ impl<E: EnvironmentInfra, R: ProviderCredentialRepository> ProviderCredentialMig
 
         let credential = ProviderCredential::new_api_key(provider_id.clone(), api_key).url_params(
             url_param_vars.iter()
-                .filter_map(|var| self.env_infra.get_env_var(var)
+                .filter_map(|var| self.env_infra.get_env_var(var.as_str())
                     .filter(|v| !v.trim().is_empty())
-                    .map(|val| (var.clone(), val)))
+                    .map(|val| (var.as_ref().to_string(), val)))
                 .collect::<std::collections::HashMap<_, _>>()
         );
         self.credential_repo.upsert_credential(credential.clone()).await?;

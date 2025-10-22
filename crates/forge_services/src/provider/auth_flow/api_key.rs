@@ -1,5 +1,4 @@
 /// API key authentication flow for simple providers and cloud services
-use std::collections::HashMap;
 use std::time::Duration;
 
 use forge_app::dto::{
@@ -19,25 +18,6 @@ impl ApiKeyAuthFlow {
     /// Creates a new API key authentication flow with URL parameters.
     pub fn new(provider_id: ProviderId, required_params: Vec<URLParam>) -> Self {
         Self { provider_id, required_params }
-    }
-
-    /// Validates all required parameters are present
-    fn validate_all_parameters(
-        &self,
-        url_params: &HashMap<String, String>,
-    ) -> Result<(), AuthFlowError> {
-        for param in &self.required_params {
-            let value = url_params
-                .get(param.as_ref())
-                .ok_or_else(|| AuthFlowError::MissingParameter(param.to_string()))?;
-
-            // Check if empty when required
-            if value.trim().is_empty() {
-                return Err(AuthFlowError::MissingParameter(param.to_string()));
-            }
-        }
-
-        Ok(())
     }
 }
 
@@ -73,8 +53,7 @@ impl AuthenticationFlow for ApiKeyAuthFlow {
                 }
 
                 // Validate URL parameters if required
-                if !self.required_params.is_empty() {
-                    self.validate_all_parameters(&url_params)?;
+                
 
                     // Create credential with API key and URL parameters
                     let mut credential =
@@ -82,19 +61,6 @@ impl AuthenticationFlow for ApiKeyAuthFlow {
                     credential.url_params = url_params;
 
                     Ok(credential)
-                } else {
-                    // Simple API key providers should not have URL parameters
-                    if !url_params.is_empty() {
-                        return Err(AuthFlowError::CompletionFailed(
-                            "Simple API key providers should not have URL parameters".to_string(),
-                        ));
-                    }
-
-                    Ok(ProviderCredential::new_api_key(
-                        self.provider_id.clone(),
-                        api_key,
-                    ))
-                }
             }
             _ => Err(AuthFlowError::CompletionFailed(
                 "Expected API key result".to_string(),
