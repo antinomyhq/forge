@@ -51,6 +51,10 @@ pub enum AuthFlowError {
     /// Custom provider validation failed.
     #[error("Custom provider validation failed: {0}")]
     CustomProviderValidationFailed(String),
+
+    /// Invalid authentication context for the flow type.
+    #[error("Invalid context: {0}")]
+    InvalidContext(String),
 }
 
 #[cfg(test)]

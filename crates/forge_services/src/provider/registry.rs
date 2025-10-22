@@ -9,11 +9,7 @@ use tokio::sync::OnceCell;
 use tracing;
 use url::Url;
 
-use crate::provider::{AuthFlow, AuthenticationFlow, ForgeOAuthService, GitHubCopilotService};
-use crate::{
-    AppConfigRepository, EnvironmentInfra, ProviderCredentialRepository, ProviderError,
-    ProviderSpecificProcessingInfra,
-};
+use crate::{AppConfigRepository, EnvironmentInfra, ProviderCredentialRepository, ProviderError};
 
 #[derive(Debug, Deserialize)]
 pub struct ProviderConfig {
@@ -92,31 +88,8 @@ pub struct ForgeProviderRegistry<F> {
     providers: OnceCell<Vec<Provider>>,
 }
 
-/// Infrastructure adapter for auth flows within the registry.
-///
-/// This adapter provides the required services (OAuth, GitHub Copilot)
-/// needed by authentication flows for token refresh operations.
-struct RegistryInfraAdapter {
-    oauth_service: Arc<ForgeOAuthService>,
-    github_service: Arc<GitHubCopilotService>,
-}
-
-impl crate::provider::auth_flow::AuthFlowInfra for RegistryInfraAdapter {
-    fn oauth_service(&self) -> Arc<ForgeOAuthService> {
-        self.oauth_service.clone()
-    }
-
-    fn github_copilot_service(&self) -> Arc<GitHubCopilotService> {
-        self.github_service.clone()
-    }
-}
-
-impl<
-    F: EnvironmentInfra
-        + AppConfigRepository
-        + ProviderCredentialRepository
-        + ProviderSpecificProcessingInfra,
-> ForgeProviderRegistry<F>
+impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository + 'static>
+    ForgeProviderRegistry<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
         Self {
@@ -281,31 +254,13 @@ impl<
             )
         })?;
 
-        // Get URL parameters from provider config
-        let url_param_vars = get_provider_config(provider_id)
-            .map(|config| config.url_param_vars.clone())
-            .unwrap_or_default();
+        // Create provider auth service
+        let auth_service = crate::provider::ForgeProviderAuthService::new(self.infra.clone());
 
-        // Create an infrastructure adapter for the auth flow
-        let infra_adapter = RegistryInfraAdapter {
-            oauth_service: Arc::new(ForgeOAuthService),
-            github_service: Arc::new(GitHubCopilotService::new()),
-        };
-
-        // Create the appropriate auth flow
-        let flow = AuthFlow::try_new(
-            provider_id,
-            auth_method,
-            url_param_vars,
-            Arc::new(infra_adapter),
-        )?;
-
-        // Use the flow's refresh method
-        let refreshed_credential = flow.refresh(credential).await?;
-
-        // Update credential in database
-        self.infra
-            .upsert_credential(refreshed_credential.clone())
+        // Use service to refresh the credential (call trait method explicitly)
+        use forge_app::ProviderAuthService as _;
+        let refreshed_credential = auth_service
+            .refresh_provider_credential(provider_id.clone(), credential, auth_method.clone())
             .await?;
 
         Ok(refreshed_credential)
@@ -414,12 +369,8 @@ impl<
 }
 
 #[async_trait::async_trait]
-impl<
-    F: EnvironmentInfra
-        + AppConfigRepository
-        + ProviderCredentialRepository
-        + ProviderSpecificProcessingInfra,
-> ProviderRegistry for ForgeProviderRegistry<F>
+impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository + 'static>
+    ProviderRegistry for ForgeProviderRegistry<F>
 {
     async fn get_active_provider(&self) -> anyhow::Result<Provider> {
         let app_config = self.infra.get_app_config().await?;
@@ -674,13 +625,10 @@ mod env_tests {
     use std::collections::HashMap;
     use std::sync::Arc;
 
-    use anyhow::bail;
-    use chrono::{DateTime, Utc};
     use forge_app::domain::Environment;
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::infra::ProviderSpecificProcessingInfra;
 
     // Mock infrastructure that provides environment variables
     struct MockInfra {
@@ -717,20 +665,6 @@ mod env_tests {
 
         fn get_env_var(&self, key: &str) -> Option<String> {
             self.env_vars.get(key).cloned()
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl ProviderSpecificProcessingInfra for MockInfra {
-        async fn process_github_copilot_token(
-            &self,
-            _access_token: &str,
-        ) -> anyhow::Result<(String, Option<DateTime<Utc>>)> {
-            bail!("GitHub Copilot processing not supported in MockInfra")
-        }
-
-        fn get_provider_config(&self, provider_id: &ProviderId) -> Option<&'static ProviderConfig> {
-            get_provider_config(provider_id)
         }
     }
 

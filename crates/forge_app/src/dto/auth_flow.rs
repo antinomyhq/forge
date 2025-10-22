@@ -9,31 +9,18 @@
 /// - Cloud Service Account with Parameters (Vertex AI, Azure)
 use std::collections::HashMap;
 
-use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
 /// OAuth configuration for device and code flows
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OAuthConfig {
-    /// Device code URL (device flow only)
-    /// Example: "https://github.com/login/device/code"
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub device_code_url: Option<String>,
+    /// Authorization URL
+    /// Example: "https://claude.ai/oauth/authorize" or "https://github.com/login/device/code"
+    pub auth_url: String,
 
-    /// Device token URL (device flow only)
-    /// Example: "https://github.com/login/oauth/access_token"
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub device_token_url: Option<String>,
-
-    /// Authorization URL (code flow only)
-    /// Example: "https://claude.ai/oauth/authorize"
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub auth_url: Option<String>,
-
-    /// Token exchange URL (code flow only)
-    /// Example: "https://api.anthropic.com/oauth/token"
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_url: Option<String>,
+    /// Token exchange URL
+    /// Example: "https://api.anthropic.com/oauth/token" or "https://github.com/login/oauth/access_token"
+    pub token_url: String,
 
     /// OAuth client ID provided by the service
     pub client_id: String,
@@ -43,7 +30,8 @@ pub struct OAuthConfig {
 
     /// Redirect URI (for code flow, points to provider's callback page)
     /// Example: "https://console.anthropic.com/oauth/code/callback"
-    pub redirect_uri: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub redirect_uri: Option<String>,
 
     /// Whether to use PKCE (Proof Key for Code Exchange) for security
     #[serde(default)]
@@ -151,19 +139,53 @@ pub enum AuthInitiation {
     },
 }
 
-/// Context data needed for polling/completion.
+/// Context data for authentication flows.
 ///
-/// This is an opaque container for flow-specific data like device codes,
-/// session IDs, PKCE verifiers, etc. The data is stored as key-value pairs
-/// to keep the types generic.
-#[derive(Debug, Clone, Serialize, Deserialize, Default, Setters)]
-#[setters(strip_option, into)]
-pub struct AuthContext {
-    /// Opaque data needed for polling (device_code, session_id, etc.)
-    pub polling_data: HashMap<String, String>,
+/// This enum provides type-safe storage for flow-specific data needed during
+/// polling and completion. Each variant corresponds to a specific
+/// authentication method and contains only the fields required for that flow.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum AuthContext {
+    /// API key authentication - no context needed
+    #[default]
+    ApiKey,
 
-    /// Opaque data needed for completion (PKCE verifier, state, etc.)
-    pub completion_data: HashMap<String, String>,
+    /// OAuth Device Flow context - for polling
+    Device { device_code: String, interval: u64 },
+
+    /// OAuth Code Flow context - for completion
+    Code {
+        state: String,
+        pkce_verifier: Option<String>,
+    },
+}
+
+impl AuthContext {
+    /// Creates a Device flow context
+    pub fn device(device_code: String, interval: u64) -> Self {
+        Self::Device { device_code, interval }
+    }
+
+    /// Creates a Code flow context
+    pub fn code(state: String, pkce_verifier: Option<String>) -> Self {
+        Self::Code { state, pkce_verifier }
+    }
+
+    /// Returns true if this is a Device flow context
+    pub fn is_device(&self) -> bool {
+        matches!(self, Self::Device { .. })
+    }
+
+    /// Returns true if this is a Code flow context
+    pub fn is_code(&self) -> bool {
+        matches!(self, Self::Code { .. })
+    }
+
+    /// Returns true if this is an API key context
+    pub fn is_api_key(&self) -> bool {
+        matches!(self, Self::ApiKey)
+    }
 }
 
 /// Result data from successful authentication.
@@ -225,30 +247,108 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_auth_context_default() {
-        let context = AuthContext::default();
-        assert!(context.polling_data.is_empty());
-        assert!(context.completion_data.is_empty());
+    fn test_device_context_creation() {
+        let context = AuthContext::device("ABC123".to_string(), 5);
+
+        assert!(context.is_device());
+        assert!(!context.is_code());
+        assert!(!context.is_api_key());
+
+        match context {
+            AuthContext::Device { device_code, interval } => {
+                assert_eq!(device_code, "ABC123");
+                assert_eq!(interval, 5);
+            }
+            _ => panic!("Expected Device variant"),
+        }
     }
 
     #[test]
-    fn test_auth_context_with_polling_data() {
-        let mut polling_data = HashMap::new();
-        polling_data.insert("device_code".to_string(), "ABC123".to_string());
+    fn test_code_context_with_pkce() {
+        let context = AuthContext::code("state123".to_string(), Some("verifier456".to_string()));
 
-        let context = AuthContext::default().polling_data(polling_data.clone());
-        assert_eq!(context.polling_data, polling_data);
-        assert!(context.completion_data.is_empty());
+        assert!(context.is_code());
+        assert!(!context.is_device());
+        assert!(!context.is_api_key());
+
+        match context {
+            AuthContext::Code { state, pkce_verifier } => {
+                assert_eq!(state, "state123");
+                assert_eq!(pkce_verifier, Some("verifier456".to_string()));
+            }
+            _ => panic!("Expected Code variant"),
+        }
     }
 
     #[test]
-    fn test_auth_context_with_completion_data() {
-        let mut completion_data = HashMap::new();
-        completion_data.insert("pkce_verifier".to_string(), "XYZ789".to_string());
+    fn test_code_context_without_pkce() {
+        let context = AuthContext::code("state123".to_string(), None);
 
-        let context = AuthContext::default().completion_data(completion_data.clone());
-        assert!(context.polling_data.is_empty());
-        assert_eq!(context.completion_data, completion_data);
+        match context {
+            AuthContext::Code { state, pkce_verifier } => {
+                assert_eq!(state, "state123");
+                assert!(pkce_verifier.is_none());
+            }
+            _ => panic!("Expected Code variant"),
+        }
+    }
+
+    #[test]
+    fn test_device_serialization() {
+        let context = AuthContext::device("ABC123".to_string(), 5);
+        let json = serde_json::to_value(&context).unwrap();
+
+        assert_eq!(json["type"], "device");
+        assert_eq!(json["device_code"], "ABC123");
+        assert_eq!(json["interval"], 5);
+    }
+
+    #[test]
+    fn test_code_serialization() {
+        let context = AuthContext::code("state123".to_string(), Some("verifier456".to_string()));
+        let json = serde_json::to_value(&context).unwrap();
+
+        assert_eq!(json["type"], "code");
+        assert_eq!(json["state"], "state123");
+        assert_eq!(json["pkce_verifier"], "verifier456");
+    }
+
+    #[test]
+    fn test_device_deserialization() {
+        let json = r#"{"type":"device","device_code":"ABC123","interval":5}"#;
+        let context: AuthContext = serde_json::from_str(json).unwrap();
+
+        match context {
+            AuthContext::Device { device_code, interval } => {
+                assert_eq!(device_code, "ABC123");
+                assert_eq!(interval, 5);
+            }
+            _ => panic!("Expected Device variant"),
+        }
+    }
+
+    #[test]
+    fn test_code_deserialization() {
+        let json = r#"{"type":"code","state":"state123","pkce_verifier":"verifier456"}"#;
+        let context: AuthContext = serde_json::from_str(json).unwrap();
+
+        match context {
+            AuthContext::Code { state, pkce_verifier } => {
+                assert_eq!(state, "state123");
+                assert_eq!(pkce_verifier, Some("verifier456".to_string()));
+            }
+            _ => panic!("Expected Code variant"),
+        }
+    }
+
+    #[test]
+    fn test_context_equality() {
+        let ctx1 = AuthContext::device("ABC123".to_string(), 5);
+        let ctx2 = AuthContext::device("ABC123".to_string(), 5);
+        let ctx3 = AuthContext::device("XYZ789".to_string(), 5);
+
+        assert_eq!(ctx1, ctx2);
+        assert_ne!(ctx1, ctx3);
     }
 
     #[test]
@@ -257,13 +357,11 @@ mod tests {
         assert_eq!(json, r#""api_key""#);
 
         let oauth_device = AuthMethod::OAuthDevice(OAuthConfig {
-            device_code_url: Some("https://example.com/device".to_string()),
-            device_token_url: Some("https://example.com/token".to_string()),
-            auth_url: None,
-            token_url: None,
+            auth_url: "https://example.com/device".to_string(),
+            token_url: "https://example.com/token".to_string(),
             client_id: "client-id".to_string(),
             scopes: vec!["read".to_string()],
-            redirect_uri: String::new(),
+            redirect_uri: None,
             use_pkce: false,
             token_refresh_url: None,
             custom_headers: None,
@@ -274,13 +372,11 @@ mod tests {
         assert!(json.contains("client-id"));
 
         let oauth_code = AuthMethod::OAuthCode(OAuthConfig {
-            device_code_url: None,
-            device_token_url: None,
-            auth_url: Some("https://example.com/auth".to_string()),
-            token_url: Some("https://example.com/token".to_string()),
+            auth_url: "https://example.com/auth".to_string(),
+            token_url: "https://example.com/token".to_string(),
             client_id: "client-id".to_string(),
             scopes: vec!["read".to_string()],
-            redirect_uri: "https://example.com/callback".to_string(),
+            redirect_uri: Some("https://example.com/callback".to_string()),
             use_pkce: true,
             token_refresh_url: None,
             custom_headers: None,
@@ -294,13 +390,11 @@ mod tests {
     #[test]
     fn test_auth_method_oauth_config() {
         let config = OAuthConfig {
-            device_code_url: Some("https://example.com/device".to_string()),
-            device_token_url: Some("https://example.com/token".to_string()),
-            auth_url: None,
-            token_url: None,
+            auth_url: "https://example.com/device".to_string(),
+            token_url: "https://example.com/token".to_string(),
             client_id: "client-id".to_string(),
             scopes: vec!["read".to_string()],
-            redirect_uri: String::new(),
+            redirect_uri: None,
             use_pkce: false,
             token_refresh_url: None,
             custom_headers: None,

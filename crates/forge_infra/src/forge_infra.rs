@@ -3,15 +3,13 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_app::dto::ProviderId;
 use forge_domain::{CommandOutput, Conversation, ConversationId, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
-use forge_services::provider::ProviderProcessingService;
 use forge_services::{
     AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
     DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
     FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, ProviderCredentialRepository,
-    ProviderSpecificProcessingInfra, SnapshotInfra, UserInfra, WalkerInfra,
+    SnapshotInfra, UserInfra, WalkerInfra,
 };
 use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
@@ -58,8 +56,6 @@ pub struct ForgeInfra {
     app_config_repository: Arc<AppConfigRepositoryImpl>,
     mcp_cache_repository: Arc<CacacheRepository>,
     provider_credential_repository: Arc<ProviderCredentialRepositoryImpl>,
-    oauth_service: Arc<forge_services::provider::ForgeOAuthService>,
-    github_copilot_service: Arc<forge_services::provider::GitHubCopilotService>,
 }
 
 impl ForgeInfra {
@@ -106,10 +102,6 @@ impl ForgeInfra {
             });
         }
 
-        let oauth_service = Arc::new(forge_services::provider::ForgeOAuthService::new());
-        let github_copilot_service =
-            Arc::new(forge_services::provider::GitHubCopilotService::new());
-
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
             file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),
@@ -133,8 +125,6 @@ impl ForgeInfra {
             app_config_repository,
             mcp_cache_repository,
             provider_credential_repository,
-            oauth_service,
-            github_copilot_service,
         }
     }
 }
@@ -444,34 +434,5 @@ impl CacheRepository for ForgeInfra {
 
     async fn cache_clear(&self) -> anyhow::Result<()> {
         self.mcp_cache_repository.cache_clear().await
-    }
-}
-
-#[async_trait::async_trait]
-impl ProviderSpecificProcessingInfra for ForgeInfra {
-    async fn process_github_copilot_token(
-        &self,
-        access_token: &str,
-    ) -> anyhow::Result<(String, Option<chrono::DateTime<chrono::Utc>>)> {
-        let service = ProviderProcessingService::new();
-        service.process_github_copilot_token(access_token).await
-    }
-
-    fn get_provider_config(
-        &self,
-        provider_id: &ProviderId,
-    ) -> Option<&'static forge_services::provider::registry::ProviderConfig> {
-        let service = ProviderProcessingService::new();
-        service.get_provider_config(provider_id)
-    }
-}
-
-impl forge_services::provider::auth_flow::AuthFlowInfra for ForgeInfra {
-    fn oauth_service(&self) -> Arc<forge_services::provider::ForgeOAuthService> {
-        self.oauth_service.clone()
-    }
-
-    fn github_copilot_service(&self) -> Arc<forge_services::provider::GitHubCopilotService> {
-        self.github_copilot_service.clone()
     }
 }

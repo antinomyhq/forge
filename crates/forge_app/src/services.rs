@@ -402,6 +402,16 @@ pub trait ProviderAuthService: Send + Sync {
         result: crate::dto::AuthResult,
         method: AuthMethod,
     ) -> anyhow::Result<ProviderCredential>;
+
+    /// Refreshes provider credentials (for OAuth flows)
+    ///
+    /// Uses refresh token to obtain new access token
+    async fn refresh_provider_credential(
+        &self,
+        provider_id: ProviderId,
+        credential: &ProviderCredential,
+        method: AuthMethod,
+    ) -> anyhow::Result<ProviderCredential>;
 }
 
 #[async_trait::async_trait]
@@ -845,6 +855,17 @@ impl<I: Services> ProviderAuthService for I {
     ) -> anyhow::Result<ProviderCredential> {
         self.provider_auth_service()
             .complete_provider_auth(provider_id, result, method)
+            .await
+    }
+
+    async fn refresh_provider_credential(
+        &self,
+        provider_id: ProviderId,
+        credential: &ProviderCredential,
+        method: AuthMethod,
+    ) -> anyhow::Result<ProviderCredential> {
+        self.provider_auth_service()
+            .refresh_provider_credential(provider_id, credential, method)
             .await
     }
 }

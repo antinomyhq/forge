@@ -13,33 +13,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::provider::OAuthConfig;
 
-/// Response from device authorization initiation
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeviceAuthorizationResponse {
-    /// Device verification code for polling
-    pub device_code: String,
-
-    /// User code to display (8-character format like "ABCD-1234")
-    pub user_code: String,
-
-    /// URL where user should visit to authorize
-    pub verification_uri: String,
-
-    /// Alternative URI with user_code embedded
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub verification_uri_complete: Option<String>,
-
-    /// Seconds until device_code expires
-    pub expires_in: u64,
-
-    /// Minimum seconds to wait between polling attempts
-    pub interval: u64,
-}
-
 /// OAuth token response (both device and code flows)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthTokenResponse {
     /// Access token for API requests
+    #[serde(alias = "token")]
     pub access_token: String,
 
     /// Refresh token for obtaining new access tokens
@@ -47,15 +25,24 @@ pub struct OAuthTokenResponse {
     pub refresh_token: Option<String>,
 
     /// Seconds until access token expires
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", alias = "refresh_in")]
     pub expires_in: Option<u64>,
 
+    /// Unix timestamp when token expires (GitHub Copilot pattern)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<i64>,
+
     /// Token type (usually "Bearer")
+    #[serde(default = "default_token_type")]
     pub token_type: String,
 
     /// OAuth scopes granted
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scope: Option<String>,
+}
+
+fn default_token_type() -> String {
+    "Bearer".to_string()
 }
 
 /// Anthropic-specific token exchange request body
@@ -70,32 +57,30 @@ struct AnthropicTokenRequest {
     /// OAuth client ID
     client_id: String,
     /// Redirect URI (must match authorization request)
-    redirect_uri: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    redirect_uri: Option<String>,
     /// PKCE code verifier
     code_verifier: String,
 }
 
-/// Anthropic-specific token exchange response
-#[derive(Debug, Deserialize)]
-struct AnthropicTokenResponse {
-    /// Access token for API requests
-    access_token: String,
-    /// Refresh token for obtaining new access tokens
-    #[serde(default)]
-    refresh_token: Option<String>,
-    /// Seconds until access token expires
-    #[serde(default)]
-    expires_in: Option<u64>,
-    /// Token type (usually "Bearer")
-    #[serde(default = "default_token_type")]
-    token_type: String,
-    /// OAuth scopes granted
-    #[serde(default)]
-    scope: Option<String>,
-}
 
-fn default_token_type() -> String {
-    "Bearer".to_string()
+impl<T: TokenResponse> From<T> for OAuthTokenResponse {
+    fn from(token: T) -> Self {
+        Self {
+            access_token: token.access_token().secret().to_string(),
+            refresh_token: token.refresh_token().map(|t| t.secret().to_string()),
+            expires_in: token.expires_in().map(|d| d.as_secs()),
+            expires_at: None,
+            token_type: "Bearer".to_string(),
+            scope: token.scopes().map(|scopes| {
+                scopes
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            }),
+        }
+    }
 }
 
 /// Parameters for building authorization code URL
@@ -112,15 +97,10 @@ pub struct AuthCodeParams {
 }
 
 /// OAuth service for handling device and code flows using oauth2 crate
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct ForgeOAuthService;
 
 impl ForgeOAuthService {
-    /// Creates a new OAuth service
-    pub fn new() -> Self {
-        Self
-    }
-
     /// Builds a reqwest HTTP client with custom headers from config
     ///
     /// # Arguments
@@ -130,7 +110,6 @@ impl ForgeOAuthService {
     /// # Returns
     /// Configured reqwest client with custom headers set as defaults
     pub fn build_http_client(
-        &self,
         custom_headers: Option<&HashMap<String, String>>,
     ) -> anyhow::Result<reqwest::Client> {
         let mut builder = reqwest::Client::builder()
@@ -153,29 +132,6 @@ impl ForgeOAuthService {
         }
 
         Ok(builder.build()?)
-    }
-
-    /// Converts oauth2 crate's StandardTokenResponse to OAuthTokenResponse
-    ///
-    /// # Arguments
-    /// * `token_result` - The token response from oauth2 crate
-    ///
-    /// # Returns
-    /// Converted OAuthTokenResponse with all fields extracted
-    fn convert_token_response(token_result: impl TokenResponse) -> OAuthTokenResponse {
-        OAuthTokenResponse {
-            access_token: token_result.access_token().secret().to_string(),
-            refresh_token: token_result.refresh_token().map(|t| t.secret().to_string()),
-            expires_in: token_result.expires_in().map(|d| d.as_secs()),
-            token_type: "Bearer".to_string(),
-            scope: token_result.scopes().map(|scopes| {
-                scopes
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            }),
-        }
     }
 
     /// Custom async HTTP function that fixes GitHub's non-compliant OAuth
@@ -261,35 +217,31 @@ impl ForgeOAuthService {
     ///
     /// # Errors
     /// Returns error if URL building fails
-    pub fn build_auth_code_url(&self, config: &OAuthConfig) -> anyhow::Result<AuthCodeParams> {
-        let auth_url = config
-            .auth_url
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("auth_url not configured"))?;
-        let token_url = config
-            .token_url
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("token_url not configured"))?;
-
+    pub fn build_auth_code_url(config: &OAuthConfig) -> anyhow::Result<AuthCodeParams> {
         // Check if this is Anthropic OAuth (non-standard: state = verifier)
-        let is_anthropic = auth_url.contains("claude.ai/oauth");
+        let is_anthropic = config.auth_url.contains("claude.ai/oauth");
 
         if is_anthropic && config.use_pkce {
             // Anthropic requires state to be set to the PKCE verifier (non-standard)
             // Build URL manually instead of using oauth2 library
             let (challenge, verifier) = PkceCodeChallenge::new_random_sha256();
 
-            let mut url = url::Url::parse(auth_url)?;
+            let mut url = url::Url::parse(&config.auth_url)?;
 
             // Add required OAuth parameters
             url.query_pairs_mut()
                 .append_pair("client_id", &config.client_id)
                 .append_pair("response_type", "code")
-                .append_pair("redirect_uri", &config.redirect_uri)
                 .append_pair("scope", &config.scopes.join(" "))
                 .append_pair("code_challenge", challenge.as_str())
                 .append_pair("code_challenge_method", "S256")
                 .append_pair("state", verifier.secret()); // ← Set state to verifier!
+
+            // Add redirect_uri only if provided
+            if let Some(redirect_uri) = &config.redirect_uri {
+                url.query_pairs_mut()
+                    .append_pair("redirect_uri", redirect_uri);
+            }
 
             // Add extra parameters (like code=true)
             if let Some(extra_params) = &config.extra_auth_params {
@@ -306,10 +258,14 @@ impl ForgeOAuthService {
         }
 
         // Standard OAuth flow for other providers
-        let client = BasicClient::new(ClientId::new(config.client_id.clone()))
-            .set_auth_uri(AuthUrl::new(auth_url.clone())?)
-            .set_token_uri(TokenUrl::new(token_url.clone())?)
-            .set_redirect_uri(RedirectUrl::new(config.redirect_uri.clone())?);
+        let mut client = BasicClient::new(ClientId::new(config.client_id.clone()))
+            .set_auth_uri(AuthUrl::new(config.auth_url.clone())?)
+            .set_token_uri(TokenUrl::new(config.token_url.clone())?);
+
+        // Add redirect_uri if provided
+        if let Some(redirect_uri) = &config.redirect_uri {
+            client = client.set_redirect_uri(RedirectUrl::new(redirect_uri.clone())?);
+        }
 
         let mut request = client.authorize_url(CsrfToken::new_random);
 
@@ -355,38 +311,36 @@ impl ForgeOAuthService {
     /// # Errors
     /// Returns error if HTTP request fails or code is invalid
     pub async fn exchange_auth_code(
-        &self,
         config: &OAuthConfig,
         auth_code: &str,
         code_verifier: Option<&str>,
     ) -> anyhow::Result<OAuthTokenResponse> {
-        let auth_url = config
-            .auth_url
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("auth_url not configured"))?;
-        let token_url = config
-            .token_url
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("token_url not configured"))?;
-
         // Check if this is Anthropic OAuth (requires special handling)
-        let is_anthropic = auth_url.contains("claude.ai/oauth");
+        let is_anthropic = config.auth_url.contains("claude.ai/oauth");
 
         if is_anthropic {
             // Anthropic requires JSON body with code, state, and code_verifier
-            return self
-                .exchange_anthropic_token(token_url, auth_code, code_verifier, config)
-                .await;
+            return Self::exchange_anthropic_token(
+                &config.token_url,
+                auth_code,
+                code_verifier,
+                config,
+            )
+            .await;
         }
 
         // Standard OAuth flow for other providers
-        let client = BasicClient::new(ClientId::new(config.client_id.clone()))
-            .set_auth_uri(AuthUrl::new(auth_url.clone())?)
-            .set_token_uri(TokenUrl::new(token_url.clone())?)
-            .set_redirect_uri(RedirectUrl::new(config.redirect_uri.clone())?);
+        let mut client = BasicClient::new(ClientId::new(config.client_id.clone()))
+            .set_auth_uri(AuthUrl::new(config.auth_url.clone())?)
+            .set_token_uri(TokenUrl::new(config.token_url.clone())?);
+
+        // Add redirect_uri if provided
+        if let Some(redirect_uri) = &config.redirect_uri {
+            client = client.set_redirect_uri(RedirectUrl::new(redirect_uri.clone())?);
+        }
 
         // Build HTTP client with custom headers
-        let http_client = self.build_http_client(config.custom_headers.as_ref())?;
+        let http_client = Self::build_http_client(config.custom_headers.as_ref())?;
 
         let code = AuthorizationCode::new(auth_code.to_string());
 
@@ -401,12 +355,11 @@ impl ForgeOAuthService {
         // Execute token exchange
         let token_result = request.request_async(&http_client).await?;
 
-        Ok(Self::convert_token_response(token_result))
+        Ok(token_result.into())
     }
 
     /// Exchanges authorization code for tokens using Anthropic's custom format
     async fn exchange_anthropic_token(
-        &self,
         token_url: &str,
         auth_code: &str,
         code_verifier: Option<&str>,
@@ -434,7 +387,7 @@ impl ForgeOAuthService {
         };
 
         // Build HTTP client
-        let client = self.build_http_client(config.custom_headers.as_ref())?;
+        let client = Self::build_http_client(config.custom_headers.as_ref())?;
 
         let response = client
             .post(token_url)
@@ -453,17 +406,7 @@ impl ForgeOAuthService {
             );
         }
 
-        // Parse response using concrete type
-        let anthropic_response: AnthropicTokenResponse = response.json().await?;
-
-        // Convert to common OAuthTokenResponse
-        Ok(OAuthTokenResponse {
-            access_token: anthropic_response.access_token,
-            refresh_token: anthropic_response.refresh_token,
-            expires_in: anthropic_response.expires_in,
-            token_type: anthropic_response.token_type,
-            scope: anthropic_response.scope,
-        })
+        Ok(response.json().await?)
     }
 
     /// Refreshes access token using refresh token
@@ -478,23 +421,16 @@ impl ForgeOAuthService {
     /// # Errors
     /// Returns error if refresh token is invalid or expired
     pub async fn refresh_access_token(
-        &self,
         config: &OAuthConfig,
         refresh_token: &str,
     ) -> anyhow::Result<OAuthTokenResponse> {
-        // Try code flow token URL first, fallback to device flow token URL
-        let token_url = config
-            .token_url
-            .as_ref()
-            .or(config.device_token_url.as_ref())
-            .ok_or_else(|| anyhow::anyhow!("token_url not configured for refresh"))?;
-
+        // Get token URL from config
         // Build minimal oauth2 client (just need token endpoint)
         let client = BasicClient::new(ClientId::new(config.client_id.clone()))
-            .set_token_uri(TokenUrl::new(token_url.clone())?);
+            .set_token_uri(TokenUrl::new(config.token_url.clone())?);
 
         // Build HTTP client with custom headers
-        let http_client = self.build_http_client(config.custom_headers.as_ref())?;
+        let http_client = Self::build_http_client(config.custom_headers.as_ref())?;
 
         let refresh_token = RefreshToken::new(refresh_token.to_string());
 
@@ -506,13 +442,7 @@ impl ForgeOAuthService {
             .request_async(&http_fn)
             .await?;
 
-        Ok(Self::convert_token_response(token_result))
-    }
-}
-
-impl Default for ForgeOAuthService {
-    fn default() -> Self {
-        Self::new()
+        Ok(token_result.into())
     }
 }
 
@@ -526,22 +456,18 @@ mod tests {
     #[tokio::test]
     async fn test_build_auth_code_url_with_pkce() {
         let config = OAuthConfig {
-            device_code_url: None,
-            device_token_url: None,
-            auth_url: Some("https://provider.com/authorize".to_string()),
-            token_url: Some("https://provider.com/token".to_string()),
+            auth_url: "https://provider.com/authorize".to_string(),
+            token_url: "https://provider.com/token".to_string(),
             client_id: "test-client".to_string(),
             scopes: vec!["user:profile".to_string(), "user:email".to_string()],
-            redirect_uri: "https://provider.com/callback".to_string(),
+            redirect_uri: Some("https://provider.com/callback".to_string()),
             use_pkce: true,
             token_refresh_url: None,
             custom_headers: None,
             extra_auth_params: None,
         };
 
-        let service = ForgeOAuthService::new();
-
-        let params = service.build_auth_code_url(&config).unwrap();
+        let params = ForgeOAuthService::build_auth_code_url(&config).unwrap();
 
         assert!(params.auth_url.contains("client_id=test-client"));
         assert!(params.auth_url.contains("response_type=code"));
@@ -559,22 +485,18 @@ mod tests {
     #[tokio::test]
     async fn test_build_auth_code_url_without_pkce() {
         let config = OAuthConfig {
-            device_code_url: None,
-            device_token_url: None,
-            auth_url: Some("https://provider.com/authorize".to_string()),
-            token_url: Some("https://provider.com/token".to_string()),
+            auth_url: "https://provider.com/authorize".to_string(),
+            token_url: "https://provider.com/token".to_string(),
             client_id: "test-client".to_string(),
             scopes: vec!["read".to_string()],
-            redirect_uri: "https://provider.com/callback".to_string(),
+            redirect_uri: Some("https://provider.com/callback".to_string()),
             use_pkce: false,
             token_refresh_url: None,
             custom_headers: None,
             extra_auth_params: None,
         };
 
-        let service = ForgeOAuthService::new();
-
-        let params = service.build_auth_code_url(&config).unwrap();
+        let params = ForgeOAuthService::build_auth_code_url(&config).unwrap();
 
         assert!(!params.auth_url.contains("code_challenge"));
         assert!(params.code_verifier.is_none());
@@ -599,23 +521,18 @@ mod tests {
             .await;
 
         let config = OAuthConfig {
-            device_code_url: None,
-            device_token_url: None,
-            auth_url: Some("https://provider.com/auth".to_string()),
-            token_url: Some(format!("{}/token", server.url())),
+            auth_url: "https://provider.com/auth".to_string(),
+            token_url: format!("{}/token", server.url()),
             client_id: "test-client".to_string(),
             scopes: vec![],
-            redirect_uri: "https://provider.com/callback".to_string(),
+            redirect_uri: Some("https://provider.com/callback".to_string()),
             use_pkce: false,
             token_refresh_url: None,
             custom_headers: None,
             extra_auth_params: None,
         };
 
-        let service = ForgeOAuthService::new();
-
-        let response = service
-            .exchange_auth_code(&config, "test_auth_code", None)
+        let response = ForgeOAuthService::exchange_auth_code(&config, "test_auth_code", None)
             .await
             .unwrap();
 

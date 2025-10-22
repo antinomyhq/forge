@@ -22,15 +22,17 @@
     "auth_methods": [
       {
         "oauth_device": {
-          "device_code_url": "https://github.com/login/device/code",
-          "device_token_url": "https://github.com/login/oauth/access_token",
+          "auth_url": "https://github.com/login/device/code",
+          "token_url": "https://github.com/login/oauth/access_token",
           "client_id": "Iv1.b507a08c87ecfe98",
           "scopes": ["read:user"],
-          "redirect_uri": "",
           "use_pkce": false,
           "token_refresh_url": "https://api.github.com/copilot_internal/v2/token",
           "custom_headers": {
-            "User-Agent": "GitHubCopilotChat/0.26.7"
+            "User-Agent": "GitHubCopilotChat/0.26.7",
+            "Accept": "application/json",
+            "editor-version": "vscode/1.99.3",
+            "editor-plugin-version": "copilot-chat/0.26.7"
           }
         }
       }
