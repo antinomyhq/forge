@@ -111,7 +111,6 @@ impl AuthenticationFlow for AuthFlow {
     async fn initiate(&self) -> Result<AuthInitiation, AuthFlowError> {
         match self {
             Self::ApiKey(flow) => flow.initiate().await,
-
             Self::OAuthDevice(flow) => flow.initiate().await,
             Self::OAuthCode(flow) => flow.initiate().await,
             Self::OAuthWithApiKey(flow) => flow.initiate().await,
@@ -125,7 +124,6 @@ impl AuthenticationFlow for AuthFlow {
     ) -> Result<AuthResult, AuthFlowError> {
         match self {
             Self::ApiKey(flow) => flow.poll_until_complete(context, timeout).await,
-
             Self::OAuthDevice(flow) => flow.poll_until_complete(context, timeout).await,
             Self::OAuthCode(flow) => flow.poll_until_complete(context, timeout).await,
             Self::OAuthWithApiKey(flow) => flow.poll_until_complete(context, timeout).await,
@@ -135,7 +133,6 @@ impl AuthenticationFlow for AuthFlow {
     async fn complete(&self, result: AuthResult) -> Result<ProviderCredential, AuthFlowError> {
         match self {
             Self::ApiKey(flow) => flow.complete(result).await,
-
             Self::OAuthDevice(flow) => flow.complete(result).await,
             Self::OAuthCode(flow) => flow.complete(result).await,
             Self::OAuthWithApiKey(flow) => flow.complete(result).await,
@@ -148,7 +145,6 @@ impl AuthenticationFlow for AuthFlow {
     ) -> Result<ProviderCredential, AuthFlowError> {
         match self {
             Self::ApiKey(flow) => flow.refresh(credential).await,
-
             Self::OAuthDevice(flow) => flow.refresh(credential).await,
             Self::OAuthCode(flow) => flow.refresh(credential).await,
             Self::OAuthWithApiKey(flow) => flow.refresh(credential).await,
