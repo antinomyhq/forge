@@ -8,15 +8,12 @@ use forge_domain::RetryConfig;
 use crate::dto::InitAuth;
 use crate::{AuthService, Error};
 
-/// Platform authenticator for Forge API access
+/// Authenticator handles both Forge platform authentication and provider
+/// authentication
 ///
-/// Handles Forge platform authentication using device code flow:
-/// 1. **init()** - Initiate device authorization and get user code
-/// 2. **login()** - Poll until user completes authorization (with retry)
-/// 3. **logout()** - Clear stored credentials
-///
-/// For LLM provider authentication, use `ProviderAuthService` directly via
-/// `ForgeApp::provider_auth()`.
+/// Supports two authentication flows:
+/// 1. **Forge Platform Auth**: init() → login() → logout() for Forge API access
+/// 2. **Provider Auth**: authenticate_provider() for LLM provider credentials
 pub struct Authenticator<S> {
     auth_service: Arc<S>,
 }
