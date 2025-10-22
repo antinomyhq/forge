@@ -673,11 +673,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         let auth_result = self
             .api
-            .poll_provider_auth(
-                &context,
-                Duration::from_secs(600),
-                method.clone(),
-            )
+            .poll_provider_auth(&context, Duration::from_secs(600), method.clone())
             .await?;
 
         self.spinner.stop(None)?;
