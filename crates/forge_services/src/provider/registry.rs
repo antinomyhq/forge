@@ -88,72 +88,6 @@ pub struct ForgeProviderRegistry<F> {
     providers: OnceCell<Vec<Provider>>,
 }
 
-/// Infrastructure adapter for auth flows within the registry.
-///
-/// This adapter provides the required OAuth service and delegates
-/// credential/config operations to the main infrastructure.
-struct RegistryInfraAdapter<F> {
-    main_infra: Arc<F>,
-}
-
-#[async_trait::async_trait]
-impl<F: ProviderCredentialRepository + Send + Sync> ProviderCredentialRepository
-    for RegistryInfraAdapter<F>
-{
-    async fn upsert_credential(
-        &self,
-        credential: forge_app::dto::ProviderCredential,
-    ) -> anyhow::Result<()> {
-        self.main_infra.upsert_credential(credential).await
-    }
-
-    async fn get_credential(
-        &self,
-        provider_id: &ProviderId,
-    ) -> anyhow::Result<Option<forge_app::dto::ProviderCredential>> {
-        self.main_infra.get_credential(provider_id).await
-    }
-
-    async fn get_all_credentials(&self) -> anyhow::Result<Vec<forge_app::dto::ProviderCredential>> {
-        self.main_infra.get_all_credentials().await
-    }
-
-    async fn mark_verified(&self, provider_id: &ProviderId) -> anyhow::Result<()> {
-        self.main_infra.mark_verified(provider_id).await
-    }
-
-    async fn update_oauth_tokens(
-        &self,
-        provider_id: &ProviderId,
-        tokens: forge_app::dto::OAuthTokens,
-    ) -> anyhow::Result<()> {
-        self.main_infra
-            .update_oauth_tokens(provider_id, tokens)
-            .await
-    }
-}
-
-impl<F: EnvironmentInfra + Send + Sync> EnvironmentInfra for RegistryInfraAdapter<F> {
-    fn get_env_var(&self, key: &str) -> Option<String> {
-        self.main_infra.get_env_var(key)
-    }
-
-    fn get_environment(&self) -> forge_app::domain::Environment {
-        self.main_infra.get_environment()
-    }
-}
-
-#[async_trait::async_trait]
-impl<F: AppConfigRepository + Send + Sync> AppConfigRepository for RegistryInfraAdapter<F> {
-    async fn get_app_config(&self) -> anyhow::Result<forge_app::dto::AppConfig> {
-        self.main_infra.get_app_config().await
-    }
-
-    async fn set_app_config(&self, config: &forge_app::dto::AppConfig) -> anyhow::Result<()> {
-        self.main_infra.set_app_config(config).await
-    }
-}
-
 impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository + 'static>
     ForgeProviderRegistry<F>
 {
@@ -320,11 +254,8 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository + 
             )
         })?;
 
-        // Create infrastructure adapter for the auth service
-        let infra_adapter = Arc::new(RegistryInfraAdapter { main_infra: self.infra.clone() });
-
         // Create provider auth service
-        let auth_service = crate::provider::ForgeProviderAuthService::new(infra_adapter);
+        let auth_service = crate::provider::ForgeProviderAuthService::new(self.infra.clone());
 
         // Use service to refresh the credential (call trait method explicitly)
         use forge_app::ProviderAuthService as _;
