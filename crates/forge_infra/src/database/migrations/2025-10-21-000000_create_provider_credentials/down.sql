@@ -1,6 +1,5 @@
 -- Drop indexes
 DROP INDEX IF EXISTS idx_provider_credentials_auth_type;
-DROP INDEX IF EXISTS idx_provider_credentials_active;
 DROP INDEX IF EXISTS idx_provider_credentials_provider_id;
 
 -- Drop table
