@@ -251,14 +251,13 @@ impl<A: Services, F: CommandInfra + AppConfigRepository + ProviderCredentialRepo
 
     async fn poll_provider_auth(
         &self,
-        provider_id: ProviderId,
         context: &forge_app::dto::AuthContext,
         timeout: std::time::Duration,
         method: AuthMethod,
     ) -> Result<forge_app::dto::AuthResult> {
         let forge_app = ForgeApp::new(self.services.clone());
         Ok(forge_app
-            .poll_provider_auth(provider_id, context, timeout, method)
+            .poll_provider_auth(context, timeout, method)
             .await?)
     }
 

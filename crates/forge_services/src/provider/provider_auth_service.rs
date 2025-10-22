@@ -928,7 +928,6 @@ where
 
     async fn poll_provider_auth(
         &self,
-        _provider_id: ProviderId,
         context: &AuthContext,
         timeout: Duration,
         method: AuthMethod,

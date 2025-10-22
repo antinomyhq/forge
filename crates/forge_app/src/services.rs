@@ -389,7 +389,6 @@ pub trait ProviderAuthService: Send + Sync {
     /// Blocks until authentication completes or timeout is reached
     async fn poll_provider_auth(
         &self,
-        provider_id: ProviderId,
         context: &crate::dto::AuthContext,
         timeout: std::time::Duration,
         method: AuthMethod,
@@ -837,13 +836,12 @@ impl<I: Services> ProviderAuthService for I {
 
     async fn poll_provider_auth(
         &self,
-        provider_id: ProviderId,
         context: &crate::dto::AuthContext,
         timeout: std::time::Duration,
         method: AuthMethod,
     ) -> anyhow::Result<crate::dto::AuthResult> {
         self.provider_auth_service()
-            .poll_provider_auth(provider_id, context, timeout, method)
+            .poll_provider_auth(context, timeout, method)
             .await
     }
 

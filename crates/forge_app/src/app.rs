@@ -273,13 +273,12 @@ impl<S: Services> ForgeApp<S> {
     /// * `timeout` - Maximum duration to wait
     pub async fn poll_provider_auth(
         &self,
-        provider_id: crate::dto::ProviderId,
         context: &crate::dto::AuthContext,
         timeout: std::time::Duration,
         method: crate::dto::AuthMethod,
     ) -> Result<crate::dto::AuthResult> {
         self.services
-            .poll_provider_auth(provider_id, context, timeout, method)
+            .poll_provider_auth(context, timeout, method)
             .await
     }
 

@@ -139,7 +139,6 @@ pub trait API: Sync + Send {
     /// Polls for OAuth authentication completion
     async fn poll_provider_auth(
         &self,
-        provider_id: ProviderId,
         context: &forge_app::dto::AuthContext,
         timeout: std::time::Duration,
         method: forge_app::dto::AuthMethod,
