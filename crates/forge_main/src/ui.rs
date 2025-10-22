@@ -6,8 +6,9 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, AuthContext, AuthResult, ChatRequest, ChatResponse, Conversation, ConversationId,
-    Event, InterruptionReason, Model, ModelId, Provider, URLParam, Workflow,
+    API, AgentId, AuthContext, AuthMethod, AuthResult, ChatRequest, ChatResponse, Conversation,
+    ConversationId, Event, InterruptionReason, Model, ModelId, Provider, ProviderId, URLParam,
+    Workflow,
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
@@ -466,45 +467,49 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         use crate::cli::AuthCommand;
 
         match auth_group.command {
-            AuthCommand::Login { provider, skip_validation } => {
-                self.handle_auth_login(provider, skip_validation).await?;
+            AuthCommand::Login { provider } => {
+                self.handle_auth_login(provider).await?;
             }
         }
 
         Ok(())
     }
+
     async fn handle_api_key_prompt(
-        &self,
+        &mut self,
         provider_id: forge_app::dto::ProviderId,
         method: forge_app::dto::AuthMethod,
         required_params: Vec<URLParam>,
     ) -> anyhow::Result<()> {
-        let mut url_params = HashMap::new();
+        use anyhow::Context;
 
         // Collect URL parameters if required
-        // All parameters are required by default
-        for param in required_params {
-            let param_value = ForgeSelect::input(format!("Enter {}:", param.as_ref()))
-                .prompt()?
-                .ok_or_else(|| anyhow::anyhow!("Parameter input cancelled"))?;
+        let url_params = required_params
+            .into_iter()
+            .map(|param| {
+                let param_value = ForgeSelect::input(format!("Enter {}:", param.as_ref()))
+                    .prompt()?
+                    .context("Parameter input cancelled")?;
 
-            if param_value.trim().is_empty() {
-                anyhow::bail!("{} cannot be empty", param.as_ref());
-            }
+                anyhow::ensure!(
+                    !param_value.trim().is_empty(),
+                    "{} cannot be empty",
+                    param.as_ref()
+                );
 
-            url_params.insert(param.to_string(), param_value);
-        }
+                Ok((param.to_string(), param_value))
+            })
+            .collect::<anyhow::Result<HashMap<_, _>>>()?;
 
+        self.spinner.stop(None)?;
         let api_key = ForgeSelect::password(format!("Enter your {} API key:", provider_id))
             .with_display_toggle_enabled()
             .prompt()?
-            .ok_or_else(|| anyhow::anyhow!("API key input cancelled"))?;
+            .context("API key input cancelled")?;
 
-        if api_key.trim().is_empty() {
-            anyhow::bail!("API key cannot be empty");
-        }
+        anyhow::ensure!(!api_key.trim().is_empty(), "API key cannot be empty");
 
-        let auth_res = AuthResult::ApiKey { api_key: api_key.clone(), url_params };
+        let auth_res = AuthResult::ApiKey { api_key, url_params };
 
         self.api
             .save_provider_credentials(provider_id.clone(), auth_res, method)
@@ -514,11 +519,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         Ok(())
     }
-    async fn handle_auth_login(
-        &mut self,
-        provider: Option<String>,
-        _skip_validation: bool,
-    ) -> anyhow::Result<()> {
+
+    async fn handle_auth_login(&mut self, provider: Option<String>) -> anyhow::Result<()> {
         use colored::Colorize;
 
         // Step 1: Get or select provider
@@ -603,42 +605,111 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             &auth_methods[0]
         };
 
+        self.spinner.start(Some("Initiating authentication..."))?;
         let init = self
             .api
             .init_provider_auth(provider_id.clone(), selected_method.clone())
             .await?;
 
         match init {
-            forge_api::AuthInitiation::ApiKeyPrompt { required_params, .. } => {
+            forge_api::AuthInitiation::ApiKeyPrompt { required_params } => {
                 self.handle_api_key_prompt(provider_id, selected_method.clone(), required_params)
                     .await?
             }
-            forge_api::AuthInitiation::DeviceFlow { .. } => {
-                self.handle_provider_oauth_flow(provider_id, selected_method.clone())
-                    .await?
+            forge_api::AuthInitiation::DeviceFlow {
+                context,
+                user_code,
+                verification_uri,
+                verification_uri_complete,
+                ..
+            } => {
+                self.handle_device_flow(
+                    provider_id,
+                    selected_method.clone(),
+                    context,
+                    user_code,
+                    verification_uri,
+                    verification_uri_complete,
+                )
+                .await?
             }
-            forge_api::AuthInitiation::CodeFlow { .. } => {
-                self.handle_provider_oauth_flow(provider_id, selected_method.clone())
-                    .await?
+            forge_api::AuthInitiation::CodeFlow { authorization_url, context, .. } => {
+                self.handle_code_flow(
+                    provider_id,
+                    selected_method.clone(),
+                    authorization_url,
+                    context,
+                )
+                .await?
             }
         }
         Ok(())
     }
 
+    async fn handle_device_flow(
+        &mut self,
+        provider_id: ProviderId,
+        method: AuthMethod,
+        context: AuthContext,
+        user_code: String,
+        verification_uri: String,
+        verification_uri_complete: Option<String>,
+    ) -> Result<()> {
+        use std::time::Duration;
+
+        use forge_services::provider::registry::get_provider_display_name;
+
+        self.spinner.stop(None)?;
+        // Display OAuth device information
+        Self::display_oauth_device_info_new(
+            &user_code,
+            &verification_uri,
+            verification_uri_complete.as_deref(),
+        );
+
+        // Step 2: Poll until authentication completes (10 minute timeout)
+        let display_name = get_provider_display_name(&provider_id);
+        self.spinner.start(Some("Waiting for authorization..."))?;
+
+        let auth_result = self
+            .api
+            .poll_provider_auth(
+                provider_id.clone(),
+                &context,
+                Duration::from_secs(600),
+                method.clone(),
+            )
+            .await?;
+
+        self.spinner.stop(None)?;
+
+        // Step 3: Complete authentication and save credentials
+        self.spinner.start(Some("Saving credentials..."))?;
+
+        self.api
+            .save_provider_credentials(provider_id.clone(), auth_result, method.clone())
+            .await?;
+
+        self.spinner.stop(None)?;
+
+        Self::display_credential_success(&display_name);
+        Ok(())
+    }
+
     /// Generic OAuth handler for any provider with OAuth configuration in
     /// metadata
-    async fn handle_provider_oauth_flow(
+    async fn handle_code_flow(
         &mut self,
         provider_id: forge_app::dto::ProviderId,
         method: forge_app::dto::AuthMethod,
+        authorization_url: String,
+        context: AuthContext,
     ) -> anyhow::Result<()> {
-        use std::time::Duration;
-
         use colored::Colorize;
-        use forge_app::dto::AuthInitiation;
         use forge_services::provider::registry::get_provider_display_name;
 
         let display_name = get_provider_display_name(&provider_id);
+        self.spinner.stop(None)?;
 
         println!();
         println!("{} OAuth Authentication", display_name.bold());
@@ -648,110 +719,47 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         );
         println!();
 
-        // Step 1: Initiate authentication
-        self.spinner.start(Some("Initiating authentication..."))?;
+        // Display authorization URL
+        println!(
+            "{} Please visit: {}",
+            "→".blue(),
+            authorization_url.blue().underline()
+        );
+        println!();
 
-        let initiation = self
-            .api
-            .init_provider_auth(provider_id.clone(), method.clone())
-            .await?;
+        // Prompt user to paste authorization code
+        let code = ForgeSelect::input("Paste the authorization code:")
+            .prompt()?
+            .ok_or_else(|| anyhow::anyhow!("Authorization code input cancelled"))?;
 
-        self.spinner.stop(None)?;
+        if code.trim().is_empty() {
+            anyhow::bail!("Authorization code cannot be empty");
+        }
 
-        match initiation {
-            AuthInitiation::DeviceFlow {
-                user_code,
-                verification_uri,
-                verification_uri_complete,
-                context,
-                ..
-            } => {
-                // Display OAuth device information
-                Self::display_oauth_device_info_new(
-                    &user_code,
-                    &verification_uri,
-                    verification_uri_complete.as_deref(),
-                );
+        self.spinner
+            .start(Some("Exchanging authorization code..."))?;
 
-                // Step 2: Poll until authentication completes (10 minute timeout)
-                self.spinner.start(Some("Waiting for authorization..."))?;
-
-                let auth_result = self
-                    .api
-                    .poll_provider_auth(
-                        provider_id.clone(),
-                        &context,
-                        Duration::from_secs(600),
-                        method.clone(),
-                    )
-                    .await?;
-
-                self.spinner.stop(None)?;
-
-                // Step 3: Complete authentication and save credentials
-                self.spinner.start(Some("Saving credentials..."))?;
-
-                self.api
-                    .save_provider_credentials(provider_id.clone(), auth_result, method.clone())
-                    .await?;
-
-                self.spinner.stop(None)?;
-
-                Self::display_credential_success(&display_name);
-                Ok(())
-            }
-            AuthInitiation::CodeFlow { authorization_url, context, .. } => {
-                // Display authorization URL
-                println!(
-                    "{} Please visit: {}",
-                    "→".blue(),
-                    authorization_url.blue().underline()
-                );
-                println!();
-
-                // Prompt user to paste authorization code
-                let code = ForgeSelect::input("Paste the authorization code:")
-                    .prompt()?
-                    .ok_or_else(|| anyhow::anyhow!("Authorization code input cancelled"))?;
-
-                if code.trim().is_empty() {
-                    anyhow::bail!("Authorization code cannot be empty");
-                }
-
-                self.spinner
-                    .start(Some("Exchanging authorization code..."))?;
-
-                // Extract state and PKCE verifier from typed context
-                let (state, code_verifier) = match context {
+        // Complete authentication with the code
+         let (state, code_verifier) = match context {
                     AuthContext::Code { state, pkce_verifier } => {
                         (state.clone(), pkce_verifier.clone())
                     }
                     _ => return Err(anyhow::anyhow!("Invalid context type: expected Code")),
                 };
+        let auth_result = forge_app::dto::AuthResult::AuthorizationCode {
+            code: code.trim().to_string(),
+            state,
+            code_verifier,
+        };
 
-                // Complete authentication with the code
-                let auth_result = forge_app::dto::AuthResult::AuthorizationCode {
-                    code: code.trim().to_string(),
-                    state,
-                    code_verifier,
-                };
+        self.api
+            .save_provider_credentials(provider_id.clone(), auth_result, method)
+            .await?;
 
-                self.api
-                    .save_provider_credentials(provider_id.clone(), auth_result, method)
-                    .await?;
+        self.spinner.stop(None)?;
 
-                self.spinner.stop(None)?;
-
-                Self::display_credential_success(&display_name);
-                Ok(())
-            }
-            _ => {
-                anyhow::bail!(
-                    "Unexpected authentication initiation type for OAuth provider: {:?}",
-                    initiation
-                );
-            }
-        }
+        Self::display_credential_success(&display_name);
+        Ok(())
     }
 
     /// Displays OAuth device authorization instructions to user (new

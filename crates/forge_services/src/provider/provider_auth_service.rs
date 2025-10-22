@@ -1061,7 +1061,6 @@ where
 
         // Store credential via infrastructure (takes ownership)
         self.infra.upsert_credential(credential.clone()).await?;
-
         Ok(credential)
     }
 
