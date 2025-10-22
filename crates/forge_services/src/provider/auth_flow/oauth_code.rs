@@ -19,7 +19,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use forge_app::dto::{
-    AuthContext, AuthInitiation, AuthMethod, AuthResult, OAuthConfig, OAuthTokens,
+    AuthContext, AuthInitiation, AuthResult, OAuthConfig, OAuthTokens,
     ProviderCredential, ProviderId,
 };
 
@@ -66,10 +66,6 @@ impl OAuthCodeFlow {
 
 #[async_trait]
 impl AuthenticationFlow for OAuthCodeFlow {
-    fn auth_method_type(&self) -> AuthMethod {
-        AuthMethod::OAuthCode(self.config.clone())
-    }
-
     async fn initiate(&self) -> Result<AuthInitiation, AuthFlowError> {
         // Build authorization URL with PKCE
         let auth_params = self
@@ -216,17 +212,6 @@ mod tests {
             custom_headers: None,
             extra_auth_params: None,
         }
-    }
-
-    #[tokio::test]
-    async fn test_auth_method_type() {
-        let config = fixture_oauth_config();
-        let oauth_service = Arc::new(ForgeOAuthService::new());
-
-        let flow = OAuthCodeFlow::new(ProviderId::OpenAI, config, oauth_service);
-
-        let actual = flow.auth_method_type();
-        assert!(matches!(actual, AuthMethod::OAuthCode(_)));
     }
 
     #[tokio::test]

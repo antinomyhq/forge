@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use forge_app::dto::{
-    AuthContext, AuthInitiation, AuthMethod, AuthResult, OAuthTokens, ProviderCredential,
+    AuthContext, AuthInitiation, AuthResult, OAuthTokens, ProviderCredential,
     ProviderId,
 };
 
@@ -68,10 +68,6 @@ impl OAuthWithApiKeyFlow {
 
 #[async_trait]
 impl AuthenticationFlow for OAuthWithApiKeyFlow {
-    fn auth_method_type(&self) -> AuthMethod {
-        AuthMethod::OAuthDevice(self.config.clone())
-    }
-
     async fn initiate(&self) -> Result<AuthInitiation, AuthFlowError> {
         // Validate configuration
         let device_code_url = self.config.device_code_url.as_ref().ok_or_else(|| {
@@ -408,23 +404,6 @@ mod tests {
             custom_headers: None,
             extra_auth_params: None,
         }
-    }
-
-    #[tokio::test]
-    async fn test_auth_method_type() {
-        let config = fixture_oauth_config();
-        let oauth_service = Arc::new(ForgeOAuthService::new());
-        let copilot_service = Arc::new(GitHubCopilotService::new());
-
-        let flow = OAuthWithApiKeyFlow::new(
-            ProviderId::GithubCopilot,
-            config,
-            oauth_service,
-            copilot_service,
-        );
-
-        let actual = flow.auth_method_type();
-        assert!(matches!(actual, AuthMethod::OAuthDevice(_)));
     }
 
     #[tokio::test]

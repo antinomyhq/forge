@@ -108,15 +108,6 @@ impl AuthFlow {
 
 #[async_trait::async_trait]
 impl AuthenticationFlow for AuthFlow {
-    fn auth_method_type(&self) -> AuthMethod {
-        match self {
-            Self::ApiKey(flow) => flow.auth_method_type(),
-
-            Self::OAuthDevice(flow) => flow.auth_method_type(),
-            Self::OAuthCode(flow) => flow.auth_method_type(),
-            Self::OAuthWithApiKey(flow) => flow.auth_method_type(),
-        }
-    }
 
     async fn initiate(&self) -> Result<AuthInitiation, AuthFlowError> {
         match self {
@@ -169,8 +160,6 @@ impl AuthenticationFlow for AuthFlow {
 /// Generic authentication flow trait supporting all provider auth patterns.
 #[async_trait::async_trait]
 pub trait AuthenticationFlow: Send + Sync {
-    /// Returns the authentication method type.
-    fn auth_method_type(&self) -> AuthMethod;
 
     /// Initiates the authentication flow.
     async fn initiate(&self) -> Result<AuthInitiation, AuthFlowError>;

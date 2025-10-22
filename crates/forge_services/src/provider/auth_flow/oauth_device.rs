@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use chrono::Utc;
 use forge_app::dto::{
-    AuthContext, AuthInitiation, AuthMethod, AuthResult, OAuthTokens, ProviderCredential,
+    AuthContext, AuthInitiation, AuthResult, OAuthTokens, ProviderCredential,
     ProviderId,
 };
 
@@ -47,9 +47,6 @@ impl OAuthDeviceFlow {
 
 #[async_trait::async_trait]
 impl AuthenticationFlow for OAuthDeviceFlow {
-    fn auth_method_type(&self) -> AuthMethod {
-        AuthMethod::OAuthDevice(self.config.clone())
-    }
 
     async fn initiate(&self) -> Result<AuthInitiation, AuthFlowError> {
         // Validate configuration
@@ -377,14 +374,6 @@ mod tests {
         )
     }
 
-    #[test]
-    fn test_auth_method_type() {
-        let flow = create_flow();
-        assert!(matches!(
-            flow.auth_method_type(),
-            AuthMethod::OAuthDevice(_)
-        ));
-    }
 
     // Note: Full integration tests for initiate() and poll_until_complete()
     // would require mocking the OAuth server, which is beyond the scope of unit
