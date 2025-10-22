@@ -158,7 +158,7 @@ impl TryFrom<ContextMessage> for Message {
                 }
 
                 if !chat_message.content.is_empty() {
-                    // note: Anthropic does not allow empty text content.
+                    // NOTE: Anthropic does not allow empty text content.
                     content.push(Content::Text { text: chat_message.content, cache_control: None });
                 }
                 if let Some(tool_calls) = chat_message.tool_calls {
