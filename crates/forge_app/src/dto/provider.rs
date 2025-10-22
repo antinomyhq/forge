@@ -1,6 +1,6 @@
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
-use strum_macros::{Display, EnumIter};
+use strum_macros::{AsRefStr, Display, EnumIter};
 use url::Url;
 
 use super::AuthType;
@@ -9,31 +9,69 @@ use super::AuthType;
 /// The order of providers is important because that would be order in which the
 /// providers will be resolved
 #[derive(
-    Debug, Display, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord, EnumIter,
+    Debug,
+    Display,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    PartialOrd,
+    Ord,
+    EnumIter,
+    AsRefStr,
 )]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum ProviderId {
+    #[serde(alias = "Forge")]
+    #[strum(to_string = "Forge")]
     Forge,
+    #[serde(alias = "GithubCopilot")]
+    #[strum(to_string = "GithubCopilot")]
     GithubCopilot,
     #[serde(rename = "openai")]
-    #[strum(serialize = "openai")]
+    #[serde(alias = "OpenAI")]
+    #[strum(serialize = "openai", to_string = "OpenAI")]
     OpenAI,
     #[serde(rename = "openai_compatible")]
-    #[strum(serialize = "openai_compatible")]
+    #[serde(alias = "OpenAICompatible")]
+    #[strum(serialize = "openai_compatible", to_string = "OpenAICompatible")]
     OpenAICompatible,
+    #[serde(alias = "OpenRouter")]
+    #[strum(to_string = "OpenRouter")]
     OpenRouter,
+    #[serde(alias = "Requesty")]
+    #[strum(to_string = "Requesty")]
     Requesty,
+    #[serde(alias = "Zai")]
+    #[strum(to_string = "Zai")]
     Zai,
+    #[serde(alias = "ZaiCoding")]
+    #[strum(to_string = "ZaiCoding")]
     ZaiCoding,
+    #[serde(alias = "Cerebras")]
+    #[strum(to_string = "Cerebras")]
     Cerebras,
+    #[serde(alias = "Xai")]
+    #[strum(to_string = "Xai")]
     Xai,
+    #[serde(alias = "Anthropic")]
+    #[strum(to_string = "Anthropic")]
     Anthropic,
     #[serde(rename = "anthropic_compatible")]
-    #[strum(serialize = "anthropic_compatible")]
+    #[serde(alias = "AnthropicCompatible")]
+    #[strum(serialize = "anthropic_compatible", to_string = "AnthropicCompatible")]
     AnthropicCompatible,
+    #[serde(alias = "VertexAi")]
+    #[strum(to_string = "VertexAi")]
     VertexAi,
+    #[serde(alias = "BigModel")]
+    #[strum(to_string = "BigModel")]
     BigModel,
+    #[serde(alias = "Azure")]
+    #[strum(to_string = "Azure")]
     Azure,
 }
 
@@ -294,14 +332,42 @@ mod tests {
     #[test]
     fn test_github_copilot_display_name() {
         let actual = ProviderId::GithubCopilot.to_string();
-        let expected = "github_copilot";
+        let expected = "GithubCopilot";
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_provider_id_display() {
-        assert_eq!(ProviderId::OpenAI.to_string(), "openai");
-        assert_eq!(ProviderId::GithubCopilot.to_string(), "github_copilot");
+        let fixture_openai = ProviderId::OpenAI;
+        let actual_openai = fixture_openai.to_string();
+        let expected_openai = "OpenAI";
+        assert_eq!(actual_openai, expected_openai);
+
+        let fixture_copilot = ProviderId::GithubCopilot;
+        let actual_copilot = fixture_copilot.to_string();
+        let expected_copilot = "GithubCopilot";
+        assert_eq!(actual_copilot, expected_copilot);
+    }
+
+    #[test]
+    fn test_provider_id_snake_case_identifier() {
+        let fixture_openai = ProviderId::OpenAI;
+        let actual_openai = serde_json::to_value(&fixture_openai)
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_string();
+        let expected_openai = "openai".to_string();
+        assert_eq!(actual_openai, expected_openai);
+
+        let fixture_copilot = ProviderId::GithubCopilot;
+        let actual_copilot = serde_json::to_value(&fixture_copilot)
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_string();
+        let expected_copilot = "github_copilot".to_string();
+        assert_eq!(actual_copilot, expected_copilot);
     }
 
     #[test]
@@ -332,5 +398,14 @@ mod tests {
 
         let anthropic: ProviderId = serde_json::from_str(r#""anthropic""#).unwrap();
         assert_eq!(anthropic, ProviderId::Anthropic);
+    }
+
+    #[test]
+    fn test_provider_id_deserialization_pascal_case() {
+        let fixture_openai: ProviderId = serde_json::from_str(r#""OpenAI""#).unwrap();
+        assert_eq!(fixture_openai, ProviderId::OpenAI);
+
+        let fixture_copilot: ProviderId = serde_json::from_str(r#""GithubCopilot""#).unwrap();
+        assert_eq!(fixture_copilot, ProviderId::GithubCopilot);
     }
 }

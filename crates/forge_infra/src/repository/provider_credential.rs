@@ -26,6 +26,15 @@ struct ProviderCredentialRecord {
     created_at: NaiveDateTime,
     updated_at: NaiveDateTime,
 }
+
+fn provider_id_storage_value(provider_id: &ProviderId) -> anyhow::Result<String> {
+    let value = serde_json::to_value(provider_id)?;
+    value
+        .as_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| anyhow::anyhow!("ProviderId serialization produced non-string value"))
+}
+
 impl TryFrom<&ProviderCredential> for ProviderCredentialRecord {
     type Error = anyhow::Error;
 
@@ -39,7 +48,7 @@ impl TryFrom<&ProviderCredential> for ProviderCredentialRecord {
 
         Ok(ProviderCredentialRecord {
             id: None,
-            provider_id: credential.provider_id.to_string(),
+            provider_id: provider_id_storage_value(&credential.provider_id)?,
             auth_type: credential.auth_type.to_string(),
             api_key: credential.api_key.clone(),
             refresh_token: credential
@@ -158,9 +167,10 @@ impl ProviderCredentialRepository for ProviderCredentialRepositoryImpl {
         provider_id: &ProviderId,
     ) -> anyhow::Result<Option<ProviderCredential>> {
         let mut conn = self.db_pool.get_connection()?;
+        let storage_id = provider_id_storage_value(provider_id)?;
 
         let record = provider_credentials::table
-            .filter(provider_credentials::provider_id.eq(provider_id.to_string()))
+            .filter(provider_credentials::provider_id.eq(storage_id))
             .first::<ProviderCredentialRecord>(&mut conn)
             .optional()?;
 
@@ -183,10 +193,10 @@ impl ProviderCredentialRepository for ProviderCredentialRepositoryImpl {
         tokens: OAuthTokens,
     ) -> anyhow::Result<()> {
         let mut conn = self.db_pool.get_connection()?;
+        let storage_id = provider_id_storage_value(provider_id)?;
 
         diesel::update(
-            provider_credentials::table
-                .filter(provider_credentials::provider_id.eq(provider_id.to_string())),
+            provider_credentials::table.filter(provider_credentials::provider_id.eq(storage_id)),
         )
         .set((
             provider_credentials::refresh_token.eq(Some(tokens.refresh_token)),
