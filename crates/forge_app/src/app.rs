@@ -14,7 +14,8 @@ use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
 use crate::{
     AgentLoaderService, AttachmentService, ConversationService, EnvironmentService,
-    FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker, WorkflowService,
+    FileDiscoveryService, ProviderAuthService, ProviderRegistry, ProviderService, Services, Walker,
+    WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -258,9 +259,7 @@ impl<S: Services> ForgeApp<S> {
         provider_id: crate::dto::ProviderId,
         method: crate::dto::AuthMethod,
     ) -> Result<crate::dto::AuthInitiation> {
-        self.authenticator
-            .init_provider_auth(provider_id, method)
-            .await
+        self.services.init_provider_auth(provider_id, method).await
     }
 
     /// Polls until provider authentication completes (for OAuth flows)
@@ -279,7 +278,7 @@ impl<S: Services> ForgeApp<S> {
         timeout: std::time::Duration,
         method: crate::dto::AuthMethod,
     ) -> Result<crate::dto::AuthResult> {
-        self.authenticator
+        self.services
             .poll_provider_auth(provider_id, context, timeout, method)
             .await
     }
@@ -295,8 +294,8 @@ impl<S: Services> ForgeApp<S> {
         result: crate::dto::AuthResult,
         method: crate::dto::AuthMethod,
     ) -> Result<()> {
-        self.authenticator
-            .save_provider_credentials(provider_id, result, method)
+        self.services
+            .complete_provider_auth(provider_id, result, method)
             .await?;
         Ok(())
     }

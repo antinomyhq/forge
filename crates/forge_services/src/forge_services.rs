@@ -159,7 +159,7 @@ impl<
         + AppConfigRepository
         + CacheRepository
         + ProviderCredentialRepository
-        + crate::provider::auth_flow::AuthFlowInfra
+        + crate::provider::AuthFlowInfra
         + Clone,
 > Services for ForgeServices<F>
 {

@@ -466,7 +466,7 @@ impl ProviderSpecificProcessingInfra for ForgeInfra {
     }
 }
 
-impl forge_services::provider::auth_flow::AuthFlowInfra for ForgeInfra {
+impl forge_services::provider::AuthFlowInfra for ForgeInfra {
     fn oauth_service(&self) -> Arc<forge_services::provider::ForgeOAuthService> {
         self.oauth_service.clone()
     }

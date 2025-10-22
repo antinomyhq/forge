@@ -5,27 +5,27 @@ use std::time::Duration;
 use backon::{ExponentialBuilder, Retryable};
 use forge_domain::RetryConfig;
 
-use crate::dto::{AuthContext, AuthInitiation, AuthMethod, AuthResult, InitAuth, ProviderId};
-use crate::{AuthService, Error, ProviderAuthService};
+use crate::dto::InitAuth;
+use crate::{AuthService, Error};
 
-/// Authenticator handles both Forge platform authentication and provider
-/// authentication
+/// Platform authenticator for Forge API access
 ///
-/// Supports two authentication flows:
-/// 1. **Forge Platform Auth**: init() → login() → logout() for Forge API access
-/// 2. **Provider Auth**: authenticate_provider() for LLM provider credentials
+/// Handles Forge platform authentication using device code flow:
+/// 1. **init()** - Initiate device authorization and get user code
+/// 2. **login()** - Poll until user completes authorization (with retry)
+/// 3. **logout()** - Clear stored credentials
+///
+/// For LLM provider authentication, use `ProviderAuthService` directly via
+/// `ForgeApp::provider_auth()`.
 pub struct Authenticator<S> {
     auth_service: Arc<S>,
 }
 
-impl<S: AuthService + ProviderAuthService> Authenticator<S> {
-    /// Creates a new authenticator with both platform and provider auth
-    /// services
+impl<S: AuthService> Authenticator<S> {
+    /// Creates a new platform authenticator
     pub fn new(auth_service: Arc<S>) -> Self {
         Self { auth_service }
     }
-
-    // ========== Forge Platform Authentication ==========
 
     /// Initializes Forge platform authentication
     ///
@@ -89,72 +89,6 @@ impl<S: AuthService + ProviderAuthService> Authenticator<S> {
                     .map(|v| matches!(v, Error::AuthInProgress))
                     .unwrap_or(false)
             })
-            .await
-    }
-
-    /// Initiates authentication for an LLM provider
-    ///
-    /// Returns the initial authentication state which varies by provider:
-    /// - API Key providers: Prompts for key input (and optional URL parameters)
-    /// - OAuth Device Flow: Returns user code and verification URL
-    /// - OAuth Code Flow: Returns authorization URL for browser redirect
-    /// - Custom Providers: Prompts for base URL, model ID, compatibility mode
-    pub async fn init_provider_auth(
-        &self,
-        provider_id: ProviderId,
-        method: AuthMethod,
-    ) -> anyhow::Result<AuthInitiation> {
-        self.auth_service
-            .init_provider_auth(provider_id, method)
-            .await
-    }
-
-    /// Polls until provider authentication completes
-    ///
-    /// This is a blocking async operation that waits for authentication to
-    /// complete. For OAuth flows, it polls the token endpoint. For manual
-    /// input (API keys), this should not be called.
-    ///
-    /// # Arguments
-    /// * `provider_id` - The provider being authenticated
-    /// * `context` - Context data from initiation (device code, session ID,
-    ///   etc.)
-    /// * `timeout` - Maximum duration to wait for completion
-    ///
-    /// # Returns
-    /// `AuthResult` containing the authentication outcome (tokens, API key,
-    /// etc.)
-    pub async fn poll_provider_auth(
-        &self,
-        provider_id: ProviderId,
-        context: &AuthContext,
-        timeout: Duration,
-        method: crate::dto::AuthMethod,
-    ) -> anyhow::Result<AuthResult> {
-        self.auth_service
-            .poll_provider_auth(provider_id, context, timeout, method)
-            .await
-    }
-
-    /// Completes provider authentication and saves credentials
-    ///
-    /// Takes the authentication result and creates a provider credential,
-    /// then saves it to the database.
-    ///
-    /// # Arguments
-    /// * `provider_id` - The provider being authenticated
-    /// * `result` - The authentication result from user input or polling
-    ///
-    /// # Returns
-    /// The created and saved `ProviderCredential`
-    pub async fn save_provider_credentials(
-        &self,
-        provider_id: ProviderId,
-        result: AuthResult,
-        method: crate::dto::AuthMethod,
-    ) -> anyhow::Result<crate::dto::ProviderCredential> {
-        self.auth_service
-            .complete_provider_auth(provider_id, result, method)
             .await
     }
 }

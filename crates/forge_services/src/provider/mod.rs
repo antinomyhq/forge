@@ -1,5 +1,5 @@
 mod anthropic;
-pub mod auth_flow;
+mod auth_infra;
 mod client;
 mod event;
 mod github_copilot;
@@ -8,6 +8,7 @@ mod mock_server;
 mod oauth;
 mod openai;
 mod processing;
+mod provider_auth_error;
 mod provider_auth_service;
 pub mod registry;
 mod retry;
@@ -15,11 +16,12 @@ mod service;
 mod types;
 mod utils;
 
-pub use auth_flow::*;
+pub use auth_infra::*;
 pub use forge_app::dto::{AuthMethod, OAuthConfig};
 pub use github_copilot::*;
 pub use oauth::*;
 pub use processing::*;
+pub use provider_auth_error::*;
 pub use provider_auth_service::*;
 pub use registry::{
     ForgeProviderRegistry, get_provider_auth_methods, get_provider_display_name,

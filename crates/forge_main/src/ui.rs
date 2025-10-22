@@ -6,8 +6,8 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, AuthResult, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
-    InterruptionReason, Model, ModelId, Provider, URLParam, Workflow,
+    API, AgentId, AuthContext, AuthResult, ChatRequest, ChatResponse, Conversation, ConversationId,
+    Event, InterruptionReason, Model, ModelId, Provider, URLParam, Workflow,
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
@@ -721,15 +721,19 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.spinner
                     .start(Some("Exchanging authorization code..."))?;
 
+                // Extract state and PKCE verifier from typed context
+                let (state, code_verifier) = match context {
+                    AuthContext::Code { state, pkce_verifier } => {
+                        (state.clone(), pkce_verifier.clone())
+                    }
+                    _ => return Err(anyhow::anyhow!("Invalid context type: expected Code")),
+                };
+
                 // Complete authentication with the code
                 let auth_result = forge_app::dto::AuthResult::AuthorizationCode {
                     code: code.trim().to_string(),
-                    state: context
-                        .completion_data
-                        .get("state")
-                        .ok_or_else(|| anyhow::anyhow!("Missing state in context"))?
-                        .clone(),
-                    code_verifier: context.completion_data.get("code_verifier").cloned(),
+                    state,
+                    code_verifier,
                 };
 
                 self.api

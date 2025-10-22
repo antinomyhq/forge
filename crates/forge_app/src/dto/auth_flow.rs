@@ -9,7 +9,6 @@
 /// - Cloud Service Account with Parameters (Vertex AI, Azure)
 use std::collections::HashMap;
 
-use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
 /// OAuth configuration for device and code flows
@@ -151,19 +150,57 @@ pub enum AuthInitiation {
     },
 }
 
-/// Context data needed for polling/completion.
+/// Context data for authentication flows.
 ///
-/// This is an opaque container for flow-specific data like device codes,
-/// session IDs, PKCE verifiers, etc. The data is stored as key-value pairs
-/// to keep the types generic.
-#[derive(Debug, Clone, Serialize, Deserialize, Default, Setters)]
-#[setters(strip_option, into)]
-pub struct AuthContext {
-    /// Opaque data needed for polling (device_code, session_id, etc.)
-    pub polling_data: HashMap<String, String>,
+/// This enum provides type-safe storage for flow-specific data needed during
+/// polling and completion. Each variant corresponds to a specific
+/// authentication method and contains only the fields required for that flow.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum AuthContext {
+    /// API key authentication - no context needed
+    ApiKey,
 
-    /// Opaque data needed for completion (PKCE verifier, state, etc.)
-    pub completion_data: HashMap<String, String>,
+    /// OAuth Device Flow context - for polling
+    Device { device_code: String, interval: u64 },
+
+    /// OAuth Code Flow context - for completion
+    Code {
+        state: String,
+        pkce_verifier: Option<String>,
+    },
+}
+
+impl AuthContext {
+    /// Creates a Device flow context
+    pub fn device(device_code: String, interval: u64) -> Self {
+        Self::Device { device_code, interval }
+    }
+
+    /// Creates a Code flow context
+    pub fn code(state: String, pkce_verifier: Option<String>) -> Self {
+        Self::Code { state, pkce_verifier }
+    }
+
+    /// Creates an API key context (no data needed)
+    pub fn api_key() -> Self {
+        Self::ApiKey
+    }
+
+    /// Returns true if this is a Device flow context
+    pub fn is_device(&self) -> bool {
+        matches!(self, Self::Device { .. })
+    }
+
+    /// Returns true if this is a Code flow context
+    pub fn is_code(&self) -> bool {
+        matches!(self, Self::Code { .. })
+    }
+
+    /// Returns true if this is an API key context
+    pub fn is_api_key(&self) -> bool {
+        matches!(self, Self::ApiKey)
+    }
 }
 
 /// Result data from successful authentication.
@@ -225,30 +262,127 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_auth_context_default() {
-        let context = AuthContext::default();
-        assert!(context.polling_data.is_empty());
-        assert!(context.completion_data.is_empty());
+    fn test_device_context_creation() {
+        let context = AuthContext::device("ABC123".to_string(), 5);
+
+        assert!(context.is_device());
+        assert!(!context.is_code());
+        assert!(!context.is_api_key());
+
+        match context {
+            AuthContext::Device { device_code, interval } => {
+                assert_eq!(device_code, "ABC123");
+                assert_eq!(interval, 5);
+            }
+            _ => panic!("Expected Device variant"),
+        }
     }
 
     #[test]
-    fn test_auth_context_with_polling_data() {
-        let mut polling_data = HashMap::new();
-        polling_data.insert("device_code".to_string(), "ABC123".to_string());
+    fn test_code_context_with_pkce() {
+        let context = AuthContext::code("state123".to_string(), Some("verifier456".to_string()));
 
-        let context = AuthContext::default().polling_data(polling_data.clone());
-        assert_eq!(context.polling_data, polling_data);
-        assert!(context.completion_data.is_empty());
+        assert!(context.is_code());
+        assert!(!context.is_device());
+        assert!(!context.is_api_key());
+
+        match context {
+            AuthContext::Code { state, pkce_verifier } => {
+                assert_eq!(state, "state123");
+                assert_eq!(pkce_verifier, Some("verifier456".to_string()));
+            }
+            _ => panic!("Expected Code variant"),
+        }
     }
 
     #[test]
-    fn test_auth_context_with_completion_data() {
-        let mut completion_data = HashMap::new();
-        completion_data.insert("pkce_verifier".to_string(), "XYZ789".to_string());
+    fn test_code_context_without_pkce() {
+        let context = AuthContext::code("state123".to_string(), None);
 
-        let context = AuthContext::default().completion_data(completion_data.clone());
-        assert!(context.polling_data.is_empty());
-        assert_eq!(context.completion_data, completion_data);
+        match context {
+            AuthContext::Code { state, pkce_verifier } => {
+                assert_eq!(state, "state123");
+                assert!(pkce_verifier.is_none());
+            }
+            _ => panic!("Expected Code variant"),
+        }
+    }
+
+    #[test]
+    fn test_api_key_context() {
+        let context = AuthContext::api_key();
+
+        assert!(context.is_api_key());
+        assert!(!context.is_device());
+        assert!(!context.is_code());
+    }
+
+    #[test]
+    fn test_device_serialization() {
+        let context = AuthContext::device("ABC123".to_string(), 5);
+        let json = serde_json::to_value(&context).unwrap();
+
+        assert_eq!(json["type"], "device");
+        assert_eq!(json["device_code"], "ABC123");
+        assert_eq!(json["interval"], 5);
+    }
+
+    #[test]
+    fn test_code_serialization() {
+        let context = AuthContext::code("state123".to_string(), Some("verifier456".to_string()));
+        let json = serde_json::to_value(&context).unwrap();
+
+        assert_eq!(json["type"], "code");
+        assert_eq!(json["state"], "state123");
+        assert_eq!(json["pkce_verifier"], "verifier456");
+    }
+
+    #[test]
+    fn test_api_key_serialization() {
+        let context = AuthContext::api_key();
+        let json = serde_json::to_value(&context).unwrap();
+
+        assert_eq!(json["type"], "api_key");
+        // ApiKey variant has no fields, should only have type
+        assert_eq!(json.as_object().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_device_deserialization() {
+        let json = r#"{"type":"device","device_code":"ABC123","interval":5}"#;
+        let context: AuthContext = serde_json::from_str(json).unwrap();
+
+        match context {
+            AuthContext::Device { device_code, interval } => {
+                assert_eq!(device_code, "ABC123");
+                assert_eq!(interval, 5);
+            }
+            _ => panic!("Expected Device variant"),
+        }
+    }
+
+    #[test]
+    fn test_code_deserialization() {
+        let json = r#"{"type":"code","state":"state123","pkce_verifier":"verifier456"}"#;
+        let context: AuthContext = serde_json::from_str(json).unwrap();
+
+        match context {
+            AuthContext::Code { state, pkce_verifier } => {
+                assert_eq!(state, "state123");
+                assert_eq!(pkce_verifier, Some("verifier456".to_string()));
+            }
+            _ => panic!("Expected Code variant"),
+        }
+    }
+
+    #[test]
+    fn test_context_equality() {
+        let ctx1 = AuthContext::device("ABC123".to_string(), 5);
+        let ctx2 = AuthContext::device("ABC123".to_string(), 5);
+        let ctx3 = AuthContext::device("XYZ789".to_string(), 5);
+
+        assert_eq!(ctx1, ctx2);
+        assert_ne!(ctx1, ctx3);
     }
 
     #[test]

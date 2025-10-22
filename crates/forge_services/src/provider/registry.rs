@@ -9,7 +9,7 @@ use tokio::sync::OnceCell;
 use tracing;
 use url::Url;
 
-use crate::provider::{AuthFlow, AuthenticationFlow, ForgeOAuthService, GitHubCopilotService};
+use crate::provider::{ForgeOAuthService, GitHubCopilotService};
 use crate::{
     AppConfigRepository, EnvironmentInfra, ProviderCredentialRepository, ProviderError,
     ProviderSpecificProcessingInfra,
@@ -95,13 +95,14 @@ pub struct ForgeProviderRegistry<F> {
 /// Infrastructure adapter for auth flows within the registry.
 ///
 /// This adapter provides the required services (OAuth, GitHub Copilot)
-/// needed by authentication flows for token refresh operations.
-struct RegistryInfraAdapter {
+/// and delegates credential/config operations to the main infrastructure.
+struct RegistryInfraAdapter<F> {
     oauth_service: Arc<ForgeOAuthService>,
     github_service: Arc<GitHubCopilotService>,
+    main_infra: Arc<F>,
 }
 
-impl crate::provider::auth_flow::AuthFlowInfra for RegistryInfraAdapter {
+impl<F: Send + Sync> crate::provider::AuthFlowInfra for RegistryInfraAdapter<F> {
     fn oauth_service(&self) -> Arc<ForgeOAuthService> {
         self.oauth_service.clone()
     }
@@ -111,11 +112,91 @@ impl crate::provider::auth_flow::AuthFlowInfra for RegistryInfraAdapter {
     }
 }
 
+#[async_trait::async_trait]
+impl<F: ProviderCredentialRepository + Send + Sync> ProviderCredentialRepository
+    for RegistryInfraAdapter<F>
+{
+    async fn upsert_credential(
+        &self,
+        credential: forge_app::dto::ProviderCredential,
+    ) -> anyhow::Result<()> {
+        self.main_infra.upsert_credential(credential).await
+    }
+
+    async fn get_credential(
+        &self,
+        provider_id: &ProviderId,
+    ) -> anyhow::Result<Option<forge_app::dto::ProviderCredential>> {
+        self.main_infra.get_credential(provider_id).await
+    }
+
+    async fn get_all_credentials(&self) -> anyhow::Result<Vec<forge_app::dto::ProviderCredential>> {
+        self.main_infra.get_all_credentials().await
+    }
+
+    async fn mark_verified(&self, provider_id: &ProviderId) -> anyhow::Result<()> {
+        self.main_infra.mark_verified(provider_id).await
+    }
+
+    async fn update_oauth_tokens(
+        &self,
+        provider_id: &ProviderId,
+        tokens: forge_app::dto::OAuthTokens,
+    ) -> anyhow::Result<()> {
+        self.main_infra
+            .update_oauth_tokens(provider_id, tokens)
+            .await
+    }
+}
+
+impl<F: EnvironmentInfra + Send + Sync> EnvironmentInfra for RegistryInfraAdapter<F> {
+    fn get_env_var(&self, key: &str) -> Option<String> {
+        self.main_infra.get_env_var(key)
+    }
+
+    fn get_environment(&self) -> forge_app::domain::Environment {
+        self.main_infra.get_environment()
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: AppConfigRepository + Send + Sync> AppConfigRepository for RegistryInfraAdapter<F> {
+    async fn get_app_config(&self) -> anyhow::Result<forge_app::dto::AppConfig> {
+        self.main_infra.get_app_config().await
+    }
+
+    async fn set_app_config(&self, config: &forge_app::dto::AppConfig) -> anyhow::Result<()> {
+        self.main_infra.set_app_config(config).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: ProviderSpecificProcessingInfra + Send + Sync> ProviderSpecificProcessingInfra
+    for RegistryInfraAdapter<F>
+{
+    async fn process_github_copilot_token(
+        &self,
+        access_token: &str,
+    ) -> anyhow::Result<(String, Option<chrono::DateTime<chrono::Utc>>)> {
+        self.main_infra
+            .process_github_copilot_token(access_token)
+            .await
+    }
+
+    fn get_provider_config(
+        &self,
+        provider_id: &ProviderId,
+    ) -> Option<&'static crate::provider::registry::ProviderConfig> {
+        self.main_infra.get_provider_config(provider_id)
+    }
+}
+
 impl<
     F: EnvironmentInfra
         + AppConfigRepository
         + ProviderCredentialRepository
-        + ProviderSpecificProcessingInfra,
+        + ProviderSpecificProcessingInfra
+        + 'static,
 > ForgeProviderRegistry<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -281,31 +362,20 @@ impl<
             )
         })?;
 
-        // Get URL parameters from provider config
-        let url_param_vars = get_provider_config(provider_id)
-            .map(|config| config.url_param_vars.clone())
-            .unwrap_or_default();
-
-        // Create an infrastructure adapter for the auth flow
-        let infra_adapter = RegistryInfraAdapter {
+        // Create infrastructure adapter for the auth service
+        let infra_adapter = Arc::new(RegistryInfraAdapter {
             oauth_service: Arc::new(ForgeOAuthService),
             github_service: Arc::new(GitHubCopilotService::new()),
-        };
+            main_infra: self.infra.clone(),
+        });
 
-        // Create the appropriate auth flow
-        let flow = AuthFlow::try_new(
-            provider_id,
-            auth_method,
-            url_param_vars,
-            Arc::new(infra_adapter),
-        )?;
+        // Create provider auth service
+        let auth_service = crate::provider::ForgeProviderAuthService::new(infra_adapter);
 
-        // Use the flow's refresh method
-        let refreshed_credential = flow.refresh(credential).await?;
-
-        // Update credential in database
-        self.infra
-            .upsert_credential(refreshed_credential.clone())
+        // Use service to refresh the credential (call trait method explicitly)
+        use forge_app::ProviderAuthService as _;
+        let refreshed_credential = auth_service
+            .refresh_provider_credential(provider_id.clone(), credential, auth_method.clone())
             .await?;
 
         Ok(refreshed_credential)
@@ -418,7 +488,8 @@ impl<
     F: EnvironmentInfra
         + AppConfigRepository
         + ProviderCredentialRepository
-        + ProviderSpecificProcessingInfra,
+        + ProviderSpecificProcessingInfra
+        + 'static,
 > ProviderRegistry for ForgeProviderRegistry<F>
 {
     async fn get_active_provider(&self) -> anyhow::Result<Provider> {
