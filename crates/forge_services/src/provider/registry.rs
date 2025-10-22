@@ -197,7 +197,7 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository + 
                 tracing::debug!(provider = ?id, "OAuth token needs refresh, attempting to refresh");
 
                 // Attempt to refresh tokens
-                match self.refresh_credential_tokens(&id, &credential).await {
+                match self.refresh_credential_tokens(&credential).await {
                     Ok(refreshed_credential) => {
                         tracing::info!(provider = ?id, "Successfully refreshed OAuth tokens");
                         credential = refreshed_credential;
@@ -240,17 +240,16 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository + 
     /// Returns error if refresh fails or provider metadata not found
     async fn refresh_credential_tokens(
         &self,
-        provider_id: &ProviderId,
         credential: &forge_app::dto::ProviderCredential,
     ) -> anyhow::Result<forge_app::dto::ProviderCredential> {
-        tracing::debug!(provider = ?provider_id, "Refreshing credential tokens");
+        tracing::debug!(provider = ?credential.provider_id, "Refreshing credential tokens");
 
         // Get authentication method from provider config
-        let auth_methods = get_provider_auth_methods(provider_id);
+        let auth_methods = get_provider_auth_methods(&credential.provider_id);
         let auth_method = auth_methods.first().ok_or_else(|| {
             anyhow::anyhow!(
                 "No authentication method found for provider {:?}",
-                provider_id
+                credential.provider_id
             )
         })?;
 
@@ -260,7 +259,7 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository + 
         // Use service to refresh the credential (call trait method explicitly)
         use forge_app::ProviderAuthService as _;
         let refreshed_credential = auth_service
-            .refresh_provider_credential(provider_id.clone(), credential, auth_method.clone())
+            .refresh_provider_credential(credential, auth_method.clone())
             .await?;
 
         Ok(refreshed_credential)

@@ -1034,7 +1034,6 @@ where
 
     async fn refresh_provider_credential(
         &self,
-        _provider_id: ProviderId,
         credential: &ProviderCredential,
         method: AuthMethod,
     ) -> anyhow::Result<ProviderCredential> {

@@ -407,7 +407,6 @@ pub trait ProviderAuthService: Send + Sync {
     /// Uses refresh token to obtain new access token
     async fn refresh_provider_credential(
         &self,
-        provider_id: ProviderId,
         credential: &ProviderCredential,
         method: AuthMethod,
     ) -> anyhow::Result<ProviderCredential>;
@@ -858,12 +857,11 @@ impl<I: Services> ProviderAuthService for I {
 
     async fn refresh_provider_credential(
         &self,
-        provider_id: ProviderId,
         credential: &ProviderCredential,
         method: AuthMethod,
     ) -> anyhow::Result<ProviderCredential> {
         self.provider_auth_service()
-            .refresh_provider_credential(provider_id, credential, method)
+            .refresh_provider_credential(credential, method)
             .await
     }
 }
