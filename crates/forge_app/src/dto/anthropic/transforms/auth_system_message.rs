@@ -50,7 +50,7 @@ mod tests {
 
     use super::*;
 
-    const AUTH_MESSAGE: &str = include_str!("auth_system_message.md");
+    const AUTH_MESSAGE: &str = include_str!("claude_code.md");
 
     fn create_request_with_system_messages(system_count: usize) -> Request {
         let mut messages = Vec::new();
