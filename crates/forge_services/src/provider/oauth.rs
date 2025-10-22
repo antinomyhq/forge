@@ -143,15 +143,10 @@ pub struct AuthCodeParams {
 }
 
 /// OAuth service for handling device and code flows using oauth2 crate
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct ForgeOAuthService;
 
 impl ForgeOAuthService {
-    /// Creates a new OAuth service
-    pub fn new() -> Self {
-        Self
-    }
-
     /// Builds a reqwest HTTP client with custom headers from config
     ///
     /// # Arguments
@@ -502,12 +497,6 @@ impl ForgeOAuthService {
     }
 }
 
-impl Default for ForgeOAuthService {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use mockito::Server;
@@ -529,7 +518,7 @@ mod tests {
             extra_auth_params: None,
         };
 
-        let service = ForgeOAuthService::new();
+        let service = ForgeOAuthService::default();
 
         let params = service.build_auth_code_url(&config).unwrap();
 
@@ -560,7 +549,7 @@ mod tests {
             extra_auth_params: None,
         };
 
-        let service = ForgeOAuthService::new();
+        let service = ForgeOAuthService::default();
 
         let params = service.build_auth_code_url(&config).unwrap();
 
@@ -598,7 +587,7 @@ mod tests {
             extra_auth_params: None,
         };
 
-        let service = ForgeOAuthService::new();
+        let service = ForgeOAuthService::default();
 
         let response = service
             .exchange_auth_code(&config, "test_auth_code", None)

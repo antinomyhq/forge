@@ -106,7 +106,7 @@ impl ForgeInfra {
             });
         }
 
-        let oauth_service = Arc::new(forge_services::provider::ForgeOAuthService::new());
+        let oauth_service = Arc::new(forge_services::provider::ForgeOAuthService::default());
         let github_copilot_service =
             Arc::new(forge_services::provider::GitHubCopilotService::new());
 
