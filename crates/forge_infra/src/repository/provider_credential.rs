@@ -298,7 +298,6 @@ mod tests {
         assert_eq!(retrieved.api_key, Some("sk-ant-test".to_string()));
     }
 
-
     #[tokio::test]
     async fn test_upsert_does_not_create_duplicates() {
         let repo = setup();
@@ -316,7 +315,8 @@ mod tests {
             .expect("Should find first credential");
         assert_eq!(actual.api_key, Some("key-v1".to_string()));
 
-        // Second upsert - update (should update the same record, not create a duplicate)
+        // Second upsert - update (should update the same record, not create a
+        // duplicate)
         let second_credential =
             ProviderCredential::new_api_key(ProviderId::Anthropic, "key-v2".to_string());
         repo.upsert_credential(second_credential).await.unwrap();
@@ -327,7 +327,7 @@ mod tests {
             .await
             .unwrap()
             .expect("Should find updated credential");
-        
+
         let expected = Some("key-v2".to_string());
         assert_eq!(actual.api_key, expected);
     }
