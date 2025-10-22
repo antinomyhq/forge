@@ -21,10 +21,6 @@ pub struct Authenticator<S> {
 impl<S: AuthService + ProviderAuthService> Authenticator<S> {
     /// Creates a new authenticator with both platform and provider auth
     /// services
-    ///
-    /// # Arguments
-    /// * `auth_service` - Service for Forge platform authentication
-    /// * `provider_auth_service` - Service for LLM provider authentication
     pub fn new(auth_service: Arc<S>) -> Self {
         Self { auth_service }
     }
