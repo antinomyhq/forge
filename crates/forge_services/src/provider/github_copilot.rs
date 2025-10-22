@@ -39,21 +39,25 @@ impl GitHubCopilotService {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(
             reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", github_token).parse().unwrap(),
+            reqwest::header::HeaderValue::from_str(&format!("Bearer {}", github_token))
+                .expect("Invalid authorization header value"),
         );
-        headers.insert(reqwest::header::ACCEPT, "application/json".parse().unwrap());
+        headers.insert(
+            reqwest::header::ACCEPT,
+            reqwest::header::HeaderValue::from_static("application/json"),
+        );
         headers.insert(
             reqwest::header::USER_AGENT,
-            "GitHubCopilotChat/0.26.7".parse().unwrap(),
+            reqwest::header::HeaderValue::from_static("GitHubCopilotChat/0.26.7"),
         );
         // Add editor headers like opencode does
         headers.insert(
             reqwest::header::HeaderName::from_static("editor-version"),
-            "vscode/1.99.3".parse().unwrap(),
+            reqwest::header::HeaderValue::from_static("vscode/1.99.3"),
         );
         headers.insert(
             reqwest::header::HeaderName::from_static("editor-plugin-version"),
-            "copilot-chat/0.26.7".parse().unwrap(),
+            reqwest::header::HeaderValue::from_static("copilot-chat/0.26.7"),
         );
 
         let response = self.client.get(url).headers(headers).send().await?;
