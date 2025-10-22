@@ -223,21 +223,6 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository + 
     }
 
     /// Refreshes OAuth tokens for a credential
-    ///
-    /// Handles both standard OAuth refresh and GitHub Copilot API key refresh
-    ///
-    /// # Arguments
-    ///
-    /// * `provider_id` - The provider ID
-    /// * `credential` - The credential with tokens to refresh
-    ///
-    /// # Returns
-    ///
-    /// Updated credential with refreshed tokens
-    ///
-    /// # Errors
-    ///
-    /// Returns error if refresh fails or provider metadata not found
     async fn refresh_credential_tokens(
         &self,
         credential: &forge_app::dto::ProviderCredential,

@@ -1,4 +1,4 @@
-/// Information to display to the user during OAuth device flow.
+/// OAuth device flow display info
 #[derive(Debug, Clone)]
 pub struct OAuthDeviceDisplay {
     pub user_code: String,
