@@ -360,23 +360,20 @@ impl ForgeOAuthService {
         auth_code: &str,
         code_verifier: Option<&str>,
     ) -> anyhow::Result<OAuthTokenResponse> {
-        let auth_url = &config.auth_url;
-        let token_url = &config.token_url;
-
         // Check if this is Anthropic OAuth (requires special handling)
-        let is_anthropic = auth_url.contains("claude.ai/oauth");
+        let is_anthropic = (&config.auth_url).contains("claude.ai/oauth");
 
         if is_anthropic {
             // Anthropic requires JSON body with code, state, and code_verifier
             return self
-                .exchange_anthropic_token(token_url, auth_code, code_verifier, config)
+                .exchange_anthropic_token(&config.token_url, auth_code, code_verifier, config)
                 .await;
         }
 
         // Standard OAuth flow for other providers
         let mut client = BasicClient::new(ClientId::new(config.client_id.clone()))
-            .set_auth_uri(AuthUrl::new(auth_url.clone())?)
-            .set_token_uri(TokenUrl::new(token_url.clone())?);
+            .set_auth_uri(AuthUrl::new((&config.auth_url).clone())?)
+            .set_token_uri(TokenUrl::new((&config.token_url).clone())?);
 
         // Add redirect_uri if provided
         if let Some(redirect_uri) = &config.redirect_uri {
@@ -481,11 +478,9 @@ impl ForgeOAuthService {
         refresh_token: &str,
     ) -> anyhow::Result<OAuthTokenResponse> {
         // Get token URL from config
-        let token_url = &config.token_url;
-
         // Build minimal oauth2 client (just need token endpoint)
         let client = BasicClient::new(ClientId::new(config.client_id.clone()))
-            .set_token_uri(TokenUrl::new(token_url.clone())?);
+            .set_token_uri(TokenUrl::new((&config.token_url).clone())?);
 
         // Build HTTP client with custom headers
         let http_client = self.build_http_client(config.custom_headers.as_ref())?;
