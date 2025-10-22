@@ -182,8 +182,7 @@ impl ProviderCredentialRepository for ProviderCredentialRepositoryImpl {
     async fn get_all_credentials(&self) -> anyhow::Result<Vec<ProviderCredential>> {
         let mut conn = self.db_pool.get_connection()?;
 
-        let records = provider_credentials::table
-            .load::<ProviderCredentialRecord>(&mut conn)?;
+        let records = provider_credentials::table.load::<ProviderCredentialRecord>(&mut conn)?;
 
         records.into_iter().map(|r| r.try_into()).collect()
     }

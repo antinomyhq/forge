@@ -88,7 +88,6 @@ pub struct ProviderCredential {
 
     /// When the credential was last successfully verified
     pub last_verified_at: Option<DateTime<Utc>>,
-
 }
 
 impl ProviderCredential {
@@ -104,7 +103,6 @@ impl ProviderCredential {
             created_at: now,
             updated_at: now,
             last_verified_at: None,
-
         }
     }
 
@@ -120,7 +118,6 @@ impl ProviderCredential {
             created_at: now,
             updated_at: now,
             last_verified_at: None,
-
         }
     }
 
@@ -140,7 +137,6 @@ impl ProviderCredential {
             created_at: now,
             updated_at: now,
             last_verified_at: None,
-
         }
     }
 
@@ -188,7 +184,6 @@ impl Default for ProviderCredential {
             created_at: now,
             updated_at: now,
             last_verified_at: None,
-
         }
     }
 }
