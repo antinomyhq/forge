@@ -2,7 +2,6 @@ mod anthropic;
 mod auth_infra;
 mod client;
 mod event;
-mod github_copilot;
 #[cfg(test)]
 mod mock_server;
 mod oauth;
@@ -17,7 +16,6 @@ mod utils;
 
 pub use auth_infra::*;
 pub use forge_app::dto::{AuthMethod, OAuthConfig};
-pub use github_copilot::*;
 pub use oauth::*;
 pub use provider_auth_error::*;
 pub use provider_auth_service::*;

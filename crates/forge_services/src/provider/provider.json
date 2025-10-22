@@ -29,7 +29,10 @@
           "use_pkce": false,
           "token_refresh_url": "https://api.github.com/copilot_internal/v2/token",
           "custom_headers": {
-            "User-Agent": "GitHubCopilotChat/0.26.7"
+            "User-Agent": "GitHubCopilotChat/0.26.7",
+            "Accept": "application/json",
+            "editor-version": "vscode/1.99.3",
+            "editor-plugin-version": "copilot-chat/0.26.7"
           }
         }
       }

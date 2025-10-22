@@ -16,8 +16,7 @@ use forge_app::dto::{
 
 use super::{AuthFlowError, AuthFlowInfra};
 use crate::infra::{AppConfigRepository, EnvironmentInfra, ProviderCredentialRepository};
-use crate::provider::AuthMethod;
-
+use crate::provider::{AuthMethod, OAuthTokenResponse};
 /// Provider authentication service implementation
 ///
 /// Coordinates authentication flows for LLM providers using the factory
@@ -658,32 +657,100 @@ where
         }
     }
 
+    /// Exchanges OAuth access token for API key (GitHub Copilot pattern).
+    /// This fetches a time-limited API key from the token refresh URL using the
+    /// OAuth access token.
+    async fn exchange_oauth_for_api_key(
+        &self,
+        oauth_token: &str,
+        config: &crate::provider::OAuthConfig,
+    ) -> Result<(String, chrono::DateTime<chrono::Utc>), super::AuthFlowError> {
+        use super::AuthFlowError;
+
+        let token_refresh_url = config.token_refresh_url.as_ref().ok_or_else(|| {
+            AuthFlowError::CompletionFailed("Missing token_refresh_url in config".to_string())
+        })?;
+
+        // Build request headers
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            reqwest::header::AUTHORIZATION,
+            reqwest::header::HeaderValue::from_str(&format!("Bearer {}", oauth_token)).map_err(
+                |e| AuthFlowError::CompletionFailed(format!("Invalid authorization header: {}", e)),
+            )?,
+        );
+
+        // Add custom headers from config
+        if let Some(custom_headers) = &config.custom_headers {
+            for (key, value) in custom_headers {
+                if let (Ok(name), Ok(val)) = (
+                    reqwest::header::HeaderName::try_from(key),
+                    reqwest::header::HeaderValue::from_str(value),
+                ) {
+                    headers.insert(name, val);
+                }
+            }
+        }
+
+        let response = self
+            .infra
+            .oauth_service()
+            .build_http_client(config.custom_headers.as_ref())
+            .map_err(|e| {
+                AuthFlowError::CompletionFailed(format!("Failed to build HTTP client: {}", e))
+            })?
+            .get(token_refresh_url)
+            .headers(headers)
+            .send()
+            .await
+            .map_err(|e| {
+                AuthFlowError::CompletionFailed(format!("API key exchange request failed: {}", e))
+            })?;
+
+        let status = response.status();
+        if !status.is_success() {
+            if status.as_u16() == 403 {
+                return Err(AuthFlowError::CompletionFailed(
+                    "Access denied. Ensure you have an active subscription.".to_string(),
+                ));
+            }
+            return Err(AuthFlowError::CompletionFailed(format!(
+                "API key fetch failed ({}): {}",
+                status,
+                response.text().await.unwrap_or_default()
+            )));
+        }
+
+        let OAuthTokenResponse { access_token, expires_at, .. } =
+            response.json().await.map_err(|e| {
+                AuthFlowError::CompletionFailed(format!("Failed to parse API key response: {}", e))
+            })?;
+
+        Ok((
+            access_token,
+            chrono::DateTime::from_timestamp(expires_at.unwrap_or(0), 0)
+                .unwrap_or_else(chrono::Utc::now),
+        ))
+    }
+
     /// Completes OAuth with API key flow by exchanging OAuth token for API key.
     ///
-    /// This uses the GitHub Copilot service to convert the OAuth access token
-    /// into a time-limited API key. Both are stored in the credential for
-    /// refresh.
+    /// This converts the OAuth access token into a time-limited API key using
+    /// the token refresh URL. Both are stored in the credential for refresh.
     async fn handle_oauth_with_apikey_complete(
         &self,
         provider_id: ProviderId,
         result: AuthResult,
+        config: &crate::provider::OAuthConfig,
     ) -> Result<ProviderCredential, super::AuthFlowError> {
         use super::AuthFlowError;
 
         match result {
             AuthResult::OAuthTokens { access_token, refresh_token, expires_in: _ } => {
-                // Exchange OAuth token for API key
+                // Exchange OAuth token for API key using config
                 let (api_key, expires_at) = self
-                    .infra
-                    .github_copilot_service()
-                    .get_copilot_api_key(&access_token)
-                    .await
-                    .map_err(|e| {
-                        AuthFlowError::CompletionFailed(format!(
-                            "Failed to exchange OAuth token for API key: {}",
-                            e
-                        ))
-                    })?;
+                    .exchange_oauth_for_api_key(&access_token, config)
+                    .await?;
 
                 // Create OAuth tokens structure
                 let oauth_tokens = if let Some(refresh_tok) = refresh_token {
@@ -802,17 +869,16 @@ where
     async fn handle_oauth_with_apikey_refresh(
         &self,
         credential: &ProviderCredential,
+        config: &OAuthConfig,
     ) -> Result<ProviderCredential, AuthFlowError> {
         // Get stored OAuth tokens
         let oauth_tokens = credential.oauth_tokens.as_ref().ok_or_else(|| {
             AuthFlowError::RefreshFailed("Missing OAuth tokens in credential".to_string())
         })?;
 
-        // Use the stored access token to fetch fresh API key
+        // Use the stored access token to fetch fresh API key using config
         let (new_api_key, expires_at) = self
-            .infra
-            .github_copilot_service()
-            .get_copilot_api_key(&oauth_tokens.access_token)
+            .exchange_oauth_for_api_key(&oauth_tokens.access_token, config)
             .await
             .map_err(|e| {
                 AuthFlowError::RefreshFailed(format!("Failed to refresh API key: {}", e))
@@ -955,7 +1021,7 @@ where
                 // Check if this needs OAuth with API key exchange (GitHub Copilot pattern)
                 if config.token_refresh_url.is_some() {
                     // Handle OAuth with API key completion directly
-                    self.handle_oauth_with_apikey_complete(provider_id.clone(), result)
+                    self.handle_oauth_with_apikey_complete(provider_id.clone(), result, config)
                         .await
                         .map_err(|e| anyhow::anyhow!(e))?
                 } else {
@@ -1009,7 +1075,7 @@ where
                 // Check if this is OAuth with API key (GitHub Copilot pattern)
                 if config.token_refresh_url.is_some() {
                     // OAuth with API key refresh
-                    self.handle_oauth_with_apikey_refresh(credential)
+                    self.handle_oauth_with_apikey_refresh(credential, config)
                         .await
                         .map_err(|e| anyhow::anyhow!(e))?
                 } else {

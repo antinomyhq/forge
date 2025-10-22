@@ -40,6 +40,7 @@ pub struct DeviceAuthorizationResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthTokenResponse {
     /// Access token for API requests
+    #[serde(alias = "token")]
     pub access_token: String,
 
     /// Refresh token for obtaining new access tokens
@@ -47,15 +48,24 @@ pub struct OAuthTokenResponse {
     pub refresh_token: Option<String>,
 
     /// Seconds until access token expires
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", alias = "refresh_in")]
     pub expires_in: Option<u64>,
 
+    /// Unix timestamp when token expires (GitHub Copilot pattern)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<i64>,
+
     /// Token type (usually "Bearer")
+    #[serde(default = "default_token_type")]
     pub token_type: String,
 
     /// OAuth scopes granted
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scope: Option<String>,
+}
+
+fn default_token_type() -> String {
+    "Bearer".to_string()
 }
 
 /// Anthropic-specific token exchange request body
@@ -95,16 +105,13 @@ struct AnthropicTokenResponse {
     scope: Option<String>,
 }
 
-fn default_token_type() -> String {
-    "Bearer".to_string()
-}
-
 impl From<AnthropicTokenResponse> for OAuthTokenResponse {
     fn from(resp: AnthropicTokenResponse) -> Self {
         Self {
             access_token: resp.access_token,
             refresh_token: resp.refresh_token,
             expires_in: resp.expires_in,
+            expires_at: None,
             token_type: resp.token_type,
             scope: resp.scope,
         }
@@ -117,6 +124,7 @@ impl<T: TokenResponse> From<T> for OAuthTokenResponse {
             access_token: token.access_token().secret().to_string(),
             refresh_token: token.refresh_token().map(|t| t.secret().to_string()),
             expires_in: token.expires_in().map(|d| d.as_secs()),
+            expires_at: None,
             token_type: "Bearer".to_string(),
             scope: token.scopes().map(|scopes| {
                 scopes

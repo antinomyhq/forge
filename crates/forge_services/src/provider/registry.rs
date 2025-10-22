@@ -9,7 +9,7 @@ use tokio::sync::OnceCell;
 use tracing;
 use url::Url;
 
-use crate::provider::{ForgeOAuthService, GitHubCopilotService};
+use crate::provider::ForgeOAuthService;
 use crate::{AppConfigRepository, EnvironmentInfra, ProviderCredentialRepository, ProviderError};
 
 #[derive(Debug, Deserialize)]
@@ -91,21 +91,16 @@ pub struct ForgeProviderRegistry<F> {
 
 /// Infrastructure adapter for auth flows within the registry.
 ///
-/// This adapter provides the required services (OAuth, GitHub Copilot)
-/// and delegates credential/config operations to the main infrastructure.
+/// This adapter provides the required OAuth service and delegates
+/// credential/config operations to the main infrastructure.
 struct RegistryInfraAdapter<F> {
     oauth_service: Arc<ForgeOAuthService>,
-    github_service: Arc<GitHubCopilotService>,
     main_infra: Arc<F>,
 }
 
 impl<F: Send + Sync> crate::provider::AuthFlowInfra for RegistryInfraAdapter<F> {
     fn oauth_service(&self) -> Arc<ForgeOAuthService> {
         self.oauth_service.clone()
-    }
-
-    fn github_copilot_service(&self) -> Arc<GitHubCopilotService> {
-        self.github_service.clone()
     }
 }
 
@@ -336,7 +331,6 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository + 
         // Create infrastructure adapter for the auth service
         let infra_adapter = Arc::new(RegistryInfraAdapter {
             oauth_service: Arc::new(ForgeOAuthService),
-            github_service: Arc::new(GitHubCopilotService::default()),
             main_infra: self.infra.clone(),
         });
 
@@ -711,8 +705,6 @@ mod env_tests {
     use std::collections::HashMap;
     use std::sync::Arc;
 
-    use anyhow::bail;
-    use chrono::{DateTime, Utc};
     use forge_app::domain::Environment;
     use pretty_assertions::assert_eq;
 

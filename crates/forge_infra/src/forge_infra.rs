@@ -57,7 +57,6 @@ pub struct ForgeInfra {
     mcp_cache_repository: Arc<CacacheRepository>,
     provider_credential_repository: Arc<ProviderCredentialRepositoryImpl>,
     oauth_service: Arc<forge_services::provider::ForgeOAuthService>,
-    github_copilot_service: Arc<forge_services::provider::GitHubCopilotService>,
 }
 
 impl ForgeInfra {
@@ -104,9 +103,7 @@ impl ForgeInfra {
             });
         }
 
-        let oauth_service = Arc::new(forge_services::provider::ForgeOAuthService::default());
-        let github_copilot_service =
-            Arc::new(forge_services::provider::GitHubCopilotService::default());
+        let oauth_service = Arc::new(forge_services::provider::ForgeOAuthService);
 
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
@@ -132,7 +129,6 @@ impl ForgeInfra {
             mcp_cache_repository,
             provider_credential_repository,
             oauth_service,
-            github_copilot_service,
         }
     }
 }
@@ -448,9 +444,5 @@ impl CacheRepository for ForgeInfra {
 impl forge_services::provider::AuthFlowInfra for ForgeInfra {
     fn oauth_service(&self) -> Arc<forge_services::provider::ForgeOAuthService> {
         self.oauth_service.clone()
-    }
-
-    fn github_copilot_service(&self) -> Arc<forge_services::provider::GitHubCopilotService> {
-        self.github_copilot_service.clone()
     }
 }
