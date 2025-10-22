@@ -181,8 +181,6 @@ impl ForgeOAuthService {
         Ok(builder.build()?)
     }
 
-
-
     /// Custom async HTTP function that fixes GitHub's non-compliant OAuth
     /// responses.
     ///
@@ -278,18 +276,19 @@ impl ForgeOAuthService {
             let mut url = url::Url::parse(&config.auth_url)?;
 
             // Add required OAuth parameters
-                url.query_pairs_mut()
-                    .append_pair("client_id", &config.client_id)
-                    .append_pair("response_type", "code")
-                    .append_pair("scope", &config.scopes.join(" "))
-                    .append_pair("code_challenge", challenge.as_str())
-                    .append_pair("code_challenge_method", "S256")
-                    .append_pair("state", verifier.secret()); // ← Set state to verifier!
+            url.query_pairs_mut()
+                .append_pair("client_id", &config.client_id)
+                .append_pair("response_type", "code")
+                .append_pair("scope", &config.scopes.join(" "))
+                .append_pair("code_challenge", challenge.as_str())
+                .append_pair("code_challenge_method", "S256")
+                .append_pair("state", verifier.secret()); // ← Set state to verifier!
 
-                 // Add redirect_uri only if provided
-                if let Some(redirect_uri) = &config.redirect_uri {
-                    url.query_pairs_mut().append_pair("redirect_uri", redirect_uri);
-                }
+            // Add redirect_uri only if provided
+            if let Some(redirect_uri) = &config.redirect_uri {
+                url.query_pairs_mut()
+                    .append_pair("redirect_uri", redirect_uri);
+            }
 
             // Add extra parameters (like code=true)
             if let Some(extra_params) = &config.extra_auth_params {
@@ -365,7 +364,7 @@ impl ForgeOAuthService {
         code_verifier: Option<&str>,
     ) -> anyhow::Result<OAuthTokenResponse> {
         // Check if this is Anthropic OAuth (requires special handling)
-        let is_anthropic = (&config.auth_url).contains("claude.ai/oauth");
+        let is_anthropic = config.auth_url.contains("claude.ai/oauth");
 
         if is_anthropic {
             // Anthropic requires JSON body with code, state, and code_verifier
@@ -376,8 +375,8 @@ impl ForgeOAuthService {
 
         // Standard OAuth flow for other providers
         let mut client = BasicClient::new(ClientId::new(config.client_id.clone()))
-            .set_auth_uri(AuthUrl::new((&config.auth_url).clone())?)
-            .set_token_uri(TokenUrl::new((&config.token_url).clone())?);
+            .set_auth_uri(AuthUrl::new(config.auth_url.clone())?)
+            .set_token_uri(TokenUrl::new(config.token_url.clone())?);
 
         // Add redirect_uri if provided
         if let Some(redirect_uri) = &config.redirect_uri {
@@ -478,7 +477,7 @@ impl ForgeOAuthService {
         // Get token URL from config
         // Build minimal oauth2 client (just need token endpoint)
         let client = BasicClient::new(ClientId::new(config.client_id.clone()))
-            .set_token_uri(TokenUrl::new((&config.token_url).clone())?);
+            .set_token_uri(TokenUrl::new(config.token_url.clone())?);
 
         // Build HTTP client with custom headers
         let http_client = self.build_http_client(config.custom_headers.as_ref())?;

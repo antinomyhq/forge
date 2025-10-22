@@ -15,10 +15,7 @@ use forge_app::dto::{
 };
 
 use super::{AuthFlowError, AuthFlowInfra};
-use crate::infra::{
-    AppConfigRepository, EnvironmentInfra, ProviderCredentialRepository,
-    ProviderSpecificProcessingInfra,
-};
+use crate::infra::{AppConfigRepository, EnvironmentInfra, ProviderCredentialRepository};
 use crate::provider::AuthMethod;
 
 /// Provider authentication service implementation
@@ -423,20 +420,20 @@ where
         _provider_id: &ProviderId,
         config: &crate::provider::OAuthConfig,
     ) -> Result<AuthInitiation, super::AuthFlowError> {
-        use super::AuthFlowError;
-
         // Validate configuration
         // Build oauth2 client
         use oauth2::basic::BasicClient;
         use oauth2::{ClientId, DeviceAuthorizationUrl, Scope, TokenUrl};
 
+        use super::AuthFlowError;
+
         let client = BasicClient::new(ClientId::new(config.client_id.clone()))
             .set_device_authorization_url(
-                DeviceAuthorizationUrl::new((&config.auth_url).clone()).map_err(|e| {
+                DeviceAuthorizationUrl::new(config.auth_url.clone()).map_err(|e| {
                     AuthFlowError::InitiationFailed(format!("Invalid auth_url: {}", e))
                 })?,
             )
-            .set_token_uri(TokenUrl::new((&config.token_url).clone()).map_err(|e| {
+            .set_token_uri(TokenUrl::new(config.token_url.clone()).map_err(|e| {
                 AuthFlowError::InitiationFailed(format!("Invalid token_url: {}", e))
             })?);
 
@@ -847,7 +844,6 @@ where
         + ProviderCredentialRepository
         + EnvironmentInfra
         + AppConfigRepository
-        + ProviderSpecificProcessingInfra
         + Send
         + Sync
         + 'static,

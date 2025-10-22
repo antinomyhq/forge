@@ -3,15 +3,13 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_app::dto::ProviderId;
 use forge_domain::{CommandOutput, Conversation, ConversationId, Environment, McpServerConfig};
 use forge_fs::FileInfo as FileInfoData;
-use forge_services::provider::ProviderProcessingService;
 use forge_services::{
     AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
     DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
     FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, ProviderCredentialRepository,
-    ProviderSpecificProcessingInfra, SnapshotInfra, UserInfra, WalkerInfra,
+    SnapshotInfra, UserInfra, WalkerInfra,
 };
 use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
@@ -444,25 +442,6 @@ impl CacheRepository for ForgeInfra {
 
     async fn cache_clear(&self) -> anyhow::Result<()> {
         self.mcp_cache_repository.cache_clear().await
-    }
-}
-
-#[async_trait::async_trait]
-impl ProviderSpecificProcessingInfra for ForgeInfra {
-    async fn process_github_copilot_token(
-        &self,
-        access_token: &str,
-    ) -> anyhow::Result<(String, Option<chrono::DateTime<chrono::Utc>>)> {
-        let service = ProviderProcessingService::new();
-        service.process_github_copilot_token(access_token).await
-    }
-
-    fn get_provider_config(
-        &self,
-        provider_id: &ProviderId,
-    ) -> Option<&'static forge_services::provider::registry::ProviderConfig> {
-        let service = ProviderProcessingService::new();
-        service.get_provider_config(provider_id)
     }
 }
 

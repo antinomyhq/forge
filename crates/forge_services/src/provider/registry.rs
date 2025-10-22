@@ -10,10 +10,7 @@ use tracing;
 use url::Url;
 
 use crate::provider::{ForgeOAuthService, GitHubCopilotService};
-use crate::{
-    AppConfigRepository, EnvironmentInfra, ProviderCredentialRepository, ProviderError,
-    ProviderSpecificProcessingInfra,
-};
+use crate::{AppConfigRepository, EnvironmentInfra, ProviderCredentialRepository, ProviderError};
 
 #[derive(Debug, Deserialize)]
 pub struct ProviderConfig {
@@ -170,34 +167,8 @@ impl<F: AppConfigRepository + Send + Sync> AppConfigRepository for RegistryInfra
     }
 }
 
-#[async_trait::async_trait]
-impl<F: ProviderSpecificProcessingInfra + Send + Sync> ProviderSpecificProcessingInfra
-    for RegistryInfraAdapter<F>
-{
-    async fn process_github_copilot_token(
-        &self,
-        access_token: &str,
-    ) -> anyhow::Result<(String, Option<chrono::DateTime<chrono::Utc>>)> {
-        self.main_infra
-            .process_github_copilot_token(access_token)
-            .await
-    }
-
-    fn get_provider_config(
-        &self,
-        provider_id: &ProviderId,
-    ) -> Option<&'static crate::provider::registry::ProviderConfig> {
-        self.main_infra.get_provider_config(provider_id)
-    }
-}
-
-impl<
-    F: EnvironmentInfra
-        + AppConfigRepository
-        + ProviderCredentialRepository
-        + ProviderSpecificProcessingInfra
-        + 'static,
-> ForgeProviderRegistry<F>
+impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository + 'static>
+    ForgeProviderRegistry<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
         Self {
@@ -484,13 +455,8 @@ impl<
 }
 
 #[async_trait::async_trait]
-impl<
-    F: EnvironmentInfra
-        + AppConfigRepository
-        + ProviderCredentialRepository
-        + ProviderSpecificProcessingInfra
-        + 'static,
-> ProviderRegistry for ForgeProviderRegistry<F>
+impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository + 'static>
+    ProviderRegistry for ForgeProviderRegistry<F>
 {
     async fn get_active_provider(&self) -> anyhow::Result<Provider> {
         let app_config = self.infra.get_app_config().await?;
@@ -751,7 +717,6 @@ mod env_tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::infra::ProviderSpecificProcessingInfra;
 
     // Mock infrastructure that provides environment variables
     struct MockInfra {
@@ -788,20 +753,6 @@ mod env_tests {
 
         fn get_env_var(&self, key: &str) -> Option<String> {
             self.env_vars.get(key).cloned()
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl ProviderSpecificProcessingInfra for MockInfra {
-        async fn process_github_copilot_token(
-            &self,
-            _access_token: &str,
-        ) -> anyhow::Result<(String, Option<DateTime<Utc>>)> {
-            bail!("GitHub Copilot processing not supported in MockInfra")
-        }
-
-        fn get_provider_config(&self, provider_id: &ProviderId) -> Option<&'static ProviderConfig> {
-            get_provider_config(provider_id)
         }
     }
 

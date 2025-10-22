@@ -7,7 +7,6 @@ mod github_copilot;
 mod mock_server;
 mod oauth;
 mod openai;
-mod processing;
 mod provider_auth_error;
 mod provider_auth_service;
 pub mod registry;
@@ -20,7 +19,6 @@ pub use auth_infra::*;
 pub use forge_app::dto::{AuthMethod, OAuthConfig};
 pub use github_copilot::*;
 pub use oauth::*;
-pub use processing::*;
 pub use provider_auth_error::*;
 pub use provider_auth_service::*;
 pub use registry::{

@@ -3,12 +3,10 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bytes::Bytes;
-use chrono::{DateTime, Utc};
 use forge_app::domain::{
     CommandOutput, Conversation, ConversationId, Environment, McpServerConfig, ToolDefinition,
     ToolName, ToolOutput,
 };
-use forge_app::dto::ProviderId;
 use forge_app::{WalkedFile, Walker};
 use forge_snaps::Snapshot;
 use reqwest::Response;
@@ -214,18 +212,6 @@ pub trait HttpInfra: Send + Sync + 'static {
     ) -> anyhow::Result<EventSource>;
 }
 
-#[async_trait::async_trait]
-pub trait ProviderSpecificProcessingInfra: Send + Sync {
-    async fn process_github_copilot_token(
-        &self,
-        access_token: &str,
-    ) -> anyhow::Result<(String, Option<DateTime<Utc>>)>;
-
-    fn get_provider_config(
-        &self,
-        provider_id: &ProviderId,
-    ) -> Option<&'static crate::provider::registry::ProviderConfig>;
-}
 /// Service for reading multiple files from a directory asynchronously
 #[async_trait::async_trait]
 pub trait DirectoryReaderInfra: Send + Sync {
