@@ -29,10 +29,6 @@ pub struct ForgeApp<S> {
 
 impl<S: Services> ForgeApp<S> {
     /// Creates a new ForgeApp instance with the provided services.
-    ///
-    /// # Arguments
-    /// * `services` - Application services (provides both auth and provider
-    ///   auth)
     pub fn new(services: Arc<S>) -> Self {
         Self {
             tool_registry: ToolRegistry::new(services.clone()),
