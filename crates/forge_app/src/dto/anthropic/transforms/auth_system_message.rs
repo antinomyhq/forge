@@ -6,7 +6,6 @@ use crate::dto::anthropic::{Request, SystemMessage};
 #[derive(Default)]
 pub struct AuthSystemMessage;
 
-
 impl Transformer for AuthSystemMessage {
     type Value = Request;
 
@@ -95,7 +94,7 @@ mod tests {
     #[test]
     fn test_disabled_does_not_add_auth_message() {
         let fixture = create_request_with_system_messages(0);
-        let mut transformer = AuthSystemMessage::default().when(|_| false );
+        let mut transformer = AuthSystemMessage::default().when(|_| false);
 
         let actual = transformer.transform(fixture);
 
@@ -128,7 +127,6 @@ mod tests {
         let fixture = create_request_with_system_messages(0);
         let mut transformer = AuthSystemMessage::default().when(|_| true);
 
-
         let actual = transformer.transform(fixture);
 
         let system_messages = actual.system.unwrap();
@@ -140,7 +138,6 @@ mod tests {
     fn test_with_one_existing_system_message() {
         let fixture = create_request_with_system_messages(1);
         let mut transformer = AuthSystemMessage::default().when(|_| true);
-
 
         let actual = transformer.transform(fixture);
 
