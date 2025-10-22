@@ -301,7 +301,6 @@ impl<S: Services> ForgeApp<S> {
         Ok(())
     }
 
-
     pub async fn read_workflow(&self, path: Option<&Path>) -> Result<Workflow> {
         self.services.read_workflow(path).await
     }
