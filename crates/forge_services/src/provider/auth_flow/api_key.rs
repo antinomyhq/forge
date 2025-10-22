@@ -18,47 +18,9 @@ pub struct ApiKeyAuthFlow {
 }
 
 impl ApiKeyAuthFlow {
-    /// Creates a new API key authentication flow without URL parameters.
-    ///
-    /// # Arguments
-    ///
-    /// * `provider_id` - The provider requiring authentication
-    pub fn new(provider_id: ProviderId) -> Self {
-        Self { provider_id, required_params: Vec::new() }
-    }
-
     /// Creates a new API key authentication flow with URL parameters.
-    pub fn with_params(provider_id: ProviderId, required_params: Vec<UrlParameter>) -> Self {
+    pub fn new(provider_id: ProviderId, required_params: Vec<UrlParameter>) -> Self {
         Self { provider_id, required_params }
-    }
-
-    /// Creates Vertex AI configuration
-    pub fn vertex_ai(provider_id: ProviderId) -> Self {
-        let params = vec![
-            UrlParameter::required("project_id", "GCP Project ID")
-                .description("Your Google Cloud project ID")
-                .validation_pattern(r"^[a-z][a-z0-9-]{4,28}[a-z0-9]$"),
-            UrlParameter::required("location", "Location")
-                .description("GCP region (e.g., us-central1) or 'global'")
-                .default_value("us-central1"),
-        ];
-
-        Self::with_params(provider_id, params)
-    }
-
-    /// Creates Azure OpenAI configuration
-    pub fn azure_openai(provider_id: ProviderId) -> Self {
-        let params = vec![
-            UrlParameter::required("resource_name", "Azure Resource Name")
-                .description("Your Azure OpenAI resource name"),
-            UrlParameter::required("deployment_name", "Deployment Name")
-                .description("Your model deployment name"),
-            UrlParameter::required("api_version", "API Version")
-                .description("Azure API version")
-                .default_value("2024-02-15-preview"),
-        ];
-
-        Self::with_params(provider_id, params)
     }
 
     /// Validates a parameter value against its validation pattern
@@ -188,15 +150,7 @@ mod tests {
     use super::*;
 
     fn create_flow() -> ApiKeyAuthFlow {
-        ApiKeyAuthFlow::new(ProviderId::OpenAI)
-    }
-
-    fn vertex_ai_fixture() -> ApiKeyAuthFlow {
-        ApiKeyAuthFlow::vertex_ai(ProviderId::VertexAi)
-    }
-
-    fn azure_fixture() -> ApiKeyAuthFlow {
-        ApiKeyAuthFlow::azure_openai(ProviderId::Azure)
+        ApiKeyAuthFlow::new(ProviderId::OpenAI, vec![])
     }
 
     #[test]
@@ -288,140 +242,5 @@ mod tests {
         assert!(result.is_err());
         let error = result.unwrap_err();
         assert!(matches!(error, AuthFlowError::RefreshFailed(_)));
-    }
-
-    // Tests for cloud service providers (Vertex AI, Azure)
-
-    #[tokio::test]
-    async fn test_initiate_vertex_ai() {
-        let flow = vertex_ai_fixture();
-        let result = flow.initiate().await.unwrap();
-
-        match result {
-            AuthInitiation::ApiKeyPrompt { required_params, .. } => {
-                assert_eq!(required_params.len(), 2);
-                assert_eq!(required_params[0].key, "project_id");
-                assert_eq!(required_params[1].key, "location");
-                assert!(required_params[0].required);
-                assert!(required_params[1].required);
-            }
-            _ => panic!("Expected ApiKeyPrompt"),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_initiate_azure() {
-        let flow = azure_fixture();
-        let result = flow.initiate().await.unwrap();
-
-        match result {
-            AuthInitiation::ApiKeyPrompt { required_params, .. } => {
-                assert_eq!(required_params.len(), 3);
-                assert_eq!(required_params[0].key, "resource_name");
-                assert_eq!(required_params[1].key, "deployment_name");
-                assert_eq!(required_params[2].key, "api_version");
-            }
-            _ => panic!("Expected ApiKeyPrompt"),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_complete_with_valid_params() {
-        let flow = vertex_ai_fixture();
-
-        let mut url_params = HashMap::new();
-        url_params.insert("project_id".to_string(), "my-project-123".to_string());
-        url_params.insert("location".to_string(), "us-central1".to_string());
-
-        let auth_result = AuthResult::ApiKey { api_key: "test-api-key".to_string(), url_params };
-
-        let credential = flow.complete(auth_result).await.unwrap();
-
-        assert_eq!(credential.provider_id, ProviderId::VertexAi);
-        assert_eq!(credential.get_api_key(), Some("test-api-key"));
-        assert_eq!(
-            credential.url_params.get("project_id"),
-            Some(&"my-project-123".to_string())
-        );
-        assert_eq!(
-            credential.url_params.get("location"),
-            Some(&"us-central1".to_string())
-        );
-    }
-
-    #[tokio::test]
-    async fn test_complete_with_missing_required_param() {
-        let flow = vertex_ai_fixture();
-
-        let mut url_params = HashMap::new();
-        url_params.insert("location".to_string(), "us-central1".to_string());
-        // Missing project_id
-
-        let auth_result = AuthResult::ApiKey { api_key: "test-api-key".to_string(), url_params };
-
-        let result = flow.complete(auth_result).await;
-
-        assert!(result.is_err());
-        let err = result.unwrap_err().to_string();
-        assert!(err.contains("project_id"));
-    }
-
-    #[tokio::test]
-    async fn test_complete_with_invalid_project_id_pattern() {
-        let flow = vertex_ai_fixture();
-
-        let mut url_params = HashMap::new();
-        url_params.insert("project_id".to_string(), "Invalid_Project!".to_string());
-        url_params.insert("location".to_string(), "us-central1".to_string());
-
-        let auth_result = AuthResult::ApiKey { api_key: "test-api-key".to_string(), url_params };
-
-        let result = flow.complete(auth_result).await;
-
-        assert!(result.is_err());
-        let err = result.unwrap_err().to_string();
-        assert!(err.contains("project_id"));
-        assert!(err.contains("does not match"));
-    }
-
-    #[tokio::test]
-    async fn test_vertex_ai_complete_with_empty_api_key() {
-        let flow = vertex_ai_fixture();
-
-        let mut url_params = HashMap::new();
-        url_params.insert("project_id".to_string(), "my-project-123".to_string());
-        url_params.insert("location".to_string(), "us-central1".to_string());
-
-        let auth_result = AuthResult::ApiKey {
-            api_key: "   ".to_string(), // Empty/whitespace
-            url_params,
-        };
-
-        let result = flow.complete(auth_result).await;
-
-        assert!(result.is_err());
-        let err = result.unwrap_err().to_string();
-        assert!(err.contains("API key cannot be empty"));
-    }
-
-    #[tokio::test]
-    async fn test_azure_complete_with_all_params() {
-        let flow = azure_fixture();
-
-        let mut url_params = HashMap::new();
-        url_params.insert("resource_name".to_string(), "my-resource".to_string());
-        url_params.insert(
-            "deployment_name".to_string(),
-            "gpt-4-deployment".to_string(),
-        );
-        url_params.insert("api_version".to_string(), "2024-02-15-preview".to_string());
-
-        let auth_result = AuthResult::ApiKey { api_key: "azure-api-key".to_string(), url_params };
-
-        let credential = flow.complete(auth_result).await.unwrap();
-
-        assert_eq!(credential.provider_id, ProviderId::Azure);
-        assert_eq!(credential.get_api_key(), Some("azure-api-key"));
-        assert_eq!(credential.url_params.len(), 3);
     }
 }

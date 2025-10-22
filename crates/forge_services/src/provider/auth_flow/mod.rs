@@ -85,17 +85,11 @@ impl AuthFlow {
             AuthMethod::ApiKey => {
                 // Check if this is a cloud provider that needs URL parameters
                 let required_params = Self::get_provider_params(provider_id);
-
-                if required_params.is_empty() {
-                    // Simple API key authentication
-                    Ok(Self::ApiKey(ApiKeyAuthFlow::new(provider_id.clone())))
-                } else {
-                    // API key with URL parameters
-                    Ok(Self::ApiKey(ApiKeyAuthFlow::with_params(
-                        provider_id.clone(),
-                        required_params,
-                    )))
-                }
+                // API key with URL parameters
+                Ok(Self::ApiKey(ApiKeyAuthFlow::new(
+                    provider_id.clone(),
+                    required_params,
+                )))
             }
 
             AuthMethod::OAuthDevice(config) => {
