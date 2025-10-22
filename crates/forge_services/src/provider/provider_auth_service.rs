@@ -41,64 +41,28 @@ impl<I> ForgeProviderAuthService<I> {
     }
 
     /// Helper to get URL parameters from provider config
-    ///
-    /// Returns the URL parameter variables defined in the provider's
-    /// configuration, or an empty vector if the provider has no URL parameters.
     fn get_url_param_vars(&self, provider_id: &ProviderId) -> Vec<forge_app::dto::URLParam> {
         crate::provider::registry::get_provider_config(provider_id)
             .map(|config| config.url_param_vars.clone())
             .unwrap_or_default()
     }
 
-    // ========================================================================
-    // Private helper methods for handling different authentication flows
-    // ========================================================================
-
     /// Handles API key authentication initiation
-    ///
-    /// # Errors
-    /// Returns error if the initiation fails
     async fn handle_api_key_init(
         &self,
-        _provider_id: &ProviderId,
         required_params: Vec<forge_app::dto::URLParam>,
     ) -> Result<AuthInitiation, super::AuthFlowError> {
         Ok(AuthInitiation::ApiKeyPrompt { required_params })
     }
 
     /// Handles API key authentication completion
-    ///
-    /// # Errors
-    /// Returns error if validation fails or credential creation fails
     async fn handle_api_key_complete(
         &self,
         provider_id: ProviderId,
         api_key: String,
         url_params: std::collections::HashMap<String, String>,
-        required_params: &[forge_app::dto::URLParam],
     ) -> Result<ProviderCredential, super::AuthFlowError> {
-        use super::AuthFlowError;
-
-        // Validate API key is not empty
-        if api_key.trim().is_empty() {
-            return Err(AuthFlowError::CompletionFailed(
-                "API key cannot be empty".to_string(),
-            ));
-        }
-
-        // Validate URL parameters if required
-        // If no required params are configured but params are provided, reject them
-        if required_params.is_empty() && !url_params.is_empty() {
-            return Err(AuthFlowError::CompletionFailed(
-                "Provider does not accept URL parameters".to_string(),
-            ));
-        }
-
-        // Create credential with API key and URL parameters
-        let mut credential = ProviderCredential::new_api_key(provider_id, api_key);
-        credential.url_params = url_params;
-
-        Ok(credential)
+        Ok(ProviderCredential::new_api_key(provider_id, api_key).url_params(url_params))
     }
 }
 
@@ -107,12 +71,8 @@ where
     I: AuthFlowInfra,
 {
     /// Handles OAuth device flow initiation
-    ///
-    /// # Errors
-    /// Returns error if configuration is invalid or device authorization fails
     async fn handle_oauth_device_init(
         &self,
-        _provider_id: &ProviderId,
         config: &crate::provider::OAuthConfig,
     ) -> Result<AuthInitiation, super::AuthFlowError> {
         use super::AuthFlowError;
@@ -926,7 +886,7 @@ where
         match &method {
             AuthMethod::ApiKey => {
                 // Handle API key auth directly
-                self.handle_api_key_init(&provider_id, url_param_vars)
+                self.handle_api_key_init(url_param_vars)
                     .await
                     .map_err(|e| anyhow::anyhow!(e))
             }
@@ -939,7 +899,7 @@ where
                         .map_err(|e| anyhow::anyhow!(e))
                 } else {
                     // Handle OAuth device flow directly
-                    self.handle_oauth_device_init(&provider_id, config)
+                    self.handle_oauth_device_init(config)
                         .await
                         .map_err(|e| anyhow::anyhow!(e))
                 }
@@ -1007,9 +967,6 @@ where
         result: AuthResult,
         method: AuthMethod,
     ) -> anyhow::Result<ProviderCredential> {
-        // Get URL parameters from provider config
-        let url_param_vars = self.get_url_param_vars(&provider_id);
-
         // Dispatch based on auth method and result type
         let credential = match (&method, &result) {
             (AuthMethod::ApiKey, AuthResult::ApiKey { api_key, url_params }) => {
@@ -1018,7 +975,6 @@ where
                     provider_id.clone(),
                     api_key.clone(),
                     url_params.clone(),
-                    &url_param_vars,
                 )
                 .await
                 .map_err(|e| anyhow::anyhow!(e))?

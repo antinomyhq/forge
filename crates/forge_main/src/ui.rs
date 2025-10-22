@@ -740,12 +740,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .start(Some("Exchanging authorization code..."))?;
 
         // Complete authentication with the code
-         let (state, code_verifier) = match context {
-                    AuthContext::Code { state, pkce_verifier } => {
-                        (state.clone(), pkce_verifier.clone())
-                    }
-                    _ => return Err(anyhow::anyhow!("Invalid context type: expected Code")),
-                };
+        let (state, code_verifier) = match context {
+            AuthContext::Code { state, pkce_verifier } => (state.clone(), pkce_verifier.clone()),
+            _ => return Err(anyhow::anyhow!("Invalid context type: expected Code")),
+        };
         let auth_result = forge_app::dto::AuthResult::AuthorizationCode {
             code: code.trim().to_string(),
             state,
