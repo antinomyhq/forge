@@ -63,7 +63,6 @@ struct AnthropicTokenRequest {
     code_verifier: String,
 }
 
-
 impl<T: TokenResponse> From<T> for OAuthTokenResponse {
     fn from(token: T) -> Self {
         Self {
