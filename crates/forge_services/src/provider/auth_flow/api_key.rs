@@ -3,10 +3,8 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use forge_app::dto::{
-    AuthContext, AuthInitiation, AuthMethod, AuthResult, ProviderCredential, ProviderId,
-    UrlParameter,
+    AuthContext, AuthInitiation, AuthMethod, AuthResult, ProviderCredential, ProviderId, URLParam,
 };
-use regex::Regex;
 
 use super::{AuthFlowError, AuthenticationFlow};
 
@@ -14,54 +12,28 @@ use super::{AuthFlowError, AuthenticationFlow};
 /// Used by providers that require an API key, with optional URL parameters:
 pub struct ApiKeyAuthFlow {
     provider_id: ProviderId,
-    required_params: Vec<UrlParameter>,
+    required_params: Vec<URLParam>,
 }
 
 impl ApiKeyAuthFlow {
     /// Creates a new API key authentication flow with URL parameters.
-    pub fn new(provider_id: ProviderId, required_params: Vec<UrlParameter>) -> Self {
+    pub fn new(provider_id: ProviderId, required_params: Vec<URLParam>) -> Self {
         Self { provider_id, required_params }
     }
 
-    /// Validates a parameter value against its validation pattern
-    fn validate_parameter(&self, param: &UrlParameter, value: &str) -> Result<(), AuthFlowError> {
-        // Check if empty when required
-        if param.required && value.trim().is_empty() {
-            return Err(AuthFlowError::MissingParameter(param.key.clone()));
-        }
-
-        // Validate against regex pattern if provided
-        if let Some(pattern) = &param.validation_pattern {
-            let regex = Regex::new(pattern).map_err(|e| {
-                AuthFlowError::InvalidParameter(
-                    param.key.clone(),
-                    format!("Invalid validation pattern: {}", e),
-                )
-            })?;
-
-            if !regex.is_match(value) {
-                return Err(AuthFlowError::InvalidParameter(
-                    param.key.clone(),
-                    format!("Value '{}' does not match required pattern", value),
-                ));
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Validates all required parameters are present and valid
+    /// Validates all required parameters are present
     fn validate_all_parameters(
         &self,
         url_params: &HashMap<String, String>,
     ) -> Result<(), AuthFlowError> {
         for param in &self.required_params {
-            if param.required {
-                let value = url_params
-                    .get(&param.key)
-                    .ok_or_else(|| AuthFlowError::MissingParameter(param.key.clone()))?;
+            let value = url_params
+                .get(param.as_ref())
+                .ok_or_else(|| AuthFlowError::MissingParameter(param.to_string()))?;
 
-                self.validate_parameter(param, value)?;
+            // Check if empty when required
+            if value.trim().is_empty() {
+                return Err(AuthFlowError::MissingParameter(param.to_string()));
             }
         }
 

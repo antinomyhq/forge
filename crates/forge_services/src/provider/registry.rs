@@ -2,7 +2,7 @@ use std::sync::{Arc, OnceLock};
 
 use forge_app::ProviderRegistry;
 use forge_app::domain::{AgentId, ModelId};
-use forge_app::dto::{Provider, ProviderId, ProviderResponse};
+use forge_app::dto::{Provider, ProviderId, ProviderResponse, URLParam};
 use handlebars::Handlebars;
 use serde::Deserialize;
 use tokio::sync::OnceCell;
@@ -20,7 +20,7 @@ pub struct ProviderConfig {
     pub(crate) id: ProviderId,
     pub(crate) display_name: String,
     pub(crate) api_key_vars: String,
-    pub(crate) url_param_vars: Vec<String>,
+    pub(crate) url_param_vars: Vec<URLParam>,
     pub(crate) response_type: ProviderResponse,
     pub(crate) url: String,
     pub(crate) model_url: String,
@@ -62,7 +62,7 @@ pub fn get_provider_auth_methods(provider_id: &ProviderId) -> Vec<crate::provide
         .map(|config| config.auth_methods.clone())
         .unwrap_or_else(|| {
             // Fallback for custom providers
-            vec![crate::provider::AuthMethod::api_key()]
+            vec![crate::provider::AuthMethod::ApiKey]
         })
 }
 
@@ -157,14 +157,16 @@ impl<
         let mut template_data = std::collections::HashMap::new();
 
         for env_var in &config.url_param_vars {
-            if let Some(value) = self.infra.get_env_var(env_var) {
-                template_data.insert(env_var, value);
-            } else if env_var == "OPENAI_URL" {
-                template_data.insert(env_var, "https://api.openai.com/v1".to_string());
-            } else if env_var == "ANTHROPIC_URL" {
-                template_data.insert(env_var, "https://api.anthropic.com/v1".to_string());
+            if let Some(value) = self.infra.get_env_var(env_var.as_ref()) {
+                template_data.insert(env_var.as_ref(), value);
+            } else if **env_var == "OPENAI_URL" {
+                template_data.insert(env_var.as_ref(), "https://api.openai.com/v1".to_string());
+            } else if **env_var == "ANTHROPIC_URL" {
+                template_data.insert(env_var.as_ref(), "https://api.anthropic.com/v1".to_string());
             } else {
-                return Err(ProviderError::env_var_not_found(config.id.clone(), env_var).into());
+                return Err(
+                    ProviderError::env_var_not_found(config.id.clone(), env_var.as_ref()).into(),
+                );
             }
         }
 
@@ -536,7 +538,8 @@ mod tests {
             .find(|c| c.id == ProviderId::OpenRouter)
             .unwrap();
         assert_eq!(openrouter_config.api_key_vars, "OPENROUTER_API_KEY");
-        assert_eq!(openrouter_config.url_param_vars, Vec::<String>::new());
+        let expected: Vec<URLParam> = serde_json::from_str("[]").unwrap();
+        assert_eq!(openrouter_config.url_param_vars, expected);
         assert_eq!(openrouter_config.response_type, ProviderResponse::OpenAI);
         assert_eq!(
             openrouter_config.url,
@@ -553,7 +556,8 @@ mod tests {
             .unwrap();
         assert_eq!(config.id, ProviderId::OpenRouter);
         assert_eq!(config.api_key_vars, "OPENROUTER_API_KEY");
-        assert_eq!(config.url_param_vars, Vec::<String>::new());
+        let expected: Vec<URLParam> = serde_json::from_str("[]").unwrap();
+        assert_eq!(config.url_param_vars, expected);
         assert_eq!(config.response_type, ProviderResponse::OpenAI);
         assert_eq!(config.url, "https://openrouter.ai/api/v1/chat/completions");
     }
@@ -567,10 +571,9 @@ mod tests {
             .unwrap();
         assert_eq!(config.id, ProviderId::VertexAi);
         assert_eq!(config.api_key_vars, "VERTEX_AI_AUTH_TOKEN");
-        assert_eq!(
-            config.url_param_vars,
-            vec!["PROJECT_ID".to_string(), "LOCATION".to_string()]
-        );
+        let expected: Vec<URLParam> =
+            serde_json::from_str(r#"["PROJECT_ID", "LOCATION"]"#).unwrap();
+        assert_eq!(config.url_param_vars, expected);
         assert_eq!(config.response_type, ProviderResponse::OpenAI);
         assert!(config.url.contains("{{"));
         assert!(config.url.contains("}}"));
@@ -605,14 +608,11 @@ mod tests {
         let config = configs.iter().find(|c| c.id == ProviderId::Azure).unwrap();
         assert_eq!(config.id, ProviderId::Azure);
         assert_eq!(config.api_key_vars, "AZURE_API_KEY");
-        assert_eq!(
-            config.url_param_vars,
-            vec![
-                "AZURE_RESOURCE_NAME".to_string(),
-                "AZURE_DEPLOYMENT_NAME".to_string(),
-                "AZURE_API_VERSION".to_string()
-            ]
-        );
+        let expected: Vec<URLParam> = serde_json::from_str(
+            r#"["AZURE_RESOURCE_NAME", "AZURE_DEPLOYMENT_NAME", "AZURE_API_VERSION"]"#,
+        )
+        .unwrap();
+        assert_eq!(config.url_param_vars, expected);
         assert_eq!(config.response_type, ProviderResponse::OpenAI);
 
         // Check URL (now contains full chat completion URL)

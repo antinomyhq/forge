@@ -91,11 +91,6 @@ impl AuthMethod {
         Self::OAuthCode(config)
     }
 
-    /// Creates a new API key authentication method
-    pub fn api_key() -> Self {
-        Self::ApiKey
-    }
-
     /// Returns a reference to the OAuth config if this is an OAuth method
     pub fn oauth_config(&self) -> Option<&OAuthConfig> {
         match self {
@@ -109,15 +104,16 @@ impl AuthMethod {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AuthInitiation {
-    /// API key auth - prompt user for key and optional parameters.
+    /// API key auth - prompt user for key and required parameters.
     ///
     /// For simple providers (OpenAI, Anthropic), `required_params` is empty.
     /// For cloud providers (Vertex AI, Azure), includes parameters like
     /// project_id, location, etc.
+    /// All parameters listed here are required by default.
     ApiKeyPrompt {
-        /// Required parameters for cloud providers (project_id, location, etc.)
-        /// Empty for simple API key providers (OpenAI, Anthropic)
-        required_params: Vec<UrlParameter>,
+        /// Required parameter keys for cloud providers (project_id, location,
+        /// etc.) Empty for simple API key providers (OpenAI, Anthropic)
+        required_params: Vec<URLParam>,
     },
 
     /// Device flow - display code and URL to user.
@@ -211,58 +207,14 @@ pub enum AuthResult {
     },
 }
 
-/// URL parameter for providers requiring additional configuration.
-///
-/// Used for cloud providers (Vertex AI, Azure) and compatible providers
-/// (OpenAI/Anthropic compatible) that need parameters like project_id,
-/// location, base_url, model_id, etc.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, Setters)]
-#[setters(strip_option, into)]
-pub struct UrlParameter {
-    /// Parameter key (e.g., "project_id", "location", "BASE_URL", "MODEL_ID")
-    pub key: String,
-    /// Human-readable label for UI display
-    pub label: String,
-    /// Optional description explaining what this parameter is
-    pub description: Option<String>,
-    /// Optional default value to pre-fill
-    pub default_value: Option<String>,
-    /// Whether this parameter is required
-    #[setters(skip)]
-    pub required: bool,
-    /// Optional validation pattern (regex)
-    pub validation_pattern: Option<String>,
-}
+/// URL parameter key for providers requiring additional configuration.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::Deref)]
+#[serde(transparent)]
+pub struct URLParam(String);
 
-impl UrlParameter {
-    /// Creates a new parameter with default settings.
-    pub fn new(key: impl Into<String>, label: impl Into<String>) -> Self {
-        Self {
-            key: key.into(),
-            label: label.into(),
-            required: false,
-            ..Default::default()
-        }
-    }
-
-    /// Creates a new required parameter.
-    pub fn required(key: impl Into<String>, label: impl Into<String>) -> Self {
-        Self {
-            key: key.into(),
-            label: label.into(),
-            required: true,
-            ..Default::default()
-        }
-    }
-
-    /// Creates a new optional parameter.
-    pub fn optional(key: impl Into<String>, label: impl Into<String>) -> Self {
-        Self {
-            key: key.into(),
-            label: label.into(),
-            required: false,
-            ..Default::default()
-        }
+impl AsRef<str> for URLParam {
+    fn as_ref(&self) -> &str {
+        &self.0
     }
 }
 
@@ -297,36 +249,6 @@ mod tests {
         let context = AuthContext::default().completion_data(completion_data.clone());
         assert!(context.polling_data.is_empty());
         assert_eq!(context.completion_data, completion_data);
-    }
-
-    #[test]
-    fn test_url_parameter_builder() {
-        let param = UrlParameter::required("project_id", "GCP Project ID")
-            .description("Your Google Cloud project ID")
-            .validation_pattern(r"^[a-z][a-z0-9-]{4,28}[a-z0-9]$");
-
-        assert_eq!(param.key, "project_id");
-        assert_eq!(param.label, "GCP Project ID");
-        assert_eq!(
-            param.description,
-            Some("Your Google Cloud project ID".to_string())
-        );
-        assert!(param.required);
-        assert_eq!(
-            param.validation_pattern,
-            Some(r"^[a-z][a-z0-9-]{4,28}[a-z0-9]$".to_string())
-        );
-    }
-
-    #[test]
-    fn test_url_parameter_optional() {
-        let param = UrlParameter::optional("api_key", "API Key")
-            .default_value("default-key")
-            .description("Optional API key");
-
-        assert_eq!(param.key, "api_key");
-        assert!(!param.required);
-        assert_eq!(param.default_value, Some("default-key".to_string()));
     }
 
     #[test]
@@ -388,7 +310,7 @@ mod tests {
         let method = AuthMethod::oauth_device(config.clone());
         assert!(method.oauth_config().is_some());
 
-        let api_key_method = AuthMethod::api_key();
+        let api_key_method = AuthMethod::ApiKey;
         assert!(api_key_method.oauth_config().is_none());
     }
 }

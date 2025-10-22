@@ -12,8 +12,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use forge_app::dto::{
-    AuthContext, AuthInitiation, AuthMethod, AuthResult, ProviderCredential, ProviderId,
-    UrlParameter,
+    AuthContext, AuthInitiation, AuthMethod, AuthResult, ProviderCredential, ProviderId, URLParam,
 };
 
 use crate::provider::{ForgeOAuthService, GitHubCopilotService};
@@ -64,7 +63,7 @@ impl AuthFlow {
     pub fn try_new<I>(
         provider_id: &ProviderId,
         auth_method: &AuthMethod,
-        url_param_vars: Vec<String>,
+        url_param_vars: Vec<URLParam>,
         infra: Arc<I>,
     ) -> anyhow::Result<Self>
     where
@@ -72,15 +71,10 @@ impl AuthFlow {
     {
         match auth_method {
             AuthMethod::ApiKey => {
-                // Convert url_param_vars to UrlParameters with simple prompts
-                let required_params = url_param_vars
-                    .into_iter()
-                    .map(|var| UrlParameter::required(var.clone(), var.to_string()))
-                    .collect();
-
+                // All parameters from provider config are required by default
                 Ok(Self::ApiKey(ApiKeyAuthFlow::new(
                     provider_id.clone(),
-                    required_params,
+                    url_param_vars,
                 )))
             }
 

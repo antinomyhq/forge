@@ -7,7 +7,7 @@ use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, AuthResult, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
-    InterruptionReason, Model, ModelId, Provider, UrlParameter, Workflow,
+    InterruptionReason, Model, ModelId, Provider, URLParam, Workflow,
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
@@ -477,33 +477,22 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         &self,
         provider_id: forge_app::dto::ProviderId,
         method: forge_app::dto::AuthMethod,
-        required_params: Vec<UrlParameter>,
+        required_params: Vec<URLParam>,
     ) -> anyhow::Result<()> {
         let mut url_params = HashMap::new();
 
         // Collect URL parameters if required
+        // All parameters are required by default
         for param in required_params {
-            let prompt_message = if let Some(description) = &param.description {
-                format!("{} ({})", param.label, description)
-            } else {
-                param.label.clone()
-            };
-
-            let mut input = ForgeSelect::input(format!("Enter {}:", prompt_message));
-
-            if let Some(default) = &param.default_value {
-                input = input.with_default(default);
-            }
-
-            let param_value = input
+            let param_value = ForgeSelect::input(format!("Enter {}:", param.as_ref()))
                 .prompt()?
                 .ok_or_else(|| anyhow::anyhow!("Parameter input cancelled"))?;
 
-            if param.required && param_value.trim().is_empty() {
-                anyhow::bail!("{} cannot be empty", param.label);
+            if param_value.trim().is_empty() {
+                anyhow::bail!("{} cannot be empty", param.as_ref());
             }
 
-            url_params.insert(param.key.clone(), param_value);
+            url_params.insert(param.to_string(), param_value);
         }
 
         let api_key = ForgeSelect::password(format!("Enter your {} API key:", provider_id))
