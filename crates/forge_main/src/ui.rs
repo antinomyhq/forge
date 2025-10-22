@@ -655,8 +655,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         verification_uri: String,
         verification_uri_complete: Option<String>,
     ) -> Result<()> {
-        use forge_services::provider::registry::get_provider_display_name;
         use std::time::Duration;
+
+        use forge_services::provider::registry::get_provider_display_name;
 
         self.spinner.stop(None)?;
         // Display OAuth device information
