@@ -313,13 +313,6 @@ pub trait ProviderCredentialRepository: Send + Sync {
     /// Returns error if database operation fails or decryption fails
     async fn get_all_credentials(&self) -> anyhow::Result<Vec<forge_app::dto::ProviderCredential>>;
 
-    /// Marks a credential as verified with current timestamp
-    ///
-    /// # Errors
-    ///
-    /// Returns error if database operation fails
-    async fn mark_verified(&self, provider_id: &forge_app::dto::ProviderId) -> anyhow::Result<()>;
-
     /// Updates OAuth tokens for a provider
     ///
     /// # Errors

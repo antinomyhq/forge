@@ -10,7 +10,6 @@ mod provider_auth_service;
 pub mod registry;
 mod retry;
 mod service;
-mod types;
 mod utils;
 
 pub use forge_app::dto::{AuthMethod, OAuthConfig};
@@ -22,4 +21,3 @@ pub use registry::{
     get_provider_env_vars,
 };
 pub use service::*;
-pub use types::*;

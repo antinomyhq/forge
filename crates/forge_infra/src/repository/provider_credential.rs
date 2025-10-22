@@ -25,7 +25,6 @@ struct ProviderCredentialRecord {
     url_params: Option<String>,
     created_at: NaiveDateTime,
     updated_at: NaiveDateTime,
-    last_verified_at: Option<NaiveDateTime>,
 }
 impl TryFrom<&ProviderCredential> for ProviderCredentialRecord {
     type Error = anyhow::Error;
@@ -58,7 +57,6 @@ impl TryFrom<&ProviderCredential> for ProviderCredentialRecord {
             url_params,
             created_at: credential.created_at.naive_utc(),
             updated_at: credential.updated_at.naive_utc(),
-            last_verified_at: credential.last_verified_at.map(|dt| dt.naive_utc()),
         })
     }
 }
@@ -107,7 +105,6 @@ impl TryFrom<ProviderCredentialRecord> for ProviderCredential {
             url_params,
             created_at: record.created_at.and_utc(),
             updated_at: record.updated_at.and_utc(),
-            last_verified_at: record.last_verified_at.map(|dt| dt.and_utc()),
         })
     }
 }
@@ -177,20 +174,6 @@ impl ProviderCredentialRepository for ProviderCredentialRepositoryImpl {
         let records = provider_credentials::table.load::<ProviderCredentialRecord>(&mut conn)?;
 
         records.into_iter().map(|r| r.try_into()).collect()
-    }
-
-    /// Marks a credential as verified
-    async fn mark_verified(&self, provider_id: &ProviderId) -> anyhow::Result<()> {
-        let mut conn = self.db_pool.get_connection()?;
-
-        diesel::update(
-            provider_credentials::table
-                .filter(provider_credentials::provider_id.eq(provider_id.to_string())),
-        )
-        .set(provider_credentials::last_verified_at.eq(Some(Utc::now().naive_utc())))
-        .execute(&mut conn)?;
-
-        Ok(())
     }
 
     /// Updates OAuth tokens for a provider

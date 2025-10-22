@@ -123,20 +123,20 @@ pub trait API: Sync + Send {
     /// Refresh MCP caches by fetching fresh data
     async fn reload_mcp(&self) -> Result<()>;
 
-    /// Get all available provider IDs (regardless of configuration status)
+    /// Get available provider IDs
     async fn available_provider_ids(&self) -> Result<Vec<ProviderId>>;
 
     // Provider credential management
     async fn list_provider_credentials(&self) -> Result<Vec<ProviderCredential>>;
 
-    /// Initiates provider authentication flow
+    /// Initiate provider auth flow
     async fn init_provider_auth(
         &self,
         provider_id: ProviderId,
         method: forge_app::dto::AuthMethod,
     ) -> Result<forge_app::dto::AuthInitiation>;
 
-    /// Polls for OAuth authentication completion
+    /// Poll OAuth auth completion
     async fn poll_provider_auth(
         &self,
         context: &forge_app::dto::AuthContext,
@@ -144,7 +144,7 @@ pub trait API: Sync + Send {
         method: forge_app::dto::AuthMethod,
     ) -> Result<forge_app::dto::AuthResult>;
 
-    /// Processes authentication result and stores credential in database.
+    /// Process auth result and store credential
     async fn save_provider_credentials(
         &self,
         provider_id: ProviderId,
