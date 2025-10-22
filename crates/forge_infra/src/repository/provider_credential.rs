@@ -135,28 +135,20 @@ impl ProviderCredentialRepository for ProviderCredentialRepositoryImpl {
         let record = ProviderCredentialRecord::try_from(&credential)?;
         let mut conn = self.db_pool.get_connection()?;
 
-        // Try to update existing credential first
-        let updated = diesel::update(
-            provider_credentials::table
-                .filter(provider_credentials::provider_id.eq(credential.provider_id.to_string())),
-        )
-        .set((
-            provider_credentials::auth_type.eq(&record.auth_type),
-            provider_credentials::api_key.eq(&record.api_key),
-            provider_credentials::refresh_token.eq(&record.refresh_token),
-            provider_credentials::access_token.eq(&record.access_token),
-            provider_credentials::token_expires_at.eq(&record.token_expires_at),
-            provider_credentials::url_params.eq(&record.url_params),
-            provider_credentials::updated_at.eq(Utc::now().naive_utc()),
-        ))
-        .execute(&mut conn)?;
-
-        // If no rows were updated, insert new credential
-        if updated == 0 {
-            diesel::insert_into(provider_credentials::table)
-                .values(&record)
-                .execute(&mut conn)?;
-        }
+        diesel::insert_into(provider_credentials::table)
+            .values(&record)
+            .on_conflict(provider_credentials::provider_id)
+            .do_update()
+            .set((
+                provider_credentials::auth_type.eq(&record.auth_type),
+                provider_credentials::api_key.eq(&record.api_key),
+                provider_credentials::refresh_token.eq(&record.refresh_token),
+                provider_credentials::access_token.eq(&record.access_token),
+                provider_credentials::token_expires_at.eq(&record.token_expires_at),
+                provider_credentials::url_params.eq(&record.url_params),
+                provider_credentials::updated_at.eq(Utc::now().naive_utc()),
+            ))
+            .execute(&mut conn)?;
 
         Ok(())
     }
@@ -304,5 +296,39 @@ mod tests {
         let retrieved = retrieved.unwrap().expect("Should find credential");
 
         assert_eq!(retrieved.api_key, Some("sk-ant-test".to_string()));
+    }
+
+
+    #[tokio::test]
+    async fn test_upsert_does_not_create_duplicates() {
+        let repo = setup();
+
+        // First upsert - insert
+        let first_credential =
+            ProviderCredential::new_api_key(ProviderId::Anthropic, "key-v1".to_string());
+        repo.upsert_credential(first_credential).await.unwrap();
+
+        // Verify first credential was inserted
+        let actual = repo
+            .get_credential(&ProviderId::Anthropic)
+            .await
+            .unwrap()
+            .expect("Should find first credential");
+        assert_eq!(actual.api_key, Some("key-v1".to_string()));
+
+        // Second upsert - update (should update the same record, not create a duplicate)
+        let second_credential =
+            ProviderCredential::new_api_key(ProviderId::Anthropic, "key-v2".to_string());
+        repo.upsert_credential(second_credential).await.unwrap();
+
+        // Verify the credential was updated to the new value (proves upsert worked)
+        let actual = repo
+            .get_credential(&ProviderId::Anthropic)
+            .await
+            .unwrap()
+            .expect("Should find updated credential");
+        
+        let expected = Some("key-v2".to_string());
+        assert_eq!(actual.api_key, expected);
     }
 }
