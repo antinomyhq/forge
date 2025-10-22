@@ -9,7 +9,6 @@ use tokio::sync::OnceCell;
 use tracing;
 use url::Url;
 
-use crate::provider::ForgeOAuthService;
 use crate::{AppConfigRepository, EnvironmentInfra, ProviderCredentialRepository, ProviderError};
 
 #[derive(Debug, Deserialize)]
@@ -94,14 +93,7 @@ pub struct ForgeProviderRegistry<F> {
 /// This adapter provides the required OAuth service and delegates
 /// credential/config operations to the main infrastructure.
 struct RegistryInfraAdapter<F> {
-    oauth_service: Arc<ForgeOAuthService>,
     main_infra: Arc<F>,
-}
-
-impl<F: Send + Sync> crate::provider::AuthFlowInfra for RegistryInfraAdapter<F> {
-    fn oauth_service(&self) -> Arc<ForgeOAuthService> {
-        self.oauth_service.clone()
-    }
 }
 
 #[async_trait::async_trait]
@@ -329,10 +321,7 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository + 
         })?;
 
         // Create infrastructure adapter for the auth service
-        let infra_adapter = Arc::new(RegistryInfraAdapter {
-            oauth_service: Arc::new(ForgeOAuthService),
-            main_infra: self.infra.clone(),
-        });
+        let infra_adapter = Arc::new(RegistryInfraAdapter { main_infra: self.infra.clone() });
 
         // Create provider auth service
         let auth_service = crate::provider::ForgeProviderAuthService::new(infra_adapter);

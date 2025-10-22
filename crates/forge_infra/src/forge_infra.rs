@@ -56,7 +56,6 @@ pub struct ForgeInfra {
     app_config_repository: Arc<AppConfigRepositoryImpl>,
     mcp_cache_repository: Arc<CacacheRepository>,
     provider_credential_repository: Arc<ProviderCredentialRepositoryImpl>,
-    oauth_service: Arc<forge_services::provider::ForgeOAuthService>,
 }
 
 impl ForgeInfra {
@@ -103,8 +102,6 @@ impl ForgeInfra {
             });
         }
 
-        let oauth_service = Arc::new(forge_services::provider::ForgeOAuthService);
-
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
             file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),
@@ -128,7 +125,6 @@ impl ForgeInfra {
             app_config_repository,
             mcp_cache_repository,
             provider_credential_repository,
-            oauth_service,
         }
     }
 }
@@ -438,11 +434,5 @@ impl CacheRepository for ForgeInfra {
 
     async fn cache_clear(&self) -> anyhow::Result<()> {
         self.mcp_cache_repository.cache_clear().await
-    }
-}
-
-impl forge_services::provider::AuthFlowInfra for ForgeInfra {
-    fn oauth_service(&self) -> Arc<forge_services::provider::ForgeOAuthService> {
-        self.oauth_service.clone()
     }
 }

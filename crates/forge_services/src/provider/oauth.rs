@@ -110,7 +110,6 @@ impl ForgeOAuthService {
     /// # Returns
     /// Configured reqwest client with custom headers set as defaults
     pub fn build_http_client(
-        &self,
         custom_headers: Option<&HashMap<String, String>>,
     ) -> anyhow::Result<reqwest::Client> {
         let mut builder = reqwest::Client::builder()
@@ -218,7 +217,7 @@ impl ForgeOAuthService {
     ///
     /// # Errors
     /// Returns error if URL building fails
-    pub fn build_auth_code_url(&self, config: &OAuthConfig) -> anyhow::Result<AuthCodeParams> {
+    pub fn build_auth_code_url(config: &OAuthConfig) -> anyhow::Result<AuthCodeParams> {
         // Check if this is Anthropic OAuth (non-standard: state = verifier)
         let is_anthropic = config.auth_url.contains("claude.ai/oauth");
 
@@ -312,7 +311,6 @@ impl ForgeOAuthService {
     /// # Errors
     /// Returns error if HTTP request fails or code is invalid
     pub async fn exchange_auth_code(
-        &self,
         config: &OAuthConfig,
         auth_code: &str,
         code_verifier: Option<&str>,
@@ -322,9 +320,13 @@ impl ForgeOAuthService {
 
         if is_anthropic {
             // Anthropic requires JSON body with code, state, and code_verifier
-            return self
-                .exchange_anthropic_token(&config.token_url, auth_code, code_verifier, config)
-                .await;
+            return Self::exchange_anthropic_token(
+                &config.token_url,
+                auth_code,
+                code_verifier,
+                config,
+            )
+            .await;
         }
 
         // Standard OAuth flow for other providers
@@ -338,7 +340,7 @@ impl ForgeOAuthService {
         }
 
         // Build HTTP client with custom headers
-        let http_client = self.build_http_client(config.custom_headers.as_ref())?;
+        let http_client = Self::build_http_client(config.custom_headers.as_ref())?;
 
         let code = AuthorizationCode::new(auth_code.to_string());
 
@@ -358,7 +360,6 @@ impl ForgeOAuthService {
 
     /// Exchanges authorization code for tokens using Anthropic's custom format
     async fn exchange_anthropic_token(
-        &self,
         token_url: &str,
         auth_code: &str,
         code_verifier: Option<&str>,
@@ -386,7 +387,7 @@ impl ForgeOAuthService {
         };
 
         // Build HTTP client
-        let client = self.build_http_client(config.custom_headers.as_ref())?;
+        let client = Self::build_http_client(config.custom_headers.as_ref())?;
 
         let response = client
             .post(token_url)
@@ -420,7 +421,6 @@ impl ForgeOAuthService {
     /// # Errors
     /// Returns error if refresh token is invalid or expired
     pub async fn refresh_access_token(
-        &self,
         config: &OAuthConfig,
         refresh_token: &str,
     ) -> anyhow::Result<OAuthTokenResponse> {
@@ -430,7 +430,7 @@ impl ForgeOAuthService {
             .set_token_uri(TokenUrl::new(config.token_url.clone())?);
 
         // Build HTTP client with custom headers
-        let http_client = self.build_http_client(config.custom_headers.as_ref())?;
+        let http_client = Self::build_http_client(config.custom_headers.as_ref())?;
 
         let refresh_token = RefreshToken::new(refresh_token.to_string());
 
@@ -467,9 +467,7 @@ mod tests {
             extra_auth_params: None,
         };
 
-        let service = ForgeOAuthService::default();
-
-        let params = service.build_auth_code_url(&config).unwrap();
+        let params = ForgeOAuthService::build_auth_code_url(&config).unwrap();
 
         assert!(params.auth_url.contains("client_id=test-client"));
         assert!(params.auth_url.contains("response_type=code"));
@@ -498,9 +496,7 @@ mod tests {
             extra_auth_params: None,
         };
 
-        let service = ForgeOAuthService::default();
-
-        let params = service.build_auth_code_url(&config).unwrap();
+        let params = ForgeOAuthService::build_auth_code_url(&config).unwrap();
 
         assert!(!params.auth_url.contains("code_challenge"));
         assert!(params.code_verifier.is_none());
@@ -536,10 +532,7 @@ mod tests {
             extra_auth_params: None,
         };
 
-        let service = ForgeOAuthService::default();
-
-        let response = service
-            .exchange_auth_code(&config, "test_auth_code", None)
+        let response = ForgeOAuthService::exchange_auth_code(&config, "test_auth_code", None)
             .await
             .unwrap();
 

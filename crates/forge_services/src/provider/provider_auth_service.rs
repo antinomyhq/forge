@@ -14,9 +14,9 @@ use forge_app::dto::{
     ProviderId,
 };
 
-use super::{AuthFlowError, AuthFlowInfra};
+use super::AuthFlowError;
 use crate::infra::{AppConfigRepository, EnvironmentInfra, ProviderCredentialRepository};
-use crate::provider::{AuthMethod, OAuthTokenResponse};
+use crate::provider::{AuthMethod, ForgeOAuthService, OAuthTokenResponse};
 /// Provider authentication service implementation
 ///
 /// Coordinates authentication flows for LLM providers using the factory
@@ -30,8 +30,7 @@ impl<I> ForgeProviderAuthService<I> {
     /// Creates a new provider authentication service
     ///
     /// # Arguments
-    /// * `infra` - Infrastructure providing OAuth, GitHub Copilot, and
-    ///   credential repository
+    /// * `infra` - Infrastructure for credential repository and environment
     pub fn new(infra: Arc<I>) -> Self {
         Self { infra }
     }
@@ -62,10 +61,7 @@ impl<I> ForgeProviderAuthService<I> {
     }
 }
 
-impl<I> ForgeProviderAuthService<I>
-where
-    I: AuthFlowInfra,
-{
+impl<I> ForgeProviderAuthService<I> {
     /// Handles OAuth device flow initiation
     async fn handle_oauth_device_init(
         &self,
@@ -95,9 +91,7 @@ where
         }
 
         // Build HTTP client with custom headers
-        let oauth_service = self.infra.oauth_service();
-        let http_client = oauth_service
-            .build_http_client(config.custom_headers.as_ref())
+        let http_client = ForgeOAuthService::build_http_client(config.custom_headers.as_ref())
             .map_err(|e| {
                 AuthFlowError::InitiationFailed(format!("Failed to build HTTP client: {}", e))
             })?;
@@ -166,9 +160,7 @@ where
             );
 
         // Build HTTP client for manual polling
-        let oauth_service = self.infra.oauth_service();
-        let http_client = oauth_service
-            .build_http_client(config.custom_headers.as_ref())
+        let http_client = ForgeOAuthService::build_http_client(config.custom_headers.as_ref())
             .map_err(|e| {
                 AuthFlowError::PollFailed(format!("Failed to build HTTP client: {}", e))
             })?;
@@ -343,8 +335,7 @@ where
         use super::AuthFlowError;
 
         // Build authorization URL with PKCE
-        let oauth_service = self.infra.oauth_service();
-        let auth_params = oauth_service.build_auth_code_url(config).map_err(|e| {
+        let auth_params = ForgeOAuthService::build_auth_code_url(config).map_err(|e| {
             AuthFlowError::InitiationFailed(format!("Failed to build auth URL: {}", e))
         })?;
 
@@ -373,16 +364,15 @@ where
         use super::AuthFlowError;
 
         // Exchange code for tokens with PKCE verifier (if provided)
-        let oauth_service = self.infra.oauth_service();
-        let token_response = oauth_service
-            .exchange_auth_code(config, &code, code_verifier.as_deref())
-            .await
-            .map_err(|e| {
-                AuthFlowError::CompletionFailed(format!(
-                    "Failed to exchange authorization code: {}",
-                    e
-                ))
-            })?;
+        let token_response =
+            ForgeOAuthService::exchange_auth_code(config, &code, code_verifier.as_deref())
+                .await
+                .map_err(|e| {
+                    AuthFlowError::CompletionFailed(format!(
+                        "Failed to exchange authorization code: {}",
+                        e
+                    ))
+                })?;
 
         // Calculate expiry time
         let expires_at = if let Some(expires_in) = token_response.expires_in {
@@ -443,10 +433,7 @@ where
         }
 
         // Build HTTP client with custom headers
-        let http_client = self
-            .infra
-            .oauth_service()
-            .build_http_client(config.custom_headers.as_ref())
+        let http_client = ForgeOAuthService::build_http_client(config.custom_headers.as_ref())
             .map_err(|e| {
                 AuthFlowError::InitiationFailed(format!("Failed to build HTTP client: {}", e))
             })?;
@@ -497,10 +484,7 @@ where
         use super::AuthFlowError;
 
         // Build HTTP client for manual polling
-        let http_client = self
-            .infra
-            .oauth_service()
-            .build_http_client(config.custom_headers.as_ref())
+        let http_client = ForgeOAuthService::build_http_client(config.custom_headers.as_ref())
             .map_err(|e| {
                 AuthFlowError::PollFailed(format!("Failed to build HTTP client: {}", e))
             })?;
@@ -692,10 +676,7 @@ where
             }
         }
 
-        let response = self
-            .infra
-            .oauth_service()
-            .build_http_client(config.custom_headers.as_ref())
+        let response = ForgeOAuthService::build_http_client(config.custom_headers.as_ref())
             .map_err(|e| {
                 AuthFlowError::CompletionFailed(format!("Failed to build HTTP client: {}", e))
             })?
@@ -796,10 +777,7 @@ where
         })?;
 
         // Use OAuth service to refresh token
-        let token_response = self
-            .infra
-            .oauth_service()
-            .refresh_access_token(config, &tokens.refresh_token)
+        let token_response = ForgeOAuthService::refresh_access_token(config, &tokens.refresh_token)
             .await
             .map_err(|e| AuthFlowError::RefreshFailed(format!("Token refresh failed: {}", e)))?;
 
@@ -816,8 +794,8 @@ where
             token_response.access_token,
             expires_at,
         );
-        
-        let mut updated_credential= credential.clone();
+
+        let mut updated_credential = credential.clone();
         updated_credential.update_oauth_tokens(new_tokens);
         Ok(updated_credential)
     }
@@ -834,14 +812,12 @@ where
         })?;
 
         // Use refresh token to get new access token
-        let token_response = self
-            .infra
-            .oauth_service()
-            .refresh_access_token(config, &oauth_tokens.refresh_token)
-            .await
-            .map_err(|e| {
-                AuthFlowError::RefreshFailed(format!("Failed to refresh access token: {}", e))
-            })?;
+        let token_response =
+            ForgeOAuthService::refresh_access_token(config, &oauth_tokens.refresh_token)
+                .await
+                .map_err(|e| {
+                    AuthFlowError::RefreshFailed(format!("Failed to refresh access token: {}", e))
+                })?;
 
         // Calculate new expiry time
         let expires_at = if let Some(expires_in) = token_response.expires_in {
@@ -904,8 +880,7 @@ where
 #[async_trait::async_trait]
 impl<I> ProviderAuthService for ForgeProviderAuthService<I>
 where
-    I: AuthFlowInfra
-        + ProviderCredentialRepository
+    I: ProviderCredentialRepository
         + EnvironmentInfra
         + AppConfigRepository
         + Send

@@ -1,5 +1,4 @@
 mod anthropic;
-mod auth_infra;
 mod client;
 mod event;
 #[cfg(test)]
@@ -14,7 +13,6 @@ mod service;
 mod types;
 mod utils;
 
-pub use auth_infra::*;
 pub use forge_app::dto::{AuthMethod, OAuthConfig};
 pub use oauth::*;
 pub use provider_auth_error::*;
