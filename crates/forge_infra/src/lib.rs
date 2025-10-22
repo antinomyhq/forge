@@ -1,5 +1,6 @@
 pub mod executor;
 
+mod migration;
 mod database;
 mod env;
 mod error;
@@ -20,3 +21,5 @@ mod walker;
 
 pub use executor::ForgeCommandExecutorService;
 pub use forge_infra::*;
+pub use migration::*;
+
