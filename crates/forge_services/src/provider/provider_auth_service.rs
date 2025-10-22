@@ -426,20 +426,17 @@ where
         use super::AuthFlowError;
 
         // Validate configuration
-        let auth_url = &config.auth_url;
-        let token_url = &config.token_url;
-
         // Build oauth2 client
         use oauth2::basic::BasicClient;
         use oauth2::{ClientId, DeviceAuthorizationUrl, Scope, TokenUrl};
 
         let client = BasicClient::new(ClientId::new(config.client_id.clone()))
             .set_device_authorization_url(
-                DeviceAuthorizationUrl::new(auth_url.clone()).map_err(|e| {
+                DeviceAuthorizationUrl::new((&config.auth_url).clone()).map_err(|e| {
                     AuthFlowError::InitiationFailed(format!("Invalid auth_url: {}", e))
                 })?,
             )
-            .set_token_uri(TokenUrl::new(token_url.clone()).map_err(|e| {
+            .set_token_uri(TokenUrl::new((&config.token_url).clone()).map_err(|e| {
                 AuthFlowError::InitiationFailed(format!("Invalid token_url: {}", e))
             })?);
 
