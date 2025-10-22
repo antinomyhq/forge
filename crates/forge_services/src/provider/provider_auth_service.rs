@@ -500,8 +500,6 @@ where
     ) -> Result<AuthResult, super::AuthFlowError> {
         use super::AuthFlowError;
 
-        let token_url = &config.token_url;
-
         // Build HTTP client for manual polling
         let http_client = self
             .infra
@@ -559,7 +557,7 @@ where
             }
 
             let response = http_client
-                .post(token_url)
+                .post(&config.token_url)
                 .headers(headers)
                 .body(body)
                 .send()
