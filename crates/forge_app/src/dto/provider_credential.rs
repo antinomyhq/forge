@@ -75,8 +75,7 @@ pub struct ProviderCredential {
     /// OAuth tokens (for OAuth and OAuthWithApiKey auth types)
     pub oauth_tokens: Option<OAuthTokens>,
 
-    /// URL parameters (e.g., Azure resource name, Vertex project ID, custom
-    /// provider base URL)
+    /// URL parameters (e.g., Azure resource name, Vertex project ID)
     #[serde(default)]
     pub url_params: HashMap<String, String>,
 

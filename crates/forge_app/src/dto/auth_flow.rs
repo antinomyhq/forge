@@ -15,41 +15,34 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OAuthConfig {
     /// Authorization URL
-    /// Example: "https://claude.ai/oauth/authorize" or "https://github.com/login/device/code"
     pub auth_url: String,
 
     /// Token exchange URL
-    /// Example: "https://api.anthropic.com/oauth/token" or "https://github.com/login/oauth/access_token"
     pub token_url: String,
 
-    /// OAuth client ID provided by the service
+    /// OAuth client ID
     pub client_id: String,
 
-    /// List of OAuth scopes to request
+    /// OAuth scopes to request
     pub scopes: Vec<String>,
 
-    /// Redirect URI (for code flow, points to provider's callback page)
-    /// Example: "https://console.anthropic.com/oauth/code/callback"
+    /// Redirect URI for code flow
     #[serde(skip_serializing_if = "Option::is_none")]
     pub redirect_uri: Option<String>,
 
-    /// Whether to use PKCE (Proof Key for Code Exchange) for security
+    /// Whether to use PKCE for security
     #[serde(default)]
     pub use_pkce: bool,
 
-    /// URL to fetch API key from OAuth token (GitHub Copilot pattern)
-    /// Example: "https://api.github.com/copilot_internal/v2/token"
+    /// URL to fetch API key from OAuth token
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token_refresh_url: Option<String>,
 
-    /// Custom HTTP headers for OAuth requests (provider-specific)
-    /// Allows providers like GitHub to specify required headers (e.g.,
-    /// User-Agent)
+    /// Custom HTTP headers for OAuth requests
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_headers: Option<std::collections::HashMap<String, String>>,
 
-    /// Extra query parameters to add to authorization URL (provider-specific)
-    /// Example: For Claude.ai, add {"code": "true"}
+    /// Extra query parameters for authorization URL
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extra_auth_params: Option<std::collections::HashMap<String, String>>,
 }
@@ -60,10 +53,10 @@ pub struct OAuthConfig {
 pub enum AuthMethod {
     /// Direct API key entry
     ApiKey,
-    /// OAuth device flow (display code to user)
+    /// OAuth device flow
     #[serde(rename = "oauth_device")]
     OAuthDevice(OAuthConfig),
-    /// OAuth authorization code flow (redirect to browser)
+    /// OAuth authorization code flow
     #[serde(rename = "oauth_code")]
     OAuthCode(OAuthConfig),
 }
@@ -92,29 +85,19 @@ impl AuthMethod {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AuthInitiation {
-    /// API key auth - prompt user for key and required parameters.
-    ///
-    /// For simple providers (OpenAI, Anthropic), `required_params` is empty.
-    /// For cloud providers (Vertex AI, Azure), includes parameters like
-    /// project_id, location, etc.
-    /// All parameters listed here are required by default.
+    /// API key auth prompt
     ApiKeyPrompt {
-        /// Required parameter keys for cloud providers (project_id, location,
-        /// etc.) Empty for simple API key providers (OpenAI, Anthropic)
+        /// Required parameter keys for cloud providers
         required_params: Vec<URLParam>,
     },
 
-    /// Device flow - display code and URL to user.
-    ///
-    /// User should visit `verification_uri` and enter `user_code`.
-    /// Optionally, they can visit `verification_uri_complete` to skip manual
-    /// code entry.
+    /// Device flow - display code and URL to user
     DeviceFlow {
-        /// Code user should enter at the verification URL
+        /// Code user should enter
         user_code: String,
         /// URL where user should authenticate
         verification_uri: String,
-        /// Optional URL that includes the code (user can skip manual entry)
+        /// Optional URL that includes the code
         verification_uri_complete: Option<String>,
         /// How long the code is valid (seconds)
         expires_in: u64,
@@ -124,17 +107,13 @@ pub enum AuthInitiation {
         context: AuthContext,
     },
 
-    /// Code flow - redirect user to authorization URL.
-    ///
-    /// User should visit `authorization_url`, authorize the app, and get
-    /// redirected back with an authorization code. The UI should capture
-    /// this code and pass it to `complete()`.
+    /// Code flow - redirect user to authorization URL
     CodeFlow {
         /// URL to redirect user to for authorization
         authorization_url: String,
         /// State parameter for CSRF protection
         state: String,
-        /// Context data needed for completion (PKCE verifier, etc.)
+        /// Context data needed for completion
         context: AuthContext,
     },
 }
@@ -192,11 +171,7 @@ impl AuthContext {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AuthResult {
-    /// User provided API key manually with optional URL parameters.
-    ///
-    /// For simple providers (OpenAI): `url_params` is empty.
-    /// For cloud providers (Vertex, Azure): `url_params` contains project_id,
-    /// location, etc.
+    /// User provided API key manually
     ApiKey {
         /// The API key itself
         api_key: String,
@@ -204,21 +179,17 @@ pub enum AuthResult {
         url_params: HashMap<String, String>,
     },
 
-    /// OAuth flow completed with tokens.
+    /// OAuth flow completed with tokens
     OAuthTokens {
         /// Access token for API requests
         access_token: String,
-        /// Optional refresh token for getting new access tokens
+        /// Optional refresh token
         refresh_token: Option<String>,
         /// How long the access token is valid (seconds)
         expires_in: Option<u64>,
     },
 
-    /// Authorization code ready for exchange.
-    ///
-    /// This is returned by `poll_until_complete` for code flows where
-    /// the UI manually collects the code from the user. The flow
-    /// implementation will exchange this for tokens in `complete()`.
+    /// Authorization code ready for exchange
     AuthorizationCode {
         /// Authorization code from OAuth provider
         code: String,

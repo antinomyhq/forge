@@ -8,33 +8,23 @@ use forge_domain::RetryConfig;
 use crate::dto::InitAuth;
 use crate::{AuthService, Error};
 
-/// Authenticator handles both Forge platform authentication and provider
-/// authentication
-///
-/// Supports two authentication flows:
-/// 1. **Forge Platform Auth**: init() → login() → logout() for Forge API access
-/// 2. **Provider Auth**: authenticate_provider() for LLM provider credentials
+/// Handles Forge platform and provider authentication
 pub struct Authenticator<S> {
     auth_service: Arc<S>,
 }
 
 impl<S: AuthService> Authenticator<S> {
-    /// Creates a new platform authenticator
+    /// Creates new platform authenticator
     pub fn new(auth_service: Arc<S>) -> Self {
         Self { auth_service }
     }
 
     /// Initializes Forge platform authentication
-    ///
-    /// Returns device code information for user to authorize in browser
     pub async fn init(&self) -> anyhow::Result<InitAuth> {
         self.auth_service.init_auth().await
     }
 
     /// Polls until user completes Forge platform authentication
-    ///
-    /// This blocks until the user authorizes the device code in their browser
-    /// or the timeout is reached.
     pub async fn login(&self, init_auth: &InitAuth) -> anyhow::Result<()> {
         self.poll(
             RetryConfig::default()
@@ -46,7 +36,7 @@ impl<S: AuthService> Authenticator<S> {
         .await
     }
 
-    /// Logs out of Forge platform by clearing stored credentials
+    /// Logs out of Forge platform by clearing credentials
     pub async fn logout(&self) -> anyhow::Result<()> {
         self.auth_service.set_auth_token(None).await?;
         Ok(())

@@ -123,7 +123,7 @@ pub trait API: Sync + Send {
     /// Refresh MCP caches by fetching fresh data
     async fn reload_mcp(&self) -> Result<()>;
 
-    /// Get all available provider IDs (regardless of configuration status)
+    /// Get all available provider IDs
     async fn available_provider_ids(&self) -> Result<Vec<ProviderId>>;
 
     // Provider credential management
@@ -144,7 +144,7 @@ pub trait API: Sync + Send {
         method: forge_app::dto::AuthMethod,
     ) -> Result<forge_app::dto::AuthResult>;
 
-    /// Processes authentication result and stores credential in database.
+    /// Processes authentication result and stores credential
     async fn save_provider_credentials(
         &self,
         provider_id: ProviderId,

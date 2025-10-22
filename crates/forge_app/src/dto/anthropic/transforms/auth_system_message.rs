@@ -2,14 +2,13 @@ use forge_domain::Transformer;
 
 use crate::dto::anthropic::{Request, SystemMessage};
 
-/// Transformer that adds an authentication system message to the beginning of
-/// the request when OAuth authentication is enabled.
+/// Adds authentication system message when OAuth is enabled.
 pub struct AuthSystemMessage {
     enabled: bool,
 }
 
 impl AuthSystemMessage {
-    /// Creates a new AuthSystemMessage transformer
+    /// Creates new transformer.
     pub fn new(enabled: bool) -> Self {
         Self { enabled }
     }
@@ -18,7 +17,7 @@ impl AuthSystemMessage {
 impl Transformer for AuthSystemMessage {
     type Value = Request;
 
-    /// Prepends an authentication system message to the request when enabled.
+    /// Prepends auth system message when enabled.
     fn transform(&mut self, mut request: Self::Value) -> Self::Value {
         if !self.enabled {
             return request;

@@ -101,13 +101,6 @@ pub struct ForgeOAuthService;
 
 impl ForgeOAuthService {
     /// Builds a reqwest HTTP client with custom headers from config
-    ///
-    /// # Arguments
-    /// * `custom_headers` - Optional map of custom headers to include in all
-    ///   requests
-    ///
-    /// # Returns
-    /// Configured reqwest client with custom headers set as defaults
     pub fn build_http_client(
         custom_headers: Option<&HashMap<String, String>>,
     ) -> anyhow::Result<reqwest::Client> {
@@ -134,25 +127,7 @@ impl ForgeOAuthService {
     }
 
     /// Custom async HTTP function that fixes GitHub's non-compliant OAuth
-    /// responses.
-    ///
-    /// **Problem**: GitHub returns HTTP 200 OK with error responses like
-    /// `authorization_pending` in the JSON body, violating RFC 8628 which
-    /// requires HTTP 400 for errors.
-    ///
-    /// **Solution**: Intercept responses, check for `"error"` field in JSON
-    /// body, and convert 200 OK responses with errors to 400 Bad Request so
-    /// oauth2 crate can parse them correctly.
-    ///
-    /// # Arguments
-    /// * `client` - The reqwest HTTP client to use
-    /// * `request` - The OAuth2 HTTP request to execute
-    ///
-    /// # Returns
-    /// HTTP response with corrected status code for RFC compliance
-    ///
-    /// # Errors
-    /// Returns error if HTTP request fails
+    /// responses
     pub async fn github_compliant_http_request(
         client: reqwest::Client,
         request: http::Request<Vec<u8>>,
@@ -204,18 +179,6 @@ impl ForgeOAuthService {
     }
 
     /// Builds authorization URL for code flow
-    ///
-    /// Generates URL with state and optionally PKCE parameters.
-    ///
-    /// # Arguments
-    /// * `config` - OAuth configuration with auth_url, client_id, etc.
-    ///
-    /// # Returns
-    /// Authorization parameters including URL, state, and optional code
-    /// verifier
-    ///
-    /// # Errors
-    /// Returns error if URL building fails
     pub fn build_auth_code_url(config: &OAuthConfig) -> anyhow::Result<AuthCodeParams> {
         // Check if this is Anthropic OAuth (non-standard: state = verifier)
         let is_anthropic = config.auth_url.contains("claude.ai/oauth");
@@ -298,17 +261,6 @@ impl ForgeOAuthService {
     }
 
     /// Exchanges authorization code for tokens
-    ///
-    /// # Arguments
-    /// * `config` - OAuth configuration with token_url
-    /// * `auth_code` - Authorization code from user
-    /// * `code_verifier` - PKCE verifier (if PKCE was used)
-    ///
-    /// # Returns
-    /// OAuth tokens (access_token, refresh_token, etc.)
-    ///
-    /// # Errors
-    /// Returns error if HTTP request fails or code is invalid
     pub async fn exchange_auth_code(
         config: &OAuthConfig,
         auth_code: &str,
@@ -409,16 +361,6 @@ impl ForgeOAuthService {
     }
 
     /// Refreshes access token using refresh token
-    ///
-    /// # Arguments
-    /// * `config` - OAuth configuration with token_url
-    /// * `refresh_token` - Refresh token from previous authorization
-    ///
-    /// # Returns
-    /// New OAuth tokens
-    ///
-    /// # Errors
-    /// Returns error if refresh token is invalid or expired
     pub async fn refresh_access_token(
         config: &OAuthConfig,
         refresh_token: &str,
