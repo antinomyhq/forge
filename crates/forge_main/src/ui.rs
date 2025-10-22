@@ -482,7 +482,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         required_params: Vec<URLParam>,
     ) -> anyhow::Result<()> {
         use anyhow::Context;
-
+        self.spinner.stop(None)?;
         // Collect URL parameters if required
         let url_params = required_params
             .into_iter()
@@ -501,7 +501,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             })
             .collect::<anyhow::Result<HashMap<_, _>>>()?;
 
-        self.spinner.stop(None)?;
+        
         let api_key = ForgeSelect::password(format!("Enter your {} API key:", provider_id))
             .with_display_toggle_enabled()
             .prompt()?
