@@ -243,17 +243,6 @@ impl<S: Services> ForgeApp<S> {
     }
 
     /// Initiates authentication for an LLM provider
-    ///
-    /// Returns authentication initiation details that vary by provider:
-    /// - API Key: Prompt for key input
-    /// - OAuth Device Flow: User code and verification URL
-    /// - OAuth Code Flow: Authorization URL for browser
-    /// - Cloud Providers: Prompts for additional parameters (project_id,
-    ///   location, etc.)
-    ///
-    /// # Arguments
-    /// * `provider_id` - The provider to authenticate (e.g.,
-    ///   ProviderId::OpenAI)
     pub async fn init_provider_auth(
         &self,
         provider_id: crate::dto::ProviderId,
@@ -263,14 +252,6 @@ impl<S: Services> ForgeApp<S> {
     }
 
     /// Polls until provider authentication completes (for OAuth flows)
-    ///
-    /// This blocks until authentication completes or timeout is reached.
-    /// Should NOT be called for manual input flows (API keys).
-    ///
-    /// # Arguments
-    /// * `provider_id` - The provider being authenticated
-    /// * `context` - Context from initiation (device code, session ID, etc.)
-    /// * `timeout` - Maximum duration to wait
     pub async fn poll_provider_auth(
         &self,
         context: &crate::dto::AuthContext,
@@ -283,10 +264,6 @@ impl<S: Services> ForgeApp<S> {
     }
 
     /// Completes provider authentication and saves credentials
-    ///
-    /// # Arguments
-    /// * `provider_id` - The provider being authenticated
-    /// * `result` - Authentication result from user input or polling
     pub async fn save_provider_credentials(
         &self,
         provider_id: crate::dto::ProviderId,
