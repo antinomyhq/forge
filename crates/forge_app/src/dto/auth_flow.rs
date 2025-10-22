@@ -26,7 +26,7 @@ pub struct OAuthConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AuthMethod {
-        ApiKey,
+    ApiKey,
     #[serde(rename = "oauth_device")]
     OAuthDevice(OAuthConfig),
     #[serde(rename = "oauth_code")]
@@ -57,7 +57,7 @@ impl AuthMethod {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AuthInitiation {
-        ApiKeyPrompt {
+    ApiKeyPrompt {
         required_params: Vec<URLParam>,
     },
 
@@ -81,9 +81,12 @@ pub enum AuthInitiation {
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AuthContext {
-        #[default]
+    #[default]
     ApiKey,
-    Device { device_code: String, interval: u64 },
+    Device {
+        device_code: String,
+        interval: u64,
+    },
     Code {
         state: String,
         pkce_verifier: Option<String>,
@@ -121,7 +124,7 @@ impl AuthContext {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AuthResult {
-        ApiKey {
+    ApiKey {
         api_key: String,
         url_params: HashMap<String, String>,
     },
