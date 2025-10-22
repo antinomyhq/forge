@@ -127,9 +127,7 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository + 
         let api_key = self
             .infra
             .get_env_var(&config.api_key_vars)
-            .ok_or_else(|| {
-                ProviderError::env_var_not_found(config.id.clone(), &config.api_key_vars)
-            })?;
+            .ok_or_else(|| ProviderError::env_var_not_found(config.id, &config.api_key_vars))?;
 
         // Check URL parameter environment variables and build template data
         // URL parameters are optional - only add them if they exist
@@ -143,9 +141,7 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository + 
             } else if **env_var == "ANTHROPIC_URL" {
                 template_data.insert(env_var.as_ref(), "https://api.anthropic.com/v1".to_string());
             } else {
-                return Err(
-                    ProviderError::env_var_not_found(config.id.clone(), env_var.as_ref()).into(),
-                );
+                return Err(ProviderError::env_var_not_found(config.id, env_var.as_ref()).into());
             }
         }
 
@@ -174,7 +170,7 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository + 
         )?;
 
         Ok(Provider {
-            id: config.id.clone(),
+            id: config.id,
             response: config.response_type.clone(),
             url: final_url,
             key: Some(api_key),
@@ -323,7 +319,7 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository + 
             })?;
 
         Ok(Provider {
-            id: provider_id.clone(),
+            id: *provider_id,
             response: config.response_type.clone(),
             url: Url::parse(&url)?,
             key: Some(api_key),
@@ -388,7 +384,7 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository + 
                 .await
             {
                 providers.push(provider);
-                provider_ids.insert(credential.provider_id.clone());
+                provider_ids.insert(credential.provider_id);
             }
         }
 
@@ -396,7 +392,7 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository + 
         let env_providers = self.get_providers().await.clone();
         for provider in env_providers {
             if !provider_ids.contains(&provider.id) {
-                provider_ids.insert(provider.id.clone());
+                provider_ids.insert(provider.id);
                 providers.push(provider);
             }
         }
@@ -440,7 +436,7 @@ impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository + 
         let provider_ids: Vec<ProviderId> = get_provider_configs()
             .iter()
             .filter(|config| config.id != ProviderId::Forge) // Exclude internal Forge provider
-            .map(|config| config.id.clone())
+            .map(|config| config.id)
             .collect();
 
         // Note: Custom URLs don't add new provider IDs - they just override existing

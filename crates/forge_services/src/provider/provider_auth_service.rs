@@ -983,24 +983,20 @@ where
         let credential = match (&method, &result) {
             (AuthMethod::ApiKey, AuthResult::ApiKey { api_key, url_params }) => {
                 // Handle API key auth directly
-                self.handle_api_key_complete(
-                    provider_id.clone(),
-                    api_key.clone(),
-                    url_params.clone(),
-                )
-                .await
-                .map_err(|e| anyhow::anyhow!(e))?
+                self.handle_api_key_complete(provider_id, api_key.clone(), url_params.clone())
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e))?
             }
             (AuthMethod::OAuthDevice(config), AuthResult::OAuthTokens { .. }) => {
                 // Check if this needs OAuth with API key exchange (GitHub Copilot pattern)
                 if config.token_refresh_url.is_some() {
                     // Handle OAuth with API key completion directly
-                    self.handle_oauth_with_apikey_complete(provider_id.clone(), result, config)
+                    self.handle_oauth_with_apikey_complete(provider_id, result, config)
                         .await
                         .map_err(|e| anyhow::anyhow!(e))?
                 } else {
                     // Handle OAuth device flow completion directly
-                    self.handle_oauth_device_complete(provider_id.clone(), result)
+                    self.handle_oauth_device_complete(provider_id, result)
                         .await
                         .map_err(|e| anyhow::anyhow!(e))?
                 }
@@ -1011,7 +1007,7 @@ where
             ) => {
                 // Handle OAuth code flow completion directly
                 self.handle_oauth_code_complete(
-                    provider_id.clone(),
+                    provider_id,
                     code.clone(),
                     code_verifier.clone(),
                     config,

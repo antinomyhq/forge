@@ -53,7 +53,7 @@ impl<E: EnvironmentInfra, R: ProviderCredentialRepository> ProviderCredentialMig
             return Ok(None);
         };
 
-        let credential = ProviderCredential::new_api_key(provider_id.clone(), api_key).url_params(
+        let credential = ProviderCredential::new_api_key(*provider_id, api_key).url_params(
             url_param_vars
                 .iter()
                 .filter_map(|var| {

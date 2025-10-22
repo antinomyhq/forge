@@ -12,6 +12,7 @@ use super::AuthType;
     Debug,
     Display,
     Clone,
+    Copy,
     PartialEq,
     Eq,
     Hash,

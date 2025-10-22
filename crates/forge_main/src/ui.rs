@@ -511,7 +511,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let auth_res = AuthResult::ApiKey { api_key, url_params };
 
         self.api
-            .save_provider_credentials(provider_id.clone(), auth_res, method)
+            .save_provider_credentials(provider_id, auth_res, method)
             .await?;
 
         Self::display_credential_success(provider_id.as_ref());
@@ -564,7 +564,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .position(|opt| opt.starts_with(selection.split_whitespace().next().unwrap()))
                 .ok_or_else(|| anyhow::anyhow!("Invalid selection"))?;
 
-            available_ids[selected_idx].clone()
+            available_ids[selected_idx]
         };
 
         println!(
@@ -607,7 +607,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.spinner.start(Some("Initiating authentication..."))?;
         let init = self
             .api
-            .init_provider_auth(provider_id.clone(), selected_method.clone())
+            .init_provider_auth(provider_id, selected_method.clone())
             .await?;
 
         match init {
@@ -681,7 +681,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.spinner.start(Some("Saving credentials..."))?;
 
         self.api
-            .save_provider_credentials(provider_id.clone(), auth_result, method.clone())
+            .save_provider_credentials(provider_id, auth_result, method.clone())
             .await?;
 
         self.spinner.stop(None)?;
@@ -745,7 +745,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         };
 
         self.api
-            .save_provider_credentials(provider_id.clone(), auth_result, method)
+            .save_provider_credentials(provider_id, auth_result, method)
             .await?;
 
         self.spinner.stop(None)?;
@@ -1452,7 +1452,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         };
 
         // Set the provider via API
-        self.api.set_provider(provider.id.clone()).await?;
+        self.api.set_provider(provider.id).await?;
 
         self.writeln_title(TitleFormat::action(format!(
             "Switched to provider: {}",

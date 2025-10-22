@@ -21,7 +21,7 @@ pub struct ForgeProviderService<I> {
     cached_models: Arc<Mutex<HashMap<ProviderId, Vec<Model>>>>,
     version: String,
     timeout_config: HttpConfig,
-    pub(crate) http_infra: Arc<I>,
+    http_infra: Arc<I>,
 }
 
 impl<I: EnvironmentInfra + HttpInfra + AppConfigRepository> ForgeProviderService<I> {
@@ -40,7 +40,7 @@ impl<I: EnvironmentInfra + HttpInfra + AppConfigRepository> ForgeProviderService
     }
 
     async fn client(&self, provider: Provider) -> Result<Client<HttpClient<I>>> {
-        let provider_id = provider.id.clone();
+        let provider_id = provider.id;
 
         // Check cache first
         {
@@ -87,7 +87,7 @@ impl<I: EnvironmentInfra + HttpInfra + AppConfigRepository> ProviderService
     }
 
     async fn models(&self, provider: Provider) -> Result<Vec<Model>> {
-        let provider_id = provider.id.clone();
+        let provider_id = provider.id;
 
         // Check cache first
         {
