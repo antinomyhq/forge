@@ -1,7 +1,6 @@
 [
   {
     "id": "forge",
-    "display_name": "Forge",
     "api_key_vars": "FORGE_API_KEY",
     "url_param_vars": [],
     "response_type": "openai",
@@ -13,7 +12,6 @@
   },
   {
     "id": "github_copilot",
-    "display_name": "GitHub Copilot",
     "api_key_vars": "GITHUB_COPILOT_API_KEY",
     "url_param_vars": [],
     "response_type": "openai",
@@ -40,7 +38,6 @@
   },
   {
     "id": "open_router",
-    "display_name": "OpenRouter",
     "api_key_vars": "OPENROUTER_API_KEY",
     "url_param_vars": [],
     "response_type": "openai",
@@ -52,7 +49,6 @@
   },
   {
     "id": "requesty",
-    "display_name": "Requesty",
     "api_key_vars": "REQUESTY_API_KEY",
     "url_param_vars": [],
     "response_type": "openai",
@@ -64,7 +60,6 @@
   },
   {
     "id": "xai",
-    "display_name": "xAI",
     "api_key_vars": "XAI_API_KEY",
     "url_param_vars": [],
     "response_type": "openai",
@@ -76,7 +71,6 @@
   },
   {
     "id": "openai",
-    "display_name": "OpenAI",
     "api_key_vars": "OPENAI_API_KEY",
     "url_param_vars": ["OPENAI_URL"],
     "response_type": "openai",
@@ -88,7 +82,6 @@
   },
   {
     "id": "openai_compatible",
-    "display_name": "OpenAI Compatible",
     "api_key_vars": "OPENAI_COMPATIBLE_API_KEY",
     "url_param_vars": ["BASE_URL"],
     "response_type": "openai",
@@ -100,7 +93,6 @@
   },
   {
     "id": "anthropic",
-    "display_name": "Anthropic",
     "api_key_vars": "ANTHROPIC_API_KEY",
     "url_param_vars": ["ANTHROPIC_URL"],
     "response_type": "anthropic",
@@ -125,7 +117,6 @@
   },
   {
     "id": "anthropic_compatible",
-    "display_name": "Anthropic Compatible",
     "api_key_vars": "ANTHROPIC_COMPATIBLE_API_KEY",
     "url_param_vars": ["BASE_URL"],
     "response_type": "anthropic",
@@ -137,7 +128,6 @@
   },
   {
     "id": "cerebras",
-    "display_name": "Cerebras",
     "api_key_vars": "CEREBRAS_API_KEY",
     "url_param_vars": [],
     "response_type": "openai",
@@ -149,7 +139,6 @@
   },
   {
     "id": "zai",
-    "display_name": "ZAI",
     "api_key_vars": "ZAI_API_KEY",
     "url_param_vars": [],
     "response_type": "openai",
@@ -161,7 +150,6 @@
   },
   {
     "id": "zai_coding",
-    "display_name": "ZAI Coding",
     "api_key_vars": "ZAI_CODING_API_KEY",
     "url_param_vars": [],
     "response_type": "openai",
@@ -173,7 +161,6 @@
   },
   {
     "id": "big_model",
-    "display_name": "BigModel",
     "api_key_vars": "BIG_MODEL_API_KEY",
     "url_param_vars": [],
     "response_type": "openai",
@@ -185,7 +172,6 @@
   },
   {
     "id": "vertex_ai",
-    "display_name": "Google Vertex AI",
     "api_key_vars": "VERTEX_AI_AUTH_TOKEN",
     "url_param_vars": ["PROJECT_ID", "LOCATION"],
     "response_type": "openai",
@@ -197,7 +183,6 @@
   },
   {
     "id": "azure",
-    "display_name": "Azure OpenAI",
     "api_key_vars": "AZURE_API_KEY",
     "url_param_vars": [
       "AZURE_RESOURCE_NAME",

@@ -1,3 +1,4 @@
+use convert_case::Casing;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter};
@@ -35,6 +36,12 @@ pub enum ProviderId {
     VertexAi,
     BigModel,
     Azure,
+}
+
+impl ProviderId {
+    pub fn display_name(&self) -> String {
+        self.to_string().to_case(convert_case::Case::Title)
+    }
 }
 
 #[derive(Debug, Display, Clone, PartialEq, Eq, Serialize, Deserialize)]

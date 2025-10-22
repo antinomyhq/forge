@@ -14,7 +14,6 @@ use crate::{AppConfigRepository, EnvironmentInfra, ProviderCredentialRepository,
 #[derive(Debug, Deserialize)]
 pub struct ProviderConfig {
     pub(crate) id: ProviderId,
-    pub(crate) display_name: String,
     pub(crate) api_key_vars: String,
     pub(crate) url_param_vars: Vec<URLParam>,
     pub(crate) response_type: ProviderResponse,
@@ -49,13 +48,6 @@ pub(crate) fn get_provider_config(provider_id: &ProviderId) -> Option<&'static P
 pub fn get_provider_credential_vars(provider_id: &ProviderId) -> Option<(String, Vec<URLParam>)> {
     get_provider_config(provider_id)
         .map(|config| (config.api_key_vars.clone(), config.url_param_vars.clone()))
-}
-
-/// Get display name for a provider
-pub fn get_provider_display_name(provider_id: &ProviderId) -> String {
-    get_provider_config(provider_id)
-        .map(|config| config.display_name.clone())
-        .unwrap_or_else(|| format!("{:?}", provider_id))
 }
 
 /// Get auth methods for a provider

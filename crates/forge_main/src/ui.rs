@@ -546,7 +546,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             let options: Vec<String> = available_ids
                 .iter()
                 .map(|id| {
-                    let id_str = id.to_string();
+                    let id_str = id.display_name();
                     if configured.contains(&id_str) {
                         format!("{} {}", id_str, "[✓ configured]".green())
                     } else {
@@ -657,8 +657,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     ) -> Result<()> {
         use std::time::Duration;
 
-        use forge_services::provider::registry::get_provider_display_name;
-
         self.spinner.stop(None)?;
         // Display OAuth device information
         Self::display_oauth_device_info_new(
@@ -668,7 +666,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         );
 
         // Step 2: Poll until authentication completes (10 minute timeout)
-        let display_name = get_provider_display_name(&provider_id);
+        let display_name = provider_id.display_name();
         self.spinner.start(Some("Waiting for authorization..."))?;
 
         let auth_result = self
@@ -701,9 +699,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         context: AuthContext,
     ) -> anyhow::Result<()> {
         use colored::Colorize;
-        use forge_services::provider::registry::get_provider_display_name;
 
-        let display_name = get_provider_display_name(&provider_id);
+        let display_name = provider_id.display_name();
         self.spinner.stop(None)?;
 
         println!();
@@ -860,7 +857,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let mut info = Info::new().add_title("PROVIDERS");
 
         for provider in providers.iter() {
-            let id = provider.id.to_string();
+            let id = provider.id.display_name();
             let domain = provider
                 .url
                 .domain()
