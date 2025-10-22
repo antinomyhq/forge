@@ -155,10 +155,11 @@ pub enum AuthInitiation {
 /// This enum provides type-safe storage for flow-specific data needed during
 /// polling and completion. Each variant corresponds to a specific
 /// authentication method and contains only the fields required for that flow.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AuthContext {
     /// API key authentication - no context needed
+    #[default]
     ApiKey,
 
     /// OAuth Device Flow context - for polling
@@ -180,11 +181,6 @@ impl AuthContext {
     /// Creates a Code flow context
     pub fn code(state: String, pkce_verifier: Option<String>) -> Self {
         Self::Code { state, pkce_verifier }
-    }
-
-    /// Creates an API key context (no data needed)
-    pub fn api_key() -> Self {
-        Self::ApiKey
     }
 
     /// Returns true if this is a Device flow context
@@ -309,15 +305,6 @@ mod tests {
     }
 
     #[test]
-    fn test_api_key_context() {
-        let context = AuthContext::api_key();
-
-        assert!(context.is_api_key());
-        assert!(!context.is_device());
-        assert!(!context.is_code());
-    }
-
-    #[test]
     fn test_device_serialization() {
         let context = AuthContext::device("ABC123".to_string(), 5);
         let json = serde_json::to_value(&context).unwrap();
@@ -335,16 +322,6 @@ mod tests {
         assert_eq!(json["type"], "code");
         assert_eq!(json["state"], "state123");
         assert_eq!(json["pkce_verifier"], "verifier456");
-    }
-
-    #[test]
-    fn test_api_key_serialization() {
-        let context = AuthContext::api_key();
-        let json = serde_json::to_value(&context).unwrap();
-
-        assert_eq!(json["type"], "api_key");
-        // ApiKey variant has no fields, should only have type
-        assert_eq!(json.as_object().unwrap().len(), 1);
     }
 
     #[test]
