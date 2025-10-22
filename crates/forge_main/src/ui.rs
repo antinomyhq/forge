@@ -515,7 +515,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .save_provider_credentials(provider_id.clone(), auth_res, method)
             .await?;
 
-        Self::display_credential_success(&provider_id.to_string());
+        Self::display_credential_success(provider_id.as_ref());
 
         Ok(())
     }
