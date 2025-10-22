@@ -82,7 +82,7 @@ pub struct CliProvider(pub Provider);
 
 impl Display for CliProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = forge_services::provider::get_provider_display_name(&self.0.id);
+        let name = forge_services::registry::get_provider_display_name(&self.0.id);
         write!(f, "{}", name)?;
         if let Some(domain) = self.0.url.domain() {
             write!(f, " [{}]", domain)?;

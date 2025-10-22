@@ -574,7 +574,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         );
 
         // Step 2: Get available authentication methods
-        use forge_services::provider::registry::get_provider_auth_methods;
+        use forge_services::registry::get_provider_auth_methods;
 
         let auth_methods = get_provider_auth_methods(&provider_id);
 
@@ -656,7 +656,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     ) -> Result<()> {
         use std::time::Duration;
 
-        use forge_services::provider::registry::get_provider_display_name;
+        use forge_services::registry::get_provider_display_name;
 
         self.spinner.stop(None)?;
         // Display OAuth device information
@@ -700,7 +700,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         context: AuthContext,
     ) -> anyhow::Result<()> {
         use colored::Colorize;
-        use forge_services::provider::registry::get_provider_display_name;
+        use forge_services::registry::get_provider_display_name;
 
         let display_name = get_provider_display_name(&provider_id);
         self.spinner.stop(None)?;

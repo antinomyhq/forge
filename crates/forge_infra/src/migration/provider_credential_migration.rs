@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use forge_app::dto::{ProviderCredential, ProviderId};
-use forge_services::provider::registry::get_provider_credential_vars;
+use forge_services::registry::get_provider_credential_vars;
 use forge_services::{EnvironmentInfra, ProviderCredentialRepository};
 use strum::IntoEnumIterator;
 
