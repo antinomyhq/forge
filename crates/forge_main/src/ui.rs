@@ -542,14 +542,20 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .collect();
 
             // Create display options with status indicators
+            let max_width = available_ids
+                .iter()
+                .map(|id| id.to_string().len())
+                .max()
+                .unwrap_or(0);
+            
             let options: Vec<String> = available_ids
                 .iter()
                 .map(|id| {
                     let id_str = id.to_string();
                     if configured.contains(&id_str) {
-                        format!("{} {}", id_str, "[✓ configured]".green())
+                        format!("{:<max_width$} {}", id_str, "[✓ configured]".green())
                     } else {
-                        format!("{} {}", id_str, "[+ new]".dimmed())
+                        format!("{:<max_width$} {}", id_str, "[+ new]".dimmed())
                     }
                 })
                 .collect();
