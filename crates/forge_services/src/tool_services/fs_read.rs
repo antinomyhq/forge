@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -59,15 +59,12 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
         start_line: Option<u64>,
         end_line: Option<u64>,
     ) -> anyhow::Result<ReadOutput> {
+        let path = Path::new(&path);
+        assert_absolute_path(path)?;
         let env = self.0.get_environment();
-        let mut path = PathBuf::from(path);
-        if !path.is_absolute() {
-            path = PathBuf::from(&env.cwd).join(path);
-        }
-        assert_absolute_path(&path)?;
 
         // Validate file size before reading content
-        if let Err(e) = assert_file_size(&*self.0, &path, env.max_file_size).await {
+        if let Err(e) = assert_file_size(&*self.0, path, env.max_file_size).await {
             tracing::error!(
                 path = %path.display(),
                 max_file_size = env.max_file_size,
@@ -81,7 +78,7 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
 
         let (content, file_info) = self
             .0
-            .range_read_utf8(&path, start_line, end_line)
+            .range_read_utf8(path, start_line, end_line)
             .await
             .map_err(|e| {
                 tracing::error!(
