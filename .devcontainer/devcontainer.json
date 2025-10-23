@@ -35,5 +35,5 @@
       }
     }
   },
-  "postCreateCommand": "npm i -g forgecode && rustup component add clippy rustfmt && cargo install cargo-insta && cargo install cargo-nextest && chsh -s /usr/bin/zsh"
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y fzf fd-find && npm i -g forgecode && rustup component add clippy rustfmt && cargo install cargo-insta && cargo install cargo-nextest && chsh -s /usr/bin/zsh"
 }
