@@ -547,7 +547,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .map(|id| id.to_string().len())
                 .max()
                 .unwrap_or(0);
-            
+
             let options: Vec<String> = available_ids
                 .iter()
                 .map(|id| {
