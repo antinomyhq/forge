@@ -1540,7 +1540,7 @@ mod tests {
         assert!(
             !actual
                 .values
-                .get(0)
+                .first()
                 .unwrap()
                 .as_str()
                 .unwrap()

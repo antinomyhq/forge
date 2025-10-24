@@ -114,7 +114,7 @@ mod tests {
 
     #[test]
     fn test_select_conversation_with_titles() {
-        let conversations = vec![
+        let conversations = [
             create_test_conversation(
                 "550e8400-e29b-41d4-a716-446655440000",
                 Some("First Conversation"),
@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn test_select_conversation_without_titles() {
-        let conversations = vec![
+        let conversations = [
             create_test_conversation("550e8400-e29b-41d4-a716-446655440002", None),
             create_test_conversation("550e8400-e29b-41d4-a716-446655440003", None),
         ];
