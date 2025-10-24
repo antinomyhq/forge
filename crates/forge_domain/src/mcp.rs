@@ -30,12 +30,24 @@ impl McpServerConfig {
         args: Vec<String>,
         env: Option<BTreeMap<String, String>>,
     ) -> Self {
-        Self::Stdio(McpStdioServer { command: command.into(), args, env: env.unwrap_or_default() })
+        Self::Stdio(McpStdioServer {
+            command: command.into(),
+            args,
+            env: env.unwrap_or_default(),
+            disable: false,
+        })
     }
 
     /// Create a new SSE-based MCP server
     pub fn new_sse(url: impl Into<String>) -> Self {
-        Self::Sse(McpSseServer { url: url.into() })
+        Self::Sse(McpSseServer { url: url.into(), disable: false })
+    }
+
+    pub fn is_disabled(&self) -> bool {
+        match self {
+            McpServerConfig::Stdio(v) => v.disable,
+            McpServerConfig::Sse(v) => v.disable,
+        }
     }
 }
 
@@ -53,6 +65,11 @@ pub struct McpStdioServer {
     /// Environment variables to pass to the command
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub env: BTreeMap<String, String>,
+
+    /// Disable it temporarily without having to
+    /// remove it from the config.
+    #[serde(default)]
+    pub disable: bool,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
@@ -60,6 +77,11 @@ pub struct McpSseServer {
     /// Url of the MCP server
     #[serde(skip_serializing_if = "String::is_empty")]
     pub url: String,
+
+    /// Disable it temporarily without having to
+    /// remove it from the config.
+    #[serde(default)]
+    pub disable: bool,
 }
 
 impl Display for McpServerConfig {
@@ -230,5 +252,20 @@ mod tests {
         let actual = fixture1.cache_key();
         let expected = fixture2.cache_key();
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_mcp_server_config_disabled() {
+        let mut server = McpStdioServer::default();
+        server.disable = true;
+
+        let config = McpServerConfig::Stdio(server);
+        assert!(config.is_disabled());
+
+        let mut sse_server = McpSseServer::default();
+        sse_server.disable = false;
+
+        let config = McpServerConfig::Sse(sse_server);
+        assert!(!config.is_disabled());
     }
 }

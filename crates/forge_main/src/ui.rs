@@ -681,12 +681,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
-        let mut info = Info::new().add_title("MCP SERVERS");
+        let mut info = Info::new();
 
         for (name, server) in mcp_servers.mcp_servers {
             info = info
-                .add_title(name.clone())
-                .add_key_value("Command", server.to_string());
+                .add_title(name.to_uppercase())
+                .add_key_value("command", server.to_string());
+
+            if server.is_disabled() {
+                info = info.add_key_value("disable", "true")
+            }
         }
 
         self.write_info_or_porcelain(info, porcelain, true)?;
