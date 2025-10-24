@@ -57,7 +57,9 @@ impl<F: FileInfoInfra + EnvironmentInfra + crate::infra::FileReaderInfra> FsBina
         // limit
         crate::tool_services::fs_read::assert_file_size(&*self.0, path, env.max_image_size)
             .await
-            .with_context(|| "Image exceeds size limit. Compress the image or increase FORGE_MAX_IMAGE_SIZE.")?;
+            .with_context(
+                || "Image exceeds size limit. Compress the image or increase FORGE_MAX_IMAGE_SIZE.",
+            )?;
 
         // Determine image format from file extension
         let extension = path
