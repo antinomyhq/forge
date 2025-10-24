@@ -90,7 +90,7 @@ impl<A: API> ConfigManager<A> {
             "provider" => {
                 let provider = self
                     .api
-                    .get_provider(None)
+                    .get_default_provider()
                     .await
                     .ok()
                     .map(|p| p.id.to_string());
@@ -118,7 +118,7 @@ impl<A: API> ConfigManager<A> {
             .map(|m| m.as_str().to_string());
         let provider = self
             .api
-            .get_provider(None)
+            .get_default_provider()
             .await
             .ok()
             .map(|p| p.id.to_string());

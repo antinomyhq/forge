@@ -67,6 +67,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(models)
     }
 
+    /// Helper to get provider for an optional agent, defaulting to the current
+    /// active agent's provider
+    async fn get_provider_for_agent(&self, agent_id: Option<AgentId>) -> Result<Provider> {
+        match agent_id {
+            Some(id) => self.api.get_agent_provider(id).await,
+            None => self.api.get_default_provider().await,
+        }
+    }
+
     /// Displays banner only if user is in interactive mode.
     fn display_banner(&self) -> Result<()> {
         if self.cli.is_interactive() {
@@ -643,8 +652,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .await
             .map(|m| m.as_str().to_string());
         let provider = self
-            .api
-            .get_provider(agent.clone())
+            .get_provider_for_agent(agent.clone())
             .await
             .ok()
             .map(|p| p.id.to_string());
@@ -724,15 +732,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Fetch both default provider and agent-specific provider
         let default_provider = self
-            .api
-            .get_provider(self.api.get_active_agent().await)
+            .get_provider_for_agent(self.api.get_active_agent().await)
             .await
             .ok();
-        let agent_provider = if let Some(ref agent_id) = operating_agent {
-            self.api.get_provider(Some(agent_id.clone())).await.ok()
-        } else {
-            None
-        };
+        let agent_provider = self
+            .get_provider_for_agent(operating_agent.clone())
+            .await
+            .ok();
 
         // Add conversation information if available
         if let Some(conversation) = conversation {
@@ -1096,8 +1102,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Find the index of the current provider
         let current_provider = self
-            .api
-            .get_provider(self.api.get_active_agent().await)
+            .get_provider_for_agent(self.api.get_active_agent().await)
             .await
             .ok();
         let starting_cursor = current_provider

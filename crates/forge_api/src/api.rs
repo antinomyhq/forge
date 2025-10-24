@@ -99,13 +99,31 @@ pub trait API: Sync + Send {
     /// project directory
     async fn write_mcp_config(&self, scope: &Scope, config: &McpConfig) -> Result<()>;
 
+    /// Initiates the login flow and returns authentication initialization data
     async fn init_login(&self) -> Result<InitAuth>;
+
+    /// Retrieves the current login information if the user is authenticated
     async fn get_login_info(&self) -> Result<Option<LoginInfo>>;
+
+    /// Completes the login process using the provided authentication data
     async fn login(&self, auth: &InitAuth) -> Result<()>;
+
+    /// Logs out the current user and clears authentication data
     async fn logout(&self) -> anyhow::Result<()>;
-    async fn get_provider(&self, agent_id: Option<AgentId>) -> anyhow::Result<Provider>;
+
+    /// Retrieves the provider configuration for the specified agent
+    async fn get_agent_provider(&self, agent_id: AgentId) -> anyhow::Result<Provider>;
+
+    /// Retrieves the provider configuration for the default agent
+    async fn get_default_provider(&self) -> anyhow::Result<Provider>;
+
+    /// Sets the default provider for all the agents
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()>;
+
+    /// Retrieves information about the currently authenticated user
     async fn user_info(&self) -> anyhow::Result<Option<User>>;
+
+    /// Retrieves usage statistics for the currently authenticated user
     async fn user_usage(&self) -> anyhow::Result<Option<UserUsage>>;
 
     /// Gets the currently operating agent

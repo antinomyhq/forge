@@ -51,7 +51,7 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
         Ok(self
             .services
             .models(
-                self.get_provider(None)
+                self.get_default_provider()
                     .await
                     .context("Failed to fetch models")?,
             )
@@ -176,9 +176,15 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
         let forge_app = ForgeApp::new(self.services.clone());
         forge_app.logout().await
     }
-    async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider> {
+    async fn get_agent_provider(&self, agent_id: AgentId) -> anyhow::Result<Provider> {
         ForgeApp::new(self.services.clone())
-            .get_provider(agent)
+            .get_provider(Some(agent_id))
+            .await
+    }
+
+    async fn get_default_provider(&self) -> anyhow::Result<Provider> {
+        ForgeApp::new(self.services.clone())
+            .get_provider(None)
             .await
     }
 
@@ -187,7 +193,7 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
     }
 
     async fn user_info(&self) -> Result<Option<User>> {
-        let provider = self.get_provider(None).await?;
+        let provider = self.get_default_provider().await?;
         if let Some(ref api_key) = provider.key {
             let user_info = self.services.user_info(api_key).await?;
             return Ok(Some(user_info));
@@ -196,7 +202,7 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
     }
 
     async fn user_usage(&self) -> Result<Option<UserUsage>> {
-        let provider = self.get_provider(None).await?;
+        let provider = self.get_default_provider().await?;
         if let Some(ref api_key) = provider.key {
             let user_usage = self.services.user_usage(api_key).await?;
             return Ok(Some(user_usage));
@@ -214,14 +220,14 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
 
     async fn get_active_model(&self, agent_id: Option<AgentId>) -> Option<ModelId> {
         ForgeApp::new(self.services.clone())
-            .get_active_model(agent_id)
+            .get_default_model(agent_id)
             .await
             .ok()
     }
 
     async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()> {
         ForgeApp::new(self.services.clone())
-            .set_active_model(model_id)
+            .set_default_model(model_id)
             .await
     }
 
