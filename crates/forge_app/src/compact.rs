@@ -70,10 +70,11 @@ impl<S: AgentService> Compactor<S> {
     ) -> anyhow::Result<Context> {
         let (start, end) = sequence;
 
-        let sequence_messages = &context.messages[start..=end].to_vec();
+        // The sequence from the original message that needs to be compacted
+        let compaction_sequence = &context.messages[start..=end].to_vec();
 
         // Extract user messages from the sequence to pass as feedback
-        let feedback: Vec<String> = sequence_messages
+        let feedback: Vec<String> = compaction_sequence
             .iter()
             .filter(|msg| msg.has_role(forge_domain::Role::User))
             .filter_map(|msg| msg.content().map(|content| content.to_string()))
@@ -81,7 +82,7 @@ impl<S: AgentService> Compactor<S> {
 
         // Generate summary for the compaction sequence
         let summary = self
-            .generate_summary_for_sequence(compact, sequence_messages)
+            .generate_summary_for_sequence(compact, compaction_sequence)
             .await?;
 
         // Accumulate the usage from the summarization call into the context
@@ -99,7 +100,7 @@ impl<S: AgentService> Compactor<S> {
             summary = %summary,
             sequence_start = sequence.0,
             sequence_end = sequence.1,
-            sequence_length = sequence_messages.len(),
+            sequence_length = compaction_sequence.len(),
             "Created context compaction summary"
         );
 
@@ -126,7 +127,7 @@ impl<S: AgentService> Compactor<S> {
         // Example: [U, A+r, U, A+r, U, A] → compact → [U-summary, A+r, U, A]
         //                                                          └─from last
         // compacted
-        let reasoning_details: Option<Vec<_>> = context.messages[start..=end]
+        let reasoning_details = compaction_sequence
             .iter()
             .rev() // Get LAST reasoning (most recent)
             .find_map(|msg| match msg {
@@ -138,6 +139,7 @@ impl<S: AgentService> Compactor<S> {
                 _ => None,
             });
 
+        // Replace the range with the summary
         context.messages.splice(
             start..=end,
             std::iter::once(ContextMessage::user(summary, None)),
