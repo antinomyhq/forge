@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
 use colored::Colorize;
-use forge_api::{Event, Model, Provider, Workflow};
+use forge_api::{Event, Model, Provider};
 use forge_domain::Agent;
 use serde::Deserialize;
 use serde_json::Value;
@@ -131,14 +131,6 @@ pub struct ForgeCommand {
     pub value: Option<String>,
 }
 
-impl From<&Workflow> for ForgeCommandManager {
-    fn from(value: &Workflow) -> Self {
-        let cmd = ForgeCommandManager::default();
-        cmd.register_all(value);
-        cmd
-    }
-}
-
 #[derive(Debug)]
 pub struct ForgeCommandManager {
     commands: Arc<Mutex<Vec<ForgeCommand>>>,
@@ -206,22 +198,26 @@ impl ForgeCommandManager {
             .collect::<Vec<_>>()
     }
 
-    /// Registers multiple commands to the manager.
-    pub fn register_all(&self, workflow: &Workflow) {
+    /// Registers workflow commands from the API.
+    pub fn register_all(&self, commands: Vec<forge_domain::Command>) {
         let mut guard = self.commands.lock().unwrap();
-        let mut commands = Self::default_commands();
 
-        commands.sort_by(|a, b| a.name.cmp(&b.name));
+        // Remove existing workflow commands (those with ⚙ prefix in description)
+        guard.retain(|cmd| !cmd.description.starts_with("⚙ "));
 
-        commands.extend(workflow.commands.clone().into_iter().map(|cmd| {
+        // Add new workflow commands
+        let new_commands = commands.into_iter().map(|cmd| {
             let name = cmd.name.clone();
             let description = format!("⚙ {}", cmd.description);
             let value = cmd.prompt.clone();
 
             ForgeCommand { name, description, value }
-        }));
+        });
 
-        *guard = commands;
+        guard.extend(new_commands);
+
+        // Sort commands for consistent completion behavior
+        guard.sort_by(|a, b| a.name.cmp(&b.name));
     }
 
     /// Registers agent commands to the manager.

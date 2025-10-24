@@ -113,30 +113,8 @@ mod tests {
 
     impl EnvironmentInfra for MockCommandInfra {
         fn get_environment(&self) -> Environment {
-            Environment {
-                os: "test".to_string(),
-                pid: 12345,
-                cwd: PathBuf::from("/test"),
-                home: Some(PathBuf::from("/home/test")),
-                shell: "bash".to_string(),
-                base_path: PathBuf::from("/base"),
-                retry_config: Default::default(),
-                fetch_truncation_limit: 0,
-                stdout_max_prefix_length: 0,
-                max_search_lines: 0,
-                max_search_result_bytes: 256000,
-                max_read_size: 0,
-                stdout_max_suffix_length: 0,
-                stdout_max_line_length: 2000,
-                http: Default::default(),
-                tool_timeout: 300,
-                max_file_size: 10_000_000,
-                forge_api_url: reqwest::Url::parse("http://forgecode.dev/api").unwrap(),
-                auto_open_dump: false,
-                custom_history_path: None,
-                max_conversations: 100,
-                max_image_size: 262144,
-            }
+            use fake::{Fake, Faker};
+            Faker.fake()
         }
 
         fn get_env_var(&self, _key: &str) -> Option<String> {

@@ -372,6 +372,12 @@ pub trait AgentLoaderService: Send + Sync {
 }
 
 #[async_trait::async_trait]
+pub trait CommandLoaderService: Send + Sync {
+    /// Load all command definitions from the forge/commands directory
+    async fn get_commands(&self) -> anyhow::Result<Vec<forge_domain::Command>>;
+}
+
+#[async_trait::async_trait]
 pub trait PolicyService: Send + Sync {
     /// Check if an operation is allowed and handle user confirmation if needed
     /// Returns PolicyDecision with allowed flag and optional policy file path
@@ -410,6 +416,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type AuthService: AuthService;
     type ProviderRegistry: ProviderRegistry;
     type AgentLoaderService: AgentLoaderService;
+    type CommandLoaderService: CommandLoaderService;
     type PolicyService: PolicyService;
 
     fn provider_service(&self) -> &Self::ProviderService;
@@ -436,6 +443,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn auth_service(&self) -> &Self::AuthService;
     fn provider_registry(&self) -> &Self::ProviderRegistry;
     fn agent_loader_service(&self) -> &Self::AgentLoaderService;
+    fn command_loader_service(&self) -> &Self::CommandLoaderService;
     fn policy_service(&self) -> &Self::PolicyService;
 }
 
@@ -790,6 +798,13 @@ pub trait HttpClientService: Send + Sync + 'static {
 impl<I: Services> AgentLoaderService for I {
     async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
         self.agent_loader_service().get_agents().await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> CommandLoaderService for I {
+    async fn get_commands(&self) -> anyhow::Result<Vec<forge_domain::Command>> {
+        self.command_loader_service().get_commands().await
     }
 }
 

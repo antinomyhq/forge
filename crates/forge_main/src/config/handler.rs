@@ -67,11 +67,11 @@ impl<A: API> ConfigManager<A> {
 
     /// Handle config get command
     async fn handle_get(&self, args: ConfigGetArgs) -> ConfigResult<()> {
-        let field = args.field;
+        use crate::cli::ConfigField;
 
         // Get specific field
-        match field.to_lowercase().as_str() {
-            "agent" => {
+        match args.field {
+            ConfigField::Agent => {
                 let agent = self
                     .api
                     .get_operating_agent()
@@ -79,7 +79,7 @@ impl<A: API> ConfigManager<A> {
                     .map(|a| a.as_str().to_string());
                 display_single_field("agent", agent);
             }
-            "model" => {
+            ConfigField::Model => {
                 let model = self
                     .api
                     .get_operating_model()
@@ -87,12 +87,9 @@ impl<A: API> ConfigManager<A> {
                     .map(|m| m.as_str().to_string());
                 display_single_field("model", model);
             }
-            "provider" => {
+            ConfigField::Provider => {
                 let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
                 display_single_field("provider", provider);
-            }
-            _ => {
-                return Err(ConfigError::InvalidField { field: field.clone() });
             }
         }
 

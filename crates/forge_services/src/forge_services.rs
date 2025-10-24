@@ -5,6 +5,7 @@ use forge_app::Services;
 use crate::agent_loader::AgentLoaderService as ForgeAgentLoaderService;
 use crate::attachment::ForgeChatRequest;
 use crate::auth::ForgeAuthService;
+use crate::command_loader::CommandLoaderService as ForgeCommandLoaderService;
 use crate::conversation::ForgeConversationService;
 use crate::custom_instructions::ForgeCustomInstructionsService;
 use crate::discovery::ForgeDiscoveryService;
@@ -60,6 +61,7 @@ pub struct ForgeServices<F: HttpInfra + EnvironmentInfra + McpServerInfra + Walk
     auth_service: Arc<AuthService<F>>,
     provider_service: Arc<ForgeProviderRegistry<F>>,
     agent_loader_service: Arc<ForgeAgentLoaderService<F>>,
+    command_loader_service: Arc<ForgeCommandLoaderService<F>>,
     policy_service: ForgePolicyService<F>,
 }
 
@@ -105,6 +107,7 @@ impl<
         let custom_instructions_service =
             Arc::new(ForgeCustomInstructionsService::new(infra.clone()));
         let agent_loader_service = Arc::new(ForgeAgentLoaderService::new(infra.clone()));
+        let command_loader_service = Arc::new(ForgeCommandLoaderService::new(infra.clone()));
         let policy_service = ForgePolicyService::new(infra.clone());
 
         Self {
@@ -132,6 +135,7 @@ impl<
             chat_service,
             provider_service,
             agent_loader_service,
+            command_loader_service,
             policy_service,
         }
     }
@@ -181,6 +185,7 @@ impl<
     type AuthService = AuthService<F>;
     type ProviderRegistry = ForgeProviderRegistry<F>;
     type AgentLoaderService = ForgeAgentLoaderService<F>;
+    type CommandLoaderService = ForgeCommandLoaderService<F>;
     type PolicyService = ForgePolicyService<F>;
 
     fn provider_service(&self) -> &Self::ProviderService {
@@ -271,6 +276,10 @@ impl<
     }
     fn agent_loader_service(&self) -> &Self::AgentLoaderService {
         &self.agent_loader_service
+    }
+
+    fn command_loader_service(&self) -> &Self::CommandLoaderService {
+        &self.command_loader_service
     }
 
     fn policy_service(&self) -> &Self::PolicyService {
