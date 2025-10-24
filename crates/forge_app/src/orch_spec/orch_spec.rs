@@ -387,3 +387,60 @@ async fn test_multiple_consecutive_tool_calls() {
 
     assert_eq!(retry_attempts, 1, "Should complete the task")
 }
+
+#[tokio::test]
+async fn test_multi_turn_conversation_stops_only_on_finish_reason() {
+    let time_tool_call = ToolCallFull::new("shell").arguments(ToolCallArguments::from(
+        json!({"command": "date", "cwd": "."}),
+    ));
+    let time_tool_result =
+        ToolResult::new("shell").output(Ok(ToolOutput::text("Fri Oct 24 10:30:00 UTC 2025")));
+
+    let mut ctx = TestContext::default()
+        .mock_tool_call_responses(vec![(time_tool_call.clone(), time_tool_result)])
+        .mock_assistant_responses(vec![
+            // First turn: Assistant responds without finish_reason - should continue
+            ChatCompletionMessage::assistant("I'll check the current time for you."),
+            // Second turn: Assistant makes tool call without finish_reason - should continue
+            ChatCompletionMessage::assistant("Checking time...")
+                .tool_calls(vec![time_tool_call.into()])
+                .finish_reason(FinishReason::ToolCalls),
+            // Third turn: Assistant responds with FinishReason::Stop - should stop here
+            ChatCompletionMessage::assistant("The current time is Fri Oct 24 10:30:00 UTC 2025")
+                .finish_reason(FinishReason::Stop),
+        ]);
+
+    ctx.run("What's the time right now?").await.unwrap();
+
+    let messages = ctx.output.context_messages();
+
+    // Verify we have exactly 3 assistant messages (one for each turn)
+    let assistant_message_count = messages
+        .iter()
+        .filter(|message| message.has_role(Role::Assistant))
+        .count();
+    assert_eq!(
+        assistant_message_count, 3,
+        "Should have exactly 3 assistant messages, confirming the orchestrator continued until FinishReason::Stop"
+    );
+
+    // Verify we have the initial user message
+    let user_message_count = messages
+        .iter()
+        .filter(|message| message.has_role(Role::User))
+        .count();
+    assert_eq!(user_message_count, 1, "Should have one user message");
+
+    // Verify the conversation completed successfully
+    let has_task_complete = ctx
+        .output
+        .chat_responses
+        .iter()
+        .flatten()
+        .any(|response| matches!(response, ChatResponse::TaskComplete));
+
+    assert!(
+        has_task_complete,
+        "Should have TaskComplete response when FinishReason::Stop is received"
+    );
+}
