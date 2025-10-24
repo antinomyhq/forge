@@ -683,15 +683,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         let mut info = Info::new().add_title("MCP SERVERS");
 
-        for (name, server) in mcp_servers.mcp_servers {
-            let server_name = if server.is_disabled() {
-                format!("{} (disabled)", name).dimmed().to_string()
-            } else {
-                name.to_string()
-            };
-
+        for (name, server) in mcp_servers
+            .mcp_servers
+            .into_iter()
+            .filter(|(_, s)| !s.is_disabled())
+        {
             info = info
-                .add_title(server_name)
+                .add_title(name.to_string())
                 .add_key_value("Command", server.to_string());
         }
 
