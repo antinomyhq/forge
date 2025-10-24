@@ -33,8 +33,14 @@ lazy_static = "1.5.0"
 convert_case.workspace = true
 forge_json_repair.workspace = true
 glob.workspace = true
+fake = { version = "4.4.0", features = ["derive"], optional = true }
+
+[features]
+default = []
+test-support = ["fake"]
 
 [dev-dependencies]
 insta = { workspace = true, features = ["yaml"] }
 pretty_assertions.workspace = true
 is_ci.workspace = true
+fake = { version = "4.4.0", features = ["derive"] }

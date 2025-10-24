@@ -3,6 +3,7 @@ use merge::Merge;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Merge, Setters, PartialEq)]
+#[cfg_attr(any(test, feature = "test-support"), derive(fake::Dummy))]
 #[setters(into)]
 pub struct RetryConfig {
     /// Initial backoff delay in milliseconds for retry operations
