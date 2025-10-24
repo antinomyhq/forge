@@ -27,6 +27,7 @@ use crate::env::{get_agent_from_env, get_conversation_id_from_env};
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{CliModel, CliProvider, Command, ForgeCommandManager, PartialEvent};
+use crate::porcelain::Porcelain;
 use crate::prompt::ForgePrompt;
 use crate::state::UIState;
 use crate::title_display::TitleDisplayExt;
@@ -490,13 +491,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             info = info.add_title(id).add_key_value("Description", title);
         }
 
-        // In porcelain mode, skip the top-level "AGENTS" title
         if porcelain {
-            info = info.skip_first_title();
-        }
-
-        if porcelain {
-            crate::cli_format::format_columns(info.flatten_titles_to_rows().to_rows());
+            let porcelain = Porcelain::from(&info).skip(1);
+            crate::cli_format::format_columns(porcelain.to_rows());
         } else {
             self.writeln(info)?;
         }
@@ -524,13 +521,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             info = info.add_title(id).add_key_value("Domain", domain);
         }
 
-        // In porcelain mode, skip the top-level "PROVIDERS" title
         if porcelain {
-            info = info.skip_first_title();
-        }
-
-        if porcelain {
-            crate::cli_format::format_columns(info.flatten_titles_to_rows().to_rows());
+            let porcelain = Porcelain::from(&info).skip(1);
+            crate::cli_format::format_columns(porcelain.to_rows());
         } else {
             self.writeln(info)?;
         }
@@ -584,7 +577,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         if porcelain {
-            crate::cli_format::format_columns(info.to_rows());
+            crate::cli_format::format_columns(Porcelain::from(&info).to_rows());
         } else {
             self.writeln(info)?;
         }
@@ -649,11 +642,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         if porcelain {
-            info = info.skip_first_title();
-        }
-
-        if porcelain {
-            crate::cli_format::format_columns(info.flatten_titles_to_rows().to_rows());
+            let porcelain = Porcelain::from(&info).skip(1);
+            crate::cli_format::format_columns(porcelain.to_rows());
         } else {
             self.writeln(info)?;
         }
@@ -678,7 +668,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let info = crate::config::build_config_info(agent, model, provider);
 
         if porcelain {
-            crate::cli_format::format_columns(info.to_rows());
+            crate::cli_format::format_columns(Porcelain::from(&info).to_rows());
         } else {
             self.writeln(info)?;
         }
@@ -705,7 +695,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         let info = format_tools(&agent_tools, &all_tools);
         if porcelain {
-            crate::cli_format::format_columns(info.to_rows());
+            crate::cli_format::format_columns(Porcelain::from(&info).to_rows());
         } else {
             self.writeln(info)?;
         }
@@ -734,7 +724,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         if porcelain {
-            crate::cli_format::format_columns(info.flatten_titles_to_rows().to_rows());
+            crate::cli_format::format_columns(Porcelain::from(&info).to_rows());
         } else {
             self.writeln(info)?;
         }
@@ -792,7 +782,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         if porcelain {
-            crate::cli_format::format_columns(info.to_rows());
+            crate::cli_format::format_columns(Porcelain::from(&info).to_rows());
         } else {
             self.writeln(info)?;
         }
@@ -864,11 +854,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // In porcelain mode, skip the top-level "SESSIONS" title
         if porcelain {
-            info = info.skip_first_title();
-        }
-
-        if porcelain {
-            crate::cli_format::format_columns(info.flatten_titles_to_rows().to_rows());
+            let porcelain = Porcelain::from(&info).skip(1);
+            crate::cli_format::format_columns(porcelain.to_rows());
         } else {
             self.writeln(info)?;
         }

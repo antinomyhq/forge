@@ -7,8 +7,10 @@ mod conversation_selector;
 mod editor;
 mod env;
 mod info;
+
 mod input;
 mod model;
+mod porcelain;
 mod prompt;
 mod sandbox;
 mod state;
