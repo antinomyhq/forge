@@ -47,6 +47,17 @@ impl PolicyConfig {
     }
 }
 
+impl Display for PolicyConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.policies.is_empty() {
+            write!(f, "No policies defined")
+        } else {
+            let policies: Vec<String> = self.policies.iter().map(|p| format!("• {p}")).collect();
+            write!(f, "Policies:\n{}", policies.join("\n"))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -115,17 +126,6 @@ mod tests {
             let deserialized: PolicyConfig =
                 serde_yml::from_str(&serialized).expect("Failed to deserialize policies");
             assert_eq!(policies, deserialized);
-        }
-    }
-}
-
-impl Display for PolicyConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if self.policies.is_empty() {
-            write!(f, "No policies defined")
-        } else {
-            let policies: Vec<String> = self.policies.iter().map(|p| format!("• {p}")).collect();
-            write!(f, "Policies:\n{}", policies.join("\n"))
         }
     }
 }

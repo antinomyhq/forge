@@ -47,7 +47,7 @@ async fn test_rendered_user_message() {
     let mut ctx = TestContext::default().mock_assistant_responses(vec![
         ChatCompletionMessage::assistant(Content::full("Hello!")).finish_reason(FinishReason::Stop),
     ]);
-    let current_time = ctx.current_time.clone();
+    let current_time = ctx.current_time;
     ctx.run("Hi").await.unwrap();
 
     let messages = ctx.output.context_messages();
@@ -70,7 +70,7 @@ async fn test_followup_does_not_trigger_session_summary() {
         ToolResult::new("followup").output(Ok(ToolOutput::text("Follow-up question sent")));
 
     let mut ctx = TestContext::default()
-        .mock_tool_call_responses(vec![(followup_call.clone().into(), followup_result)])
+        .mock_tool_call_responses(vec![(followup_call.clone(), followup_result)])
         .mock_assistant_responses(vec![
             ChatCompletionMessage::assistant("I need more information")
                 .tool_calls(vec![followup_call.into()]),
@@ -85,7 +85,7 @@ async fn test_followup_does_not_trigger_session_summary() {
         .chat_responses
         .iter()
         .flatten()
-        .any(|response| matches!(response, ChatResponse::TaskComplete { .. }));
+        .any(|response| matches!(response, ChatResponse::TaskComplete));
 
     assert!(
         !has_chat_complete,
@@ -128,7 +128,7 @@ async fn test_tool_call_start_end_responses_for_non_agent_tools() {
     let tool_result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("file content")));
 
     let mut ctx = TestContext::default()
-        .mock_tool_call_responses(vec![(tool_call.clone().into(), tool_result.clone())])
+        .mock_tool_call_responses(vec![(tool_call.clone(), tool_result.clone())])
         .mock_assistant_responses(vec![
             ChatCompletionMessage::assistant("Reading file")
                 .tool_calls(vec![tool_call.clone().into()]),
@@ -197,10 +197,7 @@ async fn test_no_tool_call_start_end_responses_for_agent_tools() {
         ToolResult::new("forge").output(Ok(ToolOutput::text("analysis complete")));
 
     let mut ctx = TestContext::default()
-        .mock_tool_call_responses(vec![(
-            agent_tool_call.clone().into(),
-            agent_tool_result.clone(),
-        )])
+        .mock_tool_call_responses(vec![(agent_tool_call.clone(), agent_tool_result.clone())])
         .mock_assistant_responses(vec![
             ChatCompletionMessage::assistant("Analyzing code")
                 .tool_calls(vec![agent_tool_call.into()]),
@@ -250,8 +247,8 @@ async fn test_mixed_agent_and_non_agent_tool_calls() {
 
     let mut ctx = TestContext::default()
         .mock_tool_call_responses(vec![
-            (fs_tool_call.clone().into(), fs_tool_result.clone()),
-            (agent_tool_call.clone().into(), agent_tool_result.clone()),
+            (fs_tool_call.clone(), fs_tool_result.clone()),
+            (agent_tool_call.clone(), agent_tool_result.clone()),
         ])
         .mock_assistant_responses(vec![
             ChatCompletionMessage::assistant("Reading and analyzing")
