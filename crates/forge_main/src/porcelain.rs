@@ -167,7 +167,11 @@ fn sections_have_common_fields(info: &Info) -> bool {
                 .iter()
                 .fold(
                     Some(all_fields),
-                    |common: Option<std::collections::HashSet<_>>, section| common.map(|common_fields| common_fields.intersection(section).cloned().collect()),
+                    |common: Option<std::collections::HashSet<_>>, section| {
+                        common.map(|common_fields| {
+                            common_fields.intersection(section).cloned().collect()
+                        })
+                    },
                 )
                 .is_some_and(|common_fields| !common_fields.is_empty())
         }
@@ -181,10 +185,11 @@ fn extract_field_order(info: &Info) -> Vec<String> {
 
     for section in info.sections() {
         if let Section::Items(key, _) = section
-            && !seen.contains(key) {
-                seen.insert(key.clone());
-                field_order.push(key.clone());
-            }
+            && !seen.contains(key)
+        {
+            seen.insert(key.clone());
+            field_order.push(key.clone());
+        }
     }
 
     field_order
