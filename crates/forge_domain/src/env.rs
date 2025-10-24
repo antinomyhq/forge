@@ -250,6 +250,7 @@ fn test_command_path() {
         tool_timeout: 300,
         auto_open_dump: false,
         custom_history_path: None,
+        max_conversations: 100,
     };
 
     let actual = fixture.command_path();
@@ -281,6 +282,7 @@ fn test_command_cwd_path() {
         tool_timeout: 300,
         auto_open_dump: false,
         custom_history_path: None,
+        max_conversations: 100,
     };
 
     let actual = fixture.command_cwd_path();
@@ -312,6 +314,7 @@ fn test_command_cwd_path_independent_from_command_path() {
         tool_timeout: 300,
         auto_open_dump: false,
         custom_history_path: None,
+        max_conversations: 100,
     };
 
     let command_path = fixture.command_path();
