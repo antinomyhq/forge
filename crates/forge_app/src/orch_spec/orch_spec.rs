@@ -401,7 +401,7 @@ async fn test_multi_turn_conversation_stops_only_on_finish_reason() {
         .mock_assistant_responses(vec![
             // First turn: Assistant responds without finish_reason - should continue
             ChatCompletionMessage::assistant("I'll check the current time for you."),
-            // Second turn: Assistant makes tool call without finish_reason - should continue
+            // Second turn: Assistant makes tool call with finish_reason - should continue
             ChatCompletionMessage::assistant("Checking time...")
                 .tool_calls(vec![time_tool_call.into()])
                 .finish_reason(FinishReason::ToolCalls),
