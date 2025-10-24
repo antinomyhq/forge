@@ -93,43 +93,81 @@ impl From<Info> for Porcelain {
 /// Converts Info reference to Porcelain representation
 impl From<&Info> for Porcelain {
     fn from(info: &Info) -> Self {
-        // Analyze the Info structure to determine how to convert it
-        let mut title_count = 0;
-        let mut key_value_count = 0;
-        let mut key_only_count = 0;
+        if is_hierarchical_table(info) {
+            convert_to_hierarchical(info)
+        } else {
+            convert_to_flat(info)
+        }
+    }
+}
 
-        // Track field names per section to detect if sections share the same schema
-        let mut sections_fields: Vec<std::collections::HashSet<String>> = Vec::new();
-        let mut current_fields = std::collections::HashSet::new();
+/// Checks if Info structure represents a hierarchical table
+fn is_hierarchical_table(info: &Info) -> bool {
+    let (title_count, key_value_count, key_only_count) = count_section_types(info);
+    let sections_fields = collect_section_fields(info);
 
-        for section in info.sections() {
-            match section {
-                Section::Title(_) => {
-                    title_count += 1;
-                    // Save previous section's field names
-                    if !current_fields.is_empty() {
-                        sections_fields.push(current_fields.clone());
-                        current_fields.clear();
-                    }
-                }
-                Section::Items(key, value) => {
-                    current_fields.insert(key.clone());
-                    if value.is_some() {
-                        key_value_count += 1;
-                    } else {
-                        key_only_count += 1;
-                    }
+    // Must have multiple titles and primarily key-value pairs
+    let has_table_structure =
+        title_count > 1 && key_value_count > 0 && key_value_count >= key_only_count;
+
+    has_table_structure && has_field_overlap(&sections_fields)
+}
+
+/// Counts titles, key-value pairs, and key-only items in Info
+fn count_section_types(info: &Info) -> (usize, usize, usize) {
+    let mut title_count = 0;
+    let mut key_value_count = 0;
+    let mut key_only_count = 0;
+
+    for section in info.sections() {
+        match section {
+            Section::Title(_) => title_count += 1,
+            Section::Items(_, value) => {
+                if value.is_some() {
+                    key_value_count += 1;
+                } else {
+                    key_only_count += 1;
                 }
             }
         }
-        // Don't forget the last section
-        if !current_fields.is_empty() {
-            sections_fields.push(current_fields);
-        }
+    }
 
-        // Check if sections have overlapping fields (same schema = table rows)
-        // If sections have completely different fields, they're categories (flat)
-        let has_field_overlap = if sections_fields.len() > 1 {
+    (title_count, key_value_count, key_only_count)
+}
+
+/// Collects field names per section to analyze schema consistency
+fn collect_section_fields(info: &Info) -> Vec<std::collections::HashSet<String>> {
+    let mut sections_fields = Vec::new();
+    let mut current_fields = std::collections::HashSet::new();
+
+    for section in info.sections() {
+        match section {
+            Section::Title(_) => {
+                if !current_fields.is_empty() {
+                    sections_fields.push(current_fields.clone());
+                    current_fields.clear();
+                }
+            }
+            Section::Items(key, _) => {
+                current_fields.insert(key.clone());
+            }
+        }
+    }
+
+    // Don't forget the last section
+    if !current_fields.is_empty() {
+        sections_fields.push(current_fields);
+    }
+
+    sections_fields
+}
+
+/// Checks if sections have overlapping fields (indicating same schema)
+fn has_field_overlap(sections_fields: &[std::collections::HashSet<String>]) -> bool {
+    match sections_fields.len() {
+        0 => false, // No sections with fields
+        1 => true,  // Single section (e.g., one provider/agent) - assume hierarchical
+        _ => {
             // Multiple sections: check for common fields across all
             let first_section = &sections_fields[0];
             let common_fields: std::collections::HashSet<_> = first_section
@@ -137,97 +175,78 @@ impl From<&Info> for Porcelain {
                 .filter(|field| sections_fields.iter().skip(1).all(|s| s.contains(*field)))
                 .collect();
 
-            // If there are ANY common fields across all sections, it's likely a table
             !common_fields.is_empty()
-        } else if sections_fields.len() == 1 {
-            // Single section with multiple titles (e.g., single provider/agent)
-            // Assume hierarchical if structure looks like: Title + EntityTitle + fields
-            true
-        } else {
-            // No sections with fields
-            false
-        };
-
-        // Hierarchical table structure:
-        // - Multiple titles with overlapping field names (same schema = table rows)
-        // - OR single entity with title structure (e.g., one provider/agent)
-        // - Primarily key-value pairs (not key-only lists like tools)
-        //
-        // Flat list structure:
-        // - Single title OR no field overlap (different schemas = categories)
-        // - HashMap handles field ordering automatically
-        let is_hierarchical_table = title_count > 1
-            && key_value_count > 0
-            && key_value_count >= key_only_count
-            && has_field_overlap;
-
-        if !is_hierarchical_table {
-            // Simple flat list (possibly with categories to skip)
-            // Cases:
-            // - config (1 title + items)
-            // - tools (multiple titles + key-only items)
-            // - info (multiple titles + inconsistent schemas)
-            let mut porcelain = Porcelain::new();
-            for section in info.sections() {
-                if let Section::Items(key, value) = section {
-                    let items = if let Some(value_str) = value {
-                        // Key-value pair
-                        vec![Some(key.clone()), Some(value_str.clone())]
-                    } else {
-                        // Key-only item
-                        vec![Some(key.clone())]
-                    };
-                    porcelain = porcelain.add_section(String::new(), items);
-                }
-            }
-            return porcelain;
         }
-
-        // Hierarchical table case: flatten structure into rows
-        // First pass: collect all unique field names in order
-        let mut field_order = Vec::new();
-        let mut seen_fields = std::collections::HashSet::new();
-
-        for section in info.sections() {
-            if let Section::Items(key, _) = section
-                && !seen_fields.contains(key)
-            {
-                field_order.push(key.clone());
-                seen_fields.insert(key.clone());
-            }
-        }
-
-        // Second pass: build Porcelain structure
-        let mut porcelain = Porcelain::new();
-        let mut current_title = String::new();
-        let mut current_row_data: HashMap<String, String> = HashMap::new();
-
-        for section in info.sections() {
-            match section {
-                Section::Title(title) => {
-                    // If we have data, build section for previous title
-                    if !current_title.is_empty() {
-                        let items = build_porcelain_items(&current_row_data, &field_order);
-                        porcelain = porcelain.add_section(current_title.clone(), items);
-                        current_row_data.clear();
-                    }
-                    current_title = title.clone();
-                }
-                Section::Items(key, value) => {
-                    let value_str = value.clone().unwrap_or_default();
-                    current_row_data.insert(key.clone(), value_str);
-                }
-            }
-        }
-
-        // Push the last section
-        if !current_title.is_empty() {
-            let items = build_porcelain_items(&current_row_data, &field_order);
-            porcelain = porcelain.add_section(current_title, items);
-        }
-
-        porcelain
     }
+}
+
+/// Converts Info to flat Porcelain (simple list)
+fn convert_to_flat(info: &Info) -> Porcelain {
+    let mut porcelain = Porcelain::new();
+
+    for section in info.sections() {
+        if let Section::Items(key, value) = section {
+            let items = if let Some(value_str) = value {
+                vec![Some(key.clone()), Some(value_str.clone())]
+            } else {
+                vec![Some(key.clone())]
+            };
+            porcelain = porcelain.add_section(String::new(), items);
+        }
+    }
+
+    porcelain
+}
+
+/// Converts Info to hierarchical Porcelain (table with title as first column)
+fn convert_to_hierarchical(info: &Info) -> Porcelain {
+    let field_order = collect_field_order(info);
+    let mut porcelain = Porcelain::new();
+    let mut current_title = String::new();
+    let mut current_row_data: HashMap<String, String> = HashMap::new();
+
+    for section in info.sections() {
+        match section {
+            Section::Title(title) => {
+                // Save previous title's data
+                if !current_title.is_empty() {
+                    let items = build_porcelain_items(&current_row_data, &field_order);
+                    porcelain = porcelain.add_section(current_title.clone(), items);
+                    current_row_data.clear();
+                }
+                current_title = title.clone();
+            }
+            Section::Items(key, value) => {
+                let value_str = value.clone().unwrap_or_default();
+                current_row_data.insert(key.clone(), value_str);
+            }
+        }
+    }
+
+    // Save the last title's data
+    if !current_title.is_empty() {
+        let items = build_porcelain_items(&current_row_data, &field_order);
+        porcelain = porcelain.add_section(current_title, items);
+    }
+
+    porcelain
+}
+
+/// Collects unique field names in order of first appearance
+fn collect_field_order(info: &Info) -> Vec<String> {
+    let mut field_order = Vec::new();
+    let mut seen_fields = std::collections::HashSet::new();
+
+    for section in info.sections() {
+        if let Section::Items(key, _) = section
+            && !seen_fields.contains(key)
+        {
+            field_order.push(key.clone());
+            seen_fields.insert(key.clone());
+        }
+    }
+
+    field_order
 }
 
 /// Helper function to build items vector for Porcelain
