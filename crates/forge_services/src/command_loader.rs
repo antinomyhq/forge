@@ -67,7 +67,10 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
             [
                 ("fixme", include_str!("../../../.forge/commands/fixme.md")),
                 ("check", include_str!("../../../.forge/commands/check.md")),
-                ("pr-description", include_str!("../../../.forge/commands/pr_description.md")),
+                (
+                    "pr-description",
+                    include_str!("../../../.forge/commands/pr_description.md"),
+                ),
             ]
             .into_iter()
             .map(|(name, content)| (name.to_string(), content.to_string())),
