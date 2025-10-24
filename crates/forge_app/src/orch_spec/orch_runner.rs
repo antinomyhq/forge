@@ -80,7 +80,6 @@ impl Runner {
             conversation,
             setup.current_time,
             agent
-                // TODO: needs review, not sure how to pass commands here.
                 .apply_workflow_config(&setup.workflow)
                 .set_model_deeply(setup.model.clone()),
             event,
