@@ -111,20 +111,23 @@ where
         // Clear failed servers map before attempting new connections
         self.failed_servers.write().await.clear();
 
-        let server_names: Vec<ServerName> = mcp.mcp_servers.keys().cloned().collect();
         let connections: Vec<_> = mcp
             .mcp_servers
             .into_iter()
+            .filter(|v| !v.1.is_disabled())
             .map(|(name, server)| async move {
-                self.connect(&name, server)
+                let conn = self
+                    .connect(&name, server)
                     .await
-                    .context(format!("Failed to initiate MCP server: {name}"))
+                    .context(format!("Failed to initiate MCP server: {name}"));
+
+                (name, conn)
             })
             .collect();
 
         let results = futures::future::join_all(connections).await;
 
-        for (result, server_name) in results.into_iter().zip(server_names) {
+        for (server_name, result) in results {
             match result {
                 Ok(_) => {}
                 Err(error) => {
