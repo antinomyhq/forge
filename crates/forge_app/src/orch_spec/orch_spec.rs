@@ -197,10 +197,7 @@ async fn test_no_tool_call_start_end_responses_for_agent_tools() {
         ToolResult::new("forge").output(Ok(ToolOutput::text("analysis complete")));
 
     let mut ctx = TestContext::default()
-        .mock_tool_call_responses(vec![(
-            agent_tool_call.clone(),
-            agent_tool_result.clone(),
-        )])
+        .mock_tool_call_responses(vec![(agent_tool_call.clone(), agent_tool_result.clone())])
         .mock_assistant_responses(vec![
             ChatCompletionMessage::assistant("Analyzing code")
                 .tool_calls(vec![agent_tool_call.into()]),

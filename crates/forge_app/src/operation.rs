@@ -1535,7 +1535,8 @@ mod tests {
         // make sure that the content is truncated
         assert!(
             !actual
-                .values.first()
+                .values
+                .first()
                 .unwrap()
                 .as_str()
                 .unwrap()

@@ -231,7 +231,9 @@ mod tests {
 
     #[test]
     fn test_truncation_with_prefix_and_suffix() {
-        let stdout = ["line 1", "line 2", "line 3", "line 4", "line 5", "line 6", "line 7"]
+        let stdout = [
+            "line 1", "line 2", "line 3", "line 4", "line 5", "line 6", "line 7",
+        ]
         .join("\n");
         let stderr = ["error 1", "error 2", "error 3", "error 4", "error 5"].join("\n");
 
@@ -349,12 +351,14 @@ mod tests {
 
     #[test]
     fn test_long_line() {
-        let stdout = ["line 1 ",
+        let stdout = [
+            "line 1 ",
             "line abcdefghijklmnopqrstuvwxyz",
             "line 2",
             "line 3",
             "line 4",
-            "line 5"]
+            "line 5",
+        ]
         .join("\n");
 
         let actual = truncate_shell_output(&stdout, "", usize::MAX, usize::MAX, 10);
@@ -371,10 +375,12 @@ mod tests {
 
     #[test]
     fn test_line_truncation_with_multiple_long_lines() {
-        let stdout = ["short",
+        let stdout = [
+            "short",
             "this is a very long line that exceeds limit",
             "another very long line that also exceeds the limit",
-            "short again"]
+            "short again",
+        ]
         .join("\n");
 
         let actual = truncate_shell_output(&stdout, "", usize::MAX, usize::MAX, 15);
@@ -391,13 +397,15 @@ mod tests {
 
     #[test]
     fn test_line_truncation_with_line_count_truncation() {
-        let stdout = ["line 1",
+        let stdout = [
+            "line 1",
             "very long line that will be truncated",
             "line 3",
             "line 4",
             "line 5",
             "line 6",
-            "line 7"]
+            "line 7",
+        ]
         .join("\n");
 
         let actual = truncate_shell_output(&stdout, "", 2, 2, 10);
@@ -417,13 +425,14 @@ mod tests {
 
     #[test]
     fn test_no_line_truncation_when_limit_not_set() {
-        let stdout = ["line 1",
+        let stdout = [
+            "line 1",
             "very long line that will not be truncated because no limit is set",
-            "line 3"]
+            "line 3",
+        ]
         .join("\n");
 
-        let actual =
-            truncate_shell_output(&stdout, "", usize::MAX, usize::MAX, 2000);
+        let actual = truncate_shell_output(&stdout, "", usize::MAX, usize::MAX, 2000);
         let expected = TruncatedShellOutput::default().stdout(
             Stdout::default()
                 .head("line 1\nvery long line that will not be truncated because no limit is set\nline 3")
@@ -435,12 +444,14 @@ mod tests {
     }
     #[test]
     fn test_clip_by_lines_with_unicode_chars() {
-        let fixture = ["emoji 😀 line",
+        let fixture = [
+            "emoji 😀 line",
             "Unicode café résumé naïve",
             "Regular ASCII line",
             "中文字符测试",
             "Emojis: 🎉🚀💯",
-            "Another normal line"]
+            "Another normal line",
+        ]
         .join("\n");
 
         let actual = clip_by_lines(&fixture, 2, 2, 15);
