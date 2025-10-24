@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use forge_app::Services;
 
-use crate::agent_loader::AgentLoaderService as ForgeAgentLoaderService;
+use crate::agent_registry::AgentLoaderService as ForgeAgentLoaderService;
 use crate::attachment::ForgeChatRequest;
 use crate::auth::ForgeAuthService;
 use crate::command_loader::CommandLoaderService as ForgeCommandLoaderService;
