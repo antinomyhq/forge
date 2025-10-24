@@ -169,20 +169,6 @@ fn apply_replacement(
                     ))
                 }
             }
-
-            // Delete the matched text
-            PatchOperation::Delete => {
-                let end_pos = if haystack.chars().nth(patch.end()) == Some('\n') {
-                    patch.end() + 1 // Include the trailing newline
-                } else {
-                    patch.end()
-                };
-                Ok(format!(
-                    "{}{}",
-                    &haystack[..patch.start],
-                    &haystack[end_pos..]
-                ))
-            }
         }
     } else {
         match operation {
@@ -194,8 +180,6 @@ fn apply_replacement(
             PatchOperation::Replace | PatchOperation::ReplaceAll => Ok(content.to_string()),
             // Swap doesn't make sense with empty search - keep source unchanged
             PatchOperation::Swap => Ok(haystack),
-            // Delete with empty search doesn't make sense - keep source unchanged
-            PatchOperation::Delete => Ok(haystack),
         }
     }
 }
@@ -205,11 +189,10 @@ fn apply_replacement(
 // Using FSPatchInput from forge_domain
 
 /// Modifies files with targeted text operations on matched patterns. Supports
-/// prepend, append, replace, swap, delete operations on first pattern
-/// occurrence. Ideal for precise changes to configs, code, or docs while
-/// preserving context. Not suitable for complex refactoring or modifying all
-/// pattern occurrences - use write instead for complete
-/// rewrites and undo for undoing the last operation. Fails if
+/// prepend, append, replace, and swap operations on pattern occurrences.
+/// Ideal for precise changes to configs, code, or docs while preserving
+/// context. Not suitable for complex refactoring - use write instead for
+/// complete rewrites and undo for undoing the last operation. Fails if
 /// search pattern isn't found.
 pub struct ForgeFsPatch<F>(Arc<F>);
 
@@ -572,180 +555,5 @@ mod tests {
                 .to_string()
                 .contains("Could not find match for search text: 'missing'")
         );
-    }
-
-    #[test]
-    fn test_apply_replacement_delete() {
-        let source = "hello world test";
-        let search = Some("world ".to_string());
-        let operation = PatchOperation::Delete;
-        let content = "ignored";
-
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
-        assert_eq!(result.unwrap(), "hello test");
-    }
-
-    #[test]
-    fn test_apply_replacement_delete_no_search() {
-        let source = "hello world";
-        let search = None;
-        let operation = PatchOperation::Delete;
-        let content = "ignored";
-
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
-        assert_eq!(result.unwrap(), "hello world");
-    }
-
-    #[test]
-    fn test_apply_replacement_delete_empty_search() {
-        let source = "hello world";
-        let search = Some("".to_string());
-        let operation = PatchOperation::Delete;
-        let content = "ignored";
-
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
-        assert_eq!(result.unwrap(), "hello world");
-    }
-
-    #[test]
-    fn test_apply_replacement_delete_no_match() {
-        let source = "hello world";
-        let search = Some("missing".to_string());
-        let operation = PatchOperation::Delete;
-        let content = "ignored";
-
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Could not find match for search text: 'missing'")
-        );
-    }
-
-    #[test]
-    fn test_apply_replacement_delete_multiline() {
-        let source = "line1\nline2\nline3\nline4";
-        let search = Some("line2".to_string());
-        let operation = PatchOperation::Delete;
-        let content = "ignored";
-
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
-        assert_eq!(result.unwrap(), "line1\nline3\nline4");
-    }
-
-    #[test]
-    fn test_apply_replacement_delete_last_line() {
-        let source = "line1\nline2\nline3";
-        let search = Some("line3".to_string());
-        let operation = PatchOperation::Delete;
-        let content = "ignored";
-
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
-        assert_eq!(result.unwrap(), "line1\nline2\n");
-    }
-
-    #[test]
-    fn test_apply_replacement_delete_empty_string() {
-        let source = "";
-        let search = Some("".to_string());
-        let operation = PatchOperation::Delete;
-        let content = "ignored";
-
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
-        assert_eq!(result.unwrap(), "");
-    }
-
-    #[test]
-    fn test_apply_replacement_delete_single_character() {
-        let source = "abc";
-        let search = Some("b".to_string());
-        let operation = PatchOperation::Delete;
-        let content = "ignored";
-
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
-        assert_eq!(result.unwrap(), "ac");
-    }
-
-    #[test]
-    fn test_apply_replacement_delete_unicode_characters() {
-        let source = "héllo 🌍 wörld";
-        let search = Some("🌍 ".to_string());
-        let operation = PatchOperation::Delete;
-        let content = "ignored";
-
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
-        assert_eq!(result.unwrap(), "héllo wörld");
-    }
-
-    #[test]
-    fn test_apply_replacement_delete_consecutive_newlines() {
-        let source = "line1\n\nline3";
-        let search = Some("\n".to_string());
-        let operation = PatchOperation::Delete;
-        let content = "ignored";
-
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
-        // When deleting the first \n from \n\n, both get deleted due to our newline
-        // handling logic
-        assert_eq!(result.unwrap(), "line1line3");
-    }
-
-    #[test]
-    fn test_apply_replacement_delete_first_character() {
-        let source = "xhello";
-        let search = Some("x".to_string());
-        let operation = PatchOperation::Delete;
-        let content = "ignored";
-
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
-        assert_eq!(result.unwrap(), "hello");
-    }
-
-    #[test]
-    fn test_apply_replacement_delete_very_last_character() {
-        let source = "hellox";
-        let search = Some("x".to_string());
-        let operation = PatchOperation::Delete;
-        let content = "ignored";
-
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
-        assert_eq!(result.unwrap(), "hello");
-    }
-
-    #[test]
-    fn test_apply_replacement_delete_entire_content() {
-        let source = "single line";
-        let search = Some("single line".to_string());
-        let operation = PatchOperation::Delete;
-        let content = "ignored";
-
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
-        assert_eq!(result.unwrap(), "");
-    }
-
-    #[test]
-    fn test_apply_replacement_delete_with_carriage_return() {
-        let source = "line1\r\nline2\r\nline3";
-        let search = Some("line2".to_string());
-        let operation = PatchOperation::Delete;
-        let content = "ignored";
-
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
-        // Should delete "line2" but leave the \r\n, resulting in "line1\r\n\r\nline3"
-        assert_eq!(result.unwrap(), "line1\r\n\r\nline3");
-    }
-
-    #[test]
-    fn test_apply_replacement_delete_boundary_condition() {
-        // Test edge case where patch.end() is at the string boundary
-        let source = "a";
-        let search = Some("a".to_string());
-        let operation = PatchOperation::Delete;
-        let content = "ignored";
-
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
-        assert_eq!(result.unwrap(), "");
     }
 }
