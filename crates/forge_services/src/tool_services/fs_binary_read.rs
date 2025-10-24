@@ -53,8 +53,9 @@ impl<F: FileInfoInfra + EnvironmentInfra + crate::infra::FileReaderInfra> FsBina
         assert_absolute_path(path)?;
         let env = self.0.get_environment();
 
-        // Validate file size before reading content using binary file size limit
-        crate::tool_services::fs_read::assert_file_size(&*self.0, path, env.max_file_size).await?;
+        // Validate file size before reading content using image-specific file size
+        // limit
+        crate::tool_services::fs_read::assert_file_size(&*self.0, path, env.max_image_size).await?;
 
         // Determine image format from file extension
         let extension = path

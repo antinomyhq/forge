@@ -52,6 +52,8 @@ pub struct Environment {
     pub http: HttpConfig,
     /// Maximum file size in bytes for operations
     pub max_file_size: u64,
+    /// Maximum image file size in bytes for binary read operations
+    pub max_image_size: u64,
     /// Maximum execution time in seconds for a single tool call.
     /// Controls how long a tool can run before being terminated.
     pub tool_timeout: u64,
@@ -164,6 +166,7 @@ mod tests {
             max_read_size: 2000,
             http: HttpConfig::default(),
             max_file_size: 104857600,
+            max_image_size: 262144,
             tool_timeout: 300,
             auto_open_dump: false,
             custom_history_path: None,
@@ -197,6 +200,7 @@ mod tests {
             max_read_size: 2000,
             http: HttpConfig::default(),
             max_file_size: 104857600,
+            max_image_size: 262144,
             tool_timeout: 300,
             auto_open_dump: false,
             custom_history_path: None,

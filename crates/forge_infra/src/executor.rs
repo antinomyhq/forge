@@ -225,6 +225,7 @@ mod tests {
             http: Default::default(),
             tool_timeout: 300,
             max_file_size: 10_000_000,
+            max_image_size: 262144,
             forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
             auto_open_dump: false,
             custom_history_path: None,
