@@ -17,7 +17,7 @@ pub use oauth::*;
 pub use provider_auth_error::*;
 pub use provider_auth_service::*;
 pub use registry::{
-    ForgeProviderRegistry, get_provider_auth_methods, get_provider_display_name,
+    ForgeProviderRegistry, get_provider_auth_methods,
     get_provider_env_vars,
 };
 pub use service::*;

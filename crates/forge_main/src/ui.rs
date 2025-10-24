@@ -514,7 +514,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .save_provider_credentials(provider_id, auth_res, method)
             .await?;
 
-        Self::display_credential_success(provider_id.as_ref());
+        self.display_credential_success(provider_id).await?;
 
         Ok(())
     }
@@ -662,8 +662,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     ) -> Result<()> {
         use std::time::Duration;
 
-        use forge_services::registry::get_provider_display_name;
-
         self.spinner.stop(None)?;
         // Display OAuth device information
         Self::display_oauth_device_info_new(
@@ -673,7 +671,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         );
 
         // Step 2: Poll until authentication completes (10 minute timeout)
-        let display_name = get_provider_display_name(&provider_id);
         self.spinner.start(Some("Waiting for authorization..."))?;
 
         let auth_result = self
@@ -692,7 +689,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         self.spinner.stop(None)?;
 
-        Self::display_credential_success(&display_name);
+        self.display_credential_success(provider_id).await?;
         Ok(())
     }
 
@@ -706,16 +703,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         context: AuthContext,
     ) -> anyhow::Result<()> {
         use colored::Colorize;
-        use forge_services::registry::get_provider_display_name;
 
-        let display_name = get_provider_display_name(&provider_id);
         self.spinner.stop(None)?;
 
         println!();
-        println!("{} OAuth Authentication", display_name.bold());
+        println!("{} OAuth Authentication", provider_id);
         println!(
             "{}",
-            format!("Authenticate using your {} account", display_name).dimmed()
+            format!("Authenticate using your {} account", provider_id).dimmed()
         );
         println!();
 
@@ -756,7 +751,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         self.spinner.stop(None)?;
 
-        Self::display_credential_success(&display_name);
+        self.display_credential_success(provider_id).await?;
         Ok(())
     }
 
@@ -787,29 +782,37 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     /// Displays credential configuration success message with next steps
     ///
-    /// Shows success confirmation and suggests next actions (set as active
-    /// provider, start chatting).
+    /// Shows success confirmation and prompts to set as active provider.
     ///
     /// # Arguments
-    /// * `provider_name` - Display name of the configured provider
-    fn display_credential_success(provider_name: &str) {
+    /// * `provider_id` - The configured provider ID
+    async fn display_credential_success(&mut self, provider_id: ProviderId) -> anyhow::Result<()> {
         use colored::Colorize;
-
         println!();
         println!(
             "{} {} configured successfully!",
             "✓".green(),
-            provider_name.bold()
+            provider_id
         );
         println!();
-        println!("Next steps:");
-        println!(
-            "  {} Set as active provider: {}",
-            "→".blue(),
-            format!("forge config set provider {}", provider_name).dimmed()
-        );
-        println!("  {} Start chatting: {}", "→".blue(), "forge".dimmed());
-        println!();
+
+        // Prompt user to set as active provider
+        let should_set_active = ForgeSelect::confirm(format!(
+            "Would you like to set {} as the active provider?",
+            provider_id
+        ))
+        .with_default(true)
+        .prompt()?
+        .unwrap_or(false);
+
+        if should_set_active {
+            self.api.set_provider(provider_id).await?;
+            self.writeln_title(TitleFormat::action(format!(
+                "Provider set: {}",
+                provider_id
+            )))?;
+        }
+        Ok(())
     }
 
     async fn validate_session_exists(
