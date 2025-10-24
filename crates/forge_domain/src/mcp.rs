@@ -256,18 +256,12 @@ mod tests {
 
     #[test]
     fn test_mcp_server_config_disabled() {
-        let server = McpStdioServer {
-            disable: true,
-            ..Default::default()
-        };
+        let server = McpStdioServer { disable: true, ..Default::default() };
 
         let config = McpServerConfig::Stdio(server);
         assert!(config.is_disabled());
 
-        let sse_server = McpSseServer {
-            disable: false,
-            ..Default::default()
-        };
+        let sse_server = McpSseServer { disable: false, ..Default::default() };
 
         let config = McpServerConfig::Sse(sse_server);
         assert!(!config.is_disabled());
