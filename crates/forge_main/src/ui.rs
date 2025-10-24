@@ -78,7 +78,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     /// Helper to get model for an optional agent, defaulting to the current
     /// active agent's model
-    async fn get_model(&self, agent_id: Option<AgentId>) -> Option<ModelId> {
+    async fn get_agent_model(&self, agent_id: Option<AgentId>) -> Option<ModelId> {
         match agent_id {
             Some(id) => self.api.get_agent_model(id).await,
             None => self.api.get_default_model().await,
@@ -167,7 +167,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Prompt the user for input
         let agent_id = self.api.get_active_agent().await.unwrap_or_default();
-        let model = self.get_model(self.api.get_active_agent().await).await;
+        let model = self
+            .get_agent_model(self.api.get_active_agent().await)
+            .await;
         let forge_prompt = ForgePrompt { cwd: self.state.cwd.clone(), usage, model, agent_id };
         self.console.prompt(forge_prompt).await
     }
@@ -653,7 +655,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_show_config(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let agent = self.api.get_active_agent().await;
         let model = self
-            .get_model(agent.clone())
+            .get_agent_model(agent.clone())
             .await
             .map(|m| m.as_str().to_string());
         let provider = self
@@ -729,15 +731,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         };
 
         let key_info = self.api.get_login_info().await;
-        let operating_agent = self.api.get_active_agent().await;
-        let operating_model = self.get_model(self.api.get_active_agent().await).await;
+        // Fetch agent
+        let agent = self.api.get_active_agent().await;
 
-        // Fetch both default provider and agent-specific provider
-        let default_provider = self
-            .get_provider(self.api.get_active_agent().await)
-            .await
-            .ok();
-        let agent_provider = self.get_provider(operating_agent.clone()).await.ok();
+        // Fetch model (resolved with default model if unset)
+        let model = self.get_agent_model(agent.clone()).await;
+
+        // Fetch agent-specific provider or default provider if unset
+        let agent_provider = self.get_provider(agent.clone()).await.ok();
+
+        // Fetch default provider (could be different from the set provider)
+        let default_provider = self.api.get_default_provider().await.ok();
 
         // Add conversation information if available
         if let Some(conversation) = conversation {
@@ -751,12 +755,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         info = info.add_title("AGENT");
-        if let Some(agent) = operating_agent {
+        if let Some(agent) = agent {
             info = info.add_key_value("ID", agent.as_str().to_uppercase());
         }
 
         // Add model information if available
-        if let Some(model) = operating_model {
+        if let Some(model) = model {
             info = info.add_key_value("Model", model);
         }
 
@@ -764,13 +768,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         match (default_provider, agent_provider) {
             (Some(default), Some(agent_specific)) if default.id != agent_specific.id => {
                 // Show both providers if they're different
-                info = info.add_key_value("Default Provider (URL)", default.url);
-                if let Some(ref api_key) = default.key {
-                    info = info.add_key_value("Default API Key", truncate_key(api_key));
-                }
                 info = info.add_key_value("Agent Provider (URL)", agent_specific.url);
                 if let Some(ref api_key) = agent_specific.key {
                     info = info.add_key_value("Agent API Key", truncate_key(api_key));
+                }
+
+                info = info.add_key_value("Default Provider (URL)", default.url);
+                if let Some(ref api_key) = default.key {
+                    info = info.add_key_value("Default API Key", truncate_key(api_key));
                 }
             }
             (Some(provider), _) | (_, Some(provider)) => {
@@ -1062,7 +1067,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         models.sort_by(|a, b| a.0.name.cmp(&b.0.name));
 
         // Find the index of the current model
-        let current_model = self.get_model(self.api.get_active_agent().await).await;
+        let current_model = self
+            .get_agent_model(self.api.get_active_agent().await)
+            .await;
         let starting_cursor = current_model
             .as_ref()
             .and_then(|current| models.iter().position(|m| &m.0.id == current))
@@ -1158,7 +1165,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         )))?;
 
         // Check if the current model is available for the new provider
-        let current_model = self.get_model(self.api.get_active_agent().await).await;
+        let current_model = self
+            .get_agent_model(self.api.get_active_agent().await)
+            .await;
         if let Some(current_model) = current_model {
             let models = self.get_models().await?;
             let model_available = models.iter().any(|m| m.id == current_model);
@@ -1288,7 +1297,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             sub_title.push_str(format!("via {}", agent).as_str());
         }
 
-        if let Some(ref model) = self.get_model(self.api.get_active_agent().await).await {
+        if let Some(ref model) = self
+            .get_agent_model(self.api.get_active_agent().await)
+            .await
+        {
             sub_title.push_str(format!("/{}", model.as_str()).as_str());
         }
 
@@ -1305,7 +1317,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Ensure we have a model selected before proceeding with initialization
         if self
-            .get_model(self.api.get_active_agent().await)
+            .get_agent_model(self.api.get_active_agent().await)
             .await
             .is_none()
         {
@@ -1362,7 +1374,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Register all the commands
         self.command.register_all(self.api.get_commands().await?);
 
-        let operating_model = self.get_model(self.api.get_active_agent().await).await;
+        let operating_model = self
+            .get_agent_model(self.api.get_active_agent().await)
+            .await;
         self.state = UIState::new(self.api.environment());
         self.update_model(operating_model);
 
