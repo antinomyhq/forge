@@ -414,7 +414,7 @@ impl<S: AgentService> Orchestrator<S> {
                 total_tokens = format!("{}", usage.total_tokens),
                 cached_tokens = format!("{}", usage.cached_tokens),
                 cost = usage.cost.unwrap_or_default(),
-                finish_reason = finish_reason.map_or("", |reason| reason.into()),
+                finish_reason = finish_reason.as_ref().map_or("", |reason| reason.into()),
                 "Processing usage information"
             );
 
@@ -425,8 +425,8 @@ impl<S: AgentService> Orchestrator<S> {
 
             debug!(agent_id = %agent.id, tool_call_count = tool_calls.len(), "Tool call count");
 
-            // Turn is completed, if no more tool calls are made
-            is_complete = tool_calls.is_empty();
+            // Turn is completed, if finish_reason is 'stop'.
+            is_complete = finish_reason == Some(FinishReason::Stop);
 
             // Should yield if a tool is asking for a follow-up
             should_yield = is_complete
