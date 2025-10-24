@@ -25,7 +25,8 @@ pub fn generate_ci_workflow() {
         )
         .add_step(Step::new("Cargo Fmt").run("cargo +nightly fmt --all --check"))
         .add_step(
-            Step::new("Cargo Clippy").run("cargo +nightly clippy --all-features --workspace"),
+            Step::new("Cargo Clippy")
+                .run("cargo +nightly clippy --all-features --all-targets --workspace"),
         );
 
     let draft_release_job = jobs::create_draft_release_job("build");

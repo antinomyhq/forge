@@ -245,6 +245,40 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
     }
 }
 
+fn create_reasoning_config_section(conversation: &Conversation) -> Element {
+    let section =
+        Element::new("div.section").append(Element::new("h2").text("Reasoning Configuration"));
+
+    if let Some(context) = &conversation.context {
+        if let Some(reasoning_config) = &context.reasoning {
+            section
+                .append(
+                    Element::new("p")
+                        .append(Element::new("strong").text("Status: "))
+                        .text(match reasoning_config.enabled {
+                            Some(true) => "Enabled",
+                            Some(false) => "Disabled",
+                            None => "Not specified",
+                        }),
+                )
+                .append(
+                    Element::new("p")
+                        .append(Element::new("strong").text("Effort: "))
+                        .text(format!("{:?}", reasoning_config.effort)),
+                )
+                .append(reasoning_config.max_tokens.map(|max_tokens| {
+                    Element::new("p")
+                        .append(Element::new("strong").text("Max Tokens: "))
+                        .text(format!("{:?}", max_tokens))
+                }))
+        } else {
+            section.append(Element::new("p").text("No reasoning configuration found"))
+        }
+    } else {
+        section.append(Element::new("p").text("No context available"))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -310,39 +344,5 @@ mod tests {
 
         // Verify reasoning indicator in message header
         assert!(actual.contains("🧠 Reasoning"));
-    }
-}
-
-fn create_reasoning_config_section(conversation: &Conversation) -> Element {
-    let section =
-        Element::new("div.section").append(Element::new("h2").text("Reasoning Configuration"));
-
-    if let Some(context) = &conversation.context {
-        if let Some(reasoning_config) = &context.reasoning {
-            section
-                .append(
-                    Element::new("p")
-                        .append(Element::new("strong").text("Status: "))
-                        .text(match reasoning_config.enabled {
-                            Some(true) => "Enabled",
-                            Some(false) => "Disabled",
-                            None => "Not specified",
-                        }),
-                )
-                .append(
-                    Element::new("p")
-                        .append(Element::new("strong").text("Effort: "))
-                        .text(format!("{:?}", reasoning_config.effort)),
-                )
-                .append(reasoning_config.max_tokens.map(|max_tokens| {
-                    Element::new("p")
-                        .append(Element::new("strong").text("Max Tokens: "))
-                        .text(format!("{:?}", max_tokens))
-                }))
-        } else {
-            section.append(Element::new("p").text("No reasoning configuration found"))
-        }
-    } else {
-        section.append(Element::new("p").text("No context available"))
     }
 }

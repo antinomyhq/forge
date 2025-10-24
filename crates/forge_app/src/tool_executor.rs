@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use forge_domain::{LineNumbers, TitleFormat, ToolCallContext, ToolCallFull, ToolOutput, Tools};
@@ -111,6 +112,19 @@ impl<
         }
     }
 
+    /// Converts a path to absolute by joining it with the current working
+    /// directory if it's relative
+    fn normalize_path(&self, path: String) -> String {
+        let env = self.services.get_environment();
+        let path_buf = PathBuf::from(&path);
+
+        if path_buf.is_absolute() {
+            path
+        } else {
+            PathBuf::from(&env.cwd).join(path_buf).display().to_string()
+        }
+    }
+
     async fn create_temp_file(
         &self,
         prefix: &str,
@@ -138,10 +152,11 @@ impl<
     async fn call_internal(&self, input: Tools) -> anyhow::Result<ToolOperation> {
         Ok(match input {
             Tools::Read(input) => {
+                let normalized_path = self.normalize_path(input.path.clone());
                 let output = self
                     .services
                     .read(
-                        input.path.clone(),
+                        normalized_path,
                         input.start_line.map(|i| i as u64),
                         input.end_line.map(|i| i as u64),
                     )
@@ -159,10 +174,11 @@ impl<
                 (input, output).into()
             }
             Tools::Write(input) => {
+                let normalized_path = self.normalize_path(input.path.clone());
                 let output = self
                     .services
                     .create(
-                        input.path.clone(),
+                        normalized_path,
                         input.content.clone(),
                         input.overwrite,
                         true,
@@ -171,10 +187,11 @@ impl<
                 (input, output).into()
             }
             Tools::Search(input) => {
+                let normalized_path = self.normalize_path(input.path.clone());
                 let output = self
                     .services
                     .search(
-                        input.path.clone(),
+                        normalized_path,
                         input.regex.clone(),
                         input.file_pattern.clone(),
                     )
@@ -182,14 +199,16 @@ impl<
                 (input, output).into()
             }
             Tools::Remove(input) => {
-                let output = self.services.remove(input.path.clone()).await?;
+                let normalized_path = self.normalize_path(input.path.clone());
+                let output = self.services.remove(normalized_path).await?;
                 (input, output).into()
             }
             Tools::Patch(input) => {
+                let normalized_path = self.normalize_path(input.path.clone());
                 let output = self
                     .services
                     .patch(
-                        input.path.clone(),
+                        normalized_path,
                         input.search.clone(),
                         input.operation.clone(),
                         input.content.clone(),
@@ -198,15 +217,17 @@ impl<
                 (input, output).into()
             }
             Tools::Undo(input) => {
-                let output = self.services.undo(input.path.clone()).await?;
+                let normalized_path = self.normalize_path(input.path.clone());
+                let output = self.services.undo(normalized_path).await?;
                 (input, output).into()
             }
             Tools::Shell(input) => {
+                let normalized_cwd = self.normalize_path(input.cwd.display().to_string());
                 let output = self
                     .services
                     .execute(
                         input.command.clone(),
-                        input.cwd.clone(),
+                        PathBuf::from(normalized_cwd),
                         input.keep_ansi,
                         input.env.clone(),
                     )

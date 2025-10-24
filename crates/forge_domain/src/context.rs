@@ -712,14 +712,12 @@ mod tests {
         assert_eq!(actual, expected);
 
         // case 2: context with usage - since total_tokens present return that.
-        let mut usage = Usage::default();
-        usage.total_tokens = TokenCount::Actual(100);
+        let usage = Usage { total_tokens: TokenCount::Actual(100), ..Default::default() };
         let fixture = Context::default().usage(usage);
         assert_eq!(fixture.token_count(), TokenCount::Actual(100));
 
         // case 3: context with usage - since total_tokens present return that.
-        let mut usage = Usage::default();
-        usage.total_tokens = TokenCount::Actual(80);
+        let usage = Usage { total_tokens: TokenCount::Actual(80), ..Default::default() };
         let fixture = Context::default().usage(usage);
         assert_eq!(fixture.token_count(), TokenCount::Actual(80));
 

@@ -431,8 +431,10 @@ mod tests {
         let openai_provider = OpenAIProvider::new(provider, http_client);
 
         // Create a request with session_id
-        let mut request = Request::default();
-        request.session_id = Some("test-conversation-id".to_string());
+        let request = Request {
+            session_id: Some("test-conversation-id".to_string()),
+            ..Default::default()
+        };
 
         let headers = openai_provider.get_headers_with_request(&request);
 
@@ -458,8 +460,10 @@ mod tests {
         let openai_provider = OpenAIProvider::new(provider, http_client);
 
         // Create a request with session_id
-        let mut request = Request::default();
-        request.session_id = Some("test-conversation-id".to_string());
+        let request = Request {
+            session_id: Some("test-conversation-id".to_string()),
+            ..Default::default()
+        };
 
         let headers = openai_provider.get_headers_with_request(&request);
 
@@ -485,8 +489,10 @@ mod tests {
         let openai_provider = OpenAIProvider::new(provider, http_client);
 
         // Create a request with session_id
-        let mut request = Request::default();
-        request.session_id = Some("test-conversation-id".to_string());
+        let request = Request {
+            session_id: Some("test-conversation-id".to_string()),
+            ..Default::default()
+        };
 
         let headers = openai_provider.get_headers_with_request(&request);
 
@@ -530,8 +536,10 @@ mod tests {
         let openai_provider = OpenAIProvider::new(provider, http_client);
 
         // Create a request with session_id
-        let mut request = Request::default();
-        request.session_id = Some("test-conversation-id".to_string());
+        let request = Request {
+            session_id: Some("test-conversation-id".to_string()),
+            ..Default::default()
+        };
 
         let headers = openai_provider.get_headers_with_request(&request);
 

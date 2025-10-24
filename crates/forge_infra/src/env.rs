@@ -384,7 +384,7 @@ mod tests {
         assert_eq!(actual.backoff_factor, 3);
         assert_eq!(actual.max_retry_attempts, 5);
         assert_eq!(actual.retry_status_codes, vec![429, 500, 502]);
-        assert_eq!(actual.suppress_retry_errors, true);
+        assert!(actual.suppress_retry_errors);
 
         clean_retry_env_vars();
     }
@@ -441,11 +441,11 @@ mod tests {
 
         let actual = resolve_http_config();
         assert_eq!(actual.connect_timeout, 30);
-        assert_eq!(actual.hickory, true);
+        assert!(actual.hickory);
         assert_eq!(actual.tls_backend, TlsBackend::Rustls);
         assert_eq!(actual.min_tls_version, Some(TlsVersion::V1_2));
         assert_eq!(actual.keep_alive_interval, Some(30));
-        assert_eq!(actual.accept_invalid_certs, true);
+        assert!(actual.accept_invalid_certs);
         assert_eq!(
             actual.root_cert_paths,
             Some(vec![
@@ -525,7 +525,7 @@ mod tests {
                 env::remove_var("FORGE_DUMP_AUTO_OPEN");
             }
             let env = infra.get_environment();
-            assert_eq!(env.auto_open_dump, false);
+            assert!(!env.auto_open_dump);
         }
 
         // Test enabled with "true"
@@ -534,7 +534,7 @@ mod tests {
                 env::set_var("FORGE_DUMP_AUTO_OPEN", "true");
             }
             let env = infra.get_environment();
-            assert_eq!(env.auto_open_dump, true);
+            assert!(env.auto_open_dump);
             unsafe {
                 env::remove_var("FORGE_DUMP_AUTO_OPEN");
             }
@@ -546,7 +546,7 @@ mod tests {
                 env::set_var("FORGE_DUMP_AUTO_OPEN", "1");
             }
             let env = infra.get_environment();
-            assert_eq!(env.auto_open_dump, true);
+            assert!(env.auto_open_dump);
             unsafe {
                 env::remove_var("FORGE_DUMP_AUTO_OPEN");
             }
@@ -558,7 +558,7 @@ mod tests {
                 env::set_var("FORGE_DUMP_AUTO_OPEN", "TRUE");
             }
             let env = infra.get_environment();
-            assert_eq!(env.auto_open_dump, true);
+            assert!(env.auto_open_dump);
             unsafe {
                 env::remove_var("FORGE_DUMP_AUTO_OPEN");
             }
@@ -570,7 +570,7 @@ mod tests {
                 env::set_var("FORGE_DUMP_AUTO_OPEN", "false");
             }
             let env = infra.get_environment();
-            assert_eq!(env.auto_open_dump, false);
+            assert!(!env.auto_open_dump);
             unsafe {
                 env::remove_var("FORGE_DUMP_AUTO_OPEN");
             }
@@ -582,7 +582,7 @@ mod tests {
                 env::set_var("FORGE_DUMP_AUTO_OPEN", "0");
             }
             let env = infra.get_environment();
-            assert_eq!(env.auto_open_dump, false);
+            assert!(!env.auto_open_dump);
             unsafe {
                 env::remove_var("FORGE_DUMP_AUTO_OPEN");
             }
@@ -594,7 +594,7 @@ mod tests {
                 env::set_var("FORGE_DUMP_AUTO_OPEN", "invalid");
             }
             let env = infra.get_environment();
-            assert_eq!(env.auto_open_dump, false);
+            assert!(!env.auto_open_dump);
             unsafe {
                 env::remove_var("FORGE_DUMP_AUTO_OPEN");
             }

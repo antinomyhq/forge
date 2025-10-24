@@ -808,7 +808,7 @@ pub mod tests {
 
         // Test reading line 2 only
         let url = "@[/test/multiline.txt:2:2]";
-        let attachments = chat_request.attachments(&url).await.unwrap();
+        let attachments = chat_request.attachments(url).await.unwrap();
 
         assert_eq!(attachments.len(), 1);
         assert_eq!(
@@ -836,7 +836,7 @@ pub mod tests {
 
         // Test reading lines 2-4
         let url = "@[/test/range_test.txt:2:4]";
-        let attachments = chat_request.attachments(&url).await.unwrap();
+        let attachments = chat_request.attachments(url).await.unwrap();
 
         assert_eq!(attachments.len(), 1);
         assert_eq!(attachments.len(), 1);
@@ -864,7 +864,7 @@ pub mod tests {
 
         // Test reading from start to line 2
         let url = "@[/test/start_range.txt:1:2]";
-        let attachments = chat_request.attachments(&url).await.unwrap();
+        let attachments = chat_request.attachments(url).await.unwrap();
         assert_eq!(
             attachments[0].content,
             AttachmentContent::FileContent {
@@ -889,7 +889,7 @@ pub mod tests {
 
         // Test reading from line 3 to end
         let url = "@[/test/end_range.txt:3:5]";
-        let attachments = chat_request.attachments(&url).await.unwrap();
+        let attachments = chat_request.attachments(url).await.unwrap();
         assert_eq!(
             attachments[0].content,
             AttachmentContent::FileContent {
@@ -914,7 +914,7 @@ pub mod tests {
 
         // Test reading beyond file length
         let url = "@[/test/edge_case.txt:1:10]";
-        let attachments = chat_request.attachments(&url).await.unwrap();
+        let attachments = chat_request.attachments(url).await.unwrap();
         assert_eq!(
             attachments[0].content,
             AttachmentContent::FileContent {
@@ -940,7 +940,7 @@ pub mod tests {
 
         // Test multiple files with different ranges
         let url = "Check @[/test/file_a.txt:1:2] and @[/test/file_b.txt:3:4]";
-        let attachments = chat_request.attachments(&url).await.unwrap();
+        let attachments = chat_request.attachments(url).await.unwrap();
 
         assert_eq!(attachments.len(), 2);
         assert_eq!(
@@ -976,7 +976,7 @@ pub mod tests {
 
         // Test that metadata is preserved correctly with ranges
         let url = "@[/test/metadata_test.txt:3:5]";
-        let attachments = chat_request.attachments(&url).await.unwrap();
+        let attachments = chat_request.attachments(url).await.unwrap();
 
         assert_eq!(attachments.len(), 1);
         assert_eq!(attachments[0].path, "/test/metadata_test.txt");
@@ -1007,9 +1007,9 @@ pub mod tests {
         let url_range = "@[/test/comparison.txt:2:4]";
         let url_range_start = "@[/test/comparison.txt:2]";
 
-        let attachments_full = chat_request.attachments(&url_full).await.unwrap();
-        let attachments_range = chat_request.attachments(&url_range).await.unwrap();
-        let attachments_range_start = chat_request.attachments(&url_range_start).await.unwrap();
+        let attachments_full = chat_request.attachments(url_full).await.unwrap();
+        let attachments_range = chat_request.attachments(url_range).await.unwrap();
+        let attachments_range_start = chat_request.attachments(url_range_start).await.unwrap();
 
         assert_eq!(attachments_full.len(), 1);
         assert_eq!(
