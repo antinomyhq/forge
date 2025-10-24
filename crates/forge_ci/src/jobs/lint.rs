@@ -1,14 +1,46 @@
 //! Shared lint commands for CI workflows
 
-/// Cargo fmt command for checking formatting
-pub const FMT_CHECK_CMD: &str = "cargo +nightly fmt --all --check";
+/// Build a cargo command from parts
+fn cargo_cmd(parts: &[&str]) -> String {
+    parts.join(" ")
+}
 
-/// Cargo fmt command for fixing formatting
-pub const FMT_FIX_CMD: &str = "cargo +nightly fmt --all";
+/// Base parts for fmt commands
+fn fmt_base() -> Vec<&'static str> {
+    vec!["cargo", "+nightly", "fmt", "--all"]
+}
 
-/// Cargo clippy command for checking lints
-pub const CLIPPY_CHECK_CMD: &str = "cargo +nightly clippy --all-features --all-targets --workspace";
+/// Base parts for clippy commands
+fn clippy_base() -> Vec<&'static str> {
+    vec![
+        "cargo",
+        "+nightly",
+        "clippy",
+        "--all-features",
+        "--allow-dirty",
+        "--all-targets",
+        "--workspace",
+    ]
+}
 
-/// Cargo clippy command for fixing lints
-pub const CLIPPY_FIX_CMD: &str =
-    "cargo +nightly clippy --fix --allow-dirty --all-features --workspace -- -D warnings";
+/// Build a cargo fmt command
+pub fn fmt_cmd(fix: bool) -> String {
+    let mut parts = fmt_base();
+    if !fix {
+        parts.push("--check");
+    }
+    cargo_cmd(&parts)
+}
+
+/// Build a cargo clippy command
+pub fn clippy_cmd(fix: bool) -> String {
+    let mut parts = clippy_base();
+
+    if fix {
+        parts.push("--fix");
+    }
+
+    parts.extend(["--", "-D", "warnings"]);
+
+    cargo_cmd(&parts)
+}
