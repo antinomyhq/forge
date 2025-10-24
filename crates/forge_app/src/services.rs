@@ -4,8 +4,8 @@ use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation,
-    ConversationId, Environment, File, McpConfig, McpServers, Model, ModelId, PatchOperation,
-    Provider, ProviderId, ResultStream, Scope, ToolCallFull, ToolOutput, Workflow,Image,
+    ConversationId, Environment, File, Image, McpConfig, McpServers, Model, ModelId,
+    PatchOperation, Provider, ProviderId, ResultStream, Scope, ToolCallFull, ToolOutput, Workflow,
 };
 use merge::Merge;
 use reqwest::Response;
