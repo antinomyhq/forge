@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 
 use crate::info::{Info, Section};
 
@@ -67,6 +68,69 @@ impl Porcelain {
             self.0.drain(0..n);
         }
         self
+    }
+}
+
+impl fmt::Display for Porcelain {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let rows = self.to_rows();
+
+        // Create a custom formatter that captures the output instead of printing to
+        // stdout
+        struct StringWriter(String);
+
+        impl StringWriter {
+            fn new() -> Self {
+                Self(String::new())
+            }
+
+            fn capture_format_columns(&mut self, rows: Vec<Vec<String>>) {
+                if rows.is_empty() {
+                    return;
+                }
+
+                // Rows are already Vec<String>, no need to convert
+                if rows.is_empty() {
+                    return;
+                }
+
+                // Get the number of columns from the first row
+                let column_count = rows[0].len();
+                let mut max_widths = vec![0; column_count];
+
+                // Calculate maximum width for each column
+                for row in &rows {
+                    for (i, col) in row.iter().enumerate() {
+                        max_widths[i] = max_widths[i].max(col.len());
+                    }
+                }
+
+                // Format each row and append to string
+                for row in rows {
+                    let mut formatted = String::new();
+                    for (i, (col, &width)) in row.iter().zip(&max_widths).enumerate() {
+                        if i > 0 {
+                            formatted.push(' ');
+                        }
+                        if i == max_widths.len() - 1 {
+                            // Last column: no padding
+                            formatted.push_str(col);
+                        } else {
+                            formatted.push_str(&format!("{col:<width$}"));
+                        }
+                    }
+                    self.0.push_str(&formatted);
+                    self.0.push('\n');
+                }
+            }
+        }
+
+        let mut writer = StringWriter::new();
+        writer.capture_format_columns(rows);
+
+        // Remove trailing newline and write to formatter
+        let output = writer.0.trim_end();
+        write!(f, "{}", output)
     }
 }
 
@@ -590,6 +654,112 @@ mod tests {
             vec!["OpenRouter".to_string(), "[openrouter.ai]".to_string()],
             vec!["Anthropic".to_string(), "[api.anthropic.com]".to_string()],
         ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_porcelain_display_empty() {
+        // Test Display trait with empty Porcelain
+        let fixture = Porcelain::new();
+
+        let actual = fixture.to_string();
+        let expected = "";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_porcelain_display_hierarchical() {
+        // Test Display trait with hierarchical data
+        let fixture = Porcelain::new()
+            .add_section(
+                "user1".to_string(),
+                vec![
+                    Some("name".to_string()),
+                    Some("Alice".to_string()),
+                    Some("age".to_string()),
+                    Some("30".to_string()),
+                ],
+            )
+            .add_section(
+                "user2".to_string(),
+                vec![
+                    Some("name".to_string()),
+                    Some("Bob".to_string()),
+                    Some("age".to_string()),
+                    Some("25".to_string()),
+                ],
+            );
+
+        let actual = fixture.to_string();
+        let expected = "user1 Alice 30\nuser2 Bob   25";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_porcelain_display_flat() {
+        // Test Display trait with flat key-value data
+        let fixture = Porcelain::new()
+            .add_section(
+                String::new(),
+                vec![Some("name".to_string()), Some("Alice".to_string())],
+            )
+            .add_section(
+                String::new(),
+                vec![Some("age".to_string()), Some("30".to_string())],
+            )
+            .add_section(String::new(), vec![Some("city".to_string())]);
+
+        let actual = fixture.to_string();
+        let expected = "name Alice\nage  30\ncity";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_porcelain_display_missing_values() {
+        // Test Display trait with missing values
+        let fixture = Porcelain::new()
+            .add_section(
+                "user1".to_string(),
+                vec![
+                    Some("name".to_string()),
+                    Some("Alice".to_string()),
+                    Some("age".to_string()),
+                    Some("30".to_string()),
+                ],
+            )
+            .add_section(
+                "user2".to_string(),
+                vec![
+                    Some("name".to_string()),
+                    None, // Missing name
+                    Some("age".to_string()),
+                    Some("25".to_string()),
+                ],
+            );
+
+        let actual = fixture.to_string();
+        let expected = "user1 Alice 30\nuser2       25";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_porcelain_display_from_info() {
+        // Test Display trait with real Info data
+        let info = Info::new()
+            .add_title("PROVIDERS")
+            .add_title("OpenRouter")
+            .add_key_value("Domain", "[openrouter.ai]")
+            .add_title("Anthropic")
+            .add_key_value("Domain", "[api.anthropic.com]");
+
+        let porcelain = Porcelain::from(&info).skip(1);
+        let actual = porcelain.to_string();
+        let expected = "OpenRouter [openrouter.ai]\nAnthropic  [api.anthropic.com]";
 
         assert_eq!(actual, expected);
     }

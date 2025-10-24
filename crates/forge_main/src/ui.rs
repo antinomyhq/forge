@@ -493,7 +493,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         if porcelain {
             let porcelain = Porcelain::from(&info).skip(1);
-            crate::cli_format::format_columns(porcelain.to_rows());
+            self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
         }
@@ -523,7 +523,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         if porcelain {
             let porcelain = Porcelain::from(&info).skip(1);
-            crate::cli_format::format_columns(porcelain.to_rows());
+            self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
         }
@@ -577,7 +577,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         if porcelain {
-            crate::cli_format::format_columns(Porcelain::from(&info).to_rows());
+            self.writeln(Porcelain::from(&info).to_string())?;
         } else {
             self.writeln(info)?;
         }
@@ -643,7 +643,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         if porcelain {
             let porcelain = Porcelain::from(&info).skip(1);
-            crate::cli_format::format_columns(porcelain.to_rows());
+            self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
         }
@@ -668,7 +668,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let info = crate::config::build_config_info(agent, model, provider);
 
         if porcelain {
-            crate::cli_format::format_columns(Porcelain::from(&info).to_rows());
+            self.writeln(Porcelain::from(&info).to_string())?;
         } else {
             self.writeln(info)?;
         }
@@ -695,7 +695,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         let info = format_tools(&agent_tools, &all_tools);
         if porcelain {
-            crate::cli_format::format_columns(Porcelain::from(&info).to_rows());
+            self.writeln(Porcelain::from(&info).to_string())?;
         } else {
             self.writeln(info)?;
         }
@@ -724,7 +724,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         if porcelain {
-            crate::cli_format::format_columns(Porcelain::from(&info).to_rows());
+            self.writeln(Porcelain::from(&info).to_string())?;
         } else {
             self.writeln(info)?;
         }
@@ -782,7 +782,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         if porcelain {
-            crate::cli_format::format_columns(Porcelain::from(&info).to_rows());
+            self.writeln(Porcelain::from(&info).to_string())?;
         } else {
             self.writeln(info)?;
         }
@@ -855,7 +855,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // In porcelain mode, skip the top-level "SESSIONS" title
         if porcelain {
             let porcelain = Porcelain::from(&info).skip(1);
-            crate::cli_format::format_columns(porcelain.to_rows());
+            self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
         }

@@ -113,7 +113,7 @@ impl<A: API> ConfigManager<A> {
 
         let info = super::helpers::build_config_info(agent, model, provider);
         if porcelain {
-            crate::cli_format::format_columns(Porcelain::from(&info).to_rows());
+            println!("{}", Porcelain::from(&info));
         } else {
             println!("{}", info);
         }
