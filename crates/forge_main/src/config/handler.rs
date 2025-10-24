@@ -44,21 +44,21 @@ impl<A: API> ConfigManager<A> {
         // Set provider if specified
         if let Some(provider_str) = args.provider {
             let provider_id = self.validate_provider(&provider_str).await?;
-            self.api.set_provider(provider_id).await?;
+            self.api.set_default_provider(provider_id).await?;
             display_success("Provider set", &provider_str);
         }
 
         // Set agent if specified
         if let Some(agent_str) = args.agent {
             let agent_id = self.validate_agent(&agent_str).await?;
-            self.api.set_operating_agent(agent_id.clone()).await?;
+            self.api.set_active_agent(agent_id.clone()).await?;
             display_success("Agent set", agent_id.as_str());
         }
 
         // Set model if specified
         if let Some(model_str) = args.model {
             let model_id = self.validate_model(&model_str).await?;
-            self.api.set_operating_model(model_id.clone()).await?;
+            self.api.set_default_model(model_id.clone()).await?;
             display_success("Model set", model_id.as_str());
         }
 
@@ -74,21 +74,26 @@ impl<A: API> ConfigManager<A> {
             ConfigField::Agent => {
                 let agent = self
                     .api
-                    .get_operating_agent()
+                    .get_active_agent()
                     .await
                     .map(|a| a.as_str().to_string());
                 display_single_field("agent", agent);
             }
             ConfigField::Model => {
-                let model = self
-                    .api
-                    .get_operating_model()
-                    .await
-                    .map(|m| m.as_str().to_string());
+                let model = match self.api.get_active_agent().await {
+                    Some(id) => self.api.get_agent_model(id).await,
+                    None => self.api.get_default_model().await,
+                }
+                .map(|m| m.as_str().to_string());
                 display_single_field("model", model);
             }
             ConfigField::Provider => {
-                let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
+                let provider = self
+                    .api
+                    .get_default_provider()
+                    .await
+                    .ok()
+                    .map(|p| p.id.to_string());
                 display_single_field("provider", provider);
             }
         }
@@ -100,15 +105,20 @@ impl<A: API> ConfigManager<A> {
     async fn handle_list(&self, porcelain: bool) -> ConfigResult<()> {
         let agent = self
             .api
-            .get_operating_agent()
+            .get_active_agent()
             .await
             .map(|a| a.as_str().to_string());
-        let model = self
+        let model = match self.api.get_active_agent().await {
+            Some(id) => self.api.get_agent_model(id).await,
+            None => self.api.get_default_model().await,
+        }
+        .map(|m| m.as_str().to_string());
+        let provider = self
             .api
-            .get_operating_model()
+            .get_default_provider()
             .await
-            .map(|m| m.as_str().to_string());
-        let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
+            .ok()
+            .map(|p| p.id.to_string());
 
         let info = super::helpers::build_config_info(agent, model, provider);
         if porcelain {
@@ -137,7 +147,7 @@ impl<A: API> ConfigManager<A> {
 
     /// Validate model exists
     async fn validate_model(&self, model_str: &str) -> ConfigResult<ModelId> {
-        let models = self.api.models().await?;
+        let models = self.api.get_models().await?;
         let model_id = ModelId::new(model_str);
 
         if models.iter().any(|m| m.id == model_id) {

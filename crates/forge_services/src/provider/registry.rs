@@ -1,8 +1,7 @@
 use std::sync::{Arc, OnceLock};
 
 use forge_app::ProviderRegistry;
-use forge_app::domain::{AgentId, ModelId};
-use forge_app::dto::{Provider, ProviderId, ProviderResponse};
+use forge_app::domain::{ModelId, Provider, ProviderId, ProviderResponse};
 use handlebars::Handlebars;
 use serde::Deserialize;
 use tokio::sync::OnceCell;
@@ -128,7 +127,7 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
         })
     }
 
-    async fn provider_from_id(&self, id: forge_app::dto::ProviderId) -> anyhow::Result<Provider> {
+    async fn provider_from_id(&self, id: ProviderId) -> anyhow::Result<Provider> {
         // Handle special cases first
         if id == ProviderId::Forge {
             // Forge provider isn't typically configured via env vars in the registry
@@ -165,7 +164,7 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
 
 #[async_trait::async_trait]
 impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProviderRegistry<F> {
-    async fn get_active_provider(&self) -> anyhow::Result<Provider> {
+    async fn get_default_provider(&self) -> anyhow::Result<Provider> {
         let app_config = self.infra.get_app_config().await?;
         if let Some(provider_id) = app_config.provider {
             return self.provider_from_id(provider_id).await;
@@ -175,7 +174,7 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
         self.get_first_available_provider().await
     }
 
-    async fn set_active_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
+    async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
         self.update(|config| {
             config.provider = Some(provider_id);
         })
@@ -186,10 +185,8 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
         Ok(self.get_providers().await.clone())
     }
 
-    async fn get_active_model(&self) -> anyhow::Result<ModelId> {
-        let provider_id = self.get_active_provider().await?.id;
-
-        if let Some(model_id) = self.infra.get_app_config().await?.model.get(&provider_id) {
+    async fn get_default_model(&self, provider_id: &ProviderId) -> anyhow::Result<ModelId> {
+        if let Some(model_id) = self.infra.get_app_config().await?.model.get(provider_id) {
             return Ok(model_id.clone());
         }
 
@@ -197,29 +194,25 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
         Err(forge_app::Error::NoActiveModel.into())
     }
 
-    async fn set_active_model(&self, model: ModelId) -> anyhow::Result<()> {
-        let provider_id = self.get_active_provider().await?.id;
+    async fn set_default_model(
+        &self,
+        model: ModelId,
+        provider_id: ProviderId,
+    ) -> anyhow::Result<()> {
         self.update(|config| {
             config.model.insert(provider_id, model.clone());
         })
         .await
     }
 
-    async fn get_active_agent(&self) -> anyhow::Result<Option<AgentId>> {
-        let app_config = self.infra.get_app_config().await?;
-        Ok(app_config.agent)
-    }
-
-    async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()> {
-        self.update(|config| {
-            config.agent = Some(agent_id);
-        })
-        .await
+    async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider> {
+        self.provider_from_id(id).await
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use forge_app::domain::ProviderResponse;
     use pretty_assertions::assert_eq;
 
     use super::*;

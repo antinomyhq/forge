@@ -6,7 +6,8 @@ use gray_matter::Matter;
 use gray_matter::engine::YAML;
 
 use crate::{
-    DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
+    AppConfigRepository, DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra,
+    FileWriterInfra,
 };
 
 /// A service for loading agent definitions from multiple sources:
@@ -46,8 +47,14 @@ impl<F> AgentLoaderService<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
-    forge_app::AgentLoaderService for AgentLoaderService<F>
+impl<
+    F: FileReaderInfra
+        + FileWriterInfra
+        + FileInfoInfra
+        + EnvironmentInfra
+        + DirectoryReaderInfra
+        + AppConfigRepository,
+> forge_app::AgentRegistry for AgentLoaderService<F>
 {
     /// Load all agent definitions from all available sources with conflict
     /// resolution.
@@ -63,10 +70,50 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
     async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
         self.cache_or_init().await
     }
+
+    async fn get_agent(
+        &self,
+        agent_id: &forge_app::domain::AgentId,
+    ) -> anyhow::Result<Option<Agent>> {
+        let agents = self.get_agents().await?;
+        Ok(agents.into_iter().find(|agent| &agent.id == agent_id))
+    }
+
+    async fn get_active_agent(&self) -> anyhow::Result<Option<Agent>> {
+        let app_config = self.infra.get_app_config().await?;
+
+        if let Some(agent_id) = app_config.agent {
+            let agents = self.get_agents().await?;
+            Ok(agents.into_iter().find(|agent| agent.id == agent_id))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn get_active_agent_id(&self) -> anyhow::Result<Option<forge_app::domain::AgentId>> {
+        let app_config = self.infra.get_app_config().await?;
+        Ok(app_config.agent)
+    }
+
+    async fn set_active_agent_id(
+        &self,
+        agent_id: forge_app::domain::AgentId,
+    ) -> anyhow::Result<()> {
+        let mut config = self.infra.get_app_config().await?;
+        config.agent = Some(agent_id);
+        self.infra.set_app_config(&config).await?;
+        Ok(())
+    }
 }
 
-impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
-    AgentLoaderService<F>
+impl<
+    F: FileReaderInfra
+        + FileWriterInfra
+        + FileInfoInfra
+        + EnvironmentInfra
+        + DirectoryReaderInfra
+        + AppConfigRepository,
+> AgentLoaderService<F>
 {
     /// Load all agent definitions with caching support
     async fn cache_or_init(&self) -> anyhow::Result<Vec<Agent>> {

@@ -1,4 +1,4 @@
-use forge_app::dto::ProviderId;
+use forge_app::domain::ProviderId;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
