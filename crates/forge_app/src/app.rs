@@ -194,7 +194,7 @@ impl<S: Services> ForgeApp<S> {
             .get_agents()
             .await?
             .into_iter()
-            .find(|agent| active_agent.as_ref().map_or(false, |id| agent.id == *id))
+            .find(|agent| active_agent.as_ref().is_some_and(|id| agent.id == *id))
             .and_then(|agent| {
                 agent
                     .set_model_deeply(model.clone())

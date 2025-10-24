@@ -296,7 +296,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_compress_single_sequence_accumulates_usage() {
-        let compactor = Compactor::new(Arc::new(MockService::with_usage(0.005)), Compact::new().model(ModelId::new("m")));
+        let compactor = Compactor::new(
+            Arc::new(MockService::with_usage(0.005)),
+            Compact::new().model(ModelId::new("m")),
+        );
         let context = Context::default()
             .add_message(ContextMessage::user("M1", None))
             .add_message(ContextMessage::assistant("R1", None, None))
@@ -314,7 +317,10 @@ mod tests {
     async fn test_compress_single_sequence_preserves_only_last_reasoning() {
         use forge_domain::ReasoningFull;
 
-        let compactor = Compactor::new(Arc::new(MockService::with_usage(0.005)), Compact::new().model(ModelId::new("m")));
+        let compactor = Compactor::new(
+            Arc::new(MockService::with_usage(0.005)),
+            Compact::new().model(ModelId::new("m")),
+        );
 
         let first_reasoning = vec![ReasoningFull {
             text: Some("First thought".to_string()),
@@ -369,7 +375,10 @@ mod tests {
     async fn test_compress_single_sequence_no_reasoning_accumulation() {
         use forge_domain::ReasoningFull;
 
-        let compactor = Compactor::new(Arc::new(MockService::with_usage(0.005)), Compact::new().model(ModelId::new("m")));
+        let compactor = Compactor::new(
+            Arc::new(MockService::with_usage(0.005)),
+            Compact::new().model(ModelId::new("m")),
+        );
 
         let reasoning = vec![ReasoningFull {
             text: Some("Original thought".to_string()),
@@ -433,7 +442,10 @@ mod tests {
     async fn test_compress_single_sequence_filters_empty_reasoning() {
         use forge_domain::ReasoningFull;
 
-        let compactor = Compactor::new(Arc::new(MockService::with_usage(0.005)), Compact::new().model(ModelId::new("m")));
+        let compactor = Compactor::new(
+            Arc::new(MockService::with_usage(0.005)),
+            Compact::new().model(ModelId::new("m")),
+        );
 
         let non_empty_reasoning = vec![ReasoningFull {
             text: Some("Valid thought".to_string()),
