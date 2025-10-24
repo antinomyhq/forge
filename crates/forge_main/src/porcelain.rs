@@ -164,14 +164,9 @@ fn sections_have_common_fields(info: &Info) -> bool {
             // Check if any field appears in all sections
             sections_fields
                 .iter()
-                .fold(
-                    Some(all_fields),
-                    |common: Option<std::collections::HashSet<_>>, section| {
-                        common.map(|common_fields| {
-                            common_fields.intersection(section).cloned().collect()
-                        })
-                    },
-                )
+                .try_fold(all_fields, |common_fields, section| {
+                    Some(common_fields.intersection(section).cloned().collect())
+                })
                 .is_some_and(|common_fields| !common_fields.is_empty())
         }
     }
