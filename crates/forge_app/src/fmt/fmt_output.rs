@@ -51,7 +51,6 @@ mod tests {
     use forge_domain::{ChatResponseContent, Environment, PatchOperation, TitleFormat};
     use insta::assert_snapshot;
     use pretty_assertions::assert_eq;
-    use url::Url;
 
     use super::FormatContent;
     // ContentFormat is now ChatResponseContent
@@ -64,39 +63,17 @@ mod tests {
     // ContentFormat methods are now implemented in ChatResponseContent
 
     fn fixture_environment() -> Environment {
+        use fake::{Fake, Faker};
         let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
-        Environment {
-            os: "linux".to_string(),
-            pid: 12345,
-            cwd: PathBuf::from("/home/user/project"),
-            home: Some(PathBuf::from("/home/user")),
-            shell: "/bin/bash".to_string(),
-            base_path: PathBuf::from("/home/user/project"),
-            retry_config: forge_domain::RetryConfig {
-                initial_backoff_ms: 1000,
-                min_delay_ms: 500,
-                backoff_factor: 2,
-                max_retry_attempts: 3,
-                retry_status_codes: vec![429, 500, 502, 503, 504],
-                max_delay: None,
-                suppress_retry_errors: false,
-            },
-            max_search_lines: 25,
-            max_search_result_bytes: max_bytes.ceil() as usize,
-            fetch_truncation_limit: 55,
-            max_read_size: 10,
-            stdout_max_prefix_length: 10,
-            stdout_max_suffix_length: 10,
-            tool_timeout: 300,
-            stdout_max_line_length: 2000,
-            http: Default::default(),
-            max_file_size: 0,
-            forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
-            auto_open_dump: false,
-            custom_history_path: None,
-            max_conversations: 100,
-            max_image_size: 262144,
-        }
+        let fixture: Environment = Faker.fake();
+        fixture
+            .max_search_lines(25)
+            .max_search_result_bytes(max_bytes.ceil() as usize)
+            .fetch_truncation_limit(55)
+            .max_read_size(10)
+            .stdout_max_prefix_length(10)
+            .stdout_max_suffix_length(10)
+            .max_file_size(0)
     }
 
     #[test]

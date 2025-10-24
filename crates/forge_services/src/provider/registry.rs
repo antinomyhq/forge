@@ -379,31 +379,8 @@ mod env_tests {
 
     impl EnvironmentInfra for MockInfra {
         fn get_environment(&self) -> Environment {
-            // Return a minimal Environment for testing
-            Environment {
-                os: "test".to_string(),
-                pid: 1,
-                cwd: std::path::PathBuf::from("/test"),
-                home: None,
-                shell: "test".to_string(),
-                base_path: std::path::PathBuf::from("/test"),
-                forge_api_url: Url::parse("https://test.com").unwrap(),
-                retry_config: Default::default(),
-                max_search_lines: 100,
-                max_search_result_bytes: 1000,
-                fetch_truncation_limit: 1000,
-                stdout_max_prefix_length: 100,
-                stdout_max_suffix_length: 100,
-                stdout_max_line_length: 500,
-                max_read_size: 2000,
-                http: Default::default(),
-                max_file_size: 100000,
-                tool_timeout: 300,
-                auto_open_dump: false,
-                custom_history_path: None,
-                max_conversations: 100,
-                max_image_size: 262144,
-            }
+            use fake::{Fake, Faker};
+            Faker.fake()
         }
 
         fn get_env_var(&self, key: &str) -> Option<String> {
