@@ -90,10 +90,12 @@ impl<S: Services> ForgeApp<S> {
         let custom_instructions = services.get_custom_instructions().await;
 
         // Prepare agents with user configuration and subscriptions
-        let model = services.get_active_model().await?;
+        let provider = services.get_default_provider().await?;
+        let model = services.get_default_model(&provider.id).await?;
         let commands = services.get_commands().await?;
         let agent = services
             .get_agents()
+            .await?
             .into_iter()
             .map(|agent| {
                 agent
@@ -105,13 +107,7 @@ impl<S: Services> ForgeApp<S> {
             .ok_or(crate::Error::UnsubscribedEvent(chat.event.name.to_owned()))?;
 
         let provider = self.get_provider(Some(agent.id.clone())).await?;
-        let model = self.services.get_default_model(&provider.id).await?;
         let models = services.models(provider).await?;
-
-        // Adjust agent parameters
-        agent = agent
-            .set_model_deeply(model)
-            .apply_workflow_config(&workflow);
 
         // Get system and mcp tool definitions and resolve them for the agent
         let all_tool_definitions = self.tool_registry.list().await?;
