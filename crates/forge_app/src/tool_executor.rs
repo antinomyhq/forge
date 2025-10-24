@@ -173,7 +173,8 @@ impl<
                 (input, output).into()
             }
             Tools::ReadImage(input) => {
-                let output = self.services.read_image(input.path.clone()).await?;
+                let normalized_path = self.normalize_path(input.path.clone());
+                let output = self.services.read_image(normalized_path).await?;
                 output.into()
             }
             Tools::Write(input) => {
