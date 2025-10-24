@@ -23,11 +23,8 @@ pub fn generate_ci_workflow() {
                 .add_component(Component::Clippy)
                 .add_component(Component::Rustfmt),
         )
-        .add_step(Step::new("Cargo Fmt").run("cargo +nightly fmt --all --check"))
-        .add_step(
-            Step::new("Cargo Clippy")
-                .run("cargo +nightly clippy --all-features --all-targets --workspace"),
-        );
+        .add_step(Step::new("Cargo Fmt").run(jobs::fmt_cmd(false)))
+        .add_step(Step::new("Cargo Clippy").run(jobs::clippy_cmd(false)));
 
     let draft_release_job = jobs::create_draft_release_job("build");
     let draft_release_pr_job = jobs::create_draft_release_pr_job();

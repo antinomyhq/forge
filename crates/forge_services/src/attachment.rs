@@ -89,7 +89,6 @@ pub mod tests {
         AttachmentContent, CommandOutput, Environment, ToolDefinition, ToolName, ToolOutput,
     };
     use serde_json::Value;
-    use url::Url;
 
     use crate::attachment::ForgeChatRequest;
     use crate::{
@@ -103,31 +102,14 @@ pub mod tests {
     #[async_trait::async_trait]
     impl EnvironmentInfra for MockEnvironmentInfra {
         fn get_environment(&self) -> Environment {
+            use fake::{Fake, Faker};
             let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
-            Environment {
-                os: "test".to_string(),
-                pid: 12345,
-                cwd: PathBuf::from("/test"),
-                home: Some(PathBuf::from("/home/test")),
-                shell: "bash".to_string(),
-                base_path: PathBuf::from("/base"),
-                retry_config: Default::default(),
-                max_search_lines: 25,
-                max_search_result_bytes: max_bytes.ceil() as usize, // 0.25 MB
-                fetch_truncation_limit: 0,
-                stdout_max_prefix_length: 0,
-                stdout_max_suffix_length: 0,
-                stdout_max_line_length: 2000,
-                max_read_size: 2000,
-                tool_timeout: 300,
-                http: Default::default(),
-                max_file_size: 256 << 10,
-                forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
-                auto_open_dump: false,
-                custom_history_path: None,
-                max_conversations: 100,
-                max_image_size: 262144,
-            }
+            let fixture: Environment = Faker.fake();
+            fixture
+                .max_search_lines(25)
+                .max_search_result_bytes(max_bytes.ceil() as usize)
+                .max_read_size(2000)
+                .max_file_size(256 << 10)
         }
 
         fn get_env_var(&self, _key: &str) -> Option<String> {
