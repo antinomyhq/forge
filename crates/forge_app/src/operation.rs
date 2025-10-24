@@ -68,7 +68,7 @@ pub enum ToolOperation {
         input: FSRead,
         output: ReadOutput,
     },
-    FsReadBinary {
+    ImageRead {
         output: forge_domain::Image,
     },
     FsCreate {
@@ -237,7 +237,7 @@ impl ToolOperation {
 
                 forge_domain::ToolOutput::text(elm)
             }
-            ToolOperation::FsReadBinary { output } => forge_domain::ToolOutput::image(output),
+            ToolOperation::ImageRead { output } => forge_domain::ToolOutput::image(output),
             ToolOperation::FsCreate { input, output } => {
                 let diff_result = DiffFormat::format(
                     output.before.as_ref().unwrap_or(&"".to_string()),

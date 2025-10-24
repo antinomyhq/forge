@@ -37,7 +37,7 @@ use crate::{ToolCallFull, ToolDefinition, ToolDescription, ToolName};
 #[strum(serialize_all = "snake_case")]
 pub enum Tools {
     Read(FSRead),
-    ReadImage(FSReadBinary),
+    ReadImage(ReadImage),
     Write(FSWrite),
     Search(FSSearch),
     Remove(FSRemove),
@@ -104,7 +104,7 @@ pub struct FSRead {
 /// fail if the file doesn't exist or if the format is unsupported. Returns the
 /// image content encoded in base64 format ready for vision model consumption.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-pub struct FSReadBinary {
+pub struct ReadImage {
     /// The absolute path to the image file (e.g., /home/user/image.png).
     /// Relative paths are not supported. The file must exist and be readable.
     pub path: String,
@@ -503,7 +503,7 @@ impl Tools {
             Tools::Fetch(_) => r#gen.into_root_schema_for::<NetFetch>(),
             Tools::Search(_) => r#gen.into_root_schema_for::<FSSearch>(),
             Tools::Read(_) => r#gen.into_root_schema_for::<FSRead>(),
-            Tools::ReadImage(_) => r#gen.into_root_schema_for::<FSReadBinary>(),
+            Tools::ReadImage(_) => r#gen.into_root_schema_for::<ReadImage>(),
             Tools::Remove(_) => r#gen.into_root_schema_for::<FSRemove>(),
             Tools::Undo(_) => r#gen.into_root_schema_for::<FSUndo>(),
             Tools::Write(_) => r#gen.into_root_schema_for::<FSWrite>(),
@@ -550,7 +550,7 @@ impl Tools {
             Tools::ReadImage(input) => Some(crate::policies::PermissionOperation::Read {
                 path: std::path::PathBuf::from(&input.path),
                 cwd,
-                message: format!("Read binary file: {}", display_path_for(&input.path)),
+                message: format!("Image file: {}", display_path_for(&input.path)),
             }),
 
             Tools::Write(input) => Some(crate::policies::PermissionOperation::Write {

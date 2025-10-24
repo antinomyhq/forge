@@ -9,7 +9,7 @@ impl FormatContent for ToolOperation {
     fn to_content(&self, env: &Environment) -> Option<ChatResponseContent> {
         match self {
             ToolOperation::FsRead { input: _, output: _ } => None,
-            ToolOperation::FsReadBinary { output: _ } => None,
+            ToolOperation::ImageRead { output: _ } => None,
             ToolOperation::FsCreate { input, output } => {
                 if let Some(ref before) = output.before {
                     let after = &input.content;

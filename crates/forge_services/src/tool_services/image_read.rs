@@ -2,14 +2,14 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_app::FsBinaryReadService;
+use forge_app::ImageReadService;
 use forge_app::domain::Image;
 use strum_macros::{Display, EnumString};
 
 use crate::utils::assert_absolute_path;
 use crate::{EnvironmentInfra, FileInfoInfra};
 
-pub struct ForgeFsBinaryRead<F>(Arc<F>);
+pub struct ForgeImageRead<F>(Arc<F>);
 
 /// Supported image formats for binary file reading
 #[derive(Debug, Clone, Copy, EnumString, Display)]
@@ -39,14 +39,14 @@ impl ImageFormat {
     }
 }
 
-impl<F> ForgeFsBinaryRead<F> {
+impl<F> ForgeImageRead<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self(infra)
     }
 }
 #[async_trait::async_trait]
-impl<F: FileInfoInfra + EnvironmentInfra + crate::infra::FileReaderInfra> FsBinaryReadService
-    for ForgeFsBinaryRead<F>
+impl<F: FileInfoInfra + EnvironmentInfra + crate::infra::FileReaderInfra> ImageReadService
+    for ForgeImageRead<F>
 {
     async fn read_image(&self, path: String) -> anyhow::Result<Image> {
         let path = Path::new(&path);

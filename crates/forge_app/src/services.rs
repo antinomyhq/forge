@@ -285,7 +285,7 @@ pub trait FsReadService: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait FsBinaryReadService: Send + Sync {
+pub trait ImageReadService: Send + Sync {
     /// Reads an image file at the specified path and returns its content.
     async fn read_image(&self, path: String) -> anyhow::Result<forge_domain::Image>;
 }
@@ -399,7 +399,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type PlanCreateService: PlanCreateService;
     type FsPatchService: FsPatchService;
     type FsReadService: FsReadService;
-    type FsBinaryReadService: FsBinaryReadService;
+    type ImageReadService: ImageReadService;
     type FsRemoveService: FsRemoveService;
     type FsSearchService: FsSearchService;
     type FollowUpService: FollowUpService;
@@ -423,7 +423,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn plan_create_service(&self) -> &Self::PlanCreateService;
     fn fs_patch_service(&self) -> &Self::FsPatchService;
     fn fs_read_service(&self) -> &Self::FsReadService;
-    fn fs_binary_read_service(&self) -> &Self::FsBinaryReadService;
+    fn image_read_service(&self) -> &Self::ImageReadService;
     fn fs_remove_service(&self) -> &Self::FsRemoveService;
     fn fs_search_service(&self) -> &Self::FsSearchService;
     fn follow_up_service(&self) -> &Self::FollowUpService;
@@ -625,9 +625,9 @@ impl<I: Services> FsReadService for I {
     }
 }
 #[async_trait::async_trait]
-impl<I: Services> FsBinaryReadService for I {
+impl<I: Services> ImageReadService for I {
     async fn read_image(&self, path: String) -> anyhow::Result<Image> {
-        self.fs_binary_read_service().read_image(path).await
+        self.image_read_service().read_image(path).await
     }
 }
 
