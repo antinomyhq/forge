@@ -80,11 +80,11 @@ impl<A: API> ConfigManager<A> {
                 display_single_field("agent", agent);
             }
             ConfigField::Model => {
-                let model = self
-                    .api
-                    .get_active_model(self.api.get_active_agent().await)
-                    .await
-                    .map(|m| m.as_str().to_string());
+                let model = match self.api.get_active_agent().await {
+                    Some(id) => self.api.get_agent_model(id).await,
+                    None => self.api.get_default_model().await,
+                }
+                .map(|m| m.as_str().to_string());
                 display_single_field("model", model);
             }
             ConfigField::Provider => {
@@ -108,11 +108,11 @@ impl<A: API> ConfigManager<A> {
             .get_active_agent()
             .await
             .map(|a| a.as_str().to_string());
-        let model = self
-            .api
-            .get_active_model(self.api.get_active_agent().await)
-            .await
-            .map(|m| m.as_str().to_string());
+        let model = match self.api.get_active_agent().await {
+            Some(id) => self.api.get_agent_model(id).await,
+            None => self.api.get_default_model().await,
+        }
+        .map(|m| m.as_str().to_string());
         let provider = self
             .api
             .get_default_provider()

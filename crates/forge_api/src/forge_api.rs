@@ -218,9 +218,16 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
         self.services.set_active_agent_id(agent_id).await
     }
 
-    async fn get_active_model(&self, agent_id: Option<AgentId>) -> Option<ModelId> {
+    async fn get_agent_model(&self, agent_id: AgentId) -> Option<ModelId> {
         ForgeApp::new(self.services.clone())
-            .get_default_model(agent_id)
+            .get_model(Some(agent_id))
+            .await
+            .ok()
+    }
+
+    async fn get_default_model(&self) -> Option<ModelId> {
+        ForgeApp::new(self.services.clone())
+            .get_model(None)
             .await
             .ok()
     }

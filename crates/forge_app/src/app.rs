@@ -256,7 +256,9 @@ impl<S: Services> ForgeApp<S> {
         self.services.get_default_provider().await
     }
 
-    pub async fn get_default_model(&self, agent_id: Option<AgentId>) -> anyhow::Result<ModelId> {
+    /// Gets the model for the specified agent, or the default model if no agent
+    /// is provided
+    pub async fn get_model(&self, agent_id: Option<AgentId>) -> anyhow::Result<ModelId> {
         let provider_id = self.get_provider(agent_id).await?.id;
         self.services.get_default_model(&provider_id).await
     }
