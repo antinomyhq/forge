@@ -50,11 +50,11 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
         self.services.collect_files(config).await
     }
 
-    async fn tools(&self) -> anyhow::Result<ToolsOverview> {
+    async fn get_tools(&self) -> anyhow::Result<ToolsOverview> {
         self.app().list_tools().await
     }
 
-    async fn models(&self) -> Result<Vec<Model>> {
+    async fn get_models(&self) -> Result<Vec<Model>> {
         Ok(self
             .services
             .models(
@@ -120,7 +120,7 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
         self.services.find_conversation(conversation_id).await
     }
 
-    async fn list_conversations(&self, limit: Option<usize>) -> anyhow::Result<Vec<Conversation>> {
+    async fn get_conversations(&self, limit: Option<usize>) -> anyhow::Result<Vec<Conversation>> {
         Ok(self
             .services
             .get_conversations(limit)

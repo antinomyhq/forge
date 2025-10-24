@@ -147,7 +147,7 @@ impl<A: API> ConfigManager<A> {
 
     /// Validate model exists
     async fn validate_model(&self, model_str: &str) -> ConfigResult<ModelId> {
-        let models = self.api.models().await?;
+        let models = self.api.get_models().await?;
         let model_id = ModelId::new(model_str);
 
         if models.iter().any(|m| m.id == model_id) {

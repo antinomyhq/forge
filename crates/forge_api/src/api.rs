@@ -16,10 +16,10 @@ pub trait API: Sync + Send {
 
     /// Provides information about the tools available in the current
     /// environment
-    async fn tools(&self) -> anyhow::Result<ToolsOverview>;
+    async fn get_tools(&self) -> anyhow::Result<ToolsOverview>;
 
     /// Provides a list of models available in the current environment
-    async fn models(&self) -> Result<Vec<Model>>;
+    async fn get_models(&self) -> Result<Vec<Model>>;
     /// Provides a list of agents available in the current environment
     async fn get_agents(&self) -> Result<Vec<Agent>>;
     /// Provides a list of providers available in the current environment
@@ -63,7 +63,7 @@ pub trait API: Sync + Send {
     async fn conversation(&self, conversation_id: &ConversationId) -> Result<Option<Conversation>>;
 
     /// Lists all conversations for the active workspace
-    async fn list_conversations(&self, limit: Option<usize>) -> Result<Vec<Conversation>>;
+    async fn get_conversations(&self, limit: Option<usize>) -> Result<Vec<Conversation>>;
 
     /// Finds the last active conversation for the current workspace
     async fn last_conversation(&self) -> Result<Option<Conversation>>;

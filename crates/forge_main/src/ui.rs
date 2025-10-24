@@ -62,7 +62,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Retrieve available models
     async fn get_models(&mut self) -> Result<Vec<Model>> {
         self.spinner.start(Some("Loading"))?;
-        let models = self.api.models().await?;
+        let models = self.api.get_models().await?;
         self.spinner.stop(None)?;
         Ok(models)
     }
@@ -254,9 +254,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     // Improve startup time by hydrating caches
     fn hydrate_caches(&self) {
         let api = self.api.clone();
-        tokio::spawn(async move { api.models().await });
+        tokio::spawn(async move { api.get_models().await });
         let api = self.api.clone();
-        tokio::spawn(async move { api.tools().await });
+        tokio::spawn(async move { api.get_tools().await });
         let api = self.api.clone();
         tokio::spawn(async move { api.get_agents().await });
     }
@@ -674,7 +674,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Displays available tools for the current agent
     async fn on_show_tools(&mut self, agent_id: AgentId, porcelain: bool) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading"))?;
-        let all_tools = self.api.tools().await?;
+        let all_tools = self.api.get_tools().await?;
         let agents = self.api.get_agents().await?;
         let agent = agents.into_iter().find(|agent| agent.id == agent_id);
         let agent_tools = if let Some(agent) = agent {
@@ -827,7 +827,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn list_conversations(&mut self) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Conversations"))?;
         let max_conversations = self.api.environment().max_conversations;
-        let conversations = self.api.list_conversations(Some(max_conversations)).await?;
+        let conversations = self.api.get_conversations(Some(max_conversations)).await?;
         self.spinner.stop(None)?;
 
         if conversations.is_empty() {
@@ -847,7 +847,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn on_show_conversations(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let max_conversations = self.api.environment().max_conversations;
-        let conversations = self.api.list_conversations(Some(max_conversations)).await?;
+        let conversations = self.api.get_conversations(Some(max_conversations)).await?;
 
         if conversations.is_empty() {
             return Ok(());
