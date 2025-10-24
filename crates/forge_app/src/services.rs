@@ -832,9 +832,7 @@ impl<I: Services> AgentRegistry for I {
     }
 
     async fn set_active_agent_id(&self, agent_id: AgentId) -> anyhow::Result<()> {
-        self.agent_registry()
-            .set_active_agent_id(agent_id)
-            .await
+        self.agent_registry().set_active_agent_id(agent_id).await
     }
 }
 
