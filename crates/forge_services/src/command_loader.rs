@@ -65,9 +65,9 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
     async fn init_default(&self) -> anyhow::Result<Vec<Command>> {
         parse_command_iter(
             [
-                ("fixme", include_str!("commands/fixme.md")),
-                ("check", include_str!("commands/check.md")),
-                ("pr-description", include_str!("commands/pr_description.md")),
+                ("fixme", include_str!("../../../.forge/commands/fixme.md")),
+                ("check", include_str!("../../../.forge/commands/check.md")),
+                ("pr-description", include_str!("../../../.forge/commands/pr_description.md")),
             ]
             .into_iter()
             .map(|(name, content)| (name.to_string(), content.to_string())),
@@ -191,8 +191,8 @@ mod tests {
     async fn test_parse_builtin_commands() {
         // Test that all built-in commands parse correctly
         let builtin_commands = [
-            ("fixme", include_str!("commands/fixme.md")),
-            ("check", include_str!("commands/check.md")),
+            ("fixme", include_str!("../../../.forge/commands/fixme.md")),
+            ("check", include_str!("../../../.forge/commands/check.md")),
         ];
 
         for (name, content) in builtin_commands {
