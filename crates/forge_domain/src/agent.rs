@@ -5,6 +5,7 @@ use derive_setters::Setters;
 use merge::Merge;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
 use crate::compact::Compact;
 use crate::merge::Key;
 use crate::temperature::Temperature;
