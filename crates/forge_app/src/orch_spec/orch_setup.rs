@@ -13,7 +13,7 @@ use url::Url;
 use crate::orch_spec::orch_runner::Runner;
 
 // User prompt
-const USER_PROMPT: &'static str = r#"
+const USER_PROMPT: &str = r#"
 {{#if (eq event.name 'forge/user_task_update')}}
   <feedback>{{event.value}}</feedback>
   {{else}}

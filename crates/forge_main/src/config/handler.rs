@@ -201,7 +201,7 @@ mod tests {
     #[test]
     fn test_get_valid_provider_names() {
         let fixture = get_valid_provider_names();
-        let actual = fixture.len() > 0;
+        let actual = !fixture.is_empty();
         let expected = true;
         assert_eq!(actual, expected);
     }

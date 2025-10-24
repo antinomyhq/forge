@@ -527,11 +527,7 @@ mod tests {
         let path = PathBuf::from("C:\\Users\\User\\project");
 
         let actual = super::format_path_for_display(&fixture, &path);
-        let expected = if cfg!(windows) {
-            "C:\\Users\\User\\project"
-        } else {
-            "C:\\Users\\User\\project"
-        };
+        let expected = "C:\\Users\\User\\project";
         assert_eq!(actual, expected);
     }
 
@@ -541,11 +537,7 @@ mod tests {
         let path = PathBuf::from("C:\\Users\\User Name\\project");
 
         let actual = super::format_path_for_display(&fixture, &path);
-        let expected = if cfg!(windows) {
-            "\"C:\\Users\\User Name\\project\""
-        } else {
-            "\"C:\\Users\\User Name\\project\""
-        };
+        let expected = "\"C:\\Users\\User Name\\project\"";
         assert_eq!(actual, expected);
     }
 

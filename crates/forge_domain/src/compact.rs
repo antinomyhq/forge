@@ -198,7 +198,7 @@ mod tests {
     /// - 'u' = User message
     /// - 'a' = Assistant message
     /// - 's' = System message
-    /// Example: ctx("uau") creates User -> Assistant -> User messages
+    ///   Example: ctx("uau") creates User -> Assistant -> User messages
     fn ctx(pattern: &str) -> Context {
         let messages: Vec<ContextMessage> = pattern
             .chars()
