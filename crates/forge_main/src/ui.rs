@@ -789,11 +789,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn display_credential_success(&mut self, provider_id: ProviderId) -> anyhow::Result<()> {
         use colored::Colorize;
         println!();
-        println!(
-            "{} {} configured successfully!",
-            "✓".green(),
-            provider_id
-        );
+        println!("{} {} configured successfully!", "✓".green(), provider_id);
         println!();
 
         // Prompt user to set as active provider
