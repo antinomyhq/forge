@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use forge_domain::{
-    Agent, ChatCompletionMessage, ChatCompletionMessageFull, Compact, CompactionStrategy, Context,
+    ChatCompletionMessage, ChatCompletionMessageFull, Compact, CompactionStrategy, Context,
     ContextMessage, ResultStreamExt, extract_tag_content,
 };
 use futures::Stream;
-use tracing::{debug, info};
+use tracing::info;
 
 use crate::agent::AgentService;
 
@@ -296,14 +296,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_compress_single_sequence_accumulates_usage() {
-        let compactor = Compactor::new(Arc::new(MockService::with_usage(0.005)));
+        let compactor = Compactor::new(Arc::new(MockService::with_usage(0.005)), Compact::new().model(ModelId::new("m")));
         let context = Context::default()
             .add_message(ContextMessage::user("M1", None))
             .add_message(ContextMessage::assistant("R1", None, None))
             .usage(usage(0.010));
 
         let actual = compactor
-            .compress_single_sequence(&Compact::new().model(ModelId::new("m")), context, (0, 1))
+            .compress_single_sequence(context, (0, 1))
             .await
             .unwrap();
 
@@ -314,7 +314,7 @@ mod tests {
     async fn test_compress_single_sequence_preserves_only_last_reasoning() {
         use forge_domain::ReasoningFull;
 
-        let compactor = Compactor::new(Arc::new(MockService::with_usage(0.005)));
+        let compactor = Compactor::new(Arc::new(MockService::with_usage(0.005)), Compact::new().model(ModelId::new("m")));
 
         let first_reasoning = vec![ReasoningFull {
             text: Some("First thought".to_string()),
@@ -343,7 +343,7 @@ mod tests {
             .add_message(ContextMessage::assistant("R3", None, None));
 
         let actual = compactor
-            .compress_single_sequence(&Compact::new().model(ModelId::new("m")), context, (0, 3))
+            .compress_single_sequence(context, (0, 3))
             .await
             .unwrap();
 
@@ -369,7 +369,7 @@ mod tests {
     async fn test_compress_single_sequence_no_reasoning_accumulation() {
         use forge_domain::ReasoningFull;
 
-        let compactor = Compactor::new(Arc::new(MockService::with_usage(0.005)));
+        let compactor = Compactor::new(Arc::new(MockService::with_usage(0.005)), Compact::new().model(ModelId::new("m")));
 
         let reasoning = vec![ReasoningFull {
             text: Some("Original thought".to_string()),
@@ -388,7 +388,7 @@ mod tests {
             .add_message(ContextMessage::assistant("R2", None, None));
 
         let context = compactor
-            .compress_single_sequence(&Compact::new().model(ModelId::new("m")), context, (0, 1))
+            .compress_single_sequence(context, (0, 1))
             .await
             .unwrap();
 
@@ -409,7 +409,7 @@ mod tests {
             .add_message(ContextMessage::assistant("R3", None, None));
 
         let context = compactor
-            .compress_single_sequence(&Compact::new().model(ModelId::new("m")), context, (0, 2))
+            .compress_single_sequence(context, (0, 2))
             .await
             .unwrap();
 
@@ -433,7 +433,7 @@ mod tests {
     async fn test_compress_single_sequence_filters_empty_reasoning() {
         use forge_domain::ReasoningFull;
 
-        let compactor = Compactor::new(Arc::new(MockService::with_usage(0.005)));
+        let compactor = Compactor::new(Arc::new(MockService::with_usage(0.005)), Compact::new().model(ModelId::new("m")));
 
         let non_empty_reasoning = vec![ReasoningFull {
             text: Some("Valid thought".to_string()),
@@ -454,7 +454,7 @@ mod tests {
             .add_message(ContextMessage::assistant("R3", None, None)); // Outside range
 
         let actual = compactor
-            .compress_single_sequence(&Compact::new().model(ModelId::new("m")), context, (0, 3))
+            .compress_single_sequence(context, (0, 3))
             .await
             .unwrap();
 
