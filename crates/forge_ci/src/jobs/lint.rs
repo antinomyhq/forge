@@ -17,7 +17,6 @@ fn clippy_base() -> Vec<&'static str> {
         "+nightly",
         "clippy",
         "--all-features",
-        "--allow-dirty",
         "--all-targets",
         "--workspace",
     ]
@@ -37,7 +36,7 @@ pub fn clippy_cmd(fix: bool) -> String {
     let mut parts = clippy_base();
 
     if fix {
-        parts.push("--fix");
+        parts.extend(["--fix", "--allow-dirty"]);
     }
 
     parts.extend(["--", "-D", "warnings"]);

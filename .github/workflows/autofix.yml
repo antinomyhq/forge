@@ -48,7 +48,7 @@ jobs:
     - name: Cargo Fmt
       run: cargo +nightly fmt --all
     - name: Cargo Clippy
-      run: cargo +nightly clippy --all-features --allow-dirty --all-targets --workspace --fix -- -D warnings
+      run: cargo +nightly clippy --all-features --all-targets --workspace --fix --allow-dirty -- -D warnings
     - name: Autofix
       uses: autofix-ci/action@635ffb0c9798bd160680f18fd73371e355b85f27
 concurrency:
