@@ -430,7 +430,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type McpService: McpService;
     type AuthService: AuthService;
     type ProviderRegistry: ProviderRegistry;
-    type AgentLoaderService: AgentRegistry;
+    type AgentRegistry: AgentRegistry;
     type CommandLoaderService: CommandLoaderService;
     type PolicyService: PolicyService;
 
@@ -457,7 +457,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn custom_instructions_service(&self) -> &Self::CustomInstructionsService;
     fn auth_service(&self) -> &Self::AuthService;
     fn provider_registry(&self) -> &Self::ProviderRegistry;
-    fn agent_loader_service(&self) -> &Self::AgentLoaderService;
+    fn agent_registry(&self) -> &Self::AgentRegistry;
     fn command_loader_service(&self) -> &Self::CommandLoaderService;
     fn policy_service(&self) -> &Self::PolicyService;
 }
@@ -816,23 +816,23 @@ pub trait HttpClientService: Send + Sync + 'static {
 #[async_trait::async_trait]
 impl<I: Services> AgentRegistry for I {
     async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
-        self.agent_loader_service().get_agents().await
+        self.agent_registry().get_agents().await
     }
 
     async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<Agent>> {
-        self.agent_loader_service().get_agent(agent_id).await
+        self.agent_registry().get_agent(agent_id).await
     }
 
     async fn get_active_agent(&self) -> anyhow::Result<Option<Agent>> {
-        self.agent_loader_service().get_active_agent().await
+        self.agent_registry().get_active_agent().await
     }
 
     async fn get_active_agent_id(&self) -> anyhow::Result<Option<AgentId>> {
-        self.agent_loader_service().get_active_agent_id().await
+        self.agent_registry().get_active_agent_id().await
     }
 
     async fn set_active_agent_id(&self, agent_id: AgentId) -> anyhow::Result<()> {
-        self.agent_loader_service()
+        self.agent_registry()
             .set_active_agent_id(agent_id)
             .await
     }

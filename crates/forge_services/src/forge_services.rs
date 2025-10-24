@@ -184,7 +184,7 @@ impl<
     type McpService = McpService<F>;
     type AuthService = AuthService<F>;
     type ProviderRegistry = ForgeProviderRegistry<F>;
-    type AgentLoaderService = ForgeAgentLoaderService<F>;
+    type AgentRegistry = ForgeAgentLoaderService<F>;
     type CommandLoaderService = ForgeCommandLoaderService<F>;
     type PolicyService = ForgePolicyService<F>;
 
@@ -274,7 +274,7 @@ impl<
     fn provider_registry(&self) -> &Self::ProviderRegistry {
         &self.provider_service
     }
-    fn agent_loader_service(&self) -> &Self::AgentLoaderService {
+    fn agent_registry(&self) -> &Self::AgentRegistry {
         &self.agent_loader_service
     }
 
