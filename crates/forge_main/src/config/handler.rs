@@ -88,12 +88,7 @@ impl<A: API> ConfigManager<A> {
                 display_single_field("model", model);
             }
             ConfigField::Provider => {
-                let provider = self
-                    .api
-                    .get_provider()
-                    .await
-                    .ok()
-                    .map(|p| p.id.to_string());
+                let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
                 display_single_field("provider", provider);
             }
         }
