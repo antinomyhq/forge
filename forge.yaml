@@ -1,21 +1,3 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/antinomyhq/forge/refs/heads/main/forge.schema.json
-commands:
-- name: fixme
-  description: Looks for all the fixme comments in the code and attempts to fix them
-  prompt: Find all the FIXME comments in source-code files and attempt to fix them.
-- name: pr-description
-  description: Updates the description of the PR
-  prompt: |-
-    - I have created a Pull Request with all the accepted changes
-    - Understand the current PR deeply using the GH CLI and update the PR title and description
-    - Make sure the title follows conventional commits standard
-    - Top-level summary should contain 2-3 lines about the core functionality improvements
-- name: check
-  description: Checks if the code is ready to be committed
-  prompt: |-
-    - Run the `lint` and `test` commands and verify if everything is fine.
-      <lint>cargo +nightly fmt --all; cargo +nightly clippy --fix --allow-staged --allow-dirty --workspace</lint>
-      <test>cargo insta test --accept --unreferenced=delete</test>
-    - Fix every issue found in the process
 max_walker_depth: 1024
 tool_supported: true

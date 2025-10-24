@@ -93,7 +93,7 @@ mod tests {
     #[test]
     fn test_drop_reasoning_details_removes_reasoning() {
         let fixture = create_context_with_reasoning_details();
-        let mut transformer = DropReasoningDetails::default();
+        let mut transformer = DropReasoningDetails;
         let actual = transformer.transform(fixture.clone());
 
         let snapshot = TransformationSnapshot::new("DropReasoningDetails", fixture, actual);
@@ -115,7 +115,7 @@ mod tests {
             reasoning_details: Some(reasoning_details),
         }));
 
-        let mut transformer = DropReasoningDetails::default();
+        let mut transformer = DropReasoningDetails;
         let actual = transformer.transform(fixture.clone());
 
         let snapshot =
@@ -126,7 +126,7 @@ mod tests {
     #[test]
     fn test_drop_reasoning_details_mixed_message_types() {
         let fixture = create_context_with_mixed_messages();
-        let mut transformer = DropReasoningDetails::default();
+        let mut transformer = DropReasoningDetails;
         let actual = transformer.transform(fixture.clone());
 
         let snapshot =
@@ -141,7 +141,7 @@ mod tests {
             .add_message(ContextMessage::assistant("Assistant message", None, None))
             .add_message(ContextMessage::system("System message"));
 
-        let mut transformer = DropReasoningDetails::default();
+        let mut transformer = DropReasoningDetails;
         let actual = transformer.transform(fixture.clone());
         let expected = fixture;
 
@@ -172,7 +172,7 @@ mod tests {
                 output: ToolOutput::text("Tool output".to_string()),
             }]);
 
-        let mut transformer = DropReasoningDetails::default();
+        let mut transformer = DropReasoningDetails;
         let actual = transformer.transform(fixture.clone());
 
         let snapshot =
