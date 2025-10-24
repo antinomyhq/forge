@@ -34,7 +34,7 @@ impl ConversationSelector {
                 "now".to_string()
             } else {
                 let duration = humantime::format_duration(duration);
-                format!("{} ago", duration)
+                format!("{duration} ago")
             }
         });
 
