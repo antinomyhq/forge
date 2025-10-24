@@ -103,8 +103,8 @@ impl<S: Services> ForgeApp<S> {
             .into_iter()
             .map(|agent| {
                 agent
-                    .set_model_deeply(model.clone())
                     .apply_workflow_config(&workflow)
+                    .set_model_deeply(model.clone())
                     .subscribe_commands(&commands)
             })
             .find(|agent| agent.has_subscription(&chat.event.name))
@@ -197,8 +197,8 @@ impl<S: Services> ForgeApp<S> {
             .find(|agent| active_agent.as_ref().is_some_and(|id| agent.id == *id))
             .and_then(|agent| {
                 agent
-                    .set_model_deeply(model.clone())
                     .apply_workflow_config(&workflow)
+                    .set_model_deeply(model.clone())
                     .compact
             })
         else {
@@ -215,13 +215,8 @@ impl<S: Services> ForgeApp<S> {
             .compact(context, true)
             .await?;
 
-        // Calculate compacted metrics
         let compacted_messages = compacted_context.messages.len();
-        // The compactor returns an accumulated total (original + compacted tokens).
-        // Formula: compacted_tokens = accumulated_total - original_tokens
-        // Uses saturating_sub to prevent underflow panics.
-        let compacted_token_count =
-            (*compacted_context.token_count()).saturating_sub(original_token_count);
+        let compacted_tokens = *compacted_context.token_count();
 
         // Update the conversation with the compacted context
         conversation.context = Some(compacted_context);
@@ -229,10 +224,9 @@ impl<S: Services> ForgeApp<S> {
         // Save the updated conversation
         self.services.upsert_conversation(conversation).await?;
 
-        // Return the compaction metrics
         Ok(CompactionResult::new(
             original_token_count,
-            compacted_token_count,
+            compacted_tokens,
             original_messages,
             compacted_messages,
         ))

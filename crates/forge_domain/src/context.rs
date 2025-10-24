@@ -405,7 +405,7 @@ impl Context {
         let actual = self
             .usage
             .as_ref()
-            .map(|u| u.total_tokens.clone())
+            .map(|u| u.total_tokens)
             .unwrap_or_default();
 
         match actual {
@@ -435,7 +435,7 @@ impl Context {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TokenCount {
     Actual(usize),
     Approx(usize),
