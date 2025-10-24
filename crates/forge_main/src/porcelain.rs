@@ -21,8 +21,8 @@ impl Porcelain {
         Porcelain(Vec::new())
     }
 
-    /// Adds a section with key-value pairs
-    pub fn add_section(mut self, title: String, items: Vec<Option<String>>) -> Self {
+    /// Adds a section with key-value pairs (private, used internally)
+    fn add_section(mut self, title: String, items: Vec<Option<String>>) -> Self {
         self.0.push((title, items));
         self
     }
@@ -59,15 +59,11 @@ impl Porcelain {
         rows
     }
 
-    /// Checks if a section has no items (consecutive None, None)
-    fn _has_no_items(items: &[Option<String>]) -> bool {
-        items.windows(2).any(|w| w[0].is_none() && w[1].is_none())
-    }
-
     /// Skips the first n sections
-    /// Useful for porcelain mode where top-level titles should not be displayed
     pub fn skip(mut self, n: usize) -> Self {
-        if n > 0 && n <= self.0.len() {
+        if n >= self.0.len() {
+            self.0.clear();
+        } else if n > 0 {
             self.0.drain(0..n);
         }
         self
@@ -411,19 +407,14 @@ mod tests {
 
     #[test]
     fn test_porcelain_skip() {
-        // Test skipping sections
-        let fixture = Porcelain::new()
-            .add_section("section1".to_string(), vec![])
-            .add_section(
-                "section2".to_string(),
-                vec![Some("name".to_string()), Some("Alice".to_string())],
-            )
-            .add_section(
-                "section3".to_string(),
-                vec![Some("age".to_string()), Some("30".to_string())],
-            );
+        // Test skipping sections using Info structure (flat format)
+        let info = Info::new()
+            .add_key_value("section1", "")
+            .add_key_value("section2", "Alice")
+            .add_key_value("section3", "30");
 
-        let actual = fixture.skip(1).to_rows();
+        let porcelain = Porcelain::from(&info);
+        let actual = porcelain.skip(1).to_rows();
 
         // Should skip section1
         let expected = vec![
@@ -436,16 +427,14 @@ mod tests {
 
     #[test]
     fn test_porcelain_skip_more_than_available() {
-        // Test skipping more sections than available
-        let fixture = Porcelain::new().add_section(
-            "section1".to_string(),
-            vec![Some("name".to_string()), Some("Alice".to_string())],
-        );
+        // Test skipping more sections than available using Info structure (flat format)
+        let info = Info::new().add_key_value("section1", "Alice");
 
-        let actual = fixture.skip(5).to_rows(); // Skip more than exists
+        let porcelain = Porcelain::from(&info);
+        let actual = porcelain.skip(5).to_rows(); // Skip more than exists
 
-        // Should return all sections since we can't skip more than exists
-        let expected = vec![vec!["section1".to_string(), "Alice".to_string()]];
+        // Should return empty since we skip more than available
+        let expected: Vec<Vec<String>> = vec![];
 
         assert_eq!(actual, expected);
     }
