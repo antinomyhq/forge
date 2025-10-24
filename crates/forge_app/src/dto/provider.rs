@@ -353,7 +353,7 @@ mod tests {
     #[test]
     fn test_provider_id_snake_case_identifier() {
         let fixture_openai = ProviderId::OpenAI;
-        let actual_openai = serde_json::to_value(&fixture_openai)
+        let actual_openai = serde_json::to_value(fixture_openai)
             .unwrap()
             .as_str()
             .unwrap()
@@ -362,7 +362,7 @@ mod tests {
         assert_eq!(actual_openai, expected_openai);
 
         let fixture_copilot = ProviderId::GithubCopilot;
-        let actual_copilot = serde_json::to_value(&fixture_copilot)
+        let actual_copilot = serde_json::to_value(fixture_copilot)
             .unwrap()
             .as_str()
             .unwrap()

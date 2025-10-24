@@ -81,7 +81,7 @@ mod tests {
     #[test]
     fn test_enabled_adds_auth_message() {
         let fixture = create_request_with_system_messages(0);
-        let mut transformer = AuthSystemMessage::default().when(|_| true);
+        let mut transformer = AuthSystemMessage.when(|_| true);
 
         let actual = transformer.transform(fixture);
 
@@ -94,7 +94,7 @@ mod tests {
     #[test]
     fn test_disabled_does_not_add_auth_message() {
         let fixture = create_request_with_system_messages(0);
-        let mut transformer = AuthSystemMessage::default().when(|_| false);
+        let mut transformer = AuthSystemMessage.when(|_| false);
 
         let actual = transformer.transform(fixture);
 
@@ -106,7 +106,7 @@ mod tests {
     #[test]
     fn test_prepends_to_existing_system_messages() {
         let fixture = create_request_with_system_messages(2);
-        let mut transformer = AuthSystemMessage::default().when(|_| true);
+        let mut transformer = AuthSystemMessage.when(|_| true);
 
         let actual = transformer.transform(fixture);
 
@@ -125,7 +125,7 @@ mod tests {
     #[test]
     fn test_auth_message_content_matches_file() {
         let fixture = create_request_with_system_messages(0);
-        let mut transformer = AuthSystemMessage::default().when(|_| true);
+        let mut transformer = AuthSystemMessage.when(|_| true);
 
         let actual = transformer.transform(fixture);
 
@@ -137,7 +137,7 @@ mod tests {
     #[test]
     fn test_with_one_existing_system_message() {
         let fixture = create_request_with_system_messages(1);
-        let mut transformer = AuthSystemMessage::default().when(|_| true);
+        let mut transformer = AuthSystemMessage.when(|_| true);
 
         let actual = transformer.transform(fixture);
 
@@ -152,7 +152,7 @@ mod tests {
         let fixture = create_request_with_system_messages(2);
         let expected_count = fixture.system.as_ref().unwrap().len();
 
-        let mut transformer = AuthSystemMessage::default().when(|_| false);
+        let mut transformer = AuthSystemMessage.when(|_| false);
         let actual = transformer.transform(fixture);
 
         let system_messages = actual.system.unwrap();
