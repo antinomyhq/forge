@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
 use colored::Colorize;
-use forge_api::{Event, Model, Provider, Workflow};
+use forge_api::{Event, Model, Provider};
 use forge_domain::Agent;
 use serde::Deserialize;
 use serde_json::Value;
@@ -198,22 +198,8 @@ impl ForgeCommandManager {
             .collect::<Vec<_>>()
     }
 
-    /// Registers multiple commands to the manager (without workflow commands).
-    pub fn register_all(&self, _workflow: &Workflow) {
-        let mut guard = self.commands.lock().unwrap();
-        let mut commands = Self::default_commands();
-
-        commands.sort_by(|a, b| a.name.cmp(&b.name));
-
-        // Note: Workflow commands are now registered separately via
-        // register_workflow_commands() since they need to be fetched
-        // asynchronously from the API
-
-        *guard = commands;
-    }
-
     /// Registers workflow commands from the API.
-    pub fn register_commands(&self, commands: Vec<forge_domain::Command>) {
+    pub fn register_all(&self, commands: Vec<forge_domain::Command>) {
         let mut guard = self.commands.lock().unwrap();
 
         // Remove existing workflow commands (those with ⚙ prefix in description)
