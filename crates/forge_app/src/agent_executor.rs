@@ -61,7 +61,7 @@ impl<S: Services> AgentExecutor<S> {
         let app = crate::ForgeApp::new(self.services.clone());
         let mut response_stream = app
             .chat(ChatRequest::new(
-                Event::new(format!("{agent_id}/user_task_init"), Some(task.clone())),
+                Event::new(agent_id.to_string(), Some(task.clone())),
                 conversation.id,
             ))
             .await?;

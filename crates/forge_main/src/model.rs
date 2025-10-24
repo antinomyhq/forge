@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
 use colored::Colorize;
-use forge_api::{Event, Model, Provider, Workflow};
+use forge_api::{Event, Model, Provider};
 use forge_domain::Agent;
 use serde::Deserialize;
 use serde_json::Value;
@@ -83,9 +83,9 @@ pub struct CliProvider(pub Provider);
 impl Display for CliProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let name = self.0.id.to_string();
-        write!(f, "{}", name)?;
+        write!(f, "{name}")?;
         if let Some(domain) = self.0.url.domain() {
-            write!(f, " [{}]", domain)?;
+            write!(f, " [{domain}]")?;
         }
         Ok(())
     }
@@ -129,14 +129,6 @@ pub struct ForgeCommand {
     pub name: String,
     pub description: String,
     pub value: Option<String>,
-}
-
-impl From<&Workflow> for ForgeCommandManager {
-    fn from(value: &Workflow) -> Self {
-        let cmd = ForgeCommandManager::default();
-        cmd.register_all(value);
-        cmd
-    }
 }
 
 #[derive(Debug)]
@@ -206,22 +198,26 @@ impl ForgeCommandManager {
             .collect::<Vec<_>>()
     }
 
-    /// Registers multiple commands to the manager.
-    pub fn register_all(&self, workflow: &Workflow) {
+    /// Registers workflow commands from the API.
+    pub fn register_all(&self, commands: Vec<forge_domain::Command>) {
         let mut guard = self.commands.lock().unwrap();
-        let mut commands = Self::default_commands();
 
-        commands.sort_by(|a, b| a.name.cmp(&b.name));
+        // Remove existing workflow commands (those with ⚙ prefix in description)
+        guard.retain(|cmd| !cmd.description.starts_with("⚙ "));
 
-        commands.extend(workflow.commands.clone().into_iter().map(|cmd| {
+        // Add new workflow commands
+        let new_commands = commands.into_iter().map(|cmd| {
             let name = cmd.name.clone();
             let description = format!("⚙ {}", cmd.description);
             let value = cmd.prompt.clone();
 
             ForgeCommand { name, description, value }
-        }));
+        });
 
-        *guard = commands;
+        guard.extend(new_commands);
+
+        // Sort commands for consistent completion behavior
+        guard.sort_by(|a, b| a.name.cmp(&b.name));
     }
 
     /// Registers agent commands to the manager.
@@ -238,7 +234,7 @@ impl ForgeCommandManager {
         for agent in agents {
             let agent_id_str = agent.id.as_str();
             let sanitized_id = Self::sanitize_agent_id(agent_id_str);
-            let command_name = format!("agent-{}", sanitized_id);
+            let command_name = format!("agent-{sanitized_id}");
 
             // Skip if it would conflict with reserved commands
             if Self::is_reserved_command(&command_name) {
@@ -248,7 +244,7 @@ impl ForgeCommandManager {
 
             let default_title = agent_id_str.to_string();
             let title = agent.title.as_ref().unwrap_or(&default_title);
-            let description = format!("🤖 Switch to {} agent", title);
+            let description = format!("🤖 Switch to {title} agent");
 
             guard.push(ForgeCommand {
                 name: command_name,
@@ -376,7 +372,7 @@ impl ForgeCommandManager {
                                 return Ok(Command::AgentSwitch(agent_id.clone()));
                             }
                         }
-                        return Err(anyhow::anyhow!("{} is not a valid agent command", command));
+                        return Err(anyhow::anyhow!("{command} is not a valid agent command"));
                     }
 
                     // Handle custom workflow commands
@@ -389,7 +385,7 @@ impl ForgeCommandManager {
                             value.unwrap_or_default(),
                         )))
                     } else {
-                        Err(anyhow::anyhow!("{} is not valid", command))
+                        Err(anyhow::anyhow!("{command} is not valid"))
                     }
                 } else {
                     Err(anyhow::anyhow!("Invalid Command Format."))

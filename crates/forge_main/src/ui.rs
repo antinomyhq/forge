@@ -532,9 +532,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         for model in models.iter() {
             let id = model.id.to_string();
-            info = info.add_title(id);
 
-            // Add context length if available
+            // Build a single row with model name as key and context/tools as values
+            let mut values = Vec::new();
+
+            // Add context length if available, otherwise use "unknown"
             if let Some(limit) = model.context_length {
                 let context = if limit >= 1_000_000 {
                     format!("{}M", limit / 1_000_000)
@@ -543,16 +545,27 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 } else {
                     format!("{limit}")
                 };
-                info = info.add_key_value("Context", context);
+                values.push(context);
+            } else {
+                values.push("<unspecified>".to_string());
             }
 
             // Add tools support indicator if explicitly supported
             if model.tools_supported == Some(true) {
-                info = info.add_key_value("Tools", "🛠️");
+                values.push("🛠️".to_string());
+            } else {
+                values.push("".to_string());
+            }
+
+            // Add the model as a key with combined values
+            if values.len() == 2 {
+                info = info.add_key_value(id, values.join(" "));
+            } else {
+                info = info.add_key(id);
             }
         }
 
-        self.write_info_or_porcelain(info, porcelain, true)?;
+        self.write_info_or_porcelain(info, porcelain, false)?;
 
         Ok(())
     }
@@ -668,12 +681,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
-        let mut info = Info::new().add_title("MCP SERVERS");
+        let mut info = Info::new();
 
         for (name, server) in mcp_servers.mcp_servers {
             info = info
-                .add_title(name.clone())
-                .add_key_value("Command", server.to_string());
+                .add_title(name.to_uppercase())
+                .add_key_value("command", server.to_string());
+
+            if server.is_disabled() {
+                info = info.add_key_value("disable", "true")
+            }
         }
 
         self.write_info_or_porcelain(info, porcelain, true)?;
@@ -816,8 +833,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             // Add conversation: Title=<title>, Updated=<time_ago>, with ID as section title
             info = info
                 .add_title(title.to_string())
-                .add_key_value("Id", conv.id)
-                .add_key_value("Updated", time_ago);
+                .add_key_value("Updated", time_ago)
+                .add_key_value("Id", conv.id);
         }
 
         self.write_info_or_porcelain(info, porcelain, true)?;
@@ -1254,6 +1271,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         if first {
             // only call on_update if this is the first initialization
             on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
+            if !workflow.commands.is_empty() {
+                self.writeln_title(TitleFormat::error("forge.yaml commands are deprecated. Use .md files in forge/ (home) or .forge/ (project) instead"))?;
+            }
         }
 
         // Execute independent operations in parallel to improve performance
@@ -1288,9 +1308,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         }
 
-        // Finalize UI state initialization by registering commands and setting up the
-        // state
-        self.command.register_all(&base_workflow);
+        // Register all the commands
+        self.command.register_all(self.api.get_commands().await?);
+
         let operating_model = self.api.get_operating_model().await;
         self.state = UIState::new(self.api.environment());
         self.update_model(operating_model);
