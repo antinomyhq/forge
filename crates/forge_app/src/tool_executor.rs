@@ -172,8 +172,8 @@ impl<
 
                 (input, output).into()
             }
-            Tools::ReadBinary(input) => {
-                let output = self.services.read_binary(input.path.clone()).await?;
+            Tools::ReadImage(input) => {
+                let output = self.services.read_image(input.path.clone()).await?;
                 output.into()
             }
             Tools::Write(input) => {

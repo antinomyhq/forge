@@ -48,7 +48,7 @@ impl<F> ForgeFsBinaryRead<F> {
 impl<F: FileInfoInfra + EnvironmentInfra + crate::infra::FileReaderInfra> FsBinaryReadService
     for ForgeFsBinaryRead<F>
 {
-    async fn read_binary(&self, path: String) -> anyhow::Result<Image> {
+    async fn read_image(&self, path: String) -> anyhow::Result<Image> {
         let path = Path::new(&path);
         assert_absolute_path(path)?;
         let env = self.0.get_environment();

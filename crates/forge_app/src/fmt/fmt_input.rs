@@ -30,10 +30,10 @@ impl FormatContent for Tools {
                 };
                 Some(TitleFormat::debug("Read").sub_title(subtitle).into())
             }
-            Tools::ReadBinary(input) => {
+            Tools::ReadImage(input) => {
                 let display_path = display_path_for(&input.path);
                 Some(
-                    TitleFormat::debug("Read Binary")
+                    TitleFormat::debug("Image")
                         .sub_title(display_path)
                         .into(),
                 )

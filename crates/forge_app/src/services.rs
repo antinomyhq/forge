@@ -286,8 +286,8 @@ pub trait FsReadService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait FsBinaryReadService: Send + Sync {
-    /// Reads a file at the specified path and returns its content.
-    async fn read_binary(&self, path: String) -> anyhow::Result<forge_domain::Image>;
+    /// Reads an image file at the specified path and returns its content.
+    async fn read_image(&self, path: String) -> anyhow::Result<forge_domain::Image>;
 }
 
 #[async_trait::async_trait]
@@ -626,8 +626,8 @@ impl<I: Services> FsReadService for I {
 }
 #[async_trait::async_trait]
 impl<I: Services> FsBinaryReadService for I {
-    async fn read_binary(&self, path: String) -> anyhow::Result<Image> {
-        self.fs_binary_read_service().read_binary(path).await
+    async fn read_image(&self, path: String) -> anyhow::Result<Image> {
+        self.fs_binary_read_service().read_image(path).await
     }
 }
 

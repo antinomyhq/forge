@@ -37,7 +37,7 @@ use crate::{ToolCallFull, ToolDefinition, ToolDescription, ToolName};
 #[strum(serialize_all = "snake_case")]
 pub enum Tools {
     Read(FSRead),
-    ReadBinary(FSReadBinary),
+    ReadImage(FSReadBinary),
     Write(FSWrite),
     Search(FSSearch),
     Remove(FSRemove),
@@ -95,14 +95,18 @@ pub struct FSRead {
     pub end_line: Option<i32>,
 }
 
-/// Reads binary files (images) from the specified absolute path. Use this tool
-/// to read image files that support vision capabilities. Supported formats:
-/// JPEG, PNG, WebP, GIF. The tool returns the image content in base64 format
-/// that can be sent to vision-capable models. For text files, use the `read`
-/// tool instead. Binary files are automatically encoded to base64.
+/// Reads image files from the file system and returns them in base64-encoded
+/// format for vision-capable models. Supports common image formats: JPEG, PNG,
+/// WebP, and GIF. The path must be absolute and point to an existing file. Use
+/// this tool when you need to process, analyze, or display images with vision
+/// models. Do NOT use this for text files - use the `read` tool instead. Do NOT
+/// use for other binary files like PDFs, videos, or archives. The tool will
+/// fail if the file doesn't exist or if the format is unsupported. Returns the
+/// image content encoded in base64 format ready for vision model consumption.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct FSReadBinary {
-    /// The path of the image file to read, always provide absolute paths.
+    /// The absolute path to the image file (e.g., /home/user/image.png).
+    /// Relative paths are not supported. The file must exist and be readable.
     pub path: String,
 }
 
@@ -464,7 +468,7 @@ impl ToolDescription for Tools {
             Tools::Fetch(v) => v.description(),
             Tools::Search(v) => v.description(),
             Tools::Read(v) => v.description(),
-            Tools::ReadBinary(v) => v.description(),
+            Tools::ReadImage(v) => v.description(),
             Tools::Remove(v) => v.description(),
             Tools::Undo(v) => v.description(),
             Tools::Write(v) => v.description(),
@@ -499,7 +503,7 @@ impl Tools {
             Tools::Fetch(_) => r#gen.into_root_schema_for::<NetFetch>(),
             Tools::Search(_) => r#gen.into_root_schema_for::<FSSearch>(),
             Tools::Read(_) => r#gen.into_root_schema_for::<FSRead>(),
-            Tools::ReadBinary(_) => r#gen.into_root_schema_for::<FSReadBinary>(),
+            Tools::ReadImage(_) => r#gen.into_root_schema_for::<FSReadBinary>(),
             Tools::Remove(_) => r#gen.into_root_schema_for::<FSRemove>(),
             Tools::Undo(_) => r#gen.into_root_schema_for::<FSUndo>(),
             Tools::Write(_) => r#gen.into_root_schema_for::<FSWrite>(),
@@ -543,7 +547,7 @@ impl Tools {
                 cwd,
                 message: format!("Read file: {}", display_path_for(&input.path)),
             }),
-            Tools::ReadBinary(input) => Some(crate::policies::PermissionOperation::Read {
+            Tools::ReadImage(input) => Some(crate::policies::PermissionOperation::Read {
                 path: std::path::PathBuf::from(&input.path),
                 cwd,
                 message: format!("Read binary file: {}", display_path_for(&input.path)),
