@@ -104,7 +104,8 @@ impl<S: Services> ForgeApp<S> {
             .map(|agent| {
                 agent
                     .set_model_deeply(model.clone())
-                    .apply_workflow_config(&workflow, &commands)
+                    .apply_workflow_config(&workflow)
+                    .subscribe_commands(&commands)
             })
             .find(|agent| agent.has_subscription(&chat.event.name))
             .ok_or(crate::Error::UnsubscribedEvent(chat.event.name.to_owned()))?;

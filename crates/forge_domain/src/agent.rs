@@ -5,7 +5,6 @@ use derive_setters::Setters;
 use merge::Merge;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
 use crate::compact::Compact;
 use crate::merge::Key;
 use crate::temperature::Temperature;
@@ -297,7 +296,7 @@ impl Agent {
     }
 
     /// Helper to prepare agents with workflow settings
-    pub fn apply_workflow_config(self, workflow: &Workflow, commands: &[Command]) -> Agent {
+    pub fn apply_workflow_config(self, workflow: &Workflow) -> Agent {
         let mut agent = self;
         if let Some(custom_rules) = workflow.custom_rules.clone() {
             if let Some(existing_rules) = &agent.custom_rules {
@@ -356,7 +355,15 @@ impl Agent {
             }
         }
 
-        // Subscribe the main agent to all commands
+        // Add base subscription
+        let id = agent.id.clone();
+        agent.add_subscription(format!("{id}"));
+
+        agent
+    }
+
+    pub fn subscribe_commands(self, commands: &[Command]) -> Agent {
+        let mut agent = self;
         if agent.id == AgentId::default() {
             let commands = commands.iter().map(|c| c.name.clone()).collect::<Vec<_>>();
             if let Some(ref mut subscriptions) = agent.subscribe {
@@ -365,10 +372,6 @@ impl Agent {
                 agent.subscribe = Some(commands);
             }
         }
-
-        // Add base subscription
-        let id = agent.id.clone();
-        agent.add_subscription(format!("{id}"));
 
         agent
     }
