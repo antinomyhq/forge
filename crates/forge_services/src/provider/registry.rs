@@ -402,6 +402,7 @@ mod env_tests {
                 auto_open_dump: false,
                 custom_history_path: None,
                 max_conversations: 100,
+                max_image_size: 262144,
             }
         }
 
