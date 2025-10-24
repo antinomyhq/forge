@@ -490,7 +490,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             info = info.add_title(id).add_key_value("Description", title);
         }
 
-        self.write_info_or_porcelain(info, porcelain, true)?;
+        // In porcelain mode, skip the top-level "AGENTS" title
+        if porcelain {
+            info = info.skip_first_title();
+        }
+
+        if porcelain {
+            crate::cli_format::format_columns(info.flatten_titles_to_rows().to_rows());
+        } else {
+            self.writeln(info)?;
+        }
 
         Ok(())
     }
@@ -515,7 +524,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             info = info.add_title(id).add_key_value("Domain", domain);
         }
 
-        self.write_info_or_porcelain(info, porcelain, true)?;
+        // In porcelain mode, skip the top-level "PROVIDERS" title
+        if porcelain {
+            info = info.skip_first_title();
+        }
+
+        if porcelain {
+            crate::cli_format::format_columns(info.flatten_titles_to_rows().to_rows());
+        } else {
+            self.writeln(info)?;
+        }
 
         Ok(())
     }
@@ -565,7 +583,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         }
 
-        self.write_info_or_porcelain(info, porcelain, false)?;
+        if porcelain {
+            crate::cli_format::format_columns(info.to_rows());
+        } else {
+            self.writeln(info)?;
+        }
 
         Ok(())
     }
@@ -626,7 +648,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .add_key_value("Description", title);
         }
 
-        self.write_info_or_porcelain(info, porcelain, true)?;
+        if porcelain {
+            info = info.skip_first_title();
+        }
+
+        if porcelain {
+            crate::cli_format::format_columns(info.flatten_titles_to_rows().to_rows());
+        } else {
+            self.writeln(info)?;
+        }
 
         Ok(())
     }
@@ -646,7 +676,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
 
         let info = crate::config::build_config_info(agent, model, provider);
-        self.write_info_or_porcelain(info, porcelain, false)?;
+
+        if porcelain {
+            crate::cli_format::format_columns(info.to_rows());
+        } else {
+            self.writeln(info)?;
+        }
+
         Ok(())
     }
 
@@ -668,7 +704,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         };
 
         let info = format_tools(&agent_tools, &all_tools);
-        self.write_info_or_porcelain(info, porcelain, false)?;
+        if porcelain {
+            crate::cli_format::format_columns(info.to_rows());
+        } else {
+            self.writeln(info)?;
+        }
 
         Ok(())
     }
@@ -693,7 +733,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         }
 
-        self.write_info_or_porcelain(info, porcelain, true)?;
+        if porcelain {
+            crate::cli_format::format_columns(info.flatten_titles_to_rows().to_rows());
+        } else {
+            self.writeln(info)?;
+        }
+
         Ok(())
     }
 
@@ -746,32 +791,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             info = info.extend(Info::from(&login_info));
         }
 
-        self.write_info_or_porcelain(info, porcelain, false)?;
-
-        Ok(())
-    }
-
-    /// Helper to output Info struct either as formatted display or porcelain
-    ///
-    /// # Arguments
-    /// * `info` - The Info struct to display
-    /// * `porcelain` - Whether to use porcelain mode
-    /// * `title_position` - Position of the title column in porcelain mode (0 =
-    ///   first, usize::MAX = last)
-    /// * `include_title` - Whether to include the title in porcelain output
-    ///   (false for section headers, true for IDs)
-    fn write_info_or_porcelain(
-        &mut self,
-        info: Info,
-        porcelain: bool,
-        include_title: bool,
-    ) -> anyhow::Result<()> {
         if porcelain {
-            // Use to_rows to get key-value pairs and format with columns
-            crate::cli_format::format_columns(info.to_rows(include_title));
+            crate::cli_format::format_columns(info.to_rows());
         } else {
             self.writeln(info)?;
         }
+
         Ok(())
     }
 
@@ -837,7 +862,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .add_key_value("Id", conv.id);
         }
 
-        self.write_info_or_porcelain(info, porcelain, true)?;
+        // In porcelain mode, skip the top-level "SESSIONS" title
+        if porcelain {
+            info = info.skip_first_title();
+        }
+
+        if porcelain {
+            crate::cli_format::format_columns(info.flatten_titles_to_rows().to_rows());
+        } else {
+            self.writeln(info)?;
+        }
 
         Ok(())
     }

@@ -57,48 +57,25 @@ impl Info {
         self
     }
 
-    /// Converts Info sections into rows suitable for column formatting
-    /// Each section (Title + all its Items) becomes one row
-    ///
-    /// # Arguments
-    /// * `title_position` - Zero-based index where the title should appear (0 =
-    ///   first column, usize::MAX = last column)
-    /// * `include_title` - Whether to include the title in the output row
-    ///   (false for section headers, true for IDs)
-    pub fn to_rows(&self, include_title: bool) -> Vec<Vec<String>> {
-        if include_title {
-            self.to_rows_with_title()
-        } else {
-            self.to_rows_without_title()
+    /// Removes the first title section from the Info
+    /// Useful for porcelain mode where top-level titles should not be displayed
+    pub fn skip_first_title(mut self) -> Self {
+        if let Some(Section::Title(_)) = self.sections.first() {
+            self.sections.remove(0);
         }
+        self
     }
 
-    /// Converts sections to rows for include_title=false mode
-    /// (info/config/tools commands) Each item becomes its own row
-    fn to_rows_without_title(&self) -> Vec<Vec<String>> {
-        let mut rows = Vec::new();
-
-        for section in &self.sections {
-            if let Section::Items(key, value) = section {
-                if let Some(value_str) = value {
-                    // Key-value pair: show [key, value]
-                    rows.push(vec![key.clone(), value_str.clone()]);
-                } else {
-                    // Key-only (like tools): show [key]
-                    rows.push(vec![key.clone()]);
-                }
-            }
-        }
-
-        rows
-    }
-
-    /// Converts sections to rows for include_title=true mode (list commands)
-    /// Each title gets one row with consistent column positions for fields
-    fn to_rows_with_title(&self) -> Vec<Vec<String>> {
+    /// Transforms Info by converting Title sections into row format
+    /// Converts: Title("agent1") + Items("key1", "val1") + Items("key2",
+    /// "val2")       To: Items("agent1\tval1\tval2", None) - stored as
+    /// tab-separated for later splitting This flattens the hierarchical
+    /// structure so each entity becomes a single Item that to_rows() can
+    /// convert to one row
+    pub fn flatten_titles_to_rows(self) -> Self {
         use std::collections::HashMap;
 
-        // First pass: collect all unique field names in order of first appearance
+        // First pass: collect all unique field names in order
         let mut field_order = Vec::new();
         let mut seen_fields = std::collections::HashSet::new();
 
@@ -111,22 +88,22 @@ impl Info {
             }
         }
 
-        // Second pass: build rows with consistent structure
-        let mut rows = Vec::new();
+        // Second pass: build flattened structure
+        let mut new_sections = Vec::new();
         let mut current_title = String::new();
         let mut current_row_data: HashMap<String, String> = HashMap::new();
 
         for section in &self.sections {
             match section {
                 Section::Title(title) => {
-                    // If we have accumulated data for the previous title, build and push the row
+                    // If we have data, build row for previous title
                     if !current_title.is_empty() {
                         let row = self.build_consistent_row(
                             &current_title,
                             &current_row_data,
                             &field_order,
                         );
-                        rows.push(row);
+                        new_sections.push(Section::Items(row.join("\t"), None));
                         current_row_data.clear();
                     }
                     current_title = title.clone();
@@ -141,10 +118,10 @@ impl Info {
         // Push the last row
         if !current_title.is_empty() {
             let row = self.build_consistent_row(&current_title, &current_row_data, &field_order);
-            rows.push(row);
+            new_sections.push(Section::Items(row.join("\t"), None));
         }
 
-        rows
+        Info { sections: new_sections }
     }
 
     /// Builds a row with consistent column positions
@@ -164,6 +141,31 @@ impl Info {
         }
 
         row
+    }
+
+    /// Converts sections to rows for column formatting
+    /// Each item becomes its own row
+    pub fn to_rows(&self) -> Vec<Vec<String>> {
+        let mut rows = Vec::new();
+
+        for section in &self.sections {
+            if let Section::Items(key, value) = section {
+                if let Some(value_str) = value {
+                    // Key-value pair: show [key, value]
+                    rows.push(vec![key.clone(), value_str.clone()]);
+                } else {
+                    // Check if key contains tab-separated values (from flatten_titles_to_rows)
+                    if key.contains('\t') {
+                        rows.push(key.split('\t').map(|s| s.to_string()).collect());
+                    } else {
+                        // Key-only (like tools): show [key]
+                        rows.push(vec![key.clone()]);
+                    }
+                }
+            }
+        }
+
+        rows
     }
 }
 
@@ -774,7 +776,7 @@ mod tests {
             .add_key_value("age", "25")
             .add_key_value("name", "Bob");
 
-        let actual = fixture.to_rows(false);
+        let actual = fixture.to_rows();
 
         let expected = vec![
             vec!["name".to_string(), "Alice".to_string()],
@@ -804,7 +806,7 @@ mod tests {
             .add_key_value("name", "Charlie") // Different order
             .add_key_value("city", "NYC"); // Extra field
 
-        let actual = fixture.to_rows(true);
+        let actual = fixture.flatten_titles_to_rows().to_rows();
 
         // All rows have consistent structure: [title, name, age, city]
         // Missing/empty fields are filled with empty strings
@@ -828,6 +830,54 @@ mod tests {
                 "NYC".to_string(),
             ],
         ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_skip_first_title() {
+        // Test skipping first title leaves remaining sections intact
+        let fixture = super::Info::new()
+            .add_title("PROVIDERS")
+            .add_title("provider1")
+            .add_key_value("Domain", "example.com")
+            .add_title("provider2")
+            .add_key_value("Domain", "test.com");
+
+        let actual = fixture
+            .skip_first_title()
+            .flatten_titles_to_rows()
+            .to_rows();
+
+        // Should skip "PROVIDERS" title but keep provider1 and provider2
+        let expected = vec![
+            vec!["provider1".to_string(), "example.com".to_string()],
+            vec!["provider2".to_string(), "test.com".to_string()],
+        ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_skip_first_title_with_no_title() {
+        // Test that skipping on Info with no title doesn't break
+        let fixture = super::Info::new().add_key_value("key", "value");
+
+        let actual = fixture.skip_first_title().to_rows();
+
+        let expected = vec![vec!["key".to_string(), "value".to_string()]];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_skip_first_title_with_empty_info() {
+        // Test that skipping on empty Info doesn't break
+        let fixture = super::Info::new();
+
+        let actual = fixture.skip_first_title().to_rows();
+
+        let expected: Vec<Vec<String>> = vec![];
 
         assert_eq!(actual, expected);
     }
