@@ -8,8 +8,8 @@ use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::ShellService;
 use crate::utils::format_display_path;
 use crate::{
-    ConversationService, EnvironmentService, FollowUpService, ImageReadService, FsCreateService,
-    FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoService,
+    ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
+    FsReadService, FsRemoveService, FsSearchService, FsUndoService, ImageReadService,
     NetFetchService, PlanCreateService, PolicyService,
 };
 
