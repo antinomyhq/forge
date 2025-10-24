@@ -24,3 +24,8 @@ fn test_labels_workflow() {
 fn test_stale_workflow() {
     workflow::generate_stale_workflow();
 }
+
+#[test]
+fn test_autofix_workflow() {
+    workflow::generate_autofix_workflow();
+}

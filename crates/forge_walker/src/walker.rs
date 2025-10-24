@@ -477,7 +477,7 @@ mod tests {
         for file in &binary_files {
             let path = Path::new(file);
             let actual = Walker::is_likely_binary(path);
-            assert!(actual, "File {} should be detected as binary", file);
+            assert!(actual, "File {file} should be detected as binary");
         }
     }
 
@@ -502,7 +502,7 @@ mod tests {
         for file in &text_files {
             let path = Path::new(file);
             let actual = Walker::is_likely_binary(path);
-            assert!(!actual, "File {} should not be detected as binary", file);
+            assert!(!actual, "File {file} should not be detected as binary");
         }
     }
 
@@ -518,8 +518,7 @@ mod tests {
             let actual = Walker::is_likely_binary(path);
             assert!(
                 !actual,
-                "File without extension {} should not be detected as binary",
-                file
+                "File without extension {file} should not be detected as binary"
             );
         }
 

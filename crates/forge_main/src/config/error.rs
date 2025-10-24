@@ -3,9 +3,6 @@ use thiserror::Error;
 /// Config command errors
 #[derive(Debug, Error)]
 pub enum ConfigError {
-    #[error("Invalid field: '{field}'. Valid fields are: agent, model, provider")]
-    InvalidField { field: String },
-
     #[error("Agent '{agent}' not found. Available agents: {available}")]
     AgentNotFound { agent: String, available: String },
 
