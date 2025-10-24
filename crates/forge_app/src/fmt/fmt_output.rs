@@ -9,6 +9,7 @@ impl FormatContent for ToolOperation {
     fn to_content(&self, env: &Environment) -> Option<ChatResponseContent> {
         match self {
             ToolOperation::FsRead { input: _, output: _ } => None,
+            ToolOperation::ImageRead { output: _ } => None,
             ToolOperation::FsCreate { input, output } => {
                 if let Some(ref before) = output.before {
                     let after = &input.content;
@@ -94,6 +95,7 @@ mod tests {
             auto_open_dump: false,
             custom_history_path: None,
             max_conversations: 100,
+            max_image_size: 262144,
         }
     }
 

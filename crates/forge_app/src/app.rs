@@ -13,8 +13,9 @@ use crate::services::{CustomInstructionsService, TemplateService};
 use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
 use crate::{
-    AgentRegistry, AttachmentService, ConversationService, EnvironmentService,
-    FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker, WorkflowService,
+    AgentRegistry, AttachmentService, CommandLoaderService, ConversationService,
+    EnvironmentService, FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker,
+    WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -89,15 +90,17 @@ impl<S: Services> ForgeApp<S> {
         let custom_instructions = services.get_custom_instructions().await;
 
         // Prepare agents with user configuration and subscriptions
-        let agents = services
+        let model = services.get_active_model().await?;
+        let commands = services.get_commands().await?;
+        let agent = services
             .get_agents()
-            .await?
             .into_iter()
-            .map(|agent| agent.apply_workflow_config(&workflow));
-
-        // Find agent with matching subscription
-        let mut agent = agents
-            .into_iter()
+            .map(|agent| {
+                agent
+                    .set_model_deeply(model.clone())
+                    .apply_workflow_config(&workflow)
+                    .subscribe_commands(&commands)
+            })
             .find(|agent| agent.has_subscription(&chat.event.name))
             .ok_or(crate::Error::UnsubscribedEvent(chat.event.name.to_owned()))?;
 

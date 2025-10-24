@@ -9,8 +9,8 @@ use crate::services::ShellService;
 use crate::utils::format_display_path;
 use crate::{
     ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
-    FsReadService, FsRemoveService, FsSearchService, FsUndoService, NetFetchService,
-    PlanCreateService, PolicyService,
+    FsReadService, FsRemoveService, FsSearchService, FsUndoService, ImageReadService,
+    NetFetchService, PlanCreateService, PolicyService,
 };
 
 pub struct ToolExecutor<S> {
@@ -19,6 +19,7 @@ pub struct ToolExecutor<S> {
 
 impl<
     S: FsReadService
+        + ImageReadService
         + FsCreateService
         + FsSearchService
         + NetFetchService
@@ -162,16 +163,18 @@ impl<
                     )
                     .await?;
                 let output = if input.show_line_numbers {
-                    let numbered_content = output
-                        .content
-                        .file_content()
-                        .numbered_from(output.start_line as usize);
+                    let file_content = output.content.file_content();
+                    let numbered_content = file_content.numbered_from(output.start_line as usize);
                     output.content(crate::Content::file(numbered_content))
                 } else {
                     output
                 };
 
                 (input, output).into()
+            }
+            Tools::ReadImage(input) => {
+                let output = self.services.read_image(input.path.clone()).await?;
+                output.into()
             }
             Tools::Write(input) => {
                 let normalized_path = self.normalize_path(input.path.clone());

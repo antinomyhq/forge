@@ -11,7 +11,7 @@ use crate::merge::Key;
 use crate::temperature::Temperature;
 use crate::template::Template;
 use crate::{
-    Context, Error, EventContext, MaxTokens, ModelId, ProviderId, Result, SystemContext,
+    Command, Context, Error, EventContext, MaxTokens, ModelId, ProviderId, Result, SystemContext,
     ToolDefinition, ToolName, TopK, TopP, Workflow,
 };
 
@@ -361,23 +361,23 @@ impl Agent {
             }
         }
 
-        // Subscribe the main agent to all commands
+        // Add base subscription
+        let id = agent.id.clone();
+        agent.add_subscription(format!("{id}"));
+
+        agent
+    }
+
+    pub fn subscribe_commands(self, commands: &[Command]) -> Agent {
+        let mut agent = self;
         if agent.id == AgentId::default() {
-            let commands = workflow
-                .commands
-                .iter()
-                .map(|c| c.name.clone())
-                .collect::<Vec<_>>();
+            let commands = commands.iter().map(|c| c.name.clone()).collect::<Vec<_>>();
             if let Some(ref mut subscriptions) = agent.subscribe {
                 subscriptions.extend(commands);
             } else {
                 agent.subscribe = Some(commands);
             }
         }
-
-        // Add base subscription
-        let id = agent.id.clone();
-        agent.add_subscription(format!("{id}"));
 
         agent
     }

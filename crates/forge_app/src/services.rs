@@ -5,7 +5,7 @@ use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation,
     ConversationId, Environment, File, McpConfig, McpServers, Model, ModelId, PatchOperation,
-    Provider, ProviderId, ResultStream, Scope, ToolCallFull, ToolOutput, Workflow,
+    Provider, ProviderId, ResultStream, Scope, ToolCallFull, ToolOutput, Workflow,Image,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -285,6 +285,12 @@ pub trait FsReadService: Send + Sync {
 }
 
 #[async_trait::async_trait]
+pub trait ImageReadService: Send + Sync {
+    /// Reads an image file at the specified path and returns its content.
+    async fn read_image(&self, path: String) -> anyhow::Result<forge_domain::Image>;
+}
+
+#[async_trait::async_trait]
 pub trait FsRemoveService: Send + Sync {
     /// Removes a file at the specified path.
     async fn remove(&self, path: String) -> anyhow::Result<FsRemoveOutput>;
@@ -381,6 +387,12 @@ pub trait AgentRegistry: Send + Sync {
 }
 
 #[async_trait::async_trait]
+pub trait CommandLoaderService: Send + Sync {
+    /// Load all command definitions from the forge/commands directory
+    async fn get_commands(&self) -> anyhow::Result<Vec<forge_domain::Command>>;
+}
+
+#[async_trait::async_trait]
 pub trait PolicyService: Send + Sync {
     /// Check if an operation is allowed and handle user confirmation if needed
     /// Returns PolicyDecision with allowed flag and optional policy file path
@@ -408,6 +420,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type PlanCreateService: PlanCreateService;
     type FsPatchService: FsPatchService;
     type FsReadService: FsReadService;
+    type ImageReadService: ImageReadService;
     type FsRemoveService: FsRemoveService;
     type FsSearchService: FsSearchService;
     type FollowUpService: FollowUpService;
@@ -418,6 +431,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type AuthService: AuthService;
     type ProviderRegistry: ProviderRegistry;
     type AgentLoaderService: AgentRegistry;
+    type CommandLoaderService: CommandLoaderService;
     type PolicyService: PolicyService;
 
     fn provider_service(&self) -> &Self::ProviderService;
@@ -431,6 +445,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn plan_create_service(&self) -> &Self::PlanCreateService;
     fn fs_patch_service(&self) -> &Self::FsPatchService;
     fn fs_read_service(&self) -> &Self::FsReadService;
+    fn image_read_service(&self) -> &Self::ImageReadService;
     fn fs_remove_service(&self) -> &Self::FsRemoveService;
     fn fs_search_service(&self) -> &Self::FsSearchService;
     fn follow_up_service(&self) -> &Self::FollowUpService;
@@ -443,6 +458,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn auth_service(&self) -> &Self::AuthService;
     fn provider_registry(&self) -> &Self::ProviderRegistry;
     fn agent_loader_service(&self) -> &Self::AgentLoaderService;
+    fn command_loader_service(&self) -> &Self::CommandLoaderService;
     fn policy_service(&self) -> &Self::PolicyService;
 }
 
@@ -631,6 +647,12 @@ impl<I: Services> FsReadService for I {
             .await
     }
 }
+#[async_trait::async_trait]
+impl<I: Services> ImageReadService for I {
+    async fn read_image(&self, path: String) -> anyhow::Result<Image> {
+        self.image_read_service().read_image(path).await
+    }
+}
 
 #[async_trait::async_trait]
 impl<I: Services> FsRemoveService for I {
@@ -813,6 +835,13 @@ impl<I: Services> AgentRegistry for I {
         self.agent_loader_service()
             .set_active_agent_id(agent_id)
             .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> CommandLoaderService for I {
+    async fn get_commands(&self) -> anyhow::Result<Vec<forge_domain::Command>> {
+        self.command_loader_service().get_commands().await
     }
 }
 

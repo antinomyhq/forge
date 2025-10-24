@@ -16,8 +16,8 @@ use crate::truncation::{
 };
 use crate::utils::format_display_path;
 use crate::{
-    Content, FsCreateOutput, FsRemoveOutput, FsUndoOutput, HttpResponse, PatchOutput,
-    PlanCreateOutput, ReadOutput, ResponseContext, SearchResult, ShellOutput,
+    FsCreateOutput, FsRemoveOutput, FsUndoOutput, HttpResponse, PatchOutput, PlanCreateOutput,
+    ReadOutput, ResponseContext, SearchResult, ShellOutput,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,6 +67,9 @@ pub enum ToolOperation {
     FsRead {
         input: FSRead,
         output: ReadOutput,
+    },
+    ImageRead {
+        output: forge_domain::Image,
     },
     FsCreate {
         input: FSWrite,
@@ -221,20 +224,20 @@ impl ToolOperation {
         metrics: &mut Metrics,
     ) -> forge_domain::ToolOutput {
         match self {
-            ToolOperation::FsRead { input, output } => match &output.content {
-                Content::File(content) => {
-                    let elm = Element::new("file_content")
-                        .attr("path", input.path)
-                        .attr(
-                            "display_lines",
-                            format!("{}-{}", output.start_line, output.end_line),
-                        )
-                        .attr("total_lines", content.lines().count())
-                        .cdata(content);
+            ToolOperation::FsRead { input, output } => {
+                let content = output.content.file_content();
+                let elm = Element::new("file_content")
+                    .attr("path", input.path)
+                    .attr(
+                        "display_lines",
+                        format!("{}-{}", output.start_line, output.end_line),
+                    )
+                    .attr("total_lines", content.lines().count())
+                    .cdata(content);
 
-                    forge_domain::ToolOutput::text(elm)
-                }
-            },
+                forge_domain::ToolOutput::text(elm)
+            }
+            ToolOperation::ImageRead { output } => forge_domain::ToolOutput::image(output),
             ToolOperation::FsCreate { input, output } => {
                 let diff_result = DiffFormat::format(
                     output.before.as_ref().unwrap_or(&"".to_string()),
@@ -522,7 +525,7 @@ mod tests {
     use url::Url;
 
     use super::*;
-    use crate::{Match, MatchResult};
+    use crate::{Content, Match, MatchResult};
 
     fn fixture_environment() -> Environment {
         let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
@@ -556,6 +559,7 @@ mod tests {
             auto_open_dump: false,
             custom_history_path: None,
             max_conversations: 100,
+            max_image_size: 262144,
         }
     }
 

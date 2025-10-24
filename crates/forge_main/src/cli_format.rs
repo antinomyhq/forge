@@ -46,10 +46,10 @@ fn print_row(row: &[String], max_widths: &[usize]) {
             // Last column: no padding
             formatted.push_str(col);
         } else {
-            formatted.push_str(&format!("{:<width$}", col, width = width));
+            formatted.push_str(&format!("{col:<width$}"));
         }
     }
-    println!("{}", formatted);
+    println!("{formatted}");
 }
 
 /// Trait for types that can be converted to a row of strings.
