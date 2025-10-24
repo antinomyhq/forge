@@ -1536,7 +1536,6 @@ mod tests {
         );
 
         // make sure that the content is truncated
-        let actual = actual;
         assert!(
             !actual
                 .values
