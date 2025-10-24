@@ -62,4 +62,4 @@ mockito.workspace = true
 pretty_assertions.workspace = true
 tempfile.workspace = true
 fake = { version = "4.4.0", features = ["derive"] }
-forge_domain = { path = "../forge_domain", features = ["test-support"] }
+forge_domain = { path = "../forge_domain" }

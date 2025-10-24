@@ -60,4 +60,4 @@ pretty_assertions.workspace = true
 tempfile.workspace = true
 serial_test = "3.2"
 fake = { version = "4.4.0", features = ["derive"] }
-forge_domain = { path = "../forge_domain", features = ["test-support"] }
+forge_domain = { path = "../forge_domain" }

@@ -21,8 +21,7 @@ use strum_macros::EnumString;
 /// # Environment Variables
 /// - `FORGE_HTTP_MIN_TLS_VERSION`: Set minimum TLS version (e.g., "1.2")
 /// - `FORGE_HTTP_MAX_TLS_VERSION`: Set maximum TLS version (e.g., "1.3")
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(any(test, feature = "test-support"), derive(fake::Dummy))]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
 #[serde(rename_all = "camelCase")]
 pub enum TlsVersion {
     #[serde(rename = "1.0")]
@@ -63,8 +62,7 @@ impl std::str::FromStr for TlsVersion {
     }
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, EnumString)]
-#[cfg_attr(any(test, feature = "test-support"), derive(fake::Dummy))]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, EnumString, fake::Dummy)]
 #[serde(rename_all = "camelCase")]
 #[strum(serialize_all = "lowercase")]
 pub enum TlsBackend {
@@ -135,8 +133,7 @@ impl std::fmt::Display for TlsBackend {
 ///     ..HttpConfig::default()
 /// };
 /// ```
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(any(test, feature = "test-support"), derive(fake::Dummy))]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
 #[serde(rename_all = "camelCase")]
 pub struct HttpConfig {
     pub connect_timeout: u64,

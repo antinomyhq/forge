@@ -13,8 +13,7 @@ const VERSION: &str = match option_env!("APP_VERSION") {
     None => env!("CARGO_PKG_VERSION"),
 };
 
-#[derive(Debug, Setters, Clone, Serialize, Deserialize)]
-#[cfg_attr(any(test, feature = "test-support"), derive(fake::Dummy))]
+#[derive(Debug, Setters, Clone, Serialize, Deserialize, fake::Dummy)]
 #[serde(rename_all = "camelCase")]
 #[setters(strip_option)]
 /// Represents the environment in which the application is running.
@@ -32,10 +31,7 @@ pub struct Environment {
     /// The base path relative to which everything else stored.
     pub base_path: PathBuf,
     /// Base URL for Forge's backend APIs
-    #[cfg_attr(
-        any(test, feature = "test-support"),
-        dummy(expr = "url::Url::parse(\"https://example.com\").unwrap()")
-    )]
+    #[dummy(expr = "url::Url::parse(\"https://example.com\").unwrap()")]
     pub forge_api_url: Url,
     /// Configuration for the retry mechanism
     pub retry_config: RetryConfig,
