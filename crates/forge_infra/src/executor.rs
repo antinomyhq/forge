@@ -196,7 +196,6 @@ impl CommandInfra for ForgeCommandExecutorService {
 mod tests {
 
     use pretty_assertions::assert_eq;
-    use reqwest::Url;
 
     use super::*;
 

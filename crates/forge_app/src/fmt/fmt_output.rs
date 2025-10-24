@@ -51,7 +51,6 @@ mod tests {
     use forge_domain::{ChatResponseContent, Environment, PatchOperation, TitleFormat};
     use insta::assert_snapshot;
     use pretty_assertions::assert_eq;
-    use url::Url;
 
     use super::FormatContent;
     // ContentFormat is now ChatResponseContent
