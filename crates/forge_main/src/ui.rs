@@ -488,7 +488,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .lines()
                 .collect::<Vec<_>>()
                 .join(" ");
-            info = info.add_title(id).add_key_value("Description", title);
+            info = info.add_key_value(id, title);
         }
 
         if porcelain {
@@ -509,7 +509,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
-        let mut info = Info::new().add_title("PROVIDERS");
+        let mut info = Info::new();
 
         for provider in providers.iter() {
             let id = provider.id.to_string();
@@ -518,11 +518,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .domain()
                 .map(|d| format!("[{}]", d))
                 .unwrap_or_default();
-            info = info.add_title(id).add_key_value("Domain", domain);
+            info = info
+                .add_title(id.to_case(Case::UpperSnake))
+                .add_key_value("id", id)
+                .add_key_value("host", domain);
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip(1);
+            let porcelain = Porcelain::from(&info);
+            //.drop_column(0);
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
