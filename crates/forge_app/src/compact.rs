@@ -12,59 +12,35 @@ use crate::agent::AgentService;
 /// A service dedicated to handling context compaction.
 pub struct Compactor<S> {
     services: Arc<S>,
+    compact: Compact,
 }
 
 impl<S: AgentService> Compactor<S> {
-    pub fn new(services: Arc<S>) -> Self {
-        Self { services }
+    pub fn new(services: Arc<S>, compact: Compact) -> Self {
+        Self { services, compact }
     }
 
     /// Apply compaction to the context if requested.
-    pub async fn compact(
-        &self,
-        agent: &Agent,
-        context: Context,
-        max: bool,
-    ) -> anyhow::Result<Context> {
-        if let Some(mut compact) = agent.compact.clone() {
-            debug!(agent_id = %agent.id, "Context compaction triggered");
+    pub async fn compact(&self, context: Context, max: bool) -> anyhow::Result<Context> {
+        let eviction = CompactionStrategy::evict(self.compact.eviction_window);
+        let retention = CompactionStrategy::retain(self.compact.retention_window);
 
-            // If compact doesn't have a model but agent does, use agent's model
-            if compact.model.is_none()
-                && let Some(ref agent_model) = agent.model
-            {
-                compact.model = Some(agent_model.clone());
-            }
-
-            let eviction = CompactionStrategy::evict(compact.eviction_window);
-            let retention = CompactionStrategy::retain(compact.retention_window);
-
-            let strategy = if max {
-                retention
-            } else {
-                eviction.min(retention)
-            };
-
-            match strategy.eviction_range(&context) {
-                Some(sequence) => {
-                    debug!(agent_id = %agent.id, "Compressing sequence");
-                    self.compress_single_sequence(&compact, context, sequence)
-                        .await
-                }
-                None => {
-                    debug!(agent_id = %agent.id, "No compressible sequences found");
-                    Ok(context)
-                }
-            }
+        let strategy = if max {
+            // TODO: Consider using `eviction.max(retention)`
+            retention
         } else {
-            Ok(context)
+            eviction.min(retention)
+        };
+
+        match strategy.eviction_range(&context) {
+            Some(sequence) => self.compress_single_sequence(context, sequence).await,
+            None => Ok(context),
         }
     }
 
     /// Compress a single identified sequence of assistant messages.
     async fn compress_single_sequence(
         &self,
-        compact: &Compact,
         mut context: Context,
         sequence: (usize, usize),
     ) -> anyhow::Result<Context> {
@@ -82,7 +58,7 @@ impl<S: AgentService> Compactor<S> {
 
         // Generate summary for the compaction sequence
         let summary = self
-            .generate_summary_for_sequence(compact, compaction_sequence)
+            .generate_summary_for_sequence(compaction_sequence)
             .await?;
 
         // Accumulate the usage from the summarization call into the context
@@ -165,7 +141,6 @@ impl<S: AgentService> Compactor<S> {
     /// Returns ChatCompletionMessageFull with extracted summary content
     async fn generate_summary_for_sequence(
         &self,
-        compact: &Compact,
         messages: &[ContextMessage],
     ) -> anyhow::Result<ChatCompletionMessageFull> {
         // Start with the original sequence context to preserve message structure
@@ -173,7 +148,12 @@ impl<S: AgentService> Compactor<S> {
             .iter()
             .fold(Context::default(), |ctx, msg| ctx.add_message(msg.clone()));
 
-        let summary_tag = compact.summary_tag.as_ref().cloned().unwrap_or_default();
+        let summary_tag = self
+            .compact
+            .summary_tag
+            .as_ref()
+            .cloned()
+            .unwrap_or_default();
         let ctx = serde_json::json!({
             "summary_tag": summary_tag
         });
@@ -182,7 +162,7 @@ impl<S: AgentService> Compactor<S> {
         let prompt = self
             .services
             .render(
-                compact
+                self.compact
                     .prompt
                     .as_deref()
                     .unwrap_or("{{> forge-system-prompt-context-summarizer.md}}"),
@@ -191,7 +171,8 @@ impl<S: AgentService> Compactor<S> {
             .await?;
 
         // Use compact.model if specified, otherwise fall back to the agent's model
-        let model = compact
+        let model = self
+            .compact
             .model
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("No model specified for compaction"))?;
@@ -199,21 +180,19 @@ impl<S: AgentService> Compactor<S> {
         // Add the summarization request as a user message to the existing context
         context = context.add_message(ContextMessage::user(prompt, Some(model.clone())));
 
-        if let Some(max_token) = compact.max_tokens {
+        if let Some(max_token) = self.compact.max_tokens {
             context = context.max_tokens(max_token);
         }
 
         let response = self.services.chat_agent(model, context).await?;
 
-        self.collect_completion_stream_content(compact, response)
-            .await
+        self.collect_completion_stream_content(response).await
     }
 
     /// Collects the content from a streaming ChatCompletionMessage response and
     /// extracts summary content from the specified tag
     async fn collect_completion_stream_content(
         &self,
-        compact: &Compact,
         stream: impl Stream<Item = anyhow::Result<ChatCompletionMessage>>
         + std::marker::Unpin
         + ResultStreamExt<anyhow::Error>,
@@ -223,7 +202,7 @@ impl<S: AgentService> Compactor<S> {
         // Extract content from summary tag if present
         if let Some(extracted) = extract_tag_content(
             &response.content,
-            compact
+            self.compact
                 .summary_tag
                 .as_ref()
                 .cloned()

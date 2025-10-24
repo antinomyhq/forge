@@ -186,29 +186,33 @@ impl<S: Services> ForgeApp<S> {
         // Calculate original metrics
         let original_messages = context.messages.len();
         let original_token_count = *context.token_count();
-
-        // Find the main agent (first agent in the conversation)
-        // In most cases, there should be a primary agent for compaction
-        let agent = self
+        let model = self.services.get_active_model().await?;
+        let workflow = self.services.read_merged(None).await.unwrap_or_default();
+        let active_agent = self.services.get_active_agent().await?;
+        let Some(compact) = self
             .services
             .get_agents()
             .await?
-            .first()
-            .ok_or_else(|| anyhow::anyhow!("No agents found in conversation"))?
-            .clone();
-
-        // Configure agent with model and workflow settings before compaction.
-        // This ensures compaction parameters are properly set (otherwise they'd be
-        // None).
-        let model = self.services.get_active_model().await?;
-        let workflow = self.services.read_merged(None).await.unwrap_or_default();
-        let agent = agent
-            .set_model_deeply(model.clone())
-            .apply_workflow_config(&workflow);
+            .into_iter()
+            .find(|agent| active_agent.as_ref().map_or(false, |id| agent.id == *id))
+            .and_then(|agent| {
+                agent
+                    .set_model_deeply(model.clone())
+                    .apply_workflow_config(&workflow)
+                    .compact
+            })
+        else {
+            return Ok(CompactionResult::new(
+                original_token_count,
+                0,
+                original_messages,
+                0,
+            ));
+        };
 
         // Apply compaction using the Compactor
-        let compacted_context = Compactor::new(self.services.clone())
-            .compact(&agent, context, true)
+        let compacted_context = Compactor::new(self.services.clone(), compact)
+            .compact(context, true)
             .await?;
 
         // Calculate compacted metrics
