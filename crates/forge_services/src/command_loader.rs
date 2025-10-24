@@ -44,7 +44,7 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
 
     async fn init(&self) -> anyhow::Result<Vec<Command>> {
         // Load built-in commands
-        let mut commands = self.init_default().await?;
+        let mut commands = vec![];
 
         // Load custom commands from global directory
         let dir = self.infra.get_environment().command_path();
@@ -60,21 +60,6 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
         // Handle command name conflicts by keeping the last occurrence
         // This gives precedence order: CWD > Global Custom > Built-in
         Ok(resolve_command_conflicts(commands))
-    }
-
-    async fn init_default(&self) -> anyhow::Result<Vec<Command>> {
-        parse_command_iter(
-            [
-                ("fixme", include_str!("../../../.forge/commands/fixme.md")),
-                ("check", include_str!("../../../.forge/commands/check.md")),
-                (
-                    "pr-description",
-                    include_str!("../../../.forge/commands/pr_description.md"),
-                ),
-            ]
-            .into_iter()
-            .map(|(name, content)| (name.to_string(), content.to_string())),
-        )
     }
 
     async fn init_command_dir(&self, dir: &std::path::Path) -> anyhow::Result<Vec<Command>> {
