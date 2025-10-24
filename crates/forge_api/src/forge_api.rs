@@ -24,6 +24,14 @@ impl<A, F> ForgeAPI<A, F> {
     pub fn new(services: Arc<A>, infra: Arc<F>) -> Self {
         Self { services, infra }
     }
+
+    /// Creates a ForgeApp instance with the current services
+    fn app(&self) -> ForgeApp<A>
+    where
+        A: Services,
+    {
+        ForgeApp::new(self.services.clone())
+    }
 }
 
 impl ForgeAPI<ForgeServices<ForgeInfra>, ForgeInfra> {
@@ -43,8 +51,7 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
     }
 
     async fn tools(&self) -> anyhow::Result<ToolsOverview> {
-        let forge_app = ForgeApp::new(self.services.clone());
-        forge_app.list_tools().await
+        self.app().list_tools().await
     }
 
     async fn models(&self) -> Result<Vec<Model>> {
@@ -69,9 +76,7 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
         &self,
         chat: ChatRequest,
     ) -> anyhow::Result<MpscStream<Result<ChatResponse, anyhow::Error>>> {
-        // Create a ForgeApp instance and delegate the chat logic to it
-        let forge_app = ForgeApp::new(self.services.clone());
-        forge_app.chat(chat).await
+        self.app().chat(chat).await
     }
 
     async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()> {
@@ -82,8 +87,7 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
         &self,
         conversation_id: &ConversationId,
     ) -> anyhow::Result<CompactionResult> {
-        let forge_app = ForgeApp::new(self.services.clone());
-        forge_app.compact_conversation(conversation_id).await
+        self.app().compact_conversation(conversation_id).await
     }
 
     fn environment(&self) -> Environment {
@@ -91,18 +95,15 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
     }
 
     async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        let app = ForgeApp::new(self.services.clone());
-        app.read_workflow(path).await
+        self.app().read_workflow(path).await
     }
 
     async fn read_merged(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        let app = ForgeApp::new(self.services.clone());
-        app.read_workflow_merged(path).await
+        self.app().read_workflow_merged(path).await
     }
 
     async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> anyhow::Result<()> {
-        let app = ForgeApp::new(self.services.clone());
-        app.write_workflow(path, workflow).await
+        self.app().write_workflow(path, workflow).await
     }
 
     async fn update_workflow<T>(&self, path: Option<&Path>, f: T) -> anyhow::Result<Workflow>
@@ -163,29 +164,22 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
     }
 
     async fn init_login(&self) -> Result<InitAuth> {
-        let forge_app = ForgeApp::new(self.services.clone());
-        forge_app.init_auth().await
+        self.app().init_auth().await
     }
 
     async fn login(&self, auth: &InitAuth) -> Result<()> {
-        let forge_app = ForgeApp::new(self.services.clone());
-        forge_app.login(auth).await
+        self.app().login(auth).await
     }
 
     async fn logout(&self) -> Result<()> {
-        let forge_app = ForgeApp::new(self.services.clone());
-        forge_app.logout().await
+        self.app().logout().await
     }
     async fn get_agent_provider(&self, agent_id: AgentId) -> anyhow::Result<Provider> {
-        ForgeApp::new(self.services.clone())
-            .get_provider(Some(agent_id))
-            .await
+        self.app().get_provider(Some(agent_id)).await
     }
 
     async fn get_default_provider(&self) -> anyhow::Result<Provider> {
-        ForgeApp::new(self.services.clone())
-            .get_provider(None)
-            .await
+        self.app().get_provider(None).await
     }
 
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
@@ -219,23 +213,15 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
     }
 
     async fn get_agent_model(&self, agent_id: AgentId) -> Option<ModelId> {
-        ForgeApp::new(self.services.clone())
-            .get_model(Some(agent_id))
-            .await
-            .ok()
+        self.app().get_model(Some(agent_id)).await.ok()
     }
 
     async fn get_default_model(&self) -> Option<ModelId> {
-        ForgeApp::new(self.services.clone())
-            .get_model(None)
-            .await
-            .ok()
+        self.app().get_model(None).await.ok()
     }
 
     async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()> {
-        ForgeApp::new(self.services.clone())
-            .set_default_model(model_id)
-            .await
+        self.app().set_default_model(model_id).await
     }
 
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {
