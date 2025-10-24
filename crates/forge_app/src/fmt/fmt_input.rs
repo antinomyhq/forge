@@ -32,11 +32,7 @@ impl FormatContent for Tools {
             }
             Tools::ReadImage(input) => {
                 let display_path = display_path_for(&input.path);
-                Some(
-                    TitleFormat::debug("Image")
-                        .sub_title(display_path)
-                        .into(),
-                )
+                Some(TitleFormat::debug("Image").sub_title(display_path).into())
             }
             Tools::Write(input) => {
                 let display_path = display_path_for(&input.path);
