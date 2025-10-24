@@ -11,7 +11,6 @@ use crate::info::{Info, Section};
 ///   - Index 0, 2, 4... are keys
 ///   - Index 1, 3, 5... are values
 ///   - None = missing value
-///   - Two consecutive Nones (None, None) = no item in section
 #[derive(Debug, PartialEq)]
 pub struct Porcelain(Vec<(String, Vec<Option<String>>)>);
 
