@@ -51,8 +51,68 @@ impl Porcelain {
         self.0
     }
 
-    pub fn transpose(self) -> Self {
-        self
+    /// Converts from wide format to long format.
+    ///
+    /// Transforms entity-centric rows (wide format with many columns) into
+    /// field-centric rows (long format with three columns: entity_id,
+    /// field_name, field_value). This is also known as unpivoting or
+    /// melting in data transformation terminology.
+    ///
+    /// # Example
+    /// Input (wide format):
+    /// ```text
+    /// Headers: [$ID, version, shell, id, title, model]
+    /// Row 1:   [env, 0.1.0,   zsh,   None, None, None]
+    /// Row 2:   [conversation, None, None, 000-000-000, make agents great again, None]
+    /// ```
+    ///
+    /// Output (long format):
+    /// ```text
+    /// Headers: [$ID, field, value]
+    /// Row 1:   [env, version, 0.1.0]
+    /// Row 2:   [env, shell, zsh]
+    /// Row 3:   [conversation, id, 000-000-000]
+    /// Row 4:   [conversation, title, make agents great again]
+    /// ```
+    pub fn into_long(self) -> Self {
+        if self.0.is_empty() {
+            return self;
+        }
+
+        let headers = &self.0[0];
+        let data_rows = &self.0[1..];
+
+        if data_rows.is_empty() || headers.is_empty() {
+            return self;
+        }
+
+        // Create new headers: [$ID, field, value]
+        let new_headers = vec![
+            headers.first().cloned().unwrap_or(Some("$ID".to_string())),
+            Some("field".to_string()),
+            Some("value".to_string()),
+        ];
+
+        // Create new rows: one row per non-None field for each entity
+        let mut new_rows = Vec::new();
+
+        for data_row in data_rows {
+            // Get the entity ID (first column value)
+            let entity_id = data_row.first().and_then(|v| v.clone());
+
+            // For each field in this entity (excluding $ID column)
+            for (i, value) in data_row.iter().enumerate().skip(1) {
+                if let Some(val) = value {
+                    let field_name = headers.get(i).and_then(|h| h.clone());
+                    new_rows.push(vec![entity_id.clone(), field_name, Some(val.clone())]);
+                }
+            }
+        }
+
+        let mut result = vec![new_headers];
+        result.extend(new_rows);
+
+        Porcelain(result)
     }
 }
 
@@ -201,7 +261,7 @@ mod tests {
     }
 
     #[test]
-    fn test_transpose() {
+    fn test_into_long() {
         let info = Info::new()
             .add_title("env")
             .add_key_value("version", "0.1.0")
@@ -213,7 +273,7 @@ mod tests {
             .add_key_value("id", "forge")
             .add_key_value("model", "sonnet-4");
 
-        let actual = Porcelain::from(info).transpose().into_body();
+        let actual = Porcelain::from(info).into_long().into_body();
         let expected = vec![
             vec![
                 Some("env".into()),
@@ -221,6 +281,26 @@ mod tests {
                 Some("0.1.0".into()),
             ],
             vec![Some("env".into()), Some("shell".into()), Some("zsh".into())],
+            vec![
+                Some("conversation".into()),
+                Some("id".into()),
+                Some("000-000-000".into()),
+            ],
+            vec![
+                Some("conversation".into()),
+                Some("title".into()),
+                Some("make agents great again".into()),
+            ],
+            vec![
+                Some("agent".into()),
+                Some("id".into()),
+                Some("forge".into()),
+            ],
+            vec![
+                Some("agent".into()),
+                Some("model".into()),
+                Some("sonnet-4".into()),
+            ],
         ];
 
         assert_eq!(actual, expected)
