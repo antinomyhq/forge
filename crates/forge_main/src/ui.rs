@@ -684,9 +684,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .add_key_value("Provider", provider_val);
 
         if porcelain {
-            println!("{}", Porcelain::from(&info).into_long().skip(1).drop_col(0));
+            self.writeln(Porcelain::from(&info).into_long().skip(1).drop_col(0))?;
         } else {
-            println!("{}", info);
+            self.writeln(info)?;
         }
 
         Ok(())
