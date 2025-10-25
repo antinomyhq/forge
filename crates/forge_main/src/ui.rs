@@ -1501,11 +1501,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 }
             }
             ChatResponse::TaskComplete => {
-                if should_show_completion_prompt() {
-                    if let Some(conversation_id) = self.state.conversation_id {
+                if should_show_completion_prompt()
+                    && let Some(conversation_id) = self.state.conversation_id {
                         self.on_completion(conversation_id).await?;
                     }
-                }
             }
         }
         Ok(())
