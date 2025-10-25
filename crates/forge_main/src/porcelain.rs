@@ -24,10 +24,11 @@ impl Porcelain {
     }
 
     /// Skips the first n rows
-    pub fn skip_row(self, n: usize) -> Self {
+    pub fn skip(self, n: usize) -> Self {
         Porcelain(self.0.into_iter().skip(n).collect())
     }
 
+    #[allow(unused)]
     pub fn drop_col(self, c: usize) -> Self {
         Porcelain(
             self.0
@@ -42,11 +43,30 @@ impl Porcelain {
         )
     }
 
+    /// Maps a function over all cells in the specified column
+    pub fn map_col<F>(self, c: usize, f: F) -> Self
+    where
+        F: Fn(Option<String>) -> Option<String>,
+    {
+        Porcelain(
+            self.0
+                .into_iter()
+                .map(|row| {
+                    row.into_iter()
+                        .enumerate()
+                        .map(|(i, col)| if i == c { f(col) } else { col })
+                        .collect()
+                })
+                .collect(),
+        )
+    }
+    #[allow(unused)]
     pub fn into_body(self) -> Vec<Vec<Option<String>>> {
         // Skip headers and return
         self.0.into_iter().skip(1).collect()
     }
 
+    #[allow(unused)]
     pub fn into_rows(self) -> Vec<Vec<Option<String>>> {
         self.0
     }
@@ -289,6 +309,33 @@ mod tests {
         let expected = vec![
             vec![Some("user1".into()), Some("30".into())],
             vec![Some("user2".into()), Some("25".into())],
+        ];
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn test_map_col() {
+        let info = Porcelain(vec![
+            vec![
+                Some("user1".into()),
+                Some("Alice".into()),
+                Some("30".into()),
+            ],
+            vec![Some("user2".into()), Some("Bob".into()), Some("25".into())],
+        ]);
+
+        let actual = info
+            .map_col(1, |col| col.map(|v| v.to_uppercase()))
+            .into_rows();
+
+        let expected = vec![
+            vec![
+                Some("user1".into()),
+                Some("ALICE".into()),
+                Some("30".into()),
+            ],
+            vec![Some("user2".into()), Some("BOB".into()), Some("25".into())],
         ];
 
         assert_eq!(actual, expected)
