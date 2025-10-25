@@ -534,7 +534,7 @@ mod tests {
         ]);
 
         let actual = info.to_string();
-        let expected = vec![
+        let expected = [
             //
             "$ID   name  age",
             "user1 Alice 30",
@@ -558,7 +558,7 @@ mod tests {
         ]);
 
         let actual = info.to_string();
-        let expected = vec![
+        let expected = [
             //
             "$ID   name  age",
             "user1 Alice 30",
