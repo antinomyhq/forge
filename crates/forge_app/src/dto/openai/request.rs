@@ -630,6 +630,7 @@ mod tests {
         let user_message = ContextMessage::Text(TextMessage {
             role: Role::User,
             content: "Hello".to_string(),
+            original_content: None,
             tool_calls: None,
             model: ModelId::new("gpt-3.5-turbo").into(),
             reasoning_details: None,
@@ -653,6 +654,7 @@ mod tests {
         let message = ContextMessage::Text(TextMessage {
             role: Role::User,
             content: xml_content.to_string(),
+            original_content: None,
             tool_calls: None,
             model: ModelId::new("gpt-3.5-turbo").into(),
             reasoning_details: None,
@@ -672,6 +674,7 @@ mod tests {
         let assistant_message = ContextMessage::Text(TextMessage {
             role: Role::Assistant,
             content: "Using tool".to_string(),
+            original_content: None,
             tool_calls: Some(vec![tool_call]),
             model: ModelId::new("gpt-3.5-turbo").into(),
             reasoning_details: None,
@@ -776,5 +779,44 @@ mod tests {
         };
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_openai_conversion_excludes_original_content() {
+        let fixture = ContextMessage::Text(forge_domain::TextMessage {
+            role: forge_domain::Role::User,
+            content: "<task>Create a file</task>".to_string(),
+            original_content: None,
+            tool_calls: None,
+            reasoning_details: None,
+            model: None,
+        });
+
+        let actual = Message::from(fixture);
+        let json = serde_json::to_value(&actual).unwrap();
+
+        // Verify original_content is NOT in the serialized output
+        assert!(!json.to_string().contains("original_content"));
+        assert!(json.to_string().contains("<task>Create a file</task>"));
+    }
+
+    #[test]
+    fn test_openai_request_excludes_original_content() {
+        let fixture = forge_domain::Context::default().add_message(ContextMessage::Text(
+            forge_domain::TextMessage {
+                role: forge_domain::Role::User,
+                content: "<task>Test message</task>".to_string(),
+                original_content: None,
+                tool_calls: None,
+                reasoning_details: None,
+                model: None,
+            },
+        ));
+
+        let actual = Request::from(fixture);
+        let json = serde_json::to_value(&actual).unwrap();
+
+        assert!(!json.to_string().contains("original_content"));
+        assert!(json.to_string().contains("<task>Test message</task>"));
     }
 }

@@ -31,13 +31,14 @@ impl<S> UserPromptBuilder<S> {
     where
         S: AgentService,
     {
-        let content = if let Some(user_prompt) = &self.agent.user_prompt
-            && self.event.value.is_some()
+        if let Some(user_prompt) = &self.agent.user_prompt
+            && let Some(raw_value) = &self.event.value
         {
+            let original_content = raw_value.to_string();
+
             let mut event_context = EventContext::new(self.event.clone())
                 .current_date(self.current_time.format("%Y-%m-%d").to_string());
 
-            // Check if context already contains user messages to determine if it's feedback
             let has_user_messages = context.messages.iter().any(|msg| msg.has_role(Role::User));
 
             if has_user_messages {
@@ -47,18 +48,24 @@ impl<S> UserPromptBuilder<S> {
             }
 
             debug!(event_context = ?event_context, "Event context");
-            Some(
-                self.services
-                    .render(user_prompt.template.as_str(), &event_context)
-                    .await?,
-            )
-        } else {
-            // Use the raw event value as content if no user_prompt is provided
-            self.event.value.as_ref().map(|v| v.to_string())
-        };
 
-        if let Some(content) = content {
-            context = context.add_message(ContextMessage::user(content, self.agent.model.clone()));
+            let formatted_content = self
+                .services
+                .render(user_prompt.template.as_str(), &event_context)
+                .await?;
+
+            context = context.add_message(ContextMessage::user_with_original(
+                original_content,
+                formatted_content,
+                self.agent.model.clone(),
+            ));
+        } else if let Some(value) = self.event.value.as_ref() {
+            let content = value.to_string();
+            context = context.add_message(ContextMessage::user_with_original(
+                content.clone(),
+                content,
+                self.agent.model.clone(),
+            ));
         }
 
         Ok(context)
