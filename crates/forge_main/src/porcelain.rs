@@ -483,8 +483,8 @@ mod tests {
         let expected = vec![
             vec![
                 Some("$ID".into()),
-                Some("field".into()),
-                Some("value".into()),
+                Some("$FIELD".into()),
+                Some("$VALUE".into()),
             ],
             vec![
                 Some("T1".into()),
