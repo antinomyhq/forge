@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use forge_app::dto::{InitAuth, LoginInfo, Provider, ProviderId, ToolsOverview};
 use forge_app::{
     AgentLoaderService, AuthService, CommandLoaderService, ConversationService, EnvironmentService,
-    FileDiscoveryService, ForgeApp, McpConfigManager, McpService, ProviderRegistry,
+    FileDiscoveryService, ForgeApp, GitApp, McpConfigManager, McpService, ProviderRegistry,
     ProviderService, Services, User, UserUsage, Walker, WorkflowService,
 };
 use forge_domain::*;
@@ -63,6 +63,11 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
 
     async fn providers(&self) -> Result<Vec<Provider>> {
         Ok(self.services.get_all_providers().await?)
+    }
+
+    async fn generate_commit_message(&self, max_diff_size: Option<usize>) -> Result<String> {
+        let git_app = GitApp::new(self.services.clone());
+        git_app.generate_commit_message(max_diff_size).await
     }
 
     async fn chat(
@@ -135,9 +140,10 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
         &self,
         command: &str,
         working_dir: PathBuf,
+        silent: bool,
     ) -> anyhow::Result<CommandOutput> {
         self.infra
-            .execute_command(command.to_string(), working_dir, false, None)
+            .execute_command(command.to_string(), working_dir, silent, None)
             .await
     }
     async fn read_mcp_config(&self, scope: Option<&Scope>) -> Result<McpConfig> {

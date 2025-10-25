@@ -28,6 +28,18 @@ pub trait API: Sync + Send {
     /// Executes a chat request and returns a stream of responses
     async fn chat(&self, chat: ChatRequest) -> Result<MpscStream<Result<ChatResponse>>>;
 
+    /// Generates a commit message based on staged git changes
+    ///
+    /// # Arguments
+    ///
+    /// * `max_diff_size` - Maximum size of git diff in bytes. None for
+    ///   unlimited.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if git operations fail or AI generation fails
+    async fn generate_commit_message(&self, max_diff_size: Option<usize>) -> Result<String>;
+
     /// Returns the current environment
     fn environment(&self) -> Environment;
 
@@ -81,6 +93,7 @@ pub trait API: Sync + Send {
         &self,
         command: &str,
         working_dir: PathBuf,
+        silent: bool,
     ) -> Result<CommandOutput>;
 
     /// Executes the shell command on present stdio.
