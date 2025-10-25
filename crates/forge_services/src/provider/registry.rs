@@ -33,7 +33,7 @@ pub(crate) fn get_provider_configs() -> &'static Vec<ProviderConfig> {
     PROVIDER_CONFIGS.get_or_init(|| {
         let json_str = include_str!("provider.json");
         serde_json::from_str(json_str)
-            .map_err(|e| anyhow::anyhow!("Failed to parse provider configs: {}", e))
+            .map_err(|e| anyhow::anyhow!("Failed to parse provider configs: {e}"))
             .unwrap()
     })
 }
@@ -609,30 +609,8 @@ mod env_tests {
 
     impl EnvironmentInfra for MockInfra {
         fn get_environment(&self) -> Environment {
-            // Return a minimal Environment for testing
-            Environment {
-                os: "test".to_string(),
-                pid: 1,
-                cwd: std::path::PathBuf::from("/test"),
-                home: None,
-                shell: "test".to_string(),
-                base_path: std::path::PathBuf::from("/test"),
-                forge_api_url: Url::parse("https://test.com").unwrap(),
-                retry_config: Default::default(),
-                max_search_lines: 100,
-                max_search_result_bytes: 1000,
-                fetch_truncation_limit: 1000,
-                stdout_max_prefix_length: 100,
-                stdout_max_suffix_length: 100,
-                stdout_max_line_length: 500,
-                max_read_size: 2000,
-                http: Default::default(),
-                max_file_size: 100000,
-                tool_timeout: 300,
-                auto_open_dump: false,
-                custom_history_path: None,
-                max_conversations: 100,
-            }
+            use fake::{Fake, Faker};
+            Faker.fake()
         }
 
         fn get_env_var(&self, key: &str) -> Option<String> {

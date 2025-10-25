@@ -29,6 +29,7 @@ use crate::env::{get_agent_from_env, get_conversation_id_from_env};
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{CliModel, CliProvider, Command, ForgeCommandManager, PartialEvent};
+use crate::porcelain::Porcelain;
 use crate::prompt::ForgePrompt;
 use crate::state::UIState;
 use crate::title_display::TitleDisplayExt;
@@ -460,7 +461,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-
     async fn handle_provider_command(
         &mut self,
         provider_group: crate::cli::ProviderCommandGroup,
@@ -844,10 +844,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .lines()
                 .collect::<Vec<_>>()
                 .join(" ");
-            info = info.add_title(id).add_key_value("Description", title);
+            info = info.add_key_value(id, title);
         }
 
-        self.write_info_or_porcelain(info, porcelain, true)?;
+        if porcelain {
+            let porcelain = Porcelain::from(&info).into_long().skip(1).drop_col(0);
+            self.writeln(porcelain)?;
+        } else {
+            self.writeln(info)?;
+        }
 
         Ok(())
     }
@@ -860,7 +865,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
-        let mut info = Info::new().add_title("PROVIDERS");
+        let mut info = Info::new();
 
         for provider in providers.iter() {
             let id = provider.id.to_string();
@@ -869,10 +874,19 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .domain()
                 .map(|d| format!("[{}]", d))
                 .unwrap_or_default();
-            info = info.add_title(id).add_key_value("Domain", domain);
+            info = info
+                .add_title(id.to_case(Case::UpperSnake))
+                .add_key_value("id", id)
+                .add_key_value("host", domain);
         }
 
-        self.write_info_or_porcelain(info, porcelain, true)?;
+        if porcelain {
+            let porcelain = Porcelain::from(&info).skip(1).drop_col(0);
+            //.drop_column(0);
+            self.writeln(porcelain)?;
+        } else {
+            self.writeln(info)?;
+        }
 
         Ok(())
     }
@@ -885,13 +899,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
-        let mut info = Info::new().add_title("MODELS");
+        let mut info = Info::new();
 
         for model in models.iter() {
             let id = model.id.to_string();
 
-            // Build a single row with model name as key and context/tools as values
-            let mut values = Vec::new();
+            info = info.add_title(id);
 
             // Add context length if available, otherwise use "unknown"
             if let Some(limit) = model.context_length {
@@ -902,27 +915,37 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 } else {
                     format!("{limit}")
                 };
-                values.push(context);
+                info = info.add_key_value("Context Window", context);
             } else {
-                values.push("<unspecified>".to_string());
+                info = info.add_key_value("Context Window", "<unavailable>")
             }
 
             // Add tools support indicator if explicitly supported
-            if model.tools_supported == Some(true) {
-                values.push("🛠️".to_string());
+            if let Some(supported) = model.tools_supported {
+                info = info.add_key_value(
+                    "Tools",
+                    if supported {
+                        "Supported"
+                    } else {
+                        "Unsupported"
+                    },
+                )
             } else {
-                values.push("".to_string());
-            }
-
-            // Add the model as a key with combined values
-            if values.len() == 2 {
-                info = info.add_key_value(id, values.join(" "));
-            } else {
-                info = info.add_key(id);
+                info = info.add_key_value("Tools", "<unknown>")
             }
         }
 
-        self.write_info_or_porcelain(info, porcelain, false)?;
+        if porcelain {
+            self.writeln(Porcelain::from(&info).skip(1).map_col(2, |col| {
+                if col == Some("Supported".to_owned()) {
+                    Some("🛠️".into())
+                } else {
+                    None
+                }
+            }))?;
+        } else {
+            self.writeln(info)?;
+        }
 
         Ok(())
     }
@@ -933,40 +956,29 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Define base commands with their descriptions
         info = info
-            .add_title("info".to_string())
-            .add_key_value("Description", "Print session information")
-            .add_title("provider".to_string())
-            .add_key_value("Description", "Switch the providers")
-            .add_title("model".to_string())
-            .add_key_value("Description", "Switch the models")
-            .add_title("new".to_string())
-            .add_key_value("Description", "Start new conversation")
-            .add_title("dump".to_string())
+            .add_key_value("info", "Print session information")
+            .add_key_value("provider", "Switch the providers")
+            .add_key_value("model", "Switch the models")
+            .add_key_value("new", "Start new conversation")
             .add_key_value(
-                "Description",
+                "dump",
                 "Save conversation as JSON or HTML (use /dump html for HTML format)",
             )
-            .add_title("conversation".to_string())
             .add_key_value(
-                "Description",
+                "conversation",
                 "List all conversations for the active workspace",
             )
-            .add_title("retry".to_string())
-            .add_key_value("Description", "Retry the last command")
-            .add_title("compact".to_string())
-            .add_key_value("Description", "Compact the conversation context")
-            .add_title("tools".to_string())
+            .add_key_value("retry", "Retry the last command")
+            .add_key_value("compact", "Compact the conversation context")
             .add_key_value(
-                "Description",
+                "tools",
                 "List all available tools with their descriptions and schema",
             );
 
         // Add alias commands
         info = info
-            .add_title("ask".to_string())
-            .add_key_value("Description", "Alias for agent SAGE")
-            .add_title("plan".to_string())
-            .add_key_value("Description", "Alias for agent MUSE");
+            .add_key_value("ask", "Alias for agent SAGE")
+            .add_key_value("plan", "Alias for agent MUSE");
 
         // Fetch agents and add them to the commands list
         let agents = self.api.get_agents().await?;
@@ -978,12 +990,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .lines()
                 .collect::<Vec<_>>()
                 .join(" ");
-            info = info
-                .add_title(agent.id.to_string())
-                .add_key_value("Description", title);
+            info = info.add_key_value(agent.id.to_string(), title);
         }
 
-        self.write_info_or_porcelain(info, porcelain, true)?;
+        if porcelain {
+            let porcelain = Porcelain::from(&info).into_long().drop_col(0).skip(1);
+            self.writeln(porcelain)?;
+        } else {
+            self.writeln(info)?;
+        }
 
         Ok(())
     }
@@ -1002,8 +1017,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .map(|m| m.as_str().to_string());
         let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
 
-        let info = crate::config::build_config_info(agent, model, provider);
-        self.write_info_or_porcelain(info, porcelain, false)?;
+        crate::config::build_config_info(agent, model, provider, porcelain);
+
         Ok(())
     }
 
@@ -1025,7 +1040,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         };
 
         let info = format_tools(&agent_tools, &all_tools);
-        self.write_info_or_porcelain(info, porcelain, false)?;
+        if porcelain {
+            self.writeln(Porcelain::from(&info).into_long().drop_col(1).skip(1))?;
+        } else {
+            self.writeln(info)?;
+        }
 
         Ok(())
     }
@@ -1033,24 +1052,25 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Displays all MCP servers
     async fn on_show_mcp_servers(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let mcp_servers = self.api.read_mcp_config(None).await?;
-        if mcp_servers.is_empty() {
-            self.writeln_title(TitleFormat::error("No MCP servers found"))?;
-            return Ok(());
-        }
 
         let mut info = Info::new();
 
         for (name, server) in mcp_servers.mcp_servers {
             info = info
                 .add_title(name.to_uppercase())
-                .add_key_value("command", server.to_string());
+                .add_key_value("Command", server.to_string());
 
             if server.is_disabled() {
-                info = info.add_key_value("disable", "true")
+                info = info.add_key_value("Status", "disabled")
             }
         }
 
-        self.write_info_or_porcelain(info, porcelain, true)?;
+        if porcelain {
+            self.writeln(Porcelain::from(&info).skip(1))?;
+        } else {
+            self.writeln(info)?;
+        }
+
         Ok(())
     }
 
@@ -1103,32 +1123,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             info = info.extend(Info::from(&login_info));
         }
 
-        self.write_info_or_porcelain(info, porcelain, false)?;
-
-        Ok(())
-    }
-
-    /// Helper to output Info struct either as formatted display or porcelain
-    ///
-    /// # Arguments
-    /// * `info` - The Info struct to display
-    /// * `porcelain` - Whether to use porcelain mode
-    /// * `title_position` - Position of the title column in porcelain mode (0 =
-    ///   first, usize::MAX = last)
-    /// * `include_title` - Whether to include the title in porcelain output
-    ///   (false for section headers, true for IDs)
-    fn write_info_or_porcelain(
-        &mut self,
-        info: Info,
-        porcelain: bool,
-        include_title: bool,
-    ) -> anyhow::Result<()> {
         if porcelain {
-            // Use to_rows to get key-value pairs and format with columns
-            crate::cli_format::format_columns(info.to_rows(include_title));
+            self.writeln(Porcelain::from(&info).into_long().skip(1))?;
         } else {
             self.writeln(info)?;
         }
+
         Ok(())
     }
 
@@ -1194,7 +1194,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .add_key_value("Id", conv.id);
         }
 
-        self.write_info_or_porcelain(info, porcelain, true)?;
+        // In porcelain mode, skip the top-level "SESSIONS" title
+        if porcelain {
+            let porcelain = Porcelain::from(&info).skip(2).truncate(0, 60);
+            self.writeln(porcelain)?;
+        } else {
+            self.writeln(info)?;
+        }
 
         Ok(())
     }
@@ -1628,6 +1634,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         if first {
             // only call on_update if this is the first initialization
             on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
+            if !workflow.commands.is_empty() {
+                self.writeln_title(TitleFormat::error("forge.yaml commands are deprecated. Use .md files in forge/ (home) or .forge/ (project) instead"))?;
+            }
         }
 
         // Execute independent operations in parallel to improve performance
@@ -1662,9 +1671,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         }
 
-        // Finalize UI state initialization by registering commands and setting up the
-        // state
-        self.command.register_all(&base_workflow);
+        // Register all the commands
+        self.command.register_all(self.api.get_commands().await?);
+
         let operating_model = self.api.get_operating_model().await;
         self.state = UIState::new(self.api.environment());
         self.update_model(operating_model);

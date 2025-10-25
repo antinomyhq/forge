@@ -30,6 +30,10 @@ impl FormatContent for Tools {
                 };
                 Some(TitleFormat::debug("Read").sub_title(subtitle).into())
             }
+            Tools::ReadImage(input) => {
+                let display_path = display_path_for(&input.path);
+                Some(TitleFormat::debug("Image").sub_title(display_path).into())
+            }
             Tools::Write(input) => {
                 let display_path = display_path_for(&input.path);
                 let title = if input.overwrite {

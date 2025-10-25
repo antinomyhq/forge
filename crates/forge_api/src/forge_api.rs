@@ -6,9 +6,9 @@ use forge_app::dto::{
     AuthMethod, InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId, ToolsOverview,
 };
 use forge_app::{
-    AgentLoaderService, AuthService, ConversationService, EnvironmentService, FileDiscoveryService,
-    ForgeApp, McpConfigManager, McpService, ProviderRegistry, ProviderService, Services, User,
-    UserUsage, Walker, WorkflowService,
+    AgentLoaderService, AuthService, CommandLoaderService, ConversationService, EnvironmentService,
+    FileDiscoveryService, ForgeApp, McpConfigManager, McpService, ProviderRegistry,
+    ProviderService, Services, User, UserUsage, Walker, WorkflowService,
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
@@ -230,6 +230,9 @@ impl<A: Services, F: CommandInfra + AppConfigRepository + ProviderCredentialRepo
 
     async fn reload_mcp(&self) -> Result<()> {
         self.services.mcp_service().reload_mcp().await
+    }
+    async fn get_commands(&self) -> Result<Vec<Command>> {
+        self.services.get_commands().await
     }
 
     async fn available_provider_ids(&self) -> Result<Vec<ProviderId>> {

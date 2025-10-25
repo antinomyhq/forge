@@ -89,7 +89,6 @@ pub mod tests {
         AttachmentContent, CommandOutput, Environment, ToolDefinition, ToolName, ToolOutput,
     };
     use serde_json::Value;
-    use url::Url;
 
     use crate::attachment::ForgeChatRequest;
     use crate::{
@@ -103,30 +102,14 @@ pub mod tests {
     #[async_trait::async_trait]
     impl EnvironmentInfra for MockEnvironmentInfra {
         fn get_environment(&self) -> Environment {
+            use fake::{Fake, Faker};
             let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
-            Environment {
-                os: "test".to_string(),
-                pid: 12345,
-                cwd: PathBuf::from("/test"),
-                home: Some(PathBuf::from("/home/test")),
-                shell: "bash".to_string(),
-                base_path: PathBuf::from("/base"),
-                retry_config: Default::default(),
-                max_search_lines: 25,
-                max_search_result_bytes: max_bytes.ceil() as usize, // 0.25 MB
-                fetch_truncation_limit: 0,
-                stdout_max_prefix_length: 0,
-                stdout_max_suffix_length: 0,
-                stdout_max_line_length: 2000,
-                max_read_size: 2000,
-                tool_timeout: 300,
-                http: Default::default(),
-                max_file_size: 10_000_000,
-                forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
-                auto_open_dump: false,
-                custom_history_path: None,
-                max_conversations: 100,
-            }
+            let fixture: Environment = Faker.fake();
+            fixture
+                .max_search_lines(25)
+                .max_search_result_bytes(max_bytes.ceil() as usize)
+                .max_read_size(2000)
+                .max_file_size(256 << 10)
         }
 
         fn get_env_var(&self, _key: &str) -> Option<String> {
@@ -184,9 +167,9 @@ pub mod tests {
                 Some((_, content)) => {
                     let bytes = content.clone();
                     String::from_utf8(bytes.to_vec())
-                        .map_err(|e| anyhow::anyhow!("Invalid UTF-8 in file: {:?}: {}", path, e))
+                        .map_err(|e| anyhow::anyhow!("Invalid UTF-8 in file: {path:?}: {e}"))
                 }
-                None => Err(anyhow::anyhow!("File not found: {:?}", path)),
+                None => Err(anyhow::anyhow!("File not found: {path:?}")),
             }
         }
 
@@ -194,7 +177,7 @@ pub mod tests {
             let files = self.files.lock().unwrap();
             match files.iter().find(|v| v.0 == path) {
                 Some((_, content)) => Ok(content.to_vec()),
-                None => Err(anyhow::anyhow!("File not found: {:?}", path)),
+                None => Err(anyhow::anyhow!("File not found: {path:?}")),
             }
         }
 
@@ -251,7 +234,7 @@ pub mod tests {
     impl FileRemoverInfra for MockFileService {
         async fn remove(&self, path: &Path) -> anyhow::Result<()> {
             if !self.exists(path).await? {
-                return Err(anyhow::anyhow!("File not found: {:?}", path));
+                return Err(anyhow::anyhow!("File not found: {path:?}"));
             }
             self.files.lock().unwrap().retain(|(p, _)| p != path);
             Ok(())
@@ -571,6 +554,25 @@ pub mod tests {
 
         fn get_env_var(&self, _key: &str) -> Option<String> {
             None
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl FileInfoInfra for MockCompositeService {
+        async fn is_binary(&self, path: &Path) -> anyhow::Result<bool> {
+            self.file_service.is_binary(path).await
+        }
+
+        async fn is_file(&self, path: &Path) -> anyhow::Result<bool> {
+            self.file_service.is_file(path).await
+        }
+
+        async fn exists(&self, path: &Path) -> anyhow::Result<bool> {
+            self.file_service.exists(path).await
+        }
+
+        async fn file_size(&self, path: &Path) -> anyhow::Result<u64> {
+            self.file_service.file_size(path).await
         }
     }
 

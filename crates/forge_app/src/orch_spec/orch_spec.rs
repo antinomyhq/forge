@@ -387,3 +387,26 @@ async fn test_multiple_consecutive_tool_calls() {
 
     assert_eq!(retry_attempts, 1, "Should complete the task")
 }
+
+#[tokio::test]
+async fn test_multi_turn_conversation_stops_only_on_finish_reason() {
+    let mut ctx = TestContext::default().mock_assistant_responses(vec![
+        ChatCompletionMessage::assistant("Foo"),
+        ChatCompletionMessage::assistant("Bar"),
+        ChatCompletionMessage::assistant("Baz").finish_reason(FinishReason::Stop),
+    ]);
+
+    ctx.run("test").await.unwrap();
+
+    let messages = ctx.output.context_messages();
+
+    // Verify we have exactly 3 assistant messages (one for each turn)
+    let assistant_message_count = messages
+        .iter()
+        .filter(|message| message.has_role(Role::Assistant))
+        .count();
+    assert_eq!(
+        assistant_message_count, 3,
+        "Should have exactly 3 assistant messages, confirming the orchestrator continued until FinishReason::Stop"
+    );
+}

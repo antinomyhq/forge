@@ -94,7 +94,7 @@ pub enum TopLevelCommand {
 
     /// Provider management commands
     Provider(ProviderCommandGroup),
-    
+
     /// MCP server management commands
     Mcp(McpCommandGroup),
 }
@@ -296,10 +296,17 @@ impl ConfigSetArgs {
     }
 }
 
+#[derive(clap::ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfigField {
+    Agent,
+    Model,
+    Provider,
+}
+
 #[derive(Parser, Debug, Clone)]
 pub struct ConfigGetArgs {
-    /// Specific field to get (agent, model, or provider)
-    pub field: String,
+    /// Specific config field to get
+    pub field: ConfigField,
 }
 
 /// Group of Session-related commands
@@ -472,11 +479,11 @@ mod tests {
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::Config(config)) => match config.command {
                 ConfigCommand::Get(args) => args.field,
-                _ => "invalid".to_string(),
+                _ => panic!("Expected ConfigCommand::Get"),
             },
-            _ => "invalid".to_string(),
+            _ => panic!("Expected TopLevelCommand::Config"),
         };
-        let expected = "model".to_string();
+        let expected = ConfigField::Model;
         assert_eq!(actual, expected);
     }
 
@@ -733,10 +740,4 @@ pub enum ProviderCommand {
         #[arg(long)]
         provider: Option<String>,
     },
-}
-
-
-/// Authentication commands for managing provider credentials
-#[derive(Subcommand, Debug, Clone)]
-pub enum AuthCommand {
 }

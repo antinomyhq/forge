@@ -64,7 +64,7 @@ impl SnapshotService {
 
         // Check if the `snapshot_dir` exists
         if !ForgeFS::exists(&snapshot_dir) {
-            return Err(anyhow::anyhow!("No snapshots found for {:?}", path));
+            return Err(anyhow::anyhow!("No snapshots found for {path:?}"));
         }
 
         // Retrieve the latest snapshot path

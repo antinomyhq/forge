@@ -174,7 +174,7 @@ mod tests {
     #[test]
     fn test_dynamic_width_with_large_line_numbers() {
         // Test with 100+ lines to verify width calculation
-        let old_lines = (1..=150).map(|i| format!("line {}", i)).collect::<Vec<_>>();
+        let old_lines = (1..=150).map(|i| format!("line {i}")).collect::<Vec<_>>();
         let mut new_lines = old_lines.clone();
         new_lines[99] = "modified line 100".to_string();
 
@@ -192,9 +192,7 @@ mod tests {
     #[test]
     fn test_width_based_on_diff_not_file_size() {
         // Large file but diff only at the beginning
-        let old_lines = (1..=1000)
-            .map(|i| format!("line {}", i))
-            .collect::<Vec<_>>();
+        let old_lines = (1..=1000).map(|i| format!("line {i}")).collect::<Vec<_>>();
         let mut new_lines = old_lines.clone();
         new_lines[4] = "modified line 5".to_string(); // Only change line 5
 

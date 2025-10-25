@@ -37,6 +37,7 @@ use crate::{ToolCallFull, ToolDefinition, ToolDescription, ToolName};
 #[strum(serialize_all = "snake_case")]
 pub enum Tools {
     Read(FSRead),
+    ReadImage(ReadImage),
     Write(FSWrite),
     Search(FSSearch),
     Remove(FSRemove),
@@ -94,7 +95,23 @@ pub struct FSRead {
     pub end_line: Option<i32>,
 }
 
+/// Reads image files from the file system and returns them in base64-encoded
+/// format for vision-capable models. Supports common image formats: JPEG, PNG,
+/// WebP, and GIF. The path must be absolute and point to an existing file. Use
+/// this tool when you need to process, analyze, or display images with vision
+/// models. Do NOT use this for text files - use the `read` tool instead. Do NOT
+/// use for other binary files like PDFs, videos, or archives. The tool will
+/// fail if the file doesn't exist or if the format is unsupported. Returns the
+/// image content encoded in base64 format ready for vision model consumption.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct ReadImage {
+    /// The absolute path to the image file (e.g., /home/user/image.png).
+    /// Relative paths are not supported. The file must exist and be readable.
+    pub path: String,
+}
+
 /// Use it to create a new file at a specified path with the provided content.
+///
 /// Always provide absolute paths for file locations. The tool
 /// automatically handles the creation of any missing intermediary directories
 /// in the specified path.
@@ -451,6 +468,7 @@ impl ToolDescription for Tools {
             Tools::Fetch(v) => v.description(),
             Tools::Search(v) => v.description(),
             Tools::Read(v) => v.description(),
+            Tools::ReadImage(v) => v.description(),
             Tools::Remove(v) => v.description(),
             Tools::Undo(v) => v.description(),
             Tools::Write(v) => v.description(),
@@ -485,6 +503,7 @@ impl Tools {
             Tools::Fetch(_) => r#gen.into_root_schema_for::<NetFetch>(),
             Tools::Search(_) => r#gen.into_root_schema_for::<FSSearch>(),
             Tools::Read(_) => r#gen.into_root_schema_for::<FSRead>(),
+            Tools::ReadImage(_) => r#gen.into_root_schema_for::<ReadImage>(),
             Tools::Remove(_) => r#gen.into_root_schema_for::<FSRemove>(),
             Tools::Undo(_) => r#gen.into_root_schema_for::<FSUndo>(),
             Tools::Write(_) => r#gen.into_root_schema_for::<FSWrite>(),
@@ -528,6 +547,12 @@ impl Tools {
                 cwd,
                 message: format!("Read file: {}", display_path_for(&input.path)),
             }),
+            Tools::ReadImage(input) => Some(crate::policies::PermissionOperation::Read {
+                path: std::path::PathBuf::from(&input.path),
+                cwd,
+                message: format!("Image file: {}", display_path_for(&input.path)),
+            }),
+
             Tools::Write(input) => Some(crate::policies::PermissionOperation::Write {
                 path: std::path::PathBuf::from(&input.path),
                 cwd,

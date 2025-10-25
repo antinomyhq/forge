@@ -2,7 +2,7 @@ use derive_setters::Setters;
 use merge::Merge;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, Merge, Setters, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Merge, Setters, PartialEq, fake::Dummy)]
 #[setters(into)]
 pub struct RetryConfig {
     /// Initial backoff delay in milliseconds for retry operations
