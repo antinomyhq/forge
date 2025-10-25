@@ -634,8 +634,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .lines()
                 .collect::<Vec<_>>()
                 .join(" ");
-            info = info
-                .add_key_value(agent.id.to_string(), title);
+            info = info.add_key_value(agent.id.to_string(), title);
         }
 
         if porcelain {
