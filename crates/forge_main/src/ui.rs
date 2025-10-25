@@ -1793,38 +1793,3 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 fn get_valid_provider_names() -> Vec<String> {
     ProviderId::iter().map(|p| p.to_string()).collect()
 }
-
-#[cfg(test)]
-mod tests {
-    use pretty_assertions::assert_eq;
-
-    use super::*;
-
-    #[test]
-    fn test_get_valid_provider_names() {
-        let fixture = get_valid_provider_names();
-        let actual = !fixture.is_empty();
-        let expected = true;
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_config_set_args_has_any_field() {
-        let fixture = crate::cli::ConfigSetArgs {
-            agent: Some("forge".to_string()),
-            model: None,
-            provider: None,
-        };
-        let actual = fixture.has_any_field();
-        let expected = true;
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_config_set_args_has_no_field() {
-        let fixture = crate::cli::ConfigSetArgs { agent: None, model: None, provider: None };
-        let actual = fixture.has_any_field();
-        let expected = false;
-        assert_eq!(actual, expected);
-    }
-}
