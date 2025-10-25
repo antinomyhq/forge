@@ -60,6 +60,25 @@ impl Porcelain {
                 .collect(),
         )
     }
+    /// Swaps two columns by their indices
+    pub fn swap(self, col1: usize, col2: usize) -> Self {
+        Porcelain(
+            self.0
+                .into_iter()
+                .map(|row| {
+                    let mut new_row = row;
+                    // Ensure the row has enough columns for both indices
+                    let max_len = new_row.len().max(col1 + 1).max(col2 + 1);
+                    new_row.resize(max_len, None);
+
+                    // Swap the columns
+                    new_row.swap(col1, col2);
+                    new_row
+                })
+                .collect(),
+        )
+    }
+
     /// Truncates the specified column to a maximum length (including "..."),
     /// appending "..." if truncated
     pub fn truncate(self, c: usize, max_len: usize) -> Self {
@@ -135,9 +154,9 @@ impl Porcelain {
 
             // For each field in this entity (excluding $ID column)
             for (i, value) in data_row.iter().enumerate().skip(1) {
-                if let Some(val) = value {
+                if let Some(value) = value {
                     let field_name = headers.get(i).and_then(|h| h.clone());
-                    new_rows.push(vec![entity_id.clone(), field_name, Some(val.clone())]);
+                    new_rows.push(vec![entity_id.clone(), field_name, Some(value.to_owned())]);
                 }
             }
         }
@@ -223,11 +242,13 @@ impl From<&Info> for Porcelain {
                     }
 
                     in_row = true;
-                    cells.insert("$ID", Some(title.to_owned()));
-                    keys.insert("$ID");
+                    cells.insert("$ID".to_owned(), Some(title.to_owned()));
+                    keys.insert("$ID".to_owned());
                 }
                 Section::Items(key, value) => {
-                    cells.insert(key, value.clone());
+                    let default_key = format!("$VALUE_{}", cells.len());
+                    let key = key.clone().unwrap_or(default_key);
+                    cells.insert(key.clone(), Some(value.clone()));
                     keys.insert(key);
                 }
             }
@@ -247,7 +268,7 @@ impl From<&Info> for Porcelain {
         // Insert Rows
         data.extend(rows.iter().map(|rows| {
             keys.iter()
-                .map(|key| rows.get(*key).and_then(|value| value.as_ref().cloned()))
+                .map(|key| rows.get(key).and_then(|value| value.as_ref().cloned()))
                 .collect::<Vec<Option<String>>>()
         }));
         Porcelain(data)
@@ -433,6 +454,92 @@ mod tests {
     }
 
     #[test]
+    fn test_from_info_single_col() {
+        let info = Info::new()
+            .add_title("T1")
+            .add_value("a1")
+            .add_value("b1")
+            .add_title("T2")
+            .add_value("a2")
+            .add_value("b2")
+            .add_title("T3")
+            .add_value("a3")
+            .add_value("b3");
+
+        let actual = Porcelain::from(info).into_rows();
+
+        let expected = vec![
+            //
+            vec![
+                Some("$ID".into()),
+                Some("$VALUE_1".into()),
+                Some("$VALUE_2".into()),
+            ],
+            vec![Some("T1".into()), Some("a1".into()), Some("b1".into())],
+            vec![Some("T2".into()), Some("a2".into()), Some("b2".into())],
+            vec![Some("T3".into()), Some("a3".into()), Some("b3".into())],
+        ];
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn test_into_long_single_col() {
+        let info = Info::new()
+            .add_title("T1")
+            .add_value("a1")
+            .add_value("b1")
+            .add_title("T2")
+            .add_value("a2")
+            .add_value("b2")
+            .add_title("T3")
+            .add_value("a3")
+            .add_value("b3");
+
+        let actual = Porcelain::from(info).into_long().into_rows();
+
+        let expected = vec![
+            vec![
+                Some("$ID".into()),
+                Some("field".into()),
+                Some("value".into()),
+            ],
+            vec![
+                Some("T1".into()),
+                Some("$VALUE_1".into()),
+                Some("a1".into()),
+            ],
+            vec![
+                Some("T1".into()),
+                Some("$VALUE_2".into()),
+                Some("b1".into()),
+            ],
+            vec![
+                Some("T2".into()),
+                Some("$VALUE_1".into()),
+                Some("a2".into()),
+            ],
+            vec![
+                Some("T2".into()),
+                Some("$VALUE_2".into()),
+                Some("b2".into()),
+            ],
+            vec![
+                Some("T3".into()),
+                Some("$VALUE_1".into()),
+                Some("a3".into()),
+            ],
+            vec![
+                Some("T3".into()),
+                Some("$VALUE_2".into()),
+                Some("b3".into()),
+            ],
+        ];
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
     fn test_display_simple() {
         let info = Porcelain(vec![
             vec![Some("$ID".into()), Some("name".into()), Some("age".into())],
@@ -476,6 +583,115 @@ mod tests {
             "user2       25",
         ]
         .join("\n");
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn test_swap() {
+        let info = Porcelain(vec![
+            vec![
+                Some("user1".into()),
+                Some("Alice".into()),
+                Some("30".into()),
+            ],
+            vec![Some("user2".into()), Some("Bob".into()), Some("25".into())],
+        ]);
+
+        let actual = info.swap(0, 2).into_rows();
+
+        let expected = vec![
+            vec![
+                Some("30".into()),
+                Some("Alice".into()),
+                Some("user1".into()),
+            ],
+            vec![Some("25".into()), Some("Bob".into()), Some("user2".into())],
+        ];
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn test_swap_with_none() {
+        let info = Porcelain(vec![
+            vec![Some("user1".into()), Some("Alice".into()), None],
+            vec![Some("user2".into()), None, Some("25".into())],
+        ]);
+
+        let actual = info.swap(1, 2).into_rows();
+
+        let expected = vec![
+            vec![Some("user1".into()), None, Some("Alice".into())],
+            vec![Some("user2".into()), Some("25".into()), None],
+        ];
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn test_swap_same_index() {
+        let info = Porcelain(vec![
+            vec![
+                Some("user1".into()),
+                Some("Alice".into()),
+                Some("30".into()),
+            ],
+            vec![Some("user2".into()), Some("Bob".into()), Some("25".into())],
+        ]);
+
+        let actual = info.swap(1, 1).into_rows();
+
+        let expected = vec![
+            vec![
+                Some("user1".into()),
+                Some("Alice".into()),
+                Some("30".into()),
+            ],
+            vec![Some("user2".into()), Some("Bob".into()), Some("25".into())],
+        ];
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn test_swap_out_of_bounds() {
+        let info = Porcelain(vec![
+            vec![Some("user1".into()), Some("Alice".into())],
+            vec![Some("user2".into()), Some("Bob".into())],
+        ]);
+
+        let actual = info.swap(1, 3).into_rows();
+
+        let expected = vec![
+            vec![Some("user1".into()), None, None, Some("Alice".into())],
+            vec![Some("user2".into()), None, None, Some("Bob".into())],
+        ];
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn test_swap_cols_alias() {
+        let info = Porcelain(vec![
+            vec![
+                Some("user1".into()),
+                Some("Alice".into()),
+                Some("30".into()),
+            ],
+            vec![Some("user2".into()), Some("Bob".into()), Some("25".into())],
+        ]);
+
+        let actual = info.swap(0, 2).into_rows();
+
+        let expected = vec![
+            vec![
+                Some("30".into()),
+                Some("Alice".into()),
+                Some("user1".into()),
+            ],
+            vec![Some("25".into()), Some("Bob".into()), Some("user2".into())],
+        ];
 
         assert_eq!(actual, expected)
     }

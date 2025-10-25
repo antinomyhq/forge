@@ -13,7 +13,7 @@ use crate::model::ForgeCommandManager;
 #[derive(Debug, PartialEq)]
 pub enum Section {
     Title(String),
-    Items(String, Option<String>), // key, value, subtitle
+    Items(Option<String>, String), // key, value, subtitle
 }
 
 #[derive(Default)]
@@ -36,23 +36,18 @@ impl Info {
         self
     }
 
-    pub fn add_key(self, key: impl ToString) -> Self {
-        self.add_item(key, None::<String>, None::<String>)
+    pub fn add_value(self, value: impl ToString) -> Self {
+        self.add_item(None::<String>, value)
     }
 
     pub fn add_key_value(self, key: impl ToString, value: impl ToString) -> Self {
-        self.add_item(key, Some(value), None::<String>)
+        self.add_item(Some(key), value)
     }
 
-    fn add_item(
-        mut self,
-        key: impl ToString,
-        value: Option<impl ToString>,
-        _subtitle: Option<impl ToString>,
-    ) -> Self {
+    fn add_item(mut self, key: Option<impl ToString>, value: impl ToString) -> Self {
         self.sections.push(Section::Items(
-            key.to_string(),
-            value.map(|a| a.to_string()),
+            key.map(|a| a.to_string()),
+            value.to_string(),
         ));
         self
     }
@@ -117,7 +112,7 @@ impl From<&Metrics> for Info {
 
         // Add file changes section inspired by the example format
         if metrics.files_changed.is_empty() {
-            info = info.add_key("[No Changes Produced]");
+            info = info.add_value("[No Changes Produced]");
         } else {
             // First, calculate the maximum filename length for proper alignment
             let max_filename_len = metrics
@@ -207,11 +202,11 @@ impl fmt::Display for Info {
                     writeln!(f, "{}", title.bold().dimmed())?
                 }
                 Section::Items(key, value) => {
-                    if let Some(value) = value {
+                    if let Some(key) = key {
                         writeln!(f, "  {}: {}", key.bright_cyan().bold(), value)?;
                     } else {
                         // Show key-only items (like tools)
-                        writeln!(f, "  {}", key)?;
+                        writeln!(f, "  {}", value)?;
                     }
                 }
             }

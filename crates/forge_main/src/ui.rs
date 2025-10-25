@@ -492,7 +492,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip_row(1);
+            let porcelain = Porcelain::from(&info).into_long().skip(1).drop_col(0);
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -525,7 +525,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info);
+            let porcelain = Porcelain::from(&info).skip(1).drop_col(0);
             //.drop_column(0);
             self.writeln(porcelain)?;
         } else {
@@ -543,13 +543,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
-        let mut info = Info::new().add_title("MODELS");
+        let mut info = Info::new();
 
         for model in models.iter() {
             let id = model.id.to_string();
 
-            // Build a single row with model name as key and context/tools as values
-            let mut values = Vec::new();
+            info = info.add_title(id);
 
             // Add context length if available, otherwise use "unknown"
             if let Some(limit) = model.context_length {
@@ -560,28 +559,34 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 } else {
                     format!("{limit}")
                 };
-                values.push(context);
+                info = info.add_key_value("Context Window", context);
             } else {
-                values.push("<unspecified>".to_string());
+                info = info.add_key_value("Context Window", "<unavailable>")
             }
 
             // Add tools support indicator if explicitly supported
-            if model.tools_supported == Some(true) {
-                values.push("🛠️".to_string());
+            if let Some(supported) = model.tools_supported {
+                info = info.add_key_value(
+                    "Tools",
+                    if supported {
+                        "Supported"
+                    } else {
+                        "Unsupported"
+                    },
+                )
             } else {
-                values.push("".to_string());
-            }
-
-            // Add the model as a key with combined values
-            if values.len() == 2 {
-                info = info.add_key_value(id, values.join(" "));
-            } else {
-                info = info.add_key(id);
+                info = info.add_key_value("Tools", "<unknown>")
             }
         }
 
         if porcelain {
-            self.writeln(Porcelain::from(&info).to_string())?;
+            self.writeln(Porcelain::from(&info).skip(1).map_col(2, |col| {
+                if col == Some("Supported".to_owned()) {
+                    Some("🛠️".into())
+                } else {
+                    None
+                }
+            }))?;
         } else {
             self.writeln(info)?;
         }
@@ -646,7 +651,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip_row(1);
+            let porcelain = Porcelain::from(&info).skip(1);
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -672,7 +677,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let info = crate::config::build_config_info(agent, model, provider);
 
         if porcelain {
-            self.writeln(Porcelain::from(&info).to_string())?;
+            self.writeln(Porcelain::from(&info).into_long().skip(1).drop_col(0))?;
         } else {
             self.writeln(info)?;
         }
@@ -699,7 +704,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         let info = format_tools(&agent_tools, &all_tools);
         if porcelain {
-            self.writeln(Porcelain::from(&info).to_string())?;
+            self.writeln(Porcelain::from(&info).into_long().drop_col(1).skip(1))?;
         } else {
             self.writeln(info)?;
         }
@@ -710,25 +715,21 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Displays all MCP servers
     async fn on_show_mcp_servers(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let mcp_servers = self.api.read_mcp_config(None).await?;
-        if mcp_servers.is_empty() {
-            self.writeln_title(TitleFormat::error("No MCP servers found"))?;
-            return Ok(());
-        }
 
         let mut info = Info::new();
 
         for (name, server) in mcp_servers.mcp_servers {
             info = info
                 .add_title(name.to_uppercase())
-                .add_key_value("command", server.to_string());
+                .add_key_value("Command", server.to_string());
 
             if server.is_disabled() {
-                info = info.add_key_value("disable", "true")
+                info = info.add_key_value("Status", "disabled")
             }
         }
 
         if porcelain {
-            self.writeln(Porcelain::from(&info).to_string())?;
+            self.writeln(Porcelain::from(&info).skip(1))?;
         } else {
             self.writeln(info)?;
         }
@@ -786,7 +787,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         if porcelain {
-            self.writeln(Porcelain::from(&info).to_string())?;
+            self.writeln(Porcelain::from(&info).into_long().skip(1))?;
         } else {
             self.writeln(info)?;
         }
@@ -858,7 +859,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // In porcelain mode, skip the top-level "SESSIONS" title
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip_row(1);
+            let porcelain = Porcelain::from(&info).skip(2).truncate(0, 60);
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
