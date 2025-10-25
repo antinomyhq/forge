@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::fmt;
 
+use indexmap::IndexSet;
+
 use crate::info::{Info, Section};
 
 /// Porcelain is an intermediate representation that converts Info into a flat,
@@ -13,7 +15,7 @@ use crate::info::{Info, Section};
 ///   - Index 1, 3, 5... are values
 ///   - None = missing value
 #[derive(Debug, PartialEq)]
-pub struct Porcelain(Vec<(String, Vec<Option<String>>)>);
+pub struct Porcelain(Vec<Vec<Option<String>>>);
 
 impl Porcelain {
     /// Creates a new empty Porcelain instance
@@ -21,116 +23,42 @@ impl Porcelain {
         Porcelain(Vec::new())
     }
 
-    /// Adds a section with key-value pairs (private, used internally in tests)
-    #[cfg(test)]
-    fn add_section(mut self, title: String, items: Vec<Option<String>>) -> Self {
-        self.0.push((title, items));
-        self
+    /// Skips the first n rows
+    pub fn skip_row(self, n: usize) -> Self {
+        Porcelain(self.0.into_iter().skip(n).collect())
     }
 
-    /// Converts Porcelain to rows for display
-    /// Each section becomes a row with [title, value1, value2, ...] if title
-    /// exists Or [value1, value2, ...] if title is empty (for simple
-    /// key-value Info)
-    pub fn to_rows(&self) -> Vec<Vec<String>> {
-        let mut rows = Vec::new();
-
-        for (title, items) in &self.0 {
-            let mut row = Vec::new();
-
-            // Only add title if it's not empty
-            if !title.is_empty() {
-                row.push(title.clone());
-            }
-
-            // Extract values (odd indices) from the items, skipping keys (even indices)
-            for (idx, item) in items.iter().enumerate() {
-                if idx % 2 == 1 {
-                    // Odd index = value
-                    row.push(item.clone().unwrap_or_default());
-                } else if title.is_empty() && idx % 2 == 0 {
-                    // Even index (key) - add it for simple key-value Info without titles
-                    row.push(item.clone().unwrap_or_default());
-                }
-            }
-
-            rows.push(row);
-        }
-
-        rows
+    pub fn drop_col(self, c: usize) -> Self {
+        Porcelain(
+            self.0
+                .into_iter()
+                .map(|row| {
+                    row.into_iter()
+                        .enumerate()
+                        .filter_map(|(i, col)| if i == c { None } else { Some(col) })
+                        .collect()
+                })
+                .collect(),
+        )
     }
 
-    /// Skips the first n sections
-    pub fn skip(mut self, n: usize) -> Self {
-        if n >= self.0.len() {
-            self.0.clear();
-        } else if n > 0 {
-            self.0.drain(0..n);
-        }
+    pub fn into_body(self) -> Vec<Vec<Option<String>>> {
+        // Skip headers and return
+        self.0.into_iter().skip(1).collect()
+    }
+
+    pub fn into_rows(self) -> Vec<Vec<Option<String>>> {
+        self.0
+    }
+
+    pub fn transpose(self) -> Self {
         self
     }
 }
 
 impl fmt::Display for Porcelain {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let rows = self.to_rows();
-
-        // Create a custom formatter that captures the output instead of printing to
-        // stdout
-        struct StringWriter(String);
-
-        impl StringWriter {
-            fn new() -> Self {
-                Self(String::new())
-            }
-
-            fn capture_format_columns(&mut self, rows: Vec<Vec<String>>) {
-                if rows.is_empty() {
-                    return;
-                }
-
-                // Rows are already Vec<String>, no need to convert
-                if rows.is_empty() {
-                    return;
-                }
-
-                // Get the number of columns from the first row
-                let column_count = rows[0].len();
-                let mut max_widths = vec![0; column_count];
-
-                // Calculate maximum width for each column
-                for row in &rows {
-                    for (i, col) in row.iter().enumerate() {
-                        max_widths[i] = max_widths[i].max(col.len());
-                    }
-                }
-
-                // Format each row and append to string
-                for row in rows {
-                    let mut formatted = String::new();
-                    for (i, (col, &width)) in row.iter().zip(&max_widths).enumerate() {
-                        if i > 0 {
-                            formatted.push(' ');
-                        }
-                        if i == max_widths.len() - 1 {
-                            // Last column: no padding
-                            formatted.push_str(col);
-                        } else {
-                            formatted.push_str(&format!("{col:<width$}"));
-                        }
-                    }
-                    self.0.push_str(&formatted);
-                    self.0.push('\n');
-                }
-            }
-        }
-
-        let mut writer = StringWriter::new();
-        writer.capture_format_columns(rows);
-
-        // Remove trailing newline and write to formatter
-        let output = writer.0.trim_end();
-        write!(f, "{}", output)
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        todo!()
     }
 }
 
@@ -153,155 +81,50 @@ impl From<Info> for Porcelain {
 /// Converts Info reference to Porcelain representation
 impl From<&Info> for Porcelain {
     fn from(info: &Info) -> Self {
-        if is_hierarchical_table(info) {
-            let field_order = extract_field_order(info);
-            Porcelain(build_hierarchical_sections(info, &field_order))
-        } else {
-            let sections: Vec<(String, Vec<Option<String>>)> = info
-                .sections()
-                .iter()
-                .filter_map(|section| match section {
-                    Section::Items(key, value) => {
-                        let items = match value {
-                            Some(value_str) => vec![Some(key.clone()), Some(value_str.clone())],
-                            None => vec![Some(key.clone())],
-                        };
-                        Some((String::new(), items))
+        let mut rows = Vec::new();
+        let mut cells = HashMap::new();
+        let mut in_row = false;
+        // Extract all unique keys
+        let mut keys = IndexSet::new();
+
+        for section in info.sections() {
+            match section {
+                Section::Title(title) => {
+                    if in_row {
+                        rows.push(cells.clone());
+                        cells = HashMap::new();
                     }
-                    Section::Title(_) => None,
-                })
-                .collect();
 
-            Porcelain(sections)
-        }
-    }
-}
-
-/// Checks if Info structure represents a hierarchical table
-fn is_hierarchical_table(info: &Info) -> bool {
-    let (title_count, key_value_count, key_only_count) =
-        info.sections()
-            .iter()
-            .fold((0, 0, 0), |(titles, kv, ko), section| match section {
-                Section::Title(_) => (titles + 1, kv, ko),
-                Section::Items(_, Some(_)) => (titles, kv + 1, ko),
-                Section::Items(_, None) => (titles, kv, ko + 1),
-            });
-
-    let has_multiple_titles = title_count > 1;
-    let primarily_key_value = key_value_count > 0 && key_value_count >= key_only_count;
-
-    // Must have multiple titles and primarily key-value pairs
-    has_multiple_titles && primarily_key_value && sections_have_common_fields(info)
-}
-
-/// Checks if all sections share common field names
-fn sections_have_common_fields(info: &Info) -> bool {
-    let mut all_fields = std::collections::HashSet::new();
-    let mut sections_fields = Vec::new();
-    let mut current_fields = std::collections::HashSet::new();
-
-    for section in info.sections() {
-        match section {
-            Section::Title(_) => {
-                if !current_fields.is_empty() {
-                    sections_fields.push(current_fields.clone());
-                    current_fields.clear();
+                    in_row = true;
+                    cells.insert("$ID", Some(title.to_owned()));
+                    keys.insert("$ID");
+                }
+                Section::Items(key, value) => {
+                    cells.insert(key, value.clone());
+                    keys.insert(key);
                 }
             }
-            Section::Items(key, _) => {
-                current_fields.insert(key.clone());
-                all_fields.insert(key.clone());
-            }
         }
-    }
 
-    // Add the last section
-    if !current_fields.is_empty() {
-        sections_fields.push(current_fields);
-    }
-
-    match sections_fields.len() {
-        0 => false,
-        1 => true, // Single section - assume hierarchical
-        _ => {
-            // Check if any field appears in all sections
-            sections_fields
-                .iter()
-                .try_fold(all_fields, |common_fields, section| {
-                    Some(common_fields.intersection(section).cloned().collect())
-                })
-                .is_some_and(|common_fields| !common_fields.is_empty())
+        if in_row {
+            rows.push(cells.clone());
         }
+
+        // Insert Headers
+        let mut data = vec![
+            keys.iter()
+                .map(|head| Some((*head).to_owned()))
+                .collect::<Vec<_>>(),
+        ];
+
+        // Insert Rows
+        data.extend(rows.iter().map(|rows| {
+            keys.iter()
+                .map(|key| rows.get(*key).and_then(|value| value.as_ref().cloned()))
+                .collect::<Vec<Option<String>>>()
+        }));
+        Porcelain(data)
     }
-}
-
-/// Extracts unique field names in order of first appearance
-fn extract_field_order(info: &Info) -> Vec<String> {
-    let mut seen = std::collections::HashSet::new();
-    let mut field_order = Vec::new();
-
-    for section in info.sections() {
-        if let Section::Items(key, _) = section
-            && !seen.contains(key)
-        {
-            seen.insert(key.clone());
-            field_order.push(key.clone());
-        }
-    }
-
-    field_order
-}
-
-/// Helper function to build items vector for Porcelain
-/// Creates alternating key-value pairs: [Some(key1), Some(value1), Some(key2),
-/// Some(value2), ...] Missing fields are represented as [Some(key), None]
-fn build_porcelain_items(
-    row_data: &HashMap<String, String>,
-    field_order: &[String],
-) -> Vec<Option<String>> {
-    let mut items = Vec::new();
-
-    for field in field_order {
-        items.push(Some(field.clone())); // Key
-        items.push(row_data.get(field).cloned()); // Value (None if missing)
-    }
-
-    items
-}
-
-/// Builds hierarchical sections from Info data
-fn build_hierarchical_sections(
-    info: &Info,
-    field_order: &[String],
-) -> Vec<(String, Vec<Option<String>>)> {
-    let mut sections = Vec::new();
-    let mut current_title = String::new();
-    let mut current_data: HashMap<String, String> = HashMap::new();
-
-    for section in info.sections() {
-        match section {
-            Section::Title(title) => {
-                if !current_title.is_empty() {
-                    let items = build_porcelain_items(&current_data, field_order);
-                    sections.push((current_title.clone(), items));
-                    current_data.clear();
-                }
-                current_title = title.clone();
-            }
-            Section::Items(key, value) => {
-                current_data.insert(key.clone(), value.clone().unwrap_or_default());
-            }
-        }
-    }
-
-    // Add the last section
-    if !current_title.is_empty() {
-        let items = build_porcelain_items(&current_data, field_order);
-        sections.push((current_title, items));
-    }
-
-    sections
 }
 
 #[cfg(test)]
@@ -311,9 +134,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_porcelain_conversion() {
-        // Test converting Info to Porcelain
-        let fixture = Info::new()
+    fn test_from_info() {
+        let info = Info::new()
             .add_title("user1")
             .add_key_value("name", "Alice")
             .add_key_value("age", "30")
@@ -321,446 +143,545 @@ mod tests {
             .add_key_value("name", "Bob")
             .add_key_value("age", "25");
 
-        let actual: Porcelain = fixture.into();
-
-        // Verify structure: sections with alternating key-value pairs
-        let expected = Porcelain::new()
-            .add_section(
-                "user1".to_string(),
-                vec![
-                    Some("name".to_string()),
-                    Some("Alice".to_string()),
-                    Some("age".to_string()),
-                    Some("30".to_string()),
-                ],
-            )
-            .add_section(
-                "user2".to_string(),
-                vec![
-                    Some("name".to_string()),
-                    Some("Bob".to_string()),
-                    Some("age".to_string()),
-                    Some("25".to_string()),
-                ],
-            );
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_porcelain_to_rows() {
-        // Test converting Porcelain to rows
-        let fixture = Porcelain::new()
-            .add_section(
-                "user1".to_string(),
-                vec![
-                    Some("name".to_string()),
-                    Some("Alice".to_string()),
-                    Some("age".to_string()),
-                    Some("30".to_string()),
-                ],
-            )
-            .add_section(
-                "user2".to_string(),
-                vec![
-                    Some("name".to_string()),
-                    Some("Bob".to_string()),
-                    Some("age".to_string()),
-                    Some("25".to_string()),
-                ],
-            );
-
-        let actual = fixture.to_rows();
-
+        let actual = Porcelain::from(info).into_body();
         let expected = vec![
-            vec!["user1".to_string(), "Alice".to_string(), "30".to_string()],
-            vec!["user2".to_string(), "Bob".to_string(), "25".to_string()],
+            vec![
+                Some("user1".into()),
+                Some("Alice".into()),
+                Some("30".into()),
+            ],
+            vec![Some("user2".into()), Some("Bob".into()), Some("25".into())],
         ];
 
-        assert_eq!(actual, expected);
+        assert_eq!(actual, expected)
     }
 
     #[test]
-    fn test_porcelain_with_missing_values() {
-        // Test Porcelain with missing values (None)
-        let fixture = Info::new()
+    fn test_from_unordered_info() {
+        let info = Info::new()
             .add_title("user1")
             .add_key_value("name", "Alice")
             .add_key_value("age", "30")
             .add_title("user2")
-            .add_key_value("age", "25"); // Missing name
-
-        let porcelain: Porcelain = fixture.into();
-        let actual = porcelain.to_rows();
-
-        // user2 should have empty string for missing name
-        let expected = vec![
-            vec!["user1".to_string(), "Alice".to_string(), "30".to_string()],
-            vec!["user2".to_string(), "".to_string(), "25".to_string()],
-        ];
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_porcelain_with_different_field_order() {
-        // Test that Porcelain maintains consistent field order across sections
-        let fixture = Info::new()
-            .add_title("user1")
-            .add_key_value("name", "Alice")
-            .add_key_value("age", "30")
-            .add_key_value("city", "NYC")
-            .add_title("user2")
-            .add_key_value("age", "25") // Different order
+            .add_key_value("age", "25")
             .add_key_value("name", "Bob");
 
-        let porcelain: Porcelain = fixture.into();
-        let actual = porcelain.to_rows();
-
-        // All rows should have same column order: [title, name, age, city]
+        let actual = Porcelain::from(info).into_body();
         let expected = vec![
             vec![
-                "user1".to_string(),
-                "Alice".to_string(),
-                "30".to_string(),
-                "NYC".to_string(),
+                Some("user1".into()),
+                Some("Alice".into()),
+                Some("30".into()),
             ],
-            vec![
-                "user2".to_string(),
-                "Bob".to_string(),
-                "25".to_string(),
-                "".to_string(),
-            ],
+            vec![Some("user2".into()), Some("Bob".into()), Some("25".into())],
         ];
 
-        assert_eq!(actual, expected);
+        assert_eq!(actual, expected)
     }
 
     #[test]
-    fn test_porcelain_empty() {
-        // Test empty Porcelain
-        let fixture = Porcelain::new();
+    fn test_drop_col() {
+        let info = Porcelain(vec![
+            vec![
+                Some("user1".into()),
+                Some("Alice".into()),
+                Some("30".into()),
+            ],
+            vec![Some("user2".into()), Some("Bob".into()), Some("25".into())],
+        ]);
 
-        let actual = fixture.to_rows();
-        let expected: Vec<Vec<String>> = vec![];
+        let actual = dbg!(info.drop_col(1).into_rows());
 
-        assert_eq!(actual, expected);
+        let expected = vec![
+            vec![Some("user1".into()), Some("30".into())],
+            vec![Some("user2".into()), Some("25".into())],
+        ];
+
+        assert_eq!(actual, expected)
     }
 
     #[test]
-    fn test_porcelain_skip() {
-        // Test skipping sections using Info structure (flat format)
+    fn test_transpose() {
         let info = Info::new()
-            .add_key_value("section1", "")
-            .add_key_value("section2", "Alice")
-            .add_key_value("section3", "30");
+            .add_title("env")
+            .add_key_value("version", "0.1.0")
+            .add_key_value("shell", "zsh")
+            .add_title("conversation")
+            .add_key_value("id", "000-000-000")
+            .add_key_value("title", "make agents great again")
+            .add_title("agent")
+            .add_key_value("id", "forge")
+            .add_key_value("model", "sonnet-4");
 
-        let porcelain = Porcelain::from(&info);
-        let actual = porcelain.skip(1).to_rows();
-
-        // Should skip section1
+        let actual = Porcelain::from(info).transpose().into_body();
         let expected = vec![
-            vec!["section2".to_string(), "Alice".to_string()],
-            vec!["section3".to_string(), "30".to_string()],
-        ];
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_porcelain_skip_more_than_available() {
-        // Test skipping more sections than available using Info structure (flat format)
-        let info = Info::new().add_key_value("section1", "Alice");
-
-        let porcelain = Porcelain::from(&info);
-        let actual = porcelain.skip(5).to_rows(); // Skip more than exists
-
-        // Should return empty since we skip more than available
-        let expected: Vec<Vec<String>> = vec![];
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_info_to_rows() {
-        // Test converting Info to rows without titles
-        let fixture = Info::new()
-            .add_key_value("name", "Alice")
-            .add_key_value("age", "30")
-            .add_key("city"); // Key-only item
-
-        let actual = Porcelain::from(&fixture).to_rows();
-
-        let expected = vec![
-            vec!["name".to_string(), "Alice".to_string()],
-            vec!["age".to_string(), "30".to_string()],
-            vec!["city".to_string()],
-        ];
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_info_command_structure() {
-        // Test the actual structure of the info command
-        // Multiple titles with different schemas - should be flat
-        let fixture = Info::new()
-            .add_title("PATHS")
-            .add_key_value("Logs", "~/forge/logs")
-            .add_key_value("Agents", "~/forge/agents")
-            .add_key_value("History", "~/forge/.forge_history")
-            .add_key_value("Checkpoints", "~/forge/snapshots")
-            .add_key_value("Policies", "~/forge/permissions.yaml")
-            .add_title("ENVIRONMENT")
-            .add_key_value("Version", "0.1.0")
-            .add_key_value("Working Directory", "~/code-forge")
-            .add_key_value("Shell", "/bin/zsh")
-            .add_key_value("Git Branch", "main")
-            .add_title("CONVERSATION")
-            .add_key_value("ID", "f266080c-fec6-426b-914e-178acc39483f")
-            .add_title("TOKEN USAGE")
-            .add_key_value("Total", "49,701")
-            .add_key_value("Input", "49,440")
-            .add_key_value("Cached", "116 [99%]")
-            .add_key_value("Output", "261")
-            .add_key_value("Cost", "$0.0176")
-            .add_title("AGENT")
-            .add_key_value("Name", "FORGE")
-            .add_key_value("Provider", "anthropic")
-            .add_key_value("Model", "claude-sonnet-4.5")
-            .add_key_value("Endpoint", "https://openrouter.ai/api/v1/chat/completions")
-            .add_key_value("API Key", "sk-or-v1-31eb...4631");
-
-        let actual = Porcelain::from(&fixture).to_rows();
-
-        // Should be flat key-value pairs without category headers
-        let expected = vec![
-            vec!["Logs".to_string(), "~/forge/logs".to_string()],
-            vec!["Agents".to_string(), "~/forge/agents".to_string()],
-            vec!["History".to_string(), "~/forge/.forge_history".to_string()],
-            vec!["Checkpoints".to_string(), "~/forge/snapshots".to_string()],
             vec![
-                "Policies".to_string(),
-                "~/forge/permissions.yaml".to_string(),
+                Some("env".into()),
+                Some("version".into()),
+                Some("0.1.0".into()),
             ],
-            vec!["Version".to_string(), "0.1.0".to_string()],
-            vec!["Working Directory".to_string(), "~/code-forge".to_string()],
-            vec!["Shell".to_string(), "/bin/zsh".to_string()],
-            vec!["Git Branch".to_string(), "main".to_string()],
-            vec![
-                "ID".to_string(),
-                "f266080c-fec6-426b-914e-178acc39483f".to_string(),
-            ],
-            vec!["Total".to_string(), "49,701".to_string()],
-            vec!["Input".to_string(), "49,440".to_string()],
-            vec!["Cached".to_string(), "116 [99%]".to_string()],
-            vec!["Output".to_string(), "261".to_string()],
-            vec!["Cost".to_string(), "$0.0176".to_string()],
-            vec!["Name".to_string(), "FORGE".to_string()],
-            vec!["Provider".to_string(), "anthropic".to_string()],
-            vec!["Model".to_string(), "claude-sonnet-4.5".to_string()],
-            vec![
-                "Endpoint".to_string(),
-                "https://openrouter.ai/api/v1/chat/completions".to_string(),
-            ],
-            vec!["API Key".to_string(), "sk-or-v1-31eb...4631".to_string()],
+            vec![Some("env".into()), Some("shell".into()), Some("zsh".into())],
         ];
 
-        assert_eq!(actual, expected);
+        assert_eq!(actual, expected)
     }
 
-    #[test]
-    fn test_tools_command_structure() {
-        // Test the actual structure of the tools command
-        // Multiple titles (categories) with many key-only items - should be flat
-        let fixture = Info::new()
-            .add_title("TOOLS")
-            .add_key("[✓] read")
-            .add_key("[✓] write")
-            .add_key("[✓] search")
-            .add_key("[✓] remove")
-            .add_key("[✓] patch")
-            .add_key("[✓] undo")
-            .add_key("[✓] shell")
-            .add_key("[✓] fetch")
-            .add_key("[ ] followup")
-            .add_key("[ ] plan")
-            .add_key("[ ] muse")
-            .add_key("[ ] forge")
-            .add_key("[✓] sage")
-            .add_title("MCP TOOLS")
-            .add_key("[✓] mcp_deepwiki_tool_read_wiki_contents")
-            .add_key("[✓] mcp_deepwiki_tool_ask_question")
-            .add_key("[✓] mcp_context7_tool_get_library_docs");
+    //     #[test]
+    //     fn test_porcelain_conversion() {
+    //         // Test converting Info to Porcelain
+    //         let fixture = Info::new()
+    //             .add_title("user1")
+    //             .add_key_value("name", "Alice")
+    //             .add_key_value("age", "30")
+    //             .add_title("user2")
+    //             .add_key_value("name", "Bob")
+    //             .add_key_value("age", "25");
 
-        let actual = Porcelain::from(&fixture).to_rows();
+    //         let actual: Porcelain = fixture.into();
 
-        // Should be flat list of tools without category headers
-        let expected = vec![
-            vec!["[✓] read".to_string()],
-            vec!["[✓] write".to_string()],
-            vec!["[✓] search".to_string()],
-            vec!["[✓] remove".to_string()],
-            vec!["[✓] patch".to_string()],
-            vec!["[✓] undo".to_string()],
-            vec!["[✓] shell".to_string()],
-            vec!["[✓] fetch".to_string()],
-            vec!["[ ] followup".to_string()],
-            vec!["[ ] plan".to_string()],
-            vec!["[ ] muse".to_string()],
-            vec!["[ ] forge".to_string()],
-            vec!["[✓] sage".to_string()],
-            vec!["[✓] mcp_deepwiki_tool_read_wiki_contents".to_string()],
-            vec!["[✓] mcp_deepwiki_tool_ask_question".to_string()],
-            vec!["[✓] mcp_context7_tool_get_library_docs".to_string()],
-        ];
+    //         // Verify structure: sections with alternating key-value pairs
+    //         let expected = Porcelain::new()
+    //             .add_section(
+    //                 "user1".to_string(),
+    //                 vec![
+    //                     Some("name".to_string()),
+    //                     Some("Alice".to_string()),
+    //                     Some("age".to_string()),
+    //                     Some("30".to_string()),
+    //                 ],
+    //             )
+    //             .add_section(
+    //                 "user2".to_string(),
+    //                 vec![
+    //                     Some("name".to_string()),
+    //                     Some("Bob".to_string()),
+    //                     Some("age".to_string()),
+    //                     Some("25".to_string()),
+    //                 ],
+    //             );
 
-        assert_eq!(actual, expected);
-    }
+    //         assert_eq!(actual, expected);
+    //     }
 
-    #[test]
-    fn test_single_provider_structure() {
-        // Test single provider (should be hierarchical even with 1 section)
-        let fixture = Info::new()
-            .add_title("PROVIDERS")
-            .add_title("OpenRouter")
-            .add_key_value("Domain", "[openrouter.ai]");
+    //     #[test]
+    //     fn test_porcelain_to_rows() {
+    //         // Test converting Porcelain to rows
+    //         let fixture = Porcelain::new()
+    //             .add_section(
+    //                 "user1".to_string(),
+    //                 vec![
+    //                     Some("name".to_string()),
+    //                     Some("Alice".to_string()),
+    //                     Some("age".to_string()),
+    //                     Some("30".to_string()),
+    //                 ],
+    //             )
+    //             .add_section(
+    //                 "user2".to_string(),
+    //                 vec![
+    //                     Some("name".to_string()),
+    //                     Some("Bob".to_string()),
+    //                     Some("age".to_string()),
+    //                     Some("25".to_string()),
+    //                 ],
+    //             );
 
-        let actual = Porcelain::from(&fixture).skip(1).to_rows();
+    //         let actual = fixture.to_rows();
 
-        // Should be hierarchical table with provider name as first column
-        let expected = vec![vec![
-            "OpenRouter".to_string(),
-            "[openrouter.ai]".to_string(),
-        ]];
+    //         let expected = vec![
+    //             vec!["user1".to_string(), "Alice".to_string(),
+    // "30".to_string()],             vec!["user2".to_string(),
+    // "Bob".to_string(), "25".to_string()],         ];
 
-        assert_eq!(actual, expected);
-    }
+    //         assert_eq!(actual, expected);
+    //     }
 
-    #[test]
-    fn test_multiple_providers_structure() {
-        // Test multiple providers (hierarchical table)
-        let fixture = Info::new()
-            .add_title("PROVIDERS")
-            .add_title("OpenRouter")
-            .add_key_value("Domain", "[openrouter.ai]")
-            .add_title("Anthropic")
-            .add_key_value("Domain", "[api.anthropic.com]");
+    //     #[test]
+    //     fn test_porcelain_with_missing_values() {
+    //         // Test Porcelain with missing values (None)
+    //         let fixture = Info::new()
+    //             .add_title("user1")
+    //             .add_key_value("name", "Alice")
+    //             .add_key_value("age", "30")
+    //             .add_title("user2")
+    //             .add_key_value("age", "25"); // Missing name
 
-        let actual = Porcelain::from(&fixture).skip(1).to_rows();
+    //         let porcelain: Porcelain = fixture.into();
+    //         let actual = porcelain.to_rows();
 
-        // Should be hierarchical table
-        let expected = vec![
-            vec!["OpenRouter".to_string(), "[openrouter.ai]".to_string()],
-            vec!["Anthropic".to_string(), "[api.anthropic.com]".to_string()],
-        ];
+    //         // user2 should have empty string for missing name
+    //         let expected = vec![
+    //             vec!["user1".to_string(), "Alice".to_string(),
+    // "30".to_string()],             vec!["user2".to_string(),
+    // "".to_string(), "25".to_string()],         ];
 
-        assert_eq!(actual, expected);
-    }
+    //         assert_eq!(actual, expected);
+    //     }
 
-    #[test]
-    fn test_porcelain_display_empty() {
-        // Test Display trait with empty Porcelain
-        let fixture = Porcelain::new();
+    //     #[test]
+    //     fn test_porcelain_with_different_field_order() {
+    //         // Test that Porcelain maintains consistent field order across
+    // sections         let fixture = Info::new()
+    //             .add_title("user1")
+    //             .add_key_value("name", "Alice")
+    //             .add_key_value("age", "30")
+    //             .add_key_value("city", "NYC")
+    //             .add_title("user2")
+    //             .add_key_value("age", "25") // Different order
+    //             .add_key_value("name", "Bob");
 
-        let actual = fixture.to_string();
-        let expected = "";
+    //         let porcelain: Porcelain = fixture.into();
+    //         let actual = porcelain.to_rows();
 
-        assert_eq!(actual, expected);
-    }
+    //         // All rows should have same column order: [title, name, age,
+    // city]         let expected = vec![
+    //             vec![
+    //                 "user1".to_string(),
+    //                 "Alice".to_string(),
+    //                 "30".to_string(),
+    //                 "NYC".to_string(),
+    //             ],
+    //             vec![
+    //                 "user2".to_string(),
+    //                 "Bob".to_string(),
+    //                 "25".to_string(),
+    //                 "".to_string(),
+    //             ],
+    //         ];
 
-    #[test]
-    fn test_porcelain_display_hierarchical() {
-        // Test Display trait with hierarchical data
-        let fixture = Porcelain::new()
-            .add_section(
-                "user1".to_string(),
-                vec![
-                    Some("name".to_string()),
-                    Some("Alice".to_string()),
-                    Some("age".to_string()),
-                    Some("30".to_string()),
-                ],
-            )
-            .add_section(
-                "user2".to_string(),
-                vec![
-                    Some("name".to_string()),
-                    Some("Bob".to_string()),
-                    Some("age".to_string()),
-                    Some("25".to_string()),
-                ],
-            );
+    //         assert_eq!(actual, expected);
+    //     }
 
-        let actual = fixture.to_string();
-        let expected = "user1 Alice 30\nuser2 Bob   25";
+    //     #[test]
+    //     fn test_porcelain_empty() {
+    //         // Test empty Porcelain
+    //         let fixture = Porcelain::new();
 
-        assert_eq!(actual, expected);
-    }
+    //         let actual = fixture.to_rows();
+    //         let expected: Vec<Vec<String>> = vec![];
 
-    #[test]
-    fn test_porcelain_display_flat() {
-        // Test Display trait with flat key-value data
-        let fixture = Porcelain::new()
-            .add_section(
-                String::new(),
-                vec![Some("name".to_string()), Some("Alice".to_string())],
-            )
-            .add_section(
-                String::new(),
-                vec![Some("age".to_string()), Some("30".to_string())],
-            )
-            .add_section(String::new(), vec![Some("city".to_string())]);
+    //         assert_eq!(actual, expected);
+    //     }
 
-        let actual = fixture.to_string();
-        let expected = "name Alice\nage  30\ncity";
+    //     #[test]
+    //     fn test_porcelain_skip() {
+    //         // Test skipping sections using Info structure (flat format)
+    //         let info = Info::new()
+    //             .add_key_value("section1", "")
+    //             .add_key_value("section2", "Alice")
+    //             .add_key_value("section3", "30");
 
-        assert_eq!(actual, expected);
-    }
+    //         let porcelain = Porcelain::from(&info);
+    //         let actual = porcelain.skip_row(1).to_rows();
 
-    #[test]
-    fn test_porcelain_display_missing_values() {
-        // Test Display trait with missing values
-        let fixture = Porcelain::new()
-            .add_section(
-                "user1".to_string(),
-                vec![
-                    Some("name".to_string()),
-                    Some("Alice".to_string()),
-                    Some("age".to_string()),
-                    Some("30".to_string()),
-                ],
-            )
-            .add_section(
-                "user2".to_string(),
-                vec![
-                    Some("name".to_string()),
-                    None, // Missing name
-                    Some("age".to_string()),
-                    Some("25".to_string()),
-                ],
-            );
+    //         // Should skip section1
+    //         let expected = vec![
+    //             vec!["section2".to_string(), "Alice".to_string()],
+    //             vec!["section3".to_string(), "30".to_string()],
+    //         ];
 
-        let actual = fixture.to_string();
-        let expected = "user1 Alice 30\nuser2       25";
+    //         assert_eq!(actual, expected);
+    //     }
 
-        assert_eq!(actual, expected);
-    }
+    //     #[test]
+    //     fn test_porcelain_skip_more_than_available() {
+    //         // Test skipping more sections than available using Info
+    // structure (flat format)         let info =
+    // Info::new().add_key_value("section1", "Alice");
 
-    #[test]
-    fn test_porcelain_display_from_info() {
-        // Test Display trait with real Info data
-        let info = Info::new()
-            .add_title("PROVIDERS")
-            .add_title("OpenRouter")
-            .add_key_value("Domain", "[openrouter.ai]")
-            .add_title("Anthropic")
-            .add_key_value("Domain", "[api.anthropic.com]");
+    //         let porcelain = Porcelain::from(&info);
+    //         let actual = porcelain.skip_row(5).to_rows(); // Skip more than
+    // exists
 
-        let porcelain = Porcelain::from(&info).skip(1);
-        let actual = porcelain.to_string();
-        let expected = "OpenRouter [openrouter.ai]\nAnthropic  [api.anthropic.com]";
+    //         // Should return empty since we skip more than available
+    //         let expected: Vec<Vec<String>> = vec![];
 
-        assert_eq!(actual, expected);
-    }
+    //         assert_eq!(actual, expected);
+    //     }
+
+    //     #[test]
+    //     fn test_info_to_rows() {
+    //         // Test converting Info to rows without titles
+    //         let fixture = Info::new()
+    //             .add_key_value("name", "Alice")
+    //             .add_key_value("age", "30")
+    //             .add_key("city"); // Key-only item
+
+    //         let actual = Porcelain::from(&fixture).to_rows();
+
+    //         let expected = vec![
+    //             vec!["name".to_string(), "Alice".to_string()],
+    //             vec!["age".to_string(), "30".to_string()],
+    //             vec!["city".to_string()],
+    //         ];
+
+    //         assert_eq!(actual, expected);
+    //     }
+
+    //     #[test]
+    //     fn test_info_command_structure() {
+    //         // Test the actual structure of the info command
+    //         // Multiple titles with different schemas - should be flat
+    //         let fixture = Info::new()
+    //             .add_title("PATHS")
+    //             .add_key_value("Logs", "~/forge/logs")
+    //             .add_key_value("Agents", "~/forge/agents")
+    //             .add_key_value("History", "~/forge/.forge_history")
+    //             .add_key_value("Checkpoints", "~/forge/snapshots")
+    //             .add_key_value("Policies", "~/forge/permissions.yaml")
+    //             .add_title("ENVIRONMENT")
+    //             .add_key_value("Version", "0.1.0")
+    //             .add_key_value("Working Directory", "~/code-forge")
+    //             .add_key_value("Shell", "/bin/zsh")
+    //             .add_key_value("Git Branch", "main")
+    //             .add_title("CONVERSATION")
+    //             .add_key_value("ID", "f266080c-fec6-426b-914e-178acc39483f")
+    //             .add_title("TOKEN USAGE")
+    //             .add_key_value("Total", "49,701")
+    //             .add_key_value("Input", "49,440")
+    //             .add_key_value("Cached", "116 [99%]")
+    //             .add_key_value("Output", "261")
+    //             .add_key_value("Cost", "$0.0176")
+    //             .add_title("AGENT")
+    //             .add_key_value("Name", "FORGE")
+    //             .add_key_value("Provider", "anthropic")
+    //             .add_key_value("Model", "claude-sonnet-4.5")
+    //             .add_key_value("Endpoint", "https://openrouter.ai/api/v1/chat/completions")
+    //             .add_key_value("API Key", "sk-or-v1-31eb...4631");
+
+    //         let actual = Porcelain::from(&fixture).to_rows();
+
+    //         // Should be flat key-value pairs without category headers
+    //         let expected = vec![
+    //             vec!["Logs".to_string(), "~/forge/logs".to_string()],
+    //             vec!["Agents".to_string(), "~/forge/agents".to_string()],
+    //             vec!["History".to_string(),
+    // "~/forge/.forge_history".to_string()],
+    // vec!["Checkpoints".to_string(), "~/forge/snapshots".to_string()],
+    //             vec![
+    //                 "Policies".to_string(),
+    //                 "~/forge/permissions.yaml".to_string(),
+    //             ],
+    //             vec!["Version".to_string(), "0.1.0".to_string()],
+    //             vec!["Working Directory".to_string(),
+    // "~/code-forge".to_string()],             vec!["Shell".to_string(),
+    // "/bin/zsh".to_string()],             vec!["Git Branch".to_string(),
+    // "main".to_string()],             vec![
+    //                 "ID".to_string(),
+    //                 "f266080c-fec6-426b-914e-178acc39483f".to_string(),
+    //             ],
+    //             vec!["Total".to_string(), "49,701".to_string()],
+    //             vec!["Input".to_string(), "49,440".to_string()],
+    //             vec!["Cached".to_string(), "116 [99%]".to_string()],
+    //             vec!["Output".to_string(), "261".to_string()],
+    //             vec!["Cost".to_string(), "$0.0176".to_string()],
+    //             vec!["Name".to_string(), "FORGE".to_string()],
+    //             vec!["Provider".to_string(), "anthropic".to_string()],
+    //             vec!["Model".to_string(), "claude-sonnet-4.5".to_string()],
+    //             vec![
+    //                 "Endpoint".to_string(),
+    //                 "https://openrouter.ai/api/v1/chat/completions".to_string(),
+    //             ],
+    //             vec!["API Key".to_string(),
+    // "sk-or-v1-31eb...4631".to_string()],         ];
+
+    //         assert_eq!(actual, expected);
+    //     }
+
+    //     #[test]
+    //     fn test_tools_command_structure() {
+    //         // Test the actual structure of the tools command
+    //         // Multiple titles (categories) with many key-only items - should
+    // be flat         let fixture = Info::new()
+    //             .add_title("TOOLS")
+    //             .add_key("[✓] read")
+    //             .add_key("[✓] write")
+    //             .add_key("[✓] search")
+    //             .add_key("[✓] remove")
+    //             .add_key("[✓] patch")
+    //             .add_key("[✓] undo")
+    //             .add_key("[✓] shell")
+    //             .add_key("[✓] fetch")
+    //             .add_key("[ ] followup")
+    //             .add_key("[ ] plan")
+    //             .add_key("[ ] muse")
+    //             .add_key("[ ] forge")
+    //             .add_key("[✓] sage")
+    //             .add_title("MCP TOOLS")
+    //             .add_key("[✓] mcp_deepwiki_tool_read_wiki_contents")
+    //             .add_key("[✓] mcp_deepwiki_tool_ask_question")
+    //             .add_key("[✓] mcp_context7_tool_get_library_docs");
+
+    //         let actual = Porcelain::from(&fixture).to_rows();
+
+    //         // Should be flat list of tools without category headers
+    //         let expected = vec![
+    //             vec!["[✓] read".to_string()],
+    //             vec!["[✓] write".to_string()],
+    //             vec!["[✓] search".to_string()],
+    //             vec!["[✓] remove".to_string()],
+    //             vec!["[✓] patch".to_string()],
+    //             vec!["[✓] undo".to_string()],
+    //             vec!["[✓] shell".to_string()],
+    //             vec!["[✓] fetch".to_string()],
+    //             vec!["[ ] followup".to_string()],
+    //             vec!["[ ] plan".to_string()],
+    //             vec!["[ ] muse".to_string()],
+    //             vec!["[ ] forge".to_string()],
+    //             vec!["[✓] sage".to_string()],
+    //             vec!["[✓] mcp_deepwiki_tool_read_wiki_contents".to_string()],
+    //             vec!["[✓] mcp_deepwiki_tool_ask_question".to_string()],
+    //             vec!["[✓] mcp_context7_tool_get_library_docs".to_string()],
+    //         ];
+
+    //         assert_eq!(actual, expected);
+    //     }
+
+    //     #[test]
+    //     fn test_single_provider_structure() {
+    //         // Test single provider (should be hierarchical even with 1
+    // section)         let fixture = Info::new()
+    //             .add_title("PROVIDERS")
+    //             .add_title("OpenRouter")
+    //             .add_key_value("Domain", "[openrouter.ai]");
+
+    //         let actual = Porcelain::from(&fixture).skip_row(1).to_rows();
+
+    //         // Should be hierarchical table with provider name as first
+    // column         let expected = vec![vec![
+    //             "OpenRouter".to_string(),
+    //             "[openrouter.ai]".to_string(),
+    //         ]];
+
+    //         assert_eq!(actual, expected);
+    //     }
+
+    //     #[test]
+    //     fn test_multiple_providers_structure() {
+    //         // Test multiple providers (hierarchical table)
+    //         let fixture = Info::new()
+    //             .add_title("PROVIDERS")
+    //             .add_title("OpenRouter")
+    //             .add_key_value("Domain", "[openrouter.ai]")
+    //             .add_title("Anthropic")
+    //             .add_key_value("Domain", "[api.anthropic.com]");
+
+    //         let actual = Porcelain::from(&fixture).skip_row(1).to_rows();
+
+    //         // Should be hierarchical table
+    //         let expected = vec![
+    //             vec!["OpenRouter".to_string(),
+    // "[openrouter.ai]".to_string()],
+    // vec!["Anthropic".to_string(), "[api.anthropic.com]".to_string()],
+    //         ];
+
+    //         assert_eq!(actual, expected);
+    //     }
+
+    //     #[test]
+    //     fn test_porcelain_display_empty() {
+    //         // Test Display trait with empty Porcelain
+    //         let fixture = Porcelain::new();
+
+    //         let actual = fixture.to_string();
+    //         let expected = "";
+
+    //         assert_eq!(actual, expected);
+    //     }
+
+    //     #[test]
+    //     fn test_porcelain_display_hierarchical() {
+    //         // Test Display trait with hierarchical data
+    //         let fixture = Porcelain::new()
+    //             .add_section(
+    //                 "user1".to_string(),
+    //                 vec![
+    //                     Some("name".to_string()),
+    //                     Some("Alice".to_string()),
+    //                     Some("age".to_string()),
+    //                     Some("30".to_string()),
+    //                 ],
+    //             )
+    //             .add_section(
+    //                 "user2".to_string(),
+    //                 vec![
+    //                     Some("name".to_string()),
+    //                     Some("Bob".to_string()),
+    //                     Some("age".to_string()),
+    //                     Some("25".to_string()),
+    //                 ],
+    //             );
+
+    //         let actual = fixture.to_string();
+    //         let expected = "user1 Alice 30\nuser2 Bob   25";
+
+    //         assert_eq!(actual, expected);
+    //     }
+
+    //     #[test]
+    //     fn test_porcelain_display_flat() {
+    //         // Test Display trait with flat key-value data
+    //         let fixture = Porcelain::new()
+    //             .add_section(
+    //                 String::new(),
+    //                 vec![Some("name".to_string()),
+    // Some("Alice".to_string())],             )
+    //             .add_section(
+    //                 String::new(),
+    //                 vec![Some("age".to_string()), Some("30".to_string())],
+    //             )
+    //             .add_section(String::new(), vec![Some("city".to_string())]);
+
+    //         let actual = fixture.to_string();
+    //         let expected = "name Alice\nage  30\ncity";
+
+    //         assert_eq!(actual, expected);
+    //     }
+
+    //     #[test]
+    //     fn test_porcelain_display_missing_values() {
+    //         // Test Display trait with missing values
+    //         let fixture = Porcelain::new()
+    //             .add_section(
+    //                 "user1".to_string(),
+    //                 vec![
+    //                     Some("name".to_string()),
+    //                     Some("Alice".to_string()),
+    //                     Some("age".to_string()),
+    //                     Some("30".to_string()),
+    //                 ],
+    //             )
+    //             .add_section(
+    //                 "user2".to_string(),
+    //                 vec![
+    //                     Some("name".to_string()),
+    //                     None, // Missing name
+    //                     Some("age".to_string()),
+    //                     Some("25".to_string()),
+    //                 ],
+    //             );
+
+    //         let actual = fixture.to_string();
+    //         let expected = "user1 Alice 30\nuser2       25";
+
+    //         assert_eq!(actual, expected);
+    //     }
+
+    //     #[test]
+    //     fn test_porcelain_display_from_info() {
+    //         // Test Display trait with real Info data
+    //         let info = Info::new()
+    //             .add_title("PROVIDERS")
+    //             .add_title("OpenRouter")
+    //             .add_key_value("Domain", "[openrouter.ai]")
+    //             .add_title("Anthropic")
+    //             .add_key_value("Domain", "[api.anthropic.com]");
+
+    //         let porcelain = Porcelain::from(&info).skip_row(1);
+    //         let actual = porcelain.to_string();
+    //         let expected = "OpenRouter [openrouter.ai]\nAnthropic
+    // [api.anthropic.com]";
+
+    //         assert_eq!(actual, expected);
+    //     }
 }

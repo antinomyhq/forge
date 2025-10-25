@@ -492,7 +492,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip(1);
+            let porcelain = Porcelain::from(&info).skip_row(1);
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -646,7 +646,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip(1);
+            let porcelain = Porcelain::from(&info).skip_row(1);
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -858,7 +858,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // In porcelain mode, skip the top-level "SESSIONS" title
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip(1);
+            let porcelain = Porcelain::from(&info).skip_row(1);
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
