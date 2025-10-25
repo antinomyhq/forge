@@ -10,7 +10,7 @@ pub enum ProviderError {
     },
 
     #[error(
-        "Provider '{provider}' is not configured. Run 'forge auth login' to authenticate or 'forge auth import-env' to migrate environment variables."
+        "Provider '{provider}' is not configured. Run 'forge provider add' to authenticate it."
     )]
     ProviderNotAvailable { provider: ProviderId },
 

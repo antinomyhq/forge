@@ -92,9 +92,9 @@ pub enum TopLevelCommand {
     /// Session management commands (dump, retry, resume, list)
     Session(SessionCommandGroup),
 
-    /// Authentication and credential management
-    Auth(AuthCommandGroup),
-
+    /// Provider management commands
+    Provider(ProviderCommandGroup),
+    
     /// MCP server management commands
     Mcp(McpCommandGroup),
 }
@@ -716,21 +716,27 @@ mod tests {
     }
 }
 
-/// Group of authentication-related commands
+/// Group of provider management commands
 #[derive(Parser, Debug, Clone)]
-pub struct AuthCommandGroup {
-    /// Subcommands under `auth`
+pub struct ProviderCommandGroup {
+    /// Subcommands under `provider`
     #[command(subcommand)]
-    pub command: AuthCommand,
+    pub command: ProviderCommand,
 }
 
-/// Authentication commands for managing provider credentials
+/// Provider management commands
 #[derive(Subcommand, Debug, Clone)]
-pub enum AuthCommand {
-    /// Interactive login to add/update provider credentials
-    Login {
+pub enum ProviderCommand {
+    /// Add a new provider or update existing credentials
+    Add {
         /// Optional provider ID to skip selection
         #[arg(long)]
         provider: Option<String>,
     },
+}
+
+
+/// Authentication commands for managing provider credentials
+#[derive(Subcommand, Debug, Clone)]
+pub enum AuthCommand {
 }

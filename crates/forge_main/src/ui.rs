@@ -382,8 +382,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 return Ok(());
             }
 
-            TopLevelCommand::Auth(auth_group) => {
-                self.handle_auth_command(auth_group).await?;
+            TopLevelCommand::Provider(provider_group) => {
+                self.handle_provider_command(provider_group).await?;
                 return Ok(());
             }
         }
@@ -460,15 +460,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn handle_auth_command(
-        &mut self,
-        auth_group: crate::cli::AuthCommandGroup,
-    ) -> anyhow::Result<()> {
-        use crate::cli::AuthCommand;
 
-        match auth_group.command {
-            AuthCommand::Login { provider } => {
-                self.handle_auth_login(provider).await?;
+    async fn handle_provider_command(
+        &mut self,
+        provider_group: crate::cli::ProviderCommandGroup,
+    ) -> anyhow::Result<()> {
+        use crate::cli::ProviderCommand;
+
+        match provider_group.command {
+            ProviderCommand::Add { provider } => {
+                self.handle_provider_add(provider).await?;
             }
         }
 
@@ -519,9 +520,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn handle_auth_login(&mut self, provider: Option<String>) -> anyhow::Result<()> {
-        use colored::Colorize;
-
+    async fn handle_provider_add(&mut self, provider: Option<String>) -> anyhow::Result<()> {
         // Step 1: Get or select provider
         let provider_id = if let Some(id) = provider {
             // Validate provider exists and convert to enum
