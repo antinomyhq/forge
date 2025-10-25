@@ -1,6 +1,6 @@
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
-use strum_macros::{AsRefStr, Display, EnumIter};
+use strum_macros::{AsRefStr, Display, EnumIter, EnumString};
 use url::Url;
 
 use super::AuthType;
@@ -21,6 +21,7 @@ use super::AuthType;
     PartialOrd,
     Ord,
     EnumIter,
+    EnumString,
     AsRefStr,
 )]
 #[serde(rename_all = "snake_case")]
