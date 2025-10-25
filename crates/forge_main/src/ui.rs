@@ -1501,8 +1501,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 }
             }
             ChatResponse::TaskComplete => {
-                if let Some(conversation_id) = self.state.conversation_id {
-                    self.on_completion(conversation_id).await?;
+                if should_show_completion_prompt() {
+                    if let Some(conversation_id) = self.state.conversation_id {
+                        self.on_completion(conversation_id).await?;
+                    }
                 }
             }
         }
@@ -1537,7 +1539,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.spinner.stop(None)?;
 
         // Only prompt for new conversation if in interactive mode and prompt is enabled
-        if self.cli.is_interactive() && should_show_completion_prompt() {
+        if self.cli.is_interactive() {
             let prompt_text = "Start a new conversation?";
             let should_start_new_chat = ForgeSelect::confirm(prompt_text)
                 // Pressing ENTER should start new
