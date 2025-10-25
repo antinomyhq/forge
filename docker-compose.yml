@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  forge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      cache_from:
+        - rust:1.89-bookworm
+    image: forge:latest
+    container_name: forge-app
+    volumes:
+      # Mount workspace directory
+      - ./workspace:/home/forge/workspace
+      # Mount config directory for persistence
+      - forge-config:/home/forge/.config/forge
+      # Mount cache directory
+      - forge-cache:/home/forge/.cache/forge
+      # Mount your local forge.yaml if you have one
+      - ./forge.yaml:/home/forge/workspace/forge.yaml:ro
+    environment:
+      # Add your API keys here or use .env file
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - REQUESTY_API_KEY=${REQUESTY_API_KEY:-}
+      - XAI_API_KEY=${XAI_API_KEY:-}
+      - ZAI_API_KEY=${ZAI_API_KEY:-}
+      - CEREBRAS_API_KEY=${CEREBRAS_API_KEY:-}
+      # Other environment variables
+      - FORGE_TOOL_TIMEOUT=${FORGE_TOOL_TIMEOUT:-300}
+      - FORGE_DUMP_AUTO_OPEN=${FORGE_DUMP_AUTO_OPEN:-false}
+    working_dir: /home/forge/workspace
+    stdin_open: true
+    tty: true
+    networks:
+      - forge-network
+
+  # Optional: Database service if needed
+  postgres:
+    image: postgres:16-alpine
+    container_name: forge-db
+    environment:
+      - POSTGRES_DB=forge
+      - POSTGRES_USER=forge
+      - POSTGRES_PASSWORD=forge_password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - forge-network
+    profiles:
+      - with-db
+
+volumes:
+  forge-config:
+  forge-cache:
+  postgres-data:
+
+networks:
+  forge-network:
+    driver: bridge
