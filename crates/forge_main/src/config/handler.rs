@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use forge_api::{API, AgentId, ModelId, ProviderId};
 
-use super::display::{display_all_config, display_single_field, display_success};
+use super::display::{display_single_field, display_success};
 use super::error::{ConfigError, Result as ConfigResult};
 use crate::cli::{ConfigCommand, ConfigGetArgs, ConfigSetArgs};
 
@@ -20,10 +20,11 @@ impl<A: API> ConfigManager<A> {
     }
 
     /// Handle config command
-    pub async fn handle_command(&self, command: ConfigCommand) -> Result<()> {
+    pub async fn handle_command(&self, command: ConfigCommand, porcelain: bool) -> Result<()> {
         match command {
             ConfigCommand::Set(args) => self.handle_set(args).await?,
             ConfigCommand::Get(args) => self.handle_get(args).await?,
+            ConfigCommand::List => self.handle_list(porcelain).await?,
         }
         Ok(())
     }
@@ -66,50 +67,49 @@ impl<A: API> ConfigManager<A> {
 
     /// Handle config get command
     async fn handle_get(&self, args: ConfigGetArgs) -> ConfigResult<()> {
-        if let Some(field) = args.field {
-            // Get specific field
-            match field.to_lowercase().as_str() {
-                "agent" => {
-                    let agent = self
-                        .api
-                        .get_operating_agent()
-                        .await
-                        .map(|a| a.as_str().to_string());
-                    display_single_field("agent", agent);
-                }
-                "model" => {
-                    let model = self
-                        .api
-                        .get_operating_model()
-                        .await
-                        .map(|m| m.as_str().to_string());
-                    display_single_field("model", model);
-                }
-                "provider" => {
-                    let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
-                    display_single_field("provider", provider);
-                }
-                _ => {
-                    return Err(ConfigError::InvalidField { field: field.clone() });
-                }
-            }
-        } else {
-            // Get all configuration
-            let agent = self
-                .api
-                .get_operating_agent()
-                .await
-                .map(|a| a.as_str().to_string());
-            let model = self
-                .api
-                .get_operating_model()
-                .await
-                .map(|m| m.as_str().to_string());
-            let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
+        use crate::cli::ConfigField;
 
-            display_all_config(agent, model, provider);
+        // Get specific field
+        match args.field {
+            ConfigField::Agent => {
+                let agent = self
+                    .api
+                    .get_operating_agent()
+                    .await
+                    .map(|a| a.as_str().to_string());
+                display_single_field("agent", agent);
+            }
+            ConfigField::Model => {
+                let model = self
+                    .api
+                    .get_operating_model()
+                    .await
+                    .map(|m| m.as_str().to_string());
+                display_single_field("model", model);
+            }
+            ConfigField::Provider => {
+                let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
+                display_single_field("provider", provider);
+            }
         }
 
+        Ok(())
+    }
+
+    /// Handle config list command
+    async fn handle_list(&self, porcelain: bool) -> ConfigResult<()> {
+        let agent = self
+            .api
+            .get_operating_agent()
+            .await
+            .map(|a| a.as_str().to_string());
+        let model = self
+            .api
+            .get_operating_model()
+            .await
+            .map(|m| m.as_str().to_string());
+        let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
+        super::helpers::build_config_info(agent, model, provider, porcelain);
         Ok(())
     }
 
@@ -192,7 +192,7 @@ mod tests {
     #[test]
     fn test_get_valid_provider_names() {
         let fixture = get_valid_provider_names();
-        let actual = fixture.len() > 0;
+        let actual = !fixture.is_empty();
         let expected = true;
         assert_eq!(actual, expected);
     }

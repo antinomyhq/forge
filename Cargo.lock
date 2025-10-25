@@ -811,6 +811,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "deunicode"
+version = "1.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "abd57806937c9cc163efc8ea3910e00a62e2aeb0b8119f1793a978088f8f6b04"
+
+[[package]]
 name = "dialoguer"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -930,10 +936,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "dotenv"
-version = "0.15.0"
+name = "dotenvy"
+version = "0.15.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77c90badedccf4105eca100756a0b1289e191f6fcbdadd3cee1d2f614f97da8f"
+checksum = "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b"
 
 [[package]]
 name = "downcast-rs"
@@ -950,6 +956,18 @@ dependencies = [
  "darling 0.21.3",
  "either",
  "heck",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.106",
+]
+
+[[package]]
+name = "dummy"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3bbcf21279103a67372982cb1156a2154a452451dff2b884cf897ccecce389e0"
+dependencies = [
+ "darling 0.20.11",
  "proc-macro2",
  "quote",
  "syn 2.0.106",
@@ -1066,6 +1084,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "fake"
+version = "4.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2b0902eb36fbab51c14eda1c186bda119fcff91e5e4e7fc2dd2077298197ce8"
+dependencies = [
+ "deunicode",
+ "dummy",
+ "either",
+ "rand 0.9.2",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1149,6 +1179,7 @@ dependencies = [
  "convert_case 0.8.0",
  "derive_more",
  "derive_setters",
+ "fake",
  "forge_display",
  "forge_domain",
  "forge_stream",
@@ -1214,6 +1245,7 @@ dependencies = [
  "derive_more",
  "derive_setters",
  "eserde",
+ "fake",
  "forge_json_repair",
  "forge_template",
  "forge_tool_macros",
@@ -1264,7 +1296,8 @@ dependencies = [
  "diesel",
  "diesel_migrations",
  "dirs",
- "dotenv",
+ "dotenvy",
+ "fake",
  "forge_app",
  "forge_domain",
  "forge_fs",
@@ -1312,6 +1345,7 @@ dependencies = [
  "console 0.16.1",
  "convert_case 0.8.0",
  "derive_setters",
+ "fake",
  "forge_api",
  "forge_app",
  "forge_display",
@@ -1322,6 +1356,7 @@ dependencies = [
  "forge_tracker",
  "forge_walker",
  "humantime",
+ "indexmap",
  "insta",
  "lazy_static",
  "merge 0.2.0",
@@ -1366,7 +1401,9 @@ dependencies = [
  "bytes",
  "chrono",
  "derive_setters",
+ "fake",
  "forge_app",
+ "forge_domain",
  "forge_fs",
  "forge_snaps",
  "futures",

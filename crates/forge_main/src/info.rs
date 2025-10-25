@@ -13,7 +13,7 @@ use crate::model::ForgeCommandManager;
 #[derive(Debug, PartialEq)]
 pub enum Section {
     Title(String),
-    Items(String, Option<String>),
+    Items(Option<String>, String), // key, value, subtitle
 }
 
 #[derive(Default)]
@@ -26,23 +26,28 @@ impl Info {
         Info { sections: Vec::new() }
     }
 
+    /// Returns a reference to the sections
+    pub fn sections(&self) -> &[Section] {
+        &self.sections
+    }
+
     pub fn add_title(mut self, title: impl ToString) -> Self {
         self.sections.push(Section::Title(title.to_string()));
         self
     }
 
-    pub fn add_key(self, key: impl ToString) -> Self {
-        self.add_item(key, None::<String>)
+    pub fn add_value(self, value: impl ToString) -> Self {
+        self.add_item(None::<String>, value)
     }
 
     pub fn add_key_value(self, key: impl ToString, value: impl ToString) -> Self {
-        self.add_item(key, Some(value))
+        self.add_item(Some(key), value)
     }
 
-    fn add_item(mut self, key: impl ToString, value: Option<impl ToString>) -> Self {
+    fn add_item(mut self, key: Option<impl ToString>, value: impl ToString) -> Self {
         self.sections.push(Section::Items(
-            key.to_string(),
-            value.map(|a| a.to_string()),
+            key.map(|a| a.to_string()),
+            value.to_string(),
         ));
         self
     }
@@ -107,7 +112,7 @@ impl From<&Metrics> for Info {
 
         // Add file changes section inspired by the example format
         if metrics.files_changed.is_empty() {
-            info = info.add_key("[No Changes Produced]");
+            info = info.add_value("[No Changes Produced]");
         } else {
             // First, calculate the maximum filename length for proper alignment
             let max_filename_len = metrics
@@ -197,10 +202,11 @@ impl fmt::Display for Info {
                     writeln!(f, "{}", title.bold().dimmed())?
                 }
                 Section::Items(key, value) => {
-                    if let Some(value) = value {
+                    if let Some(key) = key {
                         writeln!(f, "  {}: {}", key.bright_cyan().bold(), value)?;
                     } else {
-                        writeln!(f, "  {key}")?;
+                        // Show key-only items (like tools)
+                        writeln!(f, "  {}", value)?;
                     }
                 }
             }
@@ -406,30 +412,13 @@ mod tests {
 
     // Helper to create minimal test environment
     fn create_env(os: &str, home: Option<&str>) -> Environment {
-        Environment {
-            os: os.to_string(),
-            home: home.map(PathBuf::from),
-            // Minimal required fields with defaults
-            pid: 1,
-            cwd: PathBuf::from("/"),
-            shell: "bash".to_string(),
-            base_path: PathBuf::from("/tmp"),
-            forge_api_url: "http://localhost".parse().unwrap(),
-            retry_config: Default::default(),
-            max_search_lines: 100,
-            max_search_result_bytes: 100, // 0.25 MB
-            fetch_truncation_limit: 1000,
-            stdout_max_prefix_length: 10,
-            stdout_max_suffix_length: 10,
-            stdout_max_line_length: 2000,
-            max_read_size: 100,
-            tool_timeout: 300,
-            http: Default::default(),
-            max_file_size: 1000,
-            auto_open_dump: false,
-            custom_history_path: None,
-            max_conversations: 100,
+        use fake::{Fake, Faker};
+        let mut fixture: Environment = Faker.fake();
+        fixture = fixture.os(os.to_string());
+        if let Some(home_path) = home {
+            fixture = fixture.home(PathBuf::from(home_path));
         }
+        fixture
     }
 
     #[test]
@@ -448,11 +437,7 @@ mod tests {
         let path = PathBuf::from("C:\\Users\\User\\project");
 
         let actual = super::format_path_for_display(&fixture, &path);
-        let expected = if cfg!(windows) {
-            "C:\\Users\\User\\project"
-        } else {
-            "C:\\Users\\User\\project"
-        };
+        let expected = "C:\\Users\\User\\project";
         assert_eq!(actual, expected);
     }
 
@@ -462,11 +447,7 @@ mod tests {
         let path = PathBuf::from("C:\\Users\\User Name\\project");
 
         let actual = super::format_path_for_display(&fixture, &path);
-        let expected = if cfg!(windows) {
-            "\"C:\\Users\\User Name\\project\""
-        } else {
-            "\"C:\\Users\\User Name\\project\""
-        };
+        let expected = "\"C:\\Users\\User Name\\project\"";
         assert_eq!(actual, expected);
     }
 

@@ -13,7 +13,7 @@ use url::Url;
 use crate::orch_spec::orch_runner::Runner;
 
 // User prompt
-const USER_PROMPT: &'static str = r#"
+const USER_PROMPT: &str = r#"
 {{#if (eq event.name 'forge/user_task_update')}}
   <feedback>{{event.value}}</feedback>
   {{else}}
@@ -84,6 +84,7 @@ impl Default for TestContext {
                 auto_open_dump: false,
                 custom_history_path: None,
                 max_conversations: 100,
+                max_image_size: 262144,
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(AgentId::new("forge"))

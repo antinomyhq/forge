@@ -1,6 +1,5 @@
 pub mod banner;
 mod cli;
-mod cli_format;
 mod completer;
 mod config;
 mod conversation_selector;
@@ -9,6 +8,7 @@ mod env;
 mod info;
 mod input;
 mod model;
+mod porcelain;
 mod prompt;
 mod sandbox;
 mod state;

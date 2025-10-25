@@ -30,6 +30,7 @@ pub struct Orchestrator<S> {
     event: Event,
     error_tracker: ToolErrorTracker,
     user_prompt_service: UserPromptBuilder<S>,
+    current_time: chrono::DateTime<chrono::Local>,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -59,6 +60,7 @@ impl<S: AgentService> Orchestrator<S> {
             files: Default::default(),
             custom_instructions: Default::default(),
             error_tracker: Default::default(),
+            current_time,
         }
     }
 
@@ -239,10 +241,12 @@ impl<S: AgentService> Orchestrator<S> {
         let agent = &self.agent;
         // Estimate token count for compaction decision
         let token_count = context.token_count();
-        if agent.should_compact(context, *token_count) {
+        if agent.should_compact(context, *token_count)
+            && let Some(compact) = agent.compact.clone()
+        {
             info!(agent_id = %agent.id, "Compaction needed");
-            Compactor::new(self.services.clone())
-                .compact(agent, context.clone(), false)
+            Compactor::new(self.services.clone(), compact)
+                .compact(context.clone(), false)
                 .await
                 .map(Some)
         } else {
@@ -284,6 +288,9 @@ impl<S: AgentService> Orchestrator<S> {
 
         // Render user prompts
         context = self.user_prompt_service.set_user_prompt(context).await?;
+
+        // Reset metrics timer for this turn
+        self.conversation.metrics.started_at = Some(self.current_time.with_timezone(&chrono::Utc));
 
         // Create agent reference for the rest of the method
         let agent = &self.agent;
@@ -409,7 +416,7 @@ impl<S: AgentService> Orchestrator<S> {
                 total_tokens = format!("{}", usage.total_tokens),
                 cached_tokens = format!("{}", usage.cached_tokens),
                 cost = usage.cost.unwrap_or_default(),
-                finish_reason = finish_reason.map_or("", |reason| reason.into()),
+                finish_reason = finish_reason.as_ref().map_or("", |reason| reason.into()),
                 "Processing usage information"
             );
 
@@ -420,8 +427,8 @@ impl<S: AgentService> Orchestrator<S> {
 
             debug!(agent_id = %agent.id, tool_call_count = tool_calls.len(), "Tool call count");
 
-            // Turn is completed, if no more tool calls are made
-            is_complete = tool_calls.is_empty();
+            // Turn is completed, if finish_reason is 'stop'.
+            is_complete = finish_reason == Some(FinishReason::Stop);
 
             // Should yield if a tool is asking for a follow-up
             should_yield = is_complete
