@@ -1501,10 +1501,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 }
             }
             ChatResponse::TaskComplete => {
-                if should_show_completion_prompt()
-                    && let Some(conversation_id) = self.state.conversation_id {
-                        self.on_completion(conversation_id).await?;
-                    }
+                if let Some(conversation_id) = self.state.conversation_id {
+                    self.on_completion(conversation_id).await?;
+                }
             }
         }
         Ok(())
@@ -1524,6 +1523,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn on_completion(&mut self, conversation_id: ConversationId) -> anyhow::Result<()> {
+        if !should_show_completion_prompt() {
+            return Ok(());
+        }
+
         self.spinner.start(Some("Loading Summary"))?;
         let conversation = self
             .api
