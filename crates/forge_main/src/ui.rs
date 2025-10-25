@@ -1659,10 +1659,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         if let Some(provider_str) = args.provider {
             let provider_id = self.validate_provider(&provider_str).await?;
             self.api.set_provider(provider_id).await?;
-            self.writeln_title(
-                TitleFormat::action("Provider set")
-                    .sub_title(&provider_str)
-            )?;
+            self.writeln_title(TitleFormat::action("Provider set").sub_title(&provider_str))?;
         }
 
         // Set agent if specified
