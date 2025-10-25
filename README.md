@@ -610,7 +610,7 @@ forge mcp get
 forge mcp remove
 ```
 
-Or manually create a `.mcp.json` file with the following structure:
+Or manually create a `.mcp.json` or `.mcp.jsonc` file with the following structure:
 
 ```json
 {
@@ -626,6 +626,8 @@ Or manually create a `.mcp.json` file with the following structure:
   }
 }
 ```
+
+Note: `.jsonc` files support comments using `//` for line comments and `/* */` for block comments, allowing you to easily disable servers by commenting them out.
 
 MCP configurations are read from two locations (in order of precedence):
 

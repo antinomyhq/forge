@@ -1405,6 +1405,7 @@ dependencies = [
  "forge_app",
  "forge_domain",
  "forge_fs",
+ "forge_json_repair",
  "forge_snaps",
  "futures",
  "glob",
