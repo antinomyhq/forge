@@ -138,11 +138,11 @@ impl Porcelain {
             return self;
         }
 
-        // Create new headers: [$ID, field, value]
+        // Create new headers: [$ID, $FIELD, $VALUE]
         let new_headers = vec![
             headers.first().cloned().unwrap_or(Some("$ID".to_string())),
-            Some("field".to_string()),
-            Some("value".to_string()),
+            Some("$FIELD".to_string()),
+            Some("$VALUE".to_string()),
         ];
 
         // Create new rows: one row per non-None field for each entity
