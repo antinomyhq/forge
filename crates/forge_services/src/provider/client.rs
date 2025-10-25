@@ -54,13 +54,22 @@ impl ClientBuilder {
                 http.clone(),
             ))),
 
-            ProviderResponse::Anthropic => InnerClient::Anthropic(Box::new(Anthropic::new(
-                http.clone(),
-                provider.key.clone().unwrap_or_default(),
-                provider.url,
-                provider.model_url,
-                "2023-06-01".to_string(),
-            ))),
+            ProviderResponse::Anthropic => {
+                let use_oauth = provider
+                    .auth_type
+                    .as_ref()
+                    .map(|at| matches!(at, forge_app::dto::AuthType::OAuth))
+                    .unwrap_or(false);
+
+                InnerClient::Anthropic(Box::new(Anthropic::new(
+                    http.clone(),
+                    provider.key.clone().unwrap_or_default(),
+                    provider.url,
+                    provider.model_url,
+                    "2023-06-01".to_string(),
+                    use_oauth,
+                )))
+            }
         };
 
         Ok(Client {
@@ -234,6 +243,7 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some("test-key".to_string()),
             model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
+            auth_type: None,
         };
         let client = ClientBuilder::new(provider, "dev")
             .build(Arc::new(MockHttpClient))
@@ -252,6 +262,7 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some("test-key".to_string()),
             model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
+            auth_type: None,
         };
         let client = ClientBuilder::new(provider, "dev")
             .build(Arc::new(MockHttpClient))
@@ -272,6 +283,7 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some("test-key".to_string()),
             model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
+            auth_type: None,
         };
 
         // Test the builder pattern API
@@ -295,6 +307,7 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some("test-key".to_string()),
             model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
+            auth_type: None,
         };
 
         // Test that ClientBuilder::new works with minimal parameters

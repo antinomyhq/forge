@@ -34,6 +34,20 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         if let Some(ref api_key) = self.provider.key {
             headers.push((AUTHORIZATION.to_string(), format!("Bearer {api_key}")));
         }
+
+        // Add GitHub Copilot required headers
+        if self.provider.id == forge_app::dto::ProviderId::GithubCopilot {
+            headers.push(("Editor-Version".to_string(), "vscode/1.95.0".to_string()));
+            headers.push((
+                "Editor-Plugin-Version".to_string(),
+                "copilot-chat/0.22.0".to_string(),
+            ));
+            headers.push((
+                "User-Agent".to_string(),
+                "GitHubCopilotChat/0.22.0".to_string(),
+            ));
+        }
+
         headers
     }
 
@@ -196,6 +210,7 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some(key.into()),
             model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
+            auth_type: None,
         }
     }
 
@@ -206,6 +221,7 @@ mod tests {
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
             key: Some(key.into()),
             model_url: Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+            auth_type: None,
         }
     }
 
@@ -216,6 +232,7 @@ mod tests {
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
             key: Some(key.into()),
             model_url: Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+            auth_type: None,
         }
     }
 
@@ -226,6 +243,7 @@ mod tests {
             url: Url::parse("https://api.anthropic.com/v1/messages").unwrap(),
             key: Some(key.into()),
             model_url: Url::parse("https://api.anthropic.com/v1/models").unwrap(),
+            auth_type: None,
         }
     }
 
@@ -284,6 +302,7 @@ mod tests {
             url: reqwest::Url::parse(base_url)?,
             key: Some("test-api-key".to_string()),
             model_url: reqwest::Url::parse(base_url)?.join("models")?,
+            auth_type: None,
         };
 
         Ok(OpenAIProvider::new(

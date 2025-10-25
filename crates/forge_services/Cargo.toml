@@ -15,6 +15,7 @@ async-recursion.workspace = true
 forge_snaps.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+serde_urlencoded.workspace = true
 derive_setters.workspace = true
 tokio-stream.workspace = true
 handlebars.workspace = true
@@ -23,6 +24,7 @@ forge_fs.workspace = true
 
 anyhow.workspace = true
 futures.workspace = true
+http.workspace = true
 reqwest.workspace = true
 regex.workspace = true
 humantime.workspace = true
@@ -54,6 +56,8 @@ forge_app.workspace = true
 url.workspace = true
 reqwest-eventsource.workspace = true
 lazy_static = "1.5.0"
+oauth2.workspace = true
+
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }

@@ -14,8 +14,8 @@ use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
 use crate::{
     AgentLoaderService, AttachmentService, CommandLoaderService, ConversationService,
-    EnvironmentService, FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker,
-    WorkflowService,
+    EnvironmentService, FileDiscoveryService, ProviderAuthService, ProviderRegistry,
+    ProviderService, Services, Walker, WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -235,15 +235,56 @@ impl<S: Services> ForgeApp<S> {
     pub async fn list_tools(&self) -> Result<ToolsOverview> {
         self.tool_registry.tools_overview().await
     }
+
+    /// Initializes Forge platform authentication
     pub async fn login(&self, init_auth: &InitAuth) -> Result<()> {
         self.authenticator.login(init_auth).await
     }
+
+    /// Returns device code information for user authorization
     pub async fn init_auth(&self) -> Result<InitAuth> {
         self.authenticator.init().await
     }
+
+    /// Logs out of Forge platform
     pub async fn logout(&self) -> Result<()> {
         self.authenticator.logout().await
     }
+
+    /// Initiates authentication for an LLM provider
+    pub async fn init_provider_auth(
+        &self,
+        provider_id: crate::dto::ProviderId,
+        method: crate::dto::AuthMethod,
+    ) -> Result<crate::dto::AuthInitiation> {
+        self.services.init_provider_auth(provider_id, method).await
+    }
+
+    /// Polls until provider authentication completes (for OAuth flows)
+    pub async fn poll_provider_auth(
+        &self,
+        context: &crate::dto::AuthContext,
+        timeout: std::time::Duration,
+        method: crate::dto::AuthMethod,
+    ) -> Result<crate::dto::AuthResult> {
+        self.services
+            .poll_provider_auth(context, timeout, method)
+            .await
+    }
+
+    /// Completes provider authentication and saves credentials
+    pub async fn save_provider_credentials(
+        &self,
+        provider_id: crate::dto::ProviderId,
+        result: crate::dto::AuthResult,
+        method: crate::dto::AuthMethod,
+    ) -> Result<()> {
+        self.services
+            .complete_provider_auth(provider_id, result, method)
+            .await?;
+        Ok(())
+    }
+
     pub async fn read_workflow(&self, path: Option<&Path>) -> Result<Workflow> {
         self.services.read_workflow(path).await
     }

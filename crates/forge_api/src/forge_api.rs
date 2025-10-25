@@ -2,7 +2,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::dto::{InitAuth, LoginInfo, Provider, ProviderId, ToolsOverview};
+use forge_app::dto::{
+    AuthMethod, InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId, ToolsOverview,
+};
 use forge_app::{
     AgentLoaderService, AuthService, CommandLoaderService, ConversationService, EnvironmentService,
     FileDiscoveryService, ForgeApp, McpConfigManager, McpService, ProviderRegistry,
@@ -10,7 +12,9 @@ use forge_app::{
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
-use forge_services::{AppConfigRepository, CommandInfra, ForgeServices};
+use forge_services::{
+    AppConfigRepository, CommandInfra, ForgeServices, ProviderCredentialRepository,
+};
 use forge_stream::MpscStream;
 
 use crate::API;
@@ -35,7 +39,9 @@ impl ForgeAPI<ForgeServices<ForgeInfra>, ForgeInfra> {
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> {
+impl<A: Services, F: CommandInfra + AppConfigRepository + ProviderCredentialRepository> API
+    for ForgeAPI<A, F>
+{
     async fn discover(&self) -> Result<Vec<File>> {
         let environment = self.services.get_environment();
         let config = Walker::unlimited().cwd(environment.cwd);
@@ -227,5 +233,46 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
     }
     async fn get_commands(&self) -> Result<Vec<Command>> {
         self.services.get_commands().await
+    }
+
+    async fn available_provider_ids(&self) -> Result<Vec<ProviderId>> {
+        Ok(self.services.available_provider_ids().await)
+    }
+
+    async fn list_provider_credentials(&self) -> Result<Vec<ProviderCredential>> {
+        self.infra.get_all_credentials().await
+    }
+
+    async fn init_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        method: AuthMethod,
+    ) -> Result<forge_app::dto::AuthInitiation> {
+        let forge_app = ForgeApp::new(self.services.clone());
+        Ok(forge_app.init_provider_auth(provider_id, method).await?)
+    }
+
+    async fn poll_provider_auth(
+        &self,
+        context: &forge_app::dto::AuthContext,
+        timeout: std::time::Duration,
+        method: AuthMethod,
+    ) -> Result<forge_app::dto::AuthResult> {
+        let forge_app = ForgeApp::new(self.services.clone());
+        Ok(forge_app
+            .poll_provider_auth(context, timeout, method)
+            .await?)
+    }
+
+    async fn save_provider_credentials(
+        &self,
+        provider_id: ProviderId,
+        result: forge_app::dto::AuthResult,
+        method: AuthMethod,
+    ) -> Result<()> {
+        let forge_app = ForgeApp::new(self.services.clone());
+        Ok(forge_app
+            .save_provider_credentials(provider_id, result, method)
+            .await?)
     }
 }

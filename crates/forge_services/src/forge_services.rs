@@ -13,7 +13,7 @@ use crate::env::ForgeEnvironmentService;
 use crate::infra::HttpInfra;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::policy::ForgePolicyService;
-use crate::provider::{ForgeProviderRegistry, ForgeProviderService};
+use crate::provider::{ForgeProviderAuthService, ForgeProviderRegistry, ForgeProviderService};
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead, ForgeFsRemove,
@@ -23,7 +23,8 @@ use crate::workflow::ForgeWorkflowService;
 use crate::{
     AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
     DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-    FileRemoverInfra, FileWriterInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
+    FileRemoverInfra, FileWriterInfra, McpServerInfra, ProviderCredentialRepository, SnapshotInfra,
+    UserInfra, WalkerInfra,
 };
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client>;
@@ -60,6 +61,7 @@ pub struct ForgeServices<F: HttpInfra + EnvironmentInfra + McpServerInfra + Walk
     custom_instructions_service: Arc<ForgeCustomInstructionsService<F>>,
     auth_service: Arc<AuthService<F>>,
     provider_service: Arc<ForgeProviderRegistry<F>>,
+    provider_auth_service: Arc<ForgeProviderAuthService<F>>,
     agent_loader_service: Arc<ForgeAgentLoaderService<F>>,
     command_loader_service: Arc<ForgeCommandLoaderService<F>>,
     policy_service: ForgePolicyService<F>,
@@ -78,7 +80,8 @@ impl<
         + UserInfra
         + ConversationRepository
         + AppConfigRepository
-        + CacheRepository,
+        + CacheRepository
+        + ProviderCredentialRepository,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -103,6 +106,7 @@ impl<
         let fetch_service = Arc::new(ForgeFetch::new());
         let followup_service = Arc::new(ForgeFollowup::new(infra.clone()));
         let provider_service = Arc::new(ForgeProviderRegistry::new(infra.clone()));
+        let provider_auth_service = Arc::new(ForgeProviderAuthService::new(infra.clone()));
         let env_service = Arc::new(ForgeEnvironmentService::new(infra.clone()));
         let custom_instructions_service =
             Arc::new(ForgeCustomInstructionsService::new(infra.clone()));
@@ -134,6 +138,7 @@ impl<
             auth_service,
             chat_service,
             provider_service,
+            provider_auth_service,
             agent_loader_service,
             command_loader_service,
             policy_service,
@@ -158,6 +163,7 @@ impl<
         + ConversationRepository
         + AppConfigRepository
         + CacheRepository
+        + ProviderCredentialRepository
         + Clone,
 > Services for ForgeServices<F>
 {
@@ -184,6 +190,7 @@ impl<
     type McpService = McpService<F>;
     type AuthService = AuthService<F>;
     type ProviderRegistry = ForgeProviderRegistry<F>;
+    type ProviderAuthService = ForgeProviderAuthService<F>;
     type AgentLoaderService = ForgeAgentLoaderService<F>;
     type CommandLoaderService = ForgeCommandLoaderService<F>;
     type PolicyService = ForgePolicyService<F>;
@@ -274,6 +281,11 @@ impl<
     fn provider_registry(&self) -> &Self::ProviderRegistry {
         &self.provider_service
     }
+
+    fn provider_auth_service(&self) -> &Self::ProviderAuthService {
+        &self.provider_auth_service
+    }
+
     fn agent_loader_service(&self) -> &Self::AgentLoaderService {
         &self.agent_loader_service
     }

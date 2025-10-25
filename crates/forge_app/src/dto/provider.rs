@@ -1,45 +1,88 @@
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
-use strum_macros::{Display, EnumIter, EnumString};
+use strum_macros::{AsRefStr, Display, EnumIter, EnumString};
 use url::Url;
+
+use super::AuthType;
 
 /// --- IMPORTANT ---
 /// The order of providers is important because that would be order in which the
 /// providers will be resolved
 #[derive(
     Debug,
-    Copy,
+    Display,
     Clone,
+    Copy,
     PartialEq,
     Eq,
     Hash,
     Serialize,
     Deserialize,
-    Display,
-    EnumString,
-    EnumIter,
     PartialOrd,
     Ord,
+    EnumIter,
+    EnumString,
+    AsRefStr,
 )]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum ProviderId {
+    #[serde(alias = "Forge")]
+    #[strum(to_string = "Forge")]
     Forge,
+    #[serde(alias = "GithubCopilot")]
+    #[strum(to_string = "GithubCopilot")]
+    GithubCopilot,
     #[serde(rename = "openai")]
+    #[serde(alias = "OpenAI")]
+    #[strum(serialize = "openai", to_string = "OpenAI")]
     OpenAI,
+    #[serde(rename = "openai_compatible")]
+    #[serde(alias = "OpenAICompatible")]
+    #[strum(serialize = "openai_compatible", to_string = "OpenAICompatible")]
+    OpenAICompatible,
+    #[serde(alias = "OpenRouter")]
+    #[strum(to_string = "OpenRouter")]
     OpenRouter,
+    #[serde(alias = "Requesty")]
+    #[strum(to_string = "Requesty")]
     Requesty,
+    #[serde(alias = "Zai")]
+    #[strum(to_string = "Zai")]
     Zai,
+    #[serde(alias = "ZaiCoding")]
+    #[strum(to_string = "ZaiCoding")]
     ZaiCoding,
+    #[serde(alias = "Cerebras")]
+    #[strum(to_string = "Cerebras")]
     Cerebras,
+    #[serde(alias = "Xai")]
+    #[strum(to_string = "Xai")]
     Xai,
+    #[serde(alias = "Anthropic")]
+    #[strum(to_string = "Anthropic")]
     Anthropic,
+    #[serde(rename = "anthropic_compatible")]
+    #[serde(alias = "AnthropicCompatible")]
+    #[strum(serialize = "anthropic_compatible", to_string = "AnthropicCompatible")]
+    AnthropicCompatible,
+    #[serde(alias = "VertexAi")]
+    #[strum(to_string = "VertexAi")]
     VertexAi,
+    #[serde(alias = "BigModel")]
+    #[strum(to_string = "BigModel")]
     BigModel,
+    #[serde(alias = "Azure")]
+    #[strum(to_string = "Azure")]
     Azure,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Display, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum ProviderResponse {
+    #[serde(rename = "openai")]
+    #[strum(serialize = "openai")]
     OpenAI,
     Anthropic,
 }
@@ -52,6 +95,7 @@ pub struct Provider {
     pub url: Url,
     pub key: Option<String>,
     pub model_url: Url,
+    pub auth_type: Option<AuthType>,
 }
 
 #[cfg(test)]
@@ -65,6 +109,7 @@ mod test_helpers {
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
             key: Some(key.into()),
             model_url: Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+            auth_type: None,
         }
     }
 
@@ -76,6 +121,7 @@ mod test_helpers {
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
             key: Some(key.into()),
             model_url: Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+            auth_type: None,
         }
     }
 
@@ -87,6 +133,7 @@ mod test_helpers {
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some(key.into()),
             model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
+            auth_type: None,
         }
     }
 
@@ -98,6 +145,7 @@ mod test_helpers {
             url: Url::parse("https://api.x.ai/v1/chat/completions").unwrap(),
             key: Some(key.into()),
             model_url: Url::parse("https://api.x.ai/v1/models").unwrap(),
+            auth_type: None,
         }
     }
 
@@ -132,6 +180,7 @@ mod test_helpers {
             url: Url::parse(&chat_url).unwrap(),
             key: Some(key.into()),
             model_url: Url::parse(&model_url).unwrap(),
+            auth_type: None,
         }
     }
 
@@ -157,6 +206,7 @@ mod test_helpers {
             url: Url::parse(&chat_url).unwrap(),
             key: Some(key.into()),
             model_url: Url::parse(&model_url).unwrap(),
+            auth_type: None,
         }
     }
 }
@@ -166,6 +216,7 @@ mod tests {
     use std::str::FromStr;
 
     use pretty_assertions::assert_eq;
+    use strum::IntoEnumIterator;
 
     use super::test_helpers::*;
     use super::*;
@@ -180,6 +231,7 @@ mod tests {
             url: Url::from_str("https://api.x.ai/v1/chat/completions").unwrap(),
             key: Some(fixture.to_string()),
             model_url: Url::from_str("https://api.x.ai/v1/models").unwrap(),
+            auth_type: None,
         };
         assert_eq!(actual, expected);
     }
@@ -277,5 +329,85 @@ mod tests {
             Url::parse("https://east-us.openai.azure.com/openai/models?api-version=2023-05-15")
                 .unwrap();
         assert_eq!(actual_model, expected_model);
+    }
+
+    #[test]
+    fn test_github_copilot_display_name() {
+        let actual = ProviderId::GithubCopilot.to_string();
+        let expected = "GithubCopilot";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_provider_id_display() {
+        let fixture_openai = ProviderId::OpenAI;
+        let actual_openai = fixture_openai.to_string();
+        let expected_openai = "OpenAI";
+        assert_eq!(actual_openai, expected_openai);
+
+        let fixture_copilot = ProviderId::GithubCopilot;
+        let actual_copilot = fixture_copilot.to_string();
+        let expected_copilot = "GithubCopilot";
+        assert_eq!(actual_copilot, expected_copilot);
+    }
+
+    #[test]
+    fn test_provider_id_snake_case_identifier() {
+        let fixture_openai = ProviderId::OpenAI;
+        let actual_openai = serde_json::to_value(fixture_openai)
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_string();
+        let expected_openai = "openai".to_string();
+        assert_eq!(actual_openai, expected_openai);
+
+        let fixture_copilot = ProviderId::GithubCopilot;
+        let actual_copilot = serde_json::to_value(fixture_copilot)
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_string();
+        let expected_copilot = "github_copilot".to_string();
+        assert_eq!(actual_copilot, expected_copilot);
+    }
+
+    #[test]
+    fn test_provider_id_built_in_providers() {
+        let built_in = ProviderId::iter().collect::<Vec<_>>();
+        assert_eq!(built_in.len(), 15); // All provider variants including OpenAICompatible and AnthropicCompatible
+        assert!(built_in.contains(&ProviderId::OpenAI));
+        assert!(built_in.contains(&ProviderId::Anthropic));
+        assert!(built_in.contains(&ProviderId::OpenAICompatible));
+        assert!(built_in.contains(&ProviderId::AnthropicCompatible));
+    }
+
+    #[test]
+    fn test_provider_id_serialization() {
+        let openai = ProviderId::OpenAI;
+        let json = serde_json::to_string(&openai).unwrap();
+        assert_eq!(json, r#""openai""#);
+
+        let anthropic = ProviderId::Anthropic;
+        let json = serde_json::to_string(&anthropic).unwrap();
+        assert_eq!(json, r#""anthropic""#);
+    }
+
+    #[test]
+    fn test_provider_id_deserialization() {
+        let openai: ProviderId = serde_json::from_str(r#""openai""#).unwrap();
+        assert_eq!(openai, ProviderId::OpenAI);
+
+        let anthropic: ProviderId = serde_json::from_str(r#""anthropic""#).unwrap();
+        assert_eq!(anthropic, ProviderId::Anthropic);
+    }
+
+    #[test]
+    fn test_provider_id_deserialization_pascal_case() {
+        let fixture_openai: ProviderId = serde_json::from_str(r#""OpenAI""#).unwrap();
+        assert_eq!(fixture_openai, ProviderId::OpenAI);
+
+        let fixture_copilot: ProviderId = serde_json::from_str(r#""GithubCopilot""#).unwrap();
+        assert_eq!(fixture_copilot, ProviderId::GithubCopilot);
     }
 }

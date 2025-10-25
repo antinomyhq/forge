@@ -2,22 +2,24 @@ use std::sync::{Arc, OnceLock};
 
 use forge_app::ProviderRegistry;
 use forge_app::domain::{AgentId, ModelId};
-use forge_app::dto::{Provider, ProviderId, ProviderResponse};
+use forge_app::dto::{Provider, ProviderId, ProviderResponse, URLParam};
 use handlebars::Handlebars;
 use serde::Deserialize;
 use tokio::sync::OnceCell;
+use tracing;
 use url::Url;
 
-use crate::{AppConfigRepository, EnvironmentInfra, ProviderError};
+use crate::{AppConfigRepository, EnvironmentInfra, ProviderCredentialRepository, ProviderError};
 
 #[derive(Debug, Deserialize)]
-struct ProviderConfig {
-    id: ProviderId,
-    api_key_vars: String,
-    url_param_vars: Vec<String>,
-    response_type: ProviderResponse,
-    url: String,
-    model_url: String,
+pub struct ProviderConfig {
+    pub(crate) id: ProviderId,
+    pub(crate) api_key_vars: String,
+    pub(crate) url_param_vars: Vec<URLParam>,
+    pub(crate) response_type: ProviderResponse,
+    pub(crate) url: String,
+    pub(crate) model_url: String,
+    pub(crate) auth_methods: Vec<crate::provider::AuthMethod>,
 }
 
 static HANDLEBARS: OnceLock<Handlebars<'static>> = OnceLock::new();
@@ -27,7 +29,7 @@ fn get_handlebars() -> &'static Handlebars<'static> {
     HANDLEBARS.get_or_init(Handlebars::new)
 }
 
-fn get_provider_configs() -> &'static Vec<ProviderConfig> {
+pub(crate) fn get_provider_configs() -> &'static Vec<ProviderConfig> {
     PROVIDER_CONFIGS.get_or_init(|| {
         let json_str = include_str!("provider.json");
         serde_json::from_str(json_str)
@@ -36,13 +38,51 @@ fn get_provider_configs() -> &'static Vec<ProviderConfig> {
     })
 }
 
+pub(crate) fn get_provider_config(provider_id: &ProviderId) -> Option<&'static ProviderConfig> {
+    get_provider_configs()
+        .iter()
+        .find(|config| &config.id == provider_id)
+}
+
+/// Get credential variable names for a provider (for migration purposes)
+pub fn get_provider_credential_vars(provider_id: &ProviderId) -> Option<(String, Vec<URLParam>)> {
+    get_provider_config(provider_id)
+        .map(|config| (config.api_key_vars.clone(), config.url_param_vars.clone()))
+}
+
+/// Get auth methods for a provider
+pub fn get_provider_auth_methods(provider_id: &ProviderId) -> Vec<crate::provider::AuthMethod> {
+    get_provider_config(provider_id)
+        .map(|config| config.auth_methods.clone())
+        .unwrap_or_else(|| {
+            // Fallback for custom providers
+            vec![crate::provider::AuthMethod::ApiKey]
+        })
+}
+
+/// Get environment variable names for a provider
+pub fn get_provider_env_vars(provider_id: &ProviderId) -> Vec<String> {
+    get_provider_config(provider_id)
+        .and_then(|config| {
+            let key = config.api_key_vars.trim();
+            if key.is_empty() {
+                None
+            } else {
+                Some(vec![key.to_string()])
+            }
+        })
+        .unwrap_or_default()
+}
+
 pub struct ForgeProviderRegistry<F> {
     infra: Arc<F>,
     handlebars: &'static Handlebars<'static>,
     providers: OnceCell<Vec<Provider>>,
 }
 
-impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
+impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository + 'static>
+    ForgeProviderRegistry<F>
+{
     pub fn new(infra: Arc<F>) -> Self {
         Self {
             infra,
@@ -67,12 +107,14 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
                 if config.id == ProviderId::Forge {
                     return None;
                 }
-                self.create_provider(config).ok()
+                // Note: This is synchronous initialization, only loads env-based providers
+                // For database credentials, use provider_from_id() which is async
+                self.create_provider_from_env(config).ok()
             })
             .collect()
     }
 
-    fn create_provider(&self, config: &ProviderConfig) -> anyhow::Result<Provider> {
+    fn create_provider_from_env(&self, config: &ProviderConfig) -> anyhow::Result<Provider> {
         // Check API key environment variable
         let api_key = self
             .infra
@@ -84,14 +126,14 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
         let mut template_data = std::collections::HashMap::new();
 
         for env_var in &config.url_param_vars {
-            if let Some(value) = self.infra.get_env_var(env_var) {
-                template_data.insert(env_var, value);
-            } else if env_var == "OPENAI_URL" {
-                template_data.insert(env_var, "https://api.openai.com/v1".to_string());
-            } else if env_var == "ANTHROPIC_URL" {
-                template_data.insert(env_var, "https://api.anthropic.com/v1".to_string());
+            if let Some(value) = self.infra.get_env_var(env_var.as_ref()) {
+                template_data.insert(env_var.as_ref(), value);
+            } else if **env_var == "OPENAI_URL" {
+                template_data.insert(env_var.as_ref(), "https://api.openai.com/v1".to_string());
+            } else if **env_var == "ANTHROPIC_URL" {
+                template_data.insert(env_var.as_ref(), "https://api.anthropic.com/v1".to_string());
             } else {
-                return Err(ProviderError::env_var_not_found(config.id, env_var).into());
+                return Err(ProviderError::env_var_not_found(config.id, env_var.as_ref()).into());
             }
         }
 
@@ -125,6 +167,7 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
             url: final_url,
             key: Some(api_key),
             model_url,
+            auth_type: None, // Environment-based providers don't track auth type
         })
     }
 
@@ -135,18 +178,152 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
             return Err(ProviderError::provider_not_available(ProviderId::Forge).into());
         }
 
-        // Look up provider from cached providers
-        self.get_providers()
-            .await
+        // Try to create provider from database credential first
+        if let Some(mut credential) = self.infra.get_credential(&id).await? {
+            // Check if OAuth tokens need refresh (within 5 minutes of expiry)
+            if credential.needs_token_refresh() {
+                tracing::debug!(provider = ?id, "OAuth token needs refresh, attempting to refresh");
+
+                // Attempt to refresh tokens
+                match self.refresh_credential_tokens(&credential).await {
+                    Ok(refreshed_credential) => {
+                        tracing::info!(provider = ?id, "Successfully refreshed OAuth tokens");
+                        credential = refreshed_credential;
+                    }
+                    Err(e) => {
+                        // Log error but don't fail - the existing token might still work
+                        tracing::warn!(
+                            provider = ?id,
+                            error = %e,
+                            "Failed to refresh OAuth tokens, will attempt with existing credential"
+                        );
+                    }
+                }
+            }
+
+            if let Ok(provider) = self.create_provider_from_credential(&id, &credential).await {
+                return Ok(provider);
+            }
+        }
+
+        // Database credential required - no environment variable fallback
+        Err(ProviderError::provider_not_available(id).into())
+    }
+
+    /// Refreshes OAuth tokens for a credential
+    async fn refresh_credential_tokens(
+        &self,
+        credential: &forge_app::dto::ProviderCredential,
+    ) -> anyhow::Result<forge_app::dto::ProviderCredential> {
+        tracing::debug!(provider = ?credential.provider_id, "Refreshing credential tokens");
+
+        // Get authentication method from provider config
+        let auth_methods = get_provider_auth_methods(&credential.provider_id);
+        let auth_method = auth_methods.first().ok_or_else(|| {
+            anyhow::anyhow!(
+                "No authentication method found for provider {:?}",
+                credential.provider_id
+            )
+        })?;
+
+        // Create provider auth service
+        let auth_service = crate::provider::ForgeProviderAuthService::new(self.infra.clone());
+
+        // Use service to refresh the credential (call trait method explicitly)
+        use forge_app::ProviderAuthService as _;
+        let refreshed_credential = auth_service
+            .refresh_provider_credential(credential, auth_method.clone())
+            .await?;
+
+        Ok(refreshed_credential)
+    }
+
+    async fn create_provider_from_credential(
+        &self,
+        provider_id: &ProviderId,
+        credential: &forge_app::dto::ProviderCredential,
+    ) -> anyhow::Result<Provider> {
+        use forge_app::dto::AuthType;
+
+        // Get provider config for URL templates
+        let config = get_provider_configs()
             .iter()
-            .find(|p| p.id == id)
-            .cloned()
-            .ok_or_else(|| ProviderError::provider_not_available(id).into())
+            .find(|c| &c.id == provider_id)
+            .ok_or_else(|| anyhow::anyhow!("Provider config not found for {:?}", provider_id))?;
+
+        // Extract API key based on auth type
+        let api_key = match credential.auth_type {
+            AuthType::ApiKey => credential
+                .api_key
+                .clone()
+                .ok_or_else(|| anyhow::anyhow!("API key missing for ApiKey auth type"))?,
+            AuthType::OAuth => {
+                // For OAuth, use access token as API key
+                credential
+                    .oauth_tokens
+                    .as_ref()
+                    .map(|tokens| tokens.access_token.clone())
+                    .ok_or_else(|| anyhow::anyhow!("OAuth tokens missing"))?
+            }
+            AuthType::OAuthWithApiKey => {
+                // For OAuth+API Key (GitHub Copilot), use the stored API key
+                credential.api_key.clone().ok_or_else(|| {
+                    anyhow::anyhow!("API key missing for OAuthWithApiKey auth type")
+                })?
+            }
+        };
+
+        // Build template data from URL parameters
+        let mut template_data = std::collections::HashMap::new();
+        for (key, value) in &credential.url_params {
+            let upper_case = key.as_str().to_uppercase();
+            template_data.insert(upper_case, value.clone());
+        }
+
+        // Add default URLs if not present
+        if !template_data.contains_key("OPENAI_URL") {
+            template_data.insert("OPENAI_URL".into(), "https://api.openai.com/v1".to_string());
+        }
+        if !template_data.contains_key("ANTHROPIC_URL") {
+            template_data.insert(
+                "ANTHROPIC_URL".into(),
+                "https://api.anthropic.com/v1".to_string(),
+            );
+        }
+
+        // Render URLs using handlebars
+        let url = self
+            .handlebars
+            .render_template(&config.url, &template_data)
+            .map_err(|e| {
+                anyhow::anyhow!("Failed to render URL template for {:?}: {}", provider_id, e)
+            })?;
+
+        let model_url = self
+            .handlebars
+            .render_template(&config.model_url, &template_data)
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "Failed to render model_url template for {:?}: {}",
+                    provider_id,
+                    e
+                )
+            })?;
+
+        Ok(Provider {
+            id: *provider_id,
+            response: config.response_type.clone(),
+            url: Url::parse(&url)?,
+            key: Some(api_key),
+            model_url: Url::parse(&model_url)?,
+            auth_type: Some(credential.auth_type.clone()),
+        })
     }
 
     async fn get_first_available_provider(&self) -> anyhow::Result<Provider> {
-        self.get_providers()
-            .await
+        // Get all providers (database first, then env fallback)
+        let all_providers = self.get_all_providers().await?;
+        all_providers
             .first()
             .cloned()
             .ok_or_else(|| forge_app::Error::NoActiveProvider.into())
@@ -164,7 +341,9 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProviderRegistry<F> {
+impl<F: EnvironmentInfra + AppConfigRepository + ProviderCredentialRepository + 'static>
+    ProviderRegistry for ForgeProviderRegistry<F>
+{
     async fn get_active_provider(&self) -> anyhow::Result<Provider> {
         let app_config = self.infra.get_app_config().await?;
         if let Some(provider_id) = app_config.provider {
@@ -183,7 +362,34 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
     }
 
     async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
-        Ok(self.get_providers().await.clone())
+        use std::collections::HashSet;
+
+        // Start with database-based providers (highest priority)
+        let db_credentials = self.infra.get_all_credentials().await?;
+        let mut providers = Vec::new();
+        let mut provider_ids: HashSet<ProviderId> = HashSet::new();
+
+        for credential in db_credentials {
+            // Try to create provider from credential
+            if let Ok(provider) = self
+                .create_provider_from_credential(&credential.provider_id, &credential)
+                .await
+            {
+                providers.push(provider);
+                provider_ids.insert(credential.provider_id);
+            }
+        }
+
+        // Add env-based providers that aren't already in the list (fallback)
+        let env_providers = self.get_providers().await.clone();
+        for provider in env_providers {
+            if !provider_ids.contains(&provider.id) {
+                provider_ids.insert(provider.id);
+                providers.push(provider);
+            }
+        }
+
+        Ok(providers)
     }
 
     async fn get_active_model(&self) -> anyhow::Result<ModelId> {
@@ -216,6 +422,20 @@ impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProvid
         })
         .await
     }
+
+    async fn available_provider_ids(&self) -> Vec<ProviderId> {
+        // Get built-in providers
+        let provider_ids: Vec<ProviderId> = get_provider_configs()
+            .iter()
+            .filter(|config| config.id != ProviderId::Forge) // Exclude internal Forge provider
+            .map(|config| config.id)
+            .collect();
+
+        // Note: Custom URLs don't add new provider IDs - they just override existing
+        // ones So we don't need to add anything here
+
+        provider_ids
+    }
 }
 
 #[cfg(test)]
@@ -223,6 +443,18 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
+
+    #[test]
+    fn test_github_copilot_config() {
+        let configs = get_provider_configs();
+        let config = configs
+            .iter()
+            .find(|c| c.id == ProviderId::GithubCopilot)
+            .expect("GithubCopilot config should exist");
+        assert_eq!(config.id, ProviderId::GithubCopilot);
+        assert_eq!(config.url, "https://api.githubcopilot.com/chat/completions");
+        assert_eq!(config.model_url, "https://api.githubcopilot.com/models");
+    }
 
     #[test]
     fn test_load_provider_configs() {
@@ -235,7 +467,8 @@ mod tests {
             .find(|c| c.id == ProviderId::OpenRouter)
             .unwrap();
         assert_eq!(openrouter_config.api_key_vars, "OPENROUTER_API_KEY");
-        assert_eq!(openrouter_config.url_param_vars, Vec::<String>::new());
+        let expected: Vec<URLParam> = serde_json::from_str("[]").unwrap();
+        assert_eq!(openrouter_config.url_param_vars, expected);
         assert_eq!(openrouter_config.response_type, ProviderResponse::OpenAI);
         assert_eq!(
             openrouter_config.url,
@@ -252,7 +485,8 @@ mod tests {
             .unwrap();
         assert_eq!(config.id, ProviderId::OpenRouter);
         assert_eq!(config.api_key_vars, "OPENROUTER_API_KEY");
-        assert_eq!(config.url_param_vars, Vec::<String>::new());
+        let expected: Vec<URLParam> = serde_json::from_str("[]").unwrap();
+        assert_eq!(config.url_param_vars, expected);
         assert_eq!(config.response_type, ProviderResponse::OpenAI);
         assert_eq!(config.url, "https://openrouter.ai/api/v1/chat/completions");
     }
@@ -266,10 +500,9 @@ mod tests {
             .unwrap();
         assert_eq!(config.id, ProviderId::VertexAi);
         assert_eq!(config.api_key_vars, "VERTEX_AI_AUTH_TOKEN");
-        assert_eq!(
-            config.url_param_vars,
-            vec!["PROJECT_ID".to_string(), "LOCATION".to_string()]
-        );
+        let expected: Vec<URLParam> =
+            serde_json::from_str(r#"["PROJECT_ID", "LOCATION"]"#).unwrap();
+        assert_eq!(config.url_param_vars, expected);
         assert_eq!(config.response_type, ProviderResponse::OpenAI);
         assert!(config.url.contains("{{"));
         assert!(config.url.contains("}}"));
@@ -304,14 +537,11 @@ mod tests {
         let config = configs.iter().find(|c| c.id == ProviderId::Azure).unwrap();
         assert_eq!(config.id, ProviderId::Azure);
         assert_eq!(config.api_key_vars, "AZURE_API_KEY");
-        assert_eq!(
-            config.url_param_vars,
-            vec![
-                "AZURE_RESOURCE_NAME".to_string(),
-                "AZURE_DEPLOYMENT_NAME".to_string(),
-                "AZURE_API_VERSION".to_string()
-            ]
-        );
+        let expected: Vec<URLParam> = serde_json::from_str(
+            r#"["AZURE_RESOURCE_NAME", "AZURE_DEPLOYMENT_NAME", "AZURE_API_VERSION"]"#,
+        )
+        .unwrap();
+        assert_eq!(config.url_param_vars, expected);
         assert_eq!(config.response_type, ProviderResponse::OpenAI);
 
         // Check URL (now contains full chat completion URL)
@@ -399,6 +629,37 @@ mod env_tests {
         }
     }
 
+    #[async_trait::async_trait]
+    impl ProviderCredentialRepository for MockInfra {
+        async fn upsert_credential(
+            &self,
+            _credential: forge_app::dto::ProviderCredential,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn get_credential(
+            &self,
+            _provider_id: &forge_app::dto::ProviderId,
+        ) -> anyhow::Result<Option<forge_app::dto::ProviderCredential>> {
+            Ok(None) // No database credentials in tests
+        }
+
+        async fn get_all_credentials(
+            &self,
+        ) -> anyhow::Result<Vec<forge_app::dto::ProviderCredential>> {
+            Ok(Vec::new())
+        }
+
+        async fn update_oauth_tokens(
+            &self,
+            _provider_id: &forge_app::dto::ProviderId,
+            _tokens: forge_app::dto::OAuthTokens,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
+
     #[test]
     fn test_create_azure_provider_with_handlebars_urls() {
         // Setup environment variables
@@ -427,9 +688,9 @@ mod env_tests {
             .find(|c| c.id == ProviderId::Azure)
             .expect("Azure config should exist");
 
-        // Create provider using the registry's create_provider method
+        // Create provider using the registry's create_provider_from_env method
         let provider = registry
-            .create_provider(azure_config)
+            .create_provider_from_env(azure_config)
             .expect("Should create Azure provider");
 
         // Verify all URLs are correctly rendered
@@ -448,32 +709,6 @@ mod env_tests {
         assert_eq!(
             model_url.as_str(),
             "https://my-test-resource.openai.azure.com/openai/models?api-version=2024-02-01-preview"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_custom_anthropic_provider_with_env_var() {
-        let mut env_vars = HashMap::new();
-        env_vars.insert("ANTHROPIC_API_KEY".to_string(), "test-key".to_string());
-        env_vars.insert(
-            "ANTHROPIC_URL".to_string(),
-            "https://custom.anthropic.com/v1".to_string(),
-        );
-
-        let infra = Arc::new(MockInfra { env_vars });
-        let registry = ForgeProviderRegistry::new(infra);
-        let provider = registry
-            .provider_from_id(ProviderId::Anthropic)
-            .await
-            .unwrap();
-
-        assert_eq!(
-            provider.url.as_str(),
-            "https://custom.anthropic.com/v1/messages"
-        );
-        assert_eq!(
-            provider.model_url.as_str(),
-            "https://custom.anthropic.com/v1/models"
         );
     }
 

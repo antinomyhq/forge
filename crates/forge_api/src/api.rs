@@ -125,4 +125,33 @@ pub trait API: Sync + Send {
 
     /// List of commands defined in .md file(s)
     async fn get_commands(&self) -> Result<Vec<Command>>;
+
+    /// Get available provider IDs
+    async fn available_provider_ids(&self) -> Result<Vec<ProviderId>>;
+
+    // Provider credential management
+    async fn list_provider_credentials(&self) -> Result<Vec<ProviderCredential>>;
+
+    /// Initiate provider auth flow
+    async fn init_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        method: forge_app::dto::AuthMethod,
+    ) -> Result<forge_app::dto::AuthInitiation>;
+
+    /// Poll OAuth auth completion
+    async fn poll_provider_auth(
+        &self,
+        context: &forge_app::dto::AuthContext,
+        timeout: std::time::Duration,
+        method: forge_app::dto::AuthMethod,
+    ) -> Result<forge_app::dto::AuthResult>;
+
+    /// Process auth result and store credential
+    async fn save_provider_credentials(
+        &self,
+        provider_id: ProviderId,
+        result: forge_app::dto::AuthResult,
+        method: forge_app::dto::AuthMethod,
+    ) -> Result<()>;
 }

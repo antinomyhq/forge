@@ -14,7 +14,7 @@ use reqwest_eventsource::EventSource;
 use url::Url;
 
 use crate::Walker;
-use crate::dto::{InitAuth, LoginInfo, Provider, ProviderId};
+use crate::dto::{AuthMethod, InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId};
 use crate::user::{User, UserUsage};
 
 #[derive(Debug)]
@@ -363,6 +363,59 @@ pub trait ProviderRegistry: Send + Sync {
     async fn set_active_model(&self, model: ModelId) -> anyhow::Result<()>;
     async fn get_active_agent(&self) -> anyhow::Result<Option<AgentId>>;
     async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()>;
+
+    /// Get all available provider IDs from configuration (regardless of
+    /// initialization status)
+    /// Includes both built-in providers and registered custom providers
+    async fn available_provider_ids(&self) -> Vec<ProviderId>;
+}
+
+/// Provider authentication service
+///
+/// Provides authentication flow management for LLM providers, including:
+/// - API key collection and validation
+/// - OAuth device flow
+/// - OAuth authorization code flow
+/// - OAuth with API key exchange (GitHub Copilot pattern)
+/// - Cloud service authentication (Vertex AI, Azure)
+/// - Custom provider registration
+#[async_trait::async_trait]
+pub trait ProviderAuthService: Send + Sync {
+    /// Initiates authentication for a provider
+    ///
+    /// Returns the initial authentication state with instructions for the UI
+    async fn init_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        method: AuthMethod,
+    ) -> anyhow::Result<crate::dto::AuthInitiation>;
+
+    /// Polls until provider authentication completes (for OAuth flows)
+    ///
+    /// Blocks until authentication completes or timeout is reached
+    async fn poll_provider_auth(
+        &self,
+        context: &crate::dto::AuthContext,
+        timeout: std::time::Duration,
+        method: AuthMethod,
+    ) -> anyhow::Result<crate::dto::AuthResult>;
+
+    /// Completes provider authentication and saves credential
+    async fn complete_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        result: crate::dto::AuthResult,
+        method: AuthMethod,
+    ) -> anyhow::Result<ProviderCredential>;
+
+    /// Refreshes provider credentials (for OAuth flows)
+    ///
+    /// Uses refresh token to obtain new access token
+    async fn refresh_provider_credential(
+        &self,
+        credential: &ProviderCredential,
+        method: AuthMethod,
+    ) -> anyhow::Result<ProviderCredential>;
 }
 
 #[async_trait::async_trait]
@@ -391,6 +444,7 @@ pub trait PolicyService: Send + Sync {
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
+#[async_trait::async_trait]
 pub trait Services: Send + Sync + 'static + Clone {
     type ProviderService: ProviderService;
     type ConversationService: ConversationService;
@@ -418,6 +472,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type AgentLoaderService: AgentLoaderService;
     type CommandLoaderService: CommandLoaderService;
     type PolicyService: PolicyService;
+    type ProviderAuthService: ProviderAuthService;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn conversation_service(&self) -> &Self::ConversationService;
@@ -445,6 +500,12 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn agent_loader_service(&self) -> &Self::AgentLoaderService;
     fn command_loader_service(&self) -> &Self::CommandLoaderService;
     fn policy_service(&self) -> &Self::PolicyService;
+    fn provider_auth_service(&self) -> &Self::ProviderAuthService;
+
+    /// Get all available provider IDs from configuration
+    async fn available_provider_ids(&self) -> Vec<ProviderId> {
+        self.provider_registry().available_provider_ids().await
+    }
 }
 
 #[async_trait::async_trait]
@@ -749,6 +810,10 @@ impl<I: Services> ProviderRegistry for I {
     async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()> {
         self.provider_registry().set_active_agent(agent_id).await
     }
+
+    async fn available_provider_ids(&self) -> Vec<ProviderId> {
+        self.provider_registry().available_provider_ids().await
+    }
 }
 
 #[async_trait::async_trait]
@@ -775,6 +840,51 @@ impl<I: Services> AuthService for I {
 
     async fn set_auth_token(&self, token: Option<LoginInfo>) -> anyhow::Result<()> {
         self.auth_service().set_auth_token(token).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> ProviderAuthService for I {
+    async fn init_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        method: crate::dto::AuthMethod,
+    ) -> anyhow::Result<crate::dto::AuthInitiation> {
+        self.provider_auth_service()
+            .init_provider_auth(provider_id, method)
+            .await
+    }
+
+    async fn poll_provider_auth(
+        &self,
+        context: &crate::dto::AuthContext,
+        timeout: std::time::Duration,
+        method: AuthMethod,
+    ) -> anyhow::Result<crate::dto::AuthResult> {
+        self.provider_auth_service()
+            .poll_provider_auth(context, timeout, method)
+            .await
+    }
+
+    async fn complete_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        result: crate::dto::AuthResult,
+        method: AuthMethod,
+    ) -> anyhow::Result<ProviderCredential> {
+        self.provider_auth_service()
+            .complete_provider_auth(provider_id, result, method)
+            .await
+    }
+
+    async fn refresh_provider_credential(
+        &self,
+        credential: &ProviderCredential,
+        method: AuthMethod,
+    ) -> anyhow::Result<ProviderCredential> {
+        self.provider_auth_service()
+            .refresh_provider_credential(credential, method)
+            .await
     }
 }
 
