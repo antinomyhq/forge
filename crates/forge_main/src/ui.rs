@@ -600,40 +600,29 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Define base commands with their descriptions
         info = info
-            .add_title("info".to_string())
-            .add_key_value("Description", "Print session information")
-            .add_title("provider".to_string())
-            .add_key_value("Description", "Switch the providers")
-            .add_title("model".to_string())
-            .add_key_value("Description", "Switch the models")
-            .add_title("new".to_string())
-            .add_key_value("Description", "Start new conversation")
-            .add_title("dump".to_string())
+            .add_key_value("info", "Print session information")
+            .add_key_value("provider", "Switch the providers")
+            .add_key_value("model", "Switch the models")
+            .add_key_value("new", "Start new conversation")
             .add_key_value(
-                "Description",
+                "dump",
                 "Save conversation as JSON or HTML (use /dump html for HTML format)",
             )
-            .add_title("conversation".to_string())
             .add_key_value(
-                "Description",
+                "conversation",
                 "List all conversations for the active workspace",
             )
-            .add_title("retry".to_string())
-            .add_key_value("Description", "Retry the last command")
-            .add_title("compact".to_string())
-            .add_key_value("Description", "Compact the conversation context")
-            .add_title("tools".to_string())
+            .add_key_value("retry", "Retry the last command")
+            .add_key_value("compact", "Compact the conversation context")
             .add_key_value(
-                "Description",
+                "tools",
                 "List all available tools with their descriptions and schema",
             );
 
         // Add alias commands
         info = info
-            .add_title("ask".to_string())
-            .add_key_value("Description", "Alias for agent SAGE")
-            .add_title("plan".to_string())
-            .add_key_value("Description", "Alias for agent MUSE");
+            .add_key_value("ask", "Alias for agent SAGE")
+            .add_key_value("plan", "Alias for agent MUSE");
 
         // Fetch agents and add them to the commands list
         let agents = self.api.get_agents().await?;
@@ -646,12 +635,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .collect::<Vec<_>>()
                 .join(" ");
             info = info
-                .add_title(agent.id.to_string())
-                .add_key_value("Description", title);
+                .add_key_value(agent.id.to_string(), title);
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip(2);
+            let porcelain = Porcelain::from(&info).into_long().drop_col(0).skip(1);
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
