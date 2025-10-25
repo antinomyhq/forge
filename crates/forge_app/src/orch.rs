@@ -12,6 +12,7 @@ use tracing::{debug, info, warn};
 
 use crate::agent::AgentService;
 use crate::compact::Compactor;
+use crate::file_tracking::FileChange;
 use crate::title_generator::TitleGenerator;
 use crate::user_prompt::UserPromptBuilder;
 
@@ -30,6 +31,7 @@ pub struct Orchestrator<S> {
     event: Event,
     error_tracker: ToolErrorTracker,
     user_prompt_service: UserPromptBuilder<S>,
+    changed_files: Vec<FileChange>,
     current_time: chrono::DateTime<chrono::Local>,
 }
 
@@ -60,6 +62,7 @@ impl<S: AgentService> Orchestrator<S> {
             files: Default::default(),
             custom_instructions: Default::default(),
             error_tracker: Default::default(),
+            changed_files: Default::default(),
             current_time,
         }
     }
@@ -342,6 +345,9 @@ impl<S: AgentService> Orchestrator<S> {
                 })
             });
 
+        // Handle files that may have been reverted/modified externally by the user
+        context = self.add_externally_changed_files(context, &model_id).await;
+
         // Signals that the loop should suspend (task may or may not be completed)
         let mut should_yield = false;
 
@@ -514,12 +520,12 @@ impl<S: AgentService> Orchestrator<S> {
                     should_yield = true;
                 }
             }
-        }
 
-        // Update metrics in conversation
-        tool_context.with_metrics(|metrics| {
-            self.conversation.metrics = metrics.clone();
-        })?;
+            // Update metrics in conversation
+            tool_context.with_metrics(|metrics| {
+                self.conversation.metrics = metrics.clone();
+            })?;
+        }
 
         // Set conversation title
         if let Some(title) = title.await.ok().flatten() {
@@ -543,6 +549,37 @@ impl<S: AgentService> Orchestrator<S> {
             .model
             .clone()
             .ok_or(Error::MissingModel(self.agent.id.clone()))?)
+    }
+
+    /// Adds externally changed files notification to the context
+    async fn add_externally_changed_files(&self, context: Context, model_id: &ModelId) -> Context {
+        if self.changed_files.is_empty() {
+            return context;
+        }
+
+        let changes = self
+            .changed_files
+            .iter()
+            .map(|change| format!("- `{}`", change.path.display()))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        if let Ok(rendered_message) = self
+            .services
+            .render(
+                "{{> forge-file-changes-notification.md }}",
+                &serde_json::json!({
+                    "changes": changes
+                }),
+            )
+            .await
+        {
+            return context.add_message(ContextMessage::user(
+                rendered_message,
+                model_id.clone().into(),
+            ));
+        }
+        context
     }
 
     /// Creates a join handle which eventually resolves with the conversation
