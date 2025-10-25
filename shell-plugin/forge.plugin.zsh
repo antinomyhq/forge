@@ -31,7 +31,7 @@ ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z]# *(*|[[:graph:]]*)' 'fg=white,bold')
 # Loads the commands list only when first needed, avoiding startup cost
 function _forge_get_commands() {
     if [[ -z "$_FORGE_COMMANDS" ]]; then
-        _FORGE_COMMANDS="$($_FORGE_BIN show-commands 2>/dev/null)"
+        _FORGE_COMMANDS="$($_FORGE_BIN list commands --porcelain 2>/dev/null)"
     fi
     echo "$_FORGE_COMMANDS"
 }
@@ -69,7 +69,14 @@ function _forge_select_and_set_config() {
     (
         echo
         local output
-        output=$($_FORGE_BIN "$show_command" 2>/dev/null)
+        # Handle multi-word commands properly
+        if [[ "$show_command" == *" "* ]]; then
+            # Split the command into words and execute with --porcelain
+            local cmd_parts=(${=show_command})
+            output=$($_FORGE_BIN "${cmd_parts[@]}" --porcelain 2>/dev/null)
+        else
+            output=$($_FORGE_BIN "$show_command" --porcelain 2>/dev/null)
+        fi
         
         if [[ -n "$output" ]]; then
             local selected
@@ -99,7 +106,7 @@ function _forge_handle_session_command() {
     fi
     
     # Execute the session command with conversation ID and any extra arguments
-    _forge_exec session --id "$FORGE_CONVERSATION_ID" "$subcommand" "$@"
+    _forge_exec session "$subcommand" "$FORGE_CONVERSATION_ID" "$@"
     
     _forge_reset
     return 0
@@ -170,7 +177,7 @@ function forge-completion() {
 # Action handler: Start a new conversation
 function _forge_action_new() {
     echo
-    _forge_exec show-banner
+    _forge_exec banner
     _forge_print_agent_message "FORGE"
     FORGE_CONVERSATION_ID=""
     FORGE_ACTIVE_AGENT="forge"
@@ -180,7 +187,7 @@ function _forge_action_new() {
 # Action handler: Show info
 function _forge_action_info() {
     echo
-    _forge_exec info
+    _forge_exec info 
     _forge_reset
 }
 
@@ -210,7 +217,7 @@ function _forge_action_conversation() {
     
     # Get conversations list
     local conversations_output
-    conversations_output=$($_FORGE_BIN session --list 2>/dev/null)
+    conversations_output=$($_FORGE_BIN session list --porcelain 2>/dev/null)
     
     if [[ -n "$conversations_output" ]]; then
         # Get current conversation ID if set
@@ -243,20 +250,20 @@ function _forge_action_conversation() {
 
 # Action handler: Select provider
 function _forge_action_provider() {
-    _forge_select_and_set_config "show-providers" "provider" "Provider"
+    _forge_select_and_set_config "list providers" "provider" "Provider"
     _forge_reset
 }
 
 # Action handler: Select model
 function _forge_action_model() {
-    _forge_select_and_set_config "show-models" "model" "Model"
+    _forge_select_and_set_config "list models" "model" "Model"
     _forge_reset
 }
 
 # Action handler: Show tools
 function _forge_action_tools() {
     echo
-    _forge_exec show-tools "${FORGE_ACTIVE_AGENT}"
+    _forge_exec list tools "${FORGE_ACTIVE_AGENT}"
     _forge_reset
 }
 
@@ -290,7 +297,7 @@ function _forge_action_default() {
     
     # Generate conversation ID if needed (in parent shell context)
     if [[ -z "$FORGE_CONVERSATION_ID" ]]; then
-        FORGE_CONVERSATION_ID=$($_FORGE_BIN --generate-conversation-id)
+        FORGE_CONVERSATION_ID=$($_FORGE_BIN session new)
     fi
     
     # Set the active agent for this execution

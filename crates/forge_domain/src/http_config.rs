@@ -21,7 +21,7 @@ use strum_macros::EnumString;
 /// # Environment Variables
 /// - `FORGE_HTTP_MIN_TLS_VERSION`: Set minimum TLS version (e.g., "1.2")
 /// - `FORGE_HTTP_MAX_TLS_VERSION`: Set maximum TLS version (e.g., "1.3")
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
 #[serde(rename_all = "camelCase")]
 pub enum TlsVersion {
     #[serde(rename = "1.0")]
@@ -62,7 +62,7 @@ impl std::str::FromStr for TlsVersion {
     }
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, EnumString)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, EnumString, fake::Dummy)]
 #[serde(rename_all = "camelCase")]
 #[strum(serialize_all = "lowercase")]
 pub enum TlsBackend {
@@ -133,7 +133,7 @@ impl std::fmt::Display for TlsBackend {
 ///     ..HttpConfig::default()
 /// };
 /// ```
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
 #[serde(rename_all = "camelCase")]
 pub struct HttpConfig {
     pub connect_timeout: u64,
@@ -235,10 +235,10 @@ mod tests {
     fn test_http_config_http2_defaults() {
         let config = HttpConfig::default();
 
-        assert_eq!(config.adaptive_window, true);
+        assert!(config.adaptive_window);
         assert_eq!(config.keep_alive_interval, Some(60));
         assert_eq!(config.keep_alive_timeout, 10);
-        assert_eq!(config.keep_alive_while_idle, true);
+        assert!(config.keep_alive_while_idle);
     }
 
     #[test]
@@ -251,22 +251,22 @@ mod tests {
             ..HttpConfig::default()
         };
 
-        assert_eq!(config.adaptive_window, false);
+        assert!(!config.adaptive_window);
         assert_eq!(config.keep_alive_interval, None);
         assert_eq!(config.keep_alive_timeout, 30);
-        assert_eq!(config.keep_alive_while_idle, false);
+        assert!(!config.keep_alive_while_idle);
     }
 
     #[test]
     fn test_http_config_accept_invalid_certs_defaults() {
         let config = HttpConfig::default();
-        assert_eq!(config.accept_invalid_certs, false);
+        assert!(!config.accept_invalid_certs);
     }
 
     #[test]
     fn test_http_config_accept_invalid_certs_custom() {
         let config = HttpConfig { accept_invalid_certs: true, ..HttpConfig::default() };
-        assert_eq!(config.accept_invalid_certs, true);
+        assert!(config.accept_invalid_certs);
     }
 
     #[test]

@@ -89,7 +89,6 @@ pub mod tests {
         AttachmentContent, CommandOutput, Environment, ToolDefinition, ToolName, ToolOutput,
     };
     use serde_json::Value;
-    use url::Url;
 
     use crate::attachment::ForgeChatRequest;
     use crate::{
@@ -103,30 +102,14 @@ pub mod tests {
     #[async_trait::async_trait]
     impl EnvironmentInfra for MockEnvironmentInfra {
         fn get_environment(&self) -> Environment {
+            use fake::{Fake, Faker};
             let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
-            Environment {
-                os: "test".to_string(),
-                pid: 12345,
-                cwd: PathBuf::from("/test"),
-                home: Some(PathBuf::from("/home/test")),
-                shell: "bash".to_string(),
-                base_path: PathBuf::from("/base"),
-                retry_config: Default::default(),
-                max_search_lines: 25,
-                max_search_result_bytes: max_bytes.ceil() as usize, // 0.25 MB
-                fetch_truncation_limit: 0,
-                stdout_max_prefix_length: 0,
-                stdout_max_suffix_length: 0,
-                stdout_max_line_length: 2000,
-                max_read_size: 2000,
-                tool_timeout: 300,
-                http: Default::default(),
-                max_file_size: 10_000_000,
-                forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
-                auto_open_dump: false,
-                custom_history_path: None,
-                max_conversations: 100,
-            }
+            let fixture: Environment = Faker.fake();
+            fixture
+                .max_search_lines(25)
+                .max_search_result_bytes(max_bytes.ceil() as usize)
+                .max_read_size(2000)
+                .max_file_size(256 << 10)
         }
 
         fn get_env_var(&self, _key: &str) -> Option<String> {
@@ -184,9 +167,9 @@ pub mod tests {
                 Some((_, content)) => {
                     let bytes = content.clone();
                     String::from_utf8(bytes.to_vec())
-                        .map_err(|e| anyhow::anyhow!("Invalid UTF-8 in file: {:?}: {}", path, e))
+                        .map_err(|e| anyhow::anyhow!("Invalid UTF-8 in file: {path:?}: {e}"))
                 }
-                None => Err(anyhow::anyhow!("File not found: {:?}", path)),
+                None => Err(anyhow::anyhow!("File not found: {path:?}")),
             }
         }
 
@@ -194,7 +177,7 @@ pub mod tests {
             let files = self.files.lock().unwrap();
             match files.iter().find(|v| v.0 == path) {
                 Some((_, content)) => Ok(content.to_vec()),
-                None => Err(anyhow::anyhow!("File not found: {:?}", path)),
+                None => Err(anyhow::anyhow!("File not found: {path:?}")),
             }
         }
 
@@ -251,7 +234,7 @@ pub mod tests {
     impl FileRemoverInfra for MockFileService {
         async fn remove(&self, path: &Path) -> anyhow::Result<()> {
             if !self.exists(path).await? {
-                return Err(anyhow::anyhow!("File not found: {:?}", path));
+                return Err(anyhow::anyhow!("File not found: {path:?}"));
             }
             self.files.lock().unwrap().retain(|(p, _)| p != path);
             Ok(())
@@ -574,6 +557,25 @@ pub mod tests {
         }
     }
 
+    #[async_trait::async_trait]
+    impl FileInfoInfra for MockCompositeService {
+        async fn is_binary(&self, path: &Path) -> anyhow::Result<bool> {
+            self.file_service.is_binary(path).await
+        }
+
+        async fn is_file(&self, path: &Path) -> anyhow::Result<bool> {
+            self.file_service.is_file(path).await
+        }
+
+        async fn exists(&self, path: &Path) -> anyhow::Result<bool> {
+            self.file_service.exists(path).await
+        }
+
+        async fn file_size(&self, path: &Path) -> anyhow::Result<u64> {
+            self.file_service.file_size(path).await
+        }
+    }
+
     #[tokio::test]
     async fn test_add_url_with_text_file() {
         // Setup
@@ -808,7 +810,7 @@ pub mod tests {
 
         // Test reading line 2 only
         let url = "@[/test/multiline.txt:2:2]";
-        let attachments = chat_request.attachments(&url).await.unwrap();
+        let attachments = chat_request.attachments(url).await.unwrap();
 
         assert_eq!(attachments.len(), 1);
         assert_eq!(
@@ -836,7 +838,7 @@ pub mod tests {
 
         // Test reading lines 2-4
         let url = "@[/test/range_test.txt:2:4]";
-        let attachments = chat_request.attachments(&url).await.unwrap();
+        let attachments = chat_request.attachments(url).await.unwrap();
 
         assert_eq!(attachments.len(), 1);
         assert_eq!(attachments.len(), 1);
@@ -864,7 +866,7 @@ pub mod tests {
 
         // Test reading from start to line 2
         let url = "@[/test/start_range.txt:1:2]";
-        let attachments = chat_request.attachments(&url).await.unwrap();
+        let attachments = chat_request.attachments(url).await.unwrap();
         assert_eq!(
             attachments[0].content,
             AttachmentContent::FileContent {
@@ -889,7 +891,7 @@ pub mod tests {
 
         // Test reading from line 3 to end
         let url = "@[/test/end_range.txt:3:5]";
-        let attachments = chat_request.attachments(&url).await.unwrap();
+        let attachments = chat_request.attachments(url).await.unwrap();
         assert_eq!(
             attachments[0].content,
             AttachmentContent::FileContent {
@@ -914,7 +916,7 @@ pub mod tests {
 
         // Test reading beyond file length
         let url = "@[/test/edge_case.txt:1:10]";
-        let attachments = chat_request.attachments(&url).await.unwrap();
+        let attachments = chat_request.attachments(url).await.unwrap();
         assert_eq!(
             attachments[0].content,
             AttachmentContent::FileContent {
@@ -940,7 +942,7 @@ pub mod tests {
 
         // Test multiple files with different ranges
         let url = "Check @[/test/file_a.txt:1:2] and @[/test/file_b.txt:3:4]";
-        let attachments = chat_request.attachments(&url).await.unwrap();
+        let attachments = chat_request.attachments(url).await.unwrap();
 
         assert_eq!(attachments.len(), 2);
         assert_eq!(
@@ -976,7 +978,7 @@ pub mod tests {
 
         // Test that metadata is preserved correctly with ranges
         let url = "@[/test/metadata_test.txt:3:5]";
-        let attachments = chat_request.attachments(&url).await.unwrap();
+        let attachments = chat_request.attachments(url).await.unwrap();
 
         assert_eq!(attachments.len(), 1);
         assert_eq!(attachments[0].path, "/test/metadata_test.txt");
@@ -1007,9 +1009,9 @@ pub mod tests {
         let url_range = "@[/test/comparison.txt:2:4]";
         let url_range_start = "@[/test/comparison.txt:2]";
 
-        let attachments_full = chat_request.attachments(&url_full).await.unwrap();
-        let attachments_range = chat_request.attachments(&url_range).await.unwrap();
-        let attachments_range_start = chat_request.attachments(&url_range_start).await.unwrap();
+        let attachments_full = chat_request.attachments(url_full).await.unwrap();
+        let attachments_range = chat_request.attachments(url_range).await.unwrap();
+        let attachments_range_start = chat_request.attachments(url_range_start).await.unwrap();
 
         assert_eq!(attachments_full.len(), 1);
         assert_eq!(

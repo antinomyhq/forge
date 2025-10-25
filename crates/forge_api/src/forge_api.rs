@@ -4,9 +4,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use forge_app::dto::{InitAuth, LoginInfo, Provider, ProviderId, ToolsOverview};
 use forge_app::{
-    AgentLoaderService, AuthService, ConversationService, EnvironmentService, FileDiscoveryService,
-    ForgeApp, GitApp, McpConfigManager, McpService, ProviderRegistry, ProviderService, Services,
-    User, UserUsage, Walker, WorkflowService,
+    AgentLoaderService, AuthService, CommandLoaderService, ConversationService, EnvironmentService, FileDiscoveryService, ForgeApp, GitApp, McpConfigManager, McpService, ProviderRegistry, ProviderService, Services, User, UserUsage, Walker, WorkflowService
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
@@ -146,9 +144,9 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
             .execute_command(command.to_string(), working_dir, silent, None)
             .await
     }
-    async fn read_mcp_config(&self) -> Result<McpConfig> {
+    async fn read_mcp_config(&self, scope: Option<&Scope>) -> Result<McpConfig> {
         self.services
-            .read_mcp_config()
+            .read_mcp_config(scope)
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }
@@ -230,5 +228,8 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
 
     async fn reload_mcp(&self) -> Result<()> {
         self.services.mcp_service().reload_mcp().await
+    }
+    async fn get_commands(&self) -> Result<Vec<Command>> {
+        self.services.get_commands().await
     }
 }

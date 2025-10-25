@@ -16,8 +16,8 @@ use crate::truncation::{
 };
 use crate::utils::format_display_path;
 use crate::{
-    Content, FsCreateOutput, FsRemoveOutput, FsUndoOutput, HttpResponse, PatchOutput,
-    PlanCreateOutput, ReadOutput, ResponseContext, SearchResult, ShellOutput,
+    FsCreateOutput, FsRemoveOutput, FsUndoOutput, HttpResponse, PatchOutput, PlanCreateOutput,
+    ReadOutput, ResponseContext, SearchResult, ShellOutput,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,6 +67,9 @@ pub enum ToolOperation {
     FsRead {
         input: FSRead,
         output: ReadOutput,
+    },
+    ImageRead {
+        output: forge_domain::Image,
     },
     FsCreate {
         input: FSWrite,
@@ -221,20 +224,20 @@ impl ToolOperation {
         metrics: &mut Metrics,
     ) -> forge_domain::ToolOutput {
         match self {
-            ToolOperation::FsRead { input, output } => match &output.content {
-                Content::File(content) => {
-                    let elm = Element::new("file_content")
-                        .attr("path", input.path)
-                        .attr(
-                            "display_lines",
-                            format!("{}-{}", output.start_line, output.end_line),
-                        )
-                        .attr("total_lines", content.lines().count())
-                        .cdata(content);
+            ToolOperation::FsRead { input, output } => {
+                let content = output.content.file_content();
+                let elm = Element::new("file_content")
+                    .attr("path", input.path)
+                    .attr(
+                        "display_lines",
+                        format!("{}-{}", output.start_line, output.end_line),
+                    )
+                    .attr("total_lines", content.lines().count())
+                    .cdata(content);
 
-                    forge_domain::ToolOutput::text(elm)
-                }
-            },
+                forge_domain::ToolOutput::text(elm)
+            }
+            ToolOperation::ImageRead { output } => forge_domain::ToolOutput::image(output),
             ToolOperation::FsCreate { input, output } => {
                 let diff_result = DiffFormat::format(
                     output.before.as_ref().unwrap_or(&"".to_string()),
@@ -519,44 +522,22 @@ mod tests {
     use std::path::PathBuf;
 
     use forge_domain::{FSRead, ToolValue};
-    use url::Url;
 
     use super::*;
-    use crate::{Match, MatchResult};
+    use crate::{Content, Match, MatchResult};
 
     fn fixture_environment() -> Environment {
+        use fake::{Fake, Faker};
         let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
-        Environment {
-            os: "linux".to_string(),
-            pid: 12345,
-            cwd: PathBuf::from("/home/user/project"),
-            home: Some(PathBuf::from("/home/user")),
-            shell: "/bin/bash".to_string(),
-            base_path: PathBuf::from("/home/user/project"),
-            retry_config: forge_domain::RetryConfig {
-                initial_backoff_ms: 1000,
-                min_delay_ms: 500,
-                backoff_factor: 2,
-                max_retry_attempts: 3,
-                retry_status_codes: vec![429, 500, 502, 503, 504],
-                max_delay: None,
-                suppress_retry_errors: false,
-            },
-            max_search_lines: 25,
-            max_search_result_bytes: max_bytes.ceil() as usize,
-            fetch_truncation_limit: 55,
-            max_read_size: 10,
-            stdout_max_prefix_length: 10,
-            stdout_max_suffix_length: 10,
-            tool_timeout: 300,
-            stdout_max_line_length: 2000,
-            http: Default::default(),
-            max_file_size: 256 << 10, // 256 KiB
-            forge_api_url: Url::parse("http://forgecode.dev/api").unwrap(),
-            auto_open_dump: false,
-            custom_history_path: None,
-            max_conversations: 100,
-        }
+        let fixture: Environment = Faker.fake();
+        fixture
+            .max_search_lines(25)
+            .max_search_result_bytes(max_bytes.ceil() as usize)
+            .fetch_truncation_limit(55)
+            .max_read_size(10)
+            .stdout_max_prefix_length(10)
+            .stdout_max_suffix_length(10)
+            .max_file_size(256 << 10) // 256 KiB
     }
 
     fn to_value(output: forge_domain::ToolOutput) -> String {
@@ -1536,7 +1517,7 @@ mod tests {
         assert!(
             !actual
                 .values
-                .get(0)
+                .first()
                 .unwrap()
                 .as_str()
                 .unwrap()
