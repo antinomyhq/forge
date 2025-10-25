@@ -7,7 +7,6 @@ use forge_api::{API, AgentId, ModelId, ProviderId};
 use super::display::{display_single_field, display_success};
 use super::error::{ConfigError, Result as ConfigResult};
 use crate::cli::{ConfigCommand, ConfigGetArgs, ConfigSetArgs};
-use crate::porcelain::Porcelain;
 
 /// Configuration manager that handles all config operations
 pub struct ConfigManager<A> {
@@ -110,13 +109,7 @@ impl<A: API> ConfigManager<A> {
             .await
             .map(|m| m.as_str().to_string());
         let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
-
-        let info = super::helpers::build_config_info(agent, model, provider);
-        if porcelain {
-            println!("{}", Porcelain::from(&info));
-        } else {
-            println!("{}", info);
-        }
+        super::helpers::build_config_info(agent, model, provider, porcelain);
         Ok(())
     }
 

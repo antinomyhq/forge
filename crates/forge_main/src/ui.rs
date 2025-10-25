@@ -674,13 +674,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .map(|m| m.as_str().to_string());
         let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
 
-        let info = crate::config::build_config_info(agent, model, provider);
-
-        if porcelain {
-            self.writeln(Porcelain::from(&info).into_long().skip(1).drop_col(0))?;
-        } else {
-            self.writeln(info)?;
-        }
+        crate::config::build_config_info(agent, model, provider, porcelain);
 
         Ok(())
     }
