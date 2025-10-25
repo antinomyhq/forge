@@ -60,6 +60,19 @@ impl Porcelain {
                 .collect(),
         )
     }
+    /// Truncates the specified column to a maximum length (including "..."),
+    /// appending "..." if truncated
+    pub fn truncate(self, c: usize, max_len: usize) -> Self {
+        self.map_col(c, |col| {
+            col.map(|value| {
+                if value.len() > max_len {
+                    format!("{}...", &value[..max_len.saturating_sub(3)])
+                } else {
+                    value
+                }
+            })
+        })
+    }
     #[allow(unused)]
     pub fn into_body(self) -> Vec<Vec<Option<String>>> {
         // Skip headers and return
@@ -336,6 +349,38 @@ mod tests {
                 Some("30".into()),
             ],
             vec![Some("user2".into()), Some("BOB".into()), Some("25".into())],
+        ];
+
+        assert_eq!(actual, expected)
+    }
+    #[test]
+    fn test_truncate() {
+        let info = Porcelain(vec![
+            vec![
+                Some("user1".into()),
+                Some("Alice".into()),
+                Some("very_long_name".into()),
+            ],
+            vec![
+                Some("user2".into()),
+                Some("Bob".into()),
+                Some("short".into()),
+            ],
+        ]);
+
+        let actual = info.truncate(2, 5).into_rows();
+
+        let expected = vec![
+            vec![
+                Some("user1".into()),
+                Some("Alice".into()),
+                Some("ve...".into()),
+            ],
+            vec![
+                Some("user2".into()),
+                Some("Bob".into()),
+                Some("short".into()),
+            ],
         ];
 
         assert_eq!(actual, expected)
