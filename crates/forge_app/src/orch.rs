@@ -440,7 +440,7 @@ impl<S: AgentService> Orchestrator<S> {
             // Generate title only if conversation doesn't have any title and event.value
             // exists
             use futures::future::{Either, ready};
-            let title_generator_future: Either<_, _> = if let Some(ref prompt) = self.event.value {
+            let _title_generator_future: Either<_, _> = if let Some(ref prompt) = self.event.value {
                 if self.conversation.title.is_none() {
                     let title_generator = TitleGenerator::new(
                         self.services.clone(),
