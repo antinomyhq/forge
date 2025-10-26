@@ -124,6 +124,9 @@ pub struct TitleFormat {
     pub title: String,
     pub sub_title: Option<String>,
     pub category: Category,
+    /// Optional timestamp for replay - when set, display logic uses this
+    /// instead of current time
+    pub timestamp: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 pub trait TitleExt {
@@ -146,6 +149,7 @@ impl TitleFormat {
             title: message.into(),
             sub_title: None,
             category: Category::Info,
+            timestamp: None,
         }
     }
 
@@ -155,6 +159,7 @@ impl TitleFormat {
             title: message.into(),
             sub_title: None,
             category: Category::Action,
+            timestamp: None,
         }
     }
 
@@ -163,6 +168,7 @@ impl TitleFormat {
             title: message.into(),
             sub_title: None,
             category: Category::Error,
+            timestamp: None,
         }
     }
 
@@ -171,6 +177,7 @@ impl TitleFormat {
             title: message.into(),
             sub_title: None,
             category: Category::Debug,
+            timestamp: None,
         }
     }
 
@@ -179,6 +186,80 @@ impl TitleFormat {
             title: message.into(),
             sub_title: None,
             category: Category::Completion,
+            timestamp: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pretty_assertions::assert_eq;
+    use chrono::{DateTime, Utc};
+
+    #[test]
+    fn test_title_format_with_timestamp() {
+        let timestamp = DateTime::parse_from_rfc3339("2023-10-26T10:30:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        
+        let title = TitleFormat {
+            title: "Test Action".to_string(),
+            sub_title: Some("Subtitle".to_string()),
+            category: Category::Action,
+            timestamp: Some(timestamp),
+        };
+
+        assert_eq!(title.title, "Test Action");
+        assert_eq!(title.sub_title, Some("Subtitle".to_string()));
+        assert_eq!(title.category, Category::Action);
+        assert_eq!(title.timestamp, Some(timestamp));
+    }
+
+    #[test]
+    fn test_title_format_without_timestamp() {
+        let title = TitleFormat::info("Test Info");
+        
+        assert_eq!(title.title, "Test Info");
+        assert_eq!(title.sub_title, None);
+        assert_eq!(title.category, Category::Info);
+        assert_eq!(title.timestamp, None);
+    }
+
+    #[test]
+    fn test_title_format_constructors_with_none_timestamp() {
+        let info = TitleFormat::info("Info message");
+        let action = TitleFormat::action("Action message");
+        let error = TitleFormat::error("Error message");
+        let debug = TitleFormat::debug("Debug message");
+        let completion = TitleFormat::completion("Completion message");
+
+        // All constructors should initialize timestamp as None
+        assert_eq!(info.timestamp, None);
+        assert_eq!(action.timestamp, None);
+        assert_eq!(error.timestamp, None);
+        assert_eq!(debug.timestamp, None);
+        assert_eq!(completion.timestamp, None);
+
+        // Verify other fields
+        assert_eq!(info.category, Category::Info);
+        assert_eq!(action.category, Category::Action);
+        assert_eq!(error.category, Category::Error);
+        assert_eq!(debug.category, Category::Debug);
+        assert_eq!(completion.category, Category::Completion);
+    }
+
+    #[test]
+    fn test_title_format_with_timestamp_setter() {
+        let timestamp = DateTime::parse_from_rfc3339("2023-10-26T14:45:30Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        
+        let title = TitleFormat::info("Test")
+            .timestamp(timestamp)
+            .sub_title("With timestamp");
+
+        assert_eq!(title.timestamp, Some(timestamp));
+        assert_eq!(title.sub_title, Some("With timestamp".to_string()));
     }
 }
