@@ -10,6 +10,16 @@ use url::Url;
 
 use crate::{AppConfigRepository, EnvironmentInfra, ProviderError};
 
+/// Represents the source of models for a provider
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+enum Models {
+    /// Models are fetched from a URL
+    Url(String),
+    /// Models are hardcoded in the configuration
+    Hardcoded(Vec<forge_app::domain::Model>),
+}
+
 #[derive(Debug, Deserialize)]
 struct ProviderConfig {
     id: ProviderId,
@@ -17,7 +27,7 @@ struct ProviderConfig {
     url_param_vars: Vec<String>,
     response_type: ProviderResponse,
     url: String,
-    model_url: String,
+    models: Models,
 }
 
 static HANDLEBARS: OnceLock<Handlebars<'static>> = OnceLock::new();
@@ -104,27 +114,33 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
             })?;
 
         let final_url = Url::parse(&url)?;
-        // Render optional model_url if present
-        let model_url_template = &config.model_url;
-        let model_url = Url::parse(
-            &self
-                .handlebars
-                .render_template(model_url_template, &template_data)
-                .map_err(|e| {
-                    anyhow::anyhow!(
-                        "Failed to render model_url template for {}: {}",
-                        config.id,
-                        e
-                    )
-                })?,
-        )?;
+
+        // Handle models based on the variant
+        let models = match &config.models {
+            Models::Url(model_url_template) => {
+                let model_url = Url::parse(
+                    &self
+                        .handlebars
+                        .render_template(model_url_template, &template_data)
+                        .map_err(|e| {
+                            anyhow::anyhow!(
+                                "Failed to render model_url template for {}: {}",
+                                config.id,
+                                e
+                            )
+                        })?,
+                )?;
+                forge_app::dto::Models::Url(model_url)
+            }
+            Models::Hardcoded(model_list) => forge_app::dto::Models::Hardcoded(model_list.clone()),
+        };
 
         Ok(Provider {
             id: config.id,
             response: config.response_type.clone(),
             url: final_url,
             key: Some(api_key),
-            model_url,
+            models,
         })
     }
 
@@ -322,10 +338,14 @@ mod tests {
         assert!(config.url.contains("deployments"));
         assert!(config.url.contains("chat/completions"));
 
-        // Check model_url exists and contains expected elements
-        let model_url = config.model_url.clone();
-        assert!(model_url.contains("api-version"));
-        assert!(model_url.contains("/models"));
+        // Check models exists and contains expected elements
+        match &config.models {
+            Models::Url(model_url) => {
+                assert!(model_url.contains("api-version"));
+                assert!(model_url.contains("/models"));
+            }
+            Models::Hardcoded(_) => panic!("Expected Models::Url variant"),
+        }
     }
 
     #[test]
@@ -444,11 +464,15 @@ mod env_tests {
         );
 
         // Check model URL
-        let model_url = provider.model_url;
-        assert_eq!(
-            model_url.as_str(),
-            "https://my-test-resource.openai.azure.com/openai/models?api-version=2024-02-01-preview"
-        );
+        match provider.models {
+            forge_app::dto::Models::Url(model_url) => {
+                assert_eq!(
+                    model_url.as_str(),
+                    "https://my-test-resource.openai.azure.com/openai/models?api-version=2024-02-01-preview"
+                );
+            }
+            forge_app::dto::Models::Hardcoded(_) => panic!("Expected Models::Url variant"),
+        }
     }
 
     #[tokio::test]
@@ -471,10 +495,12 @@ mod env_tests {
             provider.url.as_str(),
             "https://custom.anthropic.com/v1/messages"
         );
-        assert_eq!(
-            provider.model_url.as_str(),
-            "https://custom.anthropic.com/v1/models"
-        );
+        match provider.models {
+            forge_app::dto::Models::Url(model_url) => {
+                assert_eq!(model_url.as_str(), "https://custom.anthropic.com/v1/models");
+            }
+            forge_app::dto::Models::Hardcoded(_) => panic!("Expected Models::Url variant"),
+        }
     }
 
     #[tokio::test]
@@ -493,10 +519,12 @@ mod env_tests {
             openai_provider.url.as_str(),
             "https://api.openai.com/v1/chat/completions"
         );
-        assert_eq!(
-            openai_provider.model_url.as_str(),
-            "https://api.openai.com/v1/models"
-        );
+        match &openai_provider.models {
+            forge_app::dto::Models::Url(model_url) => {
+                assert_eq!(model_url.as_str(), "https://api.openai.com/v1/models");
+            }
+            forge_app::dto::Models::Hardcoded(_) => panic!("Expected Models::Url variant"),
+        }
 
         let anthropic_provider = providers.iter().find(|p| p.id == ProviderId::Anthropic);
         assert!(anthropic_provider.is_none());
