@@ -1034,30 +1034,35 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .map(CliModel)
             .collect::<Vec<_>>();
 
-        // Sort the models by their names in ascending order
         models.sort_by(|a, b| a.0.name.cmp(&b.0.name));
 
-        // Find the index of the current model
         let current_model = self.api.get_operating_model().await;
         let starting_cursor = current_model
             .as_ref()
             .and_then(|current| models.iter().position(|m| &m.0.id == current))
             .unwrap_or(0);
 
-        // Use the centralized select module
-        match ForgeSelect::select("Select a model:", models)
+        let initial_text = current_model
+            .as_ref()
+            .and_then(|current| models.iter().find(|m| &m.0.id == current))
+            .map(|m| m.0.name.clone());
+
+        let mut select = ForgeSelect::select("Select a model:", models)
             .with_starting_cursor(starting_cursor)
-            .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
-            .prompt()?
-        {
+            .with_help_message("Type a name or use arrow keys to navigate and Enter to select");
+
+        if let Some(text) = initial_text {
+            select = select.with_initial_text(text);
+        }
+
+        match select.prompt()? {
             Some(model) => Ok(Some(model.0.id)),
             None => Ok(None),
         }
     }
 
     async fn select_provider(&mut self) -> Result<Option<Provider>> {
-        // Fetch available providers
-        let mut providers = self
+         let mut providers = self
             .api
             .providers()
             .await?
@@ -1090,8 +1095,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
     }
 
-    // Helper method to handle model selection and update the conversation
-    async fn on_model_selection(&mut self) -> Result<()> {
+     async fn on_model_selection(&mut self) -> Result<()> {
         // Select a model
         let model_option = self.select_model().await?;
 
