@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use anyhow::Result;
 use forge_app::dto::{InitAuth, ProviderId, ToolsOverview};
@@ -139,19 +140,14 @@ pub trait API: Sync + Send {
         method: forge_app::dto::AuthMethod,
     ) -> Result<forge_app::dto::AuthInitiation>;
 
-    /// Poll OAuth auth completion
-    async fn poll_provider_auth(
-        &self,
-        context: &forge_app::dto::AuthContext,
-        timeout: std::time::Duration,
-        method: forge_app::dto::AuthMethod,
-    ) -> Result<forge_app::dto::AuthResult>;
-
-    /// Process auth result and store credential
-    async fn save_provider_credentials(
+    /// Complete provider authentication and save credentials
+    /// For OAuth flows (Device/Code), this will poll until completion then save
+    /// For ApiKey flows, this will use the data from AuthContext
+    async fn complete_provider_auth(
         &self,
         provider_id: ProviderId,
-        result: forge_app::dto::AuthResult,
-        method: forge_app::dto::AuthMethod,
+        context: AuthContext,
+        timeout: Duration,
+        method: AuthMethod,
     ) -> Result<()>;
 }

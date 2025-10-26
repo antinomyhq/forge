@@ -78,11 +78,13 @@ pub enum AuthInitiation {
 }
 
 /// Type-safe auth context storage
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AuthContext {
-    #[default]
-    ApiKey,
+    ApiKey {
+        api_key: String,
+        url_params: std::collections::HashMap<String, String>,
+    },
     Device {
         device_code: String,
         interval: u64,
@@ -91,6 +93,15 @@ pub enum AuthContext {
         state: String,
         pkce_verifier: Option<String>,
     },
+}
+
+impl Default for AuthContext {
+    fn default() -> Self {
+        Self::ApiKey {
+            api_key: String::new(),
+            url_params: std::collections::HashMap::new(),
+        }
+    }
 }
 
 impl AuthContext {

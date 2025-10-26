@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use bytes::Bytes;
 use derive_setters::Setters;
@@ -14,7 +15,9 @@ use reqwest_eventsource::EventSource;
 use url::Url;
 
 use crate::Walker;
-use crate::dto::{AuthMethod, InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId};
+use crate::dto::{
+    AuthContext, AuthMethod, InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId,
+};
 use crate::user::{User, UserUsage};
 
 #[derive(Debug)]
@@ -390,6 +393,17 @@ pub trait ProviderAuthService: Send + Sync {
         method: AuthMethod,
     ) -> anyhow::Result<crate::dto::AuthInitiation>;
 
+    /// Complete provider authentication and save credentials
+    /// For OAuth flows (Device/Code), this will poll until completion then save
+    /// For ApiKey flows, this will use the data from AuthContext
+    async fn complete_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        context: AuthContext,
+        timeout: Duration,
+        method: AuthMethod,
+    ) -> anyhow::Result<()>;
+
     /// Polls until provider authentication completes (for OAuth flows)
     ///
     /// Blocks until authentication completes or timeout is reached
@@ -401,7 +415,7 @@ pub trait ProviderAuthService: Send + Sync {
     ) -> anyhow::Result<crate::dto::AuthResult>;
 
     /// Completes provider authentication and saves credential
-    async fn complete_provider_auth(
+    async fn complete_provider_auth_with_result(
         &self,
         provider_id: ProviderId,
         result: crate::dto::AuthResult,
@@ -869,11 +883,23 @@ impl<I: Services> ProviderAuthService for I {
     async fn complete_provider_auth(
         &self,
         provider_id: ProviderId,
+        context: AuthContext,
+        timeout: Duration,
+        method: AuthMethod,
+    ) -> anyhow::Result<()> {
+        self.provider_auth_service()
+            .complete_provider_auth(provider_id, context, timeout, method)
+            .await
+    }
+
+    async fn complete_provider_auth_with_result(
+        &self,
+        provider_id: ProviderId,
         result: crate::dto::AuthResult,
         method: AuthMethod,
     ) -> anyhow::Result<ProviderCredential> {
         self.provider_auth_service()
-            .complete_provider_auth(provider_id, result, method)
+            .complete_provider_auth_with_result(provider_id, result, method)
             .await
     }
 

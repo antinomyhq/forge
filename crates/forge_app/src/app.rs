@@ -260,19 +260,22 @@ impl<S: Services> ForgeApp<S> {
         self.services.init_provider_auth(provider_id, method).await
     }
 
-    /// Polls until provider authentication completes (for OAuth flows)
-    pub async fn poll_provider_auth(
+    /// Complete provider authentication and save credentials
+    /// For OAuth flows (Device/Code), this will poll until completion then save
+    /// For ApiKey flows, this will use the data from AuthContext
+    pub async fn complete_provider_auth(
         &self,
-        context: &crate::dto::AuthContext,
+        provider_id: crate::dto::ProviderId,
+        context: crate::dto::AuthContext,
         timeout: std::time::Duration,
         method: crate::dto::AuthMethod,
-    ) -> Result<crate::dto::AuthResult> {
+    ) -> Result<()> {
         self.services
-            .poll_provider_auth(context, timeout, method)
+            .complete_provider_auth(provider_id, context, timeout, method)
             .await
     }
 
-    /// Completes provider authentication and saves credentials
+    /// Save provider credentials with explicit result (for ApiKey flows)
     pub async fn save_provider_credentials(
         &self,
         provider_id: crate::dto::ProviderId,
@@ -280,7 +283,7 @@ impl<S: Services> ForgeApp<S> {
         method: crate::dto::AuthMethod,
     ) -> Result<()> {
         self.services
-            .complete_provider_auth(provider_id, result, method)
+            .complete_provider_auth_with_result(provider_id, result, method)
             .await?;
         Ok(())
     }

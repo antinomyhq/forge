@@ -1,9 +1,11 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use forge_app::dto::{
-    AuthMethod, InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId, ToolsOverview,
+    AuthContext, AuthMethod, InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId,
+    ToolsOverview,
 };
 use forge_app::{
     AgentLoaderService, AuthService, CommandLoaderService, ConversationService, EnvironmentService,
@@ -252,27 +254,16 @@ impl<A: Services, F: CommandInfra + AppConfigRepository + ProviderCredentialRepo
         Ok(forge_app.init_provider_auth(provider_id, method).await?)
     }
 
-    async fn poll_provider_auth(
-        &self,
-        context: &forge_app::dto::AuthContext,
-        timeout: std::time::Duration,
-        method: AuthMethod,
-    ) -> Result<forge_app::dto::AuthResult> {
-        let forge_app = ForgeApp::new(self.services.clone());
-        Ok(forge_app
-            .poll_provider_auth(context, timeout, method)
-            .await?)
-    }
-
-    async fn save_provider_credentials(
+    async fn complete_provider_auth(
         &self,
         provider_id: ProviderId,
-        result: forge_app::dto::AuthResult,
+        context: AuthContext,
+        timeout: Duration,
         method: AuthMethod,
     ) -> Result<()> {
         let forge_app = ForgeApp::new(self.services.clone());
         Ok(forge_app
-            .save_provider_credentials(provider_id, result, method)
+            .complete_provider_auth(provider_id, context, timeout, method)
             .await?)
     }
 }

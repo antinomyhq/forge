@@ -2,14 +2,14 @@ use std::collections::HashMap;
 use std::fmt::Display;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, AuthContext, AuthMethod, AuthResult, ChatRequest, ChatResponse, Conversation,
-    ConversationId, Event, InterruptionReason, Model, ModelId, Provider, ProviderId, URLParam,
-    Workflow,
+    API, AgentId, AuthContext, AuthMethod, ChatRequest, ChatResponse, Conversation, ConversationId,
+    Event, InterruptionReason, Model, ModelId, Provider, ProviderId, URLParam, Workflow,
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
@@ -508,10 +508,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         anyhow::ensure!(!api_key.trim().is_empty(), "API key cannot be empty");
 
-        let auth_res = AuthResult::ApiKey { api_key, url_params };
-
         self.api
-            .save_provider_credentials(provider_id, auth_res, method)
+            .complete_provider_auth(
+                provider_id,
+                forge_app::dto::AuthContext::ApiKey { api_key, url_params },
+                Duration::from_secs(0), // No timeout needed since we have the data
+                method,
+            )
             .await?;
 
         self.display_credential_success(provider_id).await?;
@@ -668,21 +671,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             verification_uri_complete.as_deref(),
         );
 
-        // Step 2: Poll until authentication completes (10 minute timeout)
-        self.spinner.start(Some("Waiting for authorization..."))?;
-
-        let auth_result = self
-            .api
-            .poll_provider_auth(&context, Duration::from_secs(600), method.clone())
-            .await?;
-
-        self.spinner.stop(None)?;
-
-        // Step 3: Complete authentication and save credentials
-        self.spinner.start(Some("Saving credentials..."))?;
+        // Step 2: Complete authentication (polls if needed for OAuth flows)
+        self.spinner.start(Some("Completing authentication..."))?;
 
         self.api
-            .save_provider_credentials(provider_id, auth_result, method.clone())
+            .complete_provider_auth(
+                provider_id,
+                context,
+                Duration::from_secs(600),
+                method.clone(),
+            )
             .await?;
 
         self.spinner.stop(None)?;
@@ -733,18 +731,18 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .start(Some("Exchanging authorization code..."))?;
 
         // Complete authentication with the code
-        let (state, code_verifier) = match context {
+        let (state, code_verifier) = match &context {
             AuthContext::Code { state, pkce_verifier } => (state.clone(), pkce_verifier.clone()),
             _ => return Err(anyhow::anyhow!("Invalid context type: expected Code")),
         };
-        let auth_result = forge_app::dto::AuthResult::AuthorizationCode {
-            code: code.trim().to_string(),
-            state,
-            code_verifier,
-        };
 
         self.api
-            .save_provider_credentials(provider_id, auth_result, method)
+            .complete_provider_auth(
+                provider_id,
+                forge_app::dto::AuthContext::Code { state, pkce_verifier: code_verifier },
+                Duration::from_secs(0), // No timeout needed since we have the data
+                method,
+            )
             .await?;
 
         self.spinner.stop(None)?;

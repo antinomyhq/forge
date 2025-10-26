@@ -973,7 +973,7 @@ where
         }
     }
 
-    async fn complete_provider_auth(
+    async fn complete_provider_auth_with_result(
         &self,
         provider_id: ProviderId,
         result: AuthResult,
@@ -1068,5 +1068,32 @@ where
             .await?;
 
         Ok(refreshed_credential)
+    }
+
+    async fn complete_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        context: AuthContext,
+        timeout: Duration,
+        method: AuthMethod,
+    ) -> anyhow::Result<()> {
+        match context {
+            AuthContext::ApiKey { api_key, url_params } => {
+                // Create AuthResult from context data
+                let result = AuthResult::ApiKey { api_key, url_params };
+                self.complete_provider_auth_with_result(provider_id, result, method)
+                    .await?;
+                Ok(())
+            }
+            AuthContext::Device { .. } | AuthContext::Code { .. } => {
+                // For OAuth flows, poll first then save
+                let result = self
+                    .poll_provider_auth(&context, timeout, method.clone())
+                    .await?;
+                self.complete_provider_auth_with_result(provider_id, result, method)
+                    .await?;
+                Ok(())
+            }
+        }
     }
 }
