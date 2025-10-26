@@ -61,7 +61,71 @@
     "url_param_vars": [],
     "response_type": "OpenAI",
     "url": "https://api.z.ai/api/paas/v4/chat/completions",
-    "models": "https://api.z.ai/api/paas/v4/models"
+    "models": [
+      {
+        "id": "glm-4.6",
+        "name": "GLM-4.6",
+        "description": "Latest flagship model series, foundational models specifically designed for agent applications with 200K context window and 128K maximum output",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4.5",
+        "name": "GLM-4.5",
+        "description": "Advanced model with 128K context window and 96K maximum output, supports chain of thought",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4.5-air",
+        "name": "GLM-4.5-air",
+        "description": "Lightweight version of GLM-4.5 with 128K context window and optimized performance",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4.5-x",
+        "name": "GLM-4.5-x",
+        "description": "Extended version of GLM-4.5 with 128K context window and enhanced capabilities",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4.5-airx",
+        "name": "GLM-4.5-airx",
+        "description": "Optimized version of GLM-4.5 with 128K context window and balanced performance and capabilities",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4.5-flash",
+        "name": "GLM-4.5-flash",
+        "description": "Fast inference model with 128K context window for quick responses",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4-32b-0414-128k",
+        "name": "GLM-4-32B-0414-128K",
+        "description": "32B parameter model with 128K context window and 16K maximum output",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": false
+      }
+    ]
   },
   {
     "id": "zai_coding",
@@ -69,7 +133,71 @@
     "url_param_vars": [],
     "response_type": "OpenAI",
     "url": "https://api.z.ai/api/coding/paas/v4/chat/completions",
-    "models": "https://api.z.ai/api/paas/v4/models"
+    "models": [
+      {
+        "id": "glm-4.6",
+        "name": "GLM-4.6",
+        "description": "Latest flagship model series, foundational models specifically designed for agent applications with 200K context window and 128K maximum output",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4.5",
+        "name": "GLM-4.5",
+        "description": "Advanced model with 128K context window and 96K maximum output, supports chain of thought",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4.5-air",
+        "name": "GLM-4.5-air",
+        "description": "Lightweight version of GLM-4.5 with 128K context window and optimized performance",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4.5-x",
+        "name": "GLM-4.5-x",
+        "description": "Extended version of GLM-4.5 with 128K context window and enhanced capabilities",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4.5-airx",
+        "name": "GLM-4.5-airx",
+        "description": "Optimized version of GLM-4.5 with 128K context window and balanced performance and capabilities",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4.5-flash",
+        "name": "GLM-4.5-flash",
+        "description": "Fast inference model with 128K context window for quick responses",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4-32b-0414-128k",
+        "name": "GLM-4-32B-0414-128K",
+        "description": "32B parameter model with 128K context window and 16K maximum output",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": false
+      }
+    ]
   },
   {
     "id": "big_model",
