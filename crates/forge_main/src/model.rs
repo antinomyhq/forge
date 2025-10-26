@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
 use colored::Colorize;
-use forge_api::{Event, Model, Models, Provider};
+use forge_api::{Event, Model, Provider};
 use forge_domain::Agent;
 use serde::Deserialize;
 use serde_json::Value;
