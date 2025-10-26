@@ -146,7 +146,7 @@ pub trait API: Sync + Send {
     async fn complete_provider_auth(
         &self,
         provider_id: ProviderId,
-        context: AuthContext,
+        context: AuthResponse,
         timeout: Duration,
         method: AuthMethod,
     ) -> Result<()>;

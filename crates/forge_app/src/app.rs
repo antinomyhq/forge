@@ -266,7 +266,7 @@ impl<S: Services> ForgeApp<S> {
     pub async fn complete_provider_auth(
         &self,
         provider_id: crate::dto::ProviderId,
-        context: crate::dto::AuthContext,
+        context: crate::dto::AuthResponse,
         timeout: std::time::Duration,
         method: crate::dto::AuthMethod,
     ) -> Result<()> {

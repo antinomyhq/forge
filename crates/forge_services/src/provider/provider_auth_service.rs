@@ -10,7 +10,7 @@ use std::time::Duration;
 use chrono::Utc;
 use forge_app::ProviderAuthService;
 use forge_app::dto::{
-    AuthContext, AuthRequest, AuthResult, OAuthConfig, OAuthTokens, ProviderCredential, ProviderId,
+    AuthResponse, AuthRequest, AuthResult, OAuthConfig, OAuthTokens, ProviderCredential, ProviderId,
 };
 
 use super::AuthFlowError;
@@ -111,7 +111,7 @@ impl<I> ForgeProviderAuthService<I> {
             })?;
 
         // Build context with device code and interval for polling
-        let context = AuthContext::device(
+        let context = AuthResponse::device(
             device_auth_response.device_code().secret().to_string(),
             device_auth_response.interval().as_secs(),
         );
@@ -340,7 +340,7 @@ impl<I> ForgeProviderAuthService<I> {
 
         // Build context with state and PKCE verifier
         let context =
-            AuthContext::code(auth_params.state.clone(), auth_params.code_verifier.clone());
+            AuthResponse::code(auth_params.state.clone(), auth_params.code_verifier.clone());
 
         Ok(AuthRequest::CodeFlow {
             authorization_url: auth_params.auth_url,
@@ -454,7 +454,7 @@ impl<I> ForgeProviderAuthService<I> {
 
         // Build context with device code and interval for polling
         let interval = device_auth_response.interval().as_secs();
-        let context = AuthContext::device(
+        let context = AuthResponse::device(
             device_auth_response.device_code().secret().to_string(),
             interval,
         );
@@ -927,7 +927,7 @@ where
 
     async fn poll_provider_auth(
         &self,
-        context: &AuthContext,
+        context: &AuthResponse,
         timeout: Duration,
         method: AuthMethod,
     ) -> anyhow::Result<AuthResult> {
@@ -942,7 +942,7 @@ where
             AuthMethod::OAuthDevice(config) => {
                 // Extract device code from context
                 let (device_code, interval) = match context {
-                    AuthContext::Device { device_code, interval } => {
+                    AuthResponse::Device { device_code, interval } => {
                         (device_code.as_str(), *interval)
                     }
                     _ => {
@@ -1072,19 +1072,19 @@ where
     async fn complete_provider_auth(
         &self,
         provider_id: ProviderId,
-        context: AuthContext,
+        context: AuthResponse,
         timeout: Duration,
         method: AuthMethod,
     ) -> anyhow::Result<()> {
         match context {
-            AuthContext::ApiKey { api_key, url_params } => {
+            AuthResponse::ApiKey { api_key, url_params } => {
                 // Create AuthResult from context data
                 let result = AuthResult::ApiKey { api_key, url_params };
                 self.complete_provider_auth_with_result(provider_id, result, method)
                     .await?;
                 Ok(())
             }
-            AuthContext::Device { .. } | AuthContext::Code { .. } => {
+            AuthResponse::Device { .. } | AuthResponse::Code { .. } => {
                 // For OAuth flows, poll first then save
                 let result = self
                     .poll_provider_auth(&context, timeout, method.clone())

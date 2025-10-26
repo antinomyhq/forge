@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, AuthContext, AuthMethod, ChatRequest, ChatResponse, Conversation, ConversationId,
+    API, AgentId, AuthResponse, AuthMethod, ChatRequest, ChatResponse, Conversation, ConversationId,
     Event, InterruptionReason, Model, ModelId, Provider, ProviderId, URLParam, Workflow,
 };
 use forge_app::ToolResolver;
@@ -511,7 +511,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.api
             .complete_provider_auth(
                 provider_id,
-                forge_app::dto::AuthContext::ApiKey { api_key, url_params },
+                forge_app::dto::AuthResponse::ApiKey { api_key, url_params },
                 Duration::from_secs(0), // No timeout needed since we have the data
                 method,
             )
@@ -656,7 +656,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         &mut self,
         provider_id: ProviderId,
         method: AuthMethod,
-        context: AuthContext,
+        context: AuthResponse,
         user_code: String,
         verification_uri: String,
         verification_uri_complete: Option<String>,
@@ -696,7 +696,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         provider_id: forge_app::dto::ProviderId,
         method: forge_app::dto::AuthMethod,
         authorization_url: String,
-        context: AuthContext,
+        context: AuthResponse,
     ) -> anyhow::Result<()> {
         use colored::Colorize;
 
@@ -732,14 +732,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Complete authentication with the code
         let (state, code_verifier) = match &context {
-            AuthContext::Code { state, pkce_verifier } => (state.clone(), pkce_verifier.clone()),
+            AuthResponse::Code { state, pkce_verifier } => (state.clone(), pkce_verifier.clone()),
             _ => return Err(anyhow::anyhow!("Invalid context type: expected Code")),
         };
 
         self.api
             .complete_provider_auth(
                 provider_id,
-                forge_app::dto::AuthContext::Code { state, pkce_verifier: code_verifier },
+                forge_app::dto::AuthResponse::Code { state, pkce_verifier: code_verifier },
                 Duration::from_secs(0), // No timeout needed since we have the data
                 method,
             )

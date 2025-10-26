@@ -16,7 +16,7 @@ use url::Url;
 
 use crate::Walker;
 use crate::dto::{
-    AuthContext, AuthMethod, InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId,
+    AuthResponse, AuthMethod, InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId,
 };
 use crate::user::{User, UserUsage};
 
@@ -399,7 +399,7 @@ pub trait ProviderAuthService: Send + Sync {
     async fn complete_provider_auth(
         &self,
         provider_id: ProviderId,
-        context: AuthContext,
+        context: AuthResponse,
         timeout: Duration,
         method: AuthMethod,
     ) -> anyhow::Result<()>;
@@ -409,7 +409,7 @@ pub trait ProviderAuthService: Send + Sync {
     /// Blocks until authentication completes or timeout is reached
     async fn poll_provider_auth(
         &self,
-        context: &crate::dto::AuthContext,
+        context: &crate::dto::AuthResponse,
         timeout: std::time::Duration,
         method: AuthMethod,
     ) -> anyhow::Result<crate::dto::AuthResult>;
@@ -871,7 +871,7 @@ impl<I: Services> ProviderAuthService for I {
 
     async fn poll_provider_auth(
         &self,
-        context: &crate::dto::AuthContext,
+        context: &crate::dto::AuthResponse,
         timeout: std::time::Duration,
         method: AuthMethod,
     ) -> anyhow::Result<crate::dto::AuthResult> {
@@ -883,7 +883,7 @@ impl<I: Services> ProviderAuthService for I {
     async fn complete_provider_auth(
         &self,
         provider_id: ProviderId,
-        context: AuthContext,
+        context: AuthResponse,
         timeout: Duration,
         method: AuthMethod,
     ) -> anyhow::Result<()> {

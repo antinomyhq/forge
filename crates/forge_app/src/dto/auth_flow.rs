@@ -67,20 +67,20 @@ pub enum AuthRequest {
         verification_uri_complete: Option<String>,
         expires_in: u64,
         interval: u64,
-        context: AuthContext,
+        context: AuthResponse,
     },
 
     CodeFlow {
         authorization_url: String,
         state: String,
-        context: AuthContext,
+        context: AuthResponse,
     },
 }
 
 /// Type-safe auth context storage
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
-pub enum AuthContext {
+pub enum AuthResponse {
     ApiKey {
         api_key: String,
         url_params: std::collections::HashMap<String, String>,
@@ -95,7 +95,7 @@ pub enum AuthContext {
     },
 }
 
-impl Default for AuthContext {
+impl Default for AuthResponse {
     fn default() -> Self {
         Self::ApiKey {
             api_key: String::new(),
@@ -104,7 +104,7 @@ impl Default for AuthContext {
     }
 }
 
-impl AuthContext {
+impl AuthResponse {
     /// Create device context
     pub fn device(device_code: String, interval: u64) -> Self {
         Self::Device { device_code, interval }
