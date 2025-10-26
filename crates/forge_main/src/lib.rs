@@ -1,8 +1,6 @@
 pub mod banner;
 mod cli;
-mod cli_format;
 mod completer;
-mod config;
 
 mod conversation_selector;
 mod editor;
@@ -10,6 +8,7 @@ mod env;
 mod info;
 mod input;
 mod model;
+mod porcelain;
 mod prompt;
 mod sandbox;
 mod state;
@@ -21,7 +20,6 @@ mod ui;
 mod update;
 
 pub use cli::Cli;
-pub use config::ConfigManager;
 use lazy_static::lazy_static;
 pub use sandbox::Sandbox;
 pub use title_display::*;

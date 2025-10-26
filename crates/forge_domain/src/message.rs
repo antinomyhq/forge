@@ -20,10 +20,10 @@ impl Usage {
     /// Accumulates usage from another Usage instance
     /// Cost is summed, tokens are added using TokenCount's Add implementation
     pub fn accumulate(mut self, other: &Usage) -> Self {
-        self.prompt_tokens = self.prompt_tokens + other.prompt_tokens.clone();
-        self.completion_tokens = self.completion_tokens + other.completion_tokens.clone();
-        self.total_tokens = self.total_tokens + other.total_tokens.clone();
-        self.cached_tokens = self.cached_tokens + other.cached_tokens.clone();
+        self.prompt_tokens = self.prompt_tokens + other.prompt_tokens;
+        self.completion_tokens = self.completion_tokens + other.completion_tokens;
+        self.total_tokens = self.total_tokens + other.total_tokens;
+        self.cached_tokens = self.cached_tokens + other.cached_tokens;
         self.cost = match (self.cost, other.cost) {
             (Some(a), Some(b)) => Some(a + b),
             (Some(a), None) => Some(a),

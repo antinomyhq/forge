@@ -36,7 +36,8 @@ jobs:
     permissions:
       contents: read
     steps:
-    - run: sudo apt-get install -y libsqlite3-dev
+    - name: Install SQLite
+      run: sudo apt-get install -y libsqlite3-dev
     - name: Checkout Code
       uses: actions/checkout@v5
     - name: Setup Rust Toolchain
@@ -44,16 +45,12 @@ jobs:
       with:
         toolchain: nightly
         components: clippy, rustfmt
-        cache: true
-        cache-directories: |-
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
     - name: Cargo Fmt
       run: cargo +nightly fmt --all
     - name: Cargo Clippy
-      run: cargo +nightly clippy --fix --allow-dirty --all-features --workspace -- -D warnings
-    - uses: autofix-ci/action@635ffb0c9798bd160680f18fd73371e355b85f27
-    concurrency:
-      group: autofix-${{github.ref}}
-      cancel-in-progress: false
+      run: cargo +nightly clippy --all-features --all-targets --workspace --fix --allow-dirty -- -D warnings
+    - name: Autofix
+      uses: autofix-ci/action@635ffb0c9798bd160680f18fd73371e355b85f27
+concurrency:
+  group: autofix-${{github.ref}}
+  cancel-in-progress: false

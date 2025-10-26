@@ -76,8 +76,10 @@ impl ForgeEnvironmentInfra {
                 .unwrap_or(2000),
             http: resolve_http_config(),
             max_file_size: 256 << 10, // 256 KiB
+            max_image_size: parse_env::<u64>("FORGE_MAX_IMAGE_SIZE").unwrap_or(256 << 10), /* 256 KiB */
             forge_api_url,
             custom_history_path,
+            max_conversations: parse_env::<usize>("FORGE_MAX_CONVERSATIONS").unwrap_or(100),
         }
     }
 
@@ -96,7 +98,7 @@ impl ForgeEnvironmentInfra {
         for path in paths {
             let env_file = path.join(".env");
             if env_file.is_file() {
-                dotenv::from_path(&env_file).ok();
+                dotenvy::from_path(&env_file).ok();
             }
         }
 
@@ -383,7 +385,7 @@ mod tests {
         assert_eq!(actual.backoff_factor, 3);
         assert_eq!(actual.max_retry_attempts, 5);
         assert_eq!(actual.retry_status_codes, vec![429, 500, 502]);
-        assert_eq!(actual.suppress_retry_errors, true);
+        assert!(actual.suppress_retry_errors);
 
         clean_retry_env_vars();
     }
@@ -440,11 +442,11 @@ mod tests {
 
         let actual = resolve_http_config();
         assert_eq!(actual.connect_timeout, 30);
-        assert_eq!(actual.hickory, true);
+        assert!(actual.hickory);
         assert_eq!(actual.tls_backend, TlsBackend::Rustls);
         assert_eq!(actual.min_tls_version, Some(TlsVersion::V1_2));
         assert_eq!(actual.keep_alive_interval, Some(30));
-        assert_eq!(actual.accept_invalid_certs, true);
+        assert!(actual.accept_invalid_certs);
         assert_eq!(
             actual.root_cert_paths,
             Some(vec![
@@ -524,7 +526,7 @@ mod tests {
                 env::remove_var("FORGE_DUMP_AUTO_OPEN");
             }
             let env = infra.get_environment();
-            assert_eq!(env.auto_open_dump, false);
+            assert!(!env.auto_open_dump);
         }
 
         // Test enabled with "true"
@@ -533,7 +535,7 @@ mod tests {
                 env::set_var("FORGE_DUMP_AUTO_OPEN", "true");
             }
             let env = infra.get_environment();
-            assert_eq!(env.auto_open_dump, true);
+            assert!(env.auto_open_dump);
             unsafe {
                 env::remove_var("FORGE_DUMP_AUTO_OPEN");
             }
@@ -545,7 +547,7 @@ mod tests {
                 env::set_var("FORGE_DUMP_AUTO_OPEN", "1");
             }
             let env = infra.get_environment();
-            assert_eq!(env.auto_open_dump, true);
+            assert!(env.auto_open_dump);
             unsafe {
                 env::remove_var("FORGE_DUMP_AUTO_OPEN");
             }
@@ -557,7 +559,7 @@ mod tests {
                 env::set_var("FORGE_DUMP_AUTO_OPEN", "TRUE");
             }
             let env = infra.get_environment();
-            assert_eq!(env.auto_open_dump, true);
+            assert!(env.auto_open_dump);
             unsafe {
                 env::remove_var("FORGE_DUMP_AUTO_OPEN");
             }
@@ -569,7 +571,7 @@ mod tests {
                 env::set_var("FORGE_DUMP_AUTO_OPEN", "false");
             }
             let env = infra.get_environment();
-            assert_eq!(env.auto_open_dump, false);
+            assert!(!env.auto_open_dump);
             unsafe {
                 env::remove_var("FORGE_DUMP_AUTO_OPEN");
             }
@@ -581,7 +583,7 @@ mod tests {
                 env::set_var("FORGE_DUMP_AUTO_OPEN", "0");
             }
             let env = infra.get_environment();
-            assert_eq!(env.auto_open_dump, false);
+            assert!(!env.auto_open_dump);
             unsafe {
                 env::remove_var("FORGE_DUMP_AUTO_OPEN");
             }
@@ -593,7 +595,7 @@ mod tests {
                 env::set_var("FORGE_DUMP_AUTO_OPEN", "invalid");
             }
             let env = infra.get_environment();
-            assert_eq!(env.auto_open_dump, false);
+            assert!(!env.auto_open_dump);
             unsafe {
                 env::remove_var("FORGE_DUMP_AUTO_OPEN");
             }
@@ -639,11 +641,97 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    #[serial]
+    fn test_max_image_size_env_var() {
+        let cwd = tempfile::tempdir().unwrap();
+        let infra = ForgeEnvironmentInfra::new(false, cwd.path().to_path_buf());
+
+        // Test default value (256 KiB)
+        unsafe {
+            std::env::remove_var("FORGE_MAX_IMAGE_SIZE");
+        }
+        let env = infra.get_environment();
+        assert_eq!(env.max_image_size, 262144); // 256 << 10
+
+        // Test custom value
+        unsafe {
+            std::env::set_var("FORGE_MAX_IMAGE_SIZE", "1048576"); // 1 MiB
+        }
+        let env = infra.get_environment();
+        assert_eq!(env.max_image_size, 1048576);
+
+        // Test invalid value (should fallback to default)
+        unsafe {
+            std::env::set_var("FORGE_MAX_IMAGE_SIZE", "invalid");
+        }
+        let env = infra.get_environment();
+        assert_eq!(env.max_image_size, 262144);
+
+        unsafe {
+            std::env::remove_var("FORGE_MAX_IMAGE_SIZE");
+        }
+    }
+
+    #[test]
+    fn test_max_conversations_env_var() {
+        let cwd = tempfile::tempdir().unwrap();
+        let infra = ForgeEnvironmentInfra::new(false, cwd.path().to_path_buf());
+
+        // Test default value
+        unsafe {
+            std::env::remove_var("FORGE_MAX_CONVERSATIONS");
+        }
+        let env = infra.get_environment();
+        assert_eq!(env.max_conversations, 100);
+
+        // Test custom value
+        unsafe {
+            std::env::set_var("FORGE_MAX_CONVERSATIONS", "50");
+        }
+        let env = infra.get_environment();
+        assert_eq!(env.max_conversations, 50);
+
+        // Test invalid value (should fallback to default)
+        unsafe {
+            std::env::set_var("FORGE_MAX_CONVERSATIONS", "invalid");
+        }
+        let env = infra.get_environment();
+        assert_eq!(env.max_conversations, 100);
+
+        unsafe {
+            std::env::remove_var("FORGE_MAX_CONVERSATIONS");
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_multiline_env_vars() {
+        let content = r#"MULTI_LINE='line1
+line2
+line3'
+SIMPLE=value"#;
+
+        let (_root, cwd) = setup_envs(vec![("", content)]);
+        ForgeEnvironmentInfra::dot_env(&cwd);
+
+        // Verify multiline variable
+        let multi = env::var("MULTI_LINE").expect("MULTI_LINE should be set");
+        assert_eq!(multi, "line1\nline2\nline3");
+
+        // Verify simple var
+        assert_eq!(env::var("SIMPLE").unwrap(), "value");
+
+        unsafe {
+            env::remove_var("MULTI_LINE");
+            env::remove_var("SIMPLE");
+        }
+    }
+
     #[test]
     #[serial]
     fn test_unified_parse_env_functionality() {
-        // Test that the unified parse_env works for different types
-
         // Test boolean parsing with custom logic
         unsafe {
             env::set_var("TEST_BOOL_TRUE", "yes");

@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -6,37 +7,34 @@ use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
-    InterruptionReason, Model, ModelId, Provider, ServerName, Workflow,
+    InterruptionReason, Model, ModelId, Provider, ProviderId, Workflow,
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
 use forge_display::MarkdownFormat;
-use forge_domain::{ChatResponseContent, McpConfig, McpServerConfig, Scope, TitleFormat};
+use forge_domain::{ChatResponseContent, TitleFormat};
 use forge_fs::ForgeFS;
 use forge_select::ForgeSelect;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
 use merge::Merge;
+use strum::IntoEnumIterator;
 use tokio_stream::StreamExt;
 use tracing::debug;
 
-use crate::cli::{Cli, McpCommand, TopLevelCommand, Transport};
-use crate::cli_format::format_columns;
-use crate::config::ConfigManager;
+use crate::cli::{Cli, ExtensionCommand, ListCommand, McpCommand, SessionCommand, TopLevelCommand};
 use crate::conversation_selector::ConversationSelector;
-use crate::env::{get_agent_from_env, get_conversation_id_from_env, parse_env};
+use crate::env::{get_agent_from_env, get_conversation_id_from_env, should_show_completion_prompt};
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{CliModel, CliProvider, Command, ForgeCommandManager, PartialEvent};
+use crate::porcelain::Porcelain;
 use crate::prompt::ForgePrompt;
 use crate::state::UIState;
 use crate::title_display::TitleDisplayExt;
 use crate::tools_display::format_tools;
 use crate::update::on_update;
 use crate::{TRACKER, banner, tracker};
-
-// Configuration constants
-const MAX_CONVERSATIONS_TO_SHOW: usize = 20;
 
 pub struct UI<A, F: Fn() -> A> {
     markdown: MarkdownFormat,
@@ -113,12 +111,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .cloned()
             .ok_or(anyhow::anyhow!("Undefined agent: {agent_id}"))?;
 
-        let conversation_id = self.init_conversation().await?;
-        if let Some(conversation) = self.api.conversation(&conversation_id).await? {
-            self.api.set_operating_agent(agent_id).await?;
-            self.api.upsert_conversation(conversation).await?;
-        }
-
         // Update the app config with the new operating agent.
         self.api.set_operating_agent(agent.id.clone()).await?;
         let name = agent.id.as_str().to_case(Case::UpperSnake).bold();
@@ -189,12 +181,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return self.handle_subcommands(mcp).await;
         }
 
-        // Handle --generate-conversation-id flag
-        if self.cli.generate_conversation_id {
-            return self.handle_generate_conversation_id().await;
-        }
-
-        // // Display the banner in dimmed colors since we're in interactive mode
+        // Display the banner in dimmed colors since we're in interactive mode
         self.display_banner()?;
         self.init_state(true).await?;
         self.trace_user();
@@ -276,54 +263,96 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn handle_subcommands(&mut self, subcommand: TopLevelCommand) -> anyhow::Result<()> {
         match subcommand {
+            TopLevelCommand::List(list_group) => {
+                let porcelain = list_group.porcelain;
+                match list_group.command {
+                    ListCommand::Agents => {
+                        self.on_show_agents(porcelain).await?;
+                    }
+                    ListCommand::Providers => {
+                        self.on_show_providers(porcelain).await?;
+                    }
+                    ListCommand::Models => {
+                        self.on_show_models(porcelain).await?;
+                    }
+                    ListCommand::Commands => {
+                        self.on_show_commands(porcelain).await?;
+                    }
+                    ListCommand::Config => {
+                        self.on_show_config(porcelain).await?;
+                    }
+                    ListCommand::Tools { agent } => {
+                        self.on_show_tools(agent, porcelain).await?;
+                    }
+                    ListCommand::Mcp => {
+                        self.on_show_mcp_servers(porcelain).await?;
+                    }
+                    ListCommand::Session => {
+                        self.on_show_conversations(porcelain).await?;
+                    }
+                }
+                return Ok(());
+            }
+            TopLevelCommand::Extension(extension_group) => {
+                match extension_group.command {
+                    ExtensionCommand::Zsh => {
+                        self.on_zsh_prompt().await?;
+                    }
+                }
+                return Ok(());
+            }
+
             TopLevelCommand::Mcp(mcp_command) => match mcp_command.command {
-                McpCommand::Add(add) => {
-                    let name = add.name;
-                    let scope: Scope = add.scope.into();
-                    // Create the appropriate server type based on transport
-                    let server = match add.transport {
-                        Transport::Stdio => McpServerConfig::new_stdio(
-                            add.command_or_url.clone(),
-                            add.args.clone(),
-                            Some(parse_env(add.env.clone())),
-                        ),
-                        Transport::Sse => McpServerConfig::new_sse(add.command_or_url.clone()),
-                    };
-                    // Command/URL already set in the constructor
+                McpCommand::Import(import_args) => {
+                    let scope: forge_domain::Scope = import_args.scope.into();
 
-                    self.update_mcp_config(&scope, |config| {
-                        config.mcp_servers.insert(name.to_string().into(), server);
-                    })
-                    .await?;
+                    // Parse the incoming MCP configuration
+                    let incoming_config: forge_domain::McpConfig = serde_json::from_str(&import_args.json)
+                        .context("Failed to parse MCP configuration JSON. Expected format: {\"mcpServers\": {...}}")?;
 
-                    self.writeln_title(TitleFormat::info(format!("Added MCP server '{name}'")))?;
+                    // Read only the scope-specific config (not merged)
+                    let mut scope_config = self.api.read_mcp_config(Some(&scope)).await?;
+
+                    // Merge the incoming servers with scope-specific config only
+                    let mut added_servers = Vec::new();
+                    for (server_name, server_config) in incoming_config.mcp_servers {
+                        scope_config
+                            .mcp_servers
+                            .insert(server_name.clone(), server_config);
+                        added_servers.push(server_name);
+                    }
+
+                    // Write back to the specific scope only
+                    self.api.write_mcp_config(&scope, &scope_config).await?;
+
+                    // Log each added server after successful write
+                    for server_name in added_servers {
+                        self.writeln_title(TitleFormat::info(format!(
+                            "Added MCP server '{server_name}'"
+                        )))?;
+                    }
                 }
                 McpCommand::List => {
-                    let mcp_servers = self.api.read_mcp_config().await?;
-                    if mcp_servers.is_empty() {
-                        self.writeln_title(TitleFormat::error("No MCP servers found"))?;
-                    }
-
-                    let mut output = String::new();
-                    for (name, server) in mcp_servers.mcp_servers {
-                        output.push_str(&format!("{name}: {server}"));
-                    }
-                    self.writeln(output)?;
+                    self.on_show_mcp_servers(mcp_command.porcelain).await?;
                 }
                 McpCommand::Remove(rm) => {
-                    let name = ServerName::from(rm.name);
-                    let scope: Scope = rm.scope.into();
+                    let name = forge_api::ServerName::from(rm.name);
+                    let scope: forge_domain::Scope = rm.scope.into();
 
-                    self.update_mcp_config(&scope, |config| {
-                        config.mcp_servers.remove(&name);
-                    })
-                    .await?;
+                    // Read only the scope-specific config (not merged)
+                    let mut scope_config = self.api.read_mcp_config(Some(&scope)).await?;
+
+                    // Remove the server from scope-specific config only
+                    scope_config.mcp_servers.remove(&name);
+
+                    // Write back to the specific scope only
+                    self.api.write_mcp_config(&scope, &scope_config).await?;
 
                     self.writeln_title(TitleFormat::info(format!("Removed server: {name}")))?;
                 }
-                McpCommand::Get(val) => {
-                    let name = ServerName::from(val.name);
-                    let config = self.api.read_mcp_config().await?;
+                McpCommand::Show(val) => {
+                    let name = forge_api::ServerName::from(val.name);
+                    let config = self.api.read_mcp_config(None).await?;
                     let server = config
                         .mcp_servers
                         .get(&name)
@@ -333,68 +362,25 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     output.push_str(&format!("{name}: {server}"));
                     self.writeln_title(TitleFormat::info(output))?;
                 }
-                McpCommand::AddJson(add_json) => {
-                    let server = serde_json::from_str::<McpServerConfig>(add_json.json.as_str())
-                        .context("Failed to parse JSON")?;
-                    let scope: Scope = add_json.scope.into();
-                    let name = ServerName::from(add_json.name.clone());
-                    self.update_mcp_config(&scope, |config| {
-                        config.mcp_servers.insert(name, server);
-                    })
-                    .await?;
-
-                    self.writeln_title(TitleFormat::info(format!(
-                        "Added server: {}",
-                        add_json.name
-                    )))?;
+                McpCommand::Reload => {
+                    self.spinner.start(Some("Reloading MCPs"))?;
+                    self.api.reload_mcp().await?;
+                    self.writeln_title(TitleFormat::info("MCP reloaded"))?;
                 }
-                McpCommand::Cache(cache_args) => match cache_args.command {
-                    crate::cli::McpCacheCommand::Refresh => {
-                        self.spinner.start(Some("Reloading MCPs"))?;
-                        self.api.reload_mcp().await?;
-                        self.writeln_title(TitleFormat::info("MCP reloaded"))?;
-                    }
-                },
             },
-            TopLevelCommand::Info => {
+            TopLevelCommand::Info { porcelain } => {
                 // Make sure to init model
                 self.on_new().await?;
 
-                self.on_info().await?;
+                self.on_info(porcelain).await?;
                 return Ok(());
             }
-            TopLevelCommand::GenerateZSHPrompt => {
-                self.on_zsh_prompt().await?;
-                return Ok(());
-            }
-            TopLevelCommand::ShowAgents => {
-                self.on_show_agents().await?;
-                return Ok(());
-            }
-            TopLevelCommand::ShowProviders => {
-                self.on_show_providers().await?;
-                return Ok(());
-            }
-            TopLevelCommand::ShowModels => {
-                self.on_show_models().await?;
-                return Ok(());
-            }
-            TopLevelCommand::ShowCommands => {
-                self.on_show_commands().await?;
-                return Ok(());
-            }
-            TopLevelCommand::ShowTools { agent } => {
-                self.on_show_tools(agent).await?;
-                return Ok(());
-            }
-            TopLevelCommand::ShowBanner => {
+            TopLevelCommand::Banner => {
                 banner::display(true)?;
                 return Ok(());
             }
             TopLevelCommand::Config(config_group) => {
-                let config_manager = ConfigManager::new(self.api.clone());
-                config_manager
-                    .handle_command(config_group.command.clone())
+                self.handle_config_command(config_group.command.clone(), config_group.porcelain)
                     .await?;
                 return Ok(());
             }
@@ -413,69 +399,63 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     ) -> anyhow::Result<()> {
         use forge_domain::ConversationId;
 
-        use crate::cli::SessionCommand;
-
-        // Handle list command
-        if session_group.list {
-            self.on_show_conversations().await?;
-            return Ok(());
-        }
-
-        // For all other commands, id is required
-        let id_str = session_group.id.ok_or_else(|| {
-            anyhow::anyhow!(
-                "Error: --id is required for this command. Use 'forge session --list' to see available conversations."
-            )
-        })?;
-
-        // Parse conversation ID from the string
-        let conversation_id = ConversationId::parse(&id_str)
-            .context(format!("Invalid conversation ID: {}", id_str))?;
-
-        // Validate that the conversation exists
-        self.validate_session_exists(&conversation_id).await?;
-
         match session_group.command {
-            Some(SessionCommand::Dump(dump_args)) => {
-                // Set the conversation ID temporarily to dump it
+            SessionCommand::List => {
+                self.on_show_conversations(session_group.porcelain).await?;
+            }
+            SessionCommand::New => {
+                self.handle_generate_conversation_id().await?;
+            }
+            SessionCommand::Dump { id, format } => {
+                let conversation_id = ConversationId::parse(&id)
+                    .context(format!("Invalid conversation ID: {}", id))?;
+
+                self.validate_session_exists(&conversation_id).await?;
+
                 let original_id = self.state.conversation_id;
                 self.state.conversation_id = Some(conversation_id);
 
                 self.spinner.start(Some("Dumping"))?;
-                self.on_dump(dump_args.format).await?;
+                self.on_dump(format).await?;
 
-                // Restore original conversation ID
                 self.state.conversation_id = original_id;
             }
-            Some(SessionCommand::Compact) => {
-                // Set the conversation ID temporarily to compact it
+            SessionCommand::Compact { id } => {
+                let conversation_id = ConversationId::parse(&id)
+                    .context(format!("Invalid conversation ID: {}", id))?;
+
+                self.validate_session_exists(&conversation_id).await?;
+
                 let original_id = self.state.conversation_id;
                 self.state.conversation_id = Some(conversation_id);
 
                 self.spinner.start(Some("Compacting"))?;
                 self.on_compaction().await?;
 
-                // Restore original conversation ID
                 self.state.conversation_id = original_id;
             }
-            Some(SessionCommand::Retry) => {
-                // Set the conversation ID and retry last message
+            SessionCommand::Retry { id } => {
+                let conversation_id = ConversationId::parse(&id)
+                    .context(format!("Invalid conversation ID: {}", id))?;
+
+                self.validate_session_exists(&conversation_id).await?;
+
                 let original_id = self.state.conversation_id;
                 self.state.conversation_id = Some(conversation_id);
 
                 self.spinner.start(None)?;
                 self.on_message(None).await?;
 
-                // Restore original conversation ID
                 self.state.conversation_id = original_id;
             }
-            None => {
-                // Resume session - set conversation ID and enter interactive mode
+            SessionCommand::Resume { id } => {
+                let conversation_id = ConversationId::parse(&id)
+                    .context(format!("Invalid conversation ID: {}", id))?;
+
+                self.validate_session_exists(&conversation_id).await?;
+
                 self.state.conversation_id = Some(conversation_id);
-                self.writeln_title(TitleFormat::info(format!(
-                    "Resumed conversation: {}",
-                    id_str
-                )))?;
+                self.writeln_title(TitleFormat::info(format!("Resumed conversation: {}", id)))?;
 
                 // Replay conversation history after resuming session
                 if let Some(conversation) = self.api.conversation(&conversation_id).await? {
@@ -505,134 +485,159 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn on_show_agents(&self) -> anyhow::Result<()> {
+    async fn on_show_agents(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let agents = self.api.get_agents().await?;
 
         if agents.is_empty() {
             return Ok(());
         }
 
-        let items: Vec<(String, String)> = agents
-            .iter()
-            .map(|agent| {
-                let id = agent.id.as_str().to_string();
-                let title = agent
-                    .title
-                    .as_deref()
-                    .unwrap_or("<Missing agent.title>")
-                    .lines()
-                    .collect::<Vec<_>>()
-                    .join(" ");
-                (id, title)
-            })
-            .collect();
+        let mut info = Info::new().add_title("AGENTS");
 
-        format_columns(items);
+        for agent in agents.iter() {
+            let id = agent.id.as_str().to_string();
+            let title = agent
+                .title
+                .as_deref()
+                .unwrap_or("<Missing agent.title>")
+                .lines()
+                .collect::<Vec<_>>()
+                .join(" ");
+            info = info.add_key_value(id, title);
+        }
+
+        if porcelain {
+            let porcelain = Porcelain::from(&info).into_long().skip(1).drop_col(0);
+            self.writeln(porcelain)?;
+        } else {
+            self.writeln(info)?;
+        }
 
         Ok(())
     }
 
     /// Lists all the providers
-    async fn on_show_providers(&self) -> anyhow::Result<()> {
+    async fn on_show_providers(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let providers = self.api.providers().await?;
 
         if providers.is_empty() {
             return Ok(());
         }
 
-        let items: Vec<(String, String)> = providers
-            .iter()
-            .map(|provider| {
-                let id = provider.id.to_string();
-                let domain = provider
-                    .url
-                    .domain()
-                    .map(|d| format!("[{}]", d))
-                    .unwrap_or_default();
-                (id, domain)
-            })
-            .collect();
+        let mut info = Info::new();
 
-        format_columns(items);
+        for provider in providers.iter() {
+            let id = provider.id.to_string();
+            let domain = provider
+                .url
+                .domain()
+                .map(|d| format!("[{}]", d))
+                .unwrap_or_default();
+            info = info
+                .add_title(id.to_case(Case::UpperSnake))
+                .add_key_value("id", id)
+                .add_key_value("host", domain);
+        }
+
+        if porcelain {
+            let porcelain = Porcelain::from(&info).skip(1).drop_col(0);
+            //.drop_column(0);
+            self.writeln(porcelain)?;
+        } else {
+            self.writeln(info)?;
+        }
 
         Ok(())
     }
 
     /// Lists all the models
-    async fn on_show_models(&mut self) -> anyhow::Result<()> {
+    async fn on_show_models(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let models = self.get_models().await?;
 
         if models.is_empty() {
             return Ok(());
         }
 
-        let items: Vec<(String, String)> = models
-            .iter()
-            .map(|model| {
-                let id = model.id.to_string();
-                let mut info_parts = Vec::new();
+        let mut info = Info::new();
 
-                // Add context length if available
-                if let Some(limit) = model.context_length {
-                    if limit >= 1_000_000 {
-                        info_parts.push(format!("{}M", limit / 1_000_000));
-                    } else if limit >= 1000 {
-                        info_parts.push(format!("{}k", limit / 1000));
-                    } else {
-                        info_parts.push(format!("{limit}"));
-                    }
-                }
+        for model in models.iter() {
+            let id = model.id.to_string();
 
-                // Add tools support indicator if explicitly supported
-                if model.tools_supported == Some(true) {
-                    info_parts.push("🛠️".to_string());
-                }
+            info = info.add_title(id);
 
-                let info = if !info_parts.is_empty() {
-                    format!("[ {} ]", info_parts.join(" "))
+            // Add context length if available, otherwise use "unknown"
+            if let Some(limit) = model.context_length {
+                let context = if limit >= 1_000_000 {
+                    format!("{}M", limit / 1_000_000)
+                } else if limit >= 1000 {
+                    format!("{}k", limit / 1000)
                 } else {
-                    String::new()
+                    format!("{limit}")
                 };
+                info = info.add_key_value("Context Window", context);
+            } else {
+                info = info.add_key_value("Context Window", "<unavailable>")
+            }
 
-                (id, info)
-            })
-            .collect();
+            // Add tools support indicator if explicitly supported
+            if let Some(supported) = model.tools_supported {
+                info = info.add_key_value(
+                    "Tools",
+                    if supported {
+                        "Supported"
+                    } else {
+                        "Unsupported"
+                    },
+                )
+            } else {
+                info = info.add_key_value("Tools", "<unknown>")
+            }
+        }
 
-        format_columns(items);
+        if porcelain {
+            self.writeln(Porcelain::from(&info).skip(1).map_col(2, |col| {
+                if col == Some("Supported".to_owned()) {
+                    Some("🛠️".into())
+                } else {
+                    None
+                }
+            }))?;
+        } else {
+            self.writeln(info)?;
+        }
 
         Ok(())
     }
 
     /// Lists all the commands
-    async fn on_show_commands(&self) -> anyhow::Result<()> {
+    async fn on_show_commands(&mut self, porcelain: bool) -> anyhow::Result<()> {
+        let mut info = Info::new().add_title("COMMANDS");
+
         // Define base commands with their descriptions
-        let mut commands: Vec<(String, String)> = vec![
-            ("info".to_string(), "Print session information".to_string()),
-            ("provider".to_string(), "Switch the providers".to_string()),
-            ("model".to_string(), "Switch the models".to_string()),
-            ("new".to_string(), "Start new conversation".to_string()),
-            (
-                "dump".to_string(),
-                "Save conversation as JSON or HTML (use /dump html for HTML format)".to_string(),
-            ),
-            (
-                "conversation".to_string(),
-                "List all conversations for the active workspace".to_string(),
-            ),
-            ("retry".to_string(), "Retry the last command".to_string()),
-            (
-                "compact".to_string(),
-                "Compact the conversation context".to_string(),
-            ),
-            (
-                "tools".to_string(),
-                "List all available tools with their descriptions and schema".to_string(),
-            ),
-        ];
+        info = info
+            .add_key_value("info", "Print session information")
+            .add_key_value("provider", "Switch the providers")
+            .add_key_value("model", "Switch the models")
+            .add_key_value("new", "Start new conversation")
+            .add_key_value(
+                "dump",
+                "Save conversation as JSON or HTML (use /dump html for HTML format)",
+            )
+            .add_key_value(
+                "conversation",
+                "List all conversations for the active workspace",
+            )
+            .add_key_value("retry", "Retry the last command")
+            .add_key_value("compact", "Compact the conversation context")
+            .add_key_value(
+                "tools",
+                "List all available tools with their descriptions and schema",
+            );
 
         // Add alias commands
-        commands.push(("ask".to_string(), "Alias for agent SAGE".to_string()));
-        commands.push(("plan".to_string(), "Alias for agent MUSE".to_string()));
+        info = info
+            .add_key_value("ask", "Alias for agent SAGE")
+            .add_key_value("plan", "Alias for agent MUSE");
 
         // Fetch agents and add them to the commands list
         let agents = self.api.get_agents().await?;
@@ -644,16 +649,54 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .lines()
                 .collect::<Vec<_>>()
                 .join(" ");
-            commands.push((agent.id.to_string(), title));
+            info = info.add_key_value(agent.id.to_string(), title);
         }
 
-        format_columns(commands);
+        if porcelain {
+            let porcelain = Porcelain::from(&info).into_long().drop_col(0).skip(1);
+            self.writeln(porcelain)?;
+        } else {
+            self.writeln(info)?;
+        }
+
+        Ok(())
+    }
+
+    /// Lists current configuration values
+    async fn on_show_config(&mut self, porcelain: bool) -> anyhow::Result<()> {
+        let agent = self
+            .api
+            .get_operating_agent()
+            .await
+            .map(|a| a.as_str().to_string());
+        let model = self
+            .api
+            .get_operating_model()
+            .await
+            .map(|m| m.as_str().to_string());
+        let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
+
+        let agent_val = agent.unwrap_or_else(|| "Not set".to_string());
+        let model_val = model.unwrap_or_else(|| "Not set".to_string());
+        let provider_val = provider.unwrap_or_else(|| "Not set".to_string());
+
+        let info = Info::new()
+            .add_title("CONFIGURATION")
+            .add_key_value("Agent", agent_val)
+            .add_key_value("Model", model_val)
+            .add_key_value("Provider", provider_val);
+
+        if porcelain {
+            self.writeln(Porcelain::from(&info).into_long().skip(1).drop_col(0))?;
+        } else {
+            self.writeln(info)?;
+        }
 
         Ok(())
     }
 
     /// Displays available tools for the current agent
-    async fn on_show_tools(&mut self, agent_id: AgentId) -> anyhow::Result<()> {
+    async fn on_show_tools(&mut self, agent_id: AgentId, porcelain: bool) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading"))?;
         let all_tools = self.api.tools().await?;
         let agents = self.api.get_agents().await?;
@@ -670,17 +713,50 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         };
 
         let info = format_tools(&agent_tools, &all_tools);
-        self.writeln(info)?;
+        if porcelain {
+            self.writeln(Porcelain::from(&info).into_long().drop_col(1).skip(1))?;
+        } else {
+            self.writeln(info)?;
+        }
 
         Ok(())
     }
 
-    async fn on_info(&mut self) -> anyhow::Result<()> {
+    /// Displays all MCP servers
+    async fn on_show_mcp_servers(&mut self, porcelain: bool) -> anyhow::Result<()> {
+        let mcp_servers = self.api.read_mcp_config(None).await?;
+
+        let mut info = Info::new();
+
+        for (name, server) in mcp_servers.mcp_servers {
+            info = info
+                .add_title(name.to_uppercase())
+                .add_key_value("Command", server.to_string());
+
+            if server.is_disabled() {
+                info = info.add_key_value("Status", "disabled")
+            }
+        }
+
+        if porcelain {
+            self.writeln(Porcelain::from(&info).skip(1))?;
+        } else {
+            self.writeln(info)?;
+        }
+
+        Ok(())
+    }
+
+    async fn on_info(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let mut info = Info::from(&self.api.environment());
 
-        // Execute async operations sequentially
-        let conversation_id = &self.init_conversation().await?;
-        let conversation = self.api.conversation(conversation_id).await.ok().flatten();
+        // Fetch conversation if ID is available
+        let conversation_id = get_conversation_id_from_env().or(self.state.conversation_id);
+        let conversation = match conversation_id {
+            Some(id) => self.api.conversation(&id).await.ok().flatten(),
+            None => None,
+        };
+
         let key_info = self.api.get_login_info().await;
         let operating_agent = self.api.get_operating_agent().await;
         let operating_model = self.api.get_operating_model().await;
@@ -689,6 +765,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Add conversation information if available
         if let Some(conversation) = conversation {
             info = info.extend(Info::from(&conversation));
+        } else {
+            info = info.extend(
+                Info::new()
+                    .add_title("CONVERSATION")
+                    .add_key_value("ID", "<Uninitialized>".to_string()),
+            );
         }
 
         info = info.add_title("AGENT");
@@ -714,7 +796,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             info = info.extend(Info::from(&login_info));
         }
 
-        self.writeln(info)?;
+        if porcelain {
+            self.writeln(Porcelain::from(&info).into_long().skip(1))?;
+        } else {
+            self.writeln(info)?;
+        }
 
         Ok(())
     }
@@ -726,10 +812,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn list_conversations(&mut self) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Conversations"))?;
-        let conversations = self
-            .api
-            .list_conversations(Some(MAX_CONVERSATIONS_TO_SHOW))
-            .await?;
+        let max_conversations = self.api.environment().max_conversations;
+        let conversations = self.api.list_conversations(Some(max_conversations)).await?;
         self.spinner.stop(None)?;
 
         if conversations.is_empty() {
@@ -750,45 +834,49 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn on_show_conversations(&mut self) -> anyhow::Result<()> {
-        let conversations = self
-            .api
-            .list_conversations(Some(MAX_CONVERSATIONS_TO_SHOW))
-            .await?;
+    async fn on_show_conversations(&mut self, porcelain: bool) -> anyhow::Result<()> {
+        let max_conversations = self.api.environment().max_conversations;
+        let conversations = self.api.list_conversations(Some(max_conversations)).await?;
 
         if conversations.is_empty() {
             return Ok(());
         }
 
-        // Format conversations as 3-column output: <id> <title> <time_ago>
-        let items: Vec<(String, String, String)> = conversations
-            .into_iter()
-            .filter(|conv| conv.title.is_some() && conv.context.is_some())
-            .map(|conv| {
-                let title = conv.title.as_deref().unwrap();
-                let title = if title.len() > 30 {
-                    format!("{}...", &title[..30])
-                } else {
-                    title.to_string()
-                };
+        let mut info = Info::new().add_title("SESSIONS");
 
-                // Format time using humantime library (same as conversation_selector.rs)
-                let duration = chrono::Utc::now().signed_duration_since(
-                    conv.metadata.updated_at.unwrap_or(conv.metadata.created_at),
-                );
-                let duration =
-                    std::time::Duration::from_secs((duration.num_minutes() * 60).max(0) as u64);
-                let time_ago = if duration.is_zero() {
-                    "now".to_string()
-                } else {
-                    format!("{} ago", humantime::format_duration(duration))
-                };
+        for conv in conversations.into_iter() {
+            if conv.title.is_none() || conv.context.is_none() {
+                continue;
+            }
 
-                (title.to_string(), time_ago, conv.id.to_string())
-            })
-            .collect();
+            let title = conv.title.as_deref().unwrap();
 
-        format_columns(items);
+            // Format time using humantime library (same as conversation_selector.rs)
+            let duration = chrono::Utc::now().signed_duration_since(
+                conv.metadata.updated_at.unwrap_or(conv.metadata.created_at),
+            );
+            let duration =
+                std::time::Duration::from_secs((duration.num_minutes() * 60).max(0) as u64);
+            let time_ago = if duration.is_zero() {
+                "now".to_string()
+            } else {
+                format!("{} ago", humantime::format_duration(duration))
+            };
+
+            // Add conversation: Title=<title>, Updated=<time_ago>, with ID as section title
+            info = info
+                .add_title(title.to_string())
+                .add_key_value("Updated", time_ago)
+                .add_key_value("Id", conv.id);
+        }
+
+        // In porcelain mode, skip the top-level "SESSIONS" title
+        if porcelain {
+            let porcelain = Porcelain::from(&info).skip(2).truncate(0, 60);
+            self.writeln(porcelain)?;
+        } else {
+            self.writeln(info)?;
+        }
 
         Ok(())
     }
@@ -810,7 +898,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_new().await?;
             }
             Command::Info => {
-                self.on_info().await?;
+                self.on_info(false).await?;
             }
             Command::Usage => {
                 self.on_usage().await?;
@@ -834,7 +922,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
             Command::Tools => {
                 let agent_id = self.api.get_operating_agent().await.unwrap_or_default();
-                self.on_show_tools(agent_id).await?;
+                self.on_show_tools(agent_id, false).await?;
             }
             Command::Update => {
                 on_update(self.api.clone(), None).await;
@@ -1222,6 +1310,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         if first {
             // only call on_update if this is the first initialization
             on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
+            if !workflow.commands.is_empty() {
+                self.writeln_title(TitleFormat::error("forge.yaml commands are deprecated. Use .md files in forge/ (home) or .forge/ (project) instead"))?;
+            }
         }
 
         // Execute independent operations in parallel to improve performance
@@ -1256,9 +1347,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         }
 
-        // Finalize UI state initialization by registering commands and setting up the
-        // state
-        self.command.register_all(&base_workflow);
+        // Register all the commands
+        self.command.register_all(self.api.get_commands().await?);
+
         let operating_model = self.api.get_operating_model().await;
         self.state = UIState::new(self.api.environment());
         self.update_model(operating_model);
@@ -1539,6 +1630,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn on_completion(&mut self, conversation_id: ConversationId) -> anyhow::Result<()> {
+        if !should_show_completion_prompt() {
+            return Ok(());
+        }
+
         self.spinner.start(Some("Loading Summary"))?;
         let conversation = self
             .api
@@ -1552,7 +1647,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         self.spinner.stop(None)?;
 
-        // Only prompt for new conversation if in interactive mode
+        // Only prompt for new conversation if in interactive mode and prompt is enabled
         if self.cli.is_interactive() {
             let prompt_text = "Start a new conversation?";
             let should_start_new_chat = ForgeSelect::confirm(prompt_text)
@@ -1583,14 +1678,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let conversation_id = self.init_conversation().await?;
         let chat = ChatRequest::new(event, conversation_id);
         self.on_chat(chat).await
-    }
-
-    async fn update_mcp_config(&self, scope: &Scope, f: impl FnOnce(&mut McpConfig)) -> Result<()> {
-        let mut config = self.api.read_mcp_config().await?;
-        f(&mut config);
-        self.api.write_mcp_config(scope, &config).await?;
-
-        Ok(())
     }
 
     async fn on_usage(&mut self) -> anyhow::Result<()> {
@@ -1634,4 +1721,173 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         });
     }
+
+    /// Handle config command
+    async fn handle_config_command(
+        &mut self,
+        command: crate::cli::ConfigCommand,
+        porcelain: bool,
+    ) -> Result<()> {
+        match command {
+            crate::cli::ConfigCommand::Set(args) => self.handle_config_set(args).await?,
+            crate::cli::ConfigCommand::Get(args) => self.handle_config_get(args).await?,
+            crate::cli::ConfigCommand::List => {
+                self.on_show_config(porcelain).await?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Handle config set command
+    async fn handle_config_set(&mut self, args: crate::cli::ConfigSetArgs) -> Result<()> {
+        if args.has_any_field() {
+            // Non-interactive mode: set specified values
+            self.handle_non_interactive_config_set(args).await
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Handle non-interactive config set
+    async fn handle_non_interactive_config_set(
+        &mut self,
+        args: crate::cli::ConfigSetArgs,
+    ) -> Result<()> {
+        // Set provider if specified
+        if let Some(provider_str) = args.provider {
+            let provider_id = self.validate_provider(&provider_str).await?;
+            self.api.set_provider(provider_id).await?;
+            self.writeln_title(TitleFormat::action("Provider set").sub_title(&provider_str))?;
+        }
+
+        // Set agent if specified
+        if let Some(agent_str) = args.agent {
+            let agent_id = self.validate_agent(&agent_str).await?;
+            self.api.set_operating_agent(agent_id.clone()).await?;
+            self.writeln_title(TitleFormat::action("Agent set").sub_title(agent_id.as_str()))?;
+        }
+
+        // Set model if specified
+        if let Some(model_str) = args.model {
+            let model_id = self.validate_model(&model_str).await?;
+            self.api.set_operating_model(model_id.clone()).await?;
+            self.writeln_title(TitleFormat::action("Model set").sub_title(model_id.as_str()))?;
+        }
+
+        Ok(())
+    }
+
+    /// Handle config get command
+    async fn handle_config_get(&mut self, args: crate::cli::ConfigGetArgs) -> Result<()> {
+        use crate::cli::ConfigField;
+
+        // Get specific field
+        match args.field {
+            ConfigField::Agent => {
+                let agent = self
+                    .api
+                    .get_operating_agent()
+                    .await
+                    .map(|a| a.as_str().to_string());
+                match agent {
+                    Some(v) => self.writeln(v.to_string())?,
+                    None => self.writeln("Agent: Not set")?,
+                }
+            }
+            ConfigField::Model => {
+                let model = self
+                    .api
+                    .get_operating_model()
+                    .await
+                    .map(|m| m.as_str().to_string());
+                match model {
+                    Some(v) => self.writeln(v.to_string())?,
+                    None => self.writeln("Model: Not set")?,
+                }
+            }
+            ConfigField::Provider => {
+                let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
+                match provider {
+                    Some(v) => self.writeln(v.to_string())?,
+                    None => self.writeln("Provider: Not set")?,
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate agent exists
+    async fn validate_agent(&self, agent_str: &str) -> Result<AgentId> {
+        let agents = self.api.get_agents().await?;
+        let agent_id = AgentId::new(agent_str);
+
+        if agents.iter().any(|a| a.id == agent_id) {
+            Ok(agent_id)
+        } else {
+            let available: Vec<_> = agents.iter().map(|a| a.id.as_str()).collect();
+            Err(anyhow::anyhow!(
+                "Agent '{}' not found. Available agents: {}",
+                agent_str,
+                available.join(", ")
+            ))
+        }
+    }
+
+    /// Validate model exists
+    async fn validate_model(&self, model_str: &str) -> Result<ModelId> {
+        let models = self.api.models().await?;
+        let model_id = ModelId::new(model_str);
+
+        if models.iter().any(|m| m.id == model_id) {
+            Ok(model_id)
+        } else {
+            // Show first 10 models as suggestions
+            let available: Vec<_> = models.iter().take(10).map(|m| m.id.as_str()).collect();
+            let suggestion = if models.len() > 10 {
+                format!("{} (and {} more)", available.join(", "), models.len() - 10)
+            } else {
+                available.join(", ")
+            };
+
+            Err(anyhow::anyhow!(
+                "Model '{}' not found. Available models: {}",
+                model_str,
+                suggestion
+            ))
+        }
+    }
+
+    /// Validate provider exists and has API key
+    async fn validate_provider(&self, provider_str: &str) -> Result<ProviderId> {
+        // Parse provider ID from string
+        let provider_id = ProviderId::from_str(provider_str).with_context(|| {
+            format!(
+                "Invalid provider: '{}'. Valid providers are: {}",
+                provider_str,
+                get_valid_provider_names().join(", ")
+            )
+        })?;
+
+        // Check if provider has valid API key
+        let providers = self.api.providers().await?;
+        if providers.iter().any(|p| p.id == provider_id) {
+            Ok(provider_id)
+        } else {
+            Err(anyhow::anyhow!(
+                "Provider '{}' is not available. Make sure the API key is set. Available providers: {}",
+                provider_str,
+                providers
+                    .iter()
+                    .map(|p| p.id.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ))
+        }
+    }
+}
+
+/// Get list of valid provider names
+fn get_valid_provider_names() -> Vec<String> {
+    ProviderId::iter().map(|p| p.to_string()).collect()
 }

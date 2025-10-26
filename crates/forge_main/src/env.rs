@@ -3,6 +3,7 @@ use forge_api::{AgentId, ConversationId};
 // Environment variable names
 pub const FORGE_CONVERSATION_ID: &str = "FORGE_CONVERSATION_ID";
 pub const FORGE_ACTIVE_AGENT: &str = "FORGE_ACTIVE_AGENT";
+pub const FORGE_SHOW_TASK_STATS: &str = "FORGE_SHOW_TASK_STATS";
 
 /// Get conversation ID from FORGE_CONVERSATION_ID environment variable
 pub fn get_conversation_id_from_env() -> Option<ConversationId> {
@@ -16,22 +17,16 @@ pub fn get_agent_from_env() -> Option<AgentId> {
     std::env::var(FORGE_ACTIVE_AGENT).ok().map(AgentId::new)
 }
 
-/// Parses environment variable strings in KEY=VALUE format into a BTreeMap
+/// Check if the completion prompt should be shown
 ///
-/// Takes a vector of strings where each string should be in the format
-/// "KEY=VALUE" and returns a BTreeMap with the parsed key-value pairs. Invalid
-/// entries (without an '=' separator) are silently skipped.
-pub fn parse_env(env: Vec<String>) -> std::collections::BTreeMap<String, String> {
-    env.into_iter()
-        .filter_map(|s| {
-            let mut parts = s.splitn(2, '=');
-            if let (Some(key), Some(value)) = (parts.next(), parts.next()) {
-                Some((key.to_string(), value.to_string()))
-            } else {
-                None
-            }
-        })
-        .collect()
+/// Returns true if the environment variable is not set, cannot be parsed, or is
+/// set to "true" (case-insensitive). Returns false only if explicitly set to
+/// "false".
+pub fn should_show_completion_prompt() -> bool {
+    std::env::var(FORGE_SHOW_TASK_STATS)
+        .ok()
+        .and_then(|val| val.trim().parse::<bool>().ok())
+        .unwrap_or(true)
 }
 
 #[cfg(test)]
@@ -113,56 +108,5 @@ mod tests {
         let expected = None;
 
         assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_parse_env_with_valid_entries() {
-        let fixture = vec![
-            "HOME=/home/user".to_string(),
-            "PATH=/usr/bin".to_string(),
-            "LANG=en_US.UTF-8".to_string(),
-        ];
-
-        let actual = parse_env(fixture);
-
-        assert_eq!(actual.get("HOME"), Some(&"/home/user".to_string()));
-        assert_eq!(actual.get("PATH"), Some(&"/usr/bin".to_string()));
-        assert_eq!(actual.get("LANG"), Some(&"en_US.UTF-8".to_string()));
-        assert_eq!(actual.len(), 3);
-    }
-
-    #[test]
-    fn test_parse_env_with_empty_vector() {
-        let fixture = vec![];
-
-        let actual = parse_env(fixture);
-        let expected = std::collections::BTreeMap::new();
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_parse_env_with_invalid_entries() {
-        let fixture = vec![
-            "VALID=value".to_string(),
-            "INVALID_NO_EQUALS".to_string(),
-            "ANOTHER=valid".to_string(),
-        ];
-
-        let actual = parse_env(fixture);
-
-        assert_eq!(actual.get("VALID"), Some(&"value".to_string()));
-        assert_eq!(actual.get("ANOTHER"), Some(&"valid".to_string()));
-        assert_eq!(actual.get("INVALID_NO_EQUALS"), None);
-        assert_eq!(actual.len(), 2);
-    }
-
-    #[test]
-    fn test_parse_env_with_equals_in_value() {
-        let fixture = vec!["KEY=value=with=equals".to_string()];
-
-        let actual = parse_env(fixture);
-
-        assert_eq!(actual.get("KEY"), Some(&"value=with=equals".to_string()));
     }
 }
