@@ -1077,19 +1077,26 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Sort the providers by their display names in ascending order
         providers.sort_by_key(|a| a.to_string());
 
-        // Find the index of the current provider
         let current_provider = self.api.get_provider().await.ok();
         let starting_cursor = current_provider
             .as_ref()
             .and_then(|current| providers.iter().position(|p| p.0.id == current.id))
             .unwrap_or(0);
 
-        // Use the centralized select module
-        match ForgeSelect::select("Select a provider:", providers)
+        let initial_text = current_provider
+            .as_ref()
+            .and_then(|current| providers.iter().find(|p| p.0.id == current.id))
+            .map(|p| p.to_string());
+
+        let mut select = ForgeSelect::select("Select a provider:", providers)
             .with_starting_cursor(starting_cursor)
-            .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
-            .prompt()?
-        {
+            .with_help_message("Type a name or use arrow keys to navigate and Enter to select");
+
+        if let Some(text) = initial_text {
+            select = select.with_initial_text(text);
+        }
+
+        match select.prompt()? {
             Some(provider) => Ok(Some(provider.0)),
             None => Ok(None),
         }
