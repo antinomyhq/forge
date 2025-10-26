@@ -391,7 +391,7 @@ pub trait ProviderAuthService: Send + Sync {
         &self,
         provider_id: ProviderId,
         method: AuthMethod,
-    ) -> anyhow::Result<crate::dto::AuthInitiation>;
+    ) -> anyhow::Result<crate::dto::AuthRequest>;
 
     /// Complete provider authentication and save credentials
     /// For OAuth flows (Device/Code), this will poll until completion then save
@@ -863,7 +863,7 @@ impl<I: Services> ProviderAuthService for I {
         &self,
         provider_id: ProviderId,
         method: crate::dto::AuthMethod,
-    ) -> anyhow::Result<crate::dto::AuthInitiation> {
+    ) -> anyhow::Result<crate::dto::AuthRequest> {
         self.provider_auth_service()
             .init_provider_auth(provider_id, method)
             .await

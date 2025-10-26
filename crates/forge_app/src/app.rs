@@ -256,7 +256,7 @@ impl<S: Services> ForgeApp<S> {
         &self,
         provider_id: crate::dto::ProviderId,
         method: crate::dto::AuthMethod,
-    ) -> Result<crate::dto::AuthInitiation> {
+    ) -> Result<crate::dto::AuthRequest> {
         self.services.init_provider_auth(provider_id, method).await
     }
 

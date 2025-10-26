@@ -56,7 +56,7 @@ impl AuthMethod {
 /// Result of initiating authentication.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
-pub enum AuthInitiation {
+pub enum AuthRequest {
     ApiKeyPrompt {
         required_params: Vec<URLParam>,
     },

@@ -10,7 +10,7 @@ use std::time::Duration;
 use chrono::Utc;
 use forge_app::ProviderAuthService;
 use forge_app::dto::{
-    AuthContext, AuthInitiation, AuthResult, OAuthConfig, OAuthTokens, ProviderCredential,
+    AuthContext, AuthRequest, AuthResult, OAuthConfig, OAuthTokens, ProviderCredential,
     ProviderId,
 };
 
@@ -46,8 +46,8 @@ impl<I> ForgeProviderAuthService<I> {
     async fn handle_api_key_init(
         &self,
         required_params: Vec<forge_app::dto::URLParam>,
-    ) -> Result<AuthInitiation, super::AuthFlowError> {
-        Ok(AuthInitiation::ApiKeyPrompt { required_params })
+    ) -> Result<AuthRequest, super::AuthFlowError> {
+        Ok(AuthRequest::ApiKeyPrompt { required_params })
     }
 
     /// Handles API key authentication completion
@@ -66,7 +66,7 @@ impl<I> ForgeProviderAuthService<I> {
     async fn handle_oauth_device_init(
         &self,
         config: &crate::provider::OAuthConfig,
-    ) -> Result<AuthInitiation, super::AuthFlowError> {
+    ) -> Result<AuthRequest, super::AuthFlowError> {
         // Validate configuration
         // Build oauth2 client
         use oauth2::basic::BasicClient;
@@ -117,7 +117,7 @@ impl<I> ForgeProviderAuthService<I> {
             device_auth_response.interval().as_secs(),
         );
 
-        Ok(AuthInitiation::DeviceFlow {
+        Ok(AuthRequest::DeviceFlow {
             user_code: device_auth_response.user_code().secret().to_string(),
             verification_uri: device_auth_response.verification_uri().to_string(),
             verification_uri_complete: device_auth_response
@@ -331,7 +331,7 @@ impl<I> ForgeProviderAuthService<I> {
         &self,
         _provider_id: &ProviderId,
         config: &crate::provider::OAuthConfig,
-    ) -> Result<AuthInitiation, super::AuthFlowError> {
+    ) -> Result<AuthRequest, super::AuthFlowError> {
         use super::AuthFlowError;
 
         // Build authorization URL with PKCE
@@ -343,7 +343,7 @@ impl<I> ForgeProviderAuthService<I> {
         let context =
             AuthContext::code(auth_params.state.clone(), auth_params.code_verifier.clone());
 
-        Ok(AuthInitiation::CodeFlow {
+        Ok(AuthRequest::CodeFlow {
             authorization_url: auth_params.auth_url,
             state: auth_params.state,
             context,
@@ -408,7 +408,7 @@ impl<I> ForgeProviderAuthService<I> {
         &self,
         _provider_id: &ProviderId,
         config: &crate::provider::OAuthConfig,
-    ) -> Result<AuthInitiation, super::AuthFlowError> {
+    ) -> Result<AuthRequest, super::AuthFlowError> {
         // Validate configuration
         // Build oauth2 client
         use oauth2::basic::BasicClient;
@@ -460,7 +460,7 @@ impl<I> ForgeProviderAuthService<I> {
             interval,
         );
 
-        Ok(AuthInitiation::DeviceFlow {
+        Ok(AuthRequest::DeviceFlow {
             user_code: device_auth_response.user_code().secret().to_string(),
             verification_uri: device_auth_response.verification_uri().to_string(),
             verification_uri_complete: device_auth_response
@@ -891,7 +891,7 @@ where
         &self,
         provider_id: ProviderId,
         method: AuthMethod,
-    ) -> anyhow::Result<AuthInitiation> {
+    ) -> anyhow::Result<AuthRequest> {
         // Get URL parameters from provider config
         let url_param_vars = self.get_url_param_vars(&provider_id);
 

@@ -249,7 +249,7 @@ impl<A: Services, F: CommandInfra + AppConfigRepository + ProviderCredentialRepo
         &self,
         provider_id: ProviderId,
         method: AuthMethod,
-    ) -> Result<forge_app::dto::AuthInitiation> {
+    ) -> Result<forge_app::dto::AuthRequest> {
         let forge_app = ForgeApp::new(self.services.clone());
         Ok(forge_app.init_provider_auth(provider_id, method).await?)
     }

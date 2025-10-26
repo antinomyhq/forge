@@ -618,11 +618,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .await?;
 
         match init {
-            forge_api::AuthInitiation::ApiKeyPrompt { required_params } => {
+            forge_api::AuthRequest::ApiKeyPrompt { required_params } => {
                 self.handle_api_key_prompt(provider_id, selected_method.clone(), required_params)
                     .await?
             }
-            forge_api::AuthInitiation::DeviceFlow {
+            forge_api::AuthRequest::DeviceFlow {
                 context,
                 user_code,
                 verification_uri,
@@ -639,7 +639,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 )
                 .await?
             }
-            forge_api::AuthInitiation::CodeFlow { authorization_url, context, .. } => {
+            forge_api::AuthRequest::CodeFlow { authorization_url, context, .. } => {
                 self.handle_code_flow(
                     provider_id,
                     selected_method.clone(),
