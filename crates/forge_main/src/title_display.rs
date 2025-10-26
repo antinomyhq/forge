@@ -41,9 +41,9 @@ impl TitleDisplay {
 
         // Add timestamp if requested
         if self.with_timestamp {
-            let timestamp_str = if let Some(replay_ts) = self.inner.timestamp {
+            let timestamp_str = if let Some(timestamp) = self.inner.timestamp {
                 // Use replay timestamp if provided
-                let local_time: chrono::DateTime<Local> = replay_ts.into();
+                let local_time: chrono::DateTime<Local> = timestamp.into();
                 format!("[{}] ", local_time.format("%H:%M:%S"))
             } else {
                 // Use current time for live conversations
