@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use forge_app::dto::{
-    AuthResponse, AuthMethod, InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId,
+    AuthMethod, AuthResponse, InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId,
     ToolsOverview,
 };
 use forge_app::{

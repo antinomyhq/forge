@@ -16,7 +16,7 @@ use url::Url;
 
 use crate::Walker;
 use crate::dto::{
-    AuthResponse, AuthMethod, InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId,
+    AuthMethod, AuthResponse, InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId,
 };
 use crate::user::{User, UserUsage};
 
