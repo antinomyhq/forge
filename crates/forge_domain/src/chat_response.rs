@@ -193,16 +193,17 @@ impl TitleFormat {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use pretty_assertions::assert_eq;
     use chrono::{DateTime, Utc};
+    use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
     fn test_title_format_with_timestamp() {
         let timestamp = DateTime::parse_from_rfc3339("2023-10-26T10:30:00Z")
             .unwrap()
             .with_timezone(&Utc);
-        
+
         let title = TitleFormat {
             title: "Test Action".to_string(),
             sub_title: Some("Subtitle".to_string()),
@@ -219,7 +220,7 @@ mod tests {
     #[test]
     fn test_title_format_without_timestamp() {
         let title = TitleFormat::info("Test Info");
-        
+
         assert_eq!(title.title, "Test Info");
         assert_eq!(title.sub_title, None);
         assert_eq!(title.category, Category::Info);
@@ -254,7 +255,7 @@ mod tests {
         let timestamp = DateTime::parse_from_rfc3339("2023-10-26T14:45:30Z")
             .unwrap()
             .with_timezone(&Utc);
-        
+
         let title = TitleFormat::info("Test")
             .timestamp(timestamp)
             .sub_title("With timestamp");

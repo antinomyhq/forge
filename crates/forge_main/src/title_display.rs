@@ -130,16 +130,17 @@ impl TitleDisplayExt for TitleFormat {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use forge_domain::{Category, TitleFormat};
     use chrono::{DateTime, Utc};
+    use forge_domain::{Category, TitleFormat};
+
+    use super::*;
 
     #[test]
     fn test_title_display_with_replay_timestamp() {
         let replay_timestamp = DateTime::parse_from_rfc3339("2023-10-26T10:30:00Z")
             .unwrap()
             .with_timezone(&Utc);
-        
+
         let title = TitleFormat {
             title: "Test Action".to_string(),
             sub_title: Some("Subtitle".to_string()),
@@ -163,7 +164,7 @@ mod tests {
     #[test]
     fn test_title_display_without_timestamp() {
         let title = TitleFormat::info("Test Info");
-        
+
         let display = title.display().with_timestamp(true).with_colors(false);
         let output = display.to_string();
 
@@ -179,7 +180,7 @@ mod tests {
         let replay_timestamp = DateTime::parse_from_rfc3339("2023-10-26T10:30:00Z")
             .unwrap()
             .with_timezone(&Utc);
-        
+
         let title = TitleFormat {
             title: "Test Action".to_string(),
             sub_title: None,
@@ -201,7 +202,7 @@ mod tests {
         let replay_timestamp = DateTime::parse_from_rfc3339("2023-10-26T14:45:30Z")
             .unwrap()
             .with_timezone(&Utc);
-        
+
         let title = TitleFormat {
             title: "Error Message".to_string(),
             sub_title: Some("Error details".to_string()),
@@ -262,26 +263,26 @@ mod tests {
     #[test]
     fn test_title_display_current_time_fallback() {
         let title = TitleFormat::debug("Debug Message");
-        
+
         // Get time before display
         let before = chrono::Local::now();
-        
+
         let display = title.display().with_timestamp(true).with_colors(false);
         let output = display.to_string();
-        
+
         // Get time after display
         let after = chrono::Local::now();
-        
+
         // Extract timestamp from output (format: [HH:MM:SS])
         let timestamp_start = output.find('[').unwrap();
         let timestamp_end = output.find(']').unwrap();
         let timestamp_str = &output[timestamp_start + 1..timestamp_end];
-        
+
         // Parse the timestamp to verify it's within expected range
         let output_time = chrono::NaiveTime::parse_from_str(timestamp_str, "%H:%M:%S").unwrap();
         let before_time = before.time();
         let after_time = after.time();
-        
+
         // The timestamp should be between before and after (allowing for some margin)
         assert!(output_time >= before_time || output_time <= after_time);
     }
@@ -291,9 +292,8 @@ mod tests {
         let replay_timestamp = DateTime::parse_from_rfc3339("2023-10-26T16:20:10Z")
             .unwrap()
             .with_timezone(&Utc);
-        
-        let title = TitleFormat::info("Extension Test")
-            .timestamp(replay_timestamp);
+
+        let title = TitleFormat::info("Extension Test").timestamp(replay_timestamp);
 
         // Convert to local time for verification
         let local_time: chrono::DateTime<chrono::Local> = replay_timestamp.into();
@@ -320,7 +320,7 @@ mod tests {
         // We need to check for the specific timestamp pattern, not just any brackets
         // since ANSI color codes also contain brackets
         let has_timestamp_pattern = output3.matches("[").count() >= 2 && output3.contains("]:");
-        
+
         assert!(!has_timestamp_pattern);
     }
 }
