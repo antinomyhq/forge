@@ -275,19 +275,6 @@ impl<S: Services> ForgeApp<S> {
             .await
     }
 
-    /// Save provider credentials with explicit result (for ApiKey flows)
-    pub async fn save_provider_credentials(
-        &self,
-        provider_id: crate::dto::ProviderId,
-        result: crate::dto::AuthResult,
-        method: crate::dto::AuthMethod,
-    ) -> Result<()> {
-        self.services
-            .complete_provider_auth_with_result(provider_id, result, method)
-            .await?;
-        Ok(())
-    }
-
     pub async fn read_workflow(&self, path: Option<&Path>) -> Result<Workflow> {
         self.services.read_workflow(path).await
     }
