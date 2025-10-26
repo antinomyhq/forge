@@ -530,7 +530,7 @@ impl Command {
 #[cfg(test)]
 mod tests {
     use console::strip_ansi_codes;
-    use forge_api::{ModelId, ProviderId, ProviderResponse};
+    use forge_api::{ModelId, Models, ProviderId, ProviderResponse};
     use pretty_assertions::assert_eq;
     use url::Url;
 
