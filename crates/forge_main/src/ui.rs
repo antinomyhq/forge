@@ -581,13 +581,18 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         if porcelain {
-            self.writeln(Porcelain::from(&info).skip(1).drop_col(0).map_col(2, |col| {
-                if col == Some("Supported".to_owned()) {
-                    Some("🛠️".into())
-                } else {
-                    None
-                }
-            }))?;
+            self.writeln(
+                Porcelain::from(&info)
+                    .skip(1)
+                    .drop_col(0)
+                    .map_col(2, |col| {
+                        if col == Some("Supported".to_owned()) {
+                            Some("🛠️".into())
+                        } else {
+                            None
+                        }
+                    }),
+            )?;
         } else {
             self.writeln(info)?;
         }

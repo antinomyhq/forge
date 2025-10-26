@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
 use colored::Colorize;
-use forge_api::{Event, Model, Provider};
+use forge_api::{Event, Model, Models, Provider};
 use forge_domain::Agent;
 use serde::Deserialize;
 use serde_json::Value;
@@ -983,7 +983,7 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: None,
-            model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
+            models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
         };
         let actual = format!("{}", CliProvider(fixture));
         let expected = "OpenAI [api.openai.com]";
@@ -997,7 +997,7 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://openrouter.ai/api/v1/chat/completions").unwrap(),
             key: None,
-            model_url: Url::parse("https://openrouter.ai/api/v1/models").unwrap(),
+            models: Models::Url(Url::parse("https://openrouter.ai/api/v1/models").unwrap()),
         };
         let actual = format!("{}", CliProvider(fixture));
         let expected = "OpenRouter [openrouter.ai]";
@@ -1011,7 +1011,7 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("http://localhost:8080/chat/completions").unwrap(),
             key: None,
-            model_url: Url::parse("http://localhost:8080/models").unwrap(),
+            models: Models::Url(Url::parse("http://localhost:8080/models").unwrap()),
         };
         let actual = format!("{}", CliProvider(fixture));
         let expected = "Forge [localhost]";
