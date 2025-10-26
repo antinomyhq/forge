@@ -8,7 +8,7 @@ use serde::Deserialize;
 use tokio::sync::OnceCell;
 use url::Url;
 
-use crate::{AppConfigRepository, EnvironmentInfra, ProviderError};
+use crate::{AppConfigRepository, EnvironmentInfra, FileReaderInfra, ProviderError};
 
 /// Represents the source of models for a provider
 #[derive(Debug, Clone, Deserialize)]
@@ -20,7 +20,7 @@ enum Models {
     Hardcoded(Vec<forge_app::domain::Model>),
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct ProviderConfig {
     id: ProviderId,
     api_key_vars: String,
@@ -41,7 +41,7 @@ fn get_provider_configs() -> &'static Vec<ProviderConfig> {
     PROVIDER_CONFIGS.get_or_init(|| {
         let json_str = include_str!("provider.json");
         serde_json::from_str(json_str)
-            .map_err(|e| anyhow::anyhow!("Failed to parse provider configs: {e}"))
+            .map_err(|e| anyhow::anyhow!("Failed to parse embedded provider configs: {e}"))
             .unwrap()
     })
 }
@@ -52,7 +52,7 @@ pub struct ForgeProviderRegistry<F> {
     providers: OnceCell<Vec<Provider>>,
 }
 
-impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
+impl<F: EnvironmentInfra + AppConfigRepository + FileReaderInfra> ForgeProviderRegistry<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self {
             infra,
@@ -61,14 +61,25 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
         }
     }
 
+    /// Loads provider configs from the base directory if they exist
+    async fn get_custom_provider_configs(&self) -> anyhow::Result<Vec<ProviderConfig>> {
+        let environment = self.infra.get_environment();
+        let provider_json_path = environment.base_path.join("provider.json");
+
+        let json_str = self.infra.read_utf8(&provider_json_path).await?;
+        let configs = serde_json::from_str(&json_str)?;
+        Ok(configs)
+    }
+
     async fn get_providers(&self) -> &Vec<Provider> {
         self.providers
-            .get_or_init(|| async { self.init_providers() })
+            .get_or_init(|| async { self.init_providers().await })
             .await
     }
 
-    fn init_providers(&self) -> Vec<Provider> {
-        let configs = get_provider_configs();
+    async fn init_providers(&self) -> Vec<Provider> {
+        let mut configs = get_provider_configs().clone();
+        configs.extend(self.get_custom_provider_configs().await.unwrap_or_default());
 
         configs
             .iter()
@@ -180,7 +191,9 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + AppConfigRepository> ProviderRegistry for ForgeProviderRegistry<F> {
+impl<F: EnvironmentInfra + AppConfigRepository + FileReaderInfra> ProviderRegistry
+    for ForgeProviderRegistry<F>
+{
     async fn get_active_provider(&self) -> anyhow::Result<Provider> {
         let app_config = self.infra.get_app_config().await?;
         if let Some(provider_id) = app_config.provider {
@@ -385,6 +398,7 @@ mod tests {
 #[cfg(test)]
 mod env_tests {
     use std::collections::HashMap;
+    use std::path::PathBuf;
     use std::sync::Arc;
 
     use forge_app::domain::Environment;
@@ -409,6 +423,26 @@ mod env_tests {
     }
 
     #[async_trait::async_trait]
+    impl FileReaderInfra for MockInfra {
+        async fn read_utf8(&self, _path: &std::path::Path) -> anyhow::Result<String> {
+            Err(anyhow::anyhow!("File not found"))
+        }
+
+        async fn read(&self, _path: &std::path::Path) -> anyhow::Result<Vec<u8>> {
+            Err(anyhow::anyhow!("File not found"))
+        }
+
+        async fn range_read_utf8(
+            &self,
+            _path: &std::path::Path,
+            _start_line: u64,
+            _end_line: u64,
+        ) -> anyhow::Result<(String, forge_fs::FileInfo)> {
+            Err(anyhow::anyhow!("File not found"))
+        }
+    }
+
+    #[async_trait::async_trait]
     impl AppConfigRepository for MockInfra {
         async fn get_app_config(&self) -> anyhow::Result<forge_app::dto::AppConfig> {
             Ok(forge_app::dto::AppConfig::default())
@@ -419,8 +453,8 @@ mod env_tests {
         }
     }
 
-    #[test]
-    fn test_create_azure_provider_with_handlebars_urls() {
+    #[tokio::test]
+    async fn test_create_azure_provider_with_handlebars_urls() {
         // Setup environment variables
         let mut env_vars = HashMap::new();
         env_vars.insert("AZURE_API_KEY".to_string(), "test-key-123".to_string());
@@ -441,7 +475,7 @@ mod env_tests {
         let registry = ForgeProviderRegistry::new(infra);
 
         // Get Azure config
-        let configs = get_provider_configs();
+        let configs = registry.init_providers().await;
         let azure_config = configs
             .iter()
             .find(|c| c.id == ProviderId::Azure)
@@ -565,5 +599,112 @@ mod env_tests {
             anthropic_provider.url.as_str(),
             "https://custom.anthropic.com/v1/messages"
         );
+    }
+
+    #[tokio::test]
+    async fn test_merge_base_provider_configs() {
+        use std::io::Write;
+
+        use tempfile::TempDir;
+
+        // Create a temporary directory to act as base_path
+        let temp_dir = TempDir::new().unwrap();
+        let base_path = temp_dir.path().to_path_buf();
+
+        // Create a custom provider.json in the base directory
+        // Only override OpenAI, don't add custom providers
+        let provider_json_path = base_path.join("provider.json");
+        let mut file = std::fs::File::create(&provider_json_path).unwrap();
+        let custom_config = r#"[
+            {
+                "id": "openai",
+                "api_key_vars": "CUSTOM_OPENAI_KEY",
+                "url_param_vars": [],
+                "response_type": "OpenAI",
+                "url": "https://custom.openai.com/v1/chat/completions",
+                "models": "https://custom.openai.com/v1/models"
+            }
+        ]"#;
+        file.write_all(custom_config.as_bytes()).unwrap();
+        drop(file);
+
+        // Create mock infra with the custom base_path
+        let mut env_vars = HashMap::new();
+        env_vars.insert("CUSTOM_OPENAI_KEY".to_string(), "test-key".to_string());
+
+        struct CustomMockInfra {
+            env_vars: HashMap<String, String>,
+            base_path: PathBuf,
+        }
+
+        impl EnvironmentInfra for CustomMockInfra {
+            fn get_environment(&self) -> Environment {
+                use fake::{Fake, Faker};
+                let mut env: Environment = Faker.fake();
+                env.base_path = self.base_path.clone();
+                env
+            }
+
+            fn get_env_var(&self, key: &str) -> Option<String> {
+                self.env_vars.get(key).cloned()
+            }
+        }
+
+        #[async_trait::async_trait]
+        impl FileReaderInfra for CustomMockInfra {
+            async fn read_utf8(&self, path: &std::path::Path) -> anyhow::Result<String> {
+                tokio::fs::read_to_string(path).await.map_err(Into::into)
+            }
+
+            async fn read(&self, path: &std::path::Path) -> anyhow::Result<Vec<u8>> {
+                tokio::fs::read(path).await.map_err(Into::into)
+            }
+
+            async fn range_read_utf8(
+                &self,
+                _path: &std::path::Path,
+                _start_line: u64,
+                _end_line: u64,
+            ) -> anyhow::Result<(String, forge_fs::FileInfo)> {
+                Err(anyhow::anyhow!("Not implemented"))
+            }
+        }
+
+        #[async_trait::async_trait]
+        impl AppConfigRepository for CustomMockInfra {
+            async fn get_app_config(&self) -> anyhow::Result<forge_app::dto::AppConfig> {
+                Ok(forge_app::dto::AppConfig::default())
+            }
+
+            async fn set_app_config(
+                &self,
+                _config: &forge_app::dto::AppConfig,
+            ) -> anyhow::Result<()> {
+                Ok(())
+            }
+        }
+
+        let infra = Arc::new(CustomMockInfra { env_vars, base_path });
+        let registry = ForgeProviderRegistry::new(infra);
+
+        // Get merged configs
+        let merged_configs = registry.get_merged_configs().await;
+
+        // Verify OpenAI config was overridden
+        let openai_config = merged_configs
+            .iter()
+            .find(|c| c.id == ProviderId::OpenAI)
+            .expect("OpenAI config should exist");
+        assert_eq!(openai_config.api_key_vars, "CUSTOM_OPENAI_KEY");
+        assert_eq!(
+            openai_config.url,
+            "https://custom.openai.com/v1/chat/completions"
+        );
+
+        // Verify other embedded configs still exist
+        let openrouter_config = merged_configs
+            .iter()
+            .find(|c| c.id == ProviderId::OpenRouter);
+        assert!(openrouter_config.is_some());
     }
 }
