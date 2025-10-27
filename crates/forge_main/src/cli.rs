@@ -156,7 +156,7 @@ pub enum ListCommand {
     Session,
 
     /// Generates AI-powered commit messages and commits changes.
-    /// 
+    ///
     /// Example: forge commit --preview
     Commit(CommitCommandGroup),
 }
