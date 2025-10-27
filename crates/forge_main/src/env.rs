@@ -37,6 +37,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[serial]
     fn test_get_conversation_id_from_env_with_valid_id() {
         let fixture_env_value = "01234567-89ab-cdef-0123-456789abcdef";
         unsafe {
@@ -53,6 +54,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_get_conversation_id_from_env_with_invalid_id() {
         let fixture_env_value = "invalid-uuid";
         unsafe {
@@ -69,6 +71,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_get_conversation_id_from_env_not_set() {
         unsafe {
             std::env::remove_var(FORGE_CONVERSATION_ID);

@@ -185,15 +185,15 @@ impl<S: Services> ForgeApp<S> {
         // Calculate original metrics
         let original_messages = context.messages.len();
         let original_token_count = *context.token_count();
-        let model = self.services.get_active_model().await?;
+        let active_agent_id = self.services.get_active_agent_id().await?;
+        let model = self.get_model(active_agent_id.clone()).await?;
         let workflow = self.services.read_merged(None).await.unwrap_or_default();
-        let active_agent = self.services.get_active_agent().await?;
         let Some(compact) = self
             .services
             .get_agents()
             .await?
             .into_iter()
-            .find(|agent| active_agent.as_ref().is_some_and(|id| agent.id == *id))
+            .find(|agent| active_agent_id.as_ref().is_some_and(|id| agent.id == *id))
             .and_then(|agent| {
                 agent
                     .apply_workflow_config(&workflow)

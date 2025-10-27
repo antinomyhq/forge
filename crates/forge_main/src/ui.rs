@@ -679,7 +679,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .ok()
             .map(|p| p.id.to_string());
 
-        let agent_val = agent.unwrap_or_else(|| "Not set".to_string());
+        let agent_val = agent
+            .map(|a| a.as_str().to_string())
+            .unwrap_or_else(|| "Not set".to_string());
         let model_val = model.unwrap_or_else(|| "Not set".to_string());
         let provider_val = provider.unwrap_or_else(|| "Not set".to_string());
 
@@ -1709,21 +1711,21 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Set provider if specified
         if let Some(provider_str) = args.provider {
             let provider_id = self.validate_provider(&provider_str).await?;
-            self.api.set_provider(provider_id).await?;
+            self.api.set_default_provider(provider_id).await?;
             self.writeln_title(TitleFormat::action("Provider set").sub_title(&provider_str))?;
         }
 
         // Set agent if specified
         if let Some(agent_str) = args.agent {
             let agent_id = self.validate_agent(&agent_str).await?;
-            self.api.set_operating_agent(agent_id.clone()).await?;
+            self.api.set_active_agent(agent_id.clone()).await?;
             self.writeln_title(TitleFormat::action("Agent set").sub_title(agent_id.as_str()))?;
         }
 
         // Set model if specified
         if let Some(model_str) = args.model {
             let model_id = self.validate_model(&model_str).await?;
-            self.api.set_operating_model(model_id.clone()).await?;
+            self.api.set_default_model(model_id.clone()).await?;
             self.writeln_title(TitleFormat::action("Model set").sub_title(model_id.as_str()))?;
         }
 
@@ -1739,7 +1741,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ConfigField::Agent => {
                 let agent = self
                     .api
-                    .get_operating_agent()
+                    .get_active_agent()
                     .await
                     .map(|a| a.as_str().to_string());
                 match agent {
@@ -1750,7 +1752,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ConfigField::Model => {
                 let model = self
                     .api
-                    .get_operating_model()
+                    .get_default_model()
                     .await
                     .map(|m| m.as_str().to_string());
                 match model {
@@ -1759,7 +1761,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 }
             }
             ConfigField::Provider => {
-                let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
+                let provider = self
+                    .api
+                    .get_default_provider()
+                    .await
+                    .ok()
+                    .map(|p| p.id.to_string());
                 match provider {
                     Some(v) => self.writeln(v.to_string())?,
                     None => self.writeln("Provider: Not set")?,
@@ -1789,7 +1796,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     /// Validate model exists
     async fn validate_model(&self, model_str: &str) -> Result<ModelId> {
-        let models = self.api.models().await?;
+        let models = self.api.get_models().await?;
         let model_id = ModelId::new(model_str);
 
         if models.iter().any(|m| m.id == model_id) {
