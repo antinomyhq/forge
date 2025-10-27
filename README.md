@@ -287,15 +287,18 @@ model: google/gemini-2.5-pro
 ### Setup Instructions
 
 1. **Install Google Cloud CLI** and authenticate:
+
    ```bash
    gcloud auth login
    gcloud config set project YOUR_PROJECT_ID
    ```
 
 2. **Get your authentication token**:
+
    ```bash
    gcloud auth print-access-token
    ```
+
    Use this token as `VERTEX_AI_AUTH_TOKEN`.
 
 3. **Find your project ID and location**:
@@ -305,6 +308,7 @@ model: google/gemini-2.5-pro
 ### Available Models
 
 Forge loads Vertex AI models from a static configuration file, including:
+
 - Claude models: `claude-sonnet-4@20250514`
 - Gemini models: `gemini-2.5-pro`, `gemini-2.0-flash`
 
@@ -471,6 +475,7 @@ System-level environment variables (usually set automatically):
 FORGE_MAX_SEARCH_RESULT_BYTES=101024   # Maximum bytes for search results (default: 101024 - 10 KB)
 FORGE_HISTORY_FILE=/path/to/history    # Custom path for Forge history file (default: uses system default location)
 FORGE_BANNER="Your custom banner text" # Custom banner text to display on startup (default: Forge ASCII art)
+FORGE_SHOW_TASK_STATS=true             # Show task stats such as file changes, token usage etc. after completion (default: true)
 FORGE_MAX_CONVERSATIONS=100            # Maximum number of conversations to show in list (default: 100)
 SHELL=/bin/zsh                         # Shell to use for command execution (Unix/Linux/macOS)
 COMSPEC=cmd.exe                        # Command processor to use (Windows)
