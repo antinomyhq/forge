@@ -496,10 +496,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Ok(message) => {
                 self.spinner.stop(None)?;
                 if commit_group.preview {
-                    self.writeln_title(TitleFormat::info("Generated commit message:"))?;
                     self.writeln(&message)?;
-                } else {
-                    self.writeln_title(TitleFormat::action("changes committed."))?;
                 }
             }
             Err(e) => {
