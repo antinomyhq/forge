@@ -41,17 +41,17 @@ fn file_change_stats(operation: FileOperationStats, metrics: &mut Metrics) {
         OperationType::Undo => {
             metrics.record_file_undo(
                 operation.path,
-                operation.file_hash,
-                operation.lines_added,
                 operation.lines_removed,
+                operation.lines_added,
+                operation.file_hash,
             );
         }
         OperationType::Change => {
             metrics.record_file_operation(
                 operation.path,
-                operation.file_hash,
-                operation.lines_added,
                 operation.lines_removed,
+                operation.lines_added,
+                operation.file_hash,
             );
         }
     }

@@ -65,9 +65,9 @@ impl Metrics {
     pub fn record_file_operation(
         &mut self,
         path: String,
-        file_hash: Option<String>,
         lines_added: u64,
         lines_removed: u64,
+        file_hash: Option<String>,
     ) {
         // Update file-specific metrics
         let file_metrics = self.files_changed.entry(path).or_default();
@@ -77,9 +77,9 @@ impl Metrics {
     pub fn record_file_undo(
         &mut self,
         path: String,
-        file_hash: Option<String>,
         lines_added: u64,
         lines_removed: u64,
+        file_hash: Option<String>,
     ) {
         let file_metrics = self.files_changed.entry(path).or_default();
         file_metrics.undo_operation(lines_added, lines_removed, file_hash);
