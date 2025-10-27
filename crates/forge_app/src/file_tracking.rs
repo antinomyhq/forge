@@ -40,30 +40,41 @@ impl<F: FsReadService> FileChangeDetector<F> {
     /// * `tracked_files` - Map of file paths to their last known hashes (None
     ///   if unreadable)
     pub async fn detect(&self, metrics: &Metrics) -> Vec<FileChange> {
-        let mut changes = Vec::new();
+        let futures: Vec<_> = metrics
+            .files_changed
+            .iter()
+            .map(|(path, file_metrics)| {
+                let file_path = std::path::PathBuf::from(path);
+                let last_hash = file_metrics.file_hash.clone();
 
-        for (path, file_metrics) in &metrics.files_changed {
-            let file_path = std::path::PathBuf::from(path);
+                async move {
+                    // Get current hash: Some(hash) if readable, None if unreadable
+                    let current_hash = match self.read_file_content(&file_path).await {
+                        Ok(content) => Some(compute_hash(&content)),
+                        Err(_) => None,
+                    };
 
-            // Get current hash: Some(hash) if readable, None if unreadable
-            let current_hash = match self.read_file_content(&file_path).await {
-                Ok(content) => Some(compute_hash(&content)),
-                Err(_) => None,
-            };
+                    // Check if hash has changed
+                    if current_hash != last_hash {
+                        debug!(
+                            path = %file_path.display(),
+                            last_hash = ?last_hash,
+                            current_hash = ?current_hash,
+                            "Detected file change"
+                        );
+                        Some(FileChange { path: file_path, file_hash: current_hash })
+                    } else {
+                        None
+                    }
+                }
+            })
+            .collect();
 
-            // Check if hash has changed
-            if current_hash != file_metrics.file_hash {
-                debug!(
-                    path = %path,
-                    last_hash = ?file_metrics.file_hash,
-                    current_hash = ?current_hash,
-                    "Detected file change"
-                );
-                changes.push(FileChange { path: file_path, file_hash: current_hash });
-            }
-        }
-
-        changes
+        futures::future::join_all(futures)
+            .await
+            .into_iter()
+            .flatten()
+            .collect()
     }
 
     /// Reads file content using the FsReadService
