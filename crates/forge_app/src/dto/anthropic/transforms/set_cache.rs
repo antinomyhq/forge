@@ -68,6 +68,7 @@ mod tests {
                 's' => messages.push(ContextMessage::Text(TextMessage {
                     role: Role::System,
                     content: c.to_string(),
+                    original_content: None,
                     tool_calls: None,
                     model: None,
                     reasoning_details: None,
@@ -82,6 +83,7 @@ mod tests {
                 'u' => messages.push(ContextMessage::Text(TextMessage {
                     role: Role::User,
                     content: c.to_string(),
+                    original_content: None,
                     tool_calls: None,
                     model: ModelId::new("claude-3-5-sonnet-20241022").into(),
                     reasoning_details: None,
@@ -89,6 +91,7 @@ mod tests {
                 'a' => messages.push(ContextMessage::Text(TextMessage {
                     role: Role::Assistant,
                     content: c.to_string(),
+                    original_content: None,
                     tool_calls: None,
                     model: None,
                     reasoning_details: None,
@@ -232,6 +235,7 @@ mod tests {
                 ContextMessage::Text(TextMessage {
                     role: Role::System,
                     content: "first".to_string(),
+                    original_content: None,
                     tool_calls: None,
                     model: None,
                     reasoning_details: None,
@@ -239,6 +243,7 @@ mod tests {
                 ContextMessage::Text(TextMessage {
                     role: Role::System,
                     content: "second".to_string(),
+                    original_content: None,
                     tool_calls: None,
                     model: None,
                     reasoning_details: None,
@@ -246,6 +251,7 @@ mod tests {
                 ContextMessage::Text(TextMessage {
                     role: Role::User,
                     content: "user".to_string(),
+                    original_content: None,
                     tool_calls: None,
                     model: ModelId::new("claude-3-5-sonnet-20241022").into(),
                     reasoning_details: None,
