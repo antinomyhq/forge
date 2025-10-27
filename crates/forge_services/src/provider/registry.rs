@@ -633,7 +633,6 @@ mod tests {
 #[cfg(test)]
 mod env_tests {
     use std::collections::HashMap;
-    
     use std::sync::Arc;
 
     use forge_app::domain::Environment;
