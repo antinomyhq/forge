@@ -547,7 +547,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         for model in models.iter() {
             let id = model.id.to_string();
 
-            info = info.add_title(id);
+            info = info
+                .add_title(model.name.as_ref().unwrap_or(&id))
+                .add_key_value("Id", id);
 
             // Add context length if available, otherwise use "unknown"
             if let Some(limit) = model.context_length {
@@ -579,13 +581,18 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         if porcelain {
-            self.writeln(Porcelain::from(&info).skip(1).map_col(2, |col| {
-                if col == Some("Supported".to_owned()) {
-                    Some("🛠️".into())
-                } else {
-                    None
-                }
-            }))?;
+            self.writeln(
+                Porcelain::from(&info)
+                    .skip(1)
+                    .drop_col(0)
+                    .map_col(2, |col| {
+                        if col == Some("Supported".to_owned()) {
+                            Some("🛠️".into())
+                        } else {
+                            None
+                        }
+                    }),
+            )?;
         } else {
             self.writeln(info)?;
         }
@@ -746,17 +753,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let operating_model = self.api.get_operating_model().await;
         let provider_result = self.api.get_provider().await;
 
-        // Add conversation information if available
-        if let Some(conversation) = conversation {
-            info = info.extend(Info::from(&conversation));
-        } else {
-            info = info.extend(
-                Info::new()
-                    .add_title("CONVERSATION")
-                    .add_key_value("ID", "<Uninitialized>".to_string()),
-            );
-        }
-
+        // Add agent information
         info = info.add_title("AGENT");
         if let Some(agent) = operating_agent {
             info = info.add_key_value("ID", agent.as_str().to_uppercase());
@@ -778,6 +775,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Add user information if available
         if let Some(login_info) = key_info? {
             info = info.extend(Info::from(&login_info));
+        }
+
+        // Add conversation information if available
+        if let Some(conversation) = conversation {
+            info = info.extend(Info::from(&conversation));
+        } else {
+            info = info.extend(
+                Info::new()
+                    .add_title("CONVERSATION")
+                    .add_key_value("ID", "<Uninitialized>".to_string()),
+            );
         }
 
         if porcelain {
