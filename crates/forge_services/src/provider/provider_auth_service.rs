@@ -10,7 +10,7 @@ use std::time::Duration;
 use chrono::Utc;
 use forge_app::ProviderAuthService;
 use forge_app::dto::{
-    AuthContext, AuthResponse, AuthResult, OAuthConfig, OAuthTokens, ProviderCredential, ProviderId,
+    AuthContext, AuthResult, OAuthConfig, OAuthTokens, ProviderCredential, ProviderId,
 };
 
 use super::AuthFlowError;
@@ -999,21 +999,17 @@ where
                     .await?;
                 Ok(())
             }
-            AuthContext::DeviceCode(ctx) => {
-                let auth_response =
-                    AuthResponse::device(ctx.response.device_code, ctx.response.interval);
+            AuthContext::DeviceCode(_) => {
                 let result = self
-                    .poll_provider_auth(&auth_response, timeout, method.clone())
+                    .poll_provider_auth(&context, timeout, method.clone())
                     .await?;
                 self.complete_provider_auth_with_result(provider_id, result, method)
                     .await?;
                 Ok(())
             }
-            AuthContext::Code(ctx) => {
-                let auth_response =
-                    AuthResponse::code(ctx.response.state, ctx.response.pkce_verifier);
+            AuthContext::Code(_) => {
                 let result = self
-                    .poll_provider_auth(&auth_response, timeout, method.clone())
+                    .poll_provider_auth(&context, timeout, method.clone())
                     .await?;
                 self.complete_provider_auth_with_result(provider_id, result, method)
                     .await?;
@@ -1038,7 +1034,7 @@ where
     /// Returns error if polling fails, times out, or auth is denied
     async fn poll_provider_auth(
         &self,
-        context: &AuthResponse,
+        context: &AuthContext,
         timeout: Duration,
         method: AuthMethod,
     ) -> anyhow::Result<AuthResult> {
@@ -1052,14 +1048,9 @@ where
             }
             AuthMethod::OAuthDevice(config) => {
                 // Extract device code from context
-                let (device_code, interval) = match context {
-                    AuthResponse::Device { device_code, interval } => {
-                        (device_code.as_str(), *interval)
-                    }
-                    _ => {
-                        return Err(anyhow::anyhow!("Invalid context type for device flow"));
-                    }
-                };
+                let (device_code, interval) = context
+                    .as_device_code()
+                    .ok_or_else(|| anyhow::anyhow!("Invalid context type for device flow"))?;
 
                 // Check if this needs OAuth with API key exchange (GitHub Copilot pattern)
                 if config.token_refresh_url.is_some() {

@@ -158,46 +158,45 @@ impl AuthContext {
     pub fn code(request: CodeRequest, response: CodeResponse) -> Self {
         Self::Code(FlowContext::new(request, response))
     }
+
+    /// Extracts device code and interval from DeviceCode variant
+    ///
+    /// # Returns
+    /// Returns `Some((device_code, interval))` if this is a DeviceCode flow,
+    /// `None` otherwise
+    pub fn as_device_code(&self) -> Option<(&str, u64)> {
+        match self {
+            Self::DeviceCode(ctx) => Some((&ctx.response.device_code, ctx.response.interval)),
+            _ => None,
+        }
+    }
+
+    /// Extracts state and PKCE verifier from Code variant
+    ///
+    /// # Returns
+    /// Returns `Some((state, pkce_verifier))` if this is a Code flow, `None`
+    /// otherwise
+    pub fn as_code(&self) -> Option<(&str, Option<&str>)> {
+        match self {
+            Self::Code(ctx) => Some((&ctx.response.state, ctx.response.pkce_verifier.as_deref())),
+            _ => None,
+        }
+    }
+
+    /// Extracts API key and URL parameters from ApiKey variant
+    ///
+    /// # Returns
+    /// Returns `Some((api_key, url_params))` if this is an ApiKey flow, `None`
+    /// otherwise
+    pub fn as_api_key(&self) -> Option<(&str, &HashMap<String, String>)> {
+        match self {
+            Self::ApiKey(ctx) => Some((&ctx.response.api_key, &ctx.response.url_params)),
+            _ => None,
+        }
+    }
 }
 
 // Completion types
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum AuthResponse {
-    ApiKey {
-        api_key: String,
-        url_params: HashMap<String, String>,
-    },
-    Device {
-        device_code: String,
-        interval: u64,
-    },
-    Code {
-        state: String,
-        pkce_verifier: Option<String>,
-    },
-}
-
-impl Default for AuthResponse {
-    fn default() -> Self {
-        Self::ApiKey { api_key: String::new(), url_params: HashMap::new() }
-    }
-}
-
-impl AuthResponse {
-    pub fn api_key(api_key: String, url_params: HashMap<String, String>) -> Self {
-        Self::ApiKey { api_key, url_params }
-    }
-
-    pub fn device(device_code: String, interval: u64) -> Self {
-        Self::Device { device_code, interval }
-    }
-
-    pub fn code(state: String, pkce_verifier: Option<String>) -> Self {
-        Self::Code { state, pkce_verifier }
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
