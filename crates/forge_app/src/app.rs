@@ -90,8 +90,8 @@ impl<S: Services> ForgeApp<S> {
         let custom_instructions = services.get_custom_instructions().await;
 
         // Prepare agents with user configuration and subscriptions
-        let default_provider = services.get_default_provider().await?;
-        let default_model = services.get_default_model(&default_provider.id).await?;
+        let active_agent = services.get_active_agent_id().await?;
+        let active_model = self.get_model(active_agent).await?;
         let commands = services.get_commands().await?;
         let agent = services
             .get_agents()
@@ -99,7 +99,7 @@ impl<S: Services> ForgeApp<S> {
             .into_iter()
             .map(|agent| {
                 agent
-                    .set_model_deeply(default_model.clone())
+                    .set_model_deeply(active_model.clone())
                     .apply_workflow_config(&workflow)
                     .subscribe_commands(&commands)
             })
