@@ -72,7 +72,7 @@ impl<S: Services> GitApp<S> {
         let commit_result = self
             .services
             .shell_service()
-            .execute(commit_command, cwd, false, true, None)
+            .execute(commit_command, cwd, false, false, None)
             .await
             .context("Failed to commit changes")?;
 
