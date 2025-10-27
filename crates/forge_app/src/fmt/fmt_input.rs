@@ -40,8 +40,8 @@ impl FormatContent for Tools {
                 let title = match (path.exists(), input.overwrite) {
                     (true, true) => "Overwrite",
                     (true, false) => {
-                        // Case: file exists but overwrite is false then we throw error from tool, so it's 
-                        // good idea to not print anything on CLI.
+                        // Case: file exists but overwrite is false then we throw error from tool,
+                        // so it's good idea to not print anything on CLI.
                         return None;
                     }
                     (false, _) => "Create",
