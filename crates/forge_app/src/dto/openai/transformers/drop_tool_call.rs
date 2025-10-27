@@ -57,6 +57,7 @@ mod tests {
             messages: vec![
                 ContextMessage::Text(TextMessage {
                     role: Role::Assistant,
+                    raw_content: None,
                     content: "Using tool".to_string(),
                     tool_calls: Some(vec![tool_call]),
                     model: None,

@@ -67,6 +67,7 @@ mod tests {
             match c {
                 's' => messages.push(ContextMessage::Text(TextMessage {
                     role: Role::System,
+                    raw_content: None,
                     content: c.to_string(),
                     tool_calls: None,
                     model: None,
@@ -81,6 +82,7 @@ mod tests {
             match c {
                 'u' => messages.push(ContextMessage::Text(TextMessage {
                     role: Role::User,
+                    raw_content: None,
                     content: c.to_string(),
                     tool_calls: None,
                     model: ModelId::new("claude-3-5-sonnet-20241022").into(),
@@ -88,6 +90,7 @@ mod tests {
                 })),
                 'a' => messages.push(ContextMessage::Text(TextMessage {
                     role: Role::Assistant,
+                    raw_content: None,
                     content: c.to_string(),
                     tool_calls: None,
                     model: None,
@@ -231,6 +234,7 @@ mod tests {
             messages: vec![
                 ContextMessage::Text(TextMessage {
                     role: Role::System,
+                    raw_content: None,
                     content: "first".to_string(),
                     tool_calls: None,
                     model: None,
@@ -238,6 +242,7 @@ mod tests {
                 }),
                 ContextMessage::Text(TextMessage {
                     role: Role::System,
+                    raw_content: None,
                     content: "second".to_string(),
                     tool_calls: None,
                     model: None,
@@ -245,6 +250,7 @@ mod tests {
                 }),
                 ContextMessage::Text(TextMessage {
                     role: Role::User,
+                    raw_content: None,
                     content: "user".to_string(),
                     tool_calls: None,
                     model: ModelId::new("claude-3-5-sonnet-20241022").into(),

@@ -3,7 +3,7 @@ use derive_setters::Setters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Deserialize, Serialize, Setters)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize, Setters)]
 pub struct Model {
     pub id: ModelId,
     pub name: Option<String>,

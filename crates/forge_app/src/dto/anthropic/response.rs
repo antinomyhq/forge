@@ -20,16 +20,88 @@ pub struct Model {
 
 impl From<Model> for forge_domain::Model {
     fn from(value: Model) -> Self {
+        let context_length = get_context_length(&value.id);
         Self {
             id: ModelId::new(value.id),
             name: Some(value.display_name),
             description: None,
-            context_length: None,
+            context_length,
             tools_supported: Some(true),
             supports_parallel_tool_calls: None,
             supports_reasoning: None,
         }
     }
+}
+
+/// Returns the context window size for a given Claude model ID.
+///
+/// Context lengths are based on official Claude documentation:
+/// <https://docs.claude.com/en/docs/about-claude/models/overview>
+///
+/// # Arguments
+///
+/// * `model_id` - The Claude model identifier (e.g.,
+///   "claude-sonnet-4-5-20250929")
+///
+/// # Returns
+///
+/// Returns `Some(tokens)` for known models, `None` for unknown models.
+///
+/// # Notes
+///
+/// - Most current models support 200K tokens
+/// - Claude Sonnet 4.5 supports 1M tokens with the `context-1m-2025-08-07` beta
+///   header
+/// - Legacy models may have different context lengths
+fn get_context_length(model_id: &str) -> Option<u64> {
+    // Current models (200K context)
+    if model_id.starts_with("claude-sonnet-4-5-")
+        || model_id.starts_with("claude-haiku-4-5-")
+        || model_id.starts_with("claude-opus-4-1-")
+    {
+        return Some(200_000);
+    }
+
+    // Legacy Claude 4 models (200K context)
+    if model_id.starts_with("claude-sonnet-4-")
+        || model_id.starts_with("claude-opus-4-")
+        || model_id.starts_with("claude-3-7-sonnet-")
+    {
+        return Some(200_000);
+    }
+
+    // Claude 3.5 models (200K context)
+    if model_id.starts_with("claude-3-5-sonnet-") || model_id.starts_with("claude-3-5-haiku-") {
+        return Some(200_000);
+    }
+
+    // Claude 3 Opus and Sonnet (200K context)
+    if model_id.starts_with("claude-3-opus-") || model_id.starts_with("claude-3-sonnet-") {
+        return Some(200_000);
+    }
+
+    // Claude 3 Haiku (200K context)
+    if model_id.starts_with("claude-3-haiku-") {
+        return Some(200_000);
+    }
+
+    // Claude 2.1 (200K context)
+    if model_id.starts_with("claude-2.1") {
+        return Some(200_000);
+    }
+
+    // Claude 2.0 (100K context)
+    if model_id.starts_with("claude-2.0") {
+        return Some(100_000);
+    }
+
+    // Claude Instant (100K context)
+    if model_id.starts_with("claude-instant-") {
+        return Some(100_000);
+    }
+
+    // Unknown model
+    None
 }
 
 #[derive(Deserialize, PartialEq, Clone, Debug)]
@@ -503,5 +575,110 @@ mod tests {
         // Cache percentage should be 100%
         let cache_percentage = (*actual.cached_tokens * 100) / *actual.prompt_tokens;
         assert_eq!(cache_percentage, 100);
+    }
+
+    #[test]
+    fn test_get_context_length_current_models() {
+        // Current models (200K context)
+        assert_eq!(
+            get_context_length("claude-sonnet-4-5-20250929"),
+            Some(200_000)
+        );
+        assert_eq!(
+            get_context_length("claude-haiku-4-5-20251001"),
+            Some(200_000)
+        );
+        assert_eq!(
+            get_context_length("claude-opus-4-1-20250805"),
+            Some(200_000)
+        );
+    }
+
+    #[test]
+    fn test_get_context_length_legacy_claude_4() {
+        // Legacy Claude 4 models (200K context)
+        assert_eq!(
+            get_context_length("claude-sonnet-4-20250514"),
+            Some(200_000)
+        );
+        assert_eq!(get_context_length("claude-opus-4-20250514"), Some(200_000));
+        assert_eq!(
+            get_context_length("claude-3-7-sonnet-20250219"),
+            Some(200_000)
+        );
+    }
+
+    #[test]
+    fn test_get_context_length_claude_3_5() {
+        // Claude 3.5 models (200K context)
+        assert_eq!(
+            get_context_length("claude-3-5-sonnet-20241022"),
+            Some(200_000)
+        );
+        assert_eq!(
+            get_context_length("claude-3-5-haiku-20241022"),
+            Some(200_000)
+        );
+    }
+
+    #[test]
+    fn test_get_context_length_claude_3() {
+        // Claude 3 models (200K context)
+        assert_eq!(get_context_length("claude-3-opus-20240229"), Some(200_000));
+        assert_eq!(
+            get_context_length("claude-3-sonnet-20240229"),
+            Some(200_000)
+        );
+        assert_eq!(get_context_length("claude-3-haiku-20240307"), Some(200_000));
+    }
+
+    #[test]
+    fn test_get_context_length_claude_2() {
+        // Claude 2.1 (200K context)
+        assert_eq!(get_context_length("claude-2.1"), Some(200_000));
+
+        // Claude 2.0 (100K context)
+        assert_eq!(get_context_length("claude-2.0"), Some(100_000));
+    }
+
+    #[test]
+    fn test_get_context_length_claude_instant() {
+        // Claude Instant (100K context)
+        assert_eq!(get_context_length("claude-instant-1.2"), Some(100_000));
+    }
+
+    #[test]
+    fn test_get_context_length_unknown_model() {
+        // Unknown models should return None
+        assert_eq!(get_context_length("unknown-model"), None);
+        assert_eq!(get_context_length("claude-future-5-0"), None);
+        assert_eq!(get_context_length(""), None);
+    }
+
+    #[test]
+    fn test_model_conversion_includes_context_length() {
+        let fixture = Model {
+            id: "claude-sonnet-4-5-20250929".to_string(),
+            display_name: "Claude 3.5 Sonnet (New)".to_string(),
+        };
+
+        let actual: forge_domain::Model = fixture.into();
+
+        assert_eq!(actual.context_length, Some(200_000));
+        assert_eq!(actual.id.as_str(), "claude-sonnet-4-5-20250929");
+        assert_eq!(actual.name, Some("Claude 3.5 Sonnet (New)".to_string()));
+    }
+
+    #[test]
+    fn test_model_conversion_unknown_model_no_context() {
+        let fixture = Model {
+            id: "unknown-claude-model".to_string(),
+            display_name: "Unknown Model".to_string(),
+        };
+
+        let actual: forge_domain::Model = fixture.into();
+
+        assert_eq!(actual.context_length, None);
+        assert_eq!(actual.id.as_str(), "unknown-claude-model");
     }
 }

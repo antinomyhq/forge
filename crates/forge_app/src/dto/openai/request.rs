@@ -629,6 +629,7 @@ mod tests {
     fn test_user_message_conversion() {
         let user_message = ContextMessage::Text(TextMessage {
             role: Role::User,
+            raw_content: None,
             content: "Hello".to_string(),
             tool_calls: None,
             model: ModelId::new("gpt-3.5-turbo").into(),
@@ -652,6 +653,7 @@ mod tests {
 
         let message = ContextMessage::Text(TextMessage {
             role: Role::User,
+            raw_content: None,
             content: xml_content.to_string(),
             tool_calls: None,
             model: ModelId::new("gpt-3.5-turbo").into(),
@@ -671,6 +673,7 @@ mod tests {
 
         let assistant_message = ContextMessage::Text(TextMessage {
             role: Role::Assistant,
+            raw_content: None,
             content: "Using tool".to_string(),
             tool_calls: Some(vec![tool_call]),
             model: ModelId::new("gpt-3.5-turbo").into(),

@@ -98,6 +98,7 @@ mod tests {
     fn test_set_model_only_affects_user_messages() {
         let fixture = Context::default()
             .add_message(ContextMessage::Text(TextMessage {
+                raw_content: None,
                 role: Role::System,
                 content: "System message".to_string(),
                 tool_calls: None,
@@ -105,6 +106,7 @@ mod tests {
                 reasoning_details: None,
             }))
             .add_message(ContextMessage::Text(TextMessage {
+                raw_content: None,
                 role: Role::Assistant,
                 content: "Assistant message".to_string(),
                 tool_calls: None,

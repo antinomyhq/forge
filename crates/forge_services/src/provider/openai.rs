@@ -100,18 +100,25 @@ impl<H: HttpClientService> OpenAIProvider<H> {
             debug!("Loading Vertex AI models from static JSON file");
             Ok(self.inner_vertex_models())
         } else {
-            let url = self.provider.model_url.clone();
-            debug!(url = %url, "Fetching models");
-            match self.fetch_models(url.as_str()).await {
-                Err(error) => {
-                    tracing::error!(error = ?error, "Failed to fetch models");
-                    anyhow::bail!(error)
+            match &self.provider.models {
+                forge_app::dto::Models::Url(url) => {
+                    debug!(url = %url, "Fetching models");
+                    match self.fetch_models(url.as_str()).await {
+                        Err(error) => {
+                            tracing::error!(error = ?error, "Failed to fetch models");
+                            anyhow::bail!(error)
+                        }
+                        Ok(response) => {
+                            let data: ListModelResponse = serde_json::from_str(&response)
+                                .with_context(|| format_http_context(None, "GET", url))
+                                .with_context(|| "Failed to deserialize models response")?;
+                            Ok(data.data.into_iter().map(Into::into).collect())
+                        }
+                    }
                 }
-                Ok(response) => {
-                    let data: ListModelResponse = serde_json::from_str(&response)
-                        .with_context(|| format_http_context(None, "GET", &url))
-                        .with_context(|| "Failed to deserialize models response")?;
-                    Ok(data.data.into_iter().map(Into::into).collect())
+                forge_app::dto::Models::Hardcoded(models) => {
+                    debug!("Using hardcoded models");
+                    Ok(models.clone())
                 }
             }
         }
@@ -195,7 +202,9 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some(key.into()),
-            model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
+            models: forge_app::dto::Models::Url(
+                Url::parse("https://api.openai.com/v1/models").unwrap(),
+            ),
         }
     }
 
@@ -205,7 +214,9 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
             key: Some(key.into()),
-            model_url: Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+            models: forge_app::dto::Models::Url(
+                Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+            ),
         }
     }
 
@@ -215,7 +226,9 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
             key: Some(key.into()),
-            model_url: Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+            models: forge_app::dto::Models::Url(
+                Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+            ),
         }
     }
 
@@ -225,7 +238,9 @@ mod tests {
             response: ProviderResponse::Anthropic,
             url: Url::parse("https://api.anthropic.com/v1/messages").unwrap(),
             key: Some(key.into()),
-            model_url: Url::parse("https://api.anthropic.com/v1/models").unwrap(),
+            models: forge_app::dto::Models::Url(
+                Url::parse("https://api.anthropic.com/v1/models").unwrap(),
+            ),
         }
     }
 
@@ -283,7 +298,7 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: reqwest::Url::parse(base_url)?,
             key: Some("test-api-key".to_string()),
-            model_url: reqwest::Url::parse(base_url)?.join("models")?,
+            models: forge_app::dto::Models::Url(reqwest::Url::parse(base_url)?.join("models")?),
         };
 
         Ok(OpenAIProvider::new(
