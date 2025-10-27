@@ -5,6 +5,7 @@ use derive_more::derive::{Display, From};
 use derive_setters::Setters;
 use forge_template::Element;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tracing::debug;
 
 use super::{ToolCallFull, ToolResult};
@@ -60,9 +61,9 @@ impl ContextMessage {
 
     /// Returns the raw content before template rendering (only for User
     /// messages)
-    pub fn raw_content(&self) -> Option<&str> {
+    pub fn raw_content(&self) -> Option<&Value> {
         match self {
-            ContextMessage::Text(text_message) => text_message.raw_content.as_deref(),
+            ContextMessage::Text(text_message) => text_message.raw_content.as_ref(),
             ContextMessage::Tool(_) => None,
             ContextMessage::Image(_) => None,
         }
@@ -255,7 +256,7 @@ pub struct TextMessage {
     pub content: String,
     /// The raw content before any template rendering (only for User messages)
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub raw_content: Option<String>,
+    pub raw_content: Option<Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_calls: Option<Vec<ToolCallFull>>,
     // note: this used to track model used for this message.

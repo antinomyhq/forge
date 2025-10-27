@@ -399,6 +399,7 @@ impl From<&Conversation> for Info {
             // Prefer raw content if available, otherwise use rendered content
             let content = last_user_message
                 .raw_content()
+                .and_then(|v| v.as_str())
                 .or_else(|| last_user_message.content());
 
             if let Some(content) = content {
