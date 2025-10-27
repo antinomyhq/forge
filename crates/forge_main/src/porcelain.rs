@@ -180,7 +180,7 @@ impl fmt::Display for Porcelain {
                 } else {
                     // Pad to column width
                     line.push_str(&format!("{:<width$}", content, width = col_widths[i]));
-                    line.push(' ');
+                    line.push_str("  ");
                 }
             }
             lines.push(line);

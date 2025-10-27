@@ -584,8 +584,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             self.writeln(
                 Porcelain::from(&info)
                     .skip(1)
-                    .drop_col(0)
-                    .map_col(2, |col| {
+                    .map_col(3, |col| {
                         if col == Some("Supported".to_owned()) {
                             Some("🛠️".into())
                         } else {
