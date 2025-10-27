@@ -283,6 +283,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     ListCommand::Session => {
                         self.on_show_conversations(porcelain).await?;
                     }
+                    ListCommand::Commit(commit_group) => {
+                        self.handle_commit_command(commit_group).await?;
+                    }
                 }
                 return Ok(());
             }
@@ -652,7 +655,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .add_key_value(
                 "tools",
                 "List all available tools with their descriptions and schema",
-            );
+            )
+            .add_key_value("commit", "Generate AI commit message and commit changes.");
 
         // Add alias commands
         info = info
