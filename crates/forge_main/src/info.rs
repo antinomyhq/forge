@@ -16,6 +16,15 @@ pub enum Section {
     Items(Option<String>, String), // key, value, subtitle
 }
 
+impl Section {
+    pub fn key(&self) -> Option<&str> {
+        match self {
+            Section::Items(Some(key), _) => Some(key.as_str()),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct Info {
     sections: Vec<Section>,
@@ -187,16 +196,13 @@ impl fmt::Display for Info {
                     writeln!(f, "{}", title.bold().dimmed())?;
 
                     // Calculate max key width for items under this title
-                    width = self.sections[i + 1..]
+                    width = self
+                        .sections
                         .iter()
+                        .skip(i + 1)
                         .take_while(|s| matches!(s, Section::Items(..)))
-                        .filter_map(|s| {
-                            if let Section::Items(Some(key), _) = s {
-                                Some(key.len())
-                            } else {
-                                None
-                            }
-                        })
+                        .filter_map(|s| s.key())
+                        .map(|key| key.len())
                         .max();
                 }
                 Section::Items(key, value) => {
