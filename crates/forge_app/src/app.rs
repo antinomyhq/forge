@@ -117,33 +117,10 @@ impl<S: Services> ForgeApp<S> {
             tool_resolver.resolve(&agent).into_iter().cloned().collect();
         let max_tool_failure_per_turn = agent.max_tool_failure_per_turn.unwrap_or(3);
 
-        // Detect files that may have been changed externally before starting the
-        // agentic loop
-        let changed_files = {
-            use crate::file_tracking::FileChangeDetector;
-
-            let changes = FileChangeDetector::new(services.clone())
-                .detect(
-                    &conversation
-                        .metrics
-                        .files_changed
-                        .iter()
-                        .map(|(path, metrics)| (path.clone(), metrics.file_hash.clone()))
-                        .collect(),
-                )
-                .await;
-
-            // Update file_hash to prevent duplicate notifications
-            for change in &changes {
-                if let Some(path_str) = change.path.to_str()
-                    && let Some(metrics) = conversation.metrics.files_changed.get_mut(path_str)
-                {
-                    metrics.file_hash = change.file_hash.clone();
-                }
-            }
-
-            changes
-        };
+        // Detect and render externally changed files notification
+        let rendered_changed_files = crate::changed_files::ChangedFiles::new(services.clone())
+            .detect_and_render(&mut conversation)
+            .await;
 
         // Create the orchestrator with all necessary dependencies
         let orch = Orchestrator::new(
@@ -159,7 +136,7 @@ impl<S: Services> ForgeApp<S> {
         .tool_definitions(tool_definitions)
         .models(models)
         .files(files)
-        .changed_files(changed_files);
+        .changed_files(rendered_changed_files);
 
         // Create and return the stream
         let stream = MpscStream::spawn(

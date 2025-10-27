@@ -12,12 +12,11 @@ use tracing::{debug, info, warn};
 
 use crate::agent::AgentService;
 use crate::compact::Compactor;
-use crate::file_tracking::FileChange;
 use crate::title_generator::TitleGenerator;
 use crate::user_prompt::UserPromptBuilder;
 
 #[derive(Clone, Setters)]
-#[setters(into, strip_option)]
+#[setters(into)]
 pub struct Orchestrator<S> {
     services: Arc<S>,
     sender: Option<ArcSender>,
@@ -31,7 +30,7 @@ pub struct Orchestrator<S> {
     event: Event,
     error_tracker: ToolErrorTracker,
     user_prompt_service: UserPromptBuilder<S>,
-    changed_files: Vec<FileChange>,
+    changed_files: Option<String>,
     current_time: chrono::DateTime<chrono::Local>,
 }
 
@@ -553,29 +552,9 @@ impl<S: AgentService> Orchestrator<S> {
 
     /// Adds externally changed files notification to the context
     async fn add_externally_changed_files(&self, context: Context, model_id: &ModelId) -> Context {
-        if self.changed_files.is_empty() {
-            return context;
-        }
-
-        let changes = self
-            .changed_files
-            .iter()
-            .map(|change| format!("- `{}`", change.path.display()))
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        if let Ok(rendered_message) = self
-            .services
-            .render(
-                "{{> forge-file-changes-notification.md }}",
-                &serde_json::json!({
-                    "changes": changes
-                }),
-            )
-            .await
-        {
+        if let Some(rendered_message) = &self.changed_files {
             return context.add_message(ContextMessage::user(
-                rendered_message,
+                rendered_message.clone(),
                 model_id.clone().into(),
             ));
         }

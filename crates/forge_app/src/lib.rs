@@ -2,6 +2,7 @@ mod agent;
 mod agent_executor;
 mod app;
 mod authenticator;
+mod changed_files;
 mod compact;
 pub mod dto;
 mod error;
