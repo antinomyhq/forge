@@ -48,6 +48,7 @@ mod tests {
     fn transform_tool_call(json_args: &str) -> Request {
         let fixture = Context::default().messages(vec![ContextMessage::Text(TextMessage {
             role: Role::User,
+            raw_content: None,
             content: "Hello".to_string(),
             tool_calls: Some(vec![
                 ToolCallFull::new("test_tool")
@@ -123,6 +124,7 @@ mod tests {
     fn test_preserves_text_content() {
         let fixture = Context::default().messages(vec![ContextMessage::Text(TextMessage {
             role: Role::User,
+            raw_content: None,
             content: "Hello".to_string(),
             tool_calls: None,
             model: None,

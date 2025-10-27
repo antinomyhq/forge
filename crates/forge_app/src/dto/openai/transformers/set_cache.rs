@@ -69,6 +69,7 @@ mod tests {
                 .map(|c| match c {
                     's' => ContextMessage::Text(TextMessage {
                         role: Role::System,
+                        raw_content: None,
                         content: c.to_string(),
                         tool_calls: None,
                         model: None,
@@ -76,6 +77,7 @@ mod tests {
                     }),
                     'u' => ContextMessage::Text(TextMessage {
                         role: Role::User,
+                        raw_content: None,
                         content: c.to_string(),
                         tool_calls: None,
                         model: ModelId::new("gpt-4").into(),
@@ -83,6 +85,7 @@ mod tests {
                     }),
                     'a' => ContextMessage::Text(TextMessage {
                         role: Role::Assistant,
+                        raw_content: None,
                         content: c.to_string(),
                         tool_calls: None,
                         model: None,

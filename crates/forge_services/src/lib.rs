@@ -3,12 +3,11 @@ mod attachment;
 mod auth;
 mod clipper;
 mod command_loader;
-mod custom_instructions;
-mod error;
-
 mod conversation;
+mod custom_instructions;
 mod discovery;
 mod env;
+mod error;
 mod forge_services;
 mod http;
 mod infra;
