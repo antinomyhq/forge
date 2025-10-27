@@ -562,13 +562,13 @@ mod tests {
         use forge_api::Metrics;
 
         let mut fixture = Metrics::new().with_time(Utc::now());
-        fixture.record_file_operation("src/main.rs".to_string(), Some(String::new()), 12, 3);
-        fixture.record_file_operation("src/agent/mod.rs".to_string(), Some(String::new()), 8, 2);
+        fixture.record_file_operation("src/main.rs".to_string(), 12, 3, Some(String::new()));
+        fixture.record_file_operation("src/agent/mod.rs".to_string(), 8, 2, Some(String::new()));
         fixture.record_file_operation(
             "tests/integration/test_agent.rs".to_string(),
-            Some(String::new()),
             5,
             0,
+            Some(String::new()),
         );
 
         let actual = super::Info::from(&fixture);
@@ -595,8 +595,8 @@ mod tests {
 
         let conversation_id = ConversationId::generate();
         let mut metrics = Metrics::new().with_time(Utc::now());
-        metrics.record_file_operation("src/main.rs".to_string(), Some(String::new()), 5, 2);
-        metrics.record_file_operation("tests/test.rs".to_string(), Some(String::new()), 3, 1);
+        metrics.record_file_operation("src/main.rs".to_string(), 5, 2, Some(String::new()));
+        metrics.record_file_operation("tests/test.rs".to_string(), 3, 1, Some(String::new()));
 
         let fixture = Conversation {
             id: conversation_id,
