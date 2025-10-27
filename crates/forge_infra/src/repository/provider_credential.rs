@@ -106,6 +106,12 @@ impl TryFrom<ProviderCredentialRecord> for ProviderCredential {
             HashMap::new()
         };
 
+        // Convert to URLParam/URLParamValue newtypes
+        let url_params = url_params
+            .into_iter()
+            .map(|(k, v)| (k.into(), v.into()))
+            .collect();
+
         Ok(ProviderCredential {
             provider_id,
             auth_type,

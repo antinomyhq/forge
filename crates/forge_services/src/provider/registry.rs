@@ -187,9 +187,9 @@ impl<
         for env_var in &config.url_param_vars {
             if let Some(value) = self.infra.get_env_var(env_var.as_ref()) {
                 template_data.insert(env_var.as_ref(), value);
-            } else if env_var.as_ref() == "OPENAI_URL" {
+            } else if env_var == &URLParam::from("OPENAI_URL".to_owned()) {
                 template_data.insert(env_var.as_ref(), "https://api.openai.com/v1".to_string());
-            } else if env_var.as_ref() == "ANTHROPIC_URL" {
+            } else if env_var == &URLParam::from("ANTHROPIC_URL".to_owned()) {
                 template_data.insert(env_var.as_ref(), "https://api.anthropic.com/v1".to_string());
             } else {
                 return Err(ProviderError::env_var_not_found(config.id, env_var.as_ref()).into());
@@ -341,18 +341,17 @@ impl<
         // Build template data from URL parameters
         let mut template_data = std::collections::HashMap::new();
         for (key, value) in &credential.url_params {
-            let upper_case = key.as_str().to_uppercase();
-            template_data.insert(upper_case, value.clone());
+            template_data.insert(key.clone(), value.clone());
         }
 
         // Add default URLs if not present
-        if !template_data.contains_key("OPENAI_URL") {
-            template_data.insert("OPENAI_URL".into(), "https://api.openai.com/v1".to_string());
+        if !template_data.contains_key(&("OPENAI_URL".to_string().into())) {
+            template_data.insert("OPENAI_URL".to_owned().into(), "https://api.openai.com/v1".to_owned().into());
         }
-        if !template_data.contains_key("ANTHROPIC_URL") {
+        if !template_data.contains_key(&("ANTHROPIC_URL".to_string().into())) {
             template_data.insert(
-                "ANTHROPIC_URL".into(),
-                "https://api.anthropic.com/v1".to_string(),
+                "ANTHROPIC_URL".to_owned().into(),
+                "https://api.anthropic.com/v1".to_owned().into(),
             );
         }
 

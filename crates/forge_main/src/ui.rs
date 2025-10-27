@@ -512,7 +512,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // TODO: think about this.
         if let forge_api::AuthContext::ApiKey(ref mut ctx) = context {
             ctx.response.api_key = api_key;
-            ctx.response.url_params = url_params;
+            ctx.response.url_params = url_params
+                .into_iter()
+                .map(|(k, v)| (k.into(), v.into()))
+                .collect();
         }
 
         self.api

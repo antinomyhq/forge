@@ -10,7 +10,8 @@ use std::time::Duration;
 use chrono::Utc;
 use forge_app::ProviderAuthService;
 use forge_app::dto::{
-    AuthContext, AuthResult, OAuthConfig, OAuthTokens, ProviderCredential, ProviderId,
+    AuthContext, AuthResult, OAuthConfig, OAuthTokens, ProviderCredential, ProviderId, URLParam,
+    URLParamValue,
 };
 
 use super::AuthFlowError;
@@ -63,7 +64,7 @@ impl<I> ForgeProviderAuthService<I> {
         &self,
         provider_id: ProviderId,
         api_key: String,
-        url_params: std::collections::HashMap<String, String>,
+        url_params: std::collections::HashMap<URLParam, URLParamValue>,
     ) -> Result<ProviderCredential, super::AuthFlowError> {
         Ok(ProviderCredential::new_api_key(provider_id, api_key).url_params(url_params))
     }

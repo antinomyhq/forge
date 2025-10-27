@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use strum_macros::Display;
 
 use super::ProviderId;
+use crate::dto::{URLParam, URLParamValue};
 
 /// Type of authentication used for a provider
 #[derive(Debug, Clone, PartialEq, Display, Eq, Serialize, Deserialize)]
@@ -80,7 +81,7 @@ pub struct ProviderCredential {
 
     /// URL parameters (e.g., Azure resource name, Vertex project ID)
     #[serde(default)]
-    pub url_params: HashMap<String, String>,
+    pub url_params: HashMap<URLParam, URLParamValue>,
 
     /// When the credential was created
     pub created_at: DateTime<Utc>,

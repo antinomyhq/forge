@@ -81,10 +81,14 @@ pub struct ApiKeyRequest {
     pub required_params: Vec<URLParam>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::Deref, derive_more::From)]
+#[serde(transparent)]
+pub struct URLParamValue(String);
+
 #[derive(Debug, Clone)]
 pub struct ApiKeyResponse {
     pub api_key: String,
-    pub url_params: HashMap<String, String>,
+    pub url_params: HashMap<URLParam, URLParamValue>,
 }
 
 #[derive(Debug, Clone)]
@@ -210,7 +214,7 @@ impl AuthContext {
     /// # Returns
     /// Returns `Some((api_key, url_params))` if this is an ApiKey flow, `None`
     /// otherwise
-    pub fn as_api_key(&self) -> Option<(&str, &HashMap<String, String>)> {
+    pub fn as_api_key(&self) -> Option<(&str, &HashMap<URLParam, URLParamValue>)> {
         match self {
             Self::ApiKey(ctx) => Some((&ctx.response.api_key, &ctx.response.url_params)),
             _ => None,
@@ -249,7 +253,7 @@ impl AuthContext {
 pub enum AuthResult {
     ApiKey {
         api_key: String,
-        url_params: HashMap<String, String>,
+        url_params: HashMap<URLParam, URLParamValue>,
     },
     OAuthTokens {
         access_token: String,
@@ -263,12 +267,6 @@ pub enum AuthResult {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::Deref)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::Deref, Hash, derive_more::From)]
 #[serde(transparent)]
 pub struct URLParam(String);
-
-impl AsRef<str> for URLParam {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
-}
