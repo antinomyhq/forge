@@ -396,8 +396,7 @@ impl ToolOperation {
                     output.after_undo.as_deref().unwrap_or(""),
                     output.before_undo.as_deref().unwrap_or(""),
                 );
-                let file_hash = Some(compute_hash(output.after_undo.as_deref().unwrap_or("")));
-
+                let file_hash = output.after_undo.as_ref().map(|s| compute_hash(s));
                 file_change_stats(
                     FileOperationStats {
                         path: input.path.clone(),
