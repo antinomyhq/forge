@@ -12,23 +12,83 @@ pub struct GitApp<S> {
     services: Arc<S>,
 }
 
+/// Result of a commit operation
+#[derive(Debug, Clone)]
+pub struct CommitResult {
+    /// The generated commit message
+    pub message: String,
+    /// Whether the commit was actually executed (false for preview mode)
+    pub committed: bool,
+}
+
+/// Details about commit message generation
+#[derive(Debug, Clone)]
+struct CommitMessageDetails {
+    /// The generated commit message
+    message: String,
+    /// Whether there are staged files
+    has_staged_files: bool,
+}
+
 impl<S: Services> GitApp<S> {
     /// Creates a new GitApp instance with the provided services.
     pub fn new(services: Arc<S>) -> Self {
         Self { services }
     }
 
-    /// Generates a commit message based on staged git changes
+    /// Commits changes with an AI-generated commit message
     ///
     /// # Arguments
     ///
+    /// * `preview` - If true, only generates the message without committing
     /// * `max_diff_size` - Maximum size of git diff in bytes. None for
     ///   unlimited.
     ///
     /// # Errors
     ///
     /// Returns an error if git operations fail or AI generation fails
-    pub async fn generate_commit_message(&self, max_diff_size: Option<usize>) -> Result<String> {
+    pub async fn commit(
+        &self,
+        preview: bool,
+        max_diff_size: Option<usize>,
+    ) -> Result<CommitResult> {
+        let CommitMessageDetails { message, has_staged_files } =
+            self.generate_commit_message(max_diff_size).await?;
+
+        if preview {
+            return Ok(CommitResult { message, committed: false });
+        }
+
+        let cwd = self.services.environment_service().get_environment().cwd;
+
+        // Execute the commit
+        let escaped_message = message.replace('\'', "'\\''");
+        let commit_command = if has_staged_files {
+            format!("git commit -m '{escaped_message}'")
+        } else {
+            format!("git commit -a -m '{escaped_message}'")
+        };
+
+        let commit_result = self
+            .services
+            .shell_service()
+            .execute(commit_command, cwd, false, true, None)
+            .await
+            .context("Failed to commit changes")?;
+
+        if !commit_result.output.success() {
+            anyhow::bail!("Git commit failed: {}", commit_result.output.stderr);
+        }
+
+        Ok(CommitResult { message, committed: true })
+    }
+
+    /// Generates a commit message based on staged git changes and returns
+    /// details about the commit context
+    async fn generate_commit_message(
+        &self,
+        max_diff_size: Option<usize>,
+    ) -> Result<CommitMessageDetails> {
         // Get current working directory
         let cwd = self.services.environment_service().get_environment().cwd;
 
@@ -70,7 +130,8 @@ impl<S: Services> GitApp<S> {
         let unstaged_diff = unstaged_diff.context("Failed to get unstaged changes")?;
 
         // Use staged changes if available, otherwise fall back to unstaged changes
-        let diff_output = if !staged_diff.output.stdout.trim().is_empty() {
+        let has_staged_files = !staged_diff.output.stdout.trim().is_empty();
+        let diff_output = if has_staged_files {
             staged_diff
         } else if !unstaged_diff.output.stdout.trim().is_empty() {
             unstaged_diff
@@ -138,6 +199,7 @@ impl<S: Services> GitApp<S> {
             .chat(&model, ctx, provider)
             .await?;
         let message = stream.into_full(false).await?;
-        Ok(message.content)
+
+        Ok(CommitMessageDetails { message: message.content, has_staged_files })
     }
 }

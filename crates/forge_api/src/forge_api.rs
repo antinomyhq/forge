@@ -65,9 +65,13 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
         Ok(self.services.get_all_providers().await?)
     }
 
-    async fn generate_commit_message(&self, max_diff_size: Option<usize>) -> Result<String> {
+    async fn commit(
+        &self,
+        preview: bool,
+        max_diff_size: Option<usize>,
+    ) -> Result<forge_app::CommitResult> {
         let git_app = GitApp::new(self.services.clone());
-        git_app.generate_commit_message(max_diff_size).await
+        git_app.commit(preview, max_diff_size).await
     }
 
     async fn chat(

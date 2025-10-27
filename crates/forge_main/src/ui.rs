@@ -26,7 +26,6 @@ use crate::cli::{
     Cli, CommitCommandGroup, ExtensionCommand, ListCommand, McpCommand, SessionCommand,
     TopLevelCommand,
 };
-use crate::commit::CommitHandler;
 use crate::conversation_selector::ConversationSelector;
 use crate::env::{get_agent_from_env, get_conversation_id_from_env, should_show_completion_prompt};
 use crate::info::Info;
@@ -485,15 +484,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.spinner.start(Some("Generating commit message"))?;
 
         // Handle the commit command
-        match CommitHandler::new(self.api.clone())
-            .handle(commit_group.clone())
+        match self
+            .api
+            .commit(commit_group.preview, commit_group.max_diff_size)
             .await
         {
-            Ok(message) => {
+            Ok(result) => {
                 self.spinner.stop(None)?;
                 if commit_group.preview {
-                    // Print the generate git commit message.
-                    self.writeln(&message)?;
+                    // Print the generated git commit message.
+                    self.writeln(&result.message)?;
                 }
             }
             Err(e) => {
