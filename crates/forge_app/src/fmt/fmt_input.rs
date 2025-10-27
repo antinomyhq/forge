@@ -23,7 +23,7 @@ impl FormatContent for Tools {
                             subtitle.push_str(&format!(" [Range {start}-]"));
                         }
                         (None, Some(end)) => {
-                            subtitle.push_str(&format!(" [Range 0-{end}]"));
+                            subtitle.push_str(&format!(" [Range -{end}]"));
                         }
                         (None, None) => {}
                     }
