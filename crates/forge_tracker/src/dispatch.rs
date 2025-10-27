@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use chrono::{DateTime, Utc};
 use forge_domain::Conversation;
 use lazy_static::lazy_static;
+#[cfg(not(target_os = "android"))]
 use machineid_rs::{Encryption, HWIDComponent, IdBuilder};
 use sysinfo::System;
 use tokio::process::Command;
@@ -27,6 +28,7 @@ const VERSION: &str = match option_env!("APP_VERSION") {
     None => env!("CARGO_PKG_VERSION"),
 };
 
+#[cfg(not(target_os = "android"))]
 const PARAPHRASE: &str = "forge_key";
 
 const DEFAULT_CLIENT_ID: &str = "<anonymous>";
@@ -35,13 +37,20 @@ const DEFAULT_CLIENT_ID: &str = "<anonymous>";
 lazy_static! {
     static ref CACHED_CORES: usize = System::physical_core_count().unwrap_or(0);
     static ref CACHED_CLIENT_ID: String = {
-        let mut builder = IdBuilder::new(Encryption::SHA256);
-        builder
-            .add_component(HWIDComponent::SystemID)
-            .add_component(HWIDComponent::CPUCores);
-        builder
-            .build(PARAPHRASE)
-            .unwrap_or(DEFAULT_CLIENT_ID.to_string())
+        #[cfg(not(target_os = "android"))]
+        {
+            let mut builder = IdBuilder::new(Encryption::SHA256);
+            builder
+                .add_component(HWIDComponent::SystemID)
+                .add_component(HWIDComponent::CPUCores);
+            builder
+                .build(PARAPHRASE)
+                .unwrap_or(DEFAULT_CLIENT_ID.to_string())
+        }
+        #[cfg(target_os = "android")]
+        {
+            DEFAULT_CLIENT_ID.to_string()
+        }
     };
     static ref CACHED_OS_NAME: String = System::long_os_version().unwrap_or("Unknown".to_string());
     static ref CACHED_USER: String = whoami::username();

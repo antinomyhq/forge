@@ -3,3 +3,6 @@ passthrough = [
     "APP_VERSION",
     "POSTHOG_API_SECRET",
 ]
+
+[target.aarch64-linux-android]
+image = "ghcr.io/cross-rs/aarch64-linux-android:edge"
