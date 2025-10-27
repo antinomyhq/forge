@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -6,7 +7,7 @@ use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
-    InterruptionReason, Model, ModelId, Provider, Workflow,
+    InterruptionReason, Model, ModelId, Provider, ProviderId, Workflow,
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
@@ -17,6 +18,7 @@ use forge_select::ForgeSelect;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
 use merge::Merge;
+use strum::IntoEnumIterator;
 use tokio_stream::StreamExt;
 use tracing::debug;
 
@@ -25,9 +27,8 @@ use crate::cli::{
     TopLevelCommand,
 };
 use crate::commit::CommitHandler;
-use crate::config::ConfigManager;
 use crate::conversation_selector::ConversationSelector;
-use crate::env::{get_agent_from_env, get_conversation_id_from_env};
+use crate::env::{get_agent_from_env, get_conversation_id_from_env, should_show_completion_prompt};
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{CliModel, CliProvider, Command, ForgeCommandManager, PartialEvent};
@@ -373,9 +374,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 return Ok(());
             }
             TopLevelCommand::Config(config_group) => {
-                let config_manager = ConfigManager::new(self.api.clone());
-                config_manager
-                    .handle_command(config_group.command.clone(), config_group.porcelain)
+                self.handle_config_command(config_group.command.clone(), config_group.porcelain)
                     .await?;
                 return Ok(());
             }
@@ -642,40 +641,29 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Define base commands with their descriptions
         info = info
-            .add_title("info".to_string())
-            .add_key_value("Description", "Print session information")
-            .add_title("provider".to_string())
-            .add_key_value("Description", "Switch the providers")
-            .add_title("model".to_string())
-            .add_key_value("Description", "Switch the models")
-            .add_title("new".to_string())
-            .add_key_value("Description", "Start new conversation")
-            .add_title("dump".to_string())
+            .add_key_value("info", "Print session information")
+            .add_key_value("provider", "Switch the providers")
+            .add_key_value("model", "Switch the models")
+            .add_key_value("new", "Start new conversation")
             .add_key_value(
-                "Description",
+                "dump",
                 "Save conversation as JSON or HTML (use /dump html for HTML format)",
             )
-            .add_title("conversation".to_string())
             .add_key_value(
-                "Description",
+                "conversation",
                 "List all conversations for the active workspace",
             )
-            .add_title("retry".to_string())
-            .add_key_value("Description", "Retry the last command")
-            .add_title("compact".to_string())
-            .add_key_value("Description", "Compact the conversation context")
-            .add_title("tools".to_string())
+            .add_key_value("retry", "Retry the last command")
+            .add_key_value("compact", "Compact the conversation context")
             .add_key_value(
-                "Description",
+                "tools",
                 "List all available tools with their descriptions and schema",
             );
 
         // Add alias commands
         info = info
-            .add_title("ask".to_string())
-            .add_key_value("Description", "Alias for agent SAGE")
-            .add_title("plan".to_string())
-            .add_key_value("Description", "Alias for agent MUSE");
+            .add_key_value("ask", "Alias for agent SAGE")
+            .add_key_value("plan", "Alias for agent MUSE");
 
         // Fetch agents and add them to the commands list
         let agents = self.api.get_agents().await?;
@@ -687,13 +675,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .lines()
                 .collect::<Vec<_>>()
                 .join(" ");
-            info = info
-                .add_title(agent.id.to_string())
-                .add_key_value("Description", title);
+            info = info.add_key_value(agent.id.to_string(), title);
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip(1);
+            let porcelain = Porcelain::from(&info).into_long().drop_col(0).skip(1);
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -716,7 +702,21 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .map(|m| m.as_str().to_string());
         let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
 
-        crate::config::build_config_info(agent, model, provider, porcelain);
+        let agent_val = agent.unwrap_or_else(|| "Not set".to_string());
+        let model_val = model.unwrap_or_else(|| "Not set".to_string());
+        let provider_val = provider.unwrap_or_else(|| "Not set".to_string());
+
+        let info = Info::new()
+            .add_title("CONFIGURATION")
+            .add_key_value("Agent", agent_val)
+            .add_key_value("Model", model_val)
+            .add_key_value("Provider", provider_val);
+
+        if porcelain {
+            self.writeln(Porcelain::from(&info).into_long().skip(1).drop_col(0))?;
+        } else {
+            self.writeln(info)?;
+        }
 
         Ok(())
     }
@@ -1569,6 +1569,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn on_completion(&mut self, conversation_id: ConversationId) -> anyhow::Result<()> {
+        if !should_show_completion_prompt() {
+            return Ok(());
+        }
+
         self.spinner.start(Some("Loading Summary"))?;
         let conversation = self
             .api
@@ -1582,7 +1586,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         self.spinner.stop(None)?;
 
-        // Only prompt for new conversation if in interactive mode
+        // Only prompt for new conversation if in interactive mode and prompt is enabled
         if self.cli.is_interactive() {
             let prompt_text = "Start a new conversation?";
             let should_start_new_chat = ForgeSelect::confirm(prompt_text)
@@ -1656,4 +1660,173 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         });
     }
+
+    /// Handle config command
+    async fn handle_config_command(
+        &mut self,
+        command: crate::cli::ConfigCommand,
+        porcelain: bool,
+    ) -> Result<()> {
+        match command {
+            crate::cli::ConfigCommand::Set(args) => self.handle_config_set(args).await?,
+            crate::cli::ConfigCommand::Get(args) => self.handle_config_get(args).await?,
+            crate::cli::ConfigCommand::List => {
+                self.on_show_config(porcelain).await?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Handle config set command
+    async fn handle_config_set(&mut self, args: crate::cli::ConfigSetArgs) -> Result<()> {
+        if args.has_any_field() {
+            // Non-interactive mode: set specified values
+            self.handle_non_interactive_config_set(args).await
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Handle non-interactive config set
+    async fn handle_non_interactive_config_set(
+        &mut self,
+        args: crate::cli::ConfigSetArgs,
+    ) -> Result<()> {
+        // Set provider if specified
+        if let Some(provider_str) = args.provider {
+            let provider_id = self.validate_provider(&provider_str).await?;
+            self.api.set_provider(provider_id).await?;
+            self.writeln_title(TitleFormat::action("Provider set").sub_title(&provider_str))?;
+        }
+
+        // Set agent if specified
+        if let Some(agent_str) = args.agent {
+            let agent_id = self.validate_agent(&agent_str).await?;
+            self.api.set_operating_agent(agent_id.clone()).await?;
+            self.writeln_title(TitleFormat::action("Agent set").sub_title(agent_id.as_str()))?;
+        }
+
+        // Set model if specified
+        if let Some(model_str) = args.model {
+            let model_id = self.validate_model(&model_str).await?;
+            self.api.set_operating_model(model_id.clone()).await?;
+            self.writeln_title(TitleFormat::action("Model set").sub_title(model_id.as_str()))?;
+        }
+
+        Ok(())
+    }
+
+    /// Handle config get command
+    async fn handle_config_get(&mut self, args: crate::cli::ConfigGetArgs) -> Result<()> {
+        use crate::cli::ConfigField;
+
+        // Get specific field
+        match args.field {
+            ConfigField::Agent => {
+                let agent = self
+                    .api
+                    .get_operating_agent()
+                    .await
+                    .map(|a| a.as_str().to_string());
+                match agent {
+                    Some(v) => self.writeln(v.to_string())?,
+                    None => self.writeln("Agent: Not set")?,
+                }
+            }
+            ConfigField::Model => {
+                let model = self
+                    .api
+                    .get_operating_model()
+                    .await
+                    .map(|m| m.as_str().to_string());
+                match model {
+                    Some(v) => self.writeln(v.to_string())?,
+                    None => self.writeln("Model: Not set")?,
+                }
+            }
+            ConfigField::Provider => {
+                let provider = self.api.get_provider().await.ok().map(|p| p.id.to_string());
+                match provider {
+                    Some(v) => self.writeln(v.to_string())?,
+                    None => self.writeln("Provider: Not set")?,
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate agent exists
+    async fn validate_agent(&self, agent_str: &str) -> Result<AgentId> {
+        let agents = self.api.get_agents().await?;
+        let agent_id = AgentId::new(agent_str);
+
+        if agents.iter().any(|a| a.id == agent_id) {
+            Ok(agent_id)
+        } else {
+            let available: Vec<_> = agents.iter().map(|a| a.id.as_str()).collect();
+            Err(anyhow::anyhow!(
+                "Agent '{}' not found. Available agents: {}",
+                agent_str,
+                available.join(", ")
+            ))
+        }
+    }
+
+    /// Validate model exists
+    async fn validate_model(&self, model_str: &str) -> Result<ModelId> {
+        let models = self.api.models().await?;
+        let model_id = ModelId::new(model_str);
+
+        if models.iter().any(|m| m.id == model_id) {
+            Ok(model_id)
+        } else {
+            // Show first 10 models as suggestions
+            let available: Vec<_> = models.iter().take(10).map(|m| m.id.as_str()).collect();
+            let suggestion = if models.len() > 10 {
+                format!("{} (and {} more)", available.join(", "), models.len() - 10)
+            } else {
+                available.join(", ")
+            };
+
+            Err(anyhow::anyhow!(
+                "Model '{}' not found. Available models: {}",
+                model_str,
+                suggestion
+            ))
+        }
+    }
+
+    /// Validate provider exists and has API key
+    async fn validate_provider(&self, provider_str: &str) -> Result<ProviderId> {
+        // Parse provider ID from string
+        let provider_id = ProviderId::from_str(provider_str).with_context(|| {
+            format!(
+                "Invalid provider: '{}'. Valid providers are: {}",
+                provider_str,
+                get_valid_provider_names().join(", ")
+            )
+        })?;
+
+        // Check if provider has valid API key
+        let providers = self.api.providers().await?;
+        if providers.iter().any(|p| p.id == provider_id) {
+            Ok(provider_id)
+        } else {
+            Err(anyhow::anyhow!(
+                "Provider '{}' is not available. Make sure the API key is set. Available providers: {}",
+                provider_str,
+                providers
+                    .iter()
+                    .map(|p| p.id.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ))
+        }
+    }
+}
+
+/// Get list of valid provider names
+fn get_valid_provider_names() -> Vec<String> {
+    ProviderId::iter().map(|p| p.to_string()).collect()
 }

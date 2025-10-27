@@ -115,7 +115,6 @@ pub struct ServerName(String);
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Merge)]
 #[serde(rename_all = "camelCase")]
 pub struct McpConfig {
-    #[serde(default)]
     #[merge(strategy = std::collections::BTreeMap::extend)]
     pub mcp_servers: BTreeMap<ServerName, McpServerConfig>,
 }
@@ -265,5 +264,53 @@ mod tests {
 
         let config = McpServerConfig::Sse(sse_server);
         assert!(!config.is_disabled());
+    }
+
+    #[test]
+    fn test_mcp_config_deserialization_valid() {
+        use pretty_assertions::assert_eq;
+
+        let json = r#"{
+            "mcpServers": {
+                "test_server": {
+                    "command": "node",
+                    "args": ["server.js"]
+                }
+            }
+        }"#;
+
+        let actual: McpConfig = serde_json::from_str(json).unwrap();
+        let expected = McpConfig {
+            mcp_servers: BTreeMap::from([(
+                "test_server".to_string().into(),
+                McpServerConfig::new_stdio("node", vec!["server.js".to_string()], None),
+            )]),
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_mcp_config_deserialization_empty_object() {
+        let json = "{}";
+        let result = serde_json::from_str::<McpConfig>(json);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_mcp_config_deserialization_wrong_field_name() {
+        let json = r#"{"servers": {"test": {}}}"#;
+        let result = serde_json::from_str::<McpConfig>(json);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_mcp_config_deserialization_null_mcp_servers() {
+        let json = r#"{"mcpServers": null}"#;
+        let result = serde_json::from_str::<McpConfig>(json);
+
+        assert!(result.is_err());
     }
 }
