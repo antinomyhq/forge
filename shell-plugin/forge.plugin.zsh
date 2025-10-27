@@ -260,6 +260,13 @@ function _forge_action_model() {
     _forge_reset
 }
 
+# Action handler: Commit changes with AI-generated message
+function _forge_commit() {
+    echo
+    _forge_exec commit
+    _forge_reset
+}
+
 # Action handler: Show tools
 function _forge_action_tools() {
     echo
@@ -376,6 +383,9 @@ function forge-accept-line() {
         ;;
         tools)
             _forge_action_tools
+        ;;
+        commit)
+            _forge_commit
         ;;
         *)
             _forge_action_default "$user_action" "$input_text"
