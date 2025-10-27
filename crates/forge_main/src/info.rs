@@ -16,6 +16,15 @@ pub enum Section {
     Items(Option<String>, String), // key, value, subtitle
 }
 
+impl Section {
+    pub fn key(&self) -> Option<&str> {
+        match self {
+            Section::Items(Some(key), _) => Some(key.as_str()),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct Info {
     sections: Vec<Section>,
@@ -110,25 +119,10 @@ impl From<&Metrics> for Info {
             info = info.add_title("TASK COMPLETED".to_string())
         }
 
-        // Add file changes section inspired by the example format
+        // Add file changes section
         if metrics.files_changed.is_empty() {
             info = info.add_value("[No Changes Produced]");
         } else {
-            // First, calculate the maximum filename length for proper alignment
-            let max_filename_len = metrics
-                .files_changed
-                .keys()
-                .map(|path| {
-                    std::path::Path::new(path)
-                        .file_name()
-                        .and_then(|name| name.to_str())
-                        .unwrap_or(path)
-                        .len()
-                })
-                .max()
-                .unwrap_or(0);
-
-            // Add each file with its changes, padded for alignment
             for (path, file_metrics) in &metrics.files_changed {
                 // Extract just the filename from the path
                 let filename = std::path::Path::new(path)
@@ -141,9 +135,7 @@ impl From<&Metrics> for Info {
                     file_metrics.lines_removed, file_metrics.lines_added
                 );
 
-                // Pad filename to max length for proper alignment
-                let padded_filename = format!("⦿ {filename:<max_filename_len$}");
-                info = info.add_key_value(padded_filename, changes);
+                info = info.add_key_value(format!("⦿ {filename}"), changes);
             }
         }
 
@@ -195,17 +187,39 @@ fn calculate_cache_percentage(usage: &Usage) -> u8 {
 
 impl fmt::Display for Info {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for section in &self.sections {
+        let mut width: Option<usize> = None;
+
+        for (i, section) in self.sections.iter().enumerate() {
             match section {
                 Section::Title(title) => {
                     writeln!(f)?;
-                    writeln!(f, "{}", title.bold().dimmed())?
+                    writeln!(f, "{}", title.bold().dimmed())?;
+
+                    // Calculate max key width for items under this title
+                    width = self
+                        .sections
+                        .iter()
+                        .skip(i + 1)
+                        .take_while(|s| matches!(s, Section::Items(..)))
+                        .filter_map(|s| s.key())
+                        .map(|key| key.len())
+                        .max();
                 }
                 Section::Items(key, value) => {
                     if let Some(key) = key {
-                        writeln!(f, "  {}: {}", key.bright_cyan().bold(), value)?;
+                        if let Some(width) = width {
+                            writeln!(
+                                f,
+                                "  {} {}",
+                                format!("{key:<width$}:").bright_cyan().bold(),
+                                value
+                            )?;
+                        } else {
+                            // No section width (items without a title)
+                            writeln!(f, "  {}: {}", key.bright_cyan().bold(), value)?;
+                        }
                     } else {
-                        // Show key-only items (like tools)
+                        // Show value-only items
                         writeln!(f, "  {}", value)?;
                     }
                 }
@@ -692,5 +706,90 @@ mod tests {
         assert!(expected_display.contains("Task"));
         assert!(expected_display.contains("Create a new feature"));
         assert!(expected_display.contains(&conversation_id.to_string()));
+    }
+
+    #[test]
+    fn test_info_display_with_consistent_key_padding() {
+        use super::Info;
+
+        let fixture = Info::new()
+            .add_title("SECTION ONE")
+            .add_key_value("Short", "value1")
+            .add_key_value("Very Long Key", "value2")
+            .add_key_value("Mid", "value3")
+            .add_title("SECTION TWO")
+            .add_key_value("A", "valueA")
+            .add_key_value("ABC", "valueB");
+
+        let actual = fixture.to_string();
+
+        // Strip ANSI codes for easier assertion
+        let stripped = strip_ansi_escapes::strip(&actual);
+        let actual_str = String::from_utf8(stripped).unwrap();
+
+        // Verify that keys are padded within each section
+        // In SECTION ONE, all keys should be padded to length of "Very Long Key" (13)
+        // In SECTION TWO, all keys should be padded to length of "ABC" (3)
+
+        // Check that the display contains properly formatted sections
+        assert!(actual_str.contains("SECTION ONE"));
+        assert!(actual_str.contains("SECTION TWO"));
+
+        // Verify padding by checking alignment of colons
+        // All keys in a section should have colons at the same column
+        let lines: Vec<&str> = actual_str.lines().collect();
+
+        // Find SECTION ONE items
+        let section_one_start = lines
+            .iter()
+            .position(|l| l.contains("SECTION ONE"))
+            .unwrap();
+        let section_two_start = lines
+            .iter()
+            .position(|l| l.contains("SECTION TWO"))
+            .unwrap();
+
+        let section_one_items: Vec<&str> = lines[section_one_start + 1..section_two_start]
+            .iter()
+            .filter(|l| l.contains(':'))
+            .copied()
+            .collect();
+
+        // All colons in section one should be at the same position
+        let colon_positions: Vec<usize> = section_one_items
+            .iter()
+            .map(|line| line.find(':').unwrap())
+            .collect();
+
+        assert!(
+            colon_positions.windows(2).all(|w| w[0] == w[1]),
+            "Keys in SECTION ONE should have consistent padding. Colon positions: {:?}",
+            colon_positions
+        );
+
+        // Check SECTION TWO items
+        let section_two_items: Vec<&str> = lines[section_two_start + 1..]
+            .iter()
+            .filter(|l| l.contains(':'))
+            .copied()
+            .collect();
+
+        let colon_positions_two: Vec<usize> = section_two_items
+            .iter()
+            .map(|line| line.find(':').unwrap())
+            .collect();
+
+        assert!(
+            colon_positions_two.windows(2).all(|w| w[0] == w[1]),
+            "Keys in SECTION TWO should have consistent padding. Colon positions: {:?}",
+            colon_positions_two
+        );
+
+        // Verify that different sections can have different padding
+        // (SECTION ONE should have wider padding than SECTION TWO)
+        assert!(
+            colon_positions[0] > colon_positions_two[0],
+            "SECTION ONE should have wider padding than SECTION TWO"
+        );
     }
 }
