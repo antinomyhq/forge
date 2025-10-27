@@ -345,7 +345,7 @@ impl<S: AgentService> Orchestrator<S> {
             });
 
         // Handle files that may have been reverted/modified externally by the user
-        context = self.add_externally_changed_files(context, &model_id).await;
+        context = self.add_externally_changed_files(context, &model_id);
 
         // Signals that the loop should suspend (task may or may not be completed)
         let mut should_yield = false;
@@ -551,7 +551,7 @@ impl<S: AgentService> Orchestrator<S> {
     }
 
     /// Adds externally changed files notification to the context
-    async fn add_externally_changed_files(&self, context: Context, model_id: &ModelId) -> Context {
+    fn add_externally_changed_files(&self, context: Context, model_id: &ModelId) -> Context {
         if let Some(rendered_message) = &self.changed_files {
             return context.add_message(ContextMessage::user(
                 rendered_message.clone(),
