@@ -67,6 +67,102 @@ impl<I> ForgeProviderAuthService<I> {
     ) -> Result<ProviderCredential, super::AuthFlowError> {
         Ok(ProviderCredential::new_api_key(provider_id, api_key).url_params(url_params))
     }
+    /// Injects custom headers into a HeaderMap
+    fn inject_custom_headers(
+        headers: &mut reqwest::header::HeaderMap,
+        custom_headers: &Option<std::collections::HashMap<String, String>>,
+    ) {
+        use reqwest::header::{HeaderName, HeaderValue};
+
+        if let Some(custom_headers) = custom_headers {
+            for (key, value) in custom_headers {
+                if let (Ok(name), Ok(val)) =
+                    (HeaderName::try_from(key), HeaderValue::from_str(value))
+                {
+                    headers.insert(name, val);
+                }
+            }
+        }
+    }
+
+    /// Parses and handles OAuth error responses during polling
+    fn handle_oauth_error(error_code: &str) -> Result<(), AuthFlowError> {
+        match error_code {
+            "authorization_pending" | "slow_down" => Ok(()),
+            "expired_token" => Err(AuthFlowError::Expired),
+            "access_denied" => Err(AuthFlowError::Denied),
+            _ => Err(AuthFlowError::PollFailed(format!(
+                "OAuth error: {}",
+                error_code
+            ))),
+        }
+    }
+
+    /// Parses token response from JSON
+    ///
+    /// Extracts access_token, refresh_token, and expires_in from OAuth
+    /// response.
+    ///
+    /// # Arguments
+    /// * `body` - JSON response body as string
+    ///
+    /// # Returns
+    /// Tuple of (access_token, refresh_token, expires_in)
+    ///
+    /// # Errors
+    /// Returns `AuthFlowError::PollFailed` if parsing fails or access_token is
+    /// missing
+    fn parse_token_response(
+        body: &str,
+    ) -> Result<(String, Option<String>, Option<u64>), AuthFlowError> {
+        let token_response: serde_json::Value = serde_json::from_str(body).map_err(|e| {
+            AuthFlowError::PollFailed(format!("Failed to parse token response: {}", e))
+        })?;
+
+        let access_token = token_response["access_token"]
+            .as_str()
+            .ok_or_else(|| {
+                AuthFlowError::PollFailed("Missing access_token in response".to_string())
+            })?
+            .to_string();
+
+        let refresh_token = token_response["refresh_token"]
+            .as_str()
+            .map(|s| s.to_string());
+
+        let expires_in = token_response["expires_in"].as_u64();
+
+        Ok((access_token, refresh_token, expires_in))
+    }
+
+    /// Calculates token expiration time
+    fn calculate_token_expiry(
+        expires_in: Option<u64>,
+        fallback: chrono::Duration,
+    ) -> chrono::DateTime<chrono::Utc> {
+        if let Some(seconds) = expires_in {
+            Utc::now() + chrono::Duration::seconds(seconds as i64)
+        } else {
+            Utc::now() + fallback
+        }
+    }
+
+    /// Builds a provider credential from OAuth tokens
+    fn build_oauth_credential(
+        provider_id: ProviderId,
+        access_token: String,
+        refresh_token: Option<String>,
+        expires_at: chrono::DateTime<chrono::Utc>,
+    ) -> ProviderCredential {
+        ProviderCredential::new_oauth(
+            provider_id,
+            OAuthTokens {
+                access_token,
+                refresh_token: refresh_token.unwrap_or_default(),
+                expires_at,
+            },
+        )
+    }
 }
 
 impl<I> ForgeProviderAuthService<I> {
@@ -149,28 +245,11 @@ impl<I> ForgeProviderAuthService<I> {
     async fn handle_oauth_device_poll(
         &self,
         device_code: &str,
-        _interval: u64,
         config: &crate::provider::OAuthConfig,
         timeout: Duration,
+        github_compatible: bool,
     ) -> Result<AuthResult, super::AuthFlowError> {
-        // Build oauth2 client for polling
-        use oauth2::basic::BasicClient;
-        use oauth2::{ClientId, DeviceAuthorizationUrl, DeviceCode, TokenUrl};
-
         use super::AuthFlowError;
-
-        let auth_url = &config.auth_url;
-        let token_url = &config.token_url;
-
-        let _client = BasicClient::new(ClientId::new(config.client_id.clone()))
-            .set_device_authorization_url(
-                DeviceAuthorizationUrl::new(auth_url.clone())
-                    .map_err(|e| AuthFlowError::PollFailed(format!("Invalid auth_url: {}", e)))?,
-            )
-            .set_token_uri(
-                TokenUrl::new(token_url.clone())
-                    .map_err(|e| AuthFlowError::PollFailed(format!("Invalid token_url: {}", e)))?,
-            );
 
         // Build HTTP client for manual polling
         let http_client = ForgeOAuthService::build_http_client(config.custom_headers.as_ref())
@@ -178,18 +257,20 @@ impl<I> ForgeProviderAuthService<I> {
                 AuthFlowError::PollFailed(format!("Failed to build HTTP client: {}", e))
             })?;
 
-        // Create a device code wrapper
-        let device_code = DeviceCode::new(device_code.to_string());
-
-        use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+        use reqwest::header::{HeaderMap, HeaderValue};
 
         let start_time = tokio::time::Instant::now();
-        let interval = Duration::from_secs(5); // Default interval
+        let interval = Duration::from_secs(5);
 
         loop {
             // Check timeout
             if start_time.elapsed() >= timeout {
                 return Err(AuthFlowError::Timeout(timeout));
+            }
+
+            // Sleep before polling (GitHub pattern only)
+            if github_compatible {
+                tokio::time::sleep(interval).await;
             }
 
             // Build token request
@@ -198,7 +279,7 @@ impl<I> ForgeProviderAuthService<I> {
                     "grant_type".to_string(),
                     "urn:ietf:params:oauth:grant-type:device_code".to_string(),
                 ),
-                ("device_code".to_string(), device_code.secret().to_string()),
+                ("device_code".to_string(), device_code.to_string()),
                 ("client_id".to_string(), config.client_id.clone()),
             ];
 
@@ -206,7 +287,7 @@ impl<I> ForgeProviderAuthService<I> {
                 AuthFlowError::PollFailed(format!("Failed to encode request: {}", e))
             })?;
 
-            // Make HTTP request
+            // Make HTTP request with headers
             let mut headers = HeaderMap::new();
             headers.insert(
                 "Content-Type",
@@ -214,19 +295,11 @@ impl<I> ForgeProviderAuthService<I> {
             );
             headers.insert("Accept", HeaderValue::from_static("application/json"));
 
-            // Add custom headers
-            if let Some(custom_headers) = &config.custom_headers {
-                for (key, value) in custom_headers {
-                    if let (Ok(name), Ok(val)) =
-                        (HeaderName::try_from(key), HeaderValue::from_str(value))
-                    {
-                        headers.insert(name, val);
-                    }
-                }
-            }
+            // Inject custom headers using helper
+            Self::inject_custom_headers(&mut headers, &config.custom_headers);
 
             let response = http_client
-                .post(token_url)
+                .post(&config.token_url)
                 .headers(headers)
                 .body(body)
                 .send()
@@ -234,68 +307,64 @@ impl<I> ForgeProviderAuthService<I> {
                 .map_err(|e| AuthFlowError::PollFailed(format!("HTTP request failed: {}", e)))?;
 
             let status = response.status();
-            let body = response.text().await.map_err(|e| {
+            let body_text = response.text().await.map_err(|e| {
                 AuthFlowError::PollFailed(format!("Failed to read response: {}", e))
             })?;
 
-            // Parse response
-            if status.is_success() {
-                // Success - parse token response
-                let token_response: serde_json::Value =
-                    serde_json::from_str(&body).map_err(|e| {
-                        AuthFlowError::PollFailed(format!("Failed to parse token response: {}", e))
-                    })?;
+            // GitHub-compatible: HTTP 200 can contain either success or error
+            if github_compatible && status.is_success() {
+                let token_response: serde_json::Value = serde_json::from_str(&body_text)
+                    .unwrap_or_else(|_| serde_json::json!({"error": "parse_error"}));
 
-                let access_token = token_response["access_token"]
-                    .as_str()
-                    .ok_or_else(|| {
-                        AuthFlowError::PollFailed("Missing access_token in response".to_string())
-                    })?
-                    .to_string();
-
-                let refresh_token = token_response["refresh_token"]
-                    .as_str()
-                    .map(|s| s.to_string());
-                let expires_in = token_response["expires_in"].as_u64();
-
-                return Ok(AuthResult::OAuthTokens { access_token, refresh_token, expires_in });
-            } else {
-                // Check for error response
-                if let Ok(error_response) = serde_json::from_str::<serde_json::Value>(&body)
-                    && let Some(error) = error_response["error"].as_str()
-                {
-                    match error {
-                        "authorization_pending" => {
-                            // Still waiting for user authorization - continue polling
-                            tokio::time::sleep(interval).await;
-                            continue;
-                        }
-                        "slow_down" => {
-                            // Server requests slower polling
-                            tokio::time::sleep(interval * 2).await;
-                            continue;
-                        }
-                        "expired_token" => {
-                            return Err(AuthFlowError::Expired);
-                        }
-                        "access_denied" => {
-                            return Err(AuthFlowError::Denied);
-                        }
-                        _ => {
-                            return Err(AuthFlowError::PollFailed(format!(
-                                "OAuth error: {}",
-                                error
-                            )));
-                        }
+                // Check for error field first
+                if let Some(error) = token_response["error"].as_str() {
+                    if Self::handle_oauth_error(error).is_ok() {
+                        // Retryable error - continue polling (already slept before request)
+                        continue;
                     }
+                    // Terminal error - propagate
+                    return Err(Self::handle_oauth_error(error).unwrap_err());
                 }
 
-                // Unknown error
-                return Err(AuthFlowError::PollFailed(format!(
-                    "HTTP {}: {}",
-                    status, body
-                )));
+                // No error field - parse as success
+                let (access_token, refresh_token, expires_in) =
+                    Self::parse_token_response(&body_text)?;
+
+                return Ok(AuthResult::OAuthTokens { access_token, refresh_token, expires_in });
             }
+
+            // Standard OAuth: HTTP success means tokens
+            if !github_compatible && status.is_success() {
+                let (access_token, refresh_token, expires_in) =
+                    Self::parse_token_response(&body_text)?;
+
+                return Ok(AuthResult::OAuthTokens { access_token, refresh_token, expires_in });
+            }
+
+            // Handle error responses (non-200 status for standard OAuth)
+            let error_response: serde_json::Value = serde_json::from_str(&body_text)
+                .unwrap_or_else(|_| serde_json::json!({"error": "unknown_error"}));
+
+            if let Some(error) = error_response["error"].as_str() {
+                if Self::handle_oauth_error(error).is_ok() {
+                    // Retryable error - sleep and continue
+                    tokio::time::sleep(if error == "slow_down" {
+                        interval * 2
+                    } else {
+                        interval
+                    })
+                    .await;
+                    continue;
+                }
+                // Terminal error - propagate
+                return Err(Self::handle_oauth_error(error).unwrap_err());
+            }
+
+            // Unknown error
+            return Err(AuthFlowError::PollFailed(format!(
+                "HTTP {}: {}",
+                status, body_text
+            )));
         }
     }
 
@@ -312,23 +381,16 @@ impl<I> ForgeProviderAuthService<I> {
 
         match result {
             AuthResult::OAuthTokens { access_token, refresh_token, expires_in } => {
-                use chrono::Utc;
+                // Use helpers for consistent credential building
+                let expires_at =
+                    Self::calculate_token_expiry(expires_in, chrono::Duration::days(365));
 
-                // Calculate expiration time
-                let expires_at = if let Some(seconds) = expires_in {
-                    Utc::now() + chrono::Duration::seconds(seconds as i64)
-                } else {
-                    // Default to 1 year if not specified
-                    Utc::now() + chrono::Duration::days(365)
-                };
-
-                let oauth_tokens = forge_app::dto::OAuthTokens::new(
-                    refresh_token.unwrap_or_else(|| access_token.clone()),
+                Ok(Self::build_oauth_credential(
+                    provider_id,
                     access_token,
+                    refresh_token,
                     expires_at,
-                );
-
-                Ok(ProviderCredential::new_oauth(provider_id, oauth_tokens))
+                ))
             }
             _ => Err(AuthFlowError::CompletionFailed(
                 "Expected OAuth tokens result".to_string(),
@@ -392,275 +454,16 @@ impl<I> ForgeProviderAuthService<I> {
                     ))
                 })?;
 
-        // Calculate expiry time
-        let expires_at = if let Some(expires_in) = token_response.expires_in {
-            chrono::Utc::now() + chrono::Duration::seconds(expires_in as i64)
-        } else {
-            // Default to 1 hour if not provided
-            chrono::Utc::now() + chrono::Duration::hours(1)
-        };
+        // Use helpers for consistent credential building
+        let expires_at =
+            Self::calculate_token_expiry(token_response.expires_in, chrono::Duration::hours(1));
 
-        // Create OAuth tokens
-        let oauth_tokens = if let Some(refresh_token) = token_response.refresh_token {
-            forge_app::dto::OAuthTokens::new(refresh_token, token_response.access_token, expires_at)
-        } else {
-            // For providers without refresh token, use access token as refresh token
-            forge_app::dto::OAuthTokens::new(
-                token_response.access_token.clone(),
-                token_response.access_token,
-                expires_at,
-            )
-        };
-
-        // Create credential
-        Ok(ProviderCredential::new_oauth(provider_id, oauth_tokens))
-    }
-
-    /// Handles OAuth device flow with API key exchange (GitHub Copilot
-    /// pattern).
-    ///
-    /// This initiates the OAuth device flow that will later exchange tokens for
-    /// API keys. Returns device code and verification URL for user
-    /// authorization.
-    async fn handle_oauth_with_apikey_init(
-        &self,
-        _provider_id: &ProviderId,
-        config: &crate::provider::OAuthConfig,
-    ) -> Result<forge_app::dto::AuthContext, super::AuthFlowError> {
-        // Validate configuration
-        // Build oauth2 client
-        use oauth2::basic::BasicClient;
-        use oauth2::{ClientId, DeviceAuthorizationUrl, Scope, TokenUrl};
-
-        use super::AuthFlowError;
-
-        let client = BasicClient::new(ClientId::new(config.client_id.clone()))
-            .set_device_authorization_url(
-                DeviceAuthorizationUrl::new(config.auth_url.clone()).map_err(|e| {
-                    AuthFlowError::InitiationFailed(format!("Invalid auth_url: {}", e))
-                })?,
-            )
-            .set_token_uri(TokenUrl::new(config.token_url.clone()).map_err(|e| {
-                AuthFlowError::InitiationFailed(format!("Invalid token_url: {}", e))
-            })?);
-
-        // Request device authorization with scopes
-        let mut request = client.exchange_device_code();
-        for scope in &config.scopes {
-            request = request.add_scope(Scope::new(scope.clone()));
-        }
-
-        // Build HTTP client with custom headers
-        let http_client = ForgeOAuthService::build_http_client(config.custom_headers.as_ref())
-            .map_err(|e| {
-                AuthFlowError::InitiationFailed(format!("Failed to build HTTP client: {}", e))
-            })?;
-
-        let http_fn = |req| {
-            crate::provider::oauth::ForgeOAuthService::github_compliant_http_request(
-                http_client.clone(),
-                req,
-            )
-        };
-
-        let device_auth_response: oauth2::StandardDeviceAuthorizationResponse =
-            request.request_async(&http_fn).await.map_err(|e| {
-                AuthFlowError::InitiationFailed(format!(
-                    "Device authorization request failed: {}",
-                    e
-                ))
-            })?;
-
-        use forge_app::dto::{
-            AuthContext, DeviceCodeMethod, DeviceCodeRequest, DeviceCodeResponse,
-        };
-
-        // Build the type-safe context
-        Ok(AuthContext::device_code(
-            DeviceCodeRequest {
-                user_code: device_auth_response.user_code().secret().to_string(),
-                verification_uri: device_auth_response.verification_uri().to_string(),
-                verification_uri_complete: device_auth_response
-                    .verification_uri_complete()
-                    .map(|u| u.secret().to_string()),
-                expires_in: device_auth_response.expires_in().as_secs(),
-                interval: device_auth_response.interval().as_secs(),
-            },
-            DeviceCodeResponse {
-                device_code: device_auth_response.device_code().secret().to_string(),
-                interval: device_auth_response.interval().as_secs(),
-            },
-            DeviceCodeMethod { oauth_config: config.clone() },
+        Ok(Self::build_oauth_credential(
+            provider_id,
+            token_response.access_token,
+            token_response.refresh_token,
+            expires_at,
         ))
-    }
-
-    /// Polls for OAuth tokens using device code (GitHub Copilot pattern).
-    ///
-    /// This implements manual polling with GitHub-specific response handling.
-    async fn handle_oauth_with_apikey_poll(
-        &self,
-        device_code: &str,
-        config: &crate::provider::OAuthConfig,
-        timeout: Duration,
-    ) -> Result<AuthResult, super::AuthFlowError> {
-        use super::AuthFlowError;
-
-        // Build HTTP client for manual polling
-        let http_client = ForgeOAuthService::build_http_client(config.custom_headers.as_ref())
-            .map_err(|e| {
-                AuthFlowError::PollFailed(format!("Failed to build HTTP client: {}", e))
-            })?;
-
-        use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
-
-        let start_time = tokio::time::Instant::now();
-        let interval = Duration::from_secs(5);
-
-        loop {
-            // Check timeout
-            if start_time.elapsed() >= timeout {
-                return Err(AuthFlowError::Timeout(timeout));
-            }
-
-            // Wait before polling
-            tokio::time::sleep(interval).await;
-
-            // Build token request
-            let params = vec![
-                (
-                    "grant_type".to_string(),
-                    "urn:ietf:params:oauth:grant-type:device_code".to_string(),
-                ),
-                ("device_code".to_string(), device_code.to_string()),
-                ("client_id".to_string(), config.client_id.clone()),
-            ];
-
-            let body = serde_urlencoded::to_string(&params).map_err(|e| {
-                AuthFlowError::PollFailed(format!("Failed to encode request: {}", e))
-            })?;
-
-            // Make HTTP request with headers
-            let mut headers = HeaderMap::new();
-            headers.insert(
-                "Content-Type",
-                HeaderValue::from_static("application/x-www-form-urlencoded"),
-            );
-            headers.insert("Accept", HeaderValue::from_static("application/json"));
-
-            // Add custom headers
-            if let Some(custom_headers) = &config.custom_headers {
-                for (key, value) in custom_headers {
-                    if let (Ok(name), Ok(val)) =
-                        (HeaderName::try_from(key), HeaderValue::from_str(value))
-                    {
-                        headers.insert(name, val);
-                    }
-                }
-            }
-
-            let response = http_client
-                .post(&config.token_url)
-                .headers(headers)
-                .body(body)
-                .send()
-                .await
-                .map_err(|e| AuthFlowError::PollFailed(format!("HTTP request failed: {}", e)))?;
-
-            let status = response.status();
-            let body_text = response.text().await.map_err(|e| {
-                AuthFlowError::PollFailed(format!("Failed to read response: {}", e))
-            })?;
-
-            // Parse response
-            if status.is_success() {
-                // Success - parse token response
-                let token_response: serde_json::Value =
-                    serde_json::from_str(&body_text).map_err(|e| {
-                        AuthFlowError::PollFailed(format!("Failed to parse token response: {}", e))
-                    })?;
-
-                // GitHub returns HTTP 200 with error field for pending/denied/expired
-                if let Some(error) = token_response["error"].as_str() {
-                    match error {
-                        "authorization_pending" => {
-                            // Still waiting - continue polling
-                            tokio::time::sleep(interval).await;
-                            continue;
-                        }
-                        "slow_down" => {
-                            // Server requests slower polling
-                            tokio::time::sleep(interval * 2).await;
-                            continue;
-                        }
-                        "expired_token" => {
-                            return Err(AuthFlowError::Expired);
-                        }
-                        "access_denied" => {
-                            return Err(AuthFlowError::Denied);
-                        }
-                        _ => {
-                            return Err(AuthFlowError::PollFailed(format!(
-                                "OAuth error: {}",
-                                error
-                            )));
-                        }
-                    }
-                }
-
-                // Success - extract access token
-                let access_token = token_response["access_token"]
-                    .as_str()
-                    .ok_or_else(|| {
-                        AuthFlowError::PollFailed(format!(
-                            "Missing access_token in response: {}",
-                            body_text
-                        ))
-                    })?
-                    .to_string();
-
-                let refresh_token = token_response["refresh_token"]
-                    .as_str()
-                    .map(|s| s.to_string());
-                let expires_in = token_response["expires_in"].as_u64();
-
-                return Ok(AuthResult::OAuthTokens { access_token, refresh_token, expires_in });
-            }
-
-            // Parse error response
-            let error_response: serde_json::Value =
-                serde_json::from_str(&body_text).unwrap_or_else(|_| {
-                    serde_json::json!({"error": "unknown_error", "error_description": body_text})
-                });
-
-            let error_code = error_response["error"].as_str().unwrap_or("unknown_error");
-
-            match error_code {
-                "authorization_pending" => {
-                    // User hasn't authorized yet
-                    continue;
-                }
-                "slow_down" => {
-                    // Server requests slower polling
-                    tokio::time::sleep(Duration::from_secs(5)).await;
-                    continue;
-                }
-                "expired_token" => {
-                    return Err(AuthFlowError::Expired);
-                }
-                "access_denied" => {
-                    return Err(AuthFlowError::Denied);
-                }
-                _ => {
-                    let description = error_response["error_description"]
-                        .as_str()
-                        .unwrap_or("Unknown error");
-                    return Err(AuthFlowError::PollFailed(format!(
-                        "{}: {}",
-                        error_code, description
-                    )));
-                }
-            }
-        }
     }
 
     /// Exchanges OAuth access token for API key (GitHub Copilot pattern).
@@ -803,11 +606,9 @@ impl<I> ForgeProviderAuthService<I> {
             .await
             .map_err(|e| AuthFlowError::RefreshFailed(format!("Token refresh failed: {}", e)))?;
 
-        let expires_at = Utc::now()
-            + token_response
-                .expires_in
-                .map(|s| chrono::Duration::seconds(s as i64))
-                .unwrap_or(chrono::Duration::days(365));
+        // Use helpers for consistent handling
+        let expires_at =
+            Self::calculate_token_expiry(token_response.expires_in, chrono::Duration::days(30));
 
         let new_tokens = OAuthTokens::new(
             token_response
@@ -841,12 +642,9 @@ impl<I> ForgeProviderAuthService<I> {
                     AuthFlowError::RefreshFailed(format!("Failed to refresh access token: {}", e))
                 })?;
 
-        // Calculate new expiry time
-        let expires_at = if let Some(expires_in) = token_response.expires_in {
-            chrono::Utc::now() + chrono::Duration::seconds(expires_in as i64)
-        } else {
-            chrono::Utc::now() + chrono::Duration::hours(1)
-        };
+        // Use helpers for consistent handling
+        let expires_at =
+            Self::calculate_token_expiry(token_response.expires_in, chrono::Duration::hours(1));
 
         // Create updated OAuth tokens
         let updated_tokens = OAuthTokens::new(
@@ -857,8 +655,7 @@ impl<I> ForgeProviderAuthService<I> {
 
         // Create new credential with refreshed tokens
         let mut refreshed = credential.clone();
-        refreshed.oauth_tokens = Some(updated_tokens);
-        refreshed.updated_at = chrono::Utc::now();
+        refreshed.update_oauth_tokens(updated_tokens);
 
         Ok(refreshed)
     }
@@ -925,20 +722,10 @@ where
                     .await
                     .map_err(|e| anyhow::anyhow!(e))
             }
-            AuthMethod::OAuthDevice(config) => {
-                // Check if this needs OAuth with API key exchange (GitHub Copilot pattern)
-                if config.token_refresh_url.is_some() {
-                    // Handle OAuth with API key directly
-                    self.handle_oauth_with_apikey_init(&provider_id, config)
-                        .await
-                        .map_err(|e| anyhow::anyhow!(e))
-                } else {
-                    // Handle OAuth device flow directly
-                    self.handle_oauth_device_init(config)
-                        .await
-                        .map_err(|e| anyhow::anyhow!(e))
-                }
-            }
+            AuthMethod::OAuthDevice(config) => self
+                .handle_oauth_device_init(config)
+                .await
+                .map_err(|e| anyhow::anyhow!(e)),
             AuthMethod::OAuthCode(config) => {
                 // Handle OAuth code flow directly
                 self.handle_oauth_code_init(&provider_id, config)
@@ -1056,19 +843,19 @@ where
             }
             AuthMethod::OAuthDevice(config) => {
                 // Extract device code from context
-                let (device_code, interval) = context
+                let (device_code, _interval) = context
                     .as_device_code()
                     .ok_or_else(|| anyhow::anyhow!("Invalid context type for device flow"))?;
 
                 // Check if this needs OAuth with API key exchange (GitHub Copilot pattern)
                 if config.token_refresh_url.is_some() {
-                    // Handle OAuth with API key polling directly
-                    self.handle_oauth_with_apikey_poll(device_code, config, timeout)
+                    // Handle OAuth with API key polling (GitHub-compatible)
+                    self.handle_oauth_device_poll(device_code, config, timeout, true)
                         .await
                         .map_err(|e| anyhow::anyhow!(e))
                 } else {
-                    // Handle OAuth device flow polling directly
-                    self.handle_oauth_device_poll(device_code, interval, config, timeout)
+                    // Handle OAuth device flow polling (standard OAuth)
+                    self.handle_oauth_device_poll(device_code, config, timeout, false)
                         .await
                         .map_err(|e| anyhow::anyhow!(e))
                 }
