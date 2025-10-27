@@ -13,8 +13,9 @@ use crate::services::{CustomInstructionsService, TemplateService};
 use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
 use crate::{
-    AgentLoaderService, AttachmentService, ConversationService, EnvironmentService,
-    FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker, WorkflowService,
+    AgentLoaderService, AttachmentService, CommandLoaderService, ConversationService,
+    EnvironmentService, FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker,
+    WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -97,12 +98,14 @@ impl<S: Services> ForgeApp<S> {
         // Prepare agents with user configuration and subscriptions
         let agents = services.get_agents().await?;
         let model = services.get_active_model().await?;
+        let commands = services.get_commands().await?;
         let agent = agents
             .into_iter()
             .map(|agent| {
                 agent
-                    .set_model_deeply(model.clone())
                     .apply_workflow_config(&workflow)
+                    .set_model_deeply(model.clone())
+                    .subscribe_commands(&commands)
             })
             .find(|agent| agent.has_subscription(&chat.event.name))
             .ok_or(crate::Error::UnsubscribedEvent(chat.event.name.to_owned()))?;
@@ -182,26 +185,38 @@ impl<S: Services> ForgeApp<S> {
 
         // Calculate original metrics
         let original_messages = context.messages.len();
-        let original_tokens_approx = context.token_count_approx();
-
-        // Find the main agent (first agent in the conversation)
-        // In most cases, there should be a primary agent for compaction
-        let agent = self
+        let original_token_count = *context.token_count();
+        let model = self.services.get_active_model().await?;
+        let workflow = self.services.read_merged(None).await.unwrap_or_default();
+        let active_agent = self.services.get_active_agent().await?;
+        let Some(compact) = self
             .services
             .get_agents()
             .await?
-            .first()
-            .ok_or_else(|| anyhow::anyhow!("No agents found in conversation"))?
-            .clone();
+            .into_iter()
+            .find(|agent| active_agent.as_ref().is_some_and(|id| agent.id == *id))
+            .and_then(|agent| {
+                agent
+                    .apply_workflow_config(&workflow)
+                    .set_model_deeply(model.clone())
+                    .compact
+            })
+        else {
+            return Ok(CompactionResult::new(
+                original_token_count,
+                0,
+                original_messages,
+                0,
+            ));
+        };
 
         // Apply compaction using the Compactor
-        let compactor = Compactor::new(self.services.clone());
+        let compacted_context = Compactor::new(self.services.clone(), compact)
+            .compact(context, true)
+            .await?;
 
-        let compacted_context = compactor.compact(&agent, context, true).await?;
-
-        // Calculate compacted metrics
         let compacted_messages = compacted_context.messages.len();
-        let compacted_tokens_approx = compacted_context.token_count_approx();
+        let compacted_tokens = *compacted_context.token_count();
 
         // Update the conversation with the compacted context
         conversation.context = Some(compacted_context);
@@ -209,10 +224,9 @@ impl<S: Services> ForgeApp<S> {
         // Save the updated conversation
         self.services.upsert_conversation(conversation).await?;
 
-        // Return the compaction metrics
         Ok(CompactionResult::new(
-            original_tokens_approx,
-            compacted_tokens_approx,
+            original_token_count,
+            compacted_tokens,
             original_messages,
             compacted_messages,
         ))

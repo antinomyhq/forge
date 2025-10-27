@@ -9,7 +9,7 @@ forge_fs.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 dirs.workspace = true
-dotenv.workspace = true
+dotenvy.workspace = true
 forge_domain.workspace = true
 forge_services.workspace = true
 tokio.workspace = true
@@ -42,3 +42,6 @@ serde.workspace = true
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
 serial_test = "3.2"
+fake = { version = "4.4.0", features = ["derive"] }
+pretty_assertions.workspace = true
+forge_domain = { path = "../forge_domain" }

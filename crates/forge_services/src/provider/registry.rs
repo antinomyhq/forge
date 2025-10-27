@@ -31,7 +31,7 @@ fn get_provider_configs() -> &'static Vec<ProviderConfig> {
     PROVIDER_CONFIGS.get_or_init(|| {
         let json_str = include_str!("provider.json");
         serde_json::from_str(json_str)
-            .map_err(|e| anyhow::anyhow!("Failed to parse provider configs: {}", e))
+            .map_err(|e| anyhow::anyhow!("Failed to parse provider configs: {e}"))
             .unwrap()
     })
 }
@@ -80,11 +80,16 @@ impl<F: EnvironmentInfra + AppConfigRepository> ForgeProviderRegistry<F> {
             .ok_or_else(|| ProviderError::env_var_not_found(config.id, &config.api_key_vars))?;
 
         // Check URL parameter environment variables and build template data
+        // URL parameters are optional - only add them if they exist
         let mut template_data = std::collections::HashMap::new();
+
         for env_var in &config.url_param_vars {
             if let Some(value) = self.infra.get_env_var(env_var) {
-                // Use env var names verbatim (same case) in templates
-                template_data.insert(env_var.clone(), value);
+                template_data.insert(env_var, value);
+            } else if env_var == "OPENAI_URL" {
+                template_data.insert(env_var, "https://api.openai.com/v1".to_string());
+            } else if env_var == "ANTHROPIC_URL" {
+                template_data.insert(env_var, "https://api.anthropic.com/v1".to_string());
             } else {
                 return Err(ProviderError::env_var_not_found(config.id, env_var).into());
             }
@@ -374,29 +379,8 @@ mod env_tests {
 
     impl EnvironmentInfra for MockInfra {
         fn get_environment(&self) -> Environment {
-            // Return a minimal Environment for testing
-            Environment {
-                os: "test".to_string(),
-                pid: 1,
-                cwd: std::path::PathBuf::from("/test"),
-                home: None,
-                shell: "test".to_string(),
-                base_path: std::path::PathBuf::from("/test"),
-                forge_api_url: Url::parse("https://test.com").unwrap(),
-                retry_config: Default::default(),
-                max_search_lines: 100,
-                max_search_result_bytes: 1000,
-                fetch_truncation_limit: 1000,
-                stdout_max_prefix_length: 100,
-                stdout_max_suffix_length: 100,
-                stdout_max_line_length: 500,
-                max_read_size: 2000,
-                http: Default::default(),
-                max_file_size: 100000,
-                tool_timeout: 300,
-                auto_open_dump: false,
-                custom_history_path: None,
-            }
+            use fake::{Fake, Faker};
+            Faker.fake()
         }
 
         fn get_env_var(&self, key: &str) -> Option<String> {
@@ -479,7 +463,7 @@ mod env_tests {
         let infra = Arc::new(MockInfra { env_vars });
         let registry = ForgeProviderRegistry::new(infra);
         let provider = registry
-            .provider_from_id(ProviderId::AnthropicCompatible)
+            .provider_from_id(ProviderId::Anthropic)
             .await
             .unwrap();
 
@@ -501,7 +485,6 @@ mod env_tests {
         let infra = Arc::new(MockInfra { env_vars });
         let registry = ForgeProviderRegistry::new(infra);
         let providers = registry.get_all_providers().await.unwrap();
-
         let openai_provider = providers
             .iter()
             .find(|p| p.id == ProviderId::OpenAI)
@@ -539,11 +522,11 @@ mod env_tests {
 
         let openai_provider = providers
             .iter()
-            .find(|p| p.id == ProviderId::OpenAICompatible)
+            .find(|p| p.id == ProviderId::OpenAI)
             .unwrap();
         let anthropic_provider = providers
             .iter()
-            .find(|p| p.id == ProviderId::AnthropicCompatible)
+            .find(|p| p.id == ProviderId::Anthropic)
             .unwrap();
 
         assert_eq!(

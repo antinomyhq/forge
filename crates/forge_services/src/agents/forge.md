@@ -15,6 +15,7 @@ tools:
   - undo
   - sage
   - mcp_*
+  - read_image
 user_prompt: |-
   {{#if (eq event.name 'forge/user_task_update')}}
   <feedback>{{event.value}}</feedback>

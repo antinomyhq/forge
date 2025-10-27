@@ -57,7 +57,7 @@ impl EventContext {
         if !self
             .event
             .name
-            .ends_with(&format!("/{}", EVENT_USER_TASK_UPDATE))
+            .ends_with(&format!("/{EVENT_USER_TASK_UPDATE}"))
         {
             self.event.name = format!("{}/{}", self.event.name, EVENT_USER_TASK_UPDATE);
         }
@@ -71,7 +71,7 @@ impl EventContext {
         if !self
             .event
             .name
-            .ends_with(&format!("/{}", EVENT_USER_TASK_INIT))
+            .ends_with(&format!("/{EVENT_USER_TASK_INIT}"))
         {
             self.event.name = format!("{}/{}", self.event.name, EVENT_USER_TASK_INIT);
         }

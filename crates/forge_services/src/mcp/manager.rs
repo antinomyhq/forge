@@ -48,25 +48,38 @@ where
         + FileWriterInfra
         + CacheRepository,
 {
-    async fn read_mcp_config(&self) -> anyhow::Result<McpConfig> {
-        let env = self.infra.get_environment();
-        let paths = vec![
-            // Configs at lower levels take precedence, so we read them in reverse order.
-            env.mcp_user_config().as_path().to_path_buf(),
-            env.mcp_local_config().as_path().to_path_buf(),
-        ];
-        let mut config = McpConfig::default();
-        for path in paths {
-            if self.infra.is_file(&path).await.unwrap_or_default() {
-                let new_config = self.read_config(&path).await.context(format!(
-                    "An error occurred while reading config at: {}",
-                    path.display()
-                ))?;
-                config.merge(new_config);
+    async fn read_mcp_config(&self, scope: Option<&Scope>) -> anyhow::Result<McpConfig> {
+        match scope {
+            Some(scope) => {
+                // Read only from the specified scope
+                let config_path = self.config_path(scope).await?;
+                if self.infra.is_file(&config_path).await.unwrap_or(false) {
+                    self.read_config(&config_path).await
+                } else {
+                    Ok(McpConfig::default())
+                }
+            }
+            None => {
+                // Read and merge all configurations (original behavior)
+                let env = self.infra.get_environment();
+                let paths = vec![
+                    // Configs at lower levels take precedence, so we read them in reverse order.
+                    env.mcp_user_config().as_path().to_path_buf(),
+                    env.mcp_local_config().as_path().to_path_buf(),
+                ];
+                let mut config = McpConfig::default();
+                for path in paths {
+                    if self.infra.is_file(&path).await.unwrap_or_default() {
+                        let new_config = self.read_config(&path).await.context(format!(
+                            "An error occurred while reading config at: {}",
+                            path.display()
+                        ))?;
+                        config.merge(new_config);
+                    }
+                }
+                Ok(config)
             }
         }
-
-        Ok(config)
     }
 
     async fn write_mcp_config(&self, config: &McpConfig, scope: &Scope) -> anyhow::Result<()> {
@@ -74,7 +87,7 @@ where
         self.infra
             .write(
                 self.config_path(scope).await?.as_path(),
-                Bytes::from(serde_json::to_string(config)?),
+                Bytes::from(serde_json::to_string_pretty(config)?),
                 true,
             )
             .await?;
