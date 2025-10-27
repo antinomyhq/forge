@@ -478,15 +478,15 @@ mod tests {
         let mut metrics = Metrics::new().with_time(Utc::now());
         metrics.record_file_operation(
             "src/main.rs".to_string(),
-            Some("abc123def456".to_string()),
             10,
             5,
+            Some("abc123def456".to_string()),
         );
         metrics.record_file_operation(
             "src/lib.rs".to_string(),
-            Some("789xyz456abc".to_string()),
             3,
             2,
+            Some("789xyz456abc".to_string()),
         );
 
         let fixture = Conversation::generate().metrics(metrics.clone());
@@ -522,9 +522,9 @@ mod tests {
         let mut fixture = Metrics::new().with_time(Utc::now());
         fixture.record_file_operation(
             "test.rs".to_string(),
-            Some("test_hash_123".to_string()),
             5,
             3,
+            Some("test_hash_123".to_string()),
         );
 
         // Convert to record and back
