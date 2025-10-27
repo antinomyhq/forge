@@ -13,7 +13,16 @@ use crate::model::ForgeCommandManager;
 #[derive(Debug, PartialEq)]
 pub enum Section {
     Title(String),
-    Items(String, Option<String>), // key, value, subtitle
+    Items(Option<String>, String), // key, value, subtitle
+}
+
+impl Section {
+    pub fn key(&self) -> Option<&str> {
+        match self {
+            Section::Items(Some(key), _) => Some(key.as_str()),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -26,28 +35,28 @@ impl Info {
         Info { sections: Vec::new() }
     }
 
+    /// Returns a reference to the sections
+    pub fn sections(&self) -> &[Section] {
+        &self.sections
+    }
+
     pub fn add_title(mut self, title: impl ToString) -> Self {
         self.sections.push(Section::Title(title.to_string()));
         self
     }
 
-    pub fn add_key(self, key: impl ToString) -> Self {
-        self.add_item(key, None::<String>, None::<String>)
+    pub fn add_value(self, value: impl ToString) -> Self {
+        self.add_item(None::<String>, value)
     }
 
     pub fn add_key_value(self, key: impl ToString, value: impl ToString) -> Self {
-        self.add_item(key, Some(value), None::<String>)
+        self.add_item(Some(key), value)
     }
 
-    fn add_item(
-        mut self,
-        key: impl ToString,
-        value: Option<impl ToString>,
-        _subtitle: Option<impl ToString>,
-    ) -> Self {
+    fn add_item(mut self, key: Option<impl ToString>, value: impl ToString) -> Self {
         self.sections.push(Section::Items(
-            key.to_string(),
-            value.map(|a| a.to_string()),
+            key.map(|a| a.to_string()),
+            value.to_string(),
         ));
         self
     }
@@ -55,79 +64,6 @@ impl Info {
     pub fn extend(mut self, other: impl Into<Info>) -> Self {
         self.sections.extend(other.into().sections);
         self
-    }
-
-    /// Converts Info sections into rows suitable for column formatting
-    /// Each section (Title + all its Items) becomes one row
-    ///
-    /// # Arguments
-    /// * `title_position` - Zero-based index where the title should appear (0 =
-    ///   first column, usize::MAX = last column)
-    /// * `include_title` - Whether to include the title in the output row
-    ///   (false for section headers, true for IDs)
-    pub fn to_rows(&self, include_title: bool) -> Vec<Vec<String>> {
-        let mut rows = Vec::new();
-        let mut current_title = String::new();
-        let mut current_row_values = Vec::new();
-
-        for section in &self.sections {
-            match section {
-                Section::Title(title) => {
-                    // If we have accumulated values for the previous title, push them as a row
-                    if !current_row_values.is_empty() {
-                        let row = if include_title {
-                            // For list commands: combine all values into one row with ID
-                            self.build_row(current_row_values, current_title.clone(), 0)
-                        } else {
-                            // This shouldn't happen for include_title=false, but handle it
-                            current_row_values
-                        };
-                        rows.push(row);
-                        current_row_values = Vec::new();
-                    }
-                    current_title = title.clone();
-                }
-                Section::Items(key, value) => {
-                    if include_title {
-                        // For list commands: accumulate values to create one row per title
-                        let value_str = value.clone().unwrap_or_default();
-                        current_row_values.push(value_str);
-                    } else {
-                        // For info/config/tools: each item is its own row
-                        if let Some(value_str) = value {
-                            // Key-value pair: show [key, value]
-                            rows.push(vec![key.clone(), value_str.clone()]);
-                        } else {
-                            // Key-only (like tools): show [key]
-                            rows.push(vec![key.clone()]);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Push the last accumulated row for list commands
-        if !current_row_values.is_empty() {
-            let row = if include_title {
-                self.build_row(current_row_values, current_title, 0)
-            } else {
-                current_row_values
-            };
-            rows.push(row);
-        }
-
-        rows
-    }
-
-    /// Helper method to build a row with title at specified position
-    fn build_row(&self, mut values: Vec<String>, title: String, position: usize) -> Vec<String> {
-        // If position is >= values.len(), append at the end
-        if position >= values.len() {
-            values.push(title);
-        } else {
-            values.insert(position, title);
-        }
-        values
     }
 }
 
@@ -183,25 +119,10 @@ impl From<&Metrics> for Info {
             info = info.add_title("TASK COMPLETED".to_string())
         }
 
-        // Add file changes section inspired by the example format
+        // Add file changes section
         if metrics.files_changed.is_empty() {
-            info = info.add_key("[No Changes Produced]");
+            info = info.add_value("[No Changes Produced]");
         } else {
-            // First, calculate the maximum filename length for proper alignment
-            let max_filename_len = metrics
-                .files_changed
-                .keys()
-                .map(|path| {
-                    std::path::Path::new(path)
-                        .file_name()
-                        .and_then(|name| name.to_str())
-                        .unwrap_or(path)
-                        .len()
-                })
-                .max()
-                .unwrap_or(0);
-
-            // Add each file with its changes, padded for alignment
             for (path, file_metrics) in &metrics.files_changed {
                 // Extract just the filename from the path
                 let filename = std::path::Path::new(path)
@@ -214,9 +135,7 @@ impl From<&Metrics> for Info {
                     file_metrics.lines_removed, file_metrics.lines_added
                 );
 
-                // Pad filename to max length for proper alignment
-                let padded_filename = format!("⦿ {filename:<max_filename_len$}");
-                info = info.add_key_value(padded_filename, changes);
+                info = info.add_key_value(format!("⦿ {filename}"), changes);
             }
         }
 
@@ -268,18 +187,40 @@ fn calculate_cache_percentage(usage: &Usage) -> u8 {
 
 impl fmt::Display for Info {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for section in &self.sections {
+        let mut width: Option<usize> = None;
+
+        for (i, section) in self.sections.iter().enumerate() {
             match section {
                 Section::Title(title) => {
                     writeln!(f)?;
-                    writeln!(f, "{}", title.bold().dimmed())?
+                    writeln!(f, "{}", title.bold().dimmed())?;
+
+                    // Calculate max key width for items under this title
+                    width = self
+                        .sections
+                        .iter()
+                        .skip(i + 1)
+                        .take_while(|s| matches!(s, Section::Items(..)))
+                        .filter_map(|s| s.key())
+                        .map(|key| key.len())
+                        .max();
                 }
                 Section::Items(key, value) => {
-                    if let Some(value) = value {
-                        writeln!(f, "  {}: {}", key.bright_cyan().bold(), value)?;
+                    if let Some(key) = key {
+                        if let Some(width) = width {
+                            writeln!(
+                                f,
+                                "  {} {}",
+                                format!("{key:<width$}:").bright_cyan().bold(),
+                                value
+                            )?;
+                        } else {
+                            // No section width (items without a title)
+                            writeln!(f, "  {}: {}", key.bright_cyan().bold(), value)?;
+                        }
                     } else {
-                        // Show key-only items (like tools)
-                        writeln!(f, "  {}", key)?;
+                        // Show value-only items
+                        writeln!(f, "  {}", value)?;
                     }
                 }
             }
@@ -451,6 +392,13 @@ pub fn format_reset_time(seconds: u64) -> String {
     humantime::format_duration(Duration::from_secs(seconds)).to_string()
 }
 
+/// Extracts the first line of raw content from a context message.
+fn format_user_message(msg: &forge_api::ContextMessage) -> Option<String> {
+    let content = msg.raw_content().and_then(|v| v.as_str())?;
+    let trimmed = content.lines().next().unwrap_or(content);
+    Some(trimmed.to_string())
+}
+
 impl From<&Conversation> for Info {
     fn from(conversation: &Conversation) -> Self {
         let mut info = Info::new().add_title("CONVERSATION");
@@ -459,6 +407,22 @@ impl From<&Conversation> for Info {
 
         if let Some(title) = &conversation.title {
             info = info.add_key_value("Title", title);
+        }
+
+        // Add task and feedback (if available)
+        let user_sequences = conversation.first_user_messages();
+
+        if let Some(first_msg) = user_sequences.first()
+            && let Some(task) = format_user_message(first_msg)
+        {
+            info = info.add_key_value("Task", task);
+        }
+
+        if user_sequences.len() > 1
+            && let Some(last_msg) = user_sequences.last()
+            && let Some(feedback) = format_user_message(last_msg)
+        {
+            info = info.add_key_value("Feedback", feedback);
         }
 
         // Insert metrics information
@@ -485,30 +449,13 @@ mod tests {
 
     // Helper to create minimal test environment
     fn create_env(os: &str, home: Option<&str>) -> Environment {
-        Environment {
-            os: os.to_string(),
-            home: home.map(PathBuf::from),
-            // Minimal required fields with defaults
-            pid: 1,
-            cwd: PathBuf::from("/"),
-            shell: "bash".to_string(),
-            base_path: PathBuf::from("/tmp"),
-            forge_api_url: "http://localhost".parse().unwrap(),
-            retry_config: Default::default(),
-            max_search_lines: 100,
-            max_search_result_bytes: 100, // 0.25 MB
-            fetch_truncation_limit: 1000,
-            stdout_max_prefix_length: 10,
-            stdout_max_suffix_length: 10,
-            stdout_max_line_length: 2000,
-            max_read_size: 100,
-            tool_timeout: 300,
-            http: Default::default(),
-            max_file_size: 1000,
-            auto_open_dump: false,
-            custom_history_path: None,
-            max_conversations: 100,
+        use fake::{Fake, Faker};
+        let mut fixture: Environment = Faker.fake();
+        fixture = fixture.os(os.to_string());
+        if let Some(home_path) = home {
+            fixture = fixture.home(PathBuf::from(home_path));
         }
+        fixture
     }
 
     #[test]
@@ -527,11 +474,7 @@ mod tests {
         let path = PathBuf::from("C:\\Users\\User\\project");
 
         let actual = super::format_path_for_display(&fixture, &path);
-        let expected = if cfg!(windows) {
-            "C:\\Users\\User\\project"
-        } else {
-            "C:\\Users\\User\\project"
-        };
+        let expected = "C:\\Users\\User\\project";
         assert_eq!(actual, expected);
     }
 
@@ -541,11 +484,7 @@ mod tests {
         let path = PathBuf::from("C:\\Users\\User Name\\project");
 
         let actual = super::format_path_for_display(&fixture, &path);
-        let expected = if cfg!(windows) {
-            "\"C:\\Users\\User Name\\project\""
-        } else {
-            "\"C:\\Users\\User Name\\project\""
-        };
+        let expected = "\"C:\\Users\\User Name\\project\"";
         assert_eq!(actual, expected);
     }
 
@@ -733,5 +672,141 @@ mod tests {
         assert!(expected_display.contains("CONVERSATION"));
         assert!(!expected_display.contains("Title:"));
         assert!(expected_display.contains(&conversation_id.to_string()));
+    }
+
+    #[test]
+    fn test_conversation_info_display_with_task() {
+        use chrono::Utc;
+        use forge_api::{Context, ContextMessage, ConversationId, Role};
+
+        use super::{Conversation, Metrics};
+
+        let conversation_id = ConversationId::generate();
+        let metrics = Metrics::new().with_time(Utc::now());
+
+        // Create a context with user messages
+        let context = Context::default()
+            .add_message(ContextMessage::system("System prompt"))
+            .add_message(ContextMessage::Text(forge_domain::TextMessage {
+                role: Role::User,
+                content: "First user message".to_string(),
+                raw_content: Some(serde_json::json!("First user message")),
+                tool_calls: None,
+                model: None,
+                reasoning_details: None,
+            }))
+            .add_message(ContextMessage::assistant("Assistant response", None, None))
+            .add_message(ContextMessage::Text(forge_domain::TextMessage {
+                role: Role::User,
+                content: "Create a new feature".to_string(),
+                raw_content: Some(serde_json::json!("Create a new feature")),
+                tool_calls: None,
+                model: None,
+                reasoning_details: None,
+            }));
+
+        let fixture = Conversation {
+            id: conversation_id,
+            title: Some("Test Task".to_string()),
+            context: Some(context),
+            metrics,
+            metadata: forge_domain::MetaData::new(Utc::now()),
+        };
+
+        let actual = super::Info::from(&fixture);
+        let expected_display = actual.to_string();
+
+        // Verify it contains the conversation section with task
+        assert!(expected_display.contains("CONVERSATION"));
+        assert!(expected_display.contains("Test Task"));
+        // Check for Task separately due to ANSI color codes
+        assert!(expected_display.contains("Task"));
+        assert!(expected_display.contains("Create a new feature"));
+        assert!(expected_display.contains(&conversation_id.to_string()));
+    }
+
+    #[test]
+    fn test_info_display_with_consistent_key_padding() {
+        use super::Info;
+
+        let fixture = Info::new()
+            .add_title("SECTION ONE")
+            .add_key_value("Short", "value1")
+            .add_key_value("Very Long Key", "value2")
+            .add_key_value("Mid", "value3")
+            .add_title("SECTION TWO")
+            .add_key_value("A", "valueA")
+            .add_key_value("ABC", "valueB");
+
+        let actual = fixture.to_string();
+
+        // Strip ANSI codes for easier assertion
+        let stripped = strip_ansi_escapes::strip(&actual);
+        let actual_str = String::from_utf8(stripped).unwrap();
+
+        // Verify that keys are padded within each section
+        // In SECTION ONE, all keys should be padded to length of "Very Long Key" (13)
+        // In SECTION TWO, all keys should be padded to length of "ABC" (3)
+
+        // Check that the display contains properly formatted sections
+        assert!(actual_str.contains("SECTION ONE"));
+        assert!(actual_str.contains("SECTION TWO"));
+
+        // Verify padding by checking alignment of colons
+        // All keys in a section should have colons at the same column
+        let lines: Vec<&str> = actual_str.lines().collect();
+
+        // Find SECTION ONE items
+        let section_one_start = lines
+            .iter()
+            .position(|l| l.contains("SECTION ONE"))
+            .unwrap();
+        let section_two_start = lines
+            .iter()
+            .position(|l| l.contains("SECTION TWO"))
+            .unwrap();
+
+        let section_one_items: Vec<&str> = lines[section_one_start + 1..section_two_start]
+            .iter()
+            .filter(|l| l.contains(':'))
+            .copied()
+            .collect();
+
+        // All colons in section one should be at the same position
+        let colon_positions: Vec<usize> = section_one_items
+            .iter()
+            .map(|line| line.find(':').unwrap())
+            .collect();
+
+        assert!(
+            colon_positions.windows(2).all(|w| w[0] == w[1]),
+            "Keys in SECTION ONE should have consistent padding. Colon positions: {:?}",
+            colon_positions
+        );
+
+        // Check SECTION TWO items
+        let section_two_items: Vec<&str> = lines[section_two_start + 1..]
+            .iter()
+            .filter(|l| l.contains(':'))
+            .copied()
+            .collect();
+
+        let colon_positions_two: Vec<usize> = section_two_items
+            .iter()
+            .map(|line| line.find(':').unwrap())
+            .collect();
+
+        assert!(
+            colon_positions_two.windows(2).all(|w| w[0] == w[1]),
+            "Keys in SECTION TWO should have consistent padding. Colon positions: {:?}",
+            colon_positions_two
+        );
+
+        // Verify that different sections can have different padding
+        // (SECTION ONE should have wider padding than SECTION TWO)
+        assert!(
+            colon_positions[0] > colon_positions_two[0],
+            "SECTION ONE should have wider padding than SECTION TWO"
+        );
     }
 }

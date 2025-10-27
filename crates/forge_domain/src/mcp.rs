@@ -30,12 +30,24 @@ impl McpServerConfig {
         args: Vec<String>,
         env: Option<BTreeMap<String, String>>,
     ) -> Self {
-        Self::Stdio(McpStdioServer { command: command.into(), args, env: env.unwrap_or_default() })
+        Self::Stdio(McpStdioServer {
+            command: command.into(),
+            args,
+            env: env.unwrap_or_default(),
+            disable: false,
+        })
     }
 
     /// Create a new SSE-based MCP server
     pub fn new_sse(url: impl Into<String>) -> Self {
-        Self::Sse(McpSseServer { url: url.into() })
+        Self::Sse(McpSseServer { url: url.into(), disable: false })
+    }
+
+    pub fn is_disabled(&self) -> bool {
+        match self {
+            McpServerConfig::Stdio(v) => v.disable,
+            McpServerConfig::Sse(v) => v.disable,
+        }
     }
 }
 
@@ -53,6 +65,11 @@ pub struct McpStdioServer {
     /// Environment variables to pass to the command
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub env: BTreeMap<String, String>,
+
+    /// Disable it temporarily without having to
+    /// remove it from the config.
+    #[serde(default)]
+    pub disable: bool,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
@@ -60,6 +77,11 @@ pub struct McpSseServer {
     /// Url of the MCP server
     #[serde(skip_serializing_if = "String::is_empty")]
     pub url: String,
+
+    /// Disable it temporarily without having to
+    /// remove it from the config.
+    #[serde(default)]
+    pub disable: bool,
 }
 
 impl Display for McpServerConfig {
@@ -93,7 +115,6 @@ pub struct ServerName(String);
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Merge)]
 #[serde(rename_all = "camelCase")]
 pub struct McpConfig {
-    #[serde(default)]
     #[merge(strategy = std::collections::BTreeMap::extend)]
     pub mcp_servers: BTreeMap<ServerName, McpServerConfig>,
 }
@@ -230,5 +251,66 @@ mod tests {
         let actual = fixture1.cache_key();
         let expected = fixture2.cache_key();
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_mcp_server_config_disabled() {
+        let server = McpStdioServer { disable: true, ..Default::default() };
+
+        let config = McpServerConfig::Stdio(server);
+        assert!(config.is_disabled());
+
+        let sse_server = McpSseServer { disable: false, ..Default::default() };
+
+        let config = McpServerConfig::Sse(sse_server);
+        assert!(!config.is_disabled());
+    }
+
+    #[test]
+    fn test_mcp_config_deserialization_valid() {
+        use pretty_assertions::assert_eq;
+
+        let json = r#"{
+            "mcpServers": {
+                "test_server": {
+                    "command": "node",
+                    "args": ["server.js"]
+                }
+            }
+        }"#;
+
+        let actual: McpConfig = serde_json::from_str(json).unwrap();
+        let expected = McpConfig {
+            mcp_servers: BTreeMap::from([(
+                "test_server".to_string().into(),
+                McpServerConfig::new_stdio("node", vec!["server.js".to_string()], None),
+            )]),
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_mcp_config_deserialization_empty_object() {
+        let json = "{}";
+        let result = serde_json::from_str::<McpConfig>(json);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_mcp_config_deserialization_wrong_field_name() {
+        let json = r#"{"servers": {"test": {}}}"#;
+        let result = serde_json::from_str::<McpConfig>(json);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_mcp_config_deserialization_null_mcp_servers() {
+        let json = r#"{"mcpServers": null}"#;
+        let result = serde_json::from_str::<McpConfig>(json);
+
+        assert!(result.is_err());
     }
 }

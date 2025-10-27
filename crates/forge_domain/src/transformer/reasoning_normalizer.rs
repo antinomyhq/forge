@@ -73,6 +73,7 @@ mod tests {
             .reasoning(ReasoningConfig::default().enabled(true))
             .add_message(ContextMessage::user("User question", None))
             .add_message(ContextMessage::Text(TextMessage {
+                raw_content: None,
                 role: Role::Assistant,
                 content: "First assistant response with reasoning".to_string(),
                 tool_calls: None,
@@ -81,6 +82,7 @@ mod tests {
             }))
             .add_message(ContextMessage::user("Follow-up question", None))
             .add_message(ContextMessage::Text(TextMessage {
+                raw_content: None,
                 role: Role::Assistant,
                 content: "Second assistant response with reasoning".to_string(),
                 tool_calls: None,
@@ -88,6 +90,7 @@ mod tests {
                 reasoning_details: Some(reasoning_details.clone()),
             }))
             .add_message(ContextMessage::Text(TextMessage {
+                raw_content: None,
                 role: Role::Assistant,
                 content: "Third assistant without reasoning".to_string(),
                 tool_calls: None,
@@ -106,6 +109,7 @@ mod tests {
             .reasoning(ReasoningConfig::default().enabled(true))
             .add_message(ContextMessage::user("User message", None))
             .add_message(ContextMessage::Text(TextMessage {
+                raw_content: None,
                 role: Role::Assistant,
                 content: "First assistant without reasoning".to_string(),
                 tool_calls: None,
@@ -113,6 +117,7 @@ mod tests {
                 reasoning_details: None,
             }))
             .add_message(ContextMessage::Text(TextMessage {
+                raw_content: None,
                 role: Role::Assistant,
                 content: "Second assistant with reasoning".to_string(),
                 tool_calls: None,
@@ -120,6 +125,7 @@ mod tests {
                 reasoning_details: Some(reasoning_details.clone()),
             }))
             .add_message(ContextMessage::Text(TextMessage {
+                raw_content: None,
                 role: Role::Assistant,
                 content: "Third assistant with reasoning".to_string(),
                 tool_calls: None,
@@ -131,7 +137,7 @@ mod tests {
     #[test]
     fn test_reasoning_normalizer_keeps_all_when_first_has_reasoning() {
         let fixture = create_context_first_assistant_has_reasoning();
-        let mut transformer = ReasoningNormalizer::default();
+        let mut transformer = ReasoningNormalizer;
         let actual = transformer.transform(fixture.clone());
 
         // All reasoning details should be preserved since first assistant has reasoning
@@ -143,7 +149,7 @@ mod tests {
     #[test]
     fn test_reasoning_normalizer_removes_all_when_first_assistant_message_has_no_reasoning() {
         let context = create_context_first_assistant_no_reasoning();
-        let mut transformer = ReasoningNormalizer::default();
+        let mut transformer = ReasoningNormalizer;
         let actual = transformer.transform(context.clone());
 
         // All reasoning details should be removed since first assistant has no
@@ -159,7 +165,7 @@ mod tests {
             .reasoning(ReasoningConfig::default().enabled(true))
             .add_message(ContextMessage::system("System message"))
             .add_message(ContextMessage::user("User message", None));
-        let mut transformer = ReasoningNormalizer::default();
+        let mut transformer = ReasoningNormalizer;
         let actual = transformer.transform(context.clone());
 
         // All reasoning details should be removed since first assistant has no

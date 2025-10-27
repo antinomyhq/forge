@@ -58,7 +58,7 @@ impl ClientBuilder {
                 http.clone(),
                 provider.key.clone().unwrap_or_default(),
                 provider.url,
-                provider.model_url,
+                provider.models,
                 "2023-06-01".to_string(),
             ))),
         };
@@ -233,7 +233,9 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some("test-key".to_string()),
-            model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
+            models: forge_app::dto::Models::Url(
+                Url::parse("https://api.openai.com/v1/models").unwrap(),
+            ),
         };
         let client = ClientBuilder::new(provider, "dev")
             .build(Arc::new(MockHttpClient))
@@ -251,7 +253,9 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some("test-key".to_string()),
-            model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
+            models: forge_app::dto::Models::Url(
+                Url::parse("https://api.openai.com/v1/models").unwrap(),
+            ),
         };
         let client = ClientBuilder::new(provider, "dev")
             .build(Arc::new(MockHttpClient))
@@ -271,7 +275,9 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some("test-key".to_string()),
-            model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
+            models: forge_app::dto::Models::Url(
+                Url::parse("https://api.openai.com/v1/models").unwrap(),
+            ),
         };
 
         // Test the builder pattern API
@@ -294,7 +300,9 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some("test-key".to_string()),
-            model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
+            models: forge_app::dto::Models::Url(
+                Url::parse("https://api.openai.com/v1/models").unwrap(),
+            ),
         };
 
         // Test that ClientBuilder::new works with minimal parameters

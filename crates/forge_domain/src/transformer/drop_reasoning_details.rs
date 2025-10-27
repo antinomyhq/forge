@@ -53,6 +53,7 @@ mod tests {
             .add_message(ContextMessage::Text(TextMessage {
                 role: Role::User,
                 content: "User message with reasoning".to_string(),
+                raw_content: None,
                 tool_calls: None,
                 model: None,
                 reasoning_details: Some(reasoning_details.clone()),
@@ -60,6 +61,7 @@ mod tests {
             .add_message(ContextMessage::Text(TextMessage {
                 role: Role::Assistant,
                 content: "Assistant response with reasoning".to_string(),
+                raw_content: None,
                 tool_calls: None,
                 model: None,
                 reasoning_details: Some(reasoning_details),
@@ -77,6 +79,7 @@ mod tests {
             .add_message(ContextMessage::Text(TextMessage {
                 role: Role::User,
                 content: "User message with reasoning".to_string(),
+                raw_content: None,
                 tool_calls: None,
                 model: None,
                 reasoning_details: Some(reasoning_details),
@@ -93,7 +96,7 @@ mod tests {
     #[test]
     fn test_drop_reasoning_details_removes_reasoning() {
         let fixture = create_context_with_reasoning_details();
-        let mut transformer = DropReasoningDetails::default();
+        let mut transformer = DropReasoningDetails;
         let actual = transformer.transform(fixture.clone());
 
         let snapshot = TransformationSnapshot::new("DropReasoningDetails", fixture, actual);
@@ -110,12 +113,13 @@ mod tests {
         let fixture = Context::default().add_message(ContextMessage::Text(TextMessage {
             role: Role::Assistant,
             content: "Assistant message".to_string(),
+            raw_content: None,
             tool_calls: None,
             model: Some(crate::ModelId::new("gpt-4")),
             reasoning_details: Some(reasoning_details),
         }));
 
-        let mut transformer = DropReasoningDetails::default();
+        let mut transformer = DropReasoningDetails;
         let actual = transformer.transform(fixture.clone());
 
         let snapshot =
@@ -126,7 +130,7 @@ mod tests {
     #[test]
     fn test_drop_reasoning_details_mixed_message_types() {
         let fixture = create_context_with_mixed_messages();
-        let mut transformer = DropReasoningDetails::default();
+        let mut transformer = DropReasoningDetails;
         let actual = transformer.transform(fixture.clone());
 
         let snapshot =
@@ -141,7 +145,7 @@ mod tests {
             .add_message(ContextMessage::assistant("Assistant message", None, None))
             .add_message(ContextMessage::system("System message"));
 
-        let mut transformer = DropReasoningDetails::default();
+        let mut transformer = DropReasoningDetails;
         let actual = transformer.transform(fixture.clone());
         let expected = fixture;
 
@@ -158,6 +162,7 @@ mod tests {
             .add_message(ContextMessage::Text(TextMessage {
                 role: Role::User,
                 content: "User with reasoning".to_string(),
+                raw_content: None,
                 tool_calls: None,
                 model: None,
                 reasoning_details: Some(reasoning_details),
@@ -172,7 +177,7 @@ mod tests {
                 output: ToolOutput::text("Tool output".to_string()),
             }]);
 
-        let mut transformer = DropReasoningDetails::default();
+        let mut transformer = DropReasoningDetails;
         let actual = transformer.transform(fixture.clone());
 
         let snapshot =

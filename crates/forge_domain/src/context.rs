@@ -5,6 +5,7 @@ use derive_more::derive::{Display, From};
 use derive_setters::Setters;
 use forge_template::Element;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tracing::debug;
 
 use super::{ToolCallFull, ToolResult};
@@ -53,6 +54,16 @@ impl ContextMessage {
     pub fn content(&self) -> Option<&str> {
         match self {
             ContextMessage::Text(text_message) => Some(&text_message.content),
+            ContextMessage::Tool(_) => None,
+            ContextMessage::Image(_) => None,
+        }
+    }
+
+    /// Returns the raw content before template rendering (only for User
+    /// messages)
+    pub fn raw_content(&self) -> Option<&Value> {
+        match self {
+            ContextMessage::Text(text_message) => text_message.raw_content.as_ref(),
             ContextMessage::Tool(_) => None,
             ContextMessage::Image(_) => None,
         }
@@ -133,6 +144,7 @@ impl ContextMessage {
         TextMessage {
             role: Role::User,
             content: content.to_string(),
+            raw_content: None,
             tool_calls: None,
             reasoning_details: None,
             model,
@@ -144,6 +156,7 @@ impl ContextMessage {
         TextMessage {
             role: Role::System,
             content: content.to_string(),
+            raw_content: None,
             tool_calls: None,
             model: None,
             reasoning_details: None,
@@ -161,6 +174,7 @@ impl ContextMessage {
         TextMessage {
             role: Role::Assistant,
             content: content.to_string(),
+            raw_content: None,
             tool_calls,
             reasoning_details,
             model: None,
@@ -240,6 +254,9 @@ fn reasoning_content_char_count(text_message: &TextMessage) -> usize {
 pub struct TextMessage {
     pub role: Role,
     pub content: String,
+    /// The raw content before any template rendering (only for User messages)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub raw_content: Option<Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_calls: Option<Vec<ToolCallFull>>,
     // note: this used to track model used for this message.
@@ -262,6 +279,7 @@ impl TextMessage {
         Self {
             role: Role::Assistant,
             content: content.to_string(),
+            raw_content: None,
             tool_calls: None,
             reasoning_details,
             model,
@@ -405,7 +423,7 @@ impl Context {
         let actual = self
             .usage
             .as_ref()
-            .map(|u| u.total_tokens.clone())
+            .map(|u| u.total_tokens)
             .unwrap_or_default();
 
         match actual {
@@ -435,7 +453,7 @@ impl Context {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TokenCount {
     Actual(usize),
     Approx(usize),
@@ -712,14 +730,12 @@ mod tests {
         assert_eq!(actual, expected);
 
         // case 2: context with usage - since total_tokens present return that.
-        let mut usage = Usage::default();
-        usage.total_tokens = TokenCount::Actual(100);
+        let usage = Usage { total_tokens: TokenCount::Actual(100), ..Default::default() };
         let fixture = Context::default().usage(usage);
         assert_eq!(fixture.token_count(), TokenCount::Actual(100));
 
         // case 3: context with usage - since total_tokens present return that.
-        let mut usage = Usage::default();
-        usage.total_tokens = TokenCount::Actual(80);
+        let usage = Usage { total_tokens: TokenCount::Actual(80), ..Default::default() };
         let fixture = Context::default().usage(usage);
         assert_eq!(fixture.token_count(), TokenCount::Actual(80));
 

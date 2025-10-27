@@ -115,7 +115,7 @@ mod test {
     #[test]
     fn test_debug_serde_error() {
         let args = "{a: 1}";
-        let serde_error = serde_json::from_str::<Value>(&args).unwrap_err();
+        let serde_error = serde_json::from_str::<Value>(args).unwrap_err();
         let a = Error::ToolCallArgument {
             error: JsonRepairError::from(serde_error),
             args: args.to_string(),

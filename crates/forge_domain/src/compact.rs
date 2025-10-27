@@ -197,8 +197,8 @@ mod tests {
     /// Creates a Context from a condensed string pattern where:
     /// - 'u' = User message
     /// - 'a' = Assistant message
-    /// - 's' = System message
-    /// Example: ctx("uau") creates User -> Assistant -> User messages
+    /// - 's' = System message Example: ctx("uau") creates User -> Assistant ->
+    ///   User messages
     fn ctx(pattern: &str) -> Context {
         let messages: Vec<ContextMessage> = pattern
             .chars()
@@ -209,6 +209,7 @@ mod tests {
                     'u' => ContextMessage::Text(TextMessage {
                         role: Role::User,
                         content,
+                        raw_content: None,
                         tool_calls: None,
                         model: None,
                         reasoning_details: None,
@@ -216,6 +217,7 @@ mod tests {
                     'a' => ContextMessage::Text(TextMessage {
                         role: Role::Assistant,
                         content,
+                        raw_content: None,
                         tool_calls: None,
                         model: None,
                         reasoning_details: None,
@@ -223,11 +225,12 @@ mod tests {
                     's' => ContextMessage::Text(TextMessage {
                         role: Role::System,
                         content,
+                        raw_content: None,
                         tool_calls: None,
                         model: None,
                         reasoning_details: None,
                     }),
-                    _ => panic!("Invalid character '{}' in pattern. Use 'u', 'a', or 's'", c),
+                    _ => panic!("Invalid character '{c}' in pattern. Use 'u', 'a', or 's'"),
                 }
             })
             .collect();

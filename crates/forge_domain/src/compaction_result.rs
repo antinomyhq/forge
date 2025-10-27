@@ -33,19 +33,23 @@ impl CompactionResult {
 
     /// Calculate the percentage reduction in tokens
     pub fn token_reduction_percentage(&self) -> f64 {
-        if self.original_tokens == 0 {
+        if self.original_tokens == 0 || self.compacted_tokens == 0 {
             return 0.0;
         }
-        ((self.original_tokens - self.compacted_tokens) as f64 / self.original_tokens as f64)
+        ((self.original_tokens.saturating_sub(self.compacted_tokens)) as f64
+            / self.original_tokens as f64)
             * 100.0
     }
 
     /// Calculate the percentage reduction in messages
     pub fn message_reduction_percentage(&self) -> f64 {
-        if self.original_messages == 0 {
+        if self.original_messages == 0 || self.compacted_messages == 0 {
             return 0.0;
         }
-        ((self.original_messages - self.compacted_messages) as f64 / self.original_messages as f64)
+        ((self
+            .original_messages
+            .saturating_sub(self.compacted_messages)) as f64
+            / self.original_messages as f64)
             * 100.0
     }
 }
@@ -64,6 +68,10 @@ mod tests {
         // Edge case: no original tokens
         let result = CompactionResult::new(0, 0, 20, 10);
         assert_eq!(result.token_reduction_percentage(), 0.0);
+
+        // Edge case: no compacted tokens
+        let result = CompactionResult::new(1000, 0, 20, 0);
+        assert_eq!(result.token_reduction_percentage(), 0.0);
     }
 
     #[test]
@@ -73,6 +81,10 @@ mod tests {
 
         // Edge case: no original messages
         let result = CompactionResult::new(1000, 500, 0, 0);
+        assert_eq!(result.message_reduction_percentage(), 0.0);
+
+        // Edge case: no compacted messages
+        let result = CompactionResult::new(1000, 0, 20, 0);
         assert_eq!(result.message_reduction_percentage(), 0.0);
     }
 }
