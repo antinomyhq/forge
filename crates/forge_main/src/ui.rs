@@ -482,12 +482,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         &mut self,
         commit_group: CommitCommandGroup,
     ) -> anyhow::Result<()> {
-        // Start spinner
-        if commit_group.preview {
-            self.spinner.start(Some("Generating commit message"))?;
-        } else {
-            self.spinner.start(Some("Generating and committing"))?;
-        }
+        self.spinner.start(Some("Generating commit message"))?;
+
         // Handle the commit command
         match CommitHandler::new(self.api.clone())
             .handle(commit_group.clone())
