@@ -633,7 +633,7 @@ mod tests {
 #[cfg(test)]
 mod env_tests {
     use std::collections::HashMap;
-    use std::path::PathBuf;
+    
     use std::sync::Arc;
 
     use forge_app::domain::Environment;
@@ -811,5 +811,4 @@ mod env_tests {
             "https://custom.anthropic.com/v1/messages"
         );
     }
-
 }
