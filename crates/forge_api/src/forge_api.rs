@@ -4,8 +4,8 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use forge_app::dto::{
-    AuthContext, AuthMethod, InitAuth, LoginInfo, Provider, ProviderCredential,
-    ProviderId, ToolsOverview,
+    AuthContext, AuthMethod, InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId,
+    ToolsOverview,
 };
 use forge_app::{
     AgentLoaderService, AuthService, CommandLoaderService, ConversationService, EnvironmentService,

@@ -1093,7 +1093,10 @@ where
     ) -> anyhow::Result<()> {
         match context {
             AuthContext::ApiKey(ctx) => {
-                let result = AuthResult::ApiKey { api_key: ctx.response.api_key, url_params: ctx.response.url_params };
+                let result = AuthResult::ApiKey {
+                    api_key: ctx.response.api_key,
+                    url_params: ctx.response.url_params,
+                };
                 self.complete_provider_auth_with_result(provider_id, result, method)
                     .await?;
                 Ok(())
