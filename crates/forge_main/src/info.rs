@@ -388,6 +388,26 @@ impl From<&Conversation> for Info {
             info = info.add_key_value("Title", title);
         }
 
+        // Add the last user message as "Task"
+        if let Some(context) = &conversation.context
+            && let Some(last_user_message) = context
+                .messages
+                .iter()
+                .rev()
+                .find(|msg| msg.has_role(forge_api::Role::User))
+        {
+            // Prefer raw content if available, otherwise use rendered content
+            let content = last_user_message
+                .raw_content()
+                .and_then(|v| v.as_str())
+                .or_else(|| last_user_message.content());
+
+            if let Some(content) = content {
+                let trimmed_content = content.lines().next().unwrap_or(content);
+                info = info.add_key_value("Task", trimmed_content);
+            }
+        }
+
         // Insert metrics information
         if !conversation.metrics.files_changed.is_empty() {
             info = info.extend(&conversation.metrics);
@@ -634,6 +654,43 @@ mod tests {
         // Verify it contains the conversation section with untitled
         assert!(expected_display.contains("CONVERSATION"));
         assert!(!expected_display.contains("Title:"));
+        assert!(expected_display.contains(&conversation_id.to_string()));
+    }
+
+    #[test]
+    fn test_conversation_info_display_with_task() {
+        use chrono::Utc;
+        use forge_api::{Context, ContextMessage, ConversationId};
+
+        use super::{Conversation, Metrics};
+
+        let conversation_id = ConversationId::generate();
+        let metrics = Metrics::new().with_time(Utc::now());
+
+        // Create a context with user messages
+        let context = Context::default()
+            .add_message(ContextMessage::system("System prompt"))
+            .add_message(ContextMessage::user("First user message", None))
+            .add_message(ContextMessage::assistant("Assistant response", None, None))
+            .add_message(ContextMessage::user("Create a new feature", None));
+
+        let fixture = Conversation {
+            id: conversation_id,
+            title: Some("Test Task".to_string()),
+            context: Some(context),
+            metrics,
+            metadata: forge_domain::MetaData::new(Utc::now()),
+        };
+
+        let actual = super::Info::from(&fixture);
+        let expected_display = actual.to_string();
+
+        // Verify it contains the conversation section with task
+        assert!(expected_display.contains("CONVERSATION"));
+        assert!(expected_display.contains("Test Task"));
+        // Check for Task separately due to ANSI color codes
+        assert!(expected_display.contains("Task"));
+        assert!(expected_display.contains("Create a new feature"));
         assert!(expected_display.contains(&conversation_id.to_string()));
     }
 }

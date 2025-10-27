@@ -47,6 +47,7 @@ mod tests {
             messages.push(ContextMessage::Text(TextMessage {
                 role: Role::System,
                 content: format!("System message {}", i),
+                raw_content: None,
                 tool_calls: None,
                 model: None,
                 reasoning_details: None,
@@ -57,6 +58,7 @@ mod tests {
         messages.push(ContextMessage::Text(TextMessage {
             role: Role::User,
             content: "Hello".to_string(),
+            raw_content: None,
             tool_calls: None,
             model: ModelId::new("claude-3-5-sonnet-20241022").into(),
             reasoning_details: None,

@@ -530,7 +530,7 @@ impl Command {
 #[cfg(test)]
 mod tests {
     use console::strip_ansi_codes;
-    use forge_api::{ModelId, ProviderId, ProviderResponse};
+    use forge_api::{ModelId, Models, ProviderId, ProviderResponse};
     use pretty_assertions::assert_eq;
     use url::Url;
 
@@ -983,7 +983,7 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: None,
-            model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
+            models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
             auth_type: None,
         };
         let actual = format!("{}", CliProvider(fixture));
@@ -998,7 +998,7 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://openrouter.ai/api/v1/chat/completions").unwrap(),
             key: None,
-            model_url: Url::parse("https://openrouter.ai/api/v1/models").unwrap(),
+            models: Models::Url(Url::parse("https://openrouter.ai/api/v1/models").unwrap()),
             auth_type: None,
         };
         let actual = format!("{}", CliProvider(fixture));
@@ -1013,7 +1013,7 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("http://localhost:8080/chat/completions").unwrap(),
             key: None,
-            model_url: Url::parse("http://localhost:8080/models").unwrap(),
+            models: Models::Url(Url::parse("http://localhost:8080/models").unwrap()),
             auth_type: None,
         };
         let actual = format!("{}", CliProvider(fixture));

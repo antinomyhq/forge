@@ -87,6 +87,16 @@ pub enum ProviderResponse {
     Anthropic,
 }
 
+/// Represents the source of models for a provider
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Models {
+    /// Models are fetched from a URL
+    Url(Url),
+    /// Models are hardcoded in the configuration
+    Hardcoded(Vec<crate::domain::Model>),
+}
+
 /// Providers that can be used.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Setters)]
 pub struct Provider {
@@ -94,7 +104,7 @@ pub struct Provider {
     pub response: ProviderResponse,
     pub url: Url,
     pub key: Option<String>,
-    pub model_url: Url,
+    pub models: Models,
     pub auth_type: Option<AuthType>,
 }
 
@@ -108,7 +118,7 @@ mod test_helpers {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
             key: Some(key.into()),
-            model_url: Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+            models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
             auth_type: None,
         }
     }
@@ -120,7 +130,7 @@ mod test_helpers {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
             key: Some(key.into()),
-            model_url: Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+            models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
             auth_type: None,
         }
     }
@@ -132,7 +142,7 @@ mod test_helpers {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some(key.into()),
-            model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
+            models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
             auth_type: None,
         }
     }
@@ -144,7 +154,7 @@ mod test_helpers {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.x.ai/v1/chat/completions").unwrap(),
             key: Some(key.into()),
-            model_url: Url::parse("https://api.x.ai/v1/models").unwrap(),
+            models: Models::Url(Url::parse("https://api.x.ai/v1/models").unwrap()),
             auth_type: None,
         }
     }
@@ -179,7 +189,7 @@ mod test_helpers {
             response: ProviderResponse::OpenAI,
             url: Url::parse(&chat_url).unwrap(),
             key: Some(key.into()),
-            model_url: Url::parse(&model_url).unwrap(),
+            models: Models::Url(Url::parse(&model_url).unwrap()),
             auth_type: None,
         }
     }
@@ -205,7 +215,7 @@ mod test_helpers {
             response: ProviderResponse::OpenAI,
             url: Url::parse(&chat_url).unwrap(),
             key: Some(key.into()),
-            model_url: Url::parse(&model_url).unwrap(),
+            models: Models::Url(Url::parse(&model_url).unwrap()),
             auth_type: None,
         }
     }
@@ -230,7 +240,7 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::from_str("https://api.x.ai/v1/chat/completions").unwrap(),
             key: Some(fixture.to_string()),
-            model_url: Url::from_str("https://api.x.ai/v1/models").unwrap(),
+            models: Models::Url(Url::from_str("https://api.x.ai/v1/models").unwrap()),
             auth_type: None,
         };
         assert_eq!(actual, expected);
@@ -256,8 +266,8 @@ mod tests {
     #[test]
     fn test_zai_coding_to_model_url() {
         let fixture = zai_coding("test_key");
-        let actual = fixture.model_url.clone();
-        let expected = Url::parse("https://api.z.ai/api/paas/v4/models").unwrap();
+        let actual = fixture.models.clone();
+        let expected = Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap());
         assert_eq!(actual, expected);
     }
 
@@ -272,8 +282,8 @@ mod tests {
     #[test]
     fn test_regular_zai_to_model_url() {
         let fixture = zai("test_key");
-        let actual = fixture.model_url.clone();
-        let expected = Url::parse("https://api.z.ai/api/paas/v4/models").unwrap();
+        let actual = fixture.models.clone();
+        let expected = Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap());
         assert_eq!(actual, expected);
     }
 
@@ -303,11 +313,13 @@ mod tests {
         assert_eq!(actual_chat, expected_chat);
 
         // Check model URL
-        let actual_model = fixture.model_url.clone();
-        let expected_model = Url::parse(
-            "https://my-resource.openai.azure.com/openai/models?api-version=2024-02-15-preview",
-        )
-        .unwrap();
+        let actual_model = fixture.models.clone();
+        let expected_model = Models::Url(
+            Url::parse(
+                "https://my-resource.openai.azure.com/openai/models?api-version=2024-02-15-preview",
+            )
+            .unwrap(),
+        );
         assert_eq!(actual_model, expected_model);
 
         assert_eq!(fixture.id, ProviderId::Azure);
@@ -324,10 +336,11 @@ mod tests {
         assert_eq!(actual_chat, expected_chat);
 
         // Check model URL
-        let actual_model = fixture.model_url.clone();
-        let expected_model =
+        let actual_model = fixture.models.clone();
+        let expected_model = Models::Url(
             Url::parse("https://east-us.openai.azure.com/openai/models?api-version=2023-05-15")
-                .unwrap();
+                .unwrap(),
+        );
         assert_eq!(actual_model, expected_model);
     }
 

@@ -21,7 +21,7 @@ pub struct Anthropic<T> {
     http: Arc<T>,
     api_key: String,
     chat_url: Url,
-    model_url: Url,
+    models: forge_app::dto::Models,
     anthropic_version: String,
     use_oauth: bool,
 }
@@ -31,7 +31,7 @@ impl<H: HttpClientService> Anthropic<H> {
         http: Arc<H>,
         api_key: String,
         chat_url: Url,
-        model_url: Url,
+        models: forge_app::dto::Models,
         version: String,
         use_oauth: bool,
     ) -> Self {
@@ -39,7 +39,7 @@ impl<H: HttpClientService> Anthropic<H> {
             http,
             api_key,
             chat_url,
-            model_url,
+            models,
             anthropic_version: version,
             use_oauth,
         }
@@ -113,34 +113,41 @@ impl<T: HttpClientService> Anthropic<T> {
     }
 
     pub async fn models(&self) -> anyhow::Result<Vec<Model>> {
-        let url = &self.model_url;
-        debug!(url = %url, "Fetching models");
+        match &self.models {
+            forge_app::dto::Models::Url(url) => {
+                debug!(url = %url, "Fetching models");
 
-        let response = self
-            .http
-            .get(url, Some(create_headers(self.get_headers())))
-            .await
-            .with_context(|| format_http_context(None, "GET", url))
-            .with_context(|| "Failed to fetch models")?;
+                let response = self
+                    .http
+                    .get(url, Some(create_headers(self.get_headers())))
+                    .await
+                    .with_context(|| format_http_context(None, "GET", url))
+                    .with_context(|| "Failed to fetch models")?;
 
-        let status = response.status();
-        let ctx_msg = format_http_context(Some(status), "GET", url);
-        let text = response
-            .text()
-            .await
-            .with_context(|| ctx_msg.clone())
-            .with_context(|| "Failed to decode response into text")?;
+                let status = response.status();
+                let ctx_msg = format_http_context(Some(status), "GET", url);
+                let text = response
+                    .text()
+                    .await
+                    .with_context(|| ctx_msg.clone())
+                    .with_context(|| "Failed to decode response into text")?;
 
-        if status.is_success() {
-            let response: ListModelResponse = serde_json::from_str(&text)
-                .with_context(|| ctx_msg)
-                .with_context(|| "Failed to deserialize models response")?;
-            Ok(response.data.into_iter().map(Into::into).collect())
-        } else {
-            // treat non 200 response as error.
-            Err(anyhow::anyhow!(text))
-                .with_context(|| ctx_msg)
-                .with_context(|| "Failed to fetch the models")
+                if status.is_success() {
+                    let response: ListModelResponse = serde_json::from_str(&text)
+                        .with_context(|| ctx_msg)
+                        .with_context(|| "Failed to deserialize models response")?;
+                    Ok(response.data.into_iter().map(Into::into).collect())
+                } else {
+                    // treat non 200 response as error.
+                    Err(anyhow::anyhow!(text))
+                        .with_context(|| ctx_msg)
+                        .with_context(|| "Failed to fetch the models")
+                }
+            }
+            forge_app::dto::Models::Hardcoded(models) => {
+                debug!("Using hardcoded models");
+                Ok(models.clone())
+            }
         }
     }
 }
@@ -212,7 +219,7 @@ mod tests {
             Arc::new(MockHttpClient::new()),
             "sk-test-key".to_string(),
             chat_url,
-            model_url,
+            forge_app::dto::Models::Url(model_url),
             "2023-06-01".to_string(),
             false,
         ))
@@ -263,14 +270,16 @@ mod tests {
             Arc::new(MockHttpClient::new()),
             "sk-some-key".to_string(),
             chat_url,
-            model_url.clone(),
+            forge_app::dto::Models::Url(model_url.clone()),
             "v1".to_string(),
             false,
         );
-        assert_eq!(
-            anthropic.model_url.as_str(),
-            "https://api.anthropic.com/v1/models"
-        );
+        match &anthropic.models {
+            forge_app::dto::Models::Url(url) => {
+                assert_eq!(url.as_str(), "https://api.anthropic.com/v1/models");
+            }
+            _ => panic!("Expected Models::Url variant"),
+        }
     }
 
     #[tokio::test]

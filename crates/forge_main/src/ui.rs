@@ -885,7 +885,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         for model in models.iter() {
             let id = model.id.to_string();
 
-            info = info.add_title(id);
+            info = info
+                .add_title(model.name.as_ref().unwrap_or(&id))
+                .add_key_value("Id", id);
 
             // Add context length if available, otherwise use "unknown"
             if let Some(limit) = model.context_length {
@@ -917,13 +919,18 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         if porcelain {
-            self.writeln(Porcelain::from(&info).skip(1).map_col(2, |col| {
-                if col == Some("Supported".to_owned()) {
-                    Some("🛠️".into())
-                } else {
-                    None
-                }
-            }))?;
+            self.writeln(
+                Porcelain::from(&info)
+                    .skip(1)
+                    .drop_col(0)
+                    .map_col(2, |col| {
+                        if col == Some("Supported".to_owned()) {
+                            Some("🛠️".into())
+                        } else {
+                            None
+                        }
+                    }),
+            )?;
         } else {
             self.writeln(info)?;
         }

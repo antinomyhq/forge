@@ -65,7 +65,7 @@ impl ClientBuilder {
                     http.clone(),
                     provider.key.clone().unwrap_or_default(),
                     provider.url,
-                    provider.model_url,
+                    provider.models,
                     "2023-06-01".to_string(),
                     use_oauth,
                 )))
@@ -242,7 +242,9 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some("test-key".to_string()),
-            model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
+            models: forge_app::dto::Models::Url(
+                Url::parse("https://api.openai.com/v1/models").unwrap(),
+            ),
             auth_type: None,
         };
         let client = ClientBuilder::new(provider, "dev")
@@ -261,7 +263,9 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some("test-key".to_string()),
-            model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
+            models: forge_app::dto::Models::Url(
+                Url::parse("https://api.openai.com/v1/models").unwrap(),
+            ),
             auth_type: None,
         };
         let client = ClientBuilder::new(provider, "dev")
@@ -282,7 +286,9 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some("test-key".to_string()),
-            model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
+            models: forge_app::dto::Models::Url(
+                Url::parse("https://api.openai.com/v1/models").unwrap(),
+            ),
             auth_type: None,
         };
 
@@ -306,7 +312,9 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some("test-key".to_string()),
-            model_url: Url::parse("https://api.openai.com/v1/models").unwrap(),
+            models: forge_app::dto::Models::Url(
+                Url::parse("https://api.openai.com/v1/models").unwrap(),
+            ),
             auth_type: None,
         };
 
