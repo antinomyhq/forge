@@ -940,108 +940,6 @@ where
         }
     }
 
-    async fn poll_provider_auth(
-        &self,
-        context: &AuthResponse,
-        timeout: Duration,
-        method: AuthMethod,
-    ) -> anyhow::Result<AuthResult> {
-        // Dispatch based on auth method
-        match &method {
-            AuthMethod::ApiKey => {
-                // API key flows are not pollable
-                Err(anyhow::anyhow!(
-                    "API key authentication requires manual input and cannot be polled"
-                ))
-            }
-            AuthMethod::OAuthDevice(config) => {
-                // Extract device code from context
-                let (device_code, interval) = match context {
-                    AuthResponse::Device { device_code, interval } => {
-                        (device_code.as_str(), *interval)
-                    }
-                    _ => {
-                        return Err(anyhow::anyhow!("Invalid context type for device flow"));
-                    }
-                };
-
-                // Check if this needs OAuth with API key exchange (GitHub Copilot pattern)
-                if config.token_refresh_url.is_some() {
-                    // Handle OAuth with API key polling directly
-                    self.handle_oauth_with_apikey_poll(device_code, config, timeout)
-                        .await
-                        .map_err(|e| anyhow::anyhow!(e))
-                } else {
-                    // Handle OAuth device flow polling directly
-                    self.handle_oauth_device_poll(device_code, interval, config, timeout)
-                        .await
-                        .map_err(|e| anyhow::anyhow!(e))
-                }
-            }
-            AuthMethod::OAuthCode(_config) => {
-                // OAuth code flow requires manual code entry, no polling
-                Err(anyhow::anyhow!(
-                    "OAuth code flow requires manual authorization code entry"
-                ))
-            }
-        }
-    }
-
-    async fn complete_provider_auth_with_result(
-        &self,
-        provider_id: ProviderId,
-        result: AuthResult,
-        method: AuthMethod,
-    ) -> anyhow::Result<ProviderCredential> {
-        // Dispatch based on auth method and result type
-        let credential = match (&method, &result) {
-            (AuthMethod::ApiKey, AuthResult::ApiKey { api_key, url_params }) => {
-                // Handle API key auth directly
-                self.handle_api_key_complete(provider_id, api_key.clone(), url_params.clone())
-                    .await
-                    .map_err(|e| anyhow::anyhow!(e))?
-            }
-            (AuthMethod::OAuthDevice(config), AuthResult::OAuthTokens { .. }) => {
-                // Check if this needs OAuth with API key exchange (GitHub Copilot pattern)
-                if config.token_refresh_url.is_some() {
-                    // Handle OAuth with API key completion directly
-                    self.handle_oauth_with_apikey_complete(provider_id, result, config)
-                        .await
-                        .map_err(|e| anyhow::anyhow!(e))?
-                } else {
-                    // Handle OAuth device flow completion directly
-                    self.handle_oauth_device_complete(provider_id, result)
-                        .await
-                        .map_err(|e| anyhow::anyhow!(e))?
-                }
-            }
-            (
-                AuthMethod::OAuthCode(config),
-                AuthResult::AuthorizationCode { code, code_verifier, .. },
-            ) => {
-                // Handle OAuth code flow completion directly
-                self.handle_oauth_code_complete(
-                    provider_id,
-                    code.clone(),
-                    code_verifier.clone(),
-                    config,
-                )
-                .await
-                .map_err(|e| anyhow::anyhow!(e))?
-            }
-            _ => {
-                // Unknown combination
-                return Err(anyhow::anyhow!(
-                    "Unsupported auth method or result type combination"
-                ));
-            }
-        };
-
-        // Store credential via infrastructure (takes ownership)
-        self.infra.upsert_credential(credential.clone()).await?;
-        Ok(credential)
-    }
-
     async fn refresh_provider_credential(
         &self,
         credential: &ProviderCredential,
@@ -1122,5 +1020,125 @@ where
                 Ok(())
             }
         }
+    }
+}
+
+impl<I> ForgeProviderAuthService<I>
+where
+    I: ProviderCredentialRepository
+        + EnvironmentInfra
+        + AppConfigRepository
+        + Send
+        + Sync
+        + 'static,
+{
+    /// Polls until provider authentication completes (for OAuth flows)
+    ///
+    /// # Errors
+    /// Returns error if polling fails, times out, or auth is denied
+    async fn poll_provider_auth(
+        &self,
+        context: &AuthResponse,
+        timeout: Duration,
+        method: AuthMethod,
+    ) -> anyhow::Result<AuthResult> {
+        // Dispatch based on auth method
+        match &method {
+            AuthMethod::ApiKey => {
+                // API key flows are not pollable
+                Err(anyhow::anyhow!(
+                    "API key authentication requires manual input and cannot be polled"
+                ))
+            }
+            AuthMethod::OAuthDevice(config) => {
+                // Extract device code from context
+                let (device_code, interval) = match context {
+                    AuthResponse::Device { device_code, interval } => {
+                        (device_code.as_str(), *interval)
+                    }
+                    _ => {
+                        return Err(anyhow::anyhow!("Invalid context type for device flow"));
+                    }
+                };
+
+                // Check if this needs OAuth with API key exchange (GitHub Copilot pattern)
+                if config.token_refresh_url.is_some() {
+                    // Handle OAuth with API key polling directly
+                    self.handle_oauth_with_apikey_poll(device_code, config, timeout)
+                        .await
+                        .map_err(|e| anyhow::anyhow!(e))
+                } else {
+                    // Handle OAuth device flow polling directly
+                    self.handle_oauth_device_poll(device_code, interval, config, timeout)
+                        .await
+                        .map_err(|e| anyhow::anyhow!(e))
+                }
+            }
+            AuthMethod::OAuthCode(_config) => {
+                // OAuth code flow requires manual code entry, no polling
+                Err(anyhow::anyhow!(
+                    "OAuth code flow requires manual authorization code entry"
+                ))
+            }
+        }
+    }
+
+    /// Completes provider authentication and saves credential
+    ///
+    /// # Errors
+    /// Returns error if credential creation or storage fails
+    async fn complete_provider_auth_with_result(
+        &self,
+        provider_id: ProviderId,
+        result: AuthResult,
+        method: AuthMethod,
+    ) -> anyhow::Result<ProviderCredential> {
+        // Dispatch based on auth method and result type
+        let credential = match (&method, &result) {
+            (AuthMethod::ApiKey, AuthResult::ApiKey { api_key, url_params }) => {
+                // Handle API key auth directly
+                self.handle_api_key_complete(provider_id, api_key.clone(), url_params.clone())
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e))?
+            }
+            (AuthMethod::OAuthDevice(config), AuthResult::OAuthTokens { .. }) => {
+                // Check if this needs OAuth with API key exchange (GitHub Copilot pattern)
+                if config.token_refresh_url.is_some() {
+                    // Handle OAuth with API key completion directly
+                    self.handle_oauth_with_apikey_complete(provider_id, result, config)
+                        .await
+                        .map_err(|e| anyhow::anyhow!(e))?
+                } else {
+                    // Handle OAuth device flow completion directly
+                    self.handle_oauth_device_complete(provider_id, result)
+                        .await
+                        .map_err(|e| anyhow::anyhow!(e))?
+                }
+            }
+            (
+                AuthMethod::OAuthCode(config),
+                AuthResult::AuthorizationCode { code, code_verifier, .. },
+            ) => {
+                // Handle OAuth code flow completion directly
+                self.handle_oauth_code_complete(
+                    provider_id,
+                    code.clone(),
+                    code_verifier.clone(),
+                    config,
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!(e))?
+            }
+            _ => {
+                // Unknown combination
+                return Err(anyhow::anyhow!(
+                    "Unsupported auth method or result type combination"
+                ));
+            }
+        };
+
+        // Store credential via infrastructure (takes ownership)
+        self.infra.upsert_credential(credential.clone()).await?;
+        Ok(credential)
     }
 }

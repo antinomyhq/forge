@@ -394,8 +394,9 @@ pub trait ProviderAuthService: Send + Sync {
     ) -> anyhow::Result<crate::dto::AuthContext>;
 
     /// Complete provider authentication and save credentials
-    /// For OAuth flows (Device/Code), this will poll until completion then save
-    /// For ApiKey flows, this will use the data from AuthContext
+    ///
+    /// For OAuth flows (Device/Code), this will poll until completion then
+    /// save. For ApiKey flows, this will use the data from AuthContext.
     async fn complete_provider_auth(
         &self,
         provider_id: ProviderId,
@@ -403,24 +404,6 @@ pub trait ProviderAuthService: Send + Sync {
         timeout: Duration,
         method: AuthMethod,
     ) -> anyhow::Result<()>;
-
-    /// Polls until provider authentication completes (for OAuth flows)
-    ///
-    /// Blocks until authentication completes or timeout is reached
-    async fn poll_provider_auth(
-        &self,
-        context: &crate::dto::AuthResponse,
-        timeout: std::time::Duration,
-        method: AuthMethod,
-    ) -> anyhow::Result<crate::dto::AuthResult>;
-
-    /// Completes provider authentication and saves credential
-    async fn complete_provider_auth_with_result(
-        &self,
-        provider_id: ProviderId,
-        result: crate::dto::AuthResult,
-        method: AuthMethod,
-    ) -> anyhow::Result<ProviderCredential>;
 
     /// Refreshes provider credentials (for OAuth flows)
     ///
@@ -869,17 +852,6 @@ impl<I: Services> ProviderAuthService for I {
             .await
     }
 
-    async fn poll_provider_auth(
-        &self,
-        context: &crate::dto::AuthResponse,
-        timeout: std::time::Duration,
-        method: AuthMethod,
-    ) -> anyhow::Result<crate::dto::AuthResult> {
-        self.provider_auth_service()
-            .poll_provider_auth(context, timeout, method)
-            .await
-    }
-
     async fn complete_provider_auth(
         &self,
         provider_id: ProviderId,
@@ -889,17 +861,6 @@ impl<I: Services> ProviderAuthService for I {
     ) -> anyhow::Result<()> {
         self.provider_auth_service()
             .complete_provider_auth(provider_id, context, timeout, method)
-            .await
-    }
-
-    async fn complete_provider_auth_with_result(
-        &self,
-        provider_id: ProviderId,
-        result: crate::dto::AuthResult,
-        method: AuthMethod,
-    ) -> anyhow::Result<ProviderCredential> {
-        self.provider_auth_service()
-            .complete_provider_auth_with_result(provider_id, result, method)
             .await
     }
 
