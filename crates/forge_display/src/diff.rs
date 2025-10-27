@@ -154,7 +154,7 @@ mod tests {
         let old = "line 1\nline 2\nline 3\nline 4\nline 5";
         let new = "line 1\nline 2\nline 3";
         let diff = DiffFormat::format(old, new);
-        let clean_diff = strip_ansi_codes(&diff.diff());
+        let clean_diff = strip_ansi_codes(diff.diff());
         assert_eq!(diff.lines_added(), 1);
         assert_eq!(diff.lines_removed(), 3);
         assert_snapshot!(clean_diff);
@@ -165,7 +165,7 @@ mod tests {
         let old = "line 1\nline 2\nline 3\nline 5\nline 6\nline 7\nline 8\nline 9";
         let new = "line 1\nmodified line\nline 3\nline 5\nline 6\nline 7\nline 8\nline 9";
         let diff = DiffFormat::format(old, new);
-        let clean_diff = strip_ansi_codes(&diff.diff());
+        let clean_diff = strip_ansi_codes(diff.diff());
         assert_eq!(diff.lines_added(), 1);
         assert_eq!(diff.lines_removed(), 1);
         assert_snapshot!(clean_diff);
@@ -174,14 +174,14 @@ mod tests {
     #[test]
     fn test_dynamic_width_with_large_line_numbers() {
         // Test with 100+ lines to verify width calculation
-        let old_lines = (1..=150).map(|i| format!("line {}", i)).collect::<Vec<_>>();
+        let old_lines = (1..=150).map(|i| format!("line {i}")).collect::<Vec<_>>();
         let mut new_lines = old_lines.clone();
         new_lines[99] = "modified line 100".to_string();
 
         let old = old_lines.join("\n");
         let new = new_lines.join("\n");
         let diff = DiffFormat::format(&old, &new);
-        let clean_diff = strip_ansi_codes(&diff.diff());
+        let clean_diff = strip_ansi_codes(diff.diff());
 
         // With 150 lines, width should be 3 (for numbers like "100")
         // Verify the format includes proper spacing
@@ -192,16 +192,14 @@ mod tests {
     #[test]
     fn test_width_based_on_diff_not_file_size() {
         // Large file but diff only at the beginning
-        let old_lines = (1..=1000)
-            .map(|i| format!("line {}", i))
-            .collect::<Vec<_>>();
+        let old_lines = (1..=1000).map(|i| format!("line {i}")).collect::<Vec<_>>();
         let mut new_lines = old_lines.clone();
         new_lines[4] = "modified line 5".to_string(); // Only change line 5
 
         let old = old_lines.join("\n");
         let new = new_lines.join("\n");
         let diff = DiffFormat::format(&old, &new);
-        let clean_diff = strip_ansi_codes(&diff.diff());
+        let clean_diff = strip_ansi_codes(diff.diff());
 
         // Diff only shows lines 3-8 (context), so width should be 1 (for single digit
         // numbers) NOT 4 (which would be needed for line 1000)

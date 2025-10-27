@@ -37,6 +37,7 @@ use crate::{ToolCallFull, ToolDefinition, ToolDescription, ToolName};
 #[strum(serialize_all = "snake_case")]
 pub enum Tools {
     Read(FSRead),
+    ReadImage(ReadImage),
     Write(FSWrite),
     Search(FSSearch),
     Remove(FSRemove),
@@ -94,7 +95,23 @@ pub struct FSRead {
     pub end_line: Option<i32>,
 }
 
+/// Reads image files from the file system and returns them in base64-encoded
+/// format for vision-capable models. Supports common image formats: JPEG, PNG,
+/// WebP, and GIF. The path must be absolute and point to an existing file. Use
+/// this tool when you need to process, analyze, or display images with vision
+/// models. Do NOT use this for text files - use the `read` tool instead. Do NOT
+/// use for other binary files like PDFs, videos, or archives. The tool will
+/// fail if the file doesn't exist or if the format is unsupported. Returns the
+/// image content encoded in base64 format ready for vision model consumption.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct ReadImage {
+    /// The absolute path to the image file (e.g., /home/user/image.png).
+    /// Relative paths are not supported. The file must exist and be readable.
+    pub path: String,
+}
+
 /// Use it to create a new file at a specified path with the provided content.
+///
 /// Always provide absolute paths for file locations. The tool
 /// automatically handles the creation of any missing intermediary directories
 /// in the specified path.
@@ -186,9 +203,6 @@ pub enum PatchOperation {
     /// Swap the matched text with another text (search for the second text and
     /// swap them)
     Swap,
-
-    /// Delete the matched text from the file
-    Delete,
 }
 
 // TODO: do the Blanket impl for all the unit enums
@@ -218,41 +232,40 @@ impl JsonSchema for PatchOperation {
 }
 
 /// Modifies files with targeted line operations on matched patterns. Supports
-/// prepend, append, replace, replace_all, swap, delete
-/// operations. Ideal for precise changes to configs, code, or docs while
-/// preserving context. Not suitable for complex refactoring or modifying all
-/// pattern occurrences - use `write` instead for complete
-/// rewrites and `undo` for undoing the last operation. Fails if
-/// search pattern isn't found.
+/// prepend, append, replace, replace_all, swap operations. Ideal for precise
+/// changes to configs, code, or docs while preserving context. Not suitable for
+/// complex refactoring or modifying all pattern occurrences - use `write`
+/// instead for complete rewrites and `undo` for undoing the last operation.
+/// Fails if search pattern isn't found.\n\nUsage Guidelines:\n-When editing
+/// text from Read tool output, ensure you preserve new lines and the exact
+/// indentation (tabs/spaces) as it appears AFTER the line number prefix. The
+/// line number prefix format is: line number + ':' + one space. Everything
+/// after that space is the actual file content to match. Never include any part
+/// of the line number prefix in the search or content
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct FSPatch {
     /// The path to the file to modify
     pub path: String,
 
-    /// The exact line to search for in the file. When
-    /// skipped the patch operation applies to the entire content. `Append` adds
-    /// the new content to the end, `Prepend` adds it to the beginning, and
-    /// `Replace` fully overwrites the original content. `Swap` requires a
-    /// search target, so without one, it makes no changes.
+    /// The text to replace. When skipped the patch operation applies to the
+    /// entire content. `Append` adds the new content to the end, `Prepend` adds
+    /// it to the beginning, and `Replace` fully overwrites the original
+    /// content. `Swap` requires a search target, so without one, it makes no
+    /// changes.
     pub search: Option<String>,
 
-    /// The operation to perform on the matched text. Possible options are:
-    /// - 'prepend': Add content before the matched text
-    /// - 'append': Add content after the matched text
-    /// - 'replace': Use only for specific, targeted replacements where you need
-    ///   to modify just the first match.
-    /// - 'replace_all': Should be used for renaming variables, functions,
-    ///   types, or any widespread replacements across the file. This is the
-    ///   recommended choice for consistent refactoring operations as it ensures
-    ///   all occurrences are updated.
-    /// - 'swap': Replace the matched text with another text (search for the
-    ///   second text and swap them)
-    /// - 'delete': Delete the matched text from the file
+    /// The operation to perform on the matched text. Possible options are: -
+    /// 'prepend': Add content before the matched text - 'append': Add content
+    /// after the matched text - 'replace': Use only for specific, targeted
+    /// replacements where you need to modify just the first match. -
+    /// 'replace_all': Should be used for renaming variables, functions, types,
+    /// or any widespread replacements across the file. This is the recommended
+    /// choice for consistent refactoring operations as it ensures all
+    /// occurrences are updated. - 'swap': Replace the matched text with another
+    /// text (search for the second text and swap them)
     pub operation: PatchOperation,
 
-    /// The content to use for the operation (replacement text, line to
-    /// prepend/append, or target line for swap operations). For delete
-    /// operations, this field is ignored.
+    /// The text to replace it with (must be different from search)
     pub content: String,
 }
 
@@ -455,6 +468,7 @@ impl ToolDescription for Tools {
             Tools::Fetch(v) => v.description(),
             Tools::Search(v) => v.description(),
             Tools::Read(v) => v.description(),
+            Tools::ReadImage(v) => v.description(),
             Tools::Remove(v) => v.description(),
             Tools::Undo(v) => v.description(),
             Tools::Write(v) => v.description(),
@@ -489,6 +503,7 @@ impl Tools {
             Tools::Fetch(_) => r#gen.into_root_schema_for::<NetFetch>(),
             Tools::Search(_) => r#gen.into_root_schema_for::<FSSearch>(),
             Tools::Read(_) => r#gen.into_root_schema_for::<FSRead>(),
+            Tools::ReadImage(_) => r#gen.into_root_schema_for::<ReadImage>(),
             Tools::Remove(_) => r#gen.into_root_schema_for::<FSRemove>(),
             Tools::Undo(_) => r#gen.into_root_schema_for::<FSUndo>(),
             Tools::Write(_) => r#gen.into_root_schema_for::<FSWrite>(),
@@ -532,6 +547,12 @@ impl Tools {
                 cwd,
                 message: format!("Read file: {}", display_path_for(&input.path)),
             }),
+            Tools::ReadImage(input) => Some(crate::policies::PermissionOperation::Read {
+                path: std::path::PathBuf::from(&input.path),
+                cwd,
+                message: format!("Image file: {}", display_path_for(&input.path)),
+            }),
+
             Tools::Write(input) => Some(crate::policies::PermissionOperation::Write {
                 path: std::path::PathBuf::from(&input.path),
                 cwd,

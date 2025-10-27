@@ -79,7 +79,7 @@ impl From<Usage> for forge_domain::Usage {
         // This includes both cache creation and cache reads
         let cached_tokens = TokenCount::Actual(cache_read);
 
-        let total_tokens = prompt_tokens.clone() + completion_tokens.clone();
+        let total_tokens = prompt_tokens + completion_tokens;
 
         forge_domain::Usage {
             prompt_tokens,

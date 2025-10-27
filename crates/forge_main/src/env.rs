@@ -3,6 +3,7 @@ use forge_api::{AgentId, ConversationId};
 // Environment variable names
 pub const FORGE_CONVERSATION_ID: &str = "FORGE_CONVERSATION_ID";
 pub const FORGE_ACTIVE_AGENT: &str = "FORGE_ACTIVE_AGENT";
+pub const FORGE_SHOW_TASK_STATS: &str = "FORGE_SHOW_TASK_STATS";
 
 /// Get conversation ID from FORGE_CONVERSATION_ID environment variable
 pub fn get_conversation_id_from_env() -> Option<ConversationId> {
@@ -14,6 +15,18 @@ pub fn get_conversation_id_from_env() -> Option<ConversationId> {
 /// Get agent ID from FORGE_ACTIVE_AGENT environment variable
 pub fn get_agent_from_env() -> Option<AgentId> {
     std::env::var(FORGE_ACTIVE_AGENT).ok().map(AgentId::new)
+}
+
+/// Check if the completion prompt should be shown
+///
+/// Returns true if the environment variable is not set, cannot be parsed, or is
+/// set to "true" (case-insensitive). Returns false only if explicitly set to
+/// "false".
+pub fn should_show_completion_prompt() -> bool {
+    std::env::var(FORGE_SHOW_TASK_STATS)
+        .ok()
+        .and_then(|val| val.trim().parse::<bool>().ok())
+        .unwrap_or(true)
 }
 
 #[cfg(test)]
