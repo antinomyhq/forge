@@ -53,6 +53,7 @@ mod tests {
             .add_message(ContextMessage::Text(TextMessage {
                 role: Role::User,
                 content: "User message with reasoning".to_string(),
+                raw_content: None,
                 tool_calls: None,
                 model: None,
                 reasoning_details: Some(reasoning_details.clone()),
@@ -60,6 +61,7 @@ mod tests {
             .add_message(ContextMessage::Text(TextMessage {
                 role: Role::Assistant,
                 content: "Assistant response with reasoning".to_string(),
+                raw_content: None,
                 tool_calls: None,
                 model: None,
                 reasoning_details: Some(reasoning_details),
@@ -77,6 +79,7 @@ mod tests {
             .add_message(ContextMessage::Text(TextMessage {
                 role: Role::User,
                 content: "User message with reasoning".to_string(),
+                raw_content: None,
                 tool_calls: None,
                 model: None,
                 reasoning_details: Some(reasoning_details),
@@ -110,6 +113,7 @@ mod tests {
         let fixture = Context::default().add_message(ContextMessage::Text(TextMessage {
             role: Role::Assistant,
             content: "Assistant message".to_string(),
+            raw_content: None,
             tool_calls: None,
             model: Some(crate::ModelId::new("gpt-4")),
             reasoning_details: Some(reasoning_details),
@@ -158,6 +162,7 @@ mod tests {
             .add_message(ContextMessage::Text(TextMessage {
                 role: Role::User,
                 content: "User with reasoning".to_string(),
+                raw_content: None,
                 tool_calls: None,
                 model: None,
                 reasoning_details: Some(reasoning_details),

@@ -36,6 +36,7 @@ impl Transformer for TransformToolCalls {
                     new_messages.push(ContextMessage::Text(TextMessage {
                         role: text_msg.role.clone(),
                         content: text_msg.content.clone(),
+                        raw_content: text_msg.raw_content.clone(),
                         tool_calls: None,
                         reasoning_details: text_msg.reasoning_details.clone(),
                         model: text_msg.model.clone(),

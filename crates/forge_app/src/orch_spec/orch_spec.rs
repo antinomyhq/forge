@@ -410,3 +410,31 @@ async fn test_multi_turn_conversation_stops_only_on_finish_reason() {
         "Should have exactly 3 assistant messages, confirming the orchestrator continued until FinishReason::Stop"
     );
 }
+
+#[tokio::test]
+async fn test_raw_user_message_is_stored() {
+    let mut ctx = TestContext::default().mock_assistant_responses(vec![
+        ChatCompletionMessage::assistant(Content::full("Hello!")).finish_reason(FinishReason::Stop),
+    ]);
+
+    let raw_task = "This is a raw user message\nwith multiple lines\nfor testing";
+    ctx.run(raw_task).await.unwrap();
+
+    let conversation = ctx.output.conversation_history.last().unwrap();
+    let context = conversation.context.as_ref().unwrap();
+
+    // Find the user message
+    let user_message = context
+        .messages
+        .iter()
+        .find(|msg| msg.has_role(Role::User))
+        .expect("Should have user message");
+
+    // Verify raw content is stored
+    let raw_content = user_message.raw_content().unwrap();
+    assert_eq!(
+        raw_content,
+        &serde_json::Value::String(raw_task.to_string()),
+        "Raw user message should be stored in TextMessage as a JSON Value"
+    );
+}
