@@ -21,13 +21,13 @@ pub fn format_tools(agent_tools: &[ToolName], overview: &ToolsOverview) -> Info 
     // System tools section
     info = info.add_title("SYSTEM");
     for tool in &overview.system {
-        info = info.add_key(format!("{} {}", checkbox(&tool.name), tool.name));
+        info = info.add_value(format!("{} {}", checkbox(&tool.name), tool.name));
     }
 
     // Agents section
     info = info.add_title("AGENTS");
     for tool in &overview.agents {
-        info = info.add_key(format!("{} {}", checkbox(&tool.name), tool.name));
+        info = info.add_value(format!("{} {}", checkbox(&tool.name), tool.name));
     }
 
     // MCP tools section
@@ -37,7 +37,7 @@ pub fn format_tools(agent_tools: &[ToolName], overview: &ToolsOverview) -> Info 
             info = info.add_title(title);
 
             for tool in tools {
-                info = info.add_key(format!("{} {}", checkbox(&tool.name), tool.name));
+                info = info.add_value(format!("{} {}", checkbox(&tool.name), tool.name));
             }
         }
     }
@@ -52,7 +52,7 @@ pub fn format_tools(agent_tools: &[ToolName], overview: &ToolsOverview) -> Info 
             } else {
                 error.clone()
             };
-            info = info.add_key(format!("[✗] {server_name} - {truncated_error}"));
+            info = info.add_value(format!("[✗] {server_name} - {truncated_error}"));
         }
     }
 

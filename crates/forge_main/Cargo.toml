@@ -52,6 +52,7 @@ humantime.workspace = true
 num-format.workspace = true
 atty = "0.2"
 url.workspace = true
+indexmap.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }

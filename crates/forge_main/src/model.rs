@@ -116,7 +116,7 @@ impl From<&[Model]> for Info {
             if let Some(context_length) = model.context_length {
                 info = info.add_key_value(&model.id, humanize_context_length(context_length));
             } else {
-                info = info.add_key(&model.id);
+                info = info.add_value(&model.id);
             }
         }
 

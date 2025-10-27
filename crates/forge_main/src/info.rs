@@ -13,7 +13,7 @@ use crate::model::ForgeCommandManager;
 #[derive(Debug, PartialEq)]
 pub enum Section {
     Title(String),
-    Items(String, Option<String>), // key, value, subtitle
+    Items(Option<String>, String), // key, value, subtitle
 }
 
 #[derive(Default)]
@@ -26,28 +26,28 @@ impl Info {
         Info { sections: Vec::new() }
     }
 
+    /// Returns a reference to the sections
+    pub fn sections(&self) -> &[Section] {
+        &self.sections
+    }
+
     pub fn add_title(mut self, title: impl ToString) -> Self {
         self.sections.push(Section::Title(title.to_string()));
         self
     }
 
-    pub fn add_key(self, key: impl ToString) -> Self {
-        self.add_item(key, None::<String>, None::<String>)
+    pub fn add_value(self, value: impl ToString) -> Self {
+        self.add_item(None::<String>, value)
     }
 
     pub fn add_key_value(self, key: impl ToString, value: impl ToString) -> Self {
-        self.add_item(key, Some(value), None::<String>)
+        self.add_item(Some(key), value)
     }
 
-    fn add_item(
-        mut self,
-        key: impl ToString,
-        value: Option<impl ToString>,
-        _subtitle: Option<impl ToString>,
-    ) -> Self {
+    fn add_item(mut self, key: Option<impl ToString>, value: impl ToString) -> Self {
         self.sections.push(Section::Items(
-            key.to_string(),
-            value.map(|a| a.to_string()),
+            key.map(|a| a.to_string()),
+            value.to_string(),
         ));
         self
     }
@@ -55,115 +55,6 @@ impl Info {
     pub fn extend(mut self, other: impl Into<Info>) -> Self {
         self.sections.extend(other.into().sections);
         self
-    }
-
-    /// Converts Info sections into rows suitable for column formatting
-    /// Each section (Title + all its Items) becomes one row
-    ///
-    /// # Arguments
-    /// * `title_position` - Zero-based index where the title should appear (0 =
-    ///   first column, usize::MAX = last column)
-    /// * `include_title` - Whether to include the title in the output row
-    ///   (false for section headers, true for IDs)
-    pub fn to_rows(&self, include_title: bool) -> Vec<Vec<String>> {
-        if include_title {
-            self.to_rows_with_title()
-        } else {
-            self.to_rows_without_title()
-        }
-    }
-
-    /// Converts sections to rows for include_title=false mode
-    /// (info/config/tools commands) Each item becomes its own row
-    fn to_rows_without_title(&self) -> Vec<Vec<String>> {
-        let mut rows = Vec::new();
-
-        for section in &self.sections {
-            if let Section::Items(key, value) = section {
-                if let Some(value_str) = value {
-                    // Key-value pair: show [key, value]
-                    rows.push(vec![key.clone(), value_str.clone()]);
-                } else {
-                    // Key-only (like tools): show [key]
-                    rows.push(vec![key.clone()]);
-                }
-            }
-        }
-
-        rows
-    }
-
-    /// Converts sections to rows for include_title=true mode (list commands)
-    /// Each title gets one row with consistent column positions for fields
-    fn to_rows_with_title(&self) -> Vec<Vec<String>> {
-        use std::collections::HashMap;
-
-        // First pass: collect all unique field names in order of first appearance
-        let mut field_order = Vec::new();
-        let mut seen_fields = std::collections::HashSet::new();
-
-        for section in &self.sections {
-            if let Section::Items(key, _) = section
-                && !seen_fields.contains(key)
-            {
-                field_order.push(key.clone());
-                seen_fields.insert(key.clone());
-            }
-        }
-
-        // Second pass: build rows with consistent structure
-        let mut rows = Vec::new();
-        let mut current_title = String::new();
-        let mut current_row_data: HashMap<String, String> = HashMap::new();
-
-        for section in &self.sections {
-            match section {
-                Section::Title(title) => {
-                    // If we have accumulated data for the previous title, build and push the row
-                    if !current_title.is_empty() {
-                        let row = self.build_consistent_row(
-                            &current_title,
-                            &current_row_data,
-                            &field_order,
-                        );
-                        rows.push(row);
-                        current_row_data.clear();
-                    }
-                    current_title = title.clone();
-                }
-                Section::Items(key, value) => {
-                    let value_str = value.clone().unwrap_or_default();
-                    current_row_data.insert(key.clone(), value_str);
-                }
-            }
-        }
-
-        // Push the last row
-        if !current_title.is_empty() {
-            let row = self.build_consistent_row(&current_title, &current_row_data, &field_order);
-            rows.push(row);
-        }
-
-        rows
-    }
-
-    /// Builds a row with consistent column positions
-    /// Row structure: [title, field1_value, field2_value, ...]
-    /// Missing fields are filled with empty strings
-    fn build_consistent_row(
-        &self,
-        title: &str,
-        row_data: &std::collections::HashMap<String, String>,
-        field_order: &[String],
-    ) -> Vec<String> {
-        let mut row = vec![title.to_string()];
-
-        for field in field_order {
-            let value = row_data.get(field).cloned().unwrap_or_default();
-            row.push(value);
-        }
-
-        row
     }
 }
 
@@ -221,7 +112,7 @@ impl From<&Metrics> for Info {
 
         // Add file changes section inspired by the example format
         if metrics.files_changed.is_empty() {
-            info = info.add_key("[No Changes Produced]");
+            info = info.add_value("[No Changes Produced]");
         } else {
             // First, calculate the maximum filename length for proper alignment
             let max_filename_len = metrics
@@ -311,11 +202,11 @@ impl fmt::Display for Info {
                     writeln!(f, "{}", title.bold().dimmed())?
                 }
                 Section::Items(key, value) => {
-                    if let Some(value) = value {
+                    if let Some(key) = key {
                         writeln!(f, "  {}: {}", key.bright_cyan().bold(), value)?;
                     } else {
                         // Show key-only items (like tools)
-                        writeln!(f, "  {}", key)?;
+                        writeln!(f, "  {}", value)?;
                     }
                 }
             }
@@ -744,73 +635,5 @@ mod tests {
         assert!(expected_display.contains("CONVERSATION"));
         assert!(!expected_display.contains("Title:"));
         assert!(expected_display.contains(&conversation_id.to_string()));
-    }
-
-    #[test]
-    fn test_to_rows_without_title() {
-        // Test case for include_title=false (info/config/tools commands)
-        // Each item becomes its own row [key, value]
-        let fixture = super::Info::new()
-            .add_key_value("name", "Alice")
-            .add_key_value("age", "30")
-            .add_key_value("age", "25")
-            .add_key_value("name", "Bob");
-
-        let actual = fixture.to_rows(false);
-
-        let expected = vec![
-            vec!["name".to_string(), "Alice".to_string()],
-            vec!["age".to_string(), "30".to_string()],
-            vec!["age".to_string(), "25".to_string()],
-            vec!["name".to_string(), "Bob".to_string()],
-        ];
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_to_rows_with_title_handles_varying_fields() {
-        // Test include_title=true (list commands) with:
-        // - Different field orders (user1: name,age vs user3: age,name)
-        // - Missing fields (user2 missing name)
-        // - Extra fields (user3 has city)
-        // - Empty values (user3 age is empty string)
-        let fixture = super::Info::new()
-            .add_title("user1")
-            .add_key_value("name", "Alice")
-            .add_key_value("age", "30")
-            .add_title("user2")
-            .add_key_value("age", "25") // Missing name
-            .add_title("user3")
-            .add_key_value("age", "") // Empty value
-            .add_key_value("name", "Charlie") // Different order
-            .add_key_value("city", "NYC"); // Extra field
-
-        let actual = fixture.to_rows(true);
-
-        // All rows have consistent structure: [title, name, age, city]
-        // Missing/empty fields are filled with empty strings
-        let expected = vec![
-            vec![
-                "user1".to_string(),
-                "Alice".to_string(),
-                "30".to_string(),
-                "".to_string(),
-            ],
-            vec![
-                "user2".to_string(),
-                "".to_string(),
-                "25".to_string(),
-                "".to_string(),
-            ],
-            vec![
-                "user3".to_string(),
-                "Charlie".to_string(),
-                "".to_string(),
-                "NYC".to_string(),
-            ],
-        ];
-
-        assert_eq!(actual, expected);
     }
 }

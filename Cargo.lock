@@ -1356,6 +1356,7 @@ dependencies = [
  "forge_tracker",
  "forge_walker",
  "humantime",
+ "indexmap",
  "insta",
  "lazy_static",
  "merge 0.2.0",
