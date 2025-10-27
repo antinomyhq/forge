@@ -7,6 +7,7 @@
 # Using typeset to keep variables local to plugin scope and prevent public exposure
 typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
 typeset -h _FORGE_CONVERSATION_PATTERN=":"
+typeset -h _FORGE_DELIMITER='\s\s+'
 
 # Detect fd command - Ubuntu/Debian use 'fdfind', others use 'fd'
 typeset -h _FORGE_FD_CMD="$(command -v fdfind 2>/dev/null || command -v fd 2>/dev/null || echo 'fd')"
@@ -65,6 +66,7 @@ function _forge_select_and_set_config() {
     local show_command="$1"
     local config_flag="$2"
     local prompt_text="$3"
+    local with_nth="${4:-}"  # Optional column selection parameter
     
     (
         echo
@@ -80,7 +82,12 @@ function _forge_select_and_set_config() {
         
         if [[ -n "$output" ]]; then
             local selected
-            selected=$(echo "$output" | _forge_fzf --prompt="$prompt_text ❯ ")
+            # Add --with-nth parameter if provided
+            if [[ -n "$with_nth" ]]; then
+                selected=$(echo "$output" | _forge_fzf --delimiter="$_FORGE_DELIMITER" --with-nth="$with_nth" --prompt="$prompt_text ❯ ")
+            else
+                selected=$(echo "$output" | _forge_fzf --delimiter="$_FORGE_DELIMITER" --prompt="$prompt_text ❯ ")
+            fi
             
             if [[ -n "$selected" ]]; then
                 local name="${selected%% *}"
@@ -152,9 +159,9 @@ function forge-completion() {
             # Use fzf for interactive selection with prefilled filter
             local selected
             if [[ -n "$filter_text" ]]; then
-                selected=$(echo "$commands_list" | _forge_fzf --nth=1 --query "$filter_text" --prompt="Command ❯ ")
+                selected=$(echo "$commands_list" | _forge_fzf --delimiter="$_FORGE_DELIMITER" --nth=1 --query "$filter_text" --prompt="Command ❯ ")
             else
-                selected=$(echo "$commands_list" | _forge_fzf --nth=1 --prompt="Command ❯ ")
+                selected=$(echo "$commands_list" | _forge_fzf --delimiter="$_FORGE_DELIMITER" --nth=1 --prompt="Command ❯ ")
             fi
             
             if [[ -n "$selected" ]]; then
@@ -230,7 +237,8 @@ function _forge_action_conversation() {
         fi
         
         local selected_conversation
-        selected_conversation=$(echo "$conversations_output" | _forge_fzf --prompt="$prompt_text")
+        # Hide column 3 in display using awk, but keep full line for selection
+        selected_conversation=$(echo "$conversations_output" | _forge_fzf --prompt="$prompt_text"  --delimiter="$_FORGE_DELIMITER" --with-nth=1,2)
         
         if [[ -n "$selected_conversation" ]]; then
             # Strip ANSI codes first, then extract the last field (UUID)
@@ -256,7 +264,7 @@ function _forge_action_provider() {
 
 # Action handler: Select model
 function _forge_action_model() {
-    _forge_select_and_set_config "list models" "model" "Model"
+    _forge_select_and_set_config "list models" "model" "Model" "1,3.."
     _forge_reset
 }
 
