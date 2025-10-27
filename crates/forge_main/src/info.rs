@@ -392,6 +392,13 @@ pub fn format_reset_time(seconds: u64) -> String {
     humantime::format_duration(Duration::from_secs(seconds)).to_string()
 }
 
+/// Extracts the first line of raw content from a context message.
+fn format_user_message(msg: &forge_api::ContextMessage) -> Option<String> {
+    let content = msg.raw_content().and_then(|v| v.as_str())?;
+    let trimmed = content.lines().next().unwrap_or(content);
+    Some(trimmed.to_string())
+}
+
 impl From<&Conversation> for Info {
     fn from(conversation: &Conversation) -> Self {
         let mut info = Info::new().add_title("CONVERSATION");
@@ -402,24 +409,20 @@ impl From<&Conversation> for Info {
             info = info.add_key_value("Title", title);
         }
 
-        // Add the last user message as "Task"
-        if let Some(context) = &conversation.context
-            && let Some(last_user_message) = context
-                .messages
-                .iter()
-                .rev()
-                .find(|msg| msg.has_role(forge_api::Role::User))
-        {
-            // Prefer raw content if available, otherwise use rendered content
-            let content = last_user_message
-                .raw_content()
-                .and_then(|v| v.as_str())
-                .or_else(|| last_user_message.content());
+        // Add task and feedback (if available)
+        let user_sequences = conversation.first_user_messages();
 
-            if let Some(content) = content {
-                let trimmed_content = content.lines().next().unwrap_or(content);
-                info = info.add_key_value("Task", trimmed_content);
-            }
+        if let Some(first_msg) = user_sequences.first()
+            && let Some(task) = format_user_message(first_msg)
+        {
+            info = info.add_key_value("Task", task);
+        }
+
+        if user_sequences.len() > 1
+            && let Some(last_msg) = user_sequences.last()
+            && let Some(feedback) = format_user_message(last_msg)
+        {
+            info = info.add_key_value("Feedback", feedback);
         }
 
         // Insert metrics information
@@ -674,7 +677,7 @@ mod tests {
     #[test]
     fn test_conversation_info_display_with_task() {
         use chrono::Utc;
-        use forge_api::{Context, ContextMessage, ConversationId};
+        use forge_api::{Context, ContextMessage, ConversationId, Role};
 
         use super::{Conversation, Metrics};
 
@@ -684,9 +687,23 @@ mod tests {
         // Create a context with user messages
         let context = Context::default()
             .add_message(ContextMessage::system("System prompt"))
-            .add_message(ContextMessage::user("First user message", None))
+            .add_message(ContextMessage::Text(forge_domain::TextMessage {
+                role: Role::User,
+                content: "First user message".to_string(),
+                raw_content: Some(serde_json::json!("First user message")),
+                tool_calls: None,
+                model: None,
+                reasoning_details: None,
+            }))
             .add_message(ContextMessage::assistant("Assistant response", None, None))
-            .add_message(ContextMessage::user("Create a new feature", None));
+            .add_message(ContextMessage::Text(forge_domain::TextMessage {
+                role: Role::User,
+                content: "Create a new feature".to_string(),
+                raw_content: Some(serde_json::json!("Create a new feature")),
+                tool_calls: None,
+                model: None,
+                reasoning_details: None,
+            }));
 
         let fixture = Conversation {
             id: conversation_id,
