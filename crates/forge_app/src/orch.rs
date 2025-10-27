@@ -1,6 +1,6 @@
 // Tests for this module can be found in: tests/orch_*.rs
 use std::collections::HashSet;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use async_recursion::async_recursion;
@@ -19,7 +19,8 @@ use crate::user_prompt::UserPromptBuilder;
 #[setters(into, strip_option)]
 pub struct Orchestrator<S> {
     services: Arc<S>,
-    sender: Option<ArcSender>,
+    #[setters(skip)] // Custom setter defined below
+    sender: Option<EventLoggingSender>,
     conversation: Conversation,
     environment: Environment,
     tool_definitions: Vec<ToolDefinition>,
@@ -30,6 +31,7 @@ pub struct Orchestrator<S> {
     event: Event,
     error_tracker: ToolErrorTracker,
     user_prompt_service: UserPromptBuilder<S>,
+    event_log_ref: Arc<Mutex<Option<ConversationEventLog>>>,
     current_time: chrono::DateTime<chrono::Local>,
 }
 
@@ -42,6 +44,9 @@ impl<S: AgentService> Orchestrator<S> {
         agent: Agent,
         event: Event,
     ) -> Self {
+        // Create event log reference from conversation's event log
+        let event_log_ref = Arc::new(Mutex::new(conversation.event_log.clone()));
+
         Self {
             user_prompt_service: UserPromptBuilder::new(
                 services.clone(),
@@ -60,6 +65,7 @@ impl<S: AgentService> Orchestrator<S> {
             files: Default::default(),
             custom_instructions: Default::default(),
             error_tracker: Default::default(),
+            event_log_ref,
             current_time,
         }
     }
@@ -69,21 +75,30 @@ impl<S: AgentService> Orchestrator<S> {
         &self.conversation
     }
 
+    /// Sets the sender and wraps it with EventLoggingSender for automatic event
+    /// capture
+    pub fn sender(mut self, sender: impl Into<Option<ArcSender>>) -> Self {
+        self.sender = sender
+            .into()
+            .map(|s| EventLoggingSender::new(s, self.event_log_ref.clone()));
+        self
+    }
+
     // Helper function to get all tool results from a vector of tool calls
     #[async_recursion]
     async fn execute_tool_calls<'a>(
-        &self,
+        &mut self,
         tool_calls: &[ToolCallFull],
         tool_context: &ToolCallContext,
     ) -> anyhow::Result<Vec<(ToolCallFull, ToolResult)>> {
-        let agent = &self.agent;
         // Always process tool calls sequentially
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
 
+        // Collect system tool names to avoid borrowing issues
         let system_tools = self
             .tool_definitions
             .iter()
-            .map(|tool| &tool.name)
+            .map(|tool| tool.name.clone())
             .collect::<HashSet<_>>();
 
         for tool_call in tool_calls {
@@ -97,12 +112,12 @@ impl<S: AgentService> Orchestrator<S> {
             // Execute the tool
             let tool_result = self
                 .services
-                .call(agent, tool_context, tool_call.clone())
+                .call(&self.agent, tool_context, tool_call.clone())
                 .await;
 
             if tool_result.is_error() {
                 warn!(
-                    agent_id = %agent.id,
+                    agent_id = %self.agent.id,
                     name = %tool_call.name,
                     arguments = %tool_call.arguments.to_owned().into_string(),
                     output = ?tool_result.output,
@@ -123,11 +138,20 @@ impl<S: AgentService> Orchestrator<S> {
         Ok(tool_call_records)
     }
 
-    async fn send(&self, message: ChatResponse) -> anyhow::Result<()> {
+    async fn send(&mut self, message: ChatResponse) -> anyhow::Result<()> {
+        // Event logging happens automatically in EventLoggingSender
         if let Some(sender) = &self.sender {
             sender.send(Ok(message)).await?
         }
         Ok(())
+    }
+
+    /// Syncs the event log from the wrapper back to the conversation before
+    /// saving
+    fn sync_event_log(&mut self) {
+        if let Ok(event_log) = self.event_log_ref.lock() {
+            self.conversation.event_log = event_log.clone();
+        }
     }
 
     /// Checks if parallel tool calls is supported by agent
@@ -273,7 +297,34 @@ impl<S: AgentService> Orchestrator<S> {
             "Initializing agent"
         );
 
-        let model_id = self.get_model()?;
+        // Store user message in event log for replay (don't send to UI during live
+        // execution)
+        if let Some(content) = &event.value
+            && let Some(content_str) = content.as_str()
+        {
+            let user_message = ChatResponse::TaskMessage {
+                content: ChatResponseContent::Title(TitleFormat::completion(
+                    content_str.to_string(),
+                )),
+            };
+
+            // Add to EventLoggingSender's shared event log (not directly to conversation)
+            if let Ok(mut event_log) = self.event_log_ref.lock() {
+                if let Some(ref mut log) = *event_log {
+                    log.push(TimestampedEvent::new(user_message));
+                } else {
+                    let mut new_log = ConversationEventLog::new();
+                    new_log.push(TimestampedEvent::new(user_message));
+                    *event_log = Some(new_log);
+                }
+            }
+        }
+
+        let model_id = self
+            .agent
+            .model
+            .clone()
+            .ok_or(Error::MissingModel(self.agent.id.clone()))?;
 
         let mut context = self.conversation.context.clone().unwrap_or_default();
 
@@ -351,8 +402,9 @@ impl<S: AgentService> Orchestrator<S> {
         let mut request_count = 0;
 
         // Retrieve the number of requests allowed per tick.
-        let max_requests_per_turn = agent.max_requests_per_turn;
+        let max_requests_per_turn = self.agent.max_requests_per_turn;
 
+        // Tool context now uses EventLoggingSender directly for automatic event capture
         let tool_context =
             ToolCallContext::new(self.conversation.metrics.clone()).sender(self.sender.clone());
 
@@ -362,6 +414,7 @@ impl<S: AgentService> Orchestrator<S> {
         while !should_yield {
             // Set context for the current loop iteration
             self.conversation.context = Some(context.clone());
+            self.sync_event_log();
             self.services.update(self.conversation.clone()).await?;
 
             // Run the main chat request and compaction check in parallel
@@ -370,7 +423,7 @@ impl<S: AgentService> Orchestrator<S> {
                 || self.execute_chat_turn(&model_id, context.clone(), context.is_reasoning_supported()),
                 self.sender.as_ref().map(|sender| {
                     let sender = sender.clone();
-                    let agent_id = agent.id.clone();
+                    let agent_id = self.agent.id.clone();
                     let model_id = model_id.clone();
                     move |error: &anyhow::Error, duration: Duration| {
                         let root_cause = error.root_cause();
@@ -383,6 +436,25 @@ impl<S: AgentService> Orchestrator<S> {
                     }
                 }),
             );
+
+            // Generate title only if conversation doesn't have any title and event.value
+            // exists
+            use futures::future::{Either, ready};
+            let _title_generator_future: Either<_, _> = if let Some(ref prompt) = self.event.value {
+                if self.conversation.title.is_none() {
+                    let title_generator = TitleGenerator::new(
+                        self.services.clone(),
+                        prompt.to_owned(),
+                        model_id.clone(),
+                    )
+                    .reasoning(self.agent.reasoning.clone());
+                    Either::Left(async move { title_generator.generate().await })
+                } else {
+                    Either::Right(ready(Ok::<Option<String>, anyhow::Error>(None)))
+                }
+            } else {
+                Either::Right(ready(Ok::<Option<String>, anyhow::Error>(None)))
+            };
 
             // Prepare compaction task that runs in parallel
             // Execute both operations in parallel
@@ -401,11 +473,11 @@ impl<S: AgentService> Orchestrator<S> {
             // Apply compaction result if it completed successfully
             match compaction_result {
                 Some(compacted_context) => {
-                    info!(agent_id = %agent.id, "Using compacted context from execution");
+                    info!(agent_id = %self.agent.id, "Using compacted context from execution");
                     context = compacted_context;
                 }
                 None => {
-                    debug!(agent_id = %agent.id, "No compaction was needed");
+                    debug!(agent_id = %self.agent.id, "No compaction was needed");
                 }
             }
 
@@ -425,7 +497,7 @@ impl<S: AgentService> Orchestrator<S> {
 
             context = context.usage(usage);
 
-            debug!(agent_id = %agent.id, tool_call_count = tool_calls.len(), "Tool call count");
+            debug!(agent_id = %self.agent.id, tool_call_count = tool_calls.len(), "Tool call count");
 
             // Turn is completed, if finish_reason is 'stop'.
             is_complete = finish_reason == Some(FinishReason::Stop);
@@ -490,6 +562,7 @@ impl<S: AgentService> Orchestrator<S> {
             // Update context in the conversation
             context = SetModel::new(model_id.clone()).transform(context);
             self.conversation.context = Some(context.clone());
+            self.sync_event_log();
             self.services.update(self.conversation.clone()).await?;
             request_count += 1;
 
@@ -497,7 +570,7 @@ impl<S: AgentService> Orchestrator<S> {
                 // Check if agent has reached the maximum request per turn limit
                 if request_count >= max_request_allowed {
                     warn!(
-                        agent_id = %agent.id,
+                        agent_id = %self.agent.id,
                         model_id = %model_id,
                         request_count,
                         max_request_allowed,
@@ -520,6 +593,8 @@ impl<S: AgentService> Orchestrator<S> {
         tool_context.with_metrics(|metrics| {
             self.conversation.metrics = metrics.clone();
         })?;
+
+        self.sync_event_log();
 
         // Set conversation title
         if let Some(title) = title.await.ok().flatten() {

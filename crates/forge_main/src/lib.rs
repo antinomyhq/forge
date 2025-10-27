@@ -1,6 +1,7 @@
 pub mod banner;
 mod cli;
 mod completer;
+
 mod conversation_selector;
 mod editor;
 mod env;

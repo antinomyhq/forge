@@ -4,6 +4,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::event_log::ConversationEventLog;
 use crate::{Context, Error, Metrics, Result};
 
 // Event type constants
@@ -41,6 +42,9 @@ pub struct Conversation {
     pub context: Option<Context>,
     pub metrics: Metrics,
     pub metadata: MetaData,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub event_log: Option<ConversationEventLog>,
 }
 
 #[derive(Debug, Setters, Serialize, Deserialize, Clone)]
@@ -66,6 +70,7 @@ impl Conversation {
             metadata: MetaData::new(created_at),
             title: None,
             context: None,
+            event_log: Some(ConversationEventLog::new()),
         }
     }
     /// Creates a new conversation with a new conversation ID.
