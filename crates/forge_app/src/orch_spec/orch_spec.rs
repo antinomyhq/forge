@@ -410,3 +410,48 @@ async fn test_multi_turn_conversation_stops_only_on_finish_reason() {
         "Should have exactly 3 assistant messages, confirming the orchestrator continued until FinishReason::Stop"
     );
 }
+
+#[tokio::test]
+async fn test_raw_user_message_is_stored() {
+    let mut ctx = TestContext::default().mock_assistant_responses(vec![
+        ChatCompletionMessage::assistant(Content::full("Hello!")).finish_reason(FinishReason::Stop),
+    ]);
+
+    let raw_task = "This is a raw user message\nwith multiple lines\nfor testing";
+    ctx.run(raw_task).await.unwrap();
+
+    let conversation = ctx.output.conversation_history.last().unwrap();
+    let context = conversation.context.as_ref().unwrap();
+
+    // Find the user message
+    let user_message = context
+        .messages
+        .iter()
+        .find(|msg| msg.has_role(Role::User))
+        .expect("Should have user message");
+
+    // Verify raw content is stored
+    assert_eq!(
+        user_message.raw_content(),
+        Some(raw_task),
+        "Raw user message should be stored in TextMessage"
+    );
+
+    // Verify rendered content is different (has template wrapping)
+    let rendered_content = user_message.content().unwrap();
+    assert!(
+        rendered_content.contains("<task>"),
+        "Rendered message should contain template tags"
+    );
+    assert!(
+        rendered_content.contains(raw_task),
+        "Rendered message should contain the raw task"
+    );
+
+    // Verify raw content doesn't have template tags
+    let raw_content = user_message.raw_content().unwrap();
+    assert!(
+        !raw_content.contains("<task>"),
+        "Raw content should not contain template tags"
+    );
+}

@@ -58,6 +58,16 @@ impl ContextMessage {
         }
     }
 
+    /// Returns the raw content before template rendering (only for User
+    /// messages)
+    pub fn raw_content(&self) -> Option<&str> {
+        match self {
+            ContextMessage::Text(text_message) => text_message.raw_content.as_deref(),
+            ContextMessage::Tool(_) => None,
+            ContextMessage::Image(_) => None,
+        }
+    }
+
     /// Estimates the number of tokens in a message using character-based
     /// approximation.
     /// ref: https://github.com/openai/codex/blob/main/codex-cli/src/utils/approximate-tokens-used.ts
@@ -133,6 +143,7 @@ impl ContextMessage {
         TextMessage {
             role: Role::User,
             content: content.to_string(),
+            raw_content: None,
             tool_calls: None,
             reasoning_details: None,
             model,
@@ -144,6 +155,7 @@ impl ContextMessage {
         TextMessage {
             role: Role::System,
             content: content.to_string(),
+            raw_content: None,
             tool_calls: None,
             model: None,
             reasoning_details: None,
@@ -161,6 +173,7 @@ impl ContextMessage {
         TextMessage {
             role: Role::Assistant,
             content: content.to_string(),
+            raw_content: None,
             tool_calls,
             reasoning_details,
             model: None,
@@ -240,6 +253,9 @@ fn reasoning_content_char_count(text_message: &TextMessage) -> usize {
 pub struct TextMessage {
     pub role: Role,
     pub content: String,
+    /// The raw content before any template rendering (only for User messages)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub raw_content: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_calls: Option<Vec<ToolCallFull>>,
     // note: this used to track model used for this message.
@@ -262,6 +278,7 @@ impl TextMessage {
         Self {
             role: Role::Assistant,
             content: content.to_string(),
+            raw_content: None,
             tool_calls: None,
             reasoning_details,
             model,

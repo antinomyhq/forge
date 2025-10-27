@@ -31,6 +31,11 @@ impl<S> UserPromptBuilder<S> {
     where
         S: AgentService,
     {
+        let raw_message = self.event.value.as_ref().map(|v| match v {
+            serde_json::Value::String(s) => s.clone(),
+            other => other.to_string(),
+        });
+
         let content = if let Some(user_prompt) = &self.agent.user_prompt
             && self.event.value.is_some()
         {
@@ -54,11 +59,19 @@ impl<S> UserPromptBuilder<S> {
             )
         } else {
             // Use the raw event value as content if no user_prompt is provided
-            self.event.value.as_ref().map(|v| v.to_string())
+            raw_message.clone()
         };
 
         if let Some(content) = content {
-            context = context.add_message(ContextMessage::user(content, self.agent.model.clone()));
+            let message = TextMessage {
+                role: Role::User,
+                content,
+                raw_content: raw_message,
+                tool_calls: None,
+                reasoning_details: None,
+                model: self.agent.model.clone(),
+            };
+            context = context.add_message(ContextMessage::Text(message));
         }
 
         Ok(context)
