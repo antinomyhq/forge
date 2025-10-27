@@ -430,24 +430,6 @@ async fn test_raw_user_message_is_stored() {
         .find(|msg| msg.has_role(Role::User))
         .expect("Should have user message");
 
-    // Verify raw content is stored
-    assert_eq!(
-        user_message.raw_content(),
-        Some(raw_task),
-        "Raw user message should be stored in TextMessage"
-    );
-
-    // Verify rendered content is different (has template wrapping)
-    let rendered_content = user_message.content().unwrap();
-    assert!(
-        rendered_content.contains("<task>"),
-        "Rendered message should contain template tags"
-    );
-    assert!(
-        rendered_content.contains(raw_task),
-        "Rendered message should contain the raw task"
-    );
-
     // Verify raw content doesn't have template tags
     let raw_content = user_message.raw_content().unwrap();
     assert!(

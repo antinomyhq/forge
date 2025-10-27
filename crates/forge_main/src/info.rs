@@ -395,17 +395,17 @@ impl From<&Conversation> for Info {
                 .iter()
                 .rev()
                 .find(|msg| msg.has_role(forge_api::Role::User))
-            {
-                // Prefer raw content if available, otherwise use rendered content
-                let content = last_user_message
-                    .raw_content()
-                    .or_else(|| last_user_message.content());
+        {
+            // Prefer raw content if available, otherwise use rendered content
+            let content = last_user_message
+                .raw_content()
+                .or_else(|| last_user_message.content());
 
-                if let Some(content) = content {
-                    let trimmed_content = content.lines().next().unwrap_or(content);
-                    info = info.add_key_value("Task", trimmed_content);
-                }
+            if let Some(content) = content {
+                let trimmed_content = content.lines().next().unwrap_or(content);
+                info = info.add_key_value("Task", trimmed_content);
             }
+        }
 
         // Insert metrics information
         if !conversation.metrics.files_changed.is_empty() {
