@@ -60,7 +60,7 @@ impl<E: EnvironmentInfra, R: ProviderCredentialRepository> ProviderCredentialMig
                     self.env_infra
                         .get_env_var(var.as_str())
                         .filter(|v| !v.trim().is_empty())
-                        .map(|val| (var.to_owned().into(), val.into()))
+                        .map(|val| (var.to_owned(), val.into()))
                 })
                 .collect::<std::collections::HashMap<_, _>>(),
         );

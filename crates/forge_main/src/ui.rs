@@ -491,11 +491,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .prompt()?
                     .context("Parameter input cancelled")?;
 
-                anyhow::ensure!(
-                    !param_value.trim().is_empty(),
-                    "{} cannot be empty",
-                    param
-                );
+                anyhow::ensure!(!param_value.trim().is_empty(), "{} cannot be empty", param);
 
                 Ok((param.to_string(), param_value))
             })

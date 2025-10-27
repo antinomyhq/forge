@@ -346,7 +346,10 @@ impl<
 
         // Add default URLs if not present
         if !template_data.contains_key(&("OPENAI_URL".to_string().into())) {
-            template_data.insert("OPENAI_URL".to_owned().into(), "https://api.openai.com/v1".to_owned().into());
+            template_data.insert(
+                "OPENAI_URL".to_owned().into(),
+                "https://api.openai.com/v1".to_owned().into(),
+            );
         }
         if !template_data.contains_key(&("ANTHROPIC_URL".to_string().into())) {
             template_data.insert(
