@@ -34,9 +34,10 @@ impl<S: Services> ChangedFiles<S> {
         // Update file hashes to prevent duplicate notifications
         for change in &changes {
             if let Some(path_str) = change.path.to_str()
-                && let Some(metrics) = conversation.metrics.files_changed.get_mut(path_str) {
-                    metrics.file_hash = change.file_hash.clone();
-                }
+                && let Some(metrics) = conversation.metrics.files_changed.get_mut(path_str)
+            {
+                metrics.file_hash = change.file_hash.clone();
+            }
         }
 
         let file_paths: Vec<String> = changes
