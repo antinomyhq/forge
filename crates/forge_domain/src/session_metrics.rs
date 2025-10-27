@@ -136,9 +136,9 @@ mod tests {
     #[test]
     fn test_metrics_record_file_operation() {
         let mut fixture = Metrics::new();
-        fixture.record_file_operation("file1.rs".to_string(), Some("hash1".to_string()), 10, 5);
-        fixture.record_file_operation("file2.rs".to_string(), Some("hash2".to_string()), 3, 2);
-        fixture.record_file_operation("file1.rs".to_string(), Some("hash1_v2".to_string()), 5, 1);
+        fixture.record_file_operation("file1.rs".to_string(), 10, 5, Some("hash1".to_string()));
+        fixture.record_file_operation("file2.rs".to_string(), 3, 2, Some("hash2".to_string()));
+        fixture.record_file_operation("file1.rs".to_string(), 5, 1, Some("hash1_v2".to_string()));
 
         let actual = fixture;
 
@@ -154,7 +154,7 @@ mod tests {
         let path = "file_to_track.rs".to_string();
 
         // Do operation
-        metrics.record_file_operation(path.clone(), Some("hash_v1".to_string()), 2, 1);
+        metrics.record_file_operation(path.clone(), 2, 1, Some("hash_v1".to_string()));
         let changes = metrics.files_changed.get(&path).unwrap();
         assert_eq!(metrics.files_changed.len(), 1);
         assert_eq!(changes.lines_added, 2);
@@ -162,7 +162,7 @@ mod tests {
         assert_eq!(changes.file_hash, Some("hash_v1".to_string()));
 
         // Undo operation
-        metrics.record_file_undo(path.clone(), Some("hash_v0".to_string()), 2, 1);
+        metrics.record_file_undo(path.clone(), 2, 1, Some("hash_v0".to_string()));
         let changes = metrics.files_changed.get(&path).unwrap();
         assert_eq!(changes.lines_added, 0);
         assert_eq!(changes.lines_removed, 0);
@@ -174,8 +174,8 @@ mod tests {
         let mut metrics = Metrics::new();
         let path = "file1.rs".to_string();
 
-        metrics.record_file_operation(path.clone(), Some("hash1".to_string()), 10, 5);
-        metrics.record_file_operation(path.clone(), Some("hash2".to_string()), 5, 1);
+        metrics.record_file_operation(path.clone(), 10, 5, Some("hash1".to_string()));
+        metrics.record_file_operation(path.clone(), 5, 1, Some("hash2".to_string()));
 
         let metric1 = metrics.files_changed.get(&path).unwrap();
         assert_eq!(metric1.lines_added, 15);
@@ -183,7 +183,7 @@ mod tests {
         assert_eq!(metric1.file_hash, Some("hash2".to_string()));
 
         // Undo operation on file1 (undoing the second operation: 5 added, 1 removed)
-        metrics.record_file_undo(path.clone(), Some("hash1".to_string()), 5, 1);
+        metrics.record_file_undo(path.clone(), 5, 1, Some("hash1".to_string()));
         let file1_metrics_after_undo1 = metrics.files_changed.get(&path).unwrap();
         assert_eq!(file1_metrics_after_undo1.lines_added, 10);
         assert_eq!(file1_metrics_after_undo1.lines_removed, 5);
@@ -193,7 +193,7 @@ mod tests {
         );
 
         // Undo operation on file1 (undoing the first operation: 10 added, 5 removed)
-        metrics.record_file_undo(path.clone(), Some("hash0".to_string()), 10, 5);
+        metrics.record_file_undo(path.clone(), 10, 5, Some("hash0".to_string()));
         let file1_metrics_after_undo2 = metrics.files_changed.get(&path).unwrap();
         assert_eq!(file1_metrics_after_undo2.lines_added, 0);
         assert_eq!(file1_metrics_after_undo2.lines_removed, 0);
