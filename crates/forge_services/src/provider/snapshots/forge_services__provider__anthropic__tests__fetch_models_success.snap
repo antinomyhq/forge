@@ -7,7 +7,7 @@ expression: actual
     "id": "claude-3-5-sonnet-20241022",
     "name": "Claude 3.5 Sonnet (New)",
     "description": null,
-    "context_length": null,
+    "context_length": 200000,
     "tools_supported": true,
     "supports_parallel_tool_calls": null,
     "supports_reasoning": null
@@ -16,7 +16,7 @@ expression: actual
     "id": "claude-3-5-haiku-20241022",
     "name": "Claude 3.5 Haiku",
     "description": null,
-    "context_length": null,
+    "context_length": 200000,
     "tools_supported": true,
     "supports_parallel_tool_calls": null,
     "supports_reasoning": null

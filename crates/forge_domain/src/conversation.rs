@@ -90,4 +90,35 @@ impl Conversation {
         // Instead of using Handlebars, we now use our Element DSL
         crate::conversation_html::render_conversation_html(self)
     }
+
+    /// Returns a vector of user messages, selecting the first message from
+    /// each consecutive sequence of user messages.
+    pub fn first_user_messages(&self) -> Vec<&crate::ContextMessage> {
+        let context = match self.context.as_ref() {
+            Some(ctx) => ctx,
+            None => return Vec::new(),
+        };
+
+        let messages = &context.messages;
+        if messages.is_empty() {
+            return Vec::new();
+        }
+
+        let mut result = Vec::new();
+        let mut is_user = false;
+
+        for msg in messages {
+            if msg.has_role(crate::context::Role::User) {
+                // Only add the first message of each consecutive user sequence
+                if !is_user {
+                    result.push(msg);
+                    is_user = true;
+                }
+            } else {
+                is_user = false;
+            }
+        }
+
+        result
+    }
 }
