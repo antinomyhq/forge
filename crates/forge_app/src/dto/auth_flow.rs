@@ -267,6 +267,6 @@ pub enum AuthResult {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::Deref, Hash, derive_more::From)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::Deref, Hash, derive_more::From, derive_more::Display)]
 #[serde(transparent)]
 pub struct URLParam(String);

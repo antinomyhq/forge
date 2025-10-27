@@ -487,14 +487,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let url_params = required_params
             .into_iter()
             .map(|param| {
-                let param_value = ForgeSelect::input(format!("Enter {}:", param.as_ref()))
+                let param_value = ForgeSelect::input(format!("Enter {}:", param))
                     .prompt()?
                     .context("Parameter input cancelled")?;
 
                 anyhow::ensure!(
                     !param_value.trim().is_empty(),
                     "{} cannot be empty",
-                    param.as_ref()
+                    param
                 );
 
                 Ok((param.to_string(), param_value))
