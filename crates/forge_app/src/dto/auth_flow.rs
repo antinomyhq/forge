@@ -54,18 +54,20 @@ impl AuthMethod {
 pub trait AuthFlow: Sized {
     type Request: Clone;
     type Response: Clone;
+    type Method: Clone;
 }
 
 #[derive(Debug, Clone)]
 pub struct FlowContext<T: AuthFlow> {
     pub request: T::Request,
     pub response: T::Response,
+    pub method: T::Method,
     _marker: PhantomData<T>,
 }
 
 impl<T: AuthFlow> FlowContext<T> {
-    pub fn new(request: T::Request, response: T::Response) -> Self {
-        Self { request, response, _marker: PhantomData }
+    pub fn new(request: T::Request, response: T::Response, method: T::Method) -> Self {
+        Self { request, response, method, _marker: PhantomData }
     }
 }
 
@@ -85,9 +87,13 @@ pub struct ApiKeyResponse {
     pub url_params: HashMap<String, String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct ApiKeyMethod;
+
 impl AuthFlow for ApiKeyAuthFlow {
     type Request = ApiKeyRequest;
     type Response = ApiKeyResponse;
+    type Method = ApiKeyMethod;
 }
 
 // Device Code Flow
@@ -110,9 +116,15 @@ pub struct DeviceCodeResponse {
     pub interval: u64,
 }
 
+#[derive(Debug, Clone)]
+pub struct DeviceCodeMethod {
+    pub oauth_config: OAuthConfig,
+}
+
 impl AuthFlow for DeviceCodeAuthFlow {
     type Request = DeviceCodeRequest;
     type Response = DeviceCodeResponse;
+    type Method = DeviceCodeMethod;
 }
 
 // Authorization Code Flow
@@ -132,9 +144,15 @@ pub struct CodeResponse {
     pub pkce_verifier: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct CodeMethod {
+    pub oauth_config: OAuthConfig,
+}
+
 impl AuthFlow for CodeAuthFlow {
     type Request = CodeRequest;
     type Response = CodeResponse;
+    type Method = CodeMethod;
 }
 
 // Runtime polymorphic flow context
@@ -147,16 +165,20 @@ pub enum AuthContext {
 }
 
 impl AuthContext {
-    pub fn api_key(request: ApiKeyRequest, response: ApiKeyResponse) -> Self {
-        Self::ApiKey(FlowContext::new(request, response))
+    pub fn api_key(request: ApiKeyRequest, response: ApiKeyResponse, method: ApiKeyMethod) -> Self {
+        Self::ApiKey(FlowContext::new(request, response, method))
     }
 
-    pub fn device_code(request: DeviceCodeRequest, response: DeviceCodeResponse) -> Self {
-        Self::DeviceCode(FlowContext::new(request, response))
+    pub fn device_code(
+        request: DeviceCodeRequest,
+        response: DeviceCodeResponse,
+        method: DeviceCodeMethod,
+    ) -> Self {
+        Self::DeviceCode(FlowContext::new(request, response, method))
     }
 
-    pub fn code(request: CodeRequest, response: CodeResponse) -> Self {
-        Self::Code(FlowContext::new(request, response))
+    pub fn code(request: CodeRequest, response: CodeResponse, method: CodeMethod) -> Self {
+        Self::Code(FlowContext::new(request, response, method))
     }
 
     /// Extracts device code and interval from DeviceCode variant
@@ -192,6 +214,30 @@ impl AuthContext {
         match self {
             Self::ApiKey(ctx) => Some((&ctx.response.api_key, &ctx.response.url_params)),
             _ => None,
+        }
+    }
+
+    /// Extracts the method for this auth context
+    ///
+    /// # Returns
+    /// Returns the runtime representation of the auth method
+    pub fn method(&self) -> AuthMethod {
+        match self {
+            Self::ApiKey(_) => AuthMethod::ApiKey,
+            Self::DeviceCode(ctx) => AuthMethod::OAuthDevice(ctx.method.oauth_config.clone()),
+            Self::Code(ctx) => AuthMethod::OAuthCode(ctx.method.oauth_config.clone()),
+        }
+    }
+
+    /// Returns OAuth config if this flow uses OAuth
+    ///
+    /// # Returns
+    /// Returns `Some(&OAuthConfig)` for OAuth flows, `None` for ApiKey flow
+    pub fn oauth_config(&self) -> Option<&OAuthConfig> {
+        match self {
+            Self::DeviceCode(ctx) => Some(&ctx.method.oauth_config),
+            Self::Code(ctx) => Some(&ctx.method.oauth_config),
+            Self::ApiKey(_) => None,
         }
     }
 }

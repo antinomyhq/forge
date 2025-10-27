@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, AuthMethod, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
+    API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
     InterruptionReason, Model, ModelId, Provider, ProviderId, URLParam, Workflow,
 };
 use forge_app::ToolResolver;
@@ -478,7 +478,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn handle_api_key_prompt(
         &mut self,
         provider_id: forge_app::dto::ProviderId,
-        method: forge_app::dto::AuthMethod,
         required_params: Vec<URLParam>,
         mut context: forge_api::AuthContext,
     ) -> anyhow::Result<()> {
@@ -521,7 +520,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 provider_id,
                 context,
                 Duration::from_secs(0), // No timeout needed since we have the data
-                method,
             )
             .await?;
 
@@ -629,7 +627,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             forge_api::AuthContext::ApiKey(ctx) => {
                 self.handle_api_key_prompt(
                     provider_id,
-                    selected_method.clone(),
                     ctx.request.required_params.clone(),
                     auth_ctx,
                 )
@@ -638,7 +635,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             forge_api::AuthContext::DeviceCode(ctx) => {
                 self.handle_device_flow(
                     provider_id,
-                    selected_method.clone(),
                     ctx.request.user_code.clone(),
                     ctx.request.verification_uri.clone(),
                     ctx.request.verification_uri_complete.clone(),
@@ -647,13 +643,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .await?
             }
             forge_api::AuthContext::Code(ctx) => {
-                self.handle_code_flow(
-                    provider_id,
-                    selected_method.clone(),
-                    ctx.request.authorization_url.clone(),
-                    auth_ctx,
-                )
-                .await?
+                self.handle_code_flow(provider_id, ctx.request.authorization_url.clone(), auth_ctx)
+                    .await?
             }
         }
         Ok(())
@@ -662,7 +653,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn handle_device_flow(
         &mut self,
         provider_id: ProviderId,
-        method: AuthMethod,
         user_code: String,
         verification_uri: String,
         verification_uri_complete: Option<String>,
@@ -682,12 +672,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.spinner.start(Some("Completing authentication..."))?;
 
         self.api
-            .complete_provider_auth(
-                provider_id,
-                context,
-                Duration::from_secs(600),
-                method.clone(),
-            )
+            .complete_provider_auth(provider_id, context, Duration::from_secs(600))
             .await?;
 
         self.spinner.stop(None)?;
@@ -701,7 +686,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn handle_code_flow(
         &mut self,
         provider_id: forge_app::dto::ProviderId,
-        method: forge_app::dto::AuthMethod,
         authorization_url: String,
         context: forge_api::AuthContext,
     ) -> anyhow::Result<()> {
@@ -742,7 +726,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 provider_id,
                 context,
                 Duration::from_secs(0), // No timeout needed since we have the data
-                method,
             )
             .await?;
 

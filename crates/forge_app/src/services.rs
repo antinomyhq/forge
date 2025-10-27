@@ -402,7 +402,6 @@ pub trait ProviderAuthService: Send + Sync {
         provider_id: ProviderId,
         context: AuthContext,
         timeout: Duration,
-        method: AuthMethod,
     ) -> anyhow::Result<()>;
 
     /// Refreshes provider credentials (for OAuth flows)
@@ -857,10 +856,9 @@ impl<I: Services> ProviderAuthService for I {
         provider_id: ProviderId,
         context: AuthContext,
         timeout: Duration,
-        method: AuthMethod,
     ) -> anyhow::Result<()> {
         self.provider_auth_service()
-            .complete_provider_auth(provider_id, context, timeout, method)
+            .complete_provider_auth(provider_id, context, timeout)
             .await
     }
 

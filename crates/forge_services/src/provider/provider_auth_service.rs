@@ -46,7 +46,7 @@ impl<I> ForgeProviderAuthService<I> {
         &self,
         required_params: Vec<forge_app::dto::URLParam>,
     ) -> Result<forge_app::dto::AuthContext, super::AuthFlowError> {
-        use forge_app::dto::{ApiKeyRequest, ApiKeyResponse, AuthContext};
+        use forge_app::dto::{ApiKeyMethod, ApiKeyRequest, ApiKeyResponse, AuthContext};
 
         Ok(AuthContext::api_key(
             ApiKeyRequest { required_params },
@@ -54,6 +54,7 @@ impl<I> ForgeProviderAuthService<I> {
                 api_key: String::new(),
                 url_params: std::collections::HashMap::new(),
             },
+            ApiKeyMethod,
         ))
     }
 
@@ -118,7 +119,9 @@ impl<I> ForgeProviderAuthService<I> {
                 ))
             })?;
 
-        use forge_app::dto::{AuthContext, DeviceCodeRequest, DeviceCodeResponse};
+        use forge_app::dto::{
+            AuthContext, DeviceCodeMethod, DeviceCodeRequest, DeviceCodeResponse,
+        };
 
         // Build the type-safe context
         Ok(AuthContext::device_code(
@@ -135,6 +138,7 @@ impl<I> ForgeProviderAuthService<I> {
                 device_code: device_auth_response.device_code().secret().to_string(),
                 interval: device_auth_response.interval().as_secs(),
             },
+            DeviceCodeMethod { oauth_config: config.clone() },
         ))
     }
 
@@ -348,7 +352,7 @@ impl<I> ForgeProviderAuthService<I> {
             AuthFlowError::InitiationFailed(format!("Failed to build auth URL: {}", e))
         })?;
 
-        use forge_app::dto::{AuthContext, CodeRequest, CodeResponse};
+        use forge_app::dto::{AuthContext, CodeMethod, CodeRequest, CodeResponse};
 
         // Build the type-safe context
         Ok(AuthContext::code(
@@ -360,6 +364,7 @@ impl<I> ForgeProviderAuthService<I> {
                 state: auth_params.state,
                 pkce_verifier: auth_params.code_verifier,
             },
+            CodeMethod { oauth_config: config.clone() },
         ))
     }
 
@@ -466,7 +471,9 @@ impl<I> ForgeProviderAuthService<I> {
                 ))
             })?;
 
-        use forge_app::dto::{AuthContext, DeviceCodeRequest, DeviceCodeResponse};
+        use forge_app::dto::{
+            AuthContext, DeviceCodeMethod, DeviceCodeRequest, DeviceCodeResponse,
+        };
 
         // Build the type-safe context
         Ok(AuthContext::device_code(
@@ -483,6 +490,7 @@ impl<I> ForgeProviderAuthService<I> {
                 device_code: device_auth_response.device_code().secret().to_string(),
                 interval: device_auth_response.interval().as_secs(),
             },
+            DeviceCodeMethod { oauth_config: config.clone() },
         ))
     }
 
@@ -987,8 +995,8 @@ where
         provider_id: ProviderId,
         context: AuthContext,
         timeout: Duration,
-        method: AuthMethod,
     ) -> anyhow::Result<()> {
+        let method = context.method();
         match context {
             AuthContext::ApiKey(ctx) => {
                 let result = AuthResult::ApiKey {

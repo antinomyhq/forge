@@ -148,6 +148,5 @@ pub trait API: Sync + Send {
         provider_id: ProviderId,
         context: AuthContext,
         timeout: Duration,
-        method: AuthMethod,
     ) -> Result<()>;
 }

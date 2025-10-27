@@ -268,10 +268,9 @@ impl<S: Services> ForgeApp<S> {
         provider_id: crate::dto::ProviderId,
         context: crate::dto::AuthContext,
         timeout: std::time::Duration,
-        method: crate::dto::AuthMethod,
     ) -> Result<()> {
         self.services
-            .complete_provider_auth(provider_id, context, timeout, method)
+            .complete_provider_auth(provider_id, context, timeout)
             .await
     }
 

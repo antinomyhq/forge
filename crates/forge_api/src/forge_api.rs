@@ -259,11 +259,10 @@ impl<A: Services, F: CommandInfra + AppConfigRepository + ProviderCredentialRepo
         provider_id: ProviderId,
         context: AuthContext,
         timeout: Duration,
-        method: AuthMethod,
     ) -> Result<()> {
         let forge_app = ForgeApp::new(self.services.clone());
         Ok(forge_app
-            .complete_provider_auth(provider_id, context, timeout, method)
+            .complete_provider_auth(provider_id, context, timeout)
             .await?)
     }
 }
