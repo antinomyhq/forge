@@ -753,17 +753,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let operating_model = self.api.get_operating_model().await;
         let provider_result = self.api.get_provider().await;
 
-        // Add conversation information if available
-        if let Some(conversation) = conversation {
-            info = info.extend(Info::from(&conversation));
-        } else {
-            info = info.extend(
-                Info::new()
-                    .add_title("CONVERSATION")
-                    .add_key_value("ID", "<Uninitialized>".to_string()),
-            );
-        }
-
+        // Add agent information
         info = info.add_title("AGENT");
         if let Some(agent) = operating_agent {
             info = info.add_key_value("ID", agent.as_str().to_uppercase());
@@ -785,6 +775,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Add user information if available
         if let Some(login_info) = key_info? {
             info = info.extend(Info::from(&login_info));
+        }
+
+        // Add conversation information if available
+        if let Some(conversation) = conversation {
+            info = info.extend(Info::from(&conversation));
+        } else {
+            info = info.extend(
+                Info::new()
+                    .add_title("CONVERSATION")
+                    .add_key_value("ID", "<Uninitialized>".to_string()),
+            );
         }
 
         if porcelain {
