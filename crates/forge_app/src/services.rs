@@ -16,7 +16,8 @@ use url::Url;
 
 use crate::Walker;
 use crate::dto::{
-    AuthMethod, AuthResponse, InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId,
+    AuthContext, AuthMethod, InitAuth, LoginInfo, Provider, ProviderCredential,
+    ProviderId,
 };
 use crate::user::{User, UserUsage};
 
@@ -391,7 +392,7 @@ pub trait ProviderAuthService: Send + Sync {
         &self,
         provider_id: ProviderId,
         method: AuthMethod,
-    ) -> anyhow::Result<crate::dto::AuthRequest>;
+    ) -> anyhow::Result<crate::dto::AuthContext>;
 
     /// Complete provider authentication and save credentials
     /// For OAuth flows (Device/Code), this will poll until completion then save
@@ -399,7 +400,7 @@ pub trait ProviderAuthService: Send + Sync {
     async fn complete_provider_auth(
         &self,
         provider_id: ProviderId,
-        context: AuthResponse,
+        context: AuthContext,
         timeout: Duration,
         method: AuthMethod,
     ) -> anyhow::Result<()>;
@@ -863,7 +864,7 @@ impl<I: Services> ProviderAuthService for I {
         &self,
         provider_id: ProviderId,
         method: crate::dto::AuthMethod,
-    ) -> anyhow::Result<crate::dto::AuthRequest> {
+    ) -> anyhow::Result<crate::dto::AuthContext> {
         self.provider_auth_service()
             .init_provider_auth(provider_id, method)
             .await
@@ -883,7 +884,7 @@ impl<I: Services> ProviderAuthService for I {
     async fn complete_provider_auth(
         &self,
         provider_id: ProviderId,
-        context: AuthResponse,
+        context: AuthContext,
         timeout: Duration,
         method: AuthMethod,
     ) -> anyhow::Result<()> {

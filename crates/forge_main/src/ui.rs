@@ -8,9 +8,8 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, AuthMethod, AuthResponse, ChatRequest, ChatResponse, Conversation,
-    ConversationId, Event, InterruptionReason, Model, ModelId, Provider, ProviderId, URLParam,
-    Workflow,
+    API, AgentId, AuthMethod, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
+    InterruptionReason, Model, ModelId, Provider, ProviderId, URLParam, Workflow,
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
@@ -481,6 +480,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         provider_id: forge_app::dto::ProviderId,
         method: forge_app::dto::AuthMethod,
         required_params: Vec<URLParam>,
+        mut context: forge_api::AuthContext,
     ) -> anyhow::Result<()> {
         use anyhow::Context;
         self.spinner.stop(None)?;
@@ -509,10 +509,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         anyhow::ensure!(!api_key.trim().is_empty(), "API key cannot be empty");
 
+        // Update the context with collected data
+        // TODO: think about this.
+        if let forge_api::AuthContext::ApiKey(ref mut ctx) = context {
+            ctx.response.api_key = api_key;
+            ctx.response.url_params = url_params;
+        }
+
         self.api
             .complete_provider_auth(
                 provider_id,
-                forge_app::dto::AuthResponse::ApiKey { api_key, url_params },
+                context,
                 Duration::from_secs(0), // No timeout needed since we have the data
                 method,
             )
@@ -613,39 +620,38 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         };
 
         self.spinner.start(Some("Initiating authentication..."))?;
-        let init = self
+        let auth_ctx = self
             .api
             .init_provider_auth(provider_id, selected_method.clone())
             .await?;
 
-        match init {
-            forge_api::AuthRequest::ApiKeyPrompt { required_params } => {
-                self.handle_api_key_prompt(provider_id, selected_method.clone(), required_params)
-                    .await?
-            }
-            forge_api::AuthRequest::DeviceFlow {
-                context,
-                user_code,
-                verification_uri,
-                verification_uri_complete,
-                ..
-            } => {
-                self.handle_device_flow(
+        match &auth_ctx {
+            forge_api::AuthContext::ApiKey(ctx) => {
+                self.handle_api_key_prompt(
                     provider_id,
                     selected_method.clone(),
-                    context,
-                    user_code,
-                    verification_uri,
-                    verification_uri_complete,
+                    ctx.request.required_params.clone(),
+                    auth_ctx,
                 )
                 .await?
             }
-            forge_api::AuthRequest::CodeFlow { authorization_url, context, .. } => {
+            forge_api::AuthContext::DeviceCode(ctx) => {
+                self.handle_device_flow(
+                    provider_id,
+                    selected_method.clone(),
+                    ctx.request.user_code.clone(),
+                    ctx.request.verification_uri.clone(),
+                    ctx.request.verification_uri_complete.clone(),
+                    auth_ctx,
+                )
+                .await?
+            }
+            forge_api::AuthContext::Code(ctx) => {
                 self.handle_code_flow(
                     provider_id,
                     selected_method.clone(),
-                    authorization_url,
-                    context,
+                    ctx.request.authorization_url.clone(),
+                    auth_ctx,
                 )
                 .await?
             }
@@ -657,10 +663,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         &mut self,
         provider_id: ProviderId,
         method: AuthMethod,
-        context: AuthResponse,
         user_code: String,
         verification_uri: String,
         verification_uri_complete: Option<String>,
+        context: forge_api::AuthContext,
     ) -> Result<()> {
         use std::time::Duration;
 
@@ -697,7 +703,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         provider_id: forge_app::dto::ProviderId,
         method: forge_app::dto::AuthMethod,
         authorization_url: String,
-        context: AuthResponse,
+        context: forge_api::AuthContext,
     ) -> anyhow::Result<()> {
         use colored::Colorize;
 
@@ -731,16 +737,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.spinner
             .start(Some("Exchanging authorization code..."))?;
 
-        // Complete authentication with the code
-        let (state, code_verifier) = match &context {
-            AuthResponse::Code { state, pkce_verifier } => (state.clone(), pkce_verifier.clone()),
-            _ => return Err(anyhow::anyhow!("Invalid context type: expected Code")),
-        };
-
         self.api
             .complete_provider_auth(
                 provider_id,
-                forge_app::dto::AuthResponse::Code { state, pkce_verifier: code_verifier },
+                context,
                 Duration::from_secs(0), // No timeout needed since we have the data
                 method,
             )

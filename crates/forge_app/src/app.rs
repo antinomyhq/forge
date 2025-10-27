@@ -256,7 +256,7 @@ impl<S: Services> ForgeApp<S> {
         &self,
         provider_id: crate::dto::ProviderId,
         method: crate::dto::AuthMethod,
-    ) -> Result<crate::dto::AuthRequest> {
+    ) -> Result<crate::dto::AuthContext> {
         self.services.init_provider_auth(provider_id, method).await
     }
 
@@ -266,7 +266,7 @@ impl<S: Services> ForgeApp<S> {
     pub async fn complete_provider_auth(
         &self,
         provider_id: crate::dto::ProviderId,
-        context: crate::dto::AuthResponse,
+        context: crate::dto::AuthContext,
         timeout: std::time::Duration,
         method: crate::dto::AuthMethod,
     ) -> Result<()> {
