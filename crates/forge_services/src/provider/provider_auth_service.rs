@@ -10,7 +10,7 @@ use std::time::Duration;
 use chrono::Utc;
 use forge_app::ProviderAuthService;
 use forge_app::dto::{
-    AuthRequest, AuthResponse, AuthResult, OAuthConfig, OAuthTokens, ProviderCredential, ProviderId,
+    AuthContext, AuthResponse, AuthResult, OAuthConfig, OAuthTokens, ProviderCredential, ProviderId,
 };
 
 use super::AuthFlowError;
@@ -45,8 +45,16 @@ impl<I> ForgeProviderAuthService<I> {
     async fn handle_api_key_init(
         &self,
         required_params: Vec<forge_app::dto::URLParam>,
-    ) -> Result<AuthRequest, super::AuthFlowError> {
-        Ok(AuthRequest::ApiKeyPrompt { required_params })
+    ) -> Result<forge_app::dto::AuthContext, super::AuthFlowError> {
+        use forge_app::dto::{ApiKeyRequest, ApiKeyResponse, AuthContext};
+
+        Ok(AuthContext::api_key(
+            ApiKeyRequest { required_params },
+            ApiKeyResponse {
+                api_key: String::new(),
+                url_params: std::collections::HashMap::new(),
+            },
+        ))
     }
 
     /// Handles API key authentication completion
@@ -65,7 +73,7 @@ impl<I> ForgeProviderAuthService<I> {
     async fn handle_oauth_device_init(
         &self,
         config: &crate::provider::OAuthConfig,
-    ) -> Result<AuthRequest, super::AuthFlowError> {
+    ) -> Result<forge_app::dto::AuthContext, super::AuthFlowError> {
         // Validate configuration
         // Build oauth2 client
         use oauth2::basic::BasicClient;
@@ -110,22 +118,24 @@ impl<I> ForgeProviderAuthService<I> {
                 ))
             })?;
 
-        // Build context with device code and interval for polling
-        let context = AuthResponse::device(
-            device_auth_response.device_code().secret().to_string(),
-            device_auth_response.interval().as_secs(),
-        );
+        use forge_app::dto::{AuthContext, DeviceCodeRequest, DeviceCodeResponse};
 
-        Ok(AuthRequest::DeviceFlow {
-            user_code: device_auth_response.user_code().secret().to_string(),
-            verification_uri: device_auth_response.verification_uri().to_string(),
-            verification_uri_complete: device_auth_response
-                .verification_uri_complete()
-                .map(|u| u.secret().to_string()),
-            expires_in: device_auth_response.expires_in().as_secs(),
-            interval: device_auth_response.interval().as_secs(),
-            context,
-        })
+        // Build the type-safe context
+        Ok(AuthContext::device_code(
+            DeviceCodeRequest {
+                user_code: device_auth_response.user_code().secret().to_string(),
+                verification_uri: device_auth_response.verification_uri().to_string(),
+                verification_uri_complete: device_auth_response
+                    .verification_uri_complete()
+                    .map(|u| u.secret().to_string()),
+                expires_in: device_auth_response.expires_in().as_secs(),
+                interval: device_auth_response.interval().as_secs(),
+            },
+            DeviceCodeResponse {
+                device_code: device_auth_response.device_code().secret().to_string(),
+                interval: device_auth_response.interval().as_secs(),
+            },
+        ))
     }
 
     /// Handles OAuth device flow polling until completion
@@ -330,7 +340,7 @@ impl<I> ForgeProviderAuthService<I> {
         &self,
         _provider_id: &ProviderId,
         config: &crate::provider::OAuthConfig,
-    ) -> Result<AuthRequest, super::AuthFlowError> {
+    ) -> Result<forge_app::dto::AuthContext, super::AuthFlowError> {
         use super::AuthFlowError;
 
         // Build authorization URL with PKCE
@@ -338,15 +348,19 @@ impl<I> ForgeProviderAuthService<I> {
             AuthFlowError::InitiationFailed(format!("Failed to build auth URL: {}", e))
         })?;
 
-        // Build context with state and PKCE verifier
-        let context =
-            AuthResponse::code(auth_params.state.clone(), auth_params.code_verifier.clone());
+        use forge_app::dto::{AuthContext, CodeRequest, CodeResponse};
 
-        Ok(AuthRequest::CodeFlow {
-            authorization_url: auth_params.auth_url,
-            state: auth_params.state,
-            context,
-        })
+        // Build the type-safe context
+        Ok(AuthContext::code(
+            CodeRequest {
+                authorization_url: auth_params.auth_url,
+                state: auth_params.state.clone(),
+            },
+            CodeResponse {
+                state: auth_params.state,
+                pkce_verifier: auth_params.code_verifier,
+            },
+        ))
     }
 
     /// Handles OAuth authorization code flow completion
@@ -407,7 +421,7 @@ impl<I> ForgeProviderAuthService<I> {
         &self,
         _provider_id: &ProviderId,
         config: &crate::provider::OAuthConfig,
-    ) -> Result<AuthRequest, super::AuthFlowError> {
+    ) -> Result<forge_app::dto::AuthContext, super::AuthFlowError> {
         // Validate configuration
         // Build oauth2 client
         use oauth2::basic::BasicClient;
@@ -452,23 +466,24 @@ impl<I> ForgeProviderAuthService<I> {
                 ))
             })?;
 
-        // Build context with device code and interval for polling
-        let interval = device_auth_response.interval().as_secs();
-        let context = AuthResponse::device(
-            device_auth_response.device_code().secret().to_string(),
-            interval,
-        );
+        use forge_app::dto::{AuthContext, DeviceCodeRequest, DeviceCodeResponse};
 
-        Ok(AuthRequest::DeviceFlow {
-            user_code: device_auth_response.user_code().secret().to_string(),
-            verification_uri: device_auth_response.verification_uri().to_string(),
-            verification_uri_complete: device_auth_response
-                .verification_uri_complete()
-                .map(|u| u.secret().to_string()),
-            expires_in: device_auth_response.expires_in().as_secs(),
-            interval,
-            context,
-        })
+        // Build the type-safe context
+        Ok(AuthContext::device_code(
+            DeviceCodeRequest {
+                user_code: device_auth_response.user_code().secret().to_string(),
+                verification_uri: device_auth_response.verification_uri().to_string(),
+                verification_uri_complete: device_auth_response
+                    .verification_uri_complete()
+                    .map(|u| u.secret().to_string()),
+                expires_in: device_auth_response.expires_in().as_secs(),
+                interval: device_auth_response.interval().as_secs(),
+            },
+            DeviceCodeResponse {
+                device_code: device_auth_response.device_code().secret().to_string(),
+                interval: device_auth_response.interval().as_secs(),
+            },
+        ))
     }
 
     /// Polls for OAuth tokens using device code (GitHub Copilot pattern).
@@ -890,7 +905,7 @@ where
         &self,
         provider_id: ProviderId,
         method: AuthMethod,
-    ) -> anyhow::Result<AuthRequest> {
+    ) -> anyhow::Result<forge_app::dto::AuthContext> {
         // Get URL parameters from provider config
         let url_param_vars = self.get_url_param_vars(&provider_id);
 
@@ -1072,22 +1087,32 @@ where
     async fn complete_provider_auth(
         &self,
         provider_id: ProviderId,
-        context: AuthResponse,
+        context: AuthContext,
         timeout: Duration,
         method: AuthMethod,
     ) -> anyhow::Result<()> {
         match context {
-            AuthResponse::ApiKey { api_key, url_params } => {
-                // Create AuthResult from context data
-                let result = AuthResult::ApiKey { api_key, url_params };
+            AuthContext::ApiKey(ctx) => {
+                let result = AuthResult::ApiKey { api_key: ctx.response.api_key, url_params: ctx.response.url_params };
                 self.complete_provider_auth_with_result(provider_id, result, method)
                     .await?;
                 Ok(())
             }
-            AuthResponse::Device { .. } | AuthResponse::Code { .. } => {
-                // For OAuth flows, poll first then save
+            AuthContext::DeviceCode(ctx) => {
+                let auth_response =
+                    AuthResponse::device(ctx.response.device_code, ctx.response.interval);
                 let result = self
-                    .poll_provider_auth(&context, timeout, method.clone())
+                    .poll_provider_auth(&auth_response, timeout, method.clone())
+                    .await?;
+                self.complete_provider_auth_with_result(provider_id, result, method)
+                    .await?;
+                Ok(())
+            }
+            AuthContext::Code(ctx) => {
+                let auth_response =
+                    AuthResponse::code(ctx.response.state, ctx.response.pkce_verifier);
+                let result = self
+                    .poll_provider_auth(&auth_response, timeout, method.clone())
                     .await?;
                 self.complete_provider_auth_with_result(provider_id, result, method)
                     .await?;

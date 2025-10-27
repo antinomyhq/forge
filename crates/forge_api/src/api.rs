@@ -138,7 +138,7 @@ pub trait API: Sync + Send {
         &self,
         provider_id: ProviderId,
         method: forge_app::dto::AuthMethod,
-    ) -> Result<forge_app::dto::AuthRequest>;
+    ) -> Result<forge_app::dto::AuthContext>;
 
     /// Complete provider authentication and save credentials
     /// For OAuth flows (Device/Code), this will poll until completion then save
@@ -146,7 +146,7 @@ pub trait API: Sync + Send {
     async fn complete_provider_auth(
         &self,
         provider_id: ProviderId,
-        context: AuthResponse,
+        context: AuthContext,
         timeout: Duration,
         method: AuthMethod,
     ) -> Result<()>;
