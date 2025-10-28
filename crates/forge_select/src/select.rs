@@ -1,7 +1,7 @@
 use anyhow::Result;
 use console::{strip_ansi_codes, style};
 use dialoguer::theme::ColorfulTheme;
-use dialoguer::{Confirm, FuzzySelect, Input, MultiSelect};
+use dialoguer::{Confirm, FuzzySelect, Input, MultiSelect, Password};
 
 /// Check if a dialoguer error is an interrupted error (CTRL+C)
 fn is_interrupted_error(err: &dialoguer::Error) -> bool {
@@ -79,6 +79,11 @@ impl ForgeSelect {
     /// Prompt a question and get text input
     pub fn input(message: impl Into<String>) -> InputBuilder {
         InputBuilder { message: message.into(), allow_empty: false, default: None }
+    }
+
+    /// Prompt for password input (masked by default)
+    pub fn password(message: impl Into<String>) -> PasswordBuilder {
+        PasswordBuilder { message: message.into(), allow_empty: false }
     }
 
     /// Multi-select prompt
@@ -253,6 +258,12 @@ pub struct InputBuilder {
     default: Option<String>,
 }
 
+/// Builder for password prompts
+pub struct PasswordBuilder {
+    message: String,
+    allow_empty: bool,
+}
+
 impl InputBuilder {
     /// Allow empty input
     pub fn allow_empty(mut self, allow: bool) -> Self {
@@ -288,6 +299,47 @@ impl InputBuilder {
         }
 
         match input.interact_text() {
+            Ok(value) => Ok(Some(value)),
+            Err(e) if is_interrupted_error(&e) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+}
+
+impl PasswordBuilder {
+    /// Allow empty password input
+    pub fn allow_empty(mut self, allow: bool) -> Self {
+        self.allow_empty = allow;
+        self
+    }
+
+    /// Enable display toggle (allows user to show/hide password)
+    /// Note: This is a no-op for compatibility - dialoguer Password doesn't
+    /// support toggle
+    pub fn with_display_toggle_enabled(self) -> Self {
+        // dialoguer's Password doesn't support display toggle in the current version
+        // Keep the method for API compatibility
+        self
+    }
+
+    /// Execute password prompt
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(Some(String))` - User provided password
+    /// - `Ok(None)` - User cancelled (CTRL+C)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the terminal interaction fails for reasons other
+    /// than user cancellation
+    pub fn prompt(self) -> Result<Option<String>> {
+        let theme = ForgeSelect::default_theme();
+        let password = Password::with_theme(&theme)
+            .with_prompt(&self.message)
+            .allow_empty_password(self.allow_empty);
+
+        match password.interact() {
             Ok(value) => Ok(Some(value)),
             Err(e) if is_interrupted_error(&e) => Ok(None),
             Err(e) => Err(e.into()),

@@ -92,6 +92,9 @@ pub enum TopLevelCommand {
     /// Session management commands (dump, retry, resume, list)
     Session(SessionCommandGroup),
 
+    /// Provider management commands
+    Provider(ProviderCommandGroup),
+
     /// MCP server management commands
     Mcp(McpCommandGroup),
 }
@@ -718,4 +721,23 @@ mod tests {
         let expected = true;
         assert_eq!(actual, expected);
     }
+}
+
+/// Group of provider management commands
+#[derive(Parser, Debug, Clone)]
+pub struct ProviderCommandGroup {
+    /// Subcommands under `provider`
+    #[command(subcommand)]
+    pub command: ProviderCommand,
+}
+
+/// Provider management commands
+#[derive(Subcommand, Debug, Clone)]
+pub enum ProviderCommand {
+    /// Add a new provider or update existing credentials
+    Add {
+        /// Optional provider ID to skip selection
+        #[arg(long)]
+        provider: Option<String>,
+    },
 }

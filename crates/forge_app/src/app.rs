@@ -9,13 +9,14 @@ use forge_stream::MpscStream;
 use crate::authenticator::Authenticator;
 use crate::dto::{InitAuth, ToolsOverview};
 use crate::orch::Orchestrator;
+use crate::provider_authenticator::ProviderAuthenticator;
 use crate::services::{CustomInstructionsService, TemplateService};
 use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
 use crate::{
     AgentLoaderService, AttachmentService, CommandLoaderService, ConversationService,
-    EnvironmentService, FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker,
-    WorkflowService,
+    EnvironmentService, FileDiscoveryService, ProviderAuthService, ProviderRegistry,
+    ProviderService, Services, Walker, WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -25,6 +26,7 @@ pub struct ForgeApp<S> {
     services: Arc<S>,
     tool_registry: ToolRegistry<S>,
     authenticator: Authenticator<S>,
+    provider_authenticator: ProviderAuthenticator<S>,
 }
 
 impl<S: Services> ForgeApp<S> {
@@ -33,6 +35,7 @@ impl<S: Services> ForgeApp<S> {
         Self {
             tool_registry: ToolRegistry::new(services.clone()),
             authenticator: Authenticator::new(services.clone()),
+            provider_authenticator: ProviderAuthenticator::new(services.clone()),
             services,
         }
     }
@@ -52,7 +55,8 @@ impl<S: Services> ForgeApp<S> {
             .unwrap_or_default()
             .expect("conversation for the request should've been created at this point.");
 
-        let provider = services
+        let provider = self
+            .provider_authenticator
             .get_active_provider()
             .await
             .context("Failed to get provider")?;
@@ -235,15 +239,45 @@ impl<S: Services> ForgeApp<S> {
     pub async fn list_tools(&self) -> Result<ToolsOverview> {
         self.tool_registry.tools_overview().await
     }
+
+    /// Initializes Forge platform authentication
     pub async fn login(&self, init_auth: &InitAuth) -> Result<()> {
         self.authenticator.login(init_auth).await
     }
+
+    /// Returns device code information for user authorization
     pub async fn init_auth(&self) -> Result<InitAuth> {
         self.authenticator.init().await
     }
+
+    /// Logs out of Forge platform
     pub async fn logout(&self) -> Result<()> {
         self.authenticator.logout().await
     }
+
+    /// Initiates authentication for an LLM provider
+    pub async fn init_provider_auth(
+        &self,
+        provider_id: crate::dto::ProviderId,
+        method: crate::dto::AuthMethod,
+    ) -> Result<crate::dto::AuthContext> {
+        self.services.init_provider_auth(provider_id, method).await
+    }
+
+    /// Complete provider authentication and save credentials
+    /// For OAuth flows (Device/Code), this will poll until completion then save
+    /// For ApiKey flows, this will use the data from AuthContext
+    pub async fn complete_provider_auth(
+        &self,
+        provider_id: crate::dto::ProviderId,
+        context: crate::dto::AuthContext,
+        timeout: std::time::Duration,
+    ) -> Result<()> {
+        self.services
+            .complete_provider_auth(provider_id, context, timeout)
+            .await
+    }
+
     pub async fn read_workflow(&self, path: Option<&Path>) -> Result<Workflow> {
         self.services.read_workflow(path).await
     }

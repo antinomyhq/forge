@@ -984,6 +984,8 @@ mod tests {
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: None,
             models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
+            auth_type: None,
+            credential: None,
         };
         let actual = format!("{}", CliProvider(fixture));
         let expected = "OpenAI [api.openai.com]";
@@ -998,6 +1000,8 @@ mod tests {
             url: Url::parse("https://openrouter.ai/api/v1/chat/completions").unwrap(),
             key: None,
             models: Models::Url(Url::parse("https://openrouter.ai/api/v1/models").unwrap()),
+            auth_type: None,
+            credential: None,
         };
         let actual = format!("{}", CliProvider(fixture));
         let expected = "OpenRouter [openrouter.ai]";
@@ -1012,6 +1016,8 @@ mod tests {
             url: Url::parse("http://localhost:8080/chat/completions").unwrap(),
             key: None,
             models: Models::Url(Url::parse("http://localhost:8080/models").unwrap()),
+            auth_type: None,
+            credential: None,
         };
         let actual = format!("{}", CliProvider(fixture));
         let expected = "Forge [localhost]";

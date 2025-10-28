@@ -20,7 +20,7 @@ colored = "3.0.0"
 console = "0.16.0"
 dialoguer = { version = "0.12.0", features = ["fuzzy-select"] }
 convert_case = "0.8.0"
-derive_more = { version = "2.0.1", features = ["from", "display", "debug"] }
+derive_more = { version = "2.0.1", features = ["from", "display", "debug", "deref"] }
 derive_setters = "0.1.6"
 dirs = "6.0.0"
 dissimilar = "1.0.9"
@@ -43,6 +43,7 @@ machineid-rs = "1.2.4"
 mockito = "1.6.1"
 nom = "8.0.0"
 nu-ansi-term = "0.50.1"
+oauth2 = { version = "5.0", features = ["reqwest"] }
 posthog-rs = { git = "https://github.com/PostHog/posthog-rs.git", rev = "a006a81419031e4889d9c3882d7458d2efa588a8" }
 pretty_assertions = "1.4.1"
 proc-macro2 = "1.0"
@@ -61,7 +62,7 @@ schemars = "0.8.21"
 serde = { version = "1.0.217", features = ["derive"] }
 serde_json = "1.0.143"
 serde_yml = "0.0.12"
-sha2 = "0.10"
+serde_urlencoded = "0.7"
 similar = { version = "2.4", features = ["inline"] }
 strip-ansi-escapes = "0.2.1"
 strum = "0.27.1"

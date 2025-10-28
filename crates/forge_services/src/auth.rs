@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::bail;
 use bytes::Bytes;
-use forge_app::dto::{InitAuth, LoginInfo};
+use forge_app::dto::{ApiKey, InitAuth, LoginInfo};
 use forge_app::{AuthService, Error, User, UserUsage};
 use reqwest::Url;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
@@ -122,11 +122,11 @@ impl<I: HttpInfra + EnvironmentInfra + AppConfigRepository> AuthService for Forg
         self.login(auth).await
     }
 
-    async fn user_info(&self, api_key: &str) -> anyhow::Result<User> {
+    async fn user_info(&self, api_key: &ApiKey) -> anyhow::Result<User> {
         self.user_info(api_key).await
     }
 
-    async fn user_usage(&self, api_key: &str) -> anyhow::Result<UserUsage> {
+    async fn user_usage(&self, api_key: &ApiKey) -> anyhow::Result<UserUsage> {
         self.user_usage(api_key).await
     }
 

@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use anyhow::Result;
 use forge_app::dto::{InitAuth, ProviderId, ToolsOverview};
@@ -22,8 +23,9 @@ pub trait API: Sync + Send {
     async fn models(&self) -> Result<Vec<Model>>;
     /// Provides a list of agents available in the current environment
     async fn get_agents(&self) -> Result<Vec<Agent>>;
+
     /// Provides a list of providers available in the current environment
-    async fn providers(&self) -> Result<Vec<Provider>>;
+    async fn get_providers(&self) -> Result<Vec<Provider>>;
 
     /// Executes a chat request and returns a stream of responses
     async fn chat(&self, chat: ChatRequest) -> Result<MpscStream<Result<ChatResponse>>>;
@@ -125,4 +127,24 @@ pub trait API: Sync + Send {
 
     /// List of commands defined in .md file(s)
     async fn get_commands(&self) -> Result<Vec<Command>>;
+
+    /// Initiate provider auth flow
+    async fn init_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        method: forge_app::dto::AuthMethod,
+    ) -> Result<forge_app::dto::AuthContext>;
+
+    /// Complete provider authentication and save credentials
+    /// For OAuth flows (Device/Code), this will poll until completion then save
+    /// For ApiKey flows, this will use the data from AuthContext
+    async fn complete_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        context: AuthContext,
+        timeout: Duration,
+    ) -> Result<()>;
+
+    /// Import provider credentials from environment variables
+    async fn import_provider_credentials_from_env(&self) -> Result<()>;
 }

@@ -8,17 +8,23 @@ use forge_domain::RetryConfig;
 use crate::dto::InitAuth;
 use crate::{AuthService, Error};
 
+/// Handles Forge platform and provider authentication
 pub struct Authenticator<S> {
     service: Arc<S>,
 }
 
 impl<S: AuthService> Authenticator<S> {
+    /// Creates new platform authenticator
     pub fn new(service: Arc<S>) -> Self {
         Self { service }
     }
+
+    /// Initializes Forge platform authentication
     pub async fn init(&self) -> anyhow::Result<InitAuth> {
         self.service.init_auth().await
     }
+
+    /// Polls until user completes Forge platform authentication
     pub async fn login(&self, init_auth: &InitAuth) -> anyhow::Result<()> {
         self.poll(
             RetryConfig::default()
@@ -29,10 +35,13 @@ impl<S: AuthService> Authenticator<S> {
         )
         .await
     }
+
+    /// Logs out of Forge platform by clearing credentials
     pub async fn logout(&self) -> anyhow::Result<()> {
         self.service.set_auth_token(None).await?;
         Ok(())
     }
+
     async fn login_inner(&self, init_auth: &InitAuth) -> anyhow::Result<()> {
         let key_info = self.service.get_auth_token().await?;
         if key_info.is_some() {
@@ -42,6 +51,7 @@ impl<S: AuthService> Authenticator<S> {
         self.service.set_auth_token(Some(key)).await?;
         Ok(())
     }
+
     async fn poll<T, F>(
         &self,
         config: RetryConfig,

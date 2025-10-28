@@ -1,8 +1,11 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
-use forge_app::dto::{InitAuth, LoginInfo, Provider, ProviderId, ToolsOverview};
+use forge_app::dto::{
+    AuthContext, AuthMethod, InitAuth, LoginInfo, Provider, ProviderId, ToolsOverview,
+};
 use forge_app::{
     AgentLoaderService, AuthService, CommandLoaderService, ConversationService, EnvironmentService,
     FileDiscoveryService, ForgeApp, McpConfigManager, McpService, ProviderRegistry,
@@ -10,7 +13,9 @@ use forge_app::{
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
-use forge_services::{AppConfigRepository, CommandInfra, ForgeServices};
+use forge_services::{
+    AppConfigRepository, CommandInfra, ForgeServices, ProviderCredentialRepository,
+};
 use forge_stream::MpscStream;
 
 use crate::API;
@@ -35,7 +40,14 @@ impl ForgeAPI<ForgeServices<ForgeInfra>, ForgeInfra> {
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> {
+impl<
+    A: Services,
+    F: CommandInfra
+        + AppConfigRepository
+        + ProviderCredentialRepository
+        + forge_services::EnvironmentInfra,
+> API for ForgeAPI<A, F>
+{
     async fn discover(&self) -> Result<Vec<File>> {
         let environment = self.services.get_environment();
         let config = Walker::unlimited().cwd(environment.cwd);
@@ -61,7 +73,7 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
         Ok(self.services.get_agents().await?)
     }
 
-    async fn providers(&self) -> Result<Vec<Provider>> {
+    async fn get_providers(&self) -> Result<Vec<Provider>> {
         Ok(self.services.get_all_providers().await?)
     }
 
@@ -227,5 +239,77 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
     }
     async fn get_commands(&self) -> Result<Vec<Command>> {
         self.services.get_commands().await
+    }
+
+    async fn init_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        method: AuthMethod,
+    ) -> Result<forge_app::dto::AuthContext> {
+        let forge_app = ForgeApp::new(self.services.clone());
+        Ok(forge_app.init_provider_auth(provider_id, method).await?)
+    }
+
+    async fn complete_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        context: AuthContext,
+        timeout: Duration,
+    ) -> Result<()> {
+        let forge_app = ForgeApp::new(self.services.clone());
+        Ok(forge_app
+            .complete_provider_auth(provider_id, context, timeout)
+            .await?)
+    }
+
+    async fn import_provider_credentials_from_env(&self) -> Result<()> {
+        use forge_app::dto::ProviderId;
+        use forge_services::registry::get_provider_credential_vars;
+        use strum::IntoEnumIterator;
+
+        // Check if credentials file exists
+        let env = self.environment();
+        let credentials_file = env.base_path.join(".provider_credentials.json");
+
+        // Only run migration if the file doesn't exist
+        if credentials_file.exists() {
+            return Ok(());
+        }
+
+        // Check if JSON file already has credentials
+        if !self.infra.get_all_credentials().await?.is_empty() {
+            return Ok(());
+        }
+        for provider_id in ProviderId::iter() {
+            let Some((api_key_var, url_param_vars)) = get_provider_credential_vars(&provider_id)
+            else {
+                continue;
+            };
+
+            let Some(api_key) = self
+                .infra
+                .get_env_var(&api_key_var)
+                .filter(|k| !k.trim().is_empty())
+            else {
+                continue;
+            };
+
+            let credential = forge_app::dto::ProviderCredential::new_api_key(api_key).url_params(
+                url_param_vars
+                    .iter()
+                    .filter_map(|var| {
+                        self.infra
+                            .get_env_var(var.as_str())
+                            .filter(|v| !v.trim().is_empty())
+                            .map(|val| (var.to_owned(), val.into()))
+                    })
+                    .collect::<std::collections::HashMap<_, _>>(),
+            );
+
+            self.infra
+                .upsert_credential(provider_id, credential)
+                .await?;
+        }
+        Ok(())
     }
 }

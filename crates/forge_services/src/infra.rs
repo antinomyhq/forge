@@ -211,6 +211,7 @@ pub trait HttpInfra: Send + Sync + 'static {
         body: Bytes,
     ) -> anyhow::Result<EventSource>;
 }
+
 /// Service for reading multiple files from a directory asynchronously
 #[async_trait::async_trait]
 pub trait DirectoryReaderInfra: Send + Sync {
@@ -281,4 +282,51 @@ pub trait ConversationRepository: Send + Sync {
 pub trait AppConfigRepository: Send + Sync {
     async fn get_app_config(&self) -> anyhow::Result<forge_app::dto::AppConfig>;
     async fn set_app_config(&self, config: &forge_app::dto::AppConfig) -> anyhow::Result<()>;
+}
+
+#[async_trait::async_trait]
+pub trait ProviderCredentialRepository: Send + Sync {
+    /// Inserts or updates a provider credential
+    ///
+    /// # Errors
+    ///
+    /// Returns error if database operation fails or encryption fails
+    async fn upsert_credential(
+        &self,
+        provider_id: forge_app::dto::ProviderId,
+        credential: forge_app::dto::ProviderCredential,
+    ) -> anyhow::Result<()>;
+
+    /// Gets a credential for the specified provider
+    ///
+    /// # Errors
+    ///
+    /// Returns error if database operation fails or decryption fails
+    async fn get_credential(
+        &self,
+        provider_id: &forge_app::dto::ProviderId,
+    ) -> anyhow::Result<Option<forge_app::dto::ProviderCredential>>;
+
+    /// Gets all stored credentials
+    ///
+    /// # Errors
+    ///
+    /// Returns error if database operation fails or decryption fails
+    /// Returns a HashMap with provider_id as key and credential as value
+    async fn get_all_credentials(
+        &self,
+    ) -> anyhow::Result<
+        std::collections::HashMap<forge_app::dto::ProviderId, forge_app::dto::ProviderCredential>,
+    >;
+
+    /// Updates OAuth tokens for a provider
+    ///
+    /// # Errors
+    ///
+    /// Returns error if database operation fails or encryption fails
+    async fn update_oauth_tokens(
+        &self,
+        provider_id: &forge_app::dto::ProviderId,
+        tokens: forge_app::dto::OAuthTokens,
+    ) -> anyhow::Result<()>;
 }
