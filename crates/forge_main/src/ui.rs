@@ -9,8 +9,8 @@ use forge_api::{
     API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
     InterruptionReason, Model, ModelId, Provider, ProviderId, Workflow,
 };
-use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
+use forge_app::{GitAppError, ToolResolver};
 use forge_display::MarkdownFormat;
 use forge_domain::{ChatResponseContent, TitleFormat};
 use forge_fs::ForgeFS;
@@ -64,8 +64,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.spinner.write_ln(title.display())
     }
 
-    fn writeln_to_stderr(&mut self, title: TitleFormat) -> anyhow::Result<()> {
-        self.spinner.stderr_ln(title.display())
+    fn writeln_to_stderr(&mut self, title: String) -> anyhow::Result<()> {
+        self.spinner.stderr_ln(title)
     }
 
     /// Retrieve available models
@@ -168,7 +168,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Ok(_) => {}
             Err(error) => {
                 tracing::error!(error = ?error);
-                let _ = self.writeln_to_stderr(TitleFormat::error(format!("{error:?}")));
+                let _ = self.writeln_to_stderr(
+                    TitleFormat::error(format!("{error:?}"))
+                        .display()
+                        .to_string(),
+                );
             }
         }
     }
@@ -505,6 +509,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
             Err(e) => {
                 self.spinner.stop(None)?;
+                if let Some(git_err) = e.downcast_ref::<GitAppError>()
+                    && matches!(git_err, GitAppError::NoChangesToCommit)
+                {
+                    return self.writeln_to_stderr(git_err.to_string());
+                }
                 return Err(e);
             }
         }

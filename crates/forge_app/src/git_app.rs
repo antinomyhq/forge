@@ -7,6 +7,13 @@ use crate::{
     EnvironmentService, ProviderRegistry, ProviderService, Services, ShellService, TemplateService,
 };
 
+/// Errors specific to GitApp operations
+#[derive(thiserror::Error, Debug)]
+pub enum GitAppError {
+    #[error("nothing to commit, working tree clean")]
+    NoChangesToCommit,
+}
+
 /// GitApp handles git-related operations like commit message generation.
 pub struct GitApp<S> {
     services: Arc<S>,
@@ -131,7 +138,7 @@ impl<S: Services> GitApp<S> {
         } else if !unstaged_diff.output.stdout.trim().is_empty() {
             unstaged_diff
         } else {
-            return Err(anyhow::anyhow!("No changes to commit"));
+            return Err(GitAppError::NoChangesToCommit.into());
         };
 
         // Truncate diff if it exceeds max size
