@@ -362,7 +362,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 // Make sure to init model
                 self.on_new().await?;
 
-                self.on_info(porcelain).await?;
+                // Resolve conversation ID from environment or state
+                let conversation_id = get_conversation_id_from_env()
+                    .or(self.state.conversation_id)
+                    .context("No active conversation. Start a conversation first.")?;
+
+                self.on_info(porcelain, conversation_id).await?;
                 return Ok(());
             }
             TopLevelCommand::Banner => {
@@ -455,6 +460,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.validate_session_exists(&conversation_id).await?;
 
                 self.on_show_last_message(&conversation_id).await?;
+            }
+            SessionCommand::Info { id } => {
+                let conversation_id = ConversationId::parse(&id)
+                    .context(format!("Invalid conversation ID: {}", id))?;
+
+                self.validate_session_exists(&conversation_id).await?;
+
+                self.on_info(session_group.porcelain, conversation_id)
+                    .await?;
             }
         }
 
@@ -741,15 +755,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn on_info(&mut self, porcelain: bool) -> anyhow::Result<()> {
+    async fn on_info(
+        &mut self,
+        porcelain: bool,
+        conversation_id: ConversationId,
+    ) -> anyhow::Result<()> {
         let mut info = Info::from(&self.api.environment());
 
-        // Fetch conversation if ID is available
-        let conversation_id = get_conversation_id_from_env().or(self.state.conversation_id);
-        let conversation = match conversation_id {
-            Some(id) => self.api.conversation(&id).await.ok().flatten(),
-            None => None,
-        };
+        // Fetch conversation
+        let conversation = self.api.conversation(&conversation_id).await.ok().flatten();
 
         let key_info = self.api.get_login_info().await;
         let operating_agent = self.api.get_operating_agent().await;
@@ -857,14 +871,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
             // Add conversation: Title=<title>, Updated=<time_ago>, with ID as section title
             info = info
-                .add_title(title.to_string())
-                .add_key_value("Updated", time_ago)
-                .add_key_value("Id", conv.id);
+                .add_title(conv.id)
+                .add_key_value("Title", title.to_string())
+                .add_key_value("Updated", time_ago);
         }
 
         // In porcelain mode, skip the top-level "SESSIONS" title
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip(2).truncate(0, 60);
+            let porcelain = Porcelain::from(&info).skip(2).drop_col(3).truncate(1, 60);
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -890,7 +904,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_new().await?;
             }
             Command::Info => {
-                self.on_info(false).await?;
+                // Resolve conversation ID from environment or state
+                let conversation_id = get_conversation_id_from_env()
+                    .or(self.state.conversation_id)
+                    .context("No active conversation. Start a conversation first.")?;
+
+                self.on_info(false, conversation_id).await?;
             }
             Command::Usage => {
                 self.on_usage().await?;
