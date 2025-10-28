@@ -30,7 +30,7 @@ pub struct Cli {
     /// If provided, the application will use this conversation ID instead of
     /// generating a new one. This allows resuming or continuing existing
     /// conversations.
-    #[arg(long, alias="cid")]
+    #[arg(long, alias = "cid")]
     pub conversation_id: Option<String>,
 
     /// Working directory to set before starting forge.
