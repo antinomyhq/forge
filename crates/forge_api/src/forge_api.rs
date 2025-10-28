@@ -76,7 +76,12 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
         &self,
         chat: ChatRequest,
     ) -> anyhow::Result<MpscStream<Result<ChatResponse, anyhow::Error>>> {
-        self.app().chat(chat).await
+        let agent_id = self
+            .services
+            .get_active_agent_id()
+            .await?
+            .unwrap_or_default();
+        self.app().chat(agent_id, chat).await
     }
 
     async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()> {
