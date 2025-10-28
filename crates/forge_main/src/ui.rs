@@ -359,11 +359,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     self.writeln_title(TitleFormat::info("MCP reloaded"))?;
                 }
             },
-            TopLevelCommand::Info { porcelain } => {
+            TopLevelCommand::Info { porcelain, conversation_id } => {
                 // Make sure to init model
                 self.on_new().await?;
 
-                self.on_info(porcelain, None).await?;
+                let conversation_id = conversation_id
+                    .as_deref()
+                    .map(ConversationId::parse)
+                    .transpose()?;
+
+                self.on_info(porcelain, conversation_id).await?;
                 return Ok(());
             }
             TopLevelCommand::Banner => {
@@ -463,8 +468,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                 self.validate_session_exists(&conversation_id).await?;
 
-                self.on_info(session_group.porcelain, Some(conversation_id))
-                    .await?;
+                self.on_show_conv_info(conversation_id).await?;
             }
         }
 
@@ -1550,7 +1554,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
             ChatResponse::TaskComplete => {
                 if let Some(conversation_id) = self.state.conversation_id {
-                    self.on_completion(conversation_id).await?;
+                    self.on_show_conv_info(conversation_id).await?;
                 }
             }
         }
@@ -1570,7 +1574,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn on_completion(&mut self, conversation_id: ConversationId) -> anyhow::Result<()> {
+    async fn on_show_conv_info(&mut self, conversation_id: ConversationId) -> anyhow::Result<()> {
         if !should_show_completion_prompt() {
             return Ok(());
         }

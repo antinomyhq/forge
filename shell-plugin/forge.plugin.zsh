@@ -195,7 +195,7 @@ function _forge_action_new() {
 function _forge_action_info() {
     echo
     if [[ -n "$FORGE_CONVERSATION_ID" ]]; then
-        _forge_exec session info "$FORGE_CONVERSATION_ID"
+        _forge_exec info --cid "$FORGE_CONVERSATION_ID"
     else
         _forge_exec info
     fi
@@ -256,18 +256,16 @@ function _forge_action_conversation() {
             
             # Set the selected conversation as active (in parent shell)
             FORGE_CONVERSATION_ID="$conversation_id"
-
+            # Show conversation content
+            echo
+            _forge_exec session show "$conversation_id"
+            
             # Show conversation info
-            echo
-            _forge_exec session info "$conversation_id"       
-
+            _forge_exec session info "$conversation_id"
+            
             # Print log about conversation switching
-            echo
             echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Switched to conversation \033[1m${conversation_id}\033[0m"
-
-             # Show conversation content
-            echo
-            _forge_exec session show "$conversation_id"     
+            
         fi
     else
         echo "\033[31m✗\033[0m No conversations found"
