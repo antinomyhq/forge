@@ -534,6 +534,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn handle_provider_add(&mut self, provider: Option<String>) -> anyhow::Result<()> {
+        self.spinner.stop(None)?;
         // Step 1: Get or select provider
         let provider_id = if let Some(id) = provider {
             // Validate provider exists and convert to enum
@@ -1370,13 +1371,34 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Returns Some(ModelId) if a model was selected, or None if selection was
     /// canceled
     async fn select_model(&mut self) -> Result<Option<ModelId>> {
-        // Fetch available models
-        let mut models = self
-            .get_models()
-            .await?
-            .into_iter()
-            .map(CliModel)
-            .collect::<Vec<_>>();
+        // Fetch available models, handling provider configuration errors
+        let mut models = match self.get_models().await {
+            Ok(models) => models,
+            Err(e) => {
+                // Check if this is a provider not configured error using type-safe error
+                // checking
+                if e.downcast_ref::<forge_services::ProviderError>()
+                    .is_some_and(|err| {
+                        matches!(
+                            err,
+                            forge_services::ProviderError::ProviderNotAvailable { .. }
+                        )
+                    })
+                {
+                    // Trigger provider configuration flow
+                    self.handle_provider_add(None).await?;
+
+                    // Try fetching models again after configuration
+                    self.get_models().await?
+                } else {
+                    // If it's a different error, propagate it
+                    return Err(e);
+                }
+            }
+        }
+        .into_iter()
+        .map(CliModel)
+        .collect::<Vec<_>>();
 
         // Sort the models by their names in ascending order
         models.sort_by(|a, b| a.0.name.cmp(&b.0.name));
