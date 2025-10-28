@@ -73,7 +73,7 @@ impl<
         Ok(self.services.get_agents().await?)
     }
 
-    async fn providers(&self) -> Result<Vec<Provider>> {
+    async fn get_providers(&self) -> Result<Vec<Provider>> {
         Ok(self.services.get_all_providers().await?)
     }
 
@@ -241,10 +241,6 @@ impl<
         self.services.get_commands().await
     }
 
-    async fn get_providers(&self) -> Result<Vec<Provider>> {
-        self.services.get_all_providers().await
-    }
-
     async fn init_provider_auth(
         &self,
         provider_id: ProviderId,
@@ -298,20 +294,21 @@ impl<
                 continue;
             };
 
-            let credential = forge_app::dto::ProviderCredential::new_api_key(provider_id, api_key)
-                .url_params(
-                    url_param_vars
-                        .iter()
-                        .filter_map(|var| {
-                            self.infra
-                                .get_env_var(var.as_str())
-                                .filter(|v| !v.trim().is_empty())
-                                .map(|val| (var.to_owned(), val.into()))
-                        })
-                        .collect::<std::collections::HashMap<_, _>>(),
-                );
+            let credential = forge_app::dto::ProviderCredential::new_api_key(api_key).url_params(
+                url_param_vars
+                    .iter()
+                    .filter_map(|var| {
+                        self.infra
+                            .get_env_var(var.as_str())
+                            .filter(|v| !v.trim().is_empty())
+                            .map(|val| (var.to_owned(), val.into()))
+                    })
+                    .collect::<std::collections::HashMap<_, _>>(),
+            );
 
-            self.infra.upsert_credential(credential).await?;
+            self.infra
+                .upsert_credential(provider_id, credential)
+                .await?;
         }
         Ok(())
     }

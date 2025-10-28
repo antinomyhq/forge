@@ -23,8 +23,9 @@ pub trait API: Sync + Send {
     async fn models(&self) -> Result<Vec<Model>>;
     /// Provides a list of agents available in the current environment
     async fn get_agents(&self) -> Result<Vec<Agent>>;
+
     /// Provides a list of providers available in the current environment
-    async fn providers(&self) -> Result<Vec<Provider>>;
+    async fn get_providers(&self) -> Result<Vec<Provider>>;
 
     /// Executes a chat request and returns a stream of responses
     async fn chat(&self, chat: ChatRequest) -> Result<MpscStream<Result<ChatResponse>>>;
@@ -126,9 +127,6 @@ pub trait API: Sync + Send {
 
     /// List of commands defined in .md file(s)
     async fn get_commands(&self) -> Result<Vec<Command>>;
-
-    /// Get available providers with optional credential information
-    async fn get_providers(&self) -> Result<Vec<Provider>>;
 
     /// Initiate provider auth flow
     async fn init_provider_auth(
