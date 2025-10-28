@@ -7,6 +7,7 @@
 # Using typeset to keep variables local to plugin scope and prevent public exposure
 typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
 typeset -h _FORGE_CONVERSATION_PATTERN=":"
+typeset -h _FORGE_MAX_COMMIT_DIFF="${FORGE_MAX_COMMIT_DIFF:-5000}"
 
 # Detect fd command - Ubuntu/Debian use 'fdfind', others use 'fd'
 typeset -h _FORGE_FD_CMD="$(command -v fdfind 2>/dev/null || command -v fd 2>/dev/null || echo 'fd')"
@@ -263,19 +264,26 @@ function _forge_action_model() {
 # Action handler: Commit changes with AI-generated message
 function _forge_action_commit() {
     local commit_message
-    commit_message=$($_FORGE_BIN commit --preview --max-diff 5000 2>&1)
+    # Generate AI commit message
+    commit_message=$($_FORGE_BIN commit --preview --max-diff "$_FORGE_MAX_COMMIT_DIFF" 2>&1)
     
+    # Proceed only if message generation succeeded
     if [[ -n "$commit_message" ]]; then
+        # Check if there are staged changes to determine commit strategy
         if git diff --staged --quiet; then
+            # No staged changes: commit all tracked changes with -a flag
             BUFFER="git commit -a -F- <<'EOF'
 ${commit_message}
 EOF"
         else
+            # Staged changes exist: commit only what's staged
             BUFFER="git commit -F- <<'EOF'
 ${commit_message}
 EOF"
         fi
+        # Move cursor to end of buffer for immediate execution
         CURSOR=${#BUFFER}
+        # Refresh display to show the new command
         zle reset-prompt
     else
         echo
