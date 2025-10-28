@@ -246,28 +246,7 @@ impl<
         }
 
         // Try to create provider from database credential first
-        if let Some(mut credential) = self.infra.get_credential(&id).await? {
-            // Check if OAuth tokens need refresh (within 5 minutes of expiry)
-            if credential.needs_token_refresh() {
-                tracing::debug!(provider = ?id, "OAuth token needs refresh, attempting to refresh");
-
-                // Attempt to refresh tokens
-                match self.refresh_credential_tokens(&id, &credential).await {
-                    Ok(refreshed_credential) => {
-                        tracing::info!(provider = ?id, "Successfully refreshed OAuth tokens");
-                        credential = refreshed_credential;
-                    }
-                    Err(e) => {
-                        // Log error but don't fail - the existing token might still work
-                        tracing::warn!(
-                            provider = ?id,
-                            error = %e,
-                            "Failed to refresh OAuth tokens, will attempt with existing credential"
-                        );
-                    }
-                }
-            }
-
+        if let Some(credential) = self.infra.get_credential(&id).await? {
             if let Ok(provider) = self.create_provider_from_credential(&id, &credential).await {
                 return Ok(provider);
             }
@@ -275,51 +254,6 @@ impl<
 
         // Database credential required - no environment variable fallback
         Err(ProviderError::provider_not_available(id).into())
-    }
-
-    /// Refreshes OAuth tokens for a credential
-    async fn refresh_credential_tokens(
-        &self,
-        provider_id: &ProviderId,
-        credential: &forge_app::dto::ProviderCredential,
-    ) -> anyhow::Result<forge_app::dto::ProviderCredential> {
-        tracing::debug!(provider = ?provider_id, "Refreshing credential tokens");
-
-        // Get authentication method from provider config
-        let auth_methods = get_provider_auth_methods(provider_id);
-        let auth_method = auth_methods.first().ok_or_else(|| {
-            anyhow::anyhow!(
-                "No authentication method found for provider {:?}",
-                provider_id
-            )
-        })?;
-
-        // Get provider config to build Provider instance
-        let config = get_provider_config(provider_id)
-            .ok_or_else(|| anyhow::anyhow!("Provider config not found for {:?}", provider_id))?;
-
-        // Build a temporary Provider instance for the refresh
-        let provider = Provider {
-            id: *provider_id,
-            response: config.response_type.clone(),
-            url: Url::parse(&config.url)
-                .unwrap_or_else(|_| Url::parse("http://localhost").unwrap()),
-            key: None,
-            models: forge_app::dto::Models::Hardcoded(vec![]),
-            auth_type: Some(auth_method.to_auth_type()),
-            credential: Some(credential.clone()),
-        };
-
-        // Create provider auth service
-        let auth_service = crate::provider::ForgeProviderAuthService::new(self.infra.clone());
-
-        // Use service to refresh the credential (call trait method explicitly)
-        use forge_app::ProviderAuthService as _;
-        let refreshed_credential = auth_service
-            .refresh_provider_credential(&provider, auth_method.clone())
-            .await?;
-
-        Ok(refreshed_credential)
     }
 
     async fn create_provider_from_credential(
@@ -568,6 +502,13 @@ impl<
             config.agent = Some(agent_id);
         })
         .await
+    }
+
+    fn get_provider_auth_methods(
+        &self,
+        provider_id: &ProviderId,
+    ) -> Vec<forge_app::dto::AuthMethod> {
+        get_provider_auth_methods(provider_id)
     }
 }
 

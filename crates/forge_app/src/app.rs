@@ -9,6 +9,7 @@ use forge_stream::MpscStream;
 use crate::authenticator::Authenticator;
 use crate::dto::{InitAuth, ToolsOverview};
 use crate::orch::Orchestrator;
+use crate::provider_authenticator::ProviderAuthenticator;
 use crate::services::{CustomInstructionsService, TemplateService};
 use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
@@ -25,6 +26,7 @@ pub struct ForgeApp<S> {
     services: Arc<S>,
     tool_registry: ToolRegistry<S>,
     authenticator: Authenticator<S>,
+    provider_authenticator: ProviderAuthenticator<S>,
 }
 
 impl<S: Services> ForgeApp<S> {
@@ -33,6 +35,7 @@ impl<S: Services> ForgeApp<S> {
         Self {
             tool_registry: ToolRegistry::new(services.clone()),
             authenticator: Authenticator::new(services.clone()),
+            provider_authenticator: ProviderAuthenticator::new(services.clone()),
             services,
         }
     }
@@ -52,7 +55,8 @@ impl<S: Services> ForgeApp<S> {
             .unwrap_or_default()
             .expect("conversation for the request should've been created at this point.");
 
-        let provider = services
+        let provider = self
+            .provider_authenticator
             .get_active_provider()
             .await
             .context("Failed to get provider")?;

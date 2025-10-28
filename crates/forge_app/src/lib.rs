@@ -11,6 +11,7 @@ mod operation;
 mod orch;
 #[cfg(test)]
 mod orch_spec;
+mod provider_authenticator;
 mod retry;
 mod services;
 mod title_generator;

@@ -370,6 +370,9 @@ pub trait ProviderRegistry: Send + Sync {
     async fn set_active_model(&self, model: ModelId) -> anyhow::Result<()>;
     async fn get_active_agent(&self) -> anyhow::Result<Option<AgentId>>;
     async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()>;
+
+    /// Get available authentication methods for a provider
+    fn get_provider_auth_methods(&self, provider_id: &ProviderId) -> Vec<AuthMethod>;
 }
 
 /// Provider authentication service
@@ -799,6 +802,11 @@ impl<I: Services> ProviderRegistry for I {
 
     async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()> {
         self.provider_registry().set_active_agent(agent_id).await
+    }
+
+    fn get_provider_auth_methods(&self, provider_id: &ProviderId) -> Vec<AuthMethod> {
+        self.provider_registry()
+            .get_provider_auth_methods(provider_id)
     }
 }
 
