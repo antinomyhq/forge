@@ -7,12 +7,12 @@ use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
-    InterruptionReason, Model, ModelId, Provider, ProviderId, Workflow,
+    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, Workflow,
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
 use forge_display::MarkdownFormat;
-use forge_domain::{ChatResponseContent, TitleFormat};
+use forge_domain::{ChatResponseContent, ContextMessage, Role, TitleFormat};
 use forge_fs::ForgeFS;
 use forge_select::ForgeSelect;
 use forge_spinner::SpinnerManager;
@@ -448,7 +448,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.writeln_title(TitleFormat::info(format!("Resumed conversation: {}", id)))?;
                 // Interactive mode will be handled by the main loop
             }
-            SessionCommand::Last { id } => {
+            SessionCommand::Show { id } => {
                 let conversation_id = ConversationId::parse(&id)
                     .context(format!("Invalid conversation ID: {}", id))?;
 
@@ -1807,21 +1807,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("Conversation has no context"))?;
 
-        let last_message = context
-            .messages
-            .last()
-            .ok_or_else(|| anyhow::anyhow!("Conversation has no messages"))?;
-
-        // Display the message role and content
-        self.writeln_title(TitleFormat::info(format!(
-            "Last message from conversation: {}",
-            conversation_id
-        )))?;
+        // Find the last assistant message
+        let message = context.messages.iter().rev().find_map(|msg| match msg {
+            ContextMessage::Text(TextMessage { content, role: Role::Assistant, .. }) => {
+                Some(content)
+            }
+            _ => None,
+        });
 
         // Format and display the message using the message_display module
-        let formatted_lines = crate::message_display::format_message(last_message, &self.markdown)?;
-        for line in formatted_lines {
-            self.writeln(line)?;
+        if let Some(message) = message {
+            self.writeln(self.markdown.render(message))?;
         }
 
         Ok(())

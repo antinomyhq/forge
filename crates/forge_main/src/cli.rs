@@ -364,10 +364,10 @@ pub enum SessionCommand {
         id: String,
     },
 
-    /// Show the last message from a conversation
+    /// Show the last assistant message from a conversation
     ///
-    /// Example: forge session last abc123
-    Last {
+    /// Example: forge session show abc123
+    Show {
         /// Conversation ID
         id: String,
     },
@@ -607,7 +607,7 @@ mod tests {
         let fixture = Cli::parse_from(["forge", "session", "last", "test123"]);
         let id = match fixture.subcommands {
             Some(TopLevelCommand::Session(session)) => match session.command {
-                SessionCommand::Last { id } => id,
+                SessionCommand::Show { id } => id,
                 _ => String::new(),
             },
             _ => String::new(),
