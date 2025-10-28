@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use convert_case::{Case, Casing};
 use forge_domain::{
-    ChatRequest, ChatResponse, ChatResponseContent, Conversation, Event, TitleFormat,
+    AgentId, ChatRequest, ChatResponse, ChatResponseContent, Conversation, Event, TitleFormat,
     ToolCallContext, ToolDefinition, ToolName, ToolOutput,
 };
 use forge_template::Element;
@@ -38,7 +38,7 @@ impl<S: Services> AgentExecutor<S> {
     /// specified agent.
     pub async fn execute(
         &self,
-        agent_id: String,
+        agent_id: AgentId,
         task: String,
         ctx: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
@@ -60,10 +60,13 @@ impl<S: Services> AgentExecutor<S> {
         // Execute the request through the ForgeApp
         let app = crate::ForgeApp::new(self.services.clone());
         let mut response_stream = app
-            .chat(ChatRequest::new(
-                Event::new(agent_id.to_string(), Some(task.clone())),
-                conversation.id,
-            ))
+            .chat(
+                agent_id.clone(),
+                ChatRequest::new(
+                    Event::new(agent_id.to_string(), Some(task.clone())),
+                    conversation.id,
+                ),
+            )
             .await?;
 
         // Collect responses from the agent

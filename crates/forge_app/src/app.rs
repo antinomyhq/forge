@@ -40,6 +40,7 @@ impl<S: Services> ForgeApp<S> {
     /// This method contains the core chat logic extracted from ForgeAPI.
     pub async fn chat(
         &self,
+        agent_id: AgentId,
         mut chat: ChatRequest,
     ) -> Result<MpscStream<Result<ChatResponse, anyhow::Error>>> {
         let services = self.services.clone();
@@ -89,8 +90,7 @@ impl<S: Services> ForgeApp<S> {
         let custom_instructions = services.get_custom_instructions().await;
 
         // Prepare agents with user configuration
-        let agent_id = services.get_active_agent_id().await?;
-        let active_model = self.get_model(agent_id.clone()).await?;
+        let active_model = self.get_model(Some(agent_id.clone())).await?;
         let agent = services
             .get_agents()
             .await?
@@ -100,8 +100,8 @@ impl<S: Services> ForgeApp<S> {
                     .apply_workflow_config(&workflow)
                     .set_model_deeply(active_model.clone())
             })
-            .find(|agent| Some(&agent.id) == agent_id.as_ref())
-            .ok_or_else(|| crate::Error::AgentNotFound(agent_id.unwrap_or_default()))?;
+            .find(|agent| agent.id == agent_id)
+            .ok_or(crate::Error::AgentNotFound(agent_id))?;
 
         let agent_provider = self.get_provider(Some(agent.id.clone())).await?;
         let models = services.models(agent_provider).await?;
