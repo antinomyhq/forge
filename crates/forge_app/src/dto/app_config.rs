@@ -5,13 +5,14 @@ use forge_domain::{AgentId, ModelId};
 use serde::{Deserialize, Serialize};
 
 use crate::dto::ProviderId;
+use crate::dto::auth_flow::{AccessToken, ApiKey, ApiKeyName, AuthUrl, SessionId};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InitAuth {
-    pub session_id: String,
-    pub auth_url: String,
-    pub token: String,
+    pub session_id: SessionId,
+    pub auth_url: AuthUrl,
+    pub token: AccessToken,
 }
 
 #[derive(Default, Clone, Serialize, Deserialize, Debug, PartialEq)]
@@ -29,8 +30,8 @@ pub struct AppConfig {
 #[derive(Clone, Serialize, Deserialize, From, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginInfo {
-    pub api_key: String,
-    pub api_key_name: String,
+    pub api_key: ApiKey,
+    pub api_key_name: ApiKeyName,
     pub api_key_masked: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,

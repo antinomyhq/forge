@@ -4,6 +4,7 @@ use strum_macros::{AsRefStr, Display, EnumIter, EnumString};
 use url::Url;
 
 use super::AuthType;
+use super::auth_flow::ApiKey;
 
 /// --- IMPORTANT ---
 /// The order of providers is important because that would be order in which the
@@ -103,7 +104,7 @@ pub struct Provider {
     pub id: ProviderId,
     pub response: ProviderResponse,
     pub url: Url,
-    pub key: Option<String>,
+    pub key: Option<ApiKey>,
     pub models: Models,
     pub auth_type: Option<AuthType>,
 }
@@ -117,7 +118,7 @@ mod test_helpers {
             id: ProviderId::Zai,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
-            key: Some(key.into()),
+            key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
             auth_type: None,
         }
@@ -129,7 +130,7 @@ mod test_helpers {
             id: ProviderId::ZaiCoding,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
-            key: Some(key.into()),
+            key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
             auth_type: None,
         }
@@ -141,7 +142,7 @@ mod test_helpers {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
-            key: Some(key.into()),
+            key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
             auth_type: None,
         }
@@ -153,7 +154,7 @@ mod test_helpers {
             id: ProviderId::Xai,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.x.ai/v1/chat/completions").unwrap(),
-            key: Some(key.into()),
+            key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.x.ai/v1/models").unwrap()),
             auth_type: None,
         }
@@ -188,7 +189,7 @@ mod test_helpers {
             id: ProviderId::VertexAi,
             response: ProviderResponse::OpenAI,
             url: Url::parse(&chat_url).unwrap(),
-            key: Some(key.into()),
+            key: Some(key.to_string().into()),
             models: Models::Url(Url::parse(&model_url).unwrap()),
             auth_type: None,
         }
@@ -214,7 +215,7 @@ mod test_helpers {
             id: ProviderId::Azure,
             response: ProviderResponse::OpenAI,
             url: Url::parse(&chat_url).unwrap(),
-            key: Some(key.into()),
+            key: Some(key.to_string().into()),
             models: Models::Url(Url::parse(&model_url).unwrap()),
             auth_type: None,
         }
@@ -239,7 +240,7 @@ mod tests {
             id: ProviderId::Xai,
             response: ProviderResponse::OpenAI,
             url: Url::from_str("https://api.x.ai/v1/chat/completions").unwrap(),
-            key: Some(fixture.to_string()),
+            key: Some(fixture.to_string().into()),
             models: Models::Url(Url::from_str("https://api.x.ai/v1/models").unwrap()),
             auth_type: None,
         };

@@ -297,7 +297,7 @@ mod tests {
 
         let actual = repo.get_credential(&ProviderId::Anthropic).await?.unwrap();
 
-        assert_eq!(actual.api_key, Some("sk-ant-test".to_string()));
+        assert_eq!(actual.api_key, Some("sk-ant-test".to_string().into()));
         assert_eq!(actual.provider_id, ProviderId::Anthropic);
         Ok(())
     }
@@ -314,12 +314,12 @@ mod tests {
         // Verify it's retrievable
         let retrieved = repo.get_credential(&ProviderId::Anthropic).await?.unwrap();
         assert_eq!(retrieved.auth_type, forge_app::dto::AuthType::ApiKey);
-        assert_eq!(retrieved.api_key, Some("sk-ant-api-key".to_string()));
+        assert_eq!(retrieved.api_key, Some("sk-ant-api-key".to_string().into()));
 
         // Create second credential (OAuth) - should update the same record
         let oauth_tokens = OAuthTokens {
-            access_token: "access_123".to_string(),
-            refresh_token: "refresh_456".to_string(),
+            access_token: "access_123".to_string().into(),
+            refresh_token: "refresh_456".to_string().into(),
             expires_at: Utc::now() + Duration::hours(1),
         };
         let oauth_credential =
@@ -333,7 +333,12 @@ mod tests {
 
         assert_eq!(retrieved.auth_type, forge_app::dto::AuthType::OAuth);
         assert_eq!(
-            retrieved.oauth_tokens.as_ref().unwrap().access_token,
+            retrieved
+                .oauth_tokens
+                .as_ref()
+                .unwrap()
+                .access_token
+                .as_str(),
             "access_123"
         );
         Ok(())
@@ -350,7 +355,7 @@ mod tests {
 
         // Verify first credential was inserted
         let actual = repo.get_credential(&ProviderId::Anthropic).await?.unwrap();
-        assert_eq!(actual.api_key, Some("key-v1".to_string()));
+        assert_eq!(actual.api_key, Some("key-v1".to_string().into()));
 
         // Second upsert - update (should update the same record)
         let second_credential =
@@ -359,7 +364,7 @@ mod tests {
 
         // Verify the credential was updated to the new value
         let actual = repo.get_credential(&ProviderId::Anthropic).await?.unwrap();
-        let expected = Some("key-v2".to_string());
+        let expected = Some("key-v2".to_string().into());
         assert_eq!(actual.api_key, expected);
 
         // Verify only one credential exists
@@ -410,8 +415,8 @@ mod tests {
 
         // Insert credential with initial OAuth tokens
         let initial_tokens = OAuthTokens {
-            access_token: "initial_access".to_string(),
-            refresh_token: "initial_refresh".to_string(),
+            access_token: "initial_access".to_string().into(),
+            refresh_token: "initial_refresh".to_string().into(),
             expires_at: Utc::now() + Duration::hours(1),
         };
         let fixture = ProviderCredential::new_oauth(ProviderId::Anthropic, initial_tokens);
@@ -419,8 +424,8 @@ mod tests {
 
         // Update OAuth tokens
         let new_tokens = OAuthTokens {
-            access_token: "new_access".to_string(),
-            refresh_token: "new_refresh".to_string(),
+            access_token: "new_access".to_string().into(),
+            refresh_token: "new_refresh".to_string().into(),
             expires_at: Utc::now() + Duration::hours(2),
         };
         repo.update_oauth_tokens(&ProviderId::Anthropic, new_tokens.clone())
@@ -430,11 +435,11 @@ mod tests {
         let actual = repo.get_credential(&ProviderId::Anthropic).await?.unwrap();
 
         assert_eq!(
-            actual.oauth_tokens.as_ref().unwrap().access_token,
+            actual.oauth_tokens.as_ref().unwrap().access_token.as_str(),
             "new_access"
         );
         assert_eq!(
-            actual.oauth_tokens.as_ref().unwrap().refresh_token,
+            actual.oauth_tokens.as_ref().unwrap().refresh_token.as_str(),
             "new_refresh"
         );
         assert_eq!(actual.auth_type, fixture.auth_type);
@@ -447,8 +452,8 @@ mod tests {
         let (repo, _temp_dir) = setup()?;
 
         let tokens = OAuthTokens {
-            access_token: "access".to_string(),
-            refresh_token: "refresh".to_string(),
+            access_token: "access".to_string().into(),
+            refresh_token: "refresh".to_string().into(),
             expires_at: Utc::now() + Duration::hours(1),
         };
 
@@ -480,7 +485,7 @@ mod tests {
 
         // Next read should get fresh data
         let third_read = repo.get_credential(&ProviderId::Anthropic).await?.unwrap();
-        assert_eq!(third_read.api_key, Some("key2".to_string()));
+        assert_eq!(third_read.api_key, Some("key2".to_string().into()));
 
         Ok(())
     }

@@ -32,7 +32,10 @@ impl<H: HttpClientService> OpenAIProvider<H> {
     fn get_headers(&self) -> Vec<(String, String)> {
         let mut headers = Vec::new();
         if let Some(ref api_key) = self.provider.key {
-            headers.push((AUTHORIZATION.to_string(), format!("Bearer {api_key}")));
+            headers.push((
+                AUTHORIZATION.to_string(),
+                format!("Bearer {}", api_key.as_str()),
+            ));
         }
 
         // Add GitHub Copilot required headers
@@ -215,7 +218,7 @@ mod tests {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
-            key: Some(key.into()),
+            key: Some(key.to_string().into()),
             models: forge_app::dto::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
@@ -228,7 +231,7 @@ mod tests {
             id: ProviderId::Zai,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
-            key: Some(key.into()),
+            key: Some(key.to_string().into()),
             models: forge_app::dto::Models::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             ),
@@ -241,7 +244,7 @@ mod tests {
             id: ProviderId::ZaiCoding,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
-            key: Some(key.into()),
+            key: Some(key.to_string().into()),
             models: forge_app::dto::Models::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             ),
@@ -254,7 +257,7 @@ mod tests {
             id: ProviderId::Anthropic,
             response: ProviderResponse::Anthropic,
             url: Url::parse("https://api.anthropic.com/v1/messages").unwrap(),
-            key: Some(key.into()),
+            key: Some(key.to_string().into()),
             models: forge_app::dto::Models::Url(
                 Url::parse("https://api.anthropic.com/v1/models").unwrap(),
             ),
@@ -315,7 +318,7 @@ mod tests {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: reqwest::Url::parse(base_url)?,
-            key: Some("test-api-key".to_string()),
+            key: Some("test-api-key".to_string().into()),
             models: forge_app::dto::Models::Url(reqwest::Url::parse(base_url)?.join("models")?),
             auth_type: None,
         };

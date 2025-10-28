@@ -78,7 +78,7 @@ mod tests {
             id: ProviderId::Forge,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://antinomy.ai/api/v1/chat/completions").unwrap(),
-            key: Some(key.into()),
+            key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://antinomy.ai/api/v1/models").unwrap()),
             auth_type: None,
         }
@@ -89,7 +89,7 @@ mod tests {
             id: ProviderId::Zai,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
-            key: Some(key.into()),
+            key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
             auth_type: None,
         }
@@ -100,7 +100,7 @@ mod tests {
             id: ProviderId::ZaiCoding,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
-            key: Some(key.into()),
+            key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
             auth_type: None,
         }
@@ -111,7 +111,7 @@ mod tests {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
-            key: Some(key.into()),
+            key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
             auth_type: None,
         }
@@ -122,7 +122,7 @@ mod tests {
             id: ProviderId::Xai,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.x.ai/v1/chat/completions").unwrap(),
-            key: Some(key.into()),
+            key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.x.ai/v1/models").unwrap()),
             auth_type: None,
         }
@@ -133,7 +133,7 @@ mod tests {
             id: ProviderId::Requesty,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.requesty.ai/v1/chat/completions").unwrap(),
-            key: Some(key.into()),
+            key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.requesty.ai/v1/models").unwrap()),
             auth_type: None,
         }
@@ -144,7 +144,7 @@ mod tests {
             id: ProviderId::OpenRouter,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://openrouter.ai/api/v1/chat/completions").unwrap(),
-            key: Some(key.into()),
+            key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://openrouter.ai/api/v1/models").unwrap()),
             auth_type: None,
         }
@@ -155,7 +155,7 @@ mod tests {
             id: ProviderId::Anthropic,
             response: ProviderResponse::Anthropic,
             url: Url::parse("https://api.anthropic.com/v1/messages").unwrap(),
-            key: Some(key.into()),
+            key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.anthropic.com/v1/models").unwrap()),
             auth_type: None,
         }

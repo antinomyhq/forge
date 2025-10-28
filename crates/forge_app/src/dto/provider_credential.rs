@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use strum_macros::Display;
 
 use super::ProviderId;
+use crate::dto::auth_flow::{AccessToken, ApiKey, RefreshToken};
 use crate::dto::{URLParam, URLParamValue};
 
 /// Type of authentication used for a provider
@@ -33,10 +34,10 @@ pub enum AuthType {
 #[setters(strip_option, into)]
 pub struct OAuthTokens {
     /// Long-lived token for getting new access tokens
-    pub refresh_token: String,
+    pub refresh_token: RefreshToken,
 
     /// Short-lived token for API requests
-    pub access_token: String,
+    pub access_token: AccessToken,
 
     /// When the access token expires
     pub expires_at: DateTime<Utc>,
@@ -45,8 +46,8 @@ pub struct OAuthTokens {
 impl OAuthTokens {
     /// Creates new OAuth tokens
     pub fn new(
-        refresh_token: impl Into<String>,
-        access_token: impl Into<String>,
+        refresh_token: impl Into<RefreshToken>,
+        access_token: impl Into<AccessToken>,
         expires_at: DateTime<Utc>,
     ) -> Self {
         Self {
@@ -74,7 +75,7 @@ pub struct ProviderCredential {
     pub auth_type: AuthType,
 
     /// API key (for ApiKey and OAuthWithApiKey auth types)
-    pub api_key: Option<String>,
+    pub api_key: Option<ApiKey>,
 
     /// OAuth tokens (for OAuth and OAuthWithApiKey auth types)
     pub oauth_tokens: Option<OAuthTokens>,
@@ -92,12 +93,12 @@ pub struct ProviderCredential {
 
 impl ProviderCredential {
     /// Creates a new API key credential
-    pub fn new_api_key(provider_id: ProviderId, api_key: String) -> Self {
+    pub fn new_api_key(provider_id: ProviderId, api_key: impl Into<ApiKey>) -> Self {
         let now = Utc::now();
         Self {
             provider_id,
             auth_type: AuthType::ApiKey,
-            api_key: Some(api_key),
+            api_key: Some(api_key.into()),
             oauth_tokens: None,
             url_params: HashMap::new(),
             created_at: now,
@@ -122,14 +123,14 @@ impl ProviderCredential {
     /// Creates a new OAuth+API key credential (GitHub Copilot pattern)
     pub fn new_oauth_with_api_key(
         provider_id: ProviderId,
-        api_key: String,
+        api_key: impl Into<ApiKey>,
         oauth_tokens: OAuthTokens,
     ) -> Self {
         let now = Utc::now();
         Self {
             provider_id,
             auth_type: AuthType::OAuthWithApiKey,
-            api_key: Some(api_key),
+            api_key: Some(api_key.into()),
             oauth_tokens: Some(oauth_tokens),
             url_params: HashMap::new(),
             created_at: now,
@@ -149,7 +150,7 @@ impl ProviderCredential {
 
     /// Gets the API key if available
     pub fn get_api_key(&self) -> Option<&str> {
-        self.api_key.as_deref()
+        self.api_key.as_ref().map(|k| k.as_str())
     }
 
     /// Gets the OAuth access token if available

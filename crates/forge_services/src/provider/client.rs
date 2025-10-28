@@ -63,7 +63,7 @@ impl ClientBuilder {
 
                 InnerClient::Anthropic(Box::new(Anthropic::new(
                     http.clone(),
-                    provider.key.clone().unwrap_or_default(),
+                    provider.key.as_ref().map(|k| k.as_str()).unwrap_or(""),
                     provider.url,
                     provider.models,
                     "2023-06-01".to_string(),
@@ -241,7 +241,7 @@ mod tests {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
-            key: Some("test-key".to_string()),
+            key: Some("test-key".to_string().into()),
             models: forge_app::dto::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
@@ -262,7 +262,7 @@ mod tests {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
-            key: Some("test-key".to_string()),
+            key: Some("test-key".to_string().into()),
             models: forge_app::dto::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
@@ -285,7 +285,7 @@ mod tests {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
-            key: Some("test-key".to_string()),
+            key: Some("test-key".to_string().into()),
             models: forge_app::dto::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
@@ -311,7 +311,7 @@ mod tests {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
-            key: Some("test-key".to_string()),
+            key: Some("test-key".to_string().into()),
             models: forge_app::dto::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),

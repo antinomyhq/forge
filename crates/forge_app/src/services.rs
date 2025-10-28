@@ -16,7 +16,7 @@ use url::Url;
 
 use crate::Walker;
 use crate::dto::{
-    AuthContext, AuthMethod, InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId,
+    ApiKey, AuthContext, AuthMethod, InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId,
 };
 use crate::user::{User, UserUsage};
 
@@ -352,8 +352,8 @@ pub trait ShellService: Send + Sync {
 pub trait AuthService: Send + Sync {
     async fn init_auth(&self) -> anyhow::Result<InitAuth>;
     async fn login(&self, auth: &InitAuth) -> anyhow::Result<LoginInfo>;
-    async fn user_info(&self, api_key: &str) -> anyhow::Result<User>;
-    async fn user_usage(&self, api_key: &str) -> anyhow::Result<UserUsage>;
+    async fn user_info(&self, api_key: &ApiKey) -> anyhow::Result<User>;
+    async fn user_usage(&self, api_key: &ApiKey) -> anyhow::Result<UserUsage>;
     async fn get_auth_token(&self) -> anyhow::Result<Option<LoginInfo>>;
     async fn set_auth_token(&self, token: Option<LoginInfo>) -> anyhow::Result<()>;
 }
@@ -822,11 +822,11 @@ impl<I: Services> AuthService for I {
         self.auth_service().login(auth).await
     }
 
-    async fn user_info(&self, api_key: &str) -> anyhow::Result<User> {
+    async fn user_info(&self, api_key: &ApiKey) -> anyhow::Result<User> {
         self.auth_service().user_info(api_key).await
     }
 
-    async fn user_usage(&self, api_key: &str) -> anyhow::Result<UserUsage> {
+    async fn user_usage(&self, api_key: &ApiKey) -> anyhow::Result<UserUsage> {
         self.auth_service().user_usage(api_key).await
     }
 

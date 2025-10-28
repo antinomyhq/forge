@@ -10,8 +10,8 @@ use std::time::Duration;
 use chrono::Utc;
 use forge_app::ProviderAuthService;
 use forge_app::dto::{
-    AuthContext, AuthResult, OAuthConfig, OAuthTokens, ProviderCredential, ProviderId, URLParam,
-    URLParamValue,
+    AccessToken, ApiKey, AuthContext, AuthResult, AuthorizationCode, OAuthConfig, OAuthTokens,
+    PkceVerifier, ProviderCredential, ProviderId, RefreshToken, URLParam, URLParamValue,
 };
 
 use super::AuthFlowError;
@@ -52,7 +52,7 @@ impl<I> ForgeProviderAuthService<I> {
         Ok(AuthContext::api_key(
             ApiKeyRequest { required_params },
             ApiKeyResponse {
-                api_key: String::new(),
+                api_key: String::new().into(),
                 url_params: std::collections::HashMap::new(),
             },
             ApiKeyMethod,
@@ -63,7 +63,7 @@ impl<I> ForgeProviderAuthService<I> {
     async fn handle_api_key_complete(
         &self,
         provider_id: ProviderId,
-        api_key: String,
+        api_key: ApiKey,
         url_params: std::collections::HashMap<URLParam, URLParamValue>,
     ) -> Result<ProviderCredential, super::AuthFlowError> {
         Ok(ProviderCredential::new_api_key(provider_id, api_key).url_params(url_params))
@@ -151,15 +151,17 @@ impl<I> ForgeProviderAuthService<I> {
     /// Builds a provider credential from OAuth tokens
     fn build_oauth_credential(
         provider_id: ProviderId,
-        access_token: String,
-        refresh_token: Option<String>,
+        access_token: impl Into<AccessToken>,
+        refresh_token: Option<impl Into<RefreshToken>>,
         expires_at: chrono::DateTime<chrono::Utc>,
     ) -> ProviderCredential {
         ProviderCredential::new_oauth(
             provider_id,
             OAuthTokens {
-                access_token,
-                refresh_token: refresh_token.unwrap_or_default(),
+                access_token: access_token.into(),
+                refresh_token: refresh_token
+                    .map(Into::into)
+                    .unwrap_or_else(|| String::new().into()),
                 expires_at,
             },
         )
@@ -179,13 +181,13 @@ impl<I> ForgeProviderAuthService<I> {
 
         use super::AuthFlowError;
 
-        let client = BasicClient::new(ClientId::new(config.client_id.clone()))
+        let client = BasicClient::new(ClientId::new(config.client_id.to_string()))
             .set_device_authorization_url(
-                DeviceAuthorizationUrl::new(config.auth_url.clone()).map_err(|e| {
+                DeviceAuthorizationUrl::new(config.auth_url.to_string()).map_err(|e| {
                     AuthFlowError::InitiationFailed(format!("Invalid auth_url: {}", e))
                 })?,
             )
-            .set_token_uri(TokenUrl::new(config.token_url.clone()).map_err(|e| {
+            .set_token_uri(TokenUrl::new(config.token_url.to_string()).map_err(|e| {
                 AuthFlowError::InitiationFailed(format!("Invalid token_url: {}", e))
             })?);
 
@@ -223,16 +225,20 @@ impl<I> ForgeProviderAuthService<I> {
         // Build the type-safe context
         Ok(AuthContext::device_code(
             DeviceCodeRequest {
-                user_code: device_auth_response.user_code().secret().to_string(),
-                verification_uri: device_auth_response.verification_uri().to_string(),
+                user_code: device_auth_response.user_code().secret().to_string().into(),
+                verification_uri: device_auth_response.verification_uri().to_string().into(),
                 verification_uri_complete: device_auth_response
                     .verification_uri_complete()
-                    .map(|u| u.secret().to_string()),
+                    .map(|u| u.secret().to_string().into()),
                 expires_in: device_auth_response.expires_in().as_secs(),
                 interval: device_auth_response.interval().as_secs(),
             },
             DeviceCodeResponse {
-                device_code: device_auth_response.device_code().secret().to_string(),
+                device_code: device_auth_response
+                    .device_code()
+                    .secret()
+                    .to_string()
+                    .into(),
                 interval: device_auth_response.interval().as_secs(),
             },
             DeviceCodeMethod { oauth_config: config.clone() },
@@ -281,7 +287,7 @@ impl<I> ForgeProviderAuthService<I> {
                     "urn:ietf:params:oauth:grant-type:device_code".to_string(),
                 ),
                 ("device_code".to_string(), device_code.to_string()),
-                ("client_id".to_string(), config.client_id.clone()),
+                ("client_id".to_string(), config.client_id.to_string()),
             ];
 
             let body = serde_urlencoded::to_string(&params).map_err(|e| {
@@ -300,7 +306,7 @@ impl<I> ForgeProviderAuthService<I> {
             Self::inject_custom_headers(&mut headers, &config.custom_headers);
 
             let response = http_client
-                .post(&config.token_url)
+                .post(config.token_url.as_str())
                 .headers(headers)
                 .body(body)
                 .send()
@@ -331,7 +337,11 @@ impl<I> ForgeProviderAuthService<I> {
                 let (access_token, refresh_token, expires_in) =
                     Self::parse_token_response(&body_text)?;
 
-                return Ok(AuthResult::OAuthTokens { access_token, refresh_token, expires_in });
+                return Ok(AuthResult::OAuthTokens {
+                    access_token: access_token.into(),
+                    refresh_token: refresh_token.map(Into::into),
+                    expires_in,
+                });
             }
 
             // Standard OAuth: HTTP success means tokens
@@ -339,7 +349,11 @@ impl<I> ForgeProviderAuthService<I> {
                 let (access_token, refresh_token, expires_in) =
                     Self::parse_token_response(&body_text)?;
 
-                return Ok(AuthResult::OAuthTokens { access_token, refresh_token, expires_in });
+                return Ok(AuthResult::OAuthTokens {
+                    access_token: access_token.into(),
+                    refresh_token: refresh_token.map(Into::into),
+                    expires_in,
+                });
             }
 
             // Handle error responses (non-200 status for standard OAuth)
@@ -420,12 +434,12 @@ impl<I> ForgeProviderAuthService<I> {
         // Build the type-safe context
         Ok(AuthContext::code(
             CodeRequest {
-                authorization_url: auth_params.auth_url,
-                state: auth_params.state.clone(),
+                authorization_url: auth_params.auth_url.into(),
+                state: auth_params.state.clone().into(),
             },
             CodeResponse {
-                state: auth_params.state,
-                pkce_verifier: auth_params.code_verifier,
+                state: auth_params.state.into(),
+                pkce_verifier: auth_params.code_verifier.map(Into::into),
             },
             CodeMethod { oauth_config: config.clone() },
         ))
@@ -438,22 +452,22 @@ impl<I> ForgeProviderAuthService<I> {
     async fn handle_oauth_code_complete(
         &self,
         provider_id: ProviderId,
-        code: String,
-        code_verifier: Option<String>,
+        code: AuthorizationCode,
+        code_verifier: Option<PkceVerifier>,
         config: &crate::provider::OAuthConfig,
     ) -> Result<ProviderCredential, super::AuthFlowError> {
         use super::AuthFlowError;
 
         // Exchange code for tokens with PKCE verifier (if provided)
-        let token_response =
-            ForgeOAuthService::exchange_auth_code(config, &code, code_verifier.as_deref())
-                .await
-                .map_err(|e| {
-                    AuthFlowError::CompletionFailed(format!(
-                        "Failed to exchange authorization code: {}",
-                        e
-                    ))
-                })?;
+        let token_response = ForgeOAuthService::exchange_auth_code(
+            config,
+            code.as_str(),
+            code_verifier.as_ref().map(|v| v.as_str()),
+        )
+        .await
+        .map_err(|e| {
+            AuthFlowError::CompletionFailed(format!("Failed to exchange authorization code: {}", e))
+        })?;
 
         // Use helpers for consistent credential building
         let expires_at =
@@ -474,7 +488,7 @@ impl<I> ForgeProviderAuthService<I> {
         &self,
         oauth_token: &str,
         config: &crate::provider::OAuthConfig,
-    ) -> Result<(String, chrono::DateTime<chrono::Utc>), super::AuthFlowError> {
+    ) -> Result<(ApiKey, chrono::DateTime<chrono::Utc>), super::AuthFlowError> {
         use super::AuthFlowError;
 
         let token_refresh_url = config.token_refresh_url.as_ref().ok_or_else(|| {
@@ -506,7 +520,7 @@ impl<I> ForgeProviderAuthService<I> {
             .map_err(|e| {
                 AuthFlowError::CompletionFailed(format!("Failed to build HTTP client: {}", e))
             })?
-            .get(token_refresh_url)
+            .get(token_refresh_url.as_str())
             .headers(headers)
             .send()
             .await
@@ -534,7 +548,7 @@ impl<I> ForgeProviderAuthService<I> {
             })?;
 
         Ok((
-            access_token,
+            access_token.into(),
             chrono::DateTime::from_timestamp(expires_at.unwrap_or(0), 0)
                 .unwrap_or_else(chrono::Utc::now),
         ))
@@ -564,7 +578,7 @@ impl<I> ForgeProviderAuthService<I> {
                     OAuthTokens::new(refresh_tok, access_token, expires_at)
                 } else {
                     // Use access token as refresh token if none provided
-                    OAuthTokens::new(access_token.clone(), access_token, expires_at)
+                    OAuthTokens::new(access_token.as_str().to_string(), access_token, expires_at)
                 };
 
                 // Create credential with both OAuth token and API key
@@ -603,9 +617,12 @@ impl<I> ForgeProviderAuthService<I> {
         })?;
 
         // Use OAuth service to refresh token
-        let token_response = ForgeOAuthService::refresh_access_token(config, &tokens.refresh_token)
-            .await
-            .map_err(|e| AuthFlowError::RefreshFailed(format!("Token refresh failed: {}", e)))?;
+        let token_response =
+            ForgeOAuthService::refresh_access_token(config, tokens.refresh_token.as_str())
+                .await
+                .map_err(|e| {
+                    AuthFlowError::RefreshFailed(format!("Token refresh failed: {}", e))
+                })?;
 
         // Use helpers for consistent handling
         let expires_at =
@@ -614,7 +631,7 @@ impl<I> ForgeProviderAuthService<I> {
         let new_tokens = OAuthTokens::new(
             token_response
                 .refresh_token
-                .unwrap_or(tokens.refresh_token.clone()),
+                .unwrap_or_else(|| tokens.refresh_token.as_str().to_string()),
             token_response.access_token,
             expires_at,
         );
@@ -637,7 +654,7 @@ impl<I> ForgeProviderAuthService<I> {
 
         // Use refresh token to get new access token
         let token_response =
-            ForgeOAuthService::refresh_access_token(config, &oauth_tokens.refresh_token)
+            ForgeOAuthService::refresh_access_token(config, oauth_tokens.refresh_token.as_str())
                 .await
                 .map_err(|e| {
                     AuthFlowError::RefreshFailed(format!("Failed to refresh access token: {}", e))
@@ -682,8 +699,8 @@ impl<I> ForgeProviderAuthService<I> {
 
         // Create updated OAuth tokens with new expiry
         let updated_tokens = OAuthTokens::new(
-            oauth_tokens.refresh_token.clone(),
-            oauth_tokens.access_token.clone(),
+            oauth_tokens.refresh_token.as_str().to_string(),
+            oauth_tokens.access_token.as_str().to_string(),
             expires_at,
         );
 
@@ -837,10 +854,7 @@ where
         // Dispatch based on auth method
         match &method {
             AuthMethod::ApiKey => {
-                // API key flows are not pollable
-                Err(anyhow::anyhow!(
-                    "API key authentication requires manual input and cannot be polled"
-                ))
+                unimplemented!("API key method does not require polling")
             }
             AuthMethod::OAuthDevice(config) => {
                 // Extract device code from context
@@ -862,10 +876,7 @@ where
                 }
             }
             AuthMethod::OAuthCode(_config) => {
-                // OAuth code flow requires manual code entry, no polling
-                Err(anyhow::anyhow!(
-                    "OAuth code flow requires manual authorization code entry"
-                ))
+                unimplemented!("OAuth code flow polling is not required")
             }
         }
     }

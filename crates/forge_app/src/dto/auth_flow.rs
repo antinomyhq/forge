@@ -3,18 +3,207 @@ use std::marker::PhantomData;
 
 use serde::{Deserialize, Serialize};
 
+// Security-Critical Credential Newtypes
+
+/// API key for authentication
+///
+/// API key credential
+#[derive(
+    Clone, Serialize, Deserialize, derive_more::From, derive_more::Deref, PartialEq, Eq, Hash, Debug,
+)]
+#[serde(transparent)]
+pub struct ApiKey(String);
+
+/// OAuth access token
+#[derive(
+    Clone,
+    Serialize,
+    Deserialize,
+    derive_more::From,
+    derive_more::Display,
+    derive_more::Deref,
+    PartialEq,
+    Eq,
+    Debug,
+)]
+#[serde(transparent)]
+pub struct AccessToken(String);
+
+/// OAuth refresh token
+#[derive(
+    Clone, Serialize, Deserialize, derive_more::From, derive_more::Deref, PartialEq, Eq, Debug,
+)]
+#[serde(transparent)]
+pub struct RefreshToken(String);
+
+/// Device code for OAuth device flow
+#[derive(
+    Clone, Serialize, Deserialize, derive_more::From, derive_more::Deref, PartialEq, Eq, Debug,
+)]
+#[serde(transparent)]
+pub struct DeviceCode(String);
+
+/// User code for OAuth device flow
+///
+/// This is displayed to the user, so it has a standard Debug implementation.
+#[derive(
+    Clone,
+    Serialize,
+    Deserialize,
+    derive_more::From,
+    derive_more::Display,
+    derive_more::Deref,
+    Debug,
+    PartialEq,
+    Eq,
+)]
+#[serde(transparent)]
+pub struct UserCode(String);
+
+// OAuth Flow Newtypes
+
+/// State parameter for CSRF protection in OAuth flows
+#[derive(
+    Clone, Serialize, Deserialize, derive_more::From, derive_more::Deref, PartialEq, Eq, Debug,
+)]
+#[serde(transparent)]
+pub struct State(String);
+
+/// OAuth client identifier
+#[derive(
+    Clone,
+    Serialize,
+    Deserialize,
+    derive_more::From,
+    derive_more::Display,
+    derive_more::Deref,
+    Debug,
+    PartialEq,
+    Eq,
+)]
+#[serde(transparent)]
+pub struct ClientId(String);
+
+/// PKCE code verifier
+#[derive(
+    Clone, Serialize, Deserialize, derive_more::From, derive_more::Deref, PartialEq, Eq, Debug,
+)]
+#[serde(transparent)]
+pub struct PkceVerifier(String);
+
+/// Authorization code from OAuth code flow
+#[derive(
+    Clone, Serialize, Deserialize, derive_more::From, derive_more::Deref, PartialEq, Eq, Debug,
+)]
+#[serde(transparent)]
+pub struct AuthorizationCode(String);
+
+// URL Newtypes
+
+/// OAuth authorization endpoint URL
+#[derive(
+    Clone,
+    Serialize,
+    Deserialize,
+    derive_more::From,
+    derive_more::Display,
+    derive_more::Deref,
+    Debug,
+    PartialEq,
+    Eq,
+)]
+#[serde(transparent)]
+pub struct AuthUrl(String);
+
+/// OAuth token endpoint URL
+#[derive(
+    Clone,
+    Serialize,
+    Deserialize,
+    derive_more::From,
+    derive_more::Display,
+    derive_more::Deref,
+    Debug,
+    PartialEq,
+    Eq,
+)]
+#[serde(transparent)]
+pub struct TokenUrl(String);
+
+/// Verification URI for device flow
+#[derive(
+    Clone,
+    Serialize,
+    Deserialize,
+    derive_more::From,
+    derive_more::Display,
+    derive_more::Deref,
+    Debug,
+    PartialEq,
+    Eq,
+)]
+#[serde(transparent)]
+pub struct VerificationUri(String);
+
+/// Authorization URL for code flow
+#[derive(
+    Clone,
+    Serialize,
+    Deserialize,
+    derive_more::From,
+    derive_more::Display,
+    derive_more::Deref,
+    Debug,
+    PartialEq,
+    Eq,
+)]
+#[serde(transparent)]
+pub struct AuthorizationUrl(String);
+
+// Identifier Newtypes
+
+/// Session identifier
+#[derive(
+    Clone,
+    Serialize,
+    Deserialize,
+    derive_more::From,
+    derive_more::Display,
+    derive_more::Deref,
+    PartialEq,
+    Eq,
+    Debug,
+)]
+#[serde(transparent)]
+pub struct SessionId(String);
+
+/// API key name/label
+#[derive(
+    Clone,
+    Serialize,
+    Deserialize,
+    derive_more::From,
+    derive_more::Display,
+    derive_more::Deref,
+    Debug,
+    PartialEq,
+    Eq,
+)]
+#[serde(transparent)]
+pub struct ApiKeyName(String);
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OAuthConfig {
-    pub auth_url: String,
-    pub token_url: String,
-    pub client_id: String,
+    pub auth_url: AuthUrl,
+    pub token_url: TokenUrl,
+    pub client_id: ClientId,
     pub scopes: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub redirect_uri: Option<String>,
     #[serde(default)]
     pub use_pkce: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_refresh_url: Option<String>,
+    pub token_refresh_url: Option<TokenUrl>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_headers: Option<HashMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -89,7 +278,7 @@ pub struct URLParamValue(String);
 
 #[derive(Debug, Clone)]
 pub struct ApiKeyResponse {
-    pub api_key: String,
+    pub api_key: ApiKey,
     pub url_params: HashMap<URLParam, URLParamValue>,
 }
 
@@ -109,16 +298,16 @@ pub struct DeviceCodeAuthFlow;
 
 #[derive(Debug, Clone)]
 pub struct DeviceCodeRequest {
-    pub user_code: String,
-    pub verification_uri: String,
-    pub verification_uri_complete: Option<String>,
+    pub user_code: UserCode,
+    pub verification_uri: VerificationUri,
+    pub verification_uri_complete: Option<VerificationUri>,
     pub expires_in: u64,
     pub interval: u64,
 }
 
 #[derive(Debug, Clone)]
 pub struct DeviceCodeResponse {
-    pub device_code: String,
+    pub device_code: DeviceCode,
     pub interval: u64,
 }
 
@@ -140,14 +329,14 @@ pub struct CodeAuthFlow;
 
 #[derive(Debug, Clone)]
 pub struct CodeRequest {
-    pub authorization_url: String,
-    pub state: String,
+    pub authorization_url: AuthorizationUrl,
+    pub state: State,
 }
 
 #[derive(Debug, Clone)]
 pub struct CodeResponse {
-    pub state: String,
-    pub pkce_verifier: Option<String>,
+    pub state: State,
+    pub pkce_verifier: Option<PkceVerifier>,
 }
 
 #[derive(Debug, Clone)]
@@ -192,7 +381,7 @@ impl AuthContext {
     /// # Returns
     /// Returns `Some((device_code, interval))` if this is a DeviceCode flow,
     /// `None` otherwise
-    pub fn as_device_code(&self) -> Option<(&str, u64)> {
+    pub fn as_device_code(&self) -> Option<(&DeviceCode, u64)> {
         match self {
             Self::DeviceCode(ctx) => Some((&ctx.response.device_code, ctx.response.interval)),
             _ => None,
@@ -204,9 +393,9 @@ impl AuthContext {
     /// # Returns
     /// Returns `Some((state, pkce_verifier))` if this is a Code flow, `None`
     /// otherwise
-    pub fn as_code(&self) -> Option<(&str, Option<&str>)> {
+    pub fn as_code(&self) -> Option<(&State, Option<&PkceVerifier>)> {
         match self {
-            Self::Code(ctx) => Some((&ctx.response.state, ctx.response.pkce_verifier.as_deref())),
+            Self::Code(ctx) => Some((&ctx.response.state, ctx.response.pkce_verifier.as_ref())),
             _ => None,
         }
     }
@@ -216,7 +405,7 @@ impl AuthContext {
     /// # Returns
     /// Returns `Some((api_key, url_params))` if this is an ApiKey flow, `None`
     /// otherwise
-    pub fn as_api_key(&self) -> Option<(&str, &HashMap<URLParam, URLParamValue>)> {
+    pub fn as_api_key(&self) -> Option<(&ApiKey, &HashMap<URLParam, URLParamValue>)> {
         match self {
             Self::ApiKey(ctx) => Some((&ctx.response.api_key, &ctx.response.url_params)),
             _ => None,
@@ -254,18 +443,18 @@ impl AuthContext {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AuthResult {
     ApiKey {
-        api_key: String,
+        api_key: ApiKey,
         url_params: HashMap<URLParam, URLParamValue>,
     },
     OAuthTokens {
-        access_token: String,
-        refresh_token: Option<String>,
+        access_token: AccessToken,
+        refresh_token: Option<RefreshToken>,
         expires_in: Option<u64>,
     },
     AuthorizationCode {
-        code: String,
-        state: String,
-        code_verifier: Option<String>,
+        code: AuthorizationCode,
+        state: State,
+        code_verifier: Option<PkceVerifier>,
     },
 }
 

@@ -177,7 +177,8 @@ impl<
         let api_key = self
             .infra
             .get_env_var(&config.api_key_vars)
-            .ok_or_else(|| ProviderError::env_var_not_found(config.id, &config.api_key_vars))?;
+            .ok_or_else(|| ProviderError::env_var_not_found(config.id, &config.api_key_vars))?
+            .into();
 
         // Check URL parameter environment variables and build template data
         // URL parameters are optional - only add them if they exist
@@ -327,7 +328,7 @@ impl<
                 credential
                     .oauth_tokens
                     .as_ref()
-                    .map(|tokens| tokens.access_token.clone())
+                    .map(|tokens| tokens.access_token.as_str().to_string().into())
                     .ok_or_else(|| anyhow::anyhow!("OAuth tokens missing"))?
             }
             AuthType::OAuthWithApiKey => {
@@ -755,7 +756,7 @@ mod env_tests {
 
         // Verify all URLs are correctly rendered
         assert_eq!(provider.id, ProviderId::Azure);
-        assert_eq!(provider.key, Some("test-key-123".to_string()));
+        assert_eq!(provider.key, Some("test-key-123".to_string().into()));
 
         // Check chat completion URL (url field now contains the chat completion URL)
         let chat_url = provider.url;

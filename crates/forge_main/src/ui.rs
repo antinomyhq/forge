@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
+    API, AgentId, AuthorizationUrl, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
     InterruptionReason, Model, ModelId, Provider, ProviderId, URLParam, Workflow,
 };
 use forge_app::ToolResolver;
@@ -502,12 +502,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .prompt()?
             .context("API key input cancelled")?;
 
-        anyhow::ensure!(!api_key.trim().is_empty(), "API key cannot be empty");
+        let api_key_str = api_key.trim();
+        anyhow::ensure!(!api_key_str.is_empty(), "API key cannot be empty");
 
         // Update the context with collected data
         // TODO: think about this.
         if let forge_api::AuthContext::ApiKey(ref mut ctx) = context {
-            ctx.response.api_key = api_key;
+            ctx.response.api_key = api_key_str.to_string().into();
             ctx.response.url_params = url_params
                 .into_iter()
                 .map(|(k, v)| (k.into(), v.into()))
@@ -652,9 +653,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn handle_device_flow(
         &mut self,
         provider_id: ProviderId,
-        user_code: String,
-        verification_uri: String,
-        verification_uri_complete: Option<String>,
+        user_code: forge_api::UserCode,
+        verification_uri: forge_api::VerificationUri,
+        verification_uri_complete: Option<forge_api::VerificationUri>,
         context: forge_api::AuthContext,
     ) -> Result<()> {
         use std::time::Duration;
@@ -662,9 +663,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.spinner.stop(None)?;
         // Display OAuth device information
         Self::display_oauth_device_info_new(
-            &user_code,
-            &verification_uri,
-            verification_uri_complete.as_deref(),
+            user_code.as_ref(),
+            verification_uri.as_ref(),
+            verification_uri_complete.as_ref().map(|v| v.as_ref()),
         );
 
         // Step 2: Complete authentication (polls if needed for OAuth flows)
@@ -685,7 +686,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn handle_code_flow(
         &mut self,
         provider_id: forge_app::dto::ProviderId,
-        authorization_url: String,
+        authorization_url: AuthorizationUrl,
         context: forge_api::AuthContext,
     ) -> anyhow::Result<()> {
         use colored::Colorize;
@@ -1105,7 +1106,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         if let Ok(provider) = provider_result {
             info = info.add_key_value("Provider (URL)", provider.url);
             if let Some(ref api_key) = provider.key {
-                info = info.add_key_value("API Key", truncate_key(api_key));
+                info = info.add_key_value("API Key", truncate_key(api_key.as_str()));
             }
         }
 

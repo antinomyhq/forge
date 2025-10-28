@@ -220,9 +220,9 @@ impl ForgeOAuthService {
         }
 
         // Standard OAuth flow for other providers
-        let mut client = BasicClient::new(ClientId::new(config.client_id.clone()))
-            .set_auth_uri(AuthUrl::new(config.auth_url.clone())?)
-            .set_token_uri(TokenUrl::new(config.token_url.clone())?);
+        let mut client = BasicClient::new(ClientId::new(config.client_id.to_string()))
+            .set_auth_uri(AuthUrl::new(config.auth_url.to_string())?)
+            .set_token_uri(TokenUrl::new(config.token_url.to_string())?);
 
         // Add redirect_uri if provided
         if let Some(redirect_uri) = &config.redirect_uri {
@@ -281,9 +281,9 @@ impl ForgeOAuthService {
         }
 
         // Standard OAuth flow for other providers
-        let mut client = BasicClient::new(ClientId::new(config.client_id.clone()))
-            .set_auth_uri(AuthUrl::new(config.auth_url.clone())?)
-            .set_token_uri(TokenUrl::new(config.token_url.clone())?);
+        let mut client = BasicClient::new(ClientId::new(config.client_id.to_string()))
+            .set_auth_uri(AuthUrl::new(config.auth_url.to_string())?)
+            .set_token_uri(TokenUrl::new(config.token_url.to_string())?);
 
         // Add redirect_uri if provided
         if let Some(redirect_uri) = &config.redirect_uri {
@@ -332,7 +332,7 @@ impl ForgeOAuthService {
             code,
             state: state.unwrap_or_else(|| verifier.to_string()),
             grant_type: "authorization_code".to_string(),
-            client_id: config.client_id.clone(),
+            client_id: config.client_id.to_string(),
             redirect_uri: config.redirect_uri.clone(),
             code_verifier: verifier.to_string(),
         };
@@ -367,8 +367,8 @@ impl ForgeOAuthService {
     ) -> anyhow::Result<OAuthTokenResponse> {
         // Get token URL from config
         // Build minimal oauth2 client (just need token endpoint)
-        let client = BasicClient::new(ClientId::new(config.client_id.clone()))
-            .set_token_uri(TokenUrl::new(config.token_url.clone())?);
+        let client = BasicClient::new(ClientId::new(config.client_id.to_string()))
+            .set_token_uri(TokenUrl::new(config.token_url.to_string())?);
 
         // Build HTTP client with custom headers
         let http_client = Self::build_http_client(config.custom_headers.as_ref())?;
@@ -397,9 +397,9 @@ mod tests {
     #[tokio::test]
     async fn test_build_auth_code_url_with_pkce() {
         let config = OAuthConfig {
-            auth_url: "https://provider.com/authorize".to_string(),
-            token_url: "https://provider.com/token".to_string(),
-            client_id: "test-client".to_string(),
+            auth_url: "https://provider.com/authorize".to_string().into(),
+            token_url: "https://provider.com/token".to_string().into(),
+            client_id: "test-client".to_string().into(),
             scopes: vec!["user:profile".to_string(), "user:email".to_string()],
             redirect_uri: Some("https://provider.com/callback".to_string()),
             use_pkce: true,
@@ -426,9 +426,9 @@ mod tests {
     #[tokio::test]
     async fn test_build_auth_code_url_without_pkce() {
         let config = OAuthConfig {
-            auth_url: "https://provider.com/authorize".to_string(),
-            token_url: "https://provider.com/token".to_string(),
-            client_id: "test-client".to_string(),
+            auth_url: "https://provider.com/authorize".to_string().into(),
+            token_url: "https://provider.com/token".to_string().into(),
+            client_id: "test-client".to_string().into(),
             scopes: vec!["read".to_string()],
             redirect_uri: Some("https://provider.com/callback".to_string()),
             use_pkce: false,
@@ -462,9 +462,9 @@ mod tests {
             .await;
 
         let config = OAuthConfig {
-            auth_url: "https://provider.com/auth".to_string(),
-            token_url: format!("{}/token", server.url()),
-            client_id: "test-client".to_string(),
+            auth_url: "https://provider.com/auth".to_string().into(),
+            token_url: format!("{}/token", server.url()).into(),
+            client_id: "test-client".to_string().into(),
             scopes: vec![],
             redirect_uri: Some("https://provider.com/callback".to_string()),
             use_pkce: false,

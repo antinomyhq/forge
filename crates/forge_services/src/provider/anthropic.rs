@@ -29,7 +29,7 @@ pub struct Anthropic<T> {
 impl<H: HttpClientService> Anthropic<H> {
     pub fn new(
         http: Arc<H>,
-        api_key: String,
+        api_key: impl Into<String>,
         chat_url: Url,
         models: forge_app::dto::Models,
         version: String,
@@ -37,7 +37,7 @@ impl<H: HttpClientService> Anthropic<H> {
     ) -> Self {
         Self {
             http,
-            api_key,
+            api_key: api_key.into(),
             chat_url,
             models,
             anthropic_version: version,
