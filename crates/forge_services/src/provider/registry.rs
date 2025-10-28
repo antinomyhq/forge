@@ -246,9 +246,10 @@ impl<
 
         // Try to create provider from database credential first
         if let Some(credential) = self.infra.get_credential(&id).await?
-            && let Ok(provider) = self.create_provider_from_credential(&id, &credential).await {
-                return Ok(provider);
-            }
+            && let Ok(provider) = self.create_provider_from_credential(&id, &credential).await
+        {
+            return Ok(provider);
+        }
 
         // Database credential required - no environment variable fallback
         Err(ProviderError::provider_not_available(id).into())
