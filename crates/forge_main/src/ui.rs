@@ -64,6 +64,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.spinner.write_ln(title.display())
     }
 
+    fn write_to_stderr(&mut self, title: TitleFormat) -> anyhow::Result<()> {
+        eprintln!("{}", title.display());
+        Ok(())
+    }
+
+
     /// Retrieve available models
     async fn get_models(&mut self) -> Result<Vec<Model>> {
         self.spinner.start(Some("Loading"))?;
@@ -164,7 +170,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Ok(_) => {}
             Err(error) => {
                 tracing::error!(error = ?error);
-                let _ = self.writeln_title(TitleFormat::error(format!("{error:?}")));
+                let _ = self.write_to_stderr(TitleFormat::error(format!("{error:?}")));
             }
         }
     }
