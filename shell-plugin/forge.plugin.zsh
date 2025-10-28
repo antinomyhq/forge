@@ -39,7 +39,7 @@ function _forge_get_commands() {
 
 # Private fzf function with common options for consistent UX
 function _forge_fzf() {
-    fzf --cycle --select-1 --height 40% --reverse "$@"
+    fzf --cycle --select-1 --height 100% --reverse "$@"
 }
 
 # Helper function to execute forge commands consistently
@@ -242,7 +242,7 @@ function _forge_action_conversation() {
             --prompt="$prompt_text" \
             --delimiter="$_FORGE_DELIMITER" \
             --with-nth=1,2 \
-            --preview="$_FORGE_BIN session last {3}"
+            --preview="$_FORGE_BIN session show {3}" \
             --preview-window=right:60%:wrap
         )
         
