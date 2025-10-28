@@ -27,7 +27,7 @@ use crate::conversation_selector::ConversationSelector;
 use crate::env::should_show_completion_prompt;
 use crate::info::Info;
 use crate::input::Console;
-use crate::model::{CliModel, CliProvider, Command, ForgeCommandManager, PartialEvent};
+use crate::model::{CliModel, CliProvider, ForgeCommandManager, PartialEvent, SlashCommand};
 use crate::porcelain::Porcelain;
 use crate::prompt::ForgePrompt;
 use crate::state::UIState;
@@ -85,6 +85,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Reset previously set CLI parameters by the user
         self.cli.conversation = None;
         self.cli.conversation_id = None;
+        self.cli.agent_id = None;
 
         self.display_banner()?;
         self.trace_user();
@@ -136,7 +137,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         })
     }
 
-    async fn prompt(&self) -> Result<Command> {
+    async fn prompt(&self) -> Result<SlashCommand> {
         // Get usage from current conversation if available
         let usage = if let Some(conversation_id) = &self.state.conversation_id {
             self.api
@@ -359,7 +360,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     self.writeln_title(TitleFormat::info("MCP reloaded"))?;
                 }
             },
-            TopLevelCommand::Info { porcelain, conversation_id } => {
+            TopLevelCommand::Info { porcelain, conversation_id, agent_id } => {
                 // Make sure to init model
                 self.on_new().await?;
 
@@ -368,7 +369,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .map(ConversationId::parse)
                     .transpose()?;
 
-                self.on_info(porcelain, conversation_id).await?;
+                self.on_show_system_info(porcelain, conversation_id, agent_id)
+                    .await?;
                 return Ok(());
             }
             TopLevelCommand::Banner => {
@@ -468,7 +470,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                 self.validate_session_exists(&conversation_id).await?;
 
-                self.on_show_conv_info(conversation_id).await?;
+                self.on_show_conversation_info(conversation_id).await?;
             }
         }
 
@@ -755,10 +757,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn on_info(
+    async fn on_show_system_info(
         &mut self,
         porcelain: bool,
         conversation_id: Option<ConversationId>,
+        agent_id: Option<AgentId>,
     ) -> anyhow::Result<()> {
         let mut info = Info::from(&self.api.environment());
 
@@ -769,13 +772,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         };
 
         let key_info = self.api.get_login_info().await;
-        let operating_agent = self.api.get_operating_agent().await;
         let operating_model = self.api.get_operating_model().await;
         let provider_result = self.api.get_provider().await;
 
         // Add agent information
         info = info.add_title("AGENT");
-        if let Some(agent) = operating_agent {
+        if let Some(agent) = agent_id {
             info = info.add_key_value("ID", agent.as_str().to_uppercase());
         }
 
@@ -851,7 +853,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             )))?;
 
             // Show conversation info
-            self.on_info(false, Some(conversation_id)).await?;
+            self.on_show_system_info(false, Some(conversation_id), None)
+                .await?;
         }
         Ok(())
     }
@@ -903,70 +906,77 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn on_command(&mut self, command: Command) -> anyhow::Result<bool> {
+    async fn on_command(&mut self, command: SlashCommand) -> anyhow::Result<bool> {
         match command {
-            Command::Conversations => {
+            SlashCommand::Conversations => {
                 self.list_conversations().await?;
             }
-            Command::Compact => {
+            SlashCommand::Compact => {
                 self.spinner.start(Some("Compacting"))?;
                 self.on_compaction().await?;
             }
-            Command::Dump(format) => {
+            SlashCommand::Dump(format) => {
                 self.spinner.start(Some("Dumping"))?;
                 self.on_dump(format).await?;
             }
-            Command::New => {
+            SlashCommand::New => {
                 self.on_new().await?;
             }
-            Command::Info => {
-                self.on_info(false, None).await?;
+            SlashCommand::Info => {
+                let conversation_id = self.state.conversation_id;
+                let agent_id = self
+                    .cli
+                    .agent_id
+                    .clone()
+                    .or(self.api.get_operating_agent().await);
+                self.on_show_system_info(false, conversation_id, agent_id)
+                    .await?;
             }
-            Command::Usage => {
+            SlashCommand::Usage => {
                 self.on_usage().await?;
             }
-            Command::Message(ref content) => {
+            SlashCommand::Message(ref content) => {
                 self.spinner.start(None)?;
                 self.on_message(Some(content.clone())).await?;
             }
-            Command::Forge => {
+            SlashCommand::Forge => {
                 self.on_agent_change(AgentId::FORGE).await?;
             }
-            Command::Muse => {
+            SlashCommand::Muse => {
                 self.on_agent_change(AgentId::MUSE).await?;
             }
-            Command::Sage => {
+            SlashCommand::Sage => {
                 self.on_agent_change(AgentId::SAGE).await?;
             }
-            Command::Help => {
+            SlashCommand::Help => {
                 let info = Info::from(self.command.as_ref());
                 self.writeln(info)?;
             }
-            Command::Tools => {
+            SlashCommand::Tools => {
                 let agent_id = self.api.get_operating_agent().await.unwrap_or_default();
                 self.on_show_tools(agent_id, false).await?;
             }
-            Command::Update => {
+            SlashCommand::Update => {
                 on_update(self.api.clone(), None).await;
             }
-            Command::Exit => {
+            SlashCommand::Exit => {
                 return Ok(true);
             }
 
-            Command::Custom(event) => {
+            SlashCommand::Custom(event) => {
                 self.spinner.start(None)?;
                 self.on_custom_event(event.into()).await?;
             }
-            Command::Model => {
+            SlashCommand::Model => {
                 self.on_model_selection().await?;
             }
-            Command::Provider => {
+            SlashCommand::Provider => {
                 self.on_provider_selection().await?;
             }
-            Command::Shell(ref command) => {
+            SlashCommand::Shell(ref command) => {
                 self.api.execute_shell_command_raw(command).await?;
             }
-            Command::Agent => {
+            SlashCommand::Agent => {
                 #[derive(Clone)]
                 struct Agent {
                     id: AgentId,
@@ -1009,7 +1019,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     self.on_agent_change(selected_agent.id).await?;
                 }
             }
-            Command::Login => {
+            SlashCommand::Login => {
                 self.spinner.start(Some("Logging in"))?;
                 self.api.logout().await?;
                 self.login().await?;
@@ -1021,7 +1031,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         .unwrap_or_default(),
                 );
             }
-            Command::Logout => {
+            SlashCommand::Logout => {
                 self.spinner.start(Some("Logging out"))?;
                 self.api.logout().await?;
                 self.spinner.stop(None)?;
@@ -1029,11 +1039,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 // Exit the UI after logout
                 return Ok(true);
             }
-            Command::Retry => {
+            SlashCommand::Retry => {
                 self.spinner.start(None)?;
                 self.on_message(None).await?;
             }
-            Command::AgentSwitch(agent_id) => {
+            SlashCommand::AgentSwitch(agent_id) => {
                 // Validate that the agent exists by checking against loaded agents
                 let agents = self.api.get_agents().await?;
                 let agent_exists = agents.iter().any(|agent| agent.id.as_str() == agent_id);
@@ -1215,11 +1225,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let id = if self.cli.is_interactive() {
             self.init_conversation_interactive(&mut is_new).await?
         } else {
-            // Used via ZSH
-            if let Some(agent_id) = self.cli.agent_id.clone() {
-                self.api.set_operating_agent(AgentId::new(agent_id)).await?;
-            }
-
             self.init_conversation_headless(&mut is_new).await?
         };
 
@@ -1554,7 +1559,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
             ChatResponse::TaskComplete => {
                 if let Some(conversation_id) = self.state.conversation_id {
-                    self.on_show_conv_info(conversation_id).await?;
+                    self.on_show_conversation_info(conversation_id).await?;
                 }
             }
         }
@@ -1574,7 +1579,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn on_show_conv_info(&mut self, conversation_id: ConversationId) -> anyhow::Result<()> {
+    async fn on_show_conversation_info(
+        &mut self,
+        conversation_id: ConversationId,
+    ) -> anyhow::Result<()> {
         if !should_show_completion_prompt() {
             return Ok(());
         }

@@ -3,6 +3,10 @@
 # Documentation in [README.md](./README.md)
 
 
+# Store conversation ID in a temporary variable (local to plugin)
+typeset -h _FORGE_CONVERSATION_ID=""
+typeset -h _FORGE_ACTIVE_AGENT="forge"
+
 # Configuration: Change these variables to customize the forge command and special characters
 # Using typeset to keep variables local to plugin scope and prevent public exposure
 typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
@@ -57,7 +61,7 @@ function _forge_reset() {
 
 # Helper function to print operating agent messages with consistent formatting
 function _forge_print_agent_message() {
-    local agent_name="${1:-${FORGE_ACTIVE_AGENT}}"
+    local agent_name="${1:-${_FORGE_ACTIVE_AGENT}}"
     echo "\033[33m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] \033[1;37m${agent_name:u}\033[0m \033[90mis now the active agent\033[0m"
 }
 
@@ -105,23 +109,20 @@ function _forge_handle_session_command() {
     
     echo
     
-    # Check if FORGE_CONVERSATION_ID is set
-    if [[ -z "$FORGE_CONVERSATION_ID" ]]; then
+    # Check if _FORGE_CONVERSATION_ID is set
+    if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
         echo "\033[31m✗\033[0m No active conversation. Start a conversation first or use :list to see existing ones"
         _forge_reset
         return 0
     fi
     
     # Execute the session command with conversation ID and any extra arguments
-    _forge_exec session "$subcommand" "$FORGE_CONVERSATION_ID" "$@"
+    _forge_exec session "$subcommand" "$_FORGE_CONVERSATION_ID" "$@"
     
     _forge_reset
     return 0
 }
 
-# Store conversation ID in a temporary variable (local to plugin)
-export FORGE_CONVERSATION_ID=""
-export FORGE_ACTIVE_AGENT="forge"
 
 # Custom completion widget that handles both :commands and @ completion
 function forge-completion() {
@@ -186,18 +187,18 @@ function _forge_action_new() {
     echo
     _forge_exec banner
     _forge_print_agent_message "FORGE"
-    FORGE_CONVERSATION_ID=""
-    FORGE_ACTIVE_AGENT="forge"
+    _FORGE_CONVERSATION_ID=""
+    _FORGE_ACTIVE_AGENT="forge"
     _forge_reset
 }
 
 # Action handler: Show session info
 function _forge_action_info() {
     echo
-    if [[ -n "$FORGE_CONVERSATION_ID" ]]; then
-        _forge_exec info --cid "$FORGE_CONVERSATION_ID"
+    if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
+        _forge_exec info --cid "$_FORGE_CONVERSATION_ID" --aid "$_FORGE_ACTIVE_AGENT"
     else
-        _forge_exec info
+        _forge_exec info --aid "$_FORGE_ACTIVE_AGENT"
     fi
     _forge_reset
 }
@@ -232,7 +233,7 @@ function _forge_action_conversation() {
     
     if [[ -n "$conversations_output" ]]; then
         # Get current conversation ID if set
-        local current_id="$FORGE_CONVERSATION_ID"
+        local current_id="$_FORGE_CONVERSATION_ID"
         
         # Create prompt with current conversation
         local prompt_text="Conversation ❯ "
@@ -255,7 +256,7 @@ function _forge_action_conversation() {
             local conversation_id=$(echo "$selected_conversation" | sed -E 's/  .*//' | tr -d '\n')
             
             # Set the selected conversation as active (in parent shell)
-            FORGE_CONVERSATION_ID="$conversation_id"
+            _FORGE_CONVERSATION_ID="$conversation_id"
             # Show conversation content
             echo
             _forge_exec session show "$conversation_id"
@@ -289,7 +290,7 @@ function _forge_action_model() {
 # Action handler: Show tools
 function _forge_action_tools() {
     echo
-    _forge_exec list tools "${FORGE_ACTIVE_AGENT}"
+    _forge_exec list tools "${_FORGE_ACTIVE_AGENT}"
     _forge_reset
 }
 
@@ -315,24 +316,24 @@ function _forge_action_default() {
     # If input_text is empty, just set the active agent
     if [[ -z "$input_text" ]]; then
         echo
-        FORGE_ACTIVE_AGENT="${user_action:-${FORGE_ACTIVE_AGENT}}"
+        _FORGE_ACTIVE_AGENT="${user_action:-${_FORGE_ACTIVE_AGENT}}"
         _forge_print_agent_message
         _forge_reset
         return 0
     fi
     
     # Generate conversation ID if needed (in parent shell context)
-    if [[ -z "$FORGE_CONVERSATION_ID" ]]; then
-        FORGE_CONVERSATION_ID=$($_FORGE_BIN session new)
+    if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
+        _FORGE_CONVERSATION_ID=$($_FORGE_BIN session new)
     fi
     
     # Set the active agent for this execution
-    FORGE_ACTIVE_AGENT="${user_action:-${FORGE_ACTIVE_AGENT}}"
+    _FORGE_ACTIVE_AGENT="${user_action:-${_FORGE_ACTIVE_AGENT}}"
     
     echo
     
     # Execute the forge command directly with proper escaping
-    _forge_exec -p "$input_text" --cid "$FORGE_CONVERSATION_ID" --aid "$FORGE_ACTIVE_AGENT"
+    _forge_exec -p "$input_text" --cid "$_FORGE_CONVERSATION_ID" --aid "$_FORGE_ACTIVE_AGENT"
     
     # Reset the prompt
     _forge_reset

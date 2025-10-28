@@ -38,7 +38,7 @@ pub struct Cli {
     /// If provided, the application will use this agent for the conversation.
     /// This allows specifying the agent from the command line.
     #[arg(long, alias = "aid")]
-    pub agent_id: Option<String>,
+    pub agent_id: Option<AgentId>,
 
     /// Working directory to set before starting forge.
     ///
@@ -99,6 +99,10 @@ pub enum TopLevelCommand {
         /// Optional conversation ID to show info for a specific session
         #[arg(long, alias = "cid")]
         conversation_id: Option<String>,
+
+        /// Optional agent ID to show info for a specific agent
+        #[arg(long, alias = "aid")]
+        agent_id: Option<AgentId>,
 
         /// Output in machine-readable format (porcelain)
         #[arg(long)]
@@ -691,6 +695,28 @@ mod tests {
     }
 
     #[test]
+    fn test_info_command_with_agent_id() {
+        let fixture = Cli::parse_from(["forge", "info", "--agent-id", "sage"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Info { agent_id, .. }) => agent_id,
+            _ => None,
+        };
+        let expected = Some(AgentId::new("sage"));
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_info_command_with_aid_alias() {
+        let fixture = Cli::parse_from(["forge", "info", "--aid", "muse"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Info { agent_id, .. }) => agent_id,
+            _ => None,
+        };
+        let expected = Some(AgentId::new("muse"));
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
     fn test_info_command_with_porcelain() {
         let fixture = Cli::parse_from(["forge", "info", "--porcelain"]);
         let actual = match fixture.subcommands {
@@ -726,13 +752,14 @@ mod tests {
     #[test]
     fn test_info_command_with_conversation_id_and_porcelain() {
         let fixture = Cli::parse_from(["forge", "info", "--cid", "test123", "--porcelain"]);
-        let (conversation_id, porcelain) = match fixture.subcommands {
-            Some(TopLevelCommand::Info { conversation_id, porcelain }) => {
-                (conversation_id, porcelain)
+        let (conversation_id, agent_id, porcelain) = match fixture.subcommands {
+            Some(TopLevelCommand::Info { conversation_id, agent_id, porcelain }) => {
+                (conversation_id, agent_id, porcelain)
             }
-            _ => (None, false),
+            _ => (None, None, false),
         };
         assert_eq!(conversation_id, Some("test123".to_string()));
+        assert_eq!(agent_id, None);
         assert_eq!(porcelain, true);
     }
 
@@ -859,7 +886,7 @@ mod tests {
     fn test_agent_id_with_prompt() {
         let fixture = Cli::parse_from(["forge", "-p", "hello", "--agent-id", "sage"]);
         let actual = fixture.agent_id;
-        let expected = Some("sage".to_string());
+        let expected = Some(AgentId::new("sage"));
         assert_eq!(actual, expected);
     }
 
@@ -867,7 +894,7 @@ mod tests {
     fn test_agent_id_with_aid_alias() {
         let fixture = Cli::parse_from(["forge", "-p", "hello", "--aid", "muse"]);
         let actual = fixture.agent_id;
-        let expected = Some("muse".to_string());
+        let expected = Some(AgentId::new("muse"));
         assert_eq!(actual, expected);
     }
 
@@ -875,7 +902,7 @@ mod tests {
     fn test_agent_id_without_prompt() {
         let fixture = Cli::parse_from(["forge", "--agent-id", "forge"]);
         let actual = fixture.agent_id;
-        let expected = Some("forge".to_string());
+        let expected = Some(AgentId::new("forge"));
         assert_eq!(actual, expected);
     }
 }
