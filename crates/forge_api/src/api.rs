@@ -23,7 +23,7 @@ pub trait API: Sync + Send {
     /// Provides a list of agents available in the current environment
     async fn get_agents(&self) -> Result<Vec<Agent>>;
     /// Provides a list of providers available in the current environment
-    async fn providers(&self) -> Result<Vec<Provider>>;
+    async fn get_providers(&self) -> Result<Vec<Provider>>;
 
     /// Executes a chat request and returns a stream of responses
     async fn chat(&self, chat: ChatRequest) -> Result<MpscStream<Result<ChatResponse>>>;

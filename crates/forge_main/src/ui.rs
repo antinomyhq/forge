@@ -544,7 +544,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     /// Lists all the providers
     async fn on_show_providers(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let providers = self.api.providers().await?;
+        let providers = self.api.get_providers().await?;
 
         if providers.is_empty() {
             return Ok(());
@@ -1148,7 +1148,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Fetch available providers
         let mut providers = self
             .api
-            .providers()
+            .get_providers()
             .await?
             .into_iter()
             .map(CliProvider)
@@ -1882,7 +1882,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         })?;
 
         // Check if provider has valid API key
-        let providers = self.api.providers().await?;
+        let providers = self.api.get_providers().await?;
         if providers.iter().any(|p| p.id == provider_id) {
             Ok(provider_id)
         } else {

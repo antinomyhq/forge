@@ -68,7 +68,7 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
         Ok(self.services.get_agents().await?)
     }
 
-    async fn providers(&self) -> Result<Vec<Provider>> {
+    async fn get_providers(&self) -> Result<Vec<Provider>> {
         Ok(self.services.get_all_providers().await?)
     }
 
