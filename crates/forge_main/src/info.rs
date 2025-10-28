@@ -211,12 +211,12 @@ impl fmt::Display for Info {
                             writeln!(
                                 f,
                                 "  {} {}",
-                                format!("{key:<width$}:").bright_cyan().bold(),
+                                format!("{key:<width$}:").yellow().bold(),
                                 value
                             )?;
                         } else {
                             // No section width (items without a title)
-                            writeln!(f, "  {}: {}", key.bright_cyan().bold(), value)?;
+                            writeln!(f, "  {}: {}", key.yellow().bold(), value)?;
                         }
                     } else {
                         // Show value-only items
