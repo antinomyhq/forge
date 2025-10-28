@@ -109,17 +109,25 @@ impl SpinnerManager {
 
     /// Stop the active spinner if any
     pub fn stop(&mut self, message: Option<String>) -> Result<()> {
+        self.stop_inner(message, |s| println!("{s}"))
+    }
+
+    /// Stop the active spinner if any
+    pub fn stop_inner<F>(&mut self, message: Option<String>, writer: F) -> Result<()>
+    where
+        F: FnOnce(&str),
+    {
         if let Some(spinner) = self.spinner.take() {
             // Always finish the spinner first
             spinner.finish_and_clear();
 
             // Then print the message if provided
             if let Some(msg) = message {
-                println!("{msg}");
+                writer(&msg);
             }
         } else if let Some(message) = message {
             // If there's no spinner but we have a message, just print it
-            println!("{message}");
+            writer(&message);
         }
 
         // Tracker task will be dropped here.
@@ -136,6 +144,17 @@ impl SpinnerManager {
         let is_running = self.spinner.is_some();
         let prev_message = self.message.clone();
         self.stop(Some(message.to_string()))?;
+        if is_running {
+            self.start(prev_message.as_deref())?
+        }
+
+        Ok(())
+    }
+
+    pub fn stderr_ln(&mut self, message: impl ToString) -> Result<()> {
+        let is_running = self.spinner.is_some();
+        let prev_message = self.message.clone();
+        self.stop_inner(Some(message.to_string()), |msg| eprintln!("{msg}"))?;
         if is_running {
             self.start(prev_message.as_deref())?
         }

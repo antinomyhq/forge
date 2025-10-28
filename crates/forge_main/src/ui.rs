@@ -64,9 +64,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.spinner.write_ln(title.display())
     }
 
-    fn write_to_stderr(&mut self, title: TitleFormat) -> anyhow::Result<()> {
-        eprintln!("{}", title.display());
-        Ok(())
+    fn writeln_to_stderr(&mut self, title: TitleFormat) -> anyhow::Result<()> {
+        self.spinner.stderr_ln(title.display())
     }
 
     /// Retrieve available models
@@ -169,7 +168,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Ok(_) => {}
             Err(error) => {
                 tracing::error!(error = ?error);
-                let _ = self.write_to_stderr(TitleFormat::error(format!("{error:?}")));
+                let _ = self.writeln_to_stderr(TitleFormat::error(format!("{error:?}")));
             }
         }
     }
