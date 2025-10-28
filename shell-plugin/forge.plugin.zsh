@@ -324,7 +324,7 @@ function _forge_action_default() {
     echo
     
     # Execute the forge command directly with proper escaping
-    _forge_exec -p "$input_text" --cid "$FORGE_CONVERSATION_ID"
+    _forge_exec -p "$input_text" --cid "$FORGE_CONVERSATION_ID" --aid "$FORGE_ACTIVE_AGENT"
     
     # Reset the prompt
     _forge_reset
