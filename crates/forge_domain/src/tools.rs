@@ -239,8 +239,8 @@ impl JsonSchema for PatchOperation {
 /// Fails if search pattern isn't found.\n\nUsage Guidelines:\n-When editing
 /// text from Read tool output, ensure you preserve new lines and the exact
 /// indentation (tabs/spaces) as it appears AFTER the line number prefix. The
-/// line number prefix format is: line number + ':' + one space. Everything
-/// after that space is the actual file content to match. Never include any part
+/// line number prefix format is: line number + ':'. Everything
+/// after that is the actual file content to match. Never include any part
 /// of the line number prefix in the search or content
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct FSPatch {

@@ -25,6 +25,21 @@ pub struct Cli {
     #[arg(long)]
     pub conversation: Option<PathBuf>,
 
+    /// Conversation ID to use for this session.
+    ///
+    /// If provided, the application will use this conversation ID instead of
+    /// generating a new one. This allows resuming or continuing existing
+    /// conversations.
+    #[arg(long, alias = "cid")]
+    pub conversation_id: Option<String>,
+
+    /// Agent ID to use for this session.
+    ///
+    /// If provided, the application will use this agent for the conversation.
+    /// This allows specifying the agent from the command line.
+    #[arg(long, alias = "aid")]
+    pub agent_id: Option<String>,
+
     /// Working directory to set before starting forge.
     ///
     /// If provided, the application will change to this directory before
@@ -81,6 +96,10 @@ pub enum TopLevelCommand {
 
     /// Show current configuration, active model, and environment status
     Info {
+        /// Optional conversation ID to show info for a specific session
+        #[arg(long, alias = "cid")]
+        conversation_id: Option<String>,
+
         /// Output in machine-readable format (porcelain)
         #[arg(long)]
         porcelain: bool,
@@ -371,6 +390,22 @@ pub enum SessionCommand {
         /// Conversation ID
         id: String,
     },
+
+    /// Show the last assistant message from a conversation
+    ///
+    /// Example: forge session show abc123
+    Show {
+        /// Conversation ID
+        id: String,
+    },
+
+    /// Show detailed information about a session
+    ///
+    /// Example: forge session info abc123
+    Info {
+        /// Conversation ID
+        id: String,
+    },
 }
 
 /// Group of Commit-related commands
@@ -619,6 +654,19 @@ mod tests {
     }
 
     #[test]
+    fn test_session_last_with_id() {
+        let fixture = Cli::parse_from(["forge", "session", "show", "test123"]);
+        let id = match fixture.subcommands {
+            Some(TopLevelCommand::Session(session)) => match session.command {
+                SessionCommand::Show { id } => id,
+                _ => String::new(),
+            },
+            _ => String::new(),
+        };
+        assert_eq!(id, "test123");
+    }
+
+    #[test]
     fn test_session_resume() {
         let fixture = Cli::parse_from(["forge", "session", "resume", "def456"]);
         let id = match fixture.subcommands {
@@ -659,7 +707,7 @@ mod tests {
     fn test_info_command_without_porcelain() {
         let fixture = Cli::parse_from(["forge", "info"]);
         let actual = match fixture.subcommands {
-            Some(TopLevelCommand::Info { porcelain }) => porcelain,
+            Some(TopLevelCommand::Info { porcelain, .. }) => porcelain,
             _ => true,
         };
         let expected = false;
@@ -670,11 +718,46 @@ mod tests {
     fn test_info_command_with_porcelain() {
         let fixture = Cli::parse_from(["forge", "info", "--porcelain"]);
         let actual = match fixture.subcommands {
-            Some(TopLevelCommand::Info { porcelain }) => porcelain,
+            Some(TopLevelCommand::Info { porcelain, .. }) => porcelain,
             _ => false,
         };
         let expected = true;
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_info_command_with_conversation_id() {
+        let fixture = Cli::parse_from(["forge", "info", "--conversation-id", "abc123"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Info { conversation_id, .. }) => conversation_id,
+            _ => None,
+        };
+        let expected = Some("abc123".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_info_command_with_cid_alias() {
+        let fixture = Cli::parse_from(["forge", "info", "--cid", "xyz789"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Info { conversation_id, .. }) => conversation_id,
+            _ => None,
+        };
+        let expected = Some("xyz789".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_info_command_with_conversation_id_and_porcelain() {
+        let fixture = Cli::parse_from(["forge", "info", "--cid", "test123", "--porcelain"]);
+        let (conversation_id, porcelain) = match fixture.subcommands {
+            Some(TopLevelCommand::Info { conversation_id, porcelain }) => {
+                (conversation_id, porcelain)
+            }
+            _ => (None, false),
+        };
+        assert_eq!(conversation_id, Some("test123".to_string()));
+        assert_eq!(porcelain, true);
     }
 
     #[test]
@@ -740,6 +823,83 @@ mod tests {
             _ => false,
         };
         let expected = true;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_session_info_with_id() {
+        let fixture = Cli::parse_from(["forge", "session", "info", "abc123"]);
+        let id = match fixture.subcommands {
+            Some(TopLevelCommand::Session(session)) => match session.command {
+                SessionCommand::Info { id } => id,
+                _ => String::new(),
+            },
+            _ => String::new(),
+        };
+        assert_eq!(id, "abc123");
+    }
+
+    #[test]
+    fn test_session_info_with_porcelain() {
+        let fixture = Cli::parse_from(["forge", "session", "info", "test123", "--porcelain"]);
+        let (id, porcelain) = match fixture.subcommands {
+            Some(TopLevelCommand::Session(session)) => match session.command {
+                SessionCommand::Info { id } => (id, session.porcelain),
+                _ => (String::new(), false),
+            },
+            _ => (String::new(), false),
+        };
+        assert_eq!(id, "test123");
+        assert_eq!(porcelain, true);
+    }
+
+    #[test]
+    fn test_prompt_with_conversation_id() {
+        let fixture = Cli::parse_from([
+            "forge",
+            "-p",
+            "hello",
+            "--conversation-id",
+            "550e8400-e29b-41d4-a716-446655440000",
+        ]);
+        let actual = fixture.conversation_id;
+        let expected = Some("550e8400-e29b-41d4-a716-446655440000".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_conversation_id_without_prompt() {
+        let fixture = Cli::parse_from([
+            "forge",
+            "--conversation-id",
+            "550e8400-e29b-41d4-a716-446655440000",
+        ]);
+        let actual = fixture.conversation_id;
+        let expected = Some("550e8400-e29b-41d4-a716-446655440000".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_agent_id_with_prompt() {
+        let fixture = Cli::parse_from(["forge", "-p", "hello", "--agent-id", "sage"]);
+        let actual = fixture.agent_id;
+        let expected = Some("sage".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_agent_id_with_aid_alias() {
+        let fixture = Cli::parse_from(["forge", "-p", "hello", "--aid", "muse"]);
+        let actual = fixture.agent_id;
+        let expected = Some("muse".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_agent_id_without_prompt() {
+        let fixture = Cli::parse_from(["forge", "--agent-id", "forge"]);
+        let actual = fixture.agent_id;
+        let expected = Some("forge".to_string());
         assert_eq!(actual, expected);
     }
 }
