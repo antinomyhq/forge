@@ -265,7 +265,8 @@ function _forge_action_model() {
 function _forge_action_commit() {
     local commit_message
     # Generate AI commit message
-    commit_message=$($_FORGE_BIN commit --preview --max-diff "$_FORGE_MAX_COMMIT_DIFF" 2>/dev/null)
+    echo
+    commit_message=$($_FORGE_BIN commit --preview --max-diff "$_FORGE_MAX_COMMIT_DIFF")
     
     # Proceed only if command succeeded
     if [[ -n "$commit_message" ]]; then
