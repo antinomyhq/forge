@@ -287,7 +287,6 @@ EOF"
         # Refresh display to show the new command
         zle reset-prompt
     else
-        echo
         echo "$commit_message"
         _forge_reset
     fi
