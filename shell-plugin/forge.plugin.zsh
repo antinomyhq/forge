@@ -243,7 +243,7 @@ function _forge_action_conversation() {
             --delimiter="$_FORGE_DELIMITER" \
             --with-nth=1,2 \
             --preview="$_FORGE_BIN session show {3}" \
-            --preview-window=right:60%:wrap
+            --preview-window=right:60%:wrap:border-sharp
         )
         
         if [[ -n "$selected_conversation" ]]; then
