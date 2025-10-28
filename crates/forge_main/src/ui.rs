@@ -159,13 +159,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.console.prompt(forge_prompt).await
     }
 
-    pub async fn run(&mut self) -> anyhow::Result<()> {
-        let result = self.run_inner().await;
-        if let Err(ref error) = result {
-            tracing::error!(error = ?error);
-            let _ = self.writeln_title(TitleFormat::error(format!("{error:?}")));
+    pub async fn run(&mut self) {
+        match self.run_inner().await {
+            Ok(_) => {}
+            Err(error) => {
+                tracing::error!(error = ?error);
+                let _ = self.writeln_title(TitleFormat::error(format!("{error:?}")));
+            }
         }
-        result
     }
 
     async fn run_inner(&mut self) -> Result<()> {
