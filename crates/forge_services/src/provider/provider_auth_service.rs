@@ -685,18 +685,31 @@ impl<I> ForgeProviderAuthService<I> {
             AuthFlowError::RefreshFailed("Missing OAuth tokens in credential".to_string())
         })?;
 
-        // Use the stored access token to fetch fresh API key using config
+        // First, refresh the OAuth access token using the refresh token
+        let token_response =
+            ForgeOAuthService::refresh_access_token(config, oauth_tokens.refresh_token.as_str())
+                .await
+                .map_err(|e| {
+                    AuthFlowError::RefreshFailed(format!(
+                        "Failed to refresh OAuth access token: {}",
+                        e
+                    ))
+                })?;
+
+        // Use the refreshed access token to fetch fresh API key
         let (new_api_key, expires_at) = self
-            .exchange_oauth_for_api_key(&oauth_tokens.access_token, config)
+            .exchange_oauth_for_api_key(&token_response.access_token, config)
             .await
             .map_err(|e| {
                 AuthFlowError::RefreshFailed(format!("Failed to refresh API key: {}", e))
             })?;
 
-        // Create updated OAuth tokens with new expiry
+        // Create updated OAuth tokens with refreshed access token and new expiry
         let updated_tokens = OAuthTokens::new(
-            oauth_tokens.refresh_token.as_str().to_string(),
-            oauth_tokens.access_token.as_str().to_string(),
+            token_response
+                .refresh_token
+                .unwrap_or_else(|| oauth_tokens.refresh_token.as_str().to_string()),
+            token_response.access_token,
             expires_at,
         );
 
