@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use chrono::Utc;
 use forge_app::dto::{OAuthTokens, ProviderCredential, ProviderId};
 use forge_domain::Environment;
 use forge_fs::ForgeFS;
@@ -162,16 +161,8 @@ impl ProviderCredentialRepository for ProviderCredentialJsonRepository {
     /// # Errors
     ///
     /// Returns an error if the file cannot be read, written, or parsed.
-    async fn upsert_credential(&self, mut credential: ProviderCredential) -> anyhow::Result<()> {
+    async fn upsert_credential(&self, credential: ProviderCredential) -> anyhow::Result<()> {
         let mut credentials = self.get_cached_credentials().await?;
-
-        // Update timestamp based on whether this is an insert or update
-        if credentials.contains_key(&credential.provider_id) {
-            credential.updated_at = Utc::now();
-        } else {
-            credential.created_at = Utc::now();
-            credential.updated_at = Utc::now();
-        }
 
         // Upsert into map
         credentials.insert(credential.provider_id, credential);
@@ -240,7 +231,6 @@ impl ProviderCredentialRepository for ProviderCredentialJsonRepository {
         })?;
 
         credential.oauth_tokens = Some(tokens);
-        credential.updated_at = Utc::now();
 
         // Write to file
         let file = ProviderCredentialsFile {
@@ -258,7 +248,7 @@ impl ProviderCredentialRepository for ProviderCredentialJsonRepository {
 
 #[cfg(test)]
 mod tests {
-    use chrono::Duration;
+    use chrono::{Duration, Utc};
     use pretty_assertions::assert_eq;
     use tempfile::TempDir;
 

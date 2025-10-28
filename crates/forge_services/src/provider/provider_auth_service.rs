@@ -708,7 +708,6 @@ impl<I> ForgeProviderAuthService<I> {
         let mut refreshed = credential.clone();
         refreshed.api_key = Some(new_api_key);
         refreshed.oauth_tokens = Some(updated_tokens);
-        refreshed.updated_at = chrono::Utc::now();
 
         Ok(refreshed)
     }

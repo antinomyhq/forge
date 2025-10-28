@@ -83,40 +83,28 @@ pub struct ProviderCredential {
     /// URL parameters (e.g., Azure resource name, Vertex project ID)
     #[serde(default)]
     pub url_params: HashMap<URLParam, URLParamValue>,
-
-    /// When the credential was created
-    pub created_at: DateTime<Utc>,
-
-    /// When the credential was last updated
-    pub updated_at: DateTime<Utc>,
 }
 
 impl ProviderCredential {
     /// Creates a new API key credential
     pub fn new_api_key(provider_id: ProviderId, api_key: impl Into<ApiKey>) -> Self {
-        let now = Utc::now();
         Self {
             provider_id,
             auth_type: AuthType::ApiKey,
             api_key: Some(api_key.into()),
             oauth_tokens: None,
             url_params: HashMap::new(),
-            created_at: now,
-            updated_at: now,
         }
     }
 
     /// Creates a new OAuth credential
     pub fn new_oauth(provider_id: ProviderId, oauth_tokens: OAuthTokens) -> Self {
-        let now = Utc::now();
         Self {
             provider_id,
             auth_type: AuthType::OAuth,
             api_key: None,
             oauth_tokens: Some(oauth_tokens),
             url_params: HashMap::new(),
-            created_at: now,
-            updated_at: now,
         }
     }
 
@@ -126,15 +114,12 @@ impl ProviderCredential {
         api_key: impl Into<ApiKey>,
         oauth_tokens: OAuthTokens,
     ) -> Self {
-        let now = Utc::now();
         Self {
             provider_id,
             auth_type: AuthType::OAuthWithApiKey,
             api_key: Some(api_key.into()),
             oauth_tokens: Some(oauth_tokens),
             url_params: HashMap::new(),
-            created_at: now,
-            updated_at: now,
         }
     }
 
@@ -161,6 +146,5 @@ impl ProviderCredential {
     /// Updates the OAuth tokens
     pub fn update_oauth_tokens(&mut self, tokens: OAuthTokens) {
         self.oauth_tokens = Some(tokens);
-        self.updated_at = Utc::now();
     }
 }
