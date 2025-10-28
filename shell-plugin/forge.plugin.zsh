@@ -266,8 +266,15 @@ function _forge_action_commit() {
     commit_message=$($_FORGE_BIN commit --preview --max-diff 5000 2>&1)
     
     if [[ -n "$commit_message" ]]; then
-        # Fill buffer with git commit command using the generated message
-        BUFFER="git commit -m \"${commit_message}\""
+        if git diff --staged --quiet; then
+            BUFFER="git commit -a -F- <<'EOF'
+${commit_message}
+EOF"
+        else
+            BUFFER="git commit -F- <<'EOF'
+${commit_message}
+EOF"
+        fi
         CURSOR=${#BUFFER}
         zle reset-prompt
     else

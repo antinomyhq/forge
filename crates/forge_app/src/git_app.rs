@@ -199,9 +199,6 @@ impl<S: Services> GitApp<S> {
             .await?;
         let message = stream.into_full(false).await?;
 
-        // Escape the message for safe shell usage using proper shell escaping
-        let escaped_message = shell_escape::escape(message.content.into()).to_string();
-
-        Ok(CommitMessageDetails { message: escaped_message, has_staged_files })
+        Ok(CommitMessageDetails { message: message.content.into(), has_staged_files })
     }
 }
