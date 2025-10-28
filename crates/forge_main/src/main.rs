@@ -56,7 +56,7 @@ async fn main() -> Result<()> {
     // Initialize the ForgeAPI with the restricted mode if specified
     let restricted = cli.restricted;
     let mut ui = UI::init(cli, move || ForgeAPI::init(restricted, cwd.clone()))?;
-    ui.run().await;
+    ui.run().await?;
 
     Ok(())
 }
