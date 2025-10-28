@@ -286,11 +286,7 @@ EOF"
         # Refresh display to show the new command
         zle reset-prompt
     else
-        if [[ -n "$commit_message" ]]; then
-            echo "$commit_message"
-        else
-            echo "\033[31m⏺\033[0m \033[90m[$(date '+%H:%M:%S')]\033[0m \033[1;31mERROR:\033[0m Failed to generate commit message"
-        fi
+        echo "\033[31m⏺\033[0m \033[90m[$(date '+%H:%M:%S')]\033[0m \033[1;31mERROR:\033[0m Failed to generate commit message"
         _forge_reset
     fi
 }
