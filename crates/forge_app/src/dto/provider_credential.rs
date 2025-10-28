@@ -163,18 +163,3 @@ impl ProviderCredential {
         self.updated_at = Utc::now();
     }
 }
-
-impl Default for ProviderCredential {
-    fn default() -> Self {
-        let now = Utc::now();
-        Self {
-            provider_id: ProviderId::OpenAI,
-            auth_type: AuthType::ApiKey,
-            api_key: None,
-            oauth_tokens: None,
-            url_params: HashMap::new(),
-            created_at: now,
-            updated_at: now,
-        }
-    }
-}
