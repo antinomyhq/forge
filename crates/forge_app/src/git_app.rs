@@ -199,6 +199,6 @@ impl<S: Services> GitApp<S> {
             .await?;
         let message = stream.into_full(false).await?;
 
-        Ok(CommitMessageDetails { message: message.content.into(), has_staged_files })
+        Ok(CommitMessageDetails { message: message.content, has_staged_files })
     }
 }
