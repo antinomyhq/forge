@@ -57,8 +57,8 @@ function _forge_reset() {
 
 # Helper function to print operating agent messages with consistent formatting
 function _forge_print_agent_message() {
-    local agent_name="${1:-${FORGE_ACTIVE_AGENT}}"
-    echo "\033[33m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] \033[1;37m${agent_name:u}\033[0m \033[90mis now the active agent\033[0m"
+    local agent_name="$($_FORGE_BIN config get agent 2>/dev/null)"
+    echo "\033[33m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] \033[1;37m${agent_name:u}\033[0m \033[90mis the active agent\033[0m"
 }
 
 # Helper function to select and set config values with fzf
@@ -121,7 +121,6 @@ function _forge_handle_session_command() {
 
 # Store conversation ID in a temporary variable (local to plugin)
 export FORGE_CONVERSATION_ID=""
-export FORGE_ACTIVE_AGENT="forge"
 
 # Custom completion widget that handles both :commands and @ completion
 function forge-completion() {
@@ -185,9 +184,8 @@ function forge-completion() {
 function _forge_action_new() {
     echo
     _forge_exec banner
-    _forge_print_agent_message "FORGE"
+    _forge_print_agent_message
     FORGE_CONVERSATION_ID=""
-    FORGE_ACTIVE_AGENT="forge"
     _forge_reset
 }
 
@@ -289,7 +287,8 @@ function _forge_action_model() {
 # Action handler: Show tools
 function _forge_action_tools() {
     echo
-    _forge_exec list tools "${FORGE_ACTIVE_AGENT}"
+    local current_agent="$($_FORGE_BIN config get agent 2>/dev/null)"
+    _forge_exec list tools "$current_agent"
     _forge_reset
 }
 
@@ -312,11 +311,12 @@ function _forge_action_default() {
         fi
     fi
     
-    # If input_text is empty, just set the active agent
+    # If input_text is empty, just set the active agent (only if user explicitly specified one)
     if [[ -z "$input_text" ]]; then
-        echo
-        FORGE_ACTIVE_AGENT="${user_action:-${FORGE_ACTIVE_AGENT}}"
-        _forge_print_agent_message
+        if [[ -n "$user_action" ]]; then
+            echo
+            _forge_exec config set --agent "$user_action"
+        fi
         _forge_reset
         return 0
     fi
@@ -326,13 +326,15 @@ function _forge_action_default() {
         FORGE_CONVERSATION_ID=$($_FORGE_BIN session new)
     fi
     
-    # Set the active agent for this execution
-    FORGE_ACTIVE_AGENT="${user_action:-${FORGE_ACTIVE_AGENT}}"
-    
     echo
     
+    # Only set the agent if user explicitly specified one
+    if [[ -n "$user_action" ]]; then
+        _forge_exec config set --agent "$user_action"
+    fi
+    
     # Execute the forge command directly with proper escaping
-    _forge_exec -p "$input_text" --cid "$FORGE_CONVERSATION_ID" --aid "$FORGE_ACTIVE_AGENT"
+    _forge_exec -p "$input_text" --cid "$FORGE_CONVERSATION_ID"
     
     # Reset the prompt
     _forge_reset
