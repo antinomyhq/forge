@@ -191,10 +191,14 @@ function _forge_action_new() {
     _forge_reset
 }
 
-# Action handler: Show info
+# Action handler: Show session info
 function _forge_action_info() {
     echo
-    _forge_exec info 
+    if [[ -n "$FORGE_CONVERSATION_ID" ]]; then
+        _forge_exec session info "$FORGE_CONVERSATION_ID"
+    else
+        _forge_exec info
+    fi
     _forge_reset
 }
 
@@ -320,7 +324,7 @@ function _forge_action_default() {
     echo
     
     # Execute the forge command directly with proper escaping
-    _forge_exec -p "$input_text"
+    _forge_exec -p "$input_text" --cid "$FORGE_CONVERSATION_ID"
     
     # Reset the prompt
     _forge_reset

@@ -24,7 +24,7 @@ use tracing::debug;
 
 use crate::cli::{Cli, ExtensionCommand, ListCommand, McpCommand, SessionCommand, TopLevelCommand};
 use crate::conversation_selector::ConversationSelector;
-use crate::env::{get_agent_from_env, get_conversation_id_from_env, should_show_completion_prompt};
+use crate::env::{get_agent_from_env, should_show_completion_prompt};
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{CliModel, CliProvider, Command, ForgeCommandManager, PartialEvent};
@@ -84,6 +84,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Reset previously set CLI parameters by the user
         self.cli.conversation = None;
+        self.cli.conversation_id = None;
 
         self.display_banner()?;
         self.trace_user();
@@ -362,12 +363,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 // Make sure to init model
                 self.on_new().await?;
 
-                // Resolve conversation ID from environment or state
-                let conversation_id = get_conversation_id_from_env()
-                    .or(self.state.conversation_id)
-                    .context("No active conversation. Start a conversation first.")?;
-
-                self.on_info(porcelain, conversation_id).await?;
+                self.on_info(porcelain, None).await?;
                 return Ok(());
             }
             TopLevelCommand::Banner => {
@@ -467,7 +463,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                 self.validate_session_exists(&conversation_id).await?;
 
-                self.on_info(session_group.porcelain, conversation_id)
+                self.on_info(session_group.porcelain, Some(conversation_id))
                     .await?;
             }
         }
@@ -758,12 +754,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_info(
         &mut self,
         porcelain: bool,
-        conversation_id: ConversationId,
+        conversation_id: Option<ConversationId>,
     ) -> anyhow::Result<()> {
         let mut info = Info::from(&self.api.environment());
 
         // Fetch conversation
-        let conversation = self.api.conversation(&conversation_id).await.ok().flatten();
+        let conversation = match conversation_id {
+            Some(conversation_id) => self.api.conversation(&conversation_id).await.ok().flatten(),
+            None => None,
+        };
 
         let key_info = self.api.get_login_info().await;
         let operating_agent = self.api.get_operating_agent().await;
@@ -904,12 +903,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_new().await?;
             }
             Command::Info => {
-                // Resolve conversation ID from environment or state
-                let conversation_id = get_conversation_id_from_env()
-                    .or(self.state.conversation_id)
-                    .context("No active conversation. Start a conversation first.")?;
-
-                self.on_info(false, conversation_id).await?;
+                self.on_info(false, None).await?;
             }
             Command::Usage => {
                 self.on_usage().await?;
@@ -1224,6 +1218,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     ) -> Result<ConversationId, anyhow::Error> {
         Ok(if let Some(id) = self.state.conversation_id {
             id
+        } else if let Some(ref id_str) = self.cli.conversation_id {
+            // Parse and use the provided conversation ID
+            let id = ConversationId::parse(id_str).context("Failed to parse conversation ID")?;
+
+            // Check if conversation exists, if not create it
+            if self.api.conversation(&id).await?.is_none() {
+                let conversation = Conversation::new(id);
+                self.api.upsert_conversation(conversation).await?;
+                *is_new = true;
+            }
+            id
         } else if let Some(ref path) = self.cli.conversation {
             let conversation: Conversation =
                 serde_json::from_str(ForgeFS::read_utf8(path.as_os_str()).await?.as_str())
@@ -1246,28 +1251,31 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     ) -> Result<ConversationId, anyhow::Error> {
         Ok(if let Some(id) = self.state.conversation_id {
             id
+        } else if let Some(ref id_str) = self.cli.conversation_id {
+            // Parse and use the provided conversation ID
+            let id = ConversationId::parse(id_str).context("Failed to parse conversation ID")?;
+
+            // Check if conversation exists, if not create it
+            if self.api.conversation(&id).await?.is_none() {
+                if let Some(agent_id) = get_agent_from_env() {
+                    self.api.set_operating_agent(agent_id).await?;
+                }
+
+                let conversation = Conversation::new(id);
+                self.api.upsert_conversation(conversation).await?;
+                *is_new = true;
+            }
+            id
         } else {
             if let Some(agent_id) = get_agent_from_env() {
                 self.api.set_operating_agent(agent_id).await?;
             }
-            if let Some(id) = get_conversation_id_from_env() {
-                match self.api.conversation(&id).await? {
-                    Some(conversation) => conversation.id,
-                    None => {
-                        let conversation = Conversation::new(id);
-                        let id = conversation.id;
-                        self.api.upsert_conversation(conversation).await?;
-                        *is_new = true;
-                        id
-                    }
-                }
-            } else {
-                let conversation = Conversation::generate();
-                let id = conversation.id;
-                self.api.upsert_conversation(conversation).await?;
-                *is_new = true;
-                id
-            }
+
+            let conversation = Conversation::generate();
+            let id = conversation.id;
+            self.api.upsert_conversation(conversation).await?;
+            *is_new = true;
+            id
         })
     }
 

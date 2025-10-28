@@ -25,6 +25,14 @@ pub struct Cli {
     #[arg(long)]
     pub conversation: Option<PathBuf>,
 
+    /// Conversation ID to use for this session.
+    ///
+    /// If provided, the application will use this conversation ID instead of
+    /// generating a new one. This allows resuming or continuing existing
+    /// conversations.
+    #[arg(long, alias="cid")]
+    pub conversation_id: Option<String>,
+
     /// Working directory to set before starting forge.
     ///
     /// If provided, the application will change to this directory before
@@ -773,5 +781,31 @@ mod tests {
         };
         assert_eq!(id, "test123");
         assert_eq!(porcelain, true);
+    }
+
+    #[test]
+    fn test_prompt_with_conversation_id() {
+        let fixture = Cli::parse_from([
+            "forge",
+            "-p",
+            "hello",
+            "--conversation-id",
+            "550e8400-e29b-41d4-a716-446655440000",
+        ]);
+        let actual = fixture.conversation_id;
+        let expected = Some("550e8400-e29b-41d4-a716-446655440000".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_conversation_id_without_prompt() {
+        let fixture = Cli::parse_from([
+            "forge",
+            "--conversation-id",
+            "550e8400-e29b-41d4-a716-446655440000",
+        ]);
+        let actual = fixture.conversation_id;
+        let expected = Some("550e8400-e29b-41d4-a716-446655440000".to_string());
+        assert_eq!(actual, expected);
     }
 }
