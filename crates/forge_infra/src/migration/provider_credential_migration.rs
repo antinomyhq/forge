@@ -6,23 +6,43 @@ use forge_services::registry::get_provider_credential_vars;
 use forge_services::{EnvironmentInfra, ProviderCredentialRepository};
 use strum::IntoEnumIterator;
 
+/// Migrates provider credentials from environment variables to JSON file
+///
+/// Checks if JSON file already has credentials and only migrates from
+/// environment if the file is empty.
 pub struct ProviderCredentialMigration<E, R> {
     env_infra: Arc<E>,
     credential_repo: Arc<R>,
 }
 
 impl<E, R> ProviderCredentialMigration<E, R> {
+    /// Creates a new migration instance
+    ///
+    /// # Arguments
+    ///
+    /// * `env_infra` - Environment infrastructure for reading environment
+    ///   variables
+    /// * `credential_repo` - Target JSON repository to migrate credentials into
     pub fn new(env_infra: Arc<E>, credential_repo: Arc<R>) -> Self {
         Self { env_infra, credential_repo }
     }
 }
 
 impl<E: EnvironmentInfra, R: ProviderCredentialRepository> ProviderCredentialMigration<E, R> {
+    /// Runs the migration process
+    ///
+    /// This is idempotent - running it multiple times is safe.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if credential insertion fails.
     pub async fn run(&self) -> Result<()> {
+        // Check if JSON file already has credentials
         if !self.credential_repo.get_all_credentials().await?.is_empty() {
             return Ok(());
         }
 
+        // Migrate from environment variables
         let mut imported = 0;
         for provider_id in ProviderId::iter() {
             if self.migrate_provider(&provider_id).await?.is_some() {
@@ -37,6 +57,11 @@ impl<E: EnvironmentInfra, R: ProviderCredentialRepository> ProviderCredentialMig
         Ok(())
     }
 
+    /// Migrates a single provider's credentials from environment variables
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if credential insertion fails.
     async fn migrate_provider(
         &self,
         provider_id: &ProviderId,

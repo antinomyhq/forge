@@ -31,7 +31,7 @@ use crate::mcp_client::ForgeMcpClient;
 use crate::mcp_server::ForgeMcpServer;
 use crate::repository::{
     AppConfigRepositoryImpl, CacacheRepository, ConversationRepositoryImpl,
-    ProviderCredentialRepositoryImpl,
+    ProviderCredentialJsonRepository,
 };
 use crate::walker::ForgeWalkerService;
 
@@ -55,7 +55,7 @@ pub struct ForgeInfra {
     conversation_repository: Arc<ConversationRepositoryImpl>,
     app_config_repository: Arc<AppConfigRepositoryImpl>,
     mcp_cache_repository: Arc<CacacheRepository>,
-    provider_credential_repository: Arc<ProviderCredentialRepositoryImpl>,
+    provider_credential_repository: Arc<ProviderCredentialJsonRepository>,
 }
 
 impl ForgeInfra {
@@ -81,26 +81,20 @@ impl ForgeInfra {
         )); // 1 hour TTL
 
         let provider_credential_repository =
-            Arc::new(ProviderCredentialRepositoryImpl::new(db_pool.clone()));
+            Arc::new(ProviderCredentialJsonRepository::new(Arc::new(env.clone())));
 
-        // Migrate provider credentials from environment if table was just created
-        if db_pool
-            .executed_migrations
-            .iter()
-            .any(|m| m.contains("20251021000000"))
-        {
-            use crate::ProviderCredentialMigration;
-            tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(async {
-                    if let Err(e) = ProviderCredentialMigration::new(
-                        environment_service.clone(),
-                        provider_credential_repository.clone(),
-                    ).run().await {
-                        tracing::warn!(error = %e, "Failed to migrate provider credentials from environment");
-                    }
-                })
-            });
-        }
+        // Migrate provider credentials from environment
+        use crate::ProviderCredentialMigration;
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                if let Err(e) = ProviderCredentialMigration::new(
+                    environment_service.clone(),
+                    provider_credential_repository.clone(),
+                ).run().await {
+                    tracing::warn!(error = %e, "Failed to migrate provider credentials from environment");
+                }
+            })
+        });
 
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
