@@ -233,7 +233,7 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some("test-key".to_string()),
-            models: forge_app::dto::Models::Url(
+            models: forge_domain::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
         };
@@ -253,7 +253,7 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some("test-key".to_string()),
-            models: forge_app::dto::Models::Url(
+            models: forge_domain::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
         };
@@ -275,7 +275,7 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some("test-key".to_string()),
-            models: forge_app::dto::Models::Url(
+            models: forge_domain::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
         };
@@ -300,7 +300,7 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some("test-key".to_string()),
-            models: forge_app::dto::Models::Url(
+            models: forge_domain::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
         };

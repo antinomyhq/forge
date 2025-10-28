@@ -20,7 +20,7 @@ pub struct Anthropic<T> {
     http: Arc<T>,
     api_key: String,
     chat_url: Url,
-    models: forge_app::dto::Models,
+    models: forge_domain::Models,
     anthropic_version: String,
 }
 
@@ -29,7 +29,7 @@ impl<H: HttpClientService> Anthropic<H> {
         http: Arc<H>,
         api_key: String,
         chat_url: Url,
-        models: forge_app::dto::Models,
+        models: forge_domain::Models,
         version: String,
     ) -> Self {
         Self { http, api_key, chat_url, models, anthropic_version: version }
@@ -86,7 +86,7 @@ impl<T: HttpClientService> Anthropic<T> {
 
     pub async fn models(&self) -> anyhow::Result<Vec<Model>> {
         match &self.models {
-            forge_app::dto::Models::Url(url) => {
+            forge_domain::Models::Url(url) => {
                 debug!(url = %url, "Fetching models");
 
                 let response = self
@@ -116,7 +116,7 @@ impl<T: HttpClientService> Anthropic<T> {
                         .with_context(|| "Failed to fetch the models")
                 }
             }
-            forge_app::dto::Models::Hardcoded(models) => {
+            forge_domain::Models::Hardcoded(models) => {
                 debug!("Using hardcoded models");
                 Ok(models.clone())
             }
@@ -191,7 +191,7 @@ mod tests {
             Arc::new(MockHttpClient::new()),
             "sk-test-key".to_string(),
             chat_url,
-            forge_app::dto::Models::Url(model_url),
+            forge_domain::Models::Url(model_url),
             "2023-06-01".to_string(),
         ))
     }
@@ -241,11 +241,11 @@ mod tests {
             Arc::new(MockHttpClient::new()),
             "sk-some-key".to_string(),
             chat_url,
-            forge_app::dto::Models::Url(model_url.clone()),
+            forge_domain::Models::Url(model_url.clone()),
             "v1".to_string(),
         );
         match &anthropic.models {
-            forge_app::dto::Models::Url(url) => {
+            forge_domain::Models::Url(url) => {
                 assert_eq!(url.as_str(), "https://api.anthropic.com/v1/models");
             }
             _ => panic!("Expected Models::Url variant"),

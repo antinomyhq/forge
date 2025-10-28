@@ -180,7 +180,7 @@ impl fmt::Display for Porcelain {
                 } else {
                     // Pad to column width
                     line.push_str(&format!("{:<width$}", content, width = col_widths[i]));
-                    line.push(' ');
+                    line.push_str("  ");
                 }
             }
             lines.push(line);
@@ -536,9 +536,9 @@ mod tests {
         let actual = info.to_string();
         let expected = [
             //
-            "$ID   name  age",
-            "user1 Alice 30",
-            "user2 Bob   25",
+            "$ID    name   age",
+            "user1  Alice  30",
+            "user2  Bob    25",
         ]
         .join("\n");
 
@@ -560,9 +560,9 @@ mod tests {
         let actual = info.to_string();
         let expected = [
             //
-            "$ID   name  age",
-            "user1 Alice 30",
-            "user2       25",
+            "$ID    name   age",
+            "user1  Alice  30",
+            "user2         25",
         ]
         .join("\n");
 

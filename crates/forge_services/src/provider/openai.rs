@@ -100,7 +100,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
             Ok(self.inner_vertex_models())
         } else {
             match &self.provider.models {
-                forge_app::dto::Models::Url(url) => {
+                forge_domain::Models::Url(url) => {
                     debug!(url = %url, "Fetching models");
                     match self.fetch_models(url.as_str()).await {
                         Err(error) => {
@@ -115,7 +115,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
                         }
                     }
                 }
-                forge_app::dto::Models::Hardcoded(models) => {
+                forge_domain::Models::Hardcoded(models) => {
                     debug!("Using hardcoded models");
                     Ok(models.clone())
                 }
@@ -201,7 +201,7 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some(key.into()),
-            models: forge_app::dto::Models::Url(
+            models: forge_domain::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
         }
@@ -213,7 +213,7 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
             key: Some(key.into()),
-            models: forge_app::dto::Models::Url(
+            models: forge_domain::Models::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             ),
         }
@@ -225,7 +225,7 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
             key: Some(key.into()),
-            models: forge_app::dto::Models::Url(
+            models: forge_domain::Models::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             ),
         }
@@ -237,7 +237,7 @@ mod tests {
             response: ProviderResponse::Anthropic,
             url: Url::parse("https://api.anthropic.com/v1/messages").unwrap(),
             key: Some(key.into()),
-            models: forge_app::dto::Models::Url(
+            models: forge_domain::Models::Url(
                 Url::parse("https://api.anthropic.com/v1/models").unwrap(),
             ),
         }
@@ -297,7 +297,7 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: reqwest::Url::parse(base_url)?,
             key: Some("test-api-key".to_string()),
-            models: forge_app::dto::Models::Url(reqwest::Url::parse(base_url)?.join("models")?),
+            models: forge_domain::Models::Url(reqwest::Url::parse(base_url)?.join("models")?),
         };
 
         Ok(OpenAIProvider::new(

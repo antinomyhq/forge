@@ -208,15 +208,10 @@ impl fmt::Display for Info {
                 Section::Items(key, value) => {
                     if let Some(key) = key {
                         if let Some(width) = width {
-                            writeln!(
-                                f,
-                                "  {} {}",
-                                format!("{key:<width$}:").bright_cyan().bold(),
-                                value
-                            )?;
+                            writeln!(f, "  {} {}", format!("{key:<width$}:").cyan().bold(), value)?;
                         } else {
                             // No section width (items without a title)
-                            writeln!(f, "  {}: {}", key.bright_cyan().bold(), value)?;
+                            writeln!(f, "  {}: {}", key.cyan().bold(), value)?;
                         }
                     } else {
                         // Show value-only items

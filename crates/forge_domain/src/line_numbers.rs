@@ -13,7 +13,7 @@ impl<T: AsRef<str>> LineNumbers for T {
         self.as_ref()
             .lines()
             .enumerate()
-            .map(|(i, line)| format!("{}: {}", start + i, line))
+            .map(|(i, line)| format!("{}:{}", start + i, line))
             .collect::<Vec<_>>()
             .join("\n")
     }
@@ -26,21 +26,21 @@ mod tests {
     #[test]
     fn test_numbered_default_start() {
         let text = "first line\nsecond line\nthird line";
-        let expected = "1: first line\n2: second line\n3: third line";
+        let expected = "1:first line\n2:second line\n3:third line";
         assert_eq!(text.numbered(), expected);
     }
 
     #[test]
     fn test_numbered_from_custom_start() {
         let text = "alpha\nbeta\ngamma";
-        let expected = "5: alpha\n6: beta\n7: gamma";
+        let expected = "5:alpha\n6:beta\n7:gamma";
         assert_eq!(text.numbered_from(5), expected);
     }
 
     #[test]
     fn test_numbered_single_line() {
         let text = "single line";
-        let expected = "1: single line";
+        let expected = "1:single line";
         assert_eq!(text.numbered(), expected);
     }
 
@@ -54,7 +54,7 @@ mod tests {
     #[test]
     fn test_numbered_with_empty_lines() {
         let text = "line1\n\nline3";
-        let expected = "1: line1\n2: \n3: line3";
+        let expected = "1:line1\n2:\n3:line3";
         assert_eq!(text.numbered(), expected);
     }
 }

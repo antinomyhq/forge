@@ -168,9 +168,9 @@ impl<F: EnvironmentInfra + AppConfigRepository + FileReaderInfra> ForgeProviderR
                             )
                         })?,
                 )?;
-                forge_app::dto::Models::Url(model_url)
+                forge_domain::Models::Url(model_url)
             }
-            Models::Hardcoded(model_list) => forge_app::dto::Models::Hardcoded(model_list.clone()),
+            Models::Hardcoded(model_list) => forge_domain::Models::Hardcoded(model_list.clone()),
         };
 
         Ok(Provider {
@@ -460,13 +460,13 @@ mod env_tests {
 
         // Check model URL
         match provider.models {
-            forge_app::dto::Models::Url(model_url) => {
+            forge_domain::Models::Url(model_url) => {
                 assert_eq!(
                     model_url.as_str(),
                     "https://my-test-resource.openai.azure.com/openai/models?api-version=2024-02-01-preview"
                 );
             }
-            forge_app::dto::Models::Hardcoded(_) => panic!("Expected Models::Url variant"),
+            forge_domain::Models::Hardcoded(_) => panic!("Expected Models::Url variant"),
         }
     }
 
