@@ -233,7 +233,8 @@ impl<
             url: final_url,
             key: Some(api_key),
             models,
-            auth_type: None, // Environment-based providers don't track auth type
+            auth_type: None,  // Environment-based providers don't track auth type
+            credential: None, // Environment-based providers don't have database credentials
         })
     }
 
@@ -251,7 +252,7 @@ impl<
                 tracing::debug!(provider = ?id, "OAuth token needs refresh, attempting to refresh");
 
                 // Attempt to refresh tokens
-                match self.refresh_credential_tokens(&credential).await {
+                match self.refresh_credential_tokens(&id, &credential).await {
                     Ok(refreshed_credential) => {
                         tracing::info!(provider = ?id, "Successfully refreshed OAuth tokens");
                         credential = refreshed_credential;
@@ -279,18 +280,35 @@ impl<
     /// Refreshes OAuth tokens for a credential
     async fn refresh_credential_tokens(
         &self,
+        provider_id: &ProviderId,
         credential: &forge_app::dto::ProviderCredential,
     ) -> anyhow::Result<forge_app::dto::ProviderCredential> {
-        tracing::debug!(provider = ?credential.provider_id, "Refreshing credential tokens");
+        tracing::debug!(provider = ?provider_id, "Refreshing credential tokens");
 
         // Get authentication method from provider config
-        let auth_methods = get_provider_auth_methods(&credential.provider_id);
+        let auth_methods = get_provider_auth_methods(provider_id);
         let auth_method = auth_methods.first().ok_or_else(|| {
             anyhow::anyhow!(
                 "No authentication method found for provider {:?}",
-                credential.provider_id
+                provider_id
             )
         })?;
+
+        // Get provider config to build Provider instance
+        let config = get_provider_config(provider_id)
+            .ok_or_else(|| anyhow::anyhow!("Provider config not found for {:?}", provider_id))?;
+
+        // Build a temporary Provider instance for the refresh
+        let provider = Provider {
+            id: *provider_id,
+            response: config.response_type.clone(),
+            url: Url::parse(&config.url)
+                .unwrap_or_else(|_| Url::parse("http://localhost").unwrap()),
+            key: None,
+            models: forge_app::dto::Models::Hardcoded(vec![]),
+            auth_type: Some(auth_method.to_auth_type()),
+            credential: Some(credential.clone()),
+        };
 
         // Create provider auth service
         let auth_service = crate::provider::ForgeProviderAuthService::new(self.infra.clone());
@@ -298,7 +316,7 @@ impl<
         // Use service to refresh the credential (call trait method explicitly)
         use forge_app::ProviderAuthService as _;
         let refreshed_credential = auth_service
-            .refresh_provider_credential(credential, auth_method.clone())
+            .refresh_provider_credential(&provider, auth_method.clone())
             .await?;
 
         Ok(refreshed_credential)
@@ -391,6 +409,7 @@ impl<
             key: Some(api_key),
             models,
             auth_type: Some(credential.auth_type.clone()),
+            credential: Some(credential.clone()),
         })
     }
 
@@ -452,30 +471,68 @@ impl<
     }
 
     async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
-        use std::collections::HashSet;
+        use std::collections::HashMap;
 
-        // Start with database-based providers (highest priority)
-        let db_credentials = self.infra.get_all_credentials().await?;
-        let mut providers = Vec::new();
-        let mut provider_ids: HashSet<ProviderId> = HashSet::new();
+        // Get all available provider IDs from configuration
+        let available_provider_ids: Vec<ProviderId> = get_provider_configs()
+            .iter()
+            .filter(|config| config.id != ProviderId::Forge) // Exclude internal Forge provider
+            .map(|config| config.id)
+            .collect();
 
-        for credential in db_credentials {
-            // Try to create provider from credential
-            if let Ok(provider) = self
-                .create_provider_from_credential(&credential.provider_id, &credential)
-                .await
-            {
-                providers.push(provider);
-                provider_ids.insert(credential.provider_id);
-            }
-        }
+        // Get credentials
+        let credential_map = self.infra.get_all_credentials().await?;
 
-        // Add env-based providers that aren't already in the list (fallback)
+        // Get env-based providers
         let env_providers = self.get_providers().await.clone();
-        for provider in env_providers {
-            if !provider_ids.contains(&provider.id) {
-                provider_ids.insert(provider.id);
-                providers.push(provider);
+        let env_provider_map: HashMap<_, _> =
+            env_providers.into_iter().map(|p| (p.id, p)).collect();
+
+        let mut providers = Vec::new();
+
+        for provider_id in available_provider_ids {
+            // Priority: database credential > env-based provider > unconfigured provider
+            if let Some(credential) = credential_map.get(&provider_id) {
+                // Provider has database credential
+                if let Ok(provider) = self
+                    .create_provider_from_credential(&provider_id, credential)
+                    .await
+                {
+                    providers.push(provider);
+                }
+            } else if let Some(env_provider) = env_provider_map.get(&provider_id) {
+                // Provider configured via environment
+                providers.push(env_provider.clone());
+            } else {
+                // Provider not configured - create a basic entry without credentials
+                if let Some(config) = get_provider_configs().iter().find(|c| c.id == provider_id) {
+                    // Create a minimal provider entry without credentials
+                    let url = config.url.clone();
+                    let models = match &config.models {
+                        Models::Url(url_template) => {
+                            if let Ok(parsed_url) = Url::parse(url_template) {
+                                forge_app::dto::Models::Url(parsed_url)
+                            } else {
+                                continue; // Skip if URL is invalid
+                            }
+                        }
+                        Models::Hardcoded(models) => {
+                            forge_app::dto::Models::Hardcoded(models.clone())
+                        }
+                    };
+
+                    if let Ok(parsed_url) = Url::parse(&url) {
+                        providers.push(Provider {
+                            id: provider_id,
+                            response: config.response_type.clone(),
+                            url: parsed_url,
+                            key: None,
+                            models,
+                            auth_type: None,
+                            credential: None,
+                        });
+                    }
+                }
             }
         }
 
@@ -511,20 +568,6 @@ impl<
             config.agent = Some(agent_id);
         })
         .await
-    }
-
-    async fn available_provider_ids(&self) -> Vec<ProviderId> {
-        // Get built-in providers
-        let provider_ids: Vec<ProviderId> = get_provider_configs()
-            .iter()
-            .filter(|config| config.id != ProviderId::Forge) // Exclude internal Forge provider
-            .map(|config| config.id)
-            .collect();
-
-        // Note: Custom URLs don't add new provider IDs - they just override existing
-        // ones So we don't need to add anything here
-
-        provider_ids
     }
 }
 
@@ -694,6 +737,7 @@ mod env_tests {
     impl ProviderCredentialRepository for MockInfra {
         async fn upsert_credential(
             &self,
+            _provider_id: forge_app::dto::ProviderId,
             _credential: forge_app::dto::ProviderCredential,
         ) -> anyhow::Result<()> {
             Ok(())
@@ -708,8 +752,13 @@ mod env_tests {
 
         async fn get_all_credentials(
             &self,
-        ) -> anyhow::Result<Vec<forge_app::dto::ProviderCredential>> {
-            Ok(Vec::new())
+        ) -> anyhow::Result<
+            std::collections::HashMap<
+                forge_app::dto::ProviderId,
+                forge_app::dto::ProviderCredential,
+            >,
+        > {
+            Ok(std::collections::HashMap::new())
         }
 
         async fn update_oauth_tokens(

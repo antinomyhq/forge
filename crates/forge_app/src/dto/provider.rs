@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumString};
 use url::Url;
 
-use super::AuthType;
 use super::auth_flow::ApiKey;
+use super::{AuthType, ProviderCredential};
 
 /// --- IMPORTANT ---
 /// The order of providers is important because that would be order in which the
@@ -100,6 +100,7 @@ pub enum Models {
 
 /// Providers that can be used.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Setters)]
+#[setters(strip_option, into)]
 pub struct Provider {
     pub id: ProviderId,
     pub response: ProviderResponse,
@@ -107,6 +108,16 @@ pub struct Provider {
     pub key: Option<ApiKey>,
     pub models: Models,
     pub auth_type: Option<AuthType>,
+    /// Optional credential information if configured via database
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credential: Option<ProviderCredential>,
+}
+
+impl Provider {
+    /// Checks if this provider has credentials configured
+    pub fn is_configured(&self) -> bool {
+        self.credential.is_some()
+    }
 }
 
 #[cfg(test)]
@@ -121,6 +132,7 @@ mod test_helpers {
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
             auth_type: None,
+            credential: None,
         }
     }
 
@@ -133,6 +145,7 @@ mod test_helpers {
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
             auth_type: None,
+            credential: None,
         }
     }
 
@@ -145,6 +158,7 @@ mod test_helpers {
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
             auth_type: None,
+            credential: None,
         }
     }
 
@@ -157,6 +171,7 @@ mod test_helpers {
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.x.ai/v1/models").unwrap()),
             auth_type: None,
+            credential: None,
         }
     }
 
@@ -192,6 +207,7 @@ mod test_helpers {
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse(&model_url).unwrap()),
             auth_type: None,
+            credential: None,
         }
     }
 
@@ -218,6 +234,7 @@ mod test_helpers {
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse(&model_url).unwrap()),
             auth_type: None,
+            credential: None,
         }
     }
 }
@@ -243,6 +260,7 @@ mod tests {
             key: Some(fixture.to_string().into()),
             models: Models::Url(Url::from_str("https://api.x.ai/v1/models").unwrap()),
             auth_type: None,
+            credential: None,
         };
         assert_eq!(actual, expected);
     }

@@ -361,16 +361,15 @@ pub trait AuthService: Send + Sync {
 pub trait ProviderRegistry: Send + Sync {
     async fn get_active_provider(&self) -> anyhow::Result<Provider>;
     async fn set_active_provider(&self, provider_id: ProviderId) -> anyhow::Result<()>;
+
+    /// Get all providers with optional credential information
+    /// Returns providers from both database credentials and environment
+    /// variables
     async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>>;
     async fn get_active_model(&self) -> anyhow::Result<ModelId>;
     async fn set_active_model(&self, model: ModelId) -> anyhow::Result<()>;
     async fn get_active_agent(&self) -> anyhow::Result<Option<AgentId>>;
     async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()>;
-
-    /// Get all available provider IDs from configuration (regardless of
-    /// initialization status)
-    /// Includes both built-in providers and registered custom providers
-    async fn available_provider_ids(&self) -> Vec<ProviderId>;
 }
 
 /// Provider authentication service
@@ -409,7 +408,7 @@ pub trait ProviderAuthService: Send + Sync {
     /// Uses refresh token to obtain new access token
     async fn refresh_provider_credential(
         &self,
-        credential: &ProviderCredential,
+        provider: &Provider,
         method: AuthMethod,
     ) -> anyhow::Result<ProviderCredential>;
 }
@@ -497,11 +496,6 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn command_loader_service(&self) -> &Self::CommandLoaderService;
     fn policy_service(&self) -> &Self::PolicyService;
     fn provider_auth_service(&self) -> &Self::ProviderAuthService;
-
-    /// Get all available provider IDs from configuration
-    async fn available_provider_ids(&self) -> Vec<ProviderId> {
-        self.provider_registry().available_provider_ids().await
-    }
 }
 
 #[async_trait::async_trait]
@@ -806,10 +800,6 @@ impl<I: Services> ProviderRegistry for I {
     async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()> {
         self.provider_registry().set_active_agent(agent_id).await
     }
-
-    async fn available_provider_ids(&self) -> Vec<ProviderId> {
-        self.provider_registry().available_provider_ids().await
-    }
 }
 
 #[async_trait::async_trait]
@@ -864,11 +854,11 @@ impl<I: Services> ProviderAuthService for I {
 
     async fn refresh_provider_credential(
         &self,
-        credential: &ProviderCredential,
+        provider: &Provider,
         method: AuthMethod,
     ) -> anyhow::Result<ProviderCredential> {
         self.provider_auth_service()
-            .refresh_provider_credential(credential, method)
+            .refresh_provider_credential(provider, method)
             .await
     }
 }

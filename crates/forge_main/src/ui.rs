@@ -541,30 +541,23 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .map_err(|_| anyhow::anyhow!("Invalid provider ID: {}", id))?
         } else {
             // Interactive selection
-            let available_ids = self.api.available_provider_ids().await?;
-            if available_ids.is_empty() {
+            let providers = self.api.get_providers().await?;
+            if providers.is_empty() {
                 anyhow::bail!("No providers available");
             }
 
-            // Get existing credentials to show status
-            let credentials = self.api.list_provider_credentials().await?;
-            let configured: std::collections::HashSet<_> = credentials
-                .iter()
-                .map(|c| c.provider_id.to_string())
-                .collect();
-
             // Create display options with status indicators
-            let max_width = available_ids
+            let max_width = providers
                 .iter()
-                .map(|id| id.to_string().len())
+                .map(|p| p.id.to_string().len())
                 .max()
                 .unwrap_or(0);
 
-            let options: Vec<String> = available_ids
+            let options: Vec<String> = providers
                 .iter()
-                .map(|id| {
-                    let id_str = id.to_string();
-                    if configured.contains(&id_str) {
+                .map(|p| {
+                    let id_str = p.id.to_string();
+                    if p.is_configured() {
                         format!("{:<max_width$} {}", id_str, "[✓ configured]".green())
                     } else {
                         format!("{:<max_width$} {}", id_str, "[+ new]".dimmed())
@@ -582,7 +575,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .position(|opt| opt.starts_with(selection.split_whitespace().next().unwrap()))
                 .ok_or_else(|| anyhow::anyhow!("Invalid selection"))?;
 
-            available_ids[selected_idx]
+            providers[selected_idx].id
         };
 
         println!(

@@ -10,11 +10,19 @@ use forge_services::ProviderCredentialRepository;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
+/// File representation of a provider credential (includes provider_id)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct FileProviderCredential {
+    provider_id: ProviderId,
+    #[serde(flatten)]
+    credential: ProviderCredential,
+}
+
 /// File storage structure for provider credentials
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ProviderCredentialsFile {
     version: u32,
-    credentials: Vec<ProviderCredential>,
+    credentials: Vec<FileProviderCredential>,
 }
 
 impl Default for ProviderCredentialsFile {
@@ -107,7 +115,7 @@ impl ProviderCredentialJsonRepository {
         let map: HashMap<ProviderId, ProviderCredential> = file
             .credentials
             .into_iter()
-            .map(|cred| (cred.provider_id, cred))
+            .map(|file_cred| (file_cred.provider_id, file_cred.credential))
             .collect();
         Ok(map)
     }
@@ -156,21 +164,29 @@ impl ProviderCredentialRepository for ProviderCredentialJsonRepository {
     ///
     /// # Arguments
     ///
+    /// * `provider_id` - The provider ID
     /// * `credential` - The credential to upsert
     ///
     /// # Errors
     ///
     /// Returns an error if the file cannot be read, written, or parsed.
-    async fn upsert_credential(&self, credential: ProviderCredential) -> anyhow::Result<()> {
+    async fn upsert_credential(
+        &self,
+        provider_id: ProviderId,
+        credential: ProviderCredential,
+    ) -> anyhow::Result<()> {
         let mut credentials = self.get_cached_credentials().await?;
 
         // Upsert into map
-        credentials.insert(credential.provider_id, credential);
+        credentials.insert(provider_id, credential);
 
         // Write to file
         let file = ProviderCredentialsFile {
             version: 1,
-            credentials: credentials.into_values().collect(),
+            credentials: credentials
+                .into_iter()
+                .map(|(id, cred)| FileProviderCredential { provider_id: id, credential: cred })
+                .collect(),
         };
         self.write_file(&file).await?;
 
@@ -202,9 +218,8 @@ impl ProviderCredentialRepository for ProviderCredentialJsonRepository {
     /// # Errors
     ///
     /// Returns an error if the file cannot be read or parsed.
-    async fn get_all_credentials(&self) -> anyhow::Result<Vec<ProviderCredential>> {
-        let credentials = self.get_cached_credentials().await?;
-        Ok(credentials.into_values().collect())
+    async fn get_all_credentials(&self) -> anyhow::Result<HashMap<ProviderId, ProviderCredential>> {
+        self.get_cached_credentials().await
     }
 
     /// Updates OAuth tokens for a provider
@@ -235,7 +250,10 @@ impl ProviderCredentialRepository for ProviderCredentialJsonRepository {
         // Write to file
         let file = ProviderCredentialsFile {
             version: 1,
-            credentials: credentials.into_values().collect(),
+            credentials: credentials
+                .into_iter()
+                .map(|(id, cred)| FileProviderCredential { provider_id: id, credential: cred })
+                .collect(),
         };
         self.write_file(&file).await?;
 
@@ -266,12 +284,12 @@ mod tests {
     #[tokio::test]
     async fn test_upsert_creates_file_on_first_write() -> anyhow::Result<()> {
         let (repo, _temp_dir) = setup()?;
-        let fixture =
-            ProviderCredential::new_api_key(ProviderId::Anthropic, "sk-ant-test".to_string());
+        let fixture = ProviderCredential::new_api_key("sk-ant-test".to_string());
 
         assert!(!repo.file_path.exists());
 
-        repo.upsert_credential(fixture.clone()).await?;
+        repo.upsert_credential(ProviderId::Anthropic, fixture.clone())
+            .await?;
 
         assert!(repo.file_path.exists());
         Ok(())
@@ -280,15 +298,14 @@ mod tests {
     #[tokio::test]
     async fn test_upsert_inserts_new_credential() -> anyhow::Result<()> {
         let (repo, _temp_dir) = setup()?;
-        let fixture =
-            ProviderCredential::new_api_key(ProviderId::Anthropic, "sk-ant-test".to_string());
+        let fixture = ProviderCredential::new_api_key("sk-ant-test".to_string());
 
-        repo.upsert_credential(fixture.clone()).await?;
+        repo.upsert_credential(ProviderId::Anthropic, fixture.clone())
+            .await?;
 
         let actual = repo.get_credential(&ProviderId::Anthropic).await?.unwrap();
 
         assert_eq!(actual.api_key, Some("sk-ant-test".to_string().into()));
-        assert_eq!(actual.provider_id, ProviderId::Anthropic);
         Ok(())
     }
 
@@ -297,9 +314,9 @@ mod tests {
         let (repo, _temp_dir) = setup()?;
 
         // Insert first credential (API Key)
-        let api_key_credential =
-            ProviderCredential::new_api_key(ProviderId::Anthropic, "sk-ant-api-key".to_string());
-        repo.upsert_credential(api_key_credential.clone()).await?;
+        let api_key_credential = ProviderCredential::new_api_key("sk-ant-api-key".to_string());
+        repo.upsert_credential(ProviderId::Anthropic, api_key_credential.clone())
+            .await?;
 
         // Verify it's retrievable
         let retrieved = repo.get_credential(&ProviderId::Anthropic).await?.unwrap();
@@ -312,11 +329,11 @@ mod tests {
             refresh_token: "refresh_456".to_string().into(),
             expires_at: Utc::now() + Duration::hours(1),
         };
-        let oauth_credential =
-            ProviderCredential::new_oauth(ProviderId::Anthropic, oauth_tokens.clone());
+        let oauth_credential = ProviderCredential::new_oauth(oauth_tokens.clone());
 
         // Insert second credential - should UPDATE not INSERT
-        repo.upsert_credential(oauth_credential.clone()).await?;
+        repo.upsert_credential(ProviderId::Anthropic, oauth_credential.clone())
+            .await?;
 
         // Verify OAuth credential replaced the API key
         let retrieved = repo.get_credential(&ProviderId::Anthropic).await?.unwrap();
@@ -339,18 +356,18 @@ mod tests {
         let (repo, _temp_dir) = setup()?;
 
         // First upsert - insert
-        let first_credential =
-            ProviderCredential::new_api_key(ProviderId::Anthropic, "key-v1".to_string());
-        repo.upsert_credential(first_credential).await?;
+        let first_credential = ProviderCredential::new_api_key("key-v1".to_string());
+        repo.upsert_credential(ProviderId::Anthropic, first_credential)
+            .await?;
 
         // Verify first credential was inserted
         let actual = repo.get_credential(&ProviderId::Anthropic).await?.unwrap();
         assert_eq!(actual.api_key, Some("key-v1".to_string().into()));
 
         // Second upsert - update (should update the same record)
-        let second_credential =
-            ProviderCredential::new_api_key(ProviderId::Anthropic, "key-v2".to_string());
-        repo.upsert_credential(second_credential).await?;
+        let second_credential = ProviderCredential::new_api_key("key-v2".to_string());
+        repo.upsert_credential(ProviderId::Anthropic, second_credential)
+            .await?;
 
         // Verify the credential was updated to the new value
         let actual = repo.get_credential(&ProviderId::Anthropic).await?.unwrap();
@@ -387,11 +404,11 @@ mod tests {
     async fn test_get_all_credentials_returns_all_stored() -> anyhow::Result<()> {
         let (repo, _temp_dir) = setup()?;
 
-        let cred1 = ProviderCredential::new_api_key(ProviderId::Anthropic, "key1".to_string());
-        let cred2 = ProviderCredential::new_api_key(ProviderId::OpenAI, "key2".to_string());
+        let cred1 = ProviderCredential::new_api_key("key1".to_string());
+        let cred2 = ProviderCredential::new_api_key("key2".to_string());
 
-        repo.upsert_credential(cred1).await?;
-        repo.upsert_credential(cred2).await?;
+        repo.upsert_credential(ProviderId::Anthropic, cred1).await?;
+        repo.upsert_credential(ProviderId::OpenAI, cred2).await?;
 
         let actual = repo.get_all_credentials().await?;
 
@@ -409,8 +426,9 @@ mod tests {
             refresh_token: "initial_refresh".to_string().into(),
             expires_at: Utc::now() + Duration::hours(1),
         };
-        let fixture = ProviderCredential::new_oauth(ProviderId::Anthropic, initial_tokens);
-        repo.upsert_credential(fixture.clone()).await?;
+        let fixture = ProviderCredential::new_oauth(initial_tokens);
+        repo.upsert_credential(ProviderId::Anthropic, fixture.clone())
+            .await?;
 
         // Update OAuth tokens
         let new_tokens = OAuthTokens {
@@ -433,7 +451,6 @@ mod tests {
             "new_refresh"
         );
         assert_eq!(actual.auth_type, fixture.auth_type);
-        assert_eq!(actual.provider_id, fixture.provider_id);
         Ok(())
     }
 
@@ -459,8 +476,9 @@ mod tests {
     async fn test_cache_behavior() -> anyhow::Result<()> {
         let (repo, _temp_dir) = setup()?;
 
-        let fixture = ProviderCredential::new_api_key(ProviderId::Anthropic, "key1".to_string());
-        repo.upsert_credential(fixture).await?;
+        let fixture = ProviderCredential::new_api_key("key1".to_string());
+        repo.upsert_credential(ProviderId::Anthropic, fixture)
+            .await?;
 
         // First read should populate cache
         let first_read = repo.get_credential(&ProviderId::Anthropic).await?.unwrap();
@@ -470,8 +488,9 @@ mod tests {
         assert_eq!(first_read.api_key, second_read.api_key);
 
         // Write should bust cache
-        let new_cred = ProviderCredential::new_api_key(ProviderId::Anthropic, "key2".to_string());
-        repo.upsert_credential(new_cred).await?;
+        let new_cred = ProviderCredential::new_api_key("key2".to_string());
+        repo.upsert_credential(ProviderId::Anthropic, new_cred)
+            .await?;
 
         // Next read should get fresh data
         let third_read = repo.get_credential(&ProviderId::Anthropic).await?.unwrap();

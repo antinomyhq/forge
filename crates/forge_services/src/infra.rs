@@ -293,6 +293,7 @@ pub trait ProviderCredentialRepository: Send + Sync {
     /// Returns error if database operation fails or encryption fails
     async fn upsert_credential(
         &self,
+        provider_id: forge_app::dto::ProviderId,
         credential: forge_app::dto::ProviderCredential,
     ) -> anyhow::Result<()>;
 
@@ -311,7 +312,12 @@ pub trait ProviderCredentialRepository: Send + Sync {
     /// # Errors
     ///
     /// Returns error if database operation fails or decryption fails
-    async fn get_all_credentials(&self) -> anyhow::Result<Vec<forge_app::dto::ProviderCredential>>;
+    /// Returns a HashMap with provider_id as key and credential as value
+    async fn get_all_credentials(
+        &self,
+    ) -> anyhow::Result<
+        std::collections::HashMap<forge_app::dto::ProviderId, forge_app::dto::ProviderCredential>,
+    >;
 
     /// Updates OAuth tokens for a provider
     ///

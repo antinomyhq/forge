@@ -223,6 +223,7 @@ mod tests {
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
             auth_type: None,
+            credential: None,
         }
     }
 
@@ -236,6 +237,7 @@ mod tests {
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             ),
             auth_type: None,
+            credential: None,
         }
     }
 
@@ -249,6 +251,7 @@ mod tests {
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             ),
             auth_type: None,
+            credential: None,
         }
     }
 
@@ -262,6 +265,7 @@ mod tests {
                 Url::parse("https://api.anthropic.com/v1/models").unwrap(),
             ),
             auth_type: None,
+            credential: None,
         }
     }
 
@@ -321,6 +325,7 @@ mod tests {
             key: Some("test-api-key".to_string().into()),
             models: forge_app::dto::Models::Url(reqwest::Url::parse(base_url)?.join("models")?),
             auth_type: None,
+            credential: None,
         };
 
         Ok(OpenAIProvider::new(

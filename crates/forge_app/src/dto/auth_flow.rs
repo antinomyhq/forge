@@ -235,6 +235,20 @@ impl AuthMethod {
             Self::ApiKey => None,
         }
     }
+
+    /// Converts AuthMethod to AuthType
+    pub fn to_auth_type(&self) -> crate::dto::AuthType {
+        match self {
+            Self::ApiKey => crate::dto::AuthType::ApiKey,
+            Self::OAuthDevice(config) | Self::OAuthCode(config) => {
+                if config.token_refresh_url.is_some() {
+                    crate::dto::AuthType::OAuthWithApiKey
+                } else {
+                    crate::dto::AuthType::OAuth
+                }
+            }
+        }
+    }
 }
 
 /// Trait for type-safe authentication flows

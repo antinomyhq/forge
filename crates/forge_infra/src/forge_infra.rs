@@ -351,10 +351,11 @@ impl AppConfigRepository for ForgeInfra {
 impl ProviderCredentialRepository for ForgeInfra {
     async fn upsert_credential(
         &self,
+        provider_id: forge_app::dto::ProviderId,
         credential: forge_app::dto::ProviderCredential,
     ) -> anyhow::Result<()> {
         self.provider_credential_repository
-            .upsert_credential(credential)
+            .upsert_credential(provider_id, credential)
             .await
     }
 
@@ -367,7 +368,11 @@ impl ProviderCredentialRepository for ForgeInfra {
             .await
     }
 
-    async fn get_all_credentials(&self) -> anyhow::Result<Vec<forge_app::dto::ProviderCredential>> {
+    async fn get_all_credentials(
+        &self,
+    ) -> anyhow::Result<
+        std::collections::HashMap<forge_app::dto::ProviderId, forge_app::dto::ProviderCredential>,
+    > {
         self.provider_credential_repository
             .get_all_credentials()
             .await

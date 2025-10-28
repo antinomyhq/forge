@@ -4,8 +4,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use forge_app::dto::{
-    AuthContext, AuthMethod, InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId,
-    ToolsOverview,
+    AuthContext, AuthMethod, InitAuth, LoginInfo, Provider, ProviderId, ToolsOverview,
 };
 use forge_app::{
     AgentLoaderService, AuthService, CommandLoaderService, ConversationService, EnvironmentService,
@@ -242,12 +241,8 @@ impl<
         self.services.get_commands().await
     }
 
-    async fn available_provider_ids(&self) -> Result<Vec<ProviderId>> {
-        Ok(self.services.available_provider_ids().await)
-    }
-
-    async fn list_provider_credentials(&self) -> Result<Vec<ProviderCredential>> {
-        self.infra.get_all_credentials().await
+    async fn get_providers(&self) -> Result<Vec<Provider>> {
+        self.services.get_all_providers().await
     }
 
     async fn init_provider_auth(

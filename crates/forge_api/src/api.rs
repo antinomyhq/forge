@@ -127,11 +127,8 @@ pub trait API: Sync + Send {
     /// List of commands defined in .md file(s)
     async fn get_commands(&self) -> Result<Vec<Command>>;
 
-    /// Get available provider IDs
-    async fn available_provider_ids(&self) -> Result<Vec<ProviderId>>;
-
-    // Provider credential management
-    async fn list_provider_credentials(&self) -> Result<Vec<ProviderCredential>>;
+    /// Get available providers with optional credential information
+    async fn get_providers(&self) -> Result<Vec<Provider>>;
 
     /// Initiate provider auth flow
     async fn init_provider_auth(

@@ -81,6 +81,7 @@ mod tests {
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://antinomy.ai/api/v1/models").unwrap()),
             auth_type: None,
+            credential: None,
         }
     }
 
@@ -92,6 +93,7 @@ mod tests {
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
             auth_type: None,
+            credential: None,
         }
     }
 
@@ -103,6 +105,7 @@ mod tests {
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
             auth_type: None,
+            credential: None,
         }
     }
 
@@ -114,6 +117,7 @@ mod tests {
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
             auth_type: None,
+            credential: None,
         }
     }
 
@@ -125,6 +129,7 @@ mod tests {
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.x.ai/v1/models").unwrap()),
             auth_type: None,
+            credential: None,
         }
     }
 
@@ -136,6 +141,7 @@ mod tests {
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.requesty.ai/v1/models").unwrap()),
             auth_type: None,
+            credential: None,
         }
     }
 
@@ -147,6 +153,7 @@ mod tests {
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://openrouter.ai/api/v1/models").unwrap()),
             auth_type: None,
+            credential: None,
         }
     }
 
@@ -158,6 +165,7 @@ mod tests {
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.anthropic.com/v1/models").unwrap()),
             auth_type: None,
+            credential: None,
         }
     }
 

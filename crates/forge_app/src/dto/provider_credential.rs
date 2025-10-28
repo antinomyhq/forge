@@ -6,7 +6,6 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use strum_macros::Display;
 
-use super::ProviderId;
 use crate::dto::auth_flow::{AccessToken, ApiKey, RefreshToken};
 use crate::dto::{URLParam, URLParamValue};
 
@@ -68,9 +67,6 @@ impl OAuthTokens {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Setters)]
 #[setters(strip_option, into)]
 pub struct ProviderCredential {
-    /// Provider identifier
-    pub provider_id: ProviderId,
-
     /// Type of authentication
     pub auth_type: AuthType,
 
@@ -87,9 +83,8 @@ pub struct ProviderCredential {
 
 impl ProviderCredential {
     /// Creates a new API key credential
-    pub fn new_api_key(provider_id: ProviderId, api_key: impl Into<ApiKey>) -> Self {
+    pub fn new_api_key(api_key: impl Into<ApiKey>) -> Self {
         Self {
-            provider_id,
             auth_type: AuthType::ApiKey,
             api_key: Some(api_key.into()),
             oauth_tokens: None,
@@ -98,9 +93,8 @@ impl ProviderCredential {
     }
 
     /// Creates a new OAuth credential
-    pub fn new_oauth(provider_id: ProviderId, oauth_tokens: OAuthTokens) -> Self {
+    pub fn new_oauth(oauth_tokens: OAuthTokens) -> Self {
         Self {
-            provider_id,
             auth_type: AuthType::OAuth,
             api_key: None,
             oauth_tokens: Some(oauth_tokens),
@@ -109,13 +103,8 @@ impl ProviderCredential {
     }
 
     /// Creates a new OAuth+API key credential (GitHub Copilot pattern)
-    pub fn new_oauth_with_api_key(
-        provider_id: ProviderId,
-        api_key: impl Into<ApiKey>,
-        oauth_tokens: OAuthTokens,
-    ) -> Self {
+    pub fn new_oauth_with_api_key(api_key: impl Into<ApiKey>, oauth_tokens: OAuthTokens) -> Self {
         Self {
-            provider_id,
             auth_type: AuthType::OAuthWithApiKey,
             api_key: Some(api_key.into()),
             oauth_tokens: Some(oauth_tokens),

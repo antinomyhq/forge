@@ -11,7 +11,7 @@ use chrono::Utc;
 use forge_app::ProviderAuthService;
 use forge_app::dto::{
     AccessToken, ApiKey, AuthContext, AuthResult, AuthorizationCode, OAuthConfig, OAuthTokens,
-    PkceVerifier, ProviderCredential, ProviderId, RefreshToken, URLParam, URLParamValue,
+    PkceVerifier, Provider, ProviderCredential, ProviderId, RefreshToken, URLParam, URLParamValue,
 };
 
 use super::AuthFlowError;
@@ -62,11 +62,11 @@ impl<I> ForgeProviderAuthService<I> {
     /// Handles API key authentication completion
     async fn handle_api_key_complete(
         &self,
-        provider_id: ProviderId,
+        _provider_id: ProviderId,
         api_key: ApiKey,
         url_params: std::collections::HashMap<URLParam, URLParamValue>,
     ) -> Result<ProviderCredential, super::AuthFlowError> {
-        Ok(ProviderCredential::new_api_key(provider_id, api_key).url_params(url_params))
+        Ok(ProviderCredential::new_api_key(api_key).url_params(url_params))
     }
     /// Injects custom headers into a HeaderMap
     fn inject_custom_headers(
@@ -150,21 +150,18 @@ impl<I> ForgeProviderAuthService<I> {
 
     /// Builds a provider credential from OAuth tokens
     fn build_oauth_credential(
-        provider_id: ProviderId,
+        _provider_id: ProviderId,
         access_token: impl Into<AccessToken>,
         refresh_token: Option<impl Into<RefreshToken>>,
         expires_at: chrono::DateTime<chrono::Utc>,
     ) -> ProviderCredential {
-        ProviderCredential::new_oauth(
-            provider_id,
-            OAuthTokens {
-                access_token: access_token.into(),
-                refresh_token: refresh_token
-                    .map(Into::into)
-                    .unwrap_or_else(|| String::new().into()),
-                expires_at,
-            },
-        )
+        ProviderCredential::new_oauth(OAuthTokens {
+            access_token: access_token.into(),
+            refresh_token: refresh_token
+                .map(Into::into)
+                .unwrap_or_else(|| String::new().into()),
+            expires_at,
+        })
     }
 }
 
@@ -560,7 +557,7 @@ impl<I> ForgeProviderAuthService<I> {
     /// the token refresh URL. Both are stored in the credential for refresh.
     async fn handle_oauth_with_apikey_complete(
         &self,
-        provider_id: ProviderId,
+        _provider_id: ProviderId,
         result: AuthResult,
         config: &crate::provider::OAuthConfig,
     ) -> Result<ProviderCredential, super::AuthFlowError> {
@@ -582,8 +579,7 @@ impl<I> ForgeProviderAuthService<I> {
                 };
 
                 // Create credential with both OAuth token and API key
-                let credential =
-                    ProviderCredential::new_oauth_with_api_key(provider_id, api_key, oauth_tokens);
+                let credential = ProviderCredential::new_oauth_with_api_key(api_key, oauth_tokens);
 
                 Ok(credential)
             }
@@ -754,9 +750,14 @@ where
 
     async fn refresh_provider_credential(
         &self,
-        credential: &ProviderCredential,
+        provider: &Provider,
         method: AuthMethod,
     ) -> anyhow::Result<ProviderCredential> {
+        let credential = provider
+            .credential
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Provider has no credential to refresh"))?;
+
         // Dispatch to appropriate refresh handler based on auth method
         let refreshed_credential = match &method {
             AuthMethod::ApiKey => {
@@ -788,7 +789,7 @@ where
 
         // Update credential in database
         self.infra
-            .upsert_credential(refreshed_credential.clone())
+            .upsert_credential(provider.id, refreshed_credential.clone())
             .await?;
 
         Ok(refreshed_credential)
@@ -935,7 +936,9 @@ where
         };
 
         // Store credential via infrastructure (takes ownership)
-        self.infra.upsert_credential(credential.clone()).await?;
+        self.infra
+            .upsert_credential(provider_id, credential.clone())
+            .await?;
         Ok(credential)
     }
 }

@@ -246,6 +246,7 @@ mod tests {
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
             auth_type: None,
+            credential: None,
         };
         let client = ClientBuilder::new(provider, "dev")
             .build(Arc::new(MockHttpClient))
@@ -267,6 +268,7 @@ mod tests {
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
             auth_type: None,
+            credential: None,
         };
         let client = ClientBuilder::new(provider, "dev")
             .build(Arc::new(MockHttpClient))
@@ -290,6 +292,7 @@ mod tests {
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
             auth_type: None,
+            credential: None,
         };
 
         // Test the builder pattern API
@@ -316,6 +319,7 @@ mod tests {
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
             auth_type: None,
+            credential: None,
         };
 
         // Test that ClientBuilder::new works with minimal parameters
