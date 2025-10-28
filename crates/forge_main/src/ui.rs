@@ -1771,14 +1771,19 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         if let Some(agent_str) = args.agent {
             let agent_id = self.validate_agent(&agent_str).await?;
             self.api.set_active_agent(agent_id.clone()).await?;
-            self.writeln_title(TitleFormat::action("Agent set").sub_title(agent_id.as_str()))?;
+            self.writeln_title(
+                TitleFormat::action(agent_id.as_str().to_uppercase())
+                    .sub_title("is now the active agent"),
+            )?;
         }
 
         // Set model if specified
         if let Some(model_str) = args.model {
             let model_id = self.validate_model(&model_str).await?;
             self.api.set_default_model(model_id.clone()).await?;
-            self.writeln_title(TitleFormat::action("Model set").sub_title(model_id.as_str()))?;
+            self.writeln_title(
+                TitleFormat::action(model_id.as_str()).sub_title("is not the default model"),
+            )?;
         }
 
         Ok(())
