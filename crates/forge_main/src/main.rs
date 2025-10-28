@@ -57,6 +57,7 @@ async fn main() -> Result<()> {
     let restricted = cli.restricted;
     let mut ui = UI::init(cli, move || ForgeAPI::init(restricted, cwd.clone()))?;
     if ui.run().await.is_err() {
+        // Incase of error, exit with status code 1.
         std::process::exit(1);
     }
 
