@@ -1730,7 +1730,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             let agent_id = self.validate_agent(&agent_str).await?;
             self.api.set_active_agent(agent_id.clone()).await?;
             self.writeln_title(
-                TitleFormat::action(agent_id.as_str().to_uppercase())
+                TitleFormat::action(agent_id.as_str().to_uppercase().bold().to_string())
                     .sub_title("is now the active agent"),
             )?;
         }
