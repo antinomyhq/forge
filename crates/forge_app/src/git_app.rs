@@ -61,12 +61,8 @@ impl<S: Services> GitApp<S> {
 
         let cwd = self.services.environment_service().get_environment().cwd;
 
-        // Execute the commit (message is already escaped from generate_commit_message)
-        let commit_command = if has_staged_files {
-            format!("git commit -F- <<'EOF'\n{message}\nEOF")
-        } else {
-            format!("git commit -a -F- <<'EOF'\n{message}\nEOF")
-        };
+        let flags = if has_staged_files { "" } else { " -a" };
+        let commit_command = format!("git commit{flags} -F- <<'EOF'\n{message}\nEOF");
 
         let commit_result = self
             .services
