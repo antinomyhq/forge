@@ -41,8 +41,13 @@ impl ForgeAPI<ForgeServices<ForgeInfra>, ForgeInfra> {
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: CommandInfra + AppConfigRepository + ProviderCredentialRepository> API
-    for ForgeAPI<A, F>
+impl<
+    A: Services,
+    F: CommandInfra
+        + AppConfigRepository
+        + ProviderCredentialRepository
+        + forge_services::EnvironmentInfra,
+> API for ForgeAPI<A, F>
 {
     async fn discover(&self) -> Result<Vec<File>> {
         let environment = self.services.get_environment();
@@ -264,5 +269,55 @@ impl<A: Services, F: CommandInfra + AppConfigRepository + ProviderCredentialRepo
         Ok(forge_app
             .complete_provider_auth(provider_id, context, timeout)
             .await?)
+    }
+
+    async fn import_provider_credentials_from_env(&self) -> Result<()> {
+        use forge_app::dto::ProviderId;
+        use forge_services::registry::get_provider_credential_vars;
+        use strum::IntoEnumIterator;
+
+        // Check if credentials file exists
+        let env = self.environment();
+        let credentials_file = env.base_path.join(".provider_credentials.json");
+
+        // Only run migration if the file doesn't exist
+        if credentials_file.exists() {
+            return Ok(());
+        }
+
+        // Check if JSON file already has credentials
+        if !self.infra.get_all_credentials().await?.is_empty() {
+            return Ok(());
+        }
+        for provider_id in ProviderId::iter() {
+            let Some((api_key_var, url_param_vars)) = get_provider_credential_vars(&provider_id)
+            else {
+                continue;
+            };
+
+            let Some(api_key) = self
+                .infra
+                .get_env_var(&api_key_var)
+                .filter(|k| !k.trim().is_empty())
+            else {
+                continue;
+            };
+
+            let credential = forge_app::dto::ProviderCredential::new_api_key(provider_id, api_key)
+                .url_params(
+                    url_param_vars
+                        .iter()
+                        .filter_map(|var| {
+                            self.infra
+                                .get_env_var(var.as_str())
+                                .filter(|v| !v.trim().is_empty())
+                                .map(|val| (var.to_owned(), val.into()))
+                        })
+                        .collect::<std::collections::HashMap<_, _>>(),
+                );
+
+            self.infra.upsert_credential(credential).await?;
+        }
+        Ok(())
     }
 }

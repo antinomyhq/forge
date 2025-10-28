@@ -83,19 +83,6 @@ impl ForgeInfra {
         let provider_credential_repository =
             Arc::new(ProviderCredentialJsonRepository::new(Arc::new(env.clone())));
 
-        // Migrate provider credentials from environment
-        use crate::ProviderCredentialMigration;
-        tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async {
-                if let Err(e) = ProviderCredentialMigration::new(
-                    environment_service.clone(),
-                    provider_credential_repository.clone(),
-                ).run().await {
-                    tracing::warn!(error = %e, "Failed to migrate provider credentials from environment");
-                }
-            })
-        });
-
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
             file_write_service: Arc::new(ForgeFileWriteService::new(file_snapshot_service.clone())),

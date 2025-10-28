@@ -1162,6 +1162,7 @@ dependencies = [
  "forge_infra",
  "forge_services",
  "forge_stream",
+ "strum 0.27.2",
  "tokio",
 ]
 

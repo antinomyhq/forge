@@ -169,6 +169,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn run_inner(&mut self) -> Result<()> {
+        // Import provider credentials from environment if needed
+        if let Err(e) = self.api.import_provider_credentials_from_env().await {
+            tracing::warn!(error = %e, "Failed to import provider credentials from environment");
+        }
+
         if let Some(mcp) = self.cli.subcommands.clone() {
             return self.handle_subcommands(mcp).await;
         }

@@ -149,4 +149,7 @@ pub trait API: Sync + Send {
         context: AuthContext,
         timeout: Duration,
     ) -> Result<()>;
+
+    /// Import provider credentials from environment variables
+    async fn import_provider_credentials_from_env(&self) -> Result<()>;
 }

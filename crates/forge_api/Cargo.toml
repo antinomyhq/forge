@@ -20,6 +20,7 @@ forge_infra.workspace = true
 
 
 forge_app.workspace = true
+strum.workspace = true
 
 [dev-dependencies]
 

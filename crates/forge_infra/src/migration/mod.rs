@@ -1,3 +1,0 @@
-mod provider_credential_migration;
-
-pub use provider_credential_migration::ProviderCredentialMigration;
