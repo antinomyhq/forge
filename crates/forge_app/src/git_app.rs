@@ -63,9 +63,9 @@ impl<S: Services> GitApp<S> {
 
         // Execute the commit (message is already escaped from generate_commit_message)
         let commit_command = if has_staged_files {
-            format!("git commit -m {message}")
+            format!("git commit -F- <<'EOF'\n{message}\nEOF")
         } else {
-            format!("git commit -a -m {message}")
+            format!("git commit -a -F- <<'EOF'\n{message}\nEOF")
         };
 
         let commit_result = self

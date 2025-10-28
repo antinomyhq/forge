@@ -37,7 +37,6 @@ bytes.workspace = true
 reqwest-eventsource.workspace = true
 schemars.workspace = true
 globset.workspace = true
-shell-escape.workspace = true
 
 
 [dev-dependencies]
