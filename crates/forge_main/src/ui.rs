@@ -69,7 +69,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-
     /// Retrieve available models
     async fn get_models(&mut self) -> Result<Vec<Model>> {
         self.spinner.start(Some("Loading"))?;
