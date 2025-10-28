@@ -10,18 +10,18 @@ use crate::{AuthService, Error};
 
 /// Handles Forge platform and provider authentication
 pub struct Authenticator<S> {
-    auth_service: Arc<S>,
+    service: Arc<S>,
 }
 
 impl<S: AuthService> Authenticator<S> {
     /// Creates new platform authenticator
-    pub fn new(auth_service: Arc<S>) -> Self {
-        Self { auth_service }
+    pub fn new(service: Arc<S>) -> Self {
+        Self { service }
     }
 
     /// Initializes Forge platform authentication
     pub async fn init(&self) -> anyhow::Result<InitAuth> {
-        self.auth_service.init_auth().await
+        self.service.init_auth().await
     }
 
     /// Polls until user completes Forge platform authentication
@@ -38,17 +38,17 @@ impl<S: AuthService> Authenticator<S> {
 
     /// Logs out of Forge platform by clearing credentials
     pub async fn logout(&self) -> anyhow::Result<()> {
-        self.auth_service.set_auth_token(None).await?;
+        self.service.set_auth_token(None).await?;
         Ok(())
     }
 
     async fn login_inner(&self, init_auth: &InitAuth) -> anyhow::Result<()> {
-        let key_info = self.auth_service.get_auth_token().await?;
+        let key_info = self.service.get_auth_token().await?;
         if key_info.is_some() {
             return Ok(());
         }
-        let key = self.auth_service.login(init_auth).await?;
-        self.auth_service.set_auth_token(Some(key)).await?;
+        let key = self.service.login(init_auth).await?;
+        self.service.set_auth_token(Some(key)).await?;
         Ok(())
     }
 
