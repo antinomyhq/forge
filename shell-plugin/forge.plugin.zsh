@@ -241,14 +241,14 @@ function _forge_action_conversation() {
         selected_conversation=$(echo "$conversations_output" | _forge_fzf \
             --prompt="$prompt_text" \
             --delimiter="$_FORGE_DELIMITER" \
-            --with-nth=1,2 \
-            --preview="$_FORGE_BIN session show {3}" \
+            --with-nth=2,3 \
+            --preview="$_FORGE_BIN session show {1}" \
             --preview-window=right:60%:wrap:border-sharp
         )
         
         if [[ -n "$selected_conversation" ]]; then
-            # Strip ANSI codes first, then extract the last field (UUID)
-            local conversation_id=$(echo "$selected_conversation" | sed 's/\x1b\[[0-9;]*m//g' | sed 's/\x1b\[K//g' | awk '{print $NF}' | tr -d '\n')
+            # Extract the first field (UUID) - everything before the first multi-space delimiter
+            local conversation_id=$(echo "$selected_conversation" | sed -E 's/  .*//' | tr -d '\n')
             
             # Set the selected conversation as active (in parent shell)
             FORGE_CONVERSATION_ID="$conversation_id"
