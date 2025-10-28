@@ -33,13 +33,6 @@ pub struct Cli {
     #[arg(long, alias = "cid")]
     pub conversation_id: Option<String>,
 
-    /// Agent ID to use for this session.
-    ///
-    /// If provided, the application will use this agent for the conversation.
-    /// This allows specifying the agent from the command line.
-    #[arg(long, alias = "aid")]
-    pub agent_id: Option<String>,
-
     /// Working directory to set before starting forge.
     ///
     /// If provided, the application will change to this directory before
@@ -852,30 +845,6 @@ mod tests {
         ]);
         let actual = fixture.conversation_id;
         let expected = Some("550e8400-e29b-41d4-a716-446655440000".to_string());
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_agent_id_with_prompt() {
-        let fixture = Cli::parse_from(["forge", "-p", "hello", "--agent-id", "sage"]);
-        let actual = fixture.agent_id;
-        let expected = Some("sage".to_string());
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_agent_id_with_aid_alias() {
-        let fixture = Cli::parse_from(["forge", "-p", "hello", "--aid", "muse"]);
-        let actual = fixture.agent_id;
-        let expected = Some("muse".to_string());
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_agent_id_without_prompt() {
-        let fixture = Cli::parse_from(["forge", "--agent-id", "forge"]);
-        let actual = fixture.agent_id;
-        let expected = Some("forge".to_string());
         assert_eq!(actual, expected);
     }
 }

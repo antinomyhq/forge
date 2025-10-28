@@ -1265,33 +1265,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// conversation ID.
     async fn init_conversation(&mut self) -> Result<ConversationId> {
         let mut is_new = false;
-        let id = if self.cli.is_interactive() {
-            self.init_conversation_interactive(&mut is_new).await?
-        } else {
-            // Used via ZSH
-            if let Some(agent_id) = self.cli.agent_id.clone() {
-                self.api.set_active_agent(AgentId::new(agent_id)).await?;
-            }
-
-            self.init_conversation_headless(&mut is_new).await?
-        };
-
-        // Print if the state is being reinitialized
-        if self.state.conversation_id.is_none() {
-            self.print_conversation_status(is_new, id).await?;
-        }
-
-        // Always set the conversation id in state
-        self.state.conversation_id = Some(id);
-
-        Ok(id)
-    }
-
-    async fn init_conversation_interactive(
-        &mut self,
-        is_new: &mut bool,
-    ) -> Result<ConversationId, anyhow::Error> {
-        Ok(if let Some(id) = self.state.conversation_id {
+        let id = if let Some(id) = self.state.conversation_id {
             id
         } else if let Some(ref id_str) = self.cli.conversation_id {
             // Parse and use the provided conversation ID
@@ -1301,7 +1275,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             if self.api.conversation(&id).await?.is_none() {
                 let conversation = Conversation::new(id);
                 self.api.upsert_conversation(conversation).await?;
-                *is_new = true;
+                is_new = true;
             }
             id
         } else if let Some(ref path) = self.cli.conversation {
@@ -1314,36 +1288,20 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         } else {
             let conversation = Conversation::generate();
             let id = conversation.id;
-            *is_new = true;
+            is_new = true;
             self.api.upsert_conversation(conversation).await?;
             id
-        })
-    }
+        };
 
-    async fn init_conversation_headless(
-        &mut self,
-        is_new: &mut bool,
-    ) -> Result<ConversationId, anyhow::Error> {
-        Ok(if let Some(id) = self.state.conversation_id {
-            id
-        } else if let Some(ref id_str) = self.cli.conversation_id {
-            // Parse and use the provided conversation ID
-            let id = ConversationId::parse(id_str).context("Failed to parse conversation ID")?;
+        // Print if the state is being reinitialized
+        if self.state.conversation_id.is_none() {
+            self.print_conversation_status(is_new, id).await?;
+        }
 
-            // Check if conversation exists, if not create it
-            if self.api.conversation(&id).await?.is_none() {
-                let conversation = Conversation::new(id);
-                self.api.upsert_conversation(conversation).await?;
-                *is_new = true;
-            }
-            id
-        } else {
-            let conversation = Conversation::generate();
-            let id = conversation.id;
-            self.api.upsert_conversation(conversation).await?;
-            *is_new = true;
-            id
-        })
+        // Always set the conversation id in state
+        self.state.conversation_id = Some(id);
+
+        Ok(id)
     }
 
     async fn print_conversation_status(
