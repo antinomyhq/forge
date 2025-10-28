@@ -61,12 +61,11 @@ impl<S: Services> GitApp<S> {
 
         let cwd = self.services.environment_service().get_environment().cwd;
 
-        // Execute the commit
-        let escaped_message = message.replace('\'', "'\\''");
+        // Execute the commit (message is already escaped from generate_commit_message)
         let commit_command = if has_staged_files {
-            format!("git commit -m '{escaped_message}'")
+            format!("git commit -m {message}")
         } else {
-            format!("git commit -a -m '{escaped_message}'")
+            format!("git commit -a -m {message}")
         };
 
         let commit_result = self
@@ -200,6 +199,9 @@ impl<S: Services> GitApp<S> {
             .await?;
         let message = stream.into_full(false).await?;
 
-        Ok(CommitMessageDetails { message: message.content, has_staged_files })
+        // Escape the message for safe shell usage using proper shell escaping
+        let escaped_message = shell_escape::escape(message.content.into()).to_string();
+
+        Ok(CommitMessageDetails { message: escaped_message, has_staged_files })
     }
 }
