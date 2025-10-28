@@ -13,9 +13,8 @@ use crate::services::{CustomInstructionsService, TemplateService};
 use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
 use crate::{
-    AgentRegistry, AttachmentService, CommandLoaderService, ConversationService,
-    EnvironmentService, FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker,
-    WorkflowService,
+    AgentRegistry, AttachmentService, ConversationService, EnvironmentService,
+    FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker, WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -89,10 +88,9 @@ impl<S: Services> ForgeApp<S> {
 
         let custom_instructions = services.get_custom_instructions().await;
 
-        // Prepare agents with user configuration and subscriptions
-        let active_agent = services.get_active_agent_id().await?;
-        let active_model = self.get_model(active_agent).await?;
-        let commands = services.get_commands().await?;
+        // Prepare agents with user configuration
+        let agent_id = services.get_active_agent_id().await?;
+        let active_model = self.get_model(agent_id.clone()).await?;
         let agent = services
             .get_agents()
             .await?
@@ -101,10 +99,9 @@ impl<S: Services> ForgeApp<S> {
                 agent
                     .apply_workflow_config(&workflow)
                     .set_model_deeply(active_model.clone())
-                    .subscribe_commands(&commands)
             })
-            .find(|agent| agent.has_subscription(&chat.event.name))
-            .ok_or(crate::Error::UnsubscribedEvent(chat.event.name.to_owned()))?;
+            .find(|agent| Some(&agent.id) == agent_id.as_ref())
+            .ok_or_else(|| crate::Error::AgentNotFound(agent_id.unwrap_or_default()))?;
 
         let agent_provider = self.get_provider(Some(agent.id.clone())).await?;
         let models = services.models(agent_provider).await?;

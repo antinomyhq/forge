@@ -11,7 +11,7 @@ use crate::merge::Key;
 use crate::temperature::Temperature;
 use crate::template::Template;
 use crate::{
-    Command, Context, Error, EventContext, MaxTokens, ModelId, ProviderId, Result, SystemContext,
+    Context, Error, EventContext, MaxTokens, ModelId, ProviderId, Result, SystemContext,
     ToolDefinition, ToolName, TopK, TopP, Workflow,
 };
 
@@ -94,12 +94,6 @@ pub struct Agent {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[merge(strategy = merge_opt_vec)]
     pub tools: Option<Vec<ToolName>>,
-
-    // The transforms feature has been removed
-    /// Used to specify the events the agent is interested in
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = merge_opt_vec)]
-    pub subscribe: Option<Vec<String>>,
 
     /// Maximum number of turns the agent can take
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -249,8 +243,6 @@ impl Agent {
             system_prompt: Default::default(),
             user_prompt: Default::default(),
             tools: Default::default(),
-            // transforms field removed
-            subscribe: Default::default(),
             max_turns: Default::default(),
             max_walker_depth: Default::default(),
             compact: Default::default(),
@@ -281,24 +273,6 @@ impl Agent {
         } else {
             false
         }
-    }
-
-    pub fn add_subscription(&mut self, event: impl ToString) {
-        let event_string = event.to_string();
-
-        let subscribe_list = self.subscribe.get_or_insert_with(Vec::new);
-        if !subscribe_list.contains(&event_string) {
-            subscribe_list.push(event_string);
-        }
-    }
-
-    /// Checks if the agent has subscribed to the event_name
-    pub fn has_subscription(&self, event_name: impl AsRef<str>) -> bool {
-        self.subscribe.as_ref().is_some_and(|subscription| {
-            subscription
-                .iter()
-                .any(|subscription| event_name.as_ref().eq(subscription))
-        })
     }
 
     /// Helper to prepare agents with workflow settings
@@ -361,28 +335,9 @@ impl Agent {
             }
         }
 
-        // Add base subscription
-        let id = agent.id.clone();
-        agent.add_subscription(format!("{id}"));
-
         agent
     }
 
-    pub fn subscribe_commands(self, commands: &[Command]) -> Agent {
-        let mut agent = self;
-        if agent.id == AgentId::default() {
-            let commands = commands.iter().map(|c| c.name.clone()).collect::<Vec<_>>();
-            if let Some(ref mut subscriptions) = agent.subscribe {
-                subscriptions.extend(commands);
-            } else {
-                agent.subscribe = Some(commands);
-            }
-        }
-
-        agent
-    }
-
-    /// Sets the model in the agent and its compaction configuration
     pub fn set_model_deeply(mut self, model: ModelId) -> Self {
         // Set model for agent
         if self.model.is_none() {
@@ -495,34 +450,6 @@ mod tests {
         assert!(tools.contains(&ToolName::new("tool2")));
         assert!(tools.contains(&ToolName::new("tool3")));
         assert!(tools.contains(&ToolName::new("tool4")));
-    }
-
-    #[test]
-    fn test_merge_subscribe() {
-        // Base has no value, should take other's values
-        let mut base = Agent::new("Base"); // no subscribe
-        let other = Agent::new("Other").subscribe(vec!["event2".to_string(), "event3".to_string()]);
-        base.merge(other);
-
-        // Should contain events from other
-        let subscribe = base.subscribe.as_ref().unwrap();
-        assert_eq!(subscribe.len(), 2);
-        assert!(subscribe.contains(&"event2".to_string()));
-        assert!(subscribe.contains(&"event3".to_string()));
-
-        // Base has a value, should not be overwritten
-        let mut base =
-            Agent::new("Base").subscribe(vec!["event1".to_string(), "event2".to_string()]);
-        let other = Agent::new("Other").subscribe(vec!["event3".to_string(), "event4".to_string()]);
-        base.merge(other);
-
-        // Should have other's events
-        let subscribe = base.subscribe.as_ref().unwrap();
-        assert_eq!(subscribe.len(), 4);
-        assert!(subscribe.contains(&"event1".to_string()));
-        assert!(subscribe.contains(&"event2".to_string()));
-        assert!(subscribe.contains(&"event3".to_string()));
-        assert!(subscribe.contains(&"event4".to_string()));
     }
 
     #[test]
@@ -699,67 +626,5 @@ mod tests {
 
         let agent: Agent = serde_json::from_value(json).unwrap();
         assert_eq!(agent.max_tokens, None);
-    }
-
-    #[test]
-    fn test_add_subscription_to_empty_agent() {
-        let mut fixture = Agent::new("test-agent");
-        fixture.add_subscription("test-event");
-
-        let actual = fixture.subscribe.as_ref().unwrap();
-        let expected = vec!["test-event".to_string()];
-        assert_eq!(actual, &expected);
-    }
-    #[test]
-    fn test_add_subscription_to_existing_list() {
-        let mut fixture = Agent::new("test-agent").subscribe(vec!["existing-event".to_string()]);
-        fixture.add_subscription("new-event");
-
-        let actual = fixture.subscribe.as_ref().unwrap();
-        let expected = vec!["existing-event".to_string(), "new-event".to_string()];
-        assert_eq!(actual, &expected);
-    }
-
-    #[test]
-    fn test_add_subscription_duplicate_prevention() {
-        let mut fixture = Agent::new("test-agent").subscribe(vec!["existing-event".to_string()]);
-        fixture.add_subscription("existing-event");
-
-        let actual = fixture.subscribe.as_ref().unwrap();
-        let expected = vec!["existing-event".to_string()];
-        assert_eq!(actual, &expected);
-    }
-
-    #[test]
-    fn test_add_subscription_multiple_events() {
-        let mut fixture = Agent::new("test-agent");
-        fixture.add_subscription("event1");
-        fixture.add_subscription("event2");
-        fixture.add_subscription("event1"); // duplicate
-        fixture.add_subscription("event3");
-
-        let actual = fixture.subscribe.as_ref().unwrap();
-        let expected = vec![
-            "event1".to_string(),
-            "event2".to_string(),
-            "event3".to_string(),
-        ];
-        assert_eq!(actual, &expected);
-    }
-
-    #[test]
-    fn test_add_subscription_with_string_types() {
-        let mut fixture = Agent::new("test-agent");
-        fixture.add_subscription("string_literal");
-        fixture.add_subscription(String::from("owned_string"));
-        fixture.add_subscription("string_ref".to_string());
-
-        let actual = fixture.subscribe.as_ref().unwrap();
-        let expected = vec![
-            "string_literal".to_string(),
-            "owned_string".to_string(),
-            "string_ref".to_string(),
-        ];
-        assert_eq!(actual, &expected);
     }
 }
