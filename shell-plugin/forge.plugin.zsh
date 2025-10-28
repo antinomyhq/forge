@@ -273,14 +273,10 @@ function _forge_action_commit() {
         # Check if there are staged changes to determine commit strategy
         if git diff --staged --quiet; then
             # No staged changes: commit all tracked changes with -a flag
-            BUFFER="git commit -a -F- <<'EOF'
-${commit_message}
-EOF"
+            BUFFER="git commit -a -F- <<'EOF'\n${commit_message}\nEOF"
         else
             # Staged changes exist: commit only what's staged
-            BUFFER="git commit -F- <<'EOF'
-${commit_message}
-EOF"
+            BUFFER="git commit -F- <<'EOF'\n${commit_message}\nEOF"
         fi
         # Move cursor to end of buffer for immediate execution
         CURSOR=${#BUFFER}
