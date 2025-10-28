@@ -371,6 +371,14 @@ pub enum SessionCommand {
         /// Conversation ID
         id: String,
     },
+
+    /// Show detailed information about a session
+    ///
+    /// Example: forge session info abc123
+    Info {
+        /// Conversation ID
+        id: String,
+    },
 }
 
 #[cfg(test)]
@@ -604,7 +612,7 @@ mod tests {
 
     #[test]
     fn test_session_last_with_id() {
-        let fixture = Cli::parse_from(["forge", "session", "last", "test123"]);
+        let fixture = Cli::parse_from(["forge", "session", "show", "test123"]);
         let id = match fixture.subcommands {
             Some(TopLevelCommand::Session(session)) => match session.command {
                 SessionCommand::Show { id } => id,
@@ -738,5 +746,32 @@ mod tests {
         };
         let expected = true;
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_session_info_with_id() {
+        let fixture = Cli::parse_from(["forge", "session", "info", "abc123"]);
+        let id = match fixture.subcommands {
+            Some(TopLevelCommand::Session(session)) => match session.command {
+                SessionCommand::Info { id } => id,
+                _ => String::new(),
+            },
+            _ => String::new(),
+        };
+        assert_eq!(id, "abc123");
+    }
+
+    #[test]
+    fn test_session_info_with_porcelain() {
+        let fixture = Cli::parse_from(["forge", "session", "info", "test123", "--porcelain"]);
+        let (id, porcelain) = match fixture.subcommands {
+            Some(TopLevelCommand::Session(session)) => match session.command {
+                SessionCommand::Info { id } => (id, session.porcelain),
+                _ => (String::new(), false),
+            },
+            _ => (String::new(), false),
+        };
+        assert_eq!(id, "test123");
+        assert_eq!(porcelain, true);
     }
 }
