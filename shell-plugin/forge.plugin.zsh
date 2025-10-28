@@ -265,11 +265,10 @@ function _forge_action_model() {
 function _forge_action_commit() {
     local commit_message
     # Generate AI commit message
-    commit_message=$($_FORGE_BIN commit --preview --max-diff "$_FORGE_MAX_COMMIT_DIFF")
-    local exit_code=$?
+    commit_message=$($_FORGE_BIN commit --preview --max-diff "$_FORGE_MAX_COMMIT_DIFF" 2>/dev/null)
     
     # Proceed only if command succeeded
-    if [[ $exit_code -eq 0 && -n "$commit_message" ]]; then
+    if [[ -n "$commit_message" ]]; then
         # Check if there are staged changes to determine commit strategy
         if git diff --staged --quiet; then
             # No staged changes: commit all tracked changes with -a flag
