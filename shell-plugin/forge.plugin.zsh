@@ -261,10 +261,20 @@ function _forge_action_model() {
 }
 
 # Action handler: Commit changes with AI-generated message
-function _forge_commit() {
-    echo
-    _forge_exec commit
-    _forge_reset
+function _forge_action_commit() {
+    local commit_message
+    commit_message=$($_FORGE_BIN commit --preview --max-diff 5000 2>&1)
+    
+    if [[ -n "$commit_message" ]]; then
+        # Fill buffer with git commit command using the generated message
+        BUFFER="git commit -m \"${commit_message}\""
+        CURSOR=${#BUFFER}
+        zle reset-prompt
+    else
+        echo
+        echo "\033[31m✗\033[0m Failed to generate commit message"
+        _forge_reset
+    fi
 }
 
 # Action handler: Show tools
@@ -385,7 +395,7 @@ function forge-accept-line() {
             _forge_action_tools
         ;;
         commit)
-            _forge_commit
+            _forge_action_commit
         ;;
         *)
             _forge_action_default "$user_action" "$input_text"
