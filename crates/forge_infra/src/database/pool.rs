@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -37,8 +36,6 @@ impl PoolConfig {
 
 pub struct DatabasePool {
     pool: DbPool,
-    /// List of migrations that were executed during initialization
-    pub executed_migrations: Vec<String>,
 }
 
 impl DatabasePool {
@@ -59,13 +56,11 @@ impl DatabasePool {
             .get()
             .map_err(|e| anyhow::anyhow!("Failed to get connection for migrations: {e}"))?;
 
-        let runs = connection
+        connection
             .run_pending_migrations(MIGRATIONS)
             .map_err(|e| anyhow::anyhow!("Failed to run database migrations: {e}"))?;
 
-        let executed_migrations = runs.iter().map(|v| v.to_string()).collect();
-
-        Ok(Self { pool, executed_migrations })
+        Ok(Self { pool })
     }
 
     pub fn get_connection(&self) -> Result<PooledSqliteConnection> {
@@ -136,21 +131,12 @@ impl TryFrom<PoolConfig> for DatabasePool {
             .get()
             .map_err(|e| anyhow::anyhow!("Failed to get connection for migrations: {e}"))?;
 
-        let runs = connection.run_pending_migrations(MIGRATIONS).map_err(|e| {
+        connection.run_pending_migrations(MIGRATIONS).map_err(|e| {
             warn!(error = %e, "Failed to run database migrations");
             anyhow::anyhow!("Failed to run database migrations: {e}")
         })?;
 
-        let executed_migrations: Vec<String> = runs.iter().map(|v| v.to_string()).collect();
-
-        if !executed_migrations.is_empty() {
-            debug!(
-                migrations = ?executed_migrations,
-                "Executed database migrations"
-            );
-        }
-
         debug!(database_path = %config.database_path.display(), "created connection pool");
-        Ok(Self { pool, executed_migrations })
+        Ok(Self { pool })
     }
 }
