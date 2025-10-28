@@ -24,7 +24,7 @@ use tracing::debug;
 
 use crate::cli::{Cli, ExtensionCommand, ListCommand, McpCommand, SessionCommand, TopLevelCommand};
 use crate::conversation_selector::ConversationSelector;
-use crate::env::{get_agent_from_env, should_show_completion_prompt};
+use crate::env::should_show_completion_prompt;
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{CliModel, CliProvider, Command, ForgeCommandManager, PartialEvent};
@@ -1198,6 +1198,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let id = if self.cli.is_interactive() {
             self.init_conversation_interactive(&mut is_new).await?
         } else {
+            // Used via ZSH
+            if let Some(agent_id) = self.cli.agent_id.clone() {
+                self.api.set_operating_agent(AgentId::new(agent_id)).await?;
+            }
+
             self.init_conversation_headless(&mut is_new).await?
         };
 
@@ -1257,20 +1262,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
             // Check if conversation exists, if not create it
             if self.api.conversation(&id).await?.is_none() {
-                if let Some(agent_id) = get_agent_from_env() {
-                    self.api.set_operating_agent(agent_id).await?;
-                }
-
                 let conversation = Conversation::new(id);
                 self.api.upsert_conversation(conversation).await?;
                 *is_new = true;
             }
             id
         } else {
-            if let Some(agent_id) = get_agent_from_env() {
-                self.api.set_operating_agent(agent_id).await?;
-            }
-
             let conversation = Conversation::generate();
             let id = conversation.id;
             self.api.upsert_conversation(conversation).await?;
