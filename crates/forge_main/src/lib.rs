@@ -6,6 +6,7 @@ mod editor;
 mod env;
 mod info;
 mod input;
+mod message_display;
 mod model;
 mod porcelain;
 mod prompt;

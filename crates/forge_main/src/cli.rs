@@ -363,6 +363,14 @@ pub enum SessionCommand {
         /// Conversation ID
         id: String,
     },
+
+    /// Show the last message from a conversation
+    ///
+    /// Example: forge session last abc123
+    Last {
+        /// Conversation ID
+        id: String,
+    },
 }
 
 #[cfg(test)]
@@ -592,6 +600,19 @@ mod tests {
             _ => String::new(),
         };
         assert_eq!(id, "abc123");
+    }
+
+    #[test]
+    fn test_session_last_with_id() {
+        let fixture = Cli::parse_from(["forge", "session", "last", "test123"]);
+        let id = match fixture.subcommands {
+            Some(TopLevelCommand::Session(session)) => match session.command {
+                SessionCommand::Last { id } => id,
+                _ => String::new(),
+            },
+            _ => String::new(),
+        };
+        assert_eq!(id, "test123");
     }
 
     #[test]

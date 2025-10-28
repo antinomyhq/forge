@@ -448,6 +448,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.writeln_title(TitleFormat::info(format!("Resumed conversation: {}", id)))?;
                 // Interactive mode will be handled by the main loop
             }
+            SessionCommand::Last { id } => {
+                let conversation_id = ConversationId::parse(&id)
+                    .context(format!("Invalid conversation ID: {}", id))?;
+
+                self.validate_session_exists(&conversation_id).await?;
+
+                self.on_show_last_message(&conversation_id).await?;
+            }
         }
 
         Ok(())
@@ -1780,6 +1788,43 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .join(", ")
             ))
         }
+    }
+
+    /// Shows the last message from a conversation
+    ///
+    /// # Errors
+    /// - If the conversation doesn't exist
+    /// - If the conversation has no messages
+    async fn on_show_last_message(&mut self, conversation_id: &ConversationId) -> Result<()> {
+        let conversation = self
+            .api
+            .conversation(conversation_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Conversation not found"))?;
+
+        let context = conversation
+            .context
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Conversation has no context"))?;
+
+        let last_message = context
+            .messages
+            .last()
+            .ok_or_else(|| anyhow::anyhow!("Conversation has no messages"))?;
+
+        // Display the message role and content
+        self.writeln_title(TitleFormat::info(format!(
+            "Last message from conversation: {}",
+            conversation_id
+        )))?;
+
+        // Format and display the message using the message_display module
+        let formatted_lines = crate::message_display::format_message(last_message, &self.markdown)?;
+        for line in formatted_lines {
+            self.writeln(line)?;
+        }
+
+        Ok(())
     }
 }
 

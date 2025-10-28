@@ -237,8 +237,14 @@ function _forge_action_conversation() {
         fi
         
         local selected_conversation
-        # Hide column 3 in display using awk, but keep full line for selection
-        selected_conversation=$(echo "$conversations_output" | _forge_fzf --prompt="$prompt_text"  --delimiter="$_FORGE_DELIMITER" --with-nth=1,2)
+        # Use fzf with preview showing the last message from the conversation
+        selected_conversation=$(echo "$conversations_output" | _forge_fzf \
+            --prompt="$prompt_text" \
+            --delimiter="$_FORGE_DELIMITER" \
+            --with-nth=1,2 \
+            --preview="$_FORGE_BIN session last {3}"
+            --preview-window=right:60%:wrap
+        )
         
         if [[ -n "$selected_conversation" ]]; then
             # Strip ANSI codes first, then extract the last field (UUID)
