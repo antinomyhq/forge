@@ -190,10 +190,12 @@ function forge-completion() {
 
 # Action handler: Start a new conversation
 function _forge_action_new() {
+    FORGE_CONVERSATION_ID=""
+    FORGE_ACTIVE_AGENT="forge"
+    
     echo
     _forge_exec banner
     _forge_print_agent_message
-    FORGE_CONVERSATION_ID=""
     _forge_reset
 }
 

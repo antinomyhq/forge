@@ -1270,6 +1270,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Displays initialization status and updates UI state with the
     /// conversation ID.
     async fn init_conversation(&mut self) -> Result<ConversationId> {
+        // Set agent if provided via CLI
+        if let Some(agent_id) = self.cli.agent_id.clone() {
+            self.api.set_active_agent(agent_id).await?;
+        }
+
         let mut is_new = false;
         let id = if let Some(id) = self.state.conversation_id {
             id

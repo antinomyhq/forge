@@ -5,7 +5,7 @@ use forge_api::Environment;
 use tokio::fs;
 
 use crate::editor::{ForgeEditor, ReadResult};
-use crate::model::{SlashCommand, ForgeCommandManager};
+use crate::model::{ForgeCommandManager, SlashCommand};
 use crate::prompt::ForgePrompt;
 use crate::tracker;
 
