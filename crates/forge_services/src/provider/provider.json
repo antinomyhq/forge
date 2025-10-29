@@ -72,17 +72,17 @@
   {
     "id": "openai",
     "api_key_vars": "OPENAI_API_KEY",
-    "url_param_vars": ["OPENAI_URL"],
+    "url_param_vars": [],
     "response_type": "openai",
-    "url": "{{#if OPENAI_URL}}{{OPENAI_URL}}{{else}}https://api.openai.com/v1{{/if}}/chat/completions",
-    "models": "{{#if OPENAI_URL}}{{OPENAI_URL}}{{else}}https://api.openai.com/v1{{/if}}/models",
+    "url": "https://api.openai.com/v1/chat/completions",
+    "models": "https://api.openai.com/v1/models",
     "auth_methods": [
       "api_key"
     ]
   },
   {
     "id": "openai_compatible",
-    "api_key_vars": "OPENAI_COMPATIBLE_API_KEY",
+    "api_key_vars": "OPENAI_API_KEY",
     "url_param_vars": ["BASE_URL"],
     "response_type": "openai",
     "url": "{{BASE_URL}}/chat/completions",
@@ -94,10 +94,10 @@
   {
     "id": "anthropic",
     "api_key_vars": "ANTHROPIC_API_KEY",
-    "url_param_vars": ["ANTHROPIC_URL"],
+    "url_param_vars": [],
     "response_type": "anthropic",
-    "url": "{{#if ANTHROPIC_URL}}{{ANTHROPIC_URL}}{{else}}https://api.anthropic.com/v1{{/if}}/messages",
-    "models": "{{#if ANTHROPIC_URL}}{{ANTHROPIC_URL}}{{else}}https://api.anthropic.com/v1{{/if}}/models",
+    "url": "https://api.anthropic.com/v1/messages",
+    "models": "https://api.anthropic.com/v1/models",
     "auth_methods": [
       "api_key",
       {
@@ -117,11 +117,11 @@
   },
   {
     "id": "anthropic_compatible",
-    "api_key_vars": "ANTHROPIC_COMPATIBLE_API_KEY",
-    "url_param_vars": ["BASE_URL"],
+    "api_key_vars": "ANTHROPIC_API_KEY",
+    "url_param_vars": ["ANTHROPIC_URL"],
     "response_type": "anthropic",
-    "url": "{{BASE_URL}}/messages",
-    "models": "{{BASE_URL}}/models",
+    "url": "{{ANTHROPIC_URL}}/messages",
+    "models": "{{ANTHROPIC_URL}}/models",
     "auth_methods": [
       "api_key"
     ]

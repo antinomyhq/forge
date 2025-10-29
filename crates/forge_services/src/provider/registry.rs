@@ -6,7 +6,6 @@ use forge_app::dto::{Provider, ProviderId, ProviderResponse, URLParam};
 use handlebars::Handlebars;
 use merge::Merge;
 use serde::Deserialize;
-use tokio::sync::OnceCell;
 use url::Url;
 
 use crate::{
@@ -119,7 +118,6 @@ pub fn get_provider_env_vars(provider_id: &ProviderId) -> Vec<String> {
 pub struct ForgeProviderRegistry<F> {
     infra: Arc<F>,
     handlebars: &'static Handlebars<'static>,
-    providers: OnceCell<Vec<Provider>>,
 }
 
 impl<
@@ -131,11 +129,7 @@ impl<
 > ForgeProviderRegistry<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
-        Self {
-            infra,
-            handlebars: get_handlebars(),
-            providers: OnceCell::new(),
-        }
+        Self { infra, handlebars: get_handlebars() }
     }
 
     /// Loads provider configs from the base directory if they exist
@@ -146,95 +140,6 @@ impl<
         let json_str = self.infra.read_utf8(&provider_json_path).await?;
         let configs = serde_json::from_str(&json_str)?;
         Ok(configs)
-    }
-
-    async fn get_providers(&self) -> &Vec<Provider> {
-        self.providers
-            .get_or_init(|| async { self.init_providers().await })
-            .await
-    }
-
-    async fn init_providers(&self) -> Vec<Provider> {
-        let configs = self.get_merged_configs().await;
-
-        configs
-            .into_iter()
-            .filter_map(|config| {
-                // Skip Forge provider as it's handled specially
-                if config.id == ProviderId::Forge {
-                    return None;
-                }
-                // Note: This is synchronous initialization, only loads env-based providers
-                // For database credentials, use provider_from_id() which is async
-                self.create_provider_from_env(&config).ok()
-            })
-            .collect()
-    }
-
-    fn create_provider_from_env(&self, config: &ProviderConfig) -> anyhow::Result<Provider> {
-        // Check API key environment variable
-        let api_key = self
-            .infra
-            .get_env_var(&config.api_key_vars)
-            .ok_or_else(|| ProviderError::env_var_not_found(config.id, &config.api_key_vars))?
-            .into();
-
-        // Check URL parameter environment variables and build template data
-        // URL parameters are optional - only add them if they exist
-        let mut template_data: std::collections::HashMap<&str, String> =
-            std::collections::HashMap::new();
-
-        for env_var in &config.url_param_vars {
-            if let Some(value) = self.infra.get_env_var(env_var.as_ref()) {
-                template_data.insert(env_var.as_ref(), value);
-            } else if env_var == &URLParam::from("OPENAI_URL".to_owned()) {
-                template_data.insert(env_var.as_ref(), "https://api.openai.com/v1".to_string());
-            } else if env_var == &URLParam::from("ANTHROPIC_URL".to_owned()) {
-                template_data.insert(env_var.as_ref(), "https://api.anthropic.com/v1".to_string());
-            } else {
-                return Err(ProviderError::env_var_not_found(config.id, env_var.as_ref()).into());
-            }
-        }
-
-        // Render URL using handlebars
-        let url = self
-            .handlebars
-            .render_template(&config.url, &template_data)
-            .map_err(|e| {
-                anyhow::anyhow!("Failed to render URL template for {}: {}", config.id, e)
-            })?;
-
-        let final_url = Url::parse(&url)?;
-
-        // Handle models based on the variant
-        let models = match &config.models {
-            Models::Url(model_url_template) => {
-                let model_url = Url::parse(
-                    &self
-                        .handlebars
-                        .render_template(model_url_template, &template_data)
-                        .map_err(|e| {
-                            anyhow::anyhow!(
-                                "Failed to render model_url template for {}: {}",
-                                config.id,
-                                e
-                            )
-                        })?,
-                )?;
-                forge_app::dto::Models::Url(model_url)
-            }
-            Models::Hardcoded(model_list) => forge_app::dto::Models::Hardcoded(model_list.clone()),
-        };
-
-        Ok(Provider {
-            id: config.id,
-            response: config.response_type.clone(),
-            url: final_url,
-            key: Some(api_key),
-            models,
-            auth_type: None,  // Environment-based providers don't track auth type
-            credential: None, // Environment-based providers don't have database credentials
-        })
     }
 
     async fn provider_from_id(&self, id: forge_app::dto::ProviderId) -> anyhow::Result<Provider> {
@@ -291,24 +196,7 @@ impl<
         };
 
         // Build template data from URL parameters
-        let mut template_data = std::collections::HashMap::new();
-        for (key, value) in &credential.url_params {
-            template_data.insert(key.clone(), value.clone());
-        }
-
-        // Add default URLs if not present
-        if !template_data.contains_key(&("OPENAI_URL".to_string().into())) {
-            template_data.insert(
-                "OPENAI_URL".to_owned().into(),
-                "https://api.openai.com/v1".to_owned().into(),
-            );
-        }
-        if !template_data.contains_key(&("ANTHROPIC_URL".to_string().into())) {
-            template_data.insert(
-                "ANTHROPIC_URL".to_owned().into(),
-                "https://api.anthropic.com/v1".to_owned().into(),
-            );
-        }
+        let template_data = credential.url_params.clone();
 
         // Render URLs using handlebars
         let url = self
@@ -404,49 +292,57 @@ impl<
     }
 
     async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
-        use std::collections::HashMap;
+        // Get all available provider configs (merged: embedded + custom)
+        let all_configs = self.get_merged_configs().await;
 
-        // Get all available provider IDs from configuration
-        let available_provider_ids: Vec<ProviderId> = get_provider_configs()
+        let available_provider_ids: Vec<ProviderId> = all_configs
             .iter()
             .filter(|config| config.id != ProviderId::Forge) // Exclude internal Forge provider
             .map(|config| config.id)
             .collect();
 
-        // Get credentials
+        // Get credentials from database
         let credential_map = self.infra.get_all_credentials().await?;
-
-        // Get env-based providers
-        let env_providers = self.get_providers().await.clone();
-        let env_provider_map: HashMap<_, _> =
-            env_providers.into_iter().map(|p| (p.id, p)).collect();
 
         let mut providers = Vec::new();
 
         for provider_id in available_provider_ids {
-            // Priority: database credential > env-based provider > unconfigured provider
             if let Some(credential) = credential_map.get(&provider_id) {
-                // Provider has database credential
+                // Provider has database credential - use it
                 if let Ok(provider) = self
                     .create_provider_from_credential(&provider_id, credential)
                     .await
                 {
                     providers.push(provider);
                 }
-            } else if let Some(env_provider) = env_provider_map.get(&provider_id) {
-                // Provider configured via environment
-                providers.push(env_provider.clone());
             } else {
-                // Provider not configured - create a basic entry without credentials
-                if let Some(config) = get_provider_configs().iter().find(|c| c.id == provider_id) {
-                    // Create a minimal provider entry without credentials
-                    let url = config.url.clone();
+                // Provider not configured - show ALL providers so users can configure them
+                if let Some(config) = all_configs.iter().find(|c| c.id == provider_id) {
+                    // Try to render URL - if it has parameters, use a placeholder
+                    let empty_data = std::collections::HashMap::<String, String>::new();
+                    let url = self
+                        .handlebars
+                        .render_template(&config.url, &empty_data)
+                        .ok();
+
                     let models = match &config.models {
                         Models::Url(url_template) => {
-                            if let Ok(parsed_url) = Url::parse(url_template) {
-                                forge_app::dto::Models::Url(parsed_url)
+                            if let Ok(rendered_url) =
+                                self.handlebars.render_template(url_template, &empty_data)
+                            {
+                                if let Ok(parsed_url) = Url::parse(&rendered_url) {
+                                    forge_app::dto::Models::Url(parsed_url)
+                                } else {
+                                    // Can't parse URL, use a placeholder
+                                    forge_app::dto::Models::Url(
+                                        Url::parse("https://example.com/models").unwrap(),
+                                    )
+                                }
                             } else {
-                                continue; // Skip if URL is invalid
+                                // Template has parameters, use a placeholder
+                                forge_app::dto::Models::Url(
+                                    Url::parse("https://example.com/models").unwrap(),
+                                )
                             }
                         }
                         Models::Hardcoded(models) => {
@@ -454,17 +350,22 @@ impl<
                         }
                     };
 
-                    if let Ok(parsed_url) = Url::parse(&url) {
-                        providers.push(Provider {
-                            id: provider_id,
-                            response: config.response_type.clone(),
-                            url: parsed_url,
-                            key: None,
-                            models,
-                            auth_type: None,
-                            credential: None,
+                    // If URL rendering succeeded, use it; otherwise use a placeholder
+                    let parsed_url = url
+                        .and_then(|url_str| Url::parse(&url_str).ok())
+                        .unwrap_or_else(|| {
+                            Url::parse("https://example.com/chat/completions").unwrap()
                         });
-                    }
+
+                    providers.push(Provider {
+                        id: provider_id,
+                        response: config.response_type.clone(),
+                        url: parsed_url,
+                        key: None,
+                        models,
+                        auth_type: None,
+                        credential: None,
+                    });
                 }
             }
         }
@@ -711,36 +612,38 @@ mod env_tests {
     }
 
     #[test]
-    fn test_create_azure_provider_with_handlebars_urls() {
-        // Setup environment variables
-        let mut env_vars = HashMap::new();
-        env_vars.insert("AZURE_API_KEY".to_string(), "test-key-123".to_string());
-        env_vars.insert(
-            "AZURE_RESOURCE_NAME".to_string(),
-            "my-test-resource".to_string(),
-        );
-        env_vars.insert(
-            "AZURE_DEPLOYMENT_NAME".to_string(),
-            "gpt-4-deployment".to_string(),
-        );
-        env_vars.insert(
-            "AZURE_API_VERSION".to_string(),
-            "2024-02-01-preview".to_string(),
-        );
-
+    fn test_create_azure_provider_with_credentials() {
+        let env_vars = HashMap::new();
         let infra = Arc::new(MockInfra { env_vars });
         let registry = ForgeProviderRegistry::new(infra);
 
-        // Get Azure config from embedded configs
-        let configs = get_provider_configs();
-        let azure_config = configs
-            .iter()
-            .find(|c| c.id == ProviderId::Azure)
-            .expect("Azure config should exist");
+        // Create credential with Azure parameters
+        let mut url_params = std::collections::HashMap::new();
+        url_params.insert(
+            "AZURE_RESOURCE_NAME".to_string().into(),
+            "my-test-resource".to_string().into(),
+        );
+        url_params.insert(
+            "AZURE_DEPLOYMENT_NAME".to_string().into(),
+            "gpt-4-deployment".to_string().into(),
+        );
+        url_params.insert(
+            "AZURE_API_VERSION".to_string().into(),
+            "2024-02-01-preview".to_string().into(),
+        );
 
-        // Create provider using the registry's test_create_provider_from_env method
-        let provider = registry
-            .create_provider_from_env(azure_config)
+        let credential =
+            forge_app::dto::ProviderCredential::new_api_key("test-key-123".to_string())
+                .url_params(url_params);
+
+        // Create provider using credentials
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let provider = runtime
+            .block_on(async {
+                registry
+                    .create_provider_from_credential(&ProviderId::Azure, &credential)
+                    .await
+            })
             .expect("Should create Azure provider");
 
         // Verify all URLs are correctly rendered
@@ -767,39 +670,49 @@ mod env_tests {
     }
 
     #[tokio::test]
-    async fn test_custom_provider_urls() {
-        let mut env_vars = HashMap::new();
-        env_vars.insert("OPENAI_API_KEY".to_string(), "test-key".to_string());
-        env_vars.insert(
-            "OPENAI_URL".to_string(),
-            "https://custom.openai.com/v1".to_string(),
-        );
-        env_vars.insert("ANTHROPIC_API_KEY".to_string(), "test-key".to_string());
-        env_vars.insert(
-            "ANTHROPIC_URL".to_string(),
-            "https://custom.anthropic.com/v1".to_string(),
-        );
-
+    async fn test_all_providers_shown_when_unconfigured() {
+        // Test that ALL providers from provider.json are shown, even if unconfigured
+        let env_vars = HashMap::new(); // Empty environment, no credentials
         let infra = Arc::new(MockInfra { env_vars });
         let registry = ForgeProviderRegistry::new(infra);
         let providers = registry.get_all_providers().await.unwrap();
 
-        let openai_provider = providers
-            .iter()
-            .find(|p| p.id == ProviderId::OpenAI)
-            .unwrap();
-        let anthropic_provider = providers
-            .iter()
-            .find(|p| p.id == ProviderId::Anthropic)
-            .unwrap();
+        // ALL providers should appear (except Forge which is internal)
+        let expected_providers = vec![
+            ProviderId::GithubCopilot,
+            ProviderId::OpenRouter,
+            ProviderId::Requesty,
+            ProviderId::Xai,
+            ProviderId::OpenAI,
+            ProviderId::OpenAICompatible, // Now shown!
+            ProviderId::Anthropic,
+            ProviderId::AnthropicCompatible, // Now shown!
+            ProviderId::Cerebras,
+            ProviderId::Zai,
+            ProviderId::ZaiCoding,
+            ProviderId::BigModel,
+            ProviderId::VertexAi, // Now shown!
+            ProviderId::Azure,    // Now shown!
+        ];
 
-        assert_eq!(
-            openai_provider.url.as_str(),
-            "https://custom.openai.com/v1/chat/completions"
-        );
-        assert_eq!(
-            anthropic_provider.url.as_str(),
-            "https://custom.anthropic.com/v1/messages"
-        );
+        let actual_provider_ids: Vec<ProviderId> = providers.iter().map(|p| p.id).collect();
+
+        // Check that ALL providers appear
+        for expected_id in &expected_providers {
+            assert!(
+                actual_provider_ids.contains(expected_id),
+                "Provider {:?} should be present (from provider.json)",
+                expected_id
+            );
+        }
+
+        // Verify unconfigured providers have no credentials
+        for provider in &providers {
+            assert!(
+                provider.credential.is_none(),
+                "Unconfigured provider {:?} should not have credentials",
+                provider.id
+            );
+        }
     }
 }
