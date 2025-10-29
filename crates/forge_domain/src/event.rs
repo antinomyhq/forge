@@ -105,6 +105,22 @@ impl Event {
             attachments: Vec::new(),
         }
     }
+
+    /// Extracts plan file paths from the event value and attachments
+    ///
+    /// Searches through the event value (if present) and attachment paths for
+    /// references to plan files matching the pattern `/plans/`
+    pub fn detect_plans(&self) -> Vec<String> {
+        self.value
+            .iter()
+            .flat_map(|v| crate::utils::extract_plan_paths(&v.to_string()))
+            .chain(
+                self.attachments
+                    .iter()
+                    .flat_map(|a| crate::utils::extract_plan_paths(&a.path)),
+            )
+            .collect()
+    }
 }
 
 #[cfg(test)]

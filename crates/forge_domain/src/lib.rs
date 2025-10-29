@@ -46,6 +46,7 @@ mod top_k;
 mod top_p;
 mod transformer;
 mod update;
+mod utils;
 mod workflow;
 mod xml;
 
@@ -96,6 +97,7 @@ pub use top_k::*;
 pub use top_p::*;
 pub use transformer::*;
 pub use update::*;
+pub use utils::*;
 pub use workflow::*;
 pub use xml::*;
 

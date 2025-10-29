@@ -387,6 +387,40 @@ impl Context {
         format!("<chat_history>{lines}</chat_history>")
     }
 
+    /// Extracts plan file paths from all messages in the context
+    ///
+    /// Searches through text messages, tool calls, and tool results for
+    /// references to plan files matching the pattern `/plans/`
+    pub fn detect_plans(&self) -> Vec<String> {
+        self.messages
+            .iter()
+            .flat_map(|message| match message {
+                ContextMessage::Text(text_msg) => {
+                    let content_paths = crate::utils::extract_plan_paths(&text_msg.content);
+                    let tool_call_paths = text_msg
+                        .tool_calls
+                        .iter()
+                        .flatten()
+                        .filter_map(|tc| tc.arguments.parse().ok())
+                        .flat_map(|args| crate::utils::extract_plan_paths(&args.to_string()));
+
+                    content_paths.into_iter().chain(tool_call_paths).collect()
+                }
+                ContextMessage::Tool(tool_result) => tool_result
+                    .output
+                    .values
+                    .iter()
+                    .filter_map(|v| match v {
+                        ToolValue::Text(text) => Some(text.as_str()),
+                        _ => None,
+                    })
+                    .flat_map(crate::utils::extract_plan_paths)
+                    .collect(),
+                _ => Vec::new(),
+            })
+            .collect()
+    }
+
     /// Will append a message to the context. This method always assumes tools
     /// are supported and uses the appropriate format. For models that don't
     /// support tools, use the TransformToolCalls transformer to convert the

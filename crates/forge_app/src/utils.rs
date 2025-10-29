@@ -1,20 +1,6 @@
 use std::path::Path;
 
-use regex::Regex;
-
 use crate::{Match, MatchResult};
-
-/// Extracts plan file paths from a given text string.
-pub fn extract_plan_paths(text: &str) -> Vec<String> {
-    let plan_path_regex =
-        Regex::new(r#"(?:[A-Za-z]:|/)[^\s"'`{}\[\]]*[/\\]plans[/\\][^\s"'`{}\[\]]*"#)
-            .expect("Invalid regex pattern");
-
-    plan_path_regex
-        .find_iter(text)
-        .map(|match_obj| match_obj.as_str().to_string())
-        .collect()
-}
 
 /// Formats a path for display, converting absolute paths to relative when
 /// possible
