@@ -698,28 +698,22 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     /// Lists current configuration values
     async fn on_show_config(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let agent = self.api.get_active_agent().await;
         let model = self
-            .get_agent_model(agent.clone())
+            .get_agent_model(None)
             .await
             .map(|m| m.as_str().to_string());
+        let model = model.unwrap_or_else(|| "<not set>".to_string());
         let provider = self
-            .get_provider(agent.clone())
+            .get_provider(None)
             .await
             .ok()
-            .map(|p| p.id.to_string());
-
-        let agent_val = agent
-            .map(|a| a.as_str().to_string())
-            .unwrap_or_else(|| "Not set".to_string());
-        let model_val = model.unwrap_or_else(|| "Not set".to_string());
-        let provider_val = provider.unwrap_or_else(|| "Not set".to_string());
+            .map(|p| p.id.to_string())
+            .unwrap_or_else(|| "<not set>".to_string());
 
         let info = Info::new()
             .add_title("CONFIGURATION")
-            .add_key_value("Agent", agent_val)
-            .add_key_value("Model", model_val)
-            .add_key_value("Provider", provider_val);
+            .add_key_value("Default Model", model)
+            .add_key_value("Default Provider", provider);
 
         if porcelain {
             self.writeln(Porcelain::from(&info).into_long().skip(1).drop_col(0))?;
