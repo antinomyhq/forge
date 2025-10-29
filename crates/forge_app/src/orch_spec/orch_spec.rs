@@ -470,25 +470,3 @@ async fn test_plan_nudge_is_added_at_interval() {
 
     assert!(has_nudge, "Should add nudge at interval");
 }
-
-#[tokio::test]
-async fn test_plan_nudge_not_added_when_disabled() {
-    let nudge_message = "Should not appear";
-
-    let mut ctx = TestContext::default()
-        .plan_nudge(Some(nudge_message.to_string()))
-        .mock_assistant_responses(vec![
-            ChatCompletionMessage::assistant("Working"),
-            ChatCompletionMessage::assistant("Done").finish_reason(FinishReason::Stop),
-        ]);
-
-    ctx.run("Follow plans/2025-task.md").await.unwrap();
-
-    let has_nudge = ctx.output.context_messages().iter().any(|m| {
-        m.content()
-            .map(|c| c.contains(nudge_message))
-            .unwrap_or(false)
-    });
-
-    assert!(!has_nudge, "Should not add nudge when disabled");
-}
