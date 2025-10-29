@@ -467,7 +467,7 @@ mod tests {
 
     #[test]
     fn test_agent_id_long_flag() {
-        let fixture = Cli::parse_from(["forge", "--agent-id", "sage"]);
+        let fixture = Cli::parse_from(["forge", "--agent", "sage"]);
         assert_eq!(fixture.agent, Some(AgentId::new("sage")));
     }
 
@@ -479,7 +479,7 @@ mod tests {
 
     #[test]
     fn test_agent_id_with_prompt() {
-        let fixture = Cli::parse_from(["forge", "--agent-id", "forge", "-p", "test prompt"]);
+        let fixture = Cli::parse_from(["forge", "--agent", "forge", "-p", "test prompt"]);
         assert_eq!(fixture.agent, Some(AgentId::new("forge")));
         assert_eq!(fixture.prompt, Some("test prompt".to_string()));
     }
