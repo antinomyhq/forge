@@ -1725,16 +1725,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             self.writeln_title(TitleFormat::action("Provider set").sub_title(&provider_str))?;
         }
 
-        // Set agent if specified
-        if let Some(agent_str) = args.agent {
-            let agent_id = self.validate_agent(&agent_str).await?;
-            self.api.set_active_agent(agent_id.clone()).await?;
-            self.writeln_title(
-                TitleFormat::action(agent_id.as_str().to_uppercase().bold().to_string())
-                    .sub_title("is now the active agent"),
-            )?;
-        }
-
         // Set model if specified
         if let Some(model_str) = args.model {
             let model_id = self.validate_model(&model_str).await?;
@@ -1753,17 +1743,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Get specific field
         match args.field {
-            ConfigField::Agent => {
-                let agent = self
-                    .api
-                    .get_active_agent()
-                    .await
-                    .map(|a| a.as_str().to_string());
-                match agent {
-                    Some(v) => self.writeln(v.to_string())?,
-                    None => self.writeln("Agent: Not set")?,
-                }
-            }
             ConfigField::Model => {
                 let model = self
                     .api
@@ -1790,23 +1769,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         Ok(())
-    }
-
-    /// Validate agent exists
-    async fn validate_agent(&self, agent_str: &str) -> Result<AgentId> {
-        let agents = self.api.get_agents().await?;
-        let agent_id = AgentId::new(agent_str);
-
-        if agents.iter().any(|a| a.id == agent_id) {
-            Ok(agent_id)
-        } else {
-            let available: Vec<_> = agents.iter().map(|a| a.id.as_str()).collect();
-            Err(anyhow::anyhow!(
-                "Agent '{}' not found. Available agents: {}",
-                agent_str,
-                available.join(", ")
-            ))
-        }
     }
 
     /// Validate model exists

@@ -285,10 +285,6 @@ pub enum ConfigCommand {
 
 #[derive(Parser, Debug, Clone)]
 pub struct ConfigSetArgs {
-    /// Agent to set as active
-    #[arg(long)]
-    pub agent: Option<String>,
-
     /// Model to set as active
     #[arg(long)]
     pub model: Option<String>,
@@ -301,13 +297,12 @@ pub struct ConfigSetArgs {
 impl ConfigSetArgs {
     /// Check if any field is set (non-interactive mode)
     pub fn has_any_field(&self) -> bool {
-        self.agent.is_some() || self.model.is_some() || self.provider.is_some()
+        self.model.is_some() || self.provider.is_some()
     }
 }
 
 #[derive(clap::ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConfigField {
-    Agent,
     Model,
     Provider,
 }
@@ -401,20 +396,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_config_set_with_agent() {
-        let fixture = Cli::parse_from(["forge", "config", "set", "--agent", "muse"]);
-        let actual = match fixture.subcommands {
-            Some(TopLevelCommand::Config(config)) => match config.command {
-                ConfigCommand::Set(args) => args.agent,
-                _ => None,
-            },
-            _ => None,
-        };
-        let expected = Some("muse".to_string());
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
     fn test_config_set_with_model() {
         let fixture = Cli::parse_from([
             "forge",
@@ -454,21 +435,18 @@ mod tests {
             "forge",
             "config",
             "set",
-            "--agent",
-            "sage",
             "--model",
             "gpt-4",
             "--provider",
             "OpenAI",
         ]);
-        let (agent, model, provider) = match fixture.subcommands {
+        let (model, provider) = match fixture.subcommands {
             Some(TopLevelCommand::Config(config)) => match config.command {
-                ConfigCommand::Set(args) => (args.agent, args.model, args.provider),
-                _ => (None, None, None),
+                ConfigCommand::Set(args) => (args.model, args.provider),
+                _ => (None, None),
             },
-            _ => (None, None, None),
+            _ => (None, None),
         };
-        assert_eq!(agent, Some("sage".to_string()));
         assert_eq!(model, Some("gpt-4".to_string()));
         assert_eq!(provider, Some("OpenAI".to_string()));
     }
@@ -513,24 +491,8 @@ mod tests {
     }
 
     #[test]
-    fn test_config_set_args_has_any_field_with_agent() {
-        let fixture = ConfigSetArgs {
-            agent: Some("forge".to_string()),
-            model: None,
-            provider: None,
-        };
-        let actual = fixture.has_any_field();
-        let expected = true;
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
     fn test_config_set_args_has_any_field_with_model() {
-        let fixture = ConfigSetArgs {
-            agent: None,
-            model: Some("gpt-4".to_string()),
-            provider: None,
-        };
+        let fixture = ConfigSetArgs { model: Some("gpt-4".to_string()), provider: None };
         let actual = fixture.has_any_field();
         let expected = true;
         assert_eq!(actual, expected);
@@ -538,11 +500,7 @@ mod tests {
 
     #[test]
     fn test_config_set_args_has_any_field_with_provider() {
-        let fixture = ConfigSetArgs {
-            agent: None,
-            model: None,
-            provider: Some("OpenAI".to_string()),
-        };
+        let fixture = ConfigSetArgs { model: None, provider: Some("OpenAI".to_string()) };
         let actual = fixture.has_any_field();
         let expected = true;
         assert_eq!(actual, expected);
@@ -550,7 +508,7 @@ mod tests {
 
     #[test]
     fn test_config_set_args_has_no_field() {
-        let fixture = ConfigSetArgs { agent: None, model: None, provider: None };
+        let fixture = ConfigSetArgs { model: None, provider: None };
         let actual = fixture.has_any_field();
         let expected = false;
         assert_eq!(actual, expected);
