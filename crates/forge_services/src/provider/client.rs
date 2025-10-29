@@ -56,9 +56,9 @@ impl ClientBuilder {
 
             ProviderResponse::Anthropic => {
                 let use_oauth = provider
-                    .auth_type
+                    .credential
                     .as_ref()
-                    .map(|at| matches!(at, forge_app::dto::AuthType::OAuth))
+                    .map(|at| matches!(at.auth_type, forge_app::dto::AuthType::OAuth))
                     .unwrap_or(false);
 
                 InnerClient::Anthropic(Box::new(Anthropic::new(
@@ -245,7 +245,6 @@ mod tests {
             models: forge_app::dto::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
-            auth_type: None,
             credential: None,
         };
         let client = ClientBuilder::new(provider, "dev")
@@ -267,7 +266,6 @@ mod tests {
             models: forge_app::dto::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
-            auth_type: None,
             credential: None,
         };
         let client = ClientBuilder::new(provider, "dev")
@@ -291,7 +289,6 @@ mod tests {
             models: forge_app::dto::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
-            auth_type: None,
             credential: None,
         };
 
@@ -318,7 +315,6 @@ mod tests {
             models: forge_app::dto::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
-            auth_type: None,
             credential: None,
         };
 

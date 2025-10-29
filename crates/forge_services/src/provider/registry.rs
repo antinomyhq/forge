@@ -229,7 +229,6 @@ impl<
             url: Url::parse(&url)?,
             key: Some(api_key),
             models,
-            auth_type: Some(credential.auth_type.clone()),
             credential: Some(credential.clone()),
         })
     }
@@ -363,7 +362,6 @@ impl<
                         url: parsed_url,
                         key: None,
                         models,
-                        auth_type: None,
                         credential: None,
                     });
                 }

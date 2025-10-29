@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumString};
 use url::Url;
 
-use super::{ApiKey, AuthType, ProviderCredential};
+use super::{ApiKey, ProviderCredential};
 
 /// --- IMPORTANT ---
 /// The order of providers is important because that would be order in which the
@@ -106,7 +106,6 @@ pub struct Provider {
     pub url: Url,
     pub key: Option<ApiKey>,
     pub models: Models,
-    pub auth_type: Option<AuthType>,
     /// Optional credential information if configured via database
     #[serde(skip_serializing_if = "Option::is_none")]
     pub credential: Option<ProviderCredential>,
@@ -130,7 +129,6 @@ mod test_helpers {
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
-            auth_type: None,
             credential: None,
         }
     }
@@ -143,7 +141,6 @@ mod test_helpers {
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
-            auth_type: None,
             credential: None,
         }
     }
@@ -156,7 +153,6 @@ mod test_helpers {
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
-            auth_type: None,
             credential: None,
         }
     }
@@ -169,7 +165,6 @@ mod test_helpers {
             url: Url::parse("https://api.x.ai/v1/chat/completions").unwrap(),
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.x.ai/v1/models").unwrap()),
-            auth_type: None,
             credential: None,
         }
     }
@@ -205,7 +200,6 @@ mod test_helpers {
             url: Url::parse(&chat_url).unwrap(),
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse(&model_url).unwrap()),
-            auth_type: None,
             credential: None,
         }
     }
@@ -232,7 +226,6 @@ mod test_helpers {
             url: Url::parse(&chat_url).unwrap(),
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse(&model_url).unwrap()),
-            auth_type: None,
             credential: None,
         }
     }
@@ -258,7 +251,6 @@ mod tests {
             url: Url::from_str("https://api.x.ai/v1/chat/completions").unwrap(),
             key: Some(fixture.to_string().into()),
             models: Models::Url(Url::from_str("https://api.x.ai/v1/models").unwrap()),
-            auth_type: None,
             credential: None,
         };
         assert_eq!(actual, expected);
