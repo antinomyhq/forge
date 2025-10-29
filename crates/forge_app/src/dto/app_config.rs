@@ -1,10 +1,8 @@
 use std::collections::HashMap;
 
 use derive_more::From;
-use forge_domain::{AgentId, ModelId};
+use forge_domain::{AgentId, ModelId, ProviderId};
 use serde::{Deserialize, Serialize};
-
-use crate::dto::ProviderId;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]

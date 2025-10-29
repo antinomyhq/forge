@@ -209,6 +209,7 @@ mod tests {
                     'u' => ContextMessage::Text(TextMessage {
                         role: Role::User,
                         content,
+                        raw_content: None,
                         tool_calls: None,
                         model: None,
                         reasoning_details: None,
@@ -216,6 +217,7 @@ mod tests {
                     'a' => ContextMessage::Text(TextMessage {
                         role: Role::Assistant,
                         content,
+                        raw_content: None,
                         tool_calls: None,
                         model: None,
                         reasoning_details: None,
@@ -223,6 +225,7 @@ mod tests {
                     's' => ContextMessage::Text(TextMessage {
                         role: Role::System,
                         content,
+                        raw_content: None,
                         tool_calls: None,
                         model: None,
                         reasoning_details: None,

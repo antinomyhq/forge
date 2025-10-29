@@ -2,9 +2,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::dto::{InitAuth, LoginInfo, Provider, ProviderId, ToolsOverview};
+use forge_app::dto::{InitAuth, LoginInfo, ToolsOverview};
 use forge_app::{
-    AgentLoaderService, AuthService, CommandLoaderService, ConversationService, EnvironmentService,
+    AgentRegistry, AuthService, CommandLoaderService, ConversationService, EnvironmentService,
     FileDiscoveryService, ForgeApp, McpConfigManager, McpService, ProviderRegistry,
     ProviderService, Services, User, UserUsage, Walker, WorkflowService,
 };
@@ -24,6 +24,14 @@ impl<A, F> ForgeAPI<A, F> {
     pub fn new(services: Arc<A>, infra: Arc<F>) -> Self {
         Self { services, infra }
     }
+
+    /// Creates a ForgeApp instance with the current services
+    fn app(&self) -> ForgeApp<A>
+    where
+        A: Services,
+    {
+        ForgeApp::new(self.services.clone())
+    }
 }
 
 impl ForgeAPI<ForgeServices<ForgeInfra>, ForgeInfra> {
@@ -42,16 +50,15 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
         self.services.collect_files(config).await
     }
 
-    async fn tools(&self) -> anyhow::Result<ToolsOverview> {
-        let forge_app = ForgeApp::new(self.services.clone());
-        forge_app.list_tools().await
+    async fn get_tools(&self) -> anyhow::Result<ToolsOverview> {
+        self.app().list_tools().await
     }
 
-    async fn models(&self) -> Result<Vec<Model>> {
+    async fn get_models(&self) -> Result<Vec<Model>> {
         Ok(self
             .services
             .models(
-                self.get_provider()
+                self.get_default_provider()
                     .await
                     .context("Failed to fetch models")?,
             )
@@ -61,7 +68,7 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
         Ok(self.services.get_agents().await?)
     }
 
-    async fn providers(&self) -> Result<Vec<Provider>> {
+    async fn get_providers(&self) -> Result<Vec<Provider>> {
         Ok(self.services.get_all_providers().await?)
     }
 
@@ -69,9 +76,12 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
         &self,
         chat: ChatRequest,
     ) -> anyhow::Result<MpscStream<Result<ChatResponse, anyhow::Error>>> {
-        // Create a ForgeApp instance and delegate the chat logic to it
-        let forge_app = ForgeApp::new(self.services.clone());
-        forge_app.chat(chat).await
+        let agent_id = self
+            .services
+            .get_active_agent_id()
+            .await?
+            .unwrap_or_default();
+        self.app().chat(agent_id, chat).await
     }
 
     async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()> {
@@ -82,8 +92,7 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
         &self,
         conversation_id: &ConversationId,
     ) -> anyhow::Result<CompactionResult> {
-        let forge_app = ForgeApp::new(self.services.clone());
-        forge_app.compact_conversation(conversation_id).await
+        self.app().compact_conversation(conversation_id).await
     }
 
     fn environment(&self) -> Environment {
@@ -91,18 +100,15 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
     }
 
     async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        let app = ForgeApp::new(self.services.clone());
-        app.read_workflow(path).await
+        self.app().read_workflow(path).await
     }
 
     async fn read_merged(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        let app = ForgeApp::new(self.services.clone());
-        app.read_workflow_merged(path).await
+        self.app().read_workflow_merged(path).await
     }
 
     async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> anyhow::Result<()> {
-        let app = ForgeApp::new(self.services.clone());
-        app.write_workflow(path, workflow).await
+        self.app().write_workflow(path, workflow).await
     }
 
     async fn update_workflow<T>(&self, path: Option<&Path>, f: T) -> anyhow::Result<Workflow>
@@ -119,7 +125,7 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
         self.services.find_conversation(conversation_id).await
     }
 
-    async fn list_conversations(&self, limit: Option<usize>) -> anyhow::Result<Vec<Conversation>> {
+    async fn get_conversations(&self, limit: Option<usize>) -> anyhow::Result<Vec<Conversation>> {
         Ok(self
             .services
             .get_conversations(limit)
@@ -163,29 +169,30 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
     }
 
     async fn init_login(&self) -> Result<InitAuth> {
-        let forge_app = ForgeApp::new(self.services.clone());
-        forge_app.init_auth().await
+        self.app().init_auth().await
     }
 
     async fn login(&self, auth: &InitAuth) -> Result<()> {
-        let forge_app = ForgeApp::new(self.services.clone());
-        forge_app.login(auth).await
+        self.app().login(auth).await
     }
 
     async fn logout(&self) -> Result<()> {
-        let forge_app = ForgeApp::new(self.services.clone());
-        forge_app.logout().await
+        self.app().logout().await
     }
-    async fn get_provider(&self) -> anyhow::Result<Provider> {
-        self.services.get_active_provider().await
+    async fn get_agent_provider(&self, agent_id: AgentId) -> anyhow::Result<Provider> {
+        self.app().get_provider(Some(agent_id)).await
     }
 
-    async fn set_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        self.services.set_active_provider(provider_id).await
+    async fn get_default_provider(&self) -> anyhow::Result<Provider> {
+        self.app().get_provider(None).await
+    }
+
+    async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
+        self.services.set_default_provider(provider_id).await
     }
 
     async fn user_info(&self) -> Result<Option<User>> {
-        let provider = self.get_provider().await?;
+        let provider = self.get_default_provider().await?;
         if let Some(ref api_key) = provider.key {
             let user_info = self.services.user_info(api_key).await?;
             return Ok(Some(user_info));
@@ -194,7 +201,7 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
     }
 
     async fn user_usage(&self) -> Result<Option<UserUsage>> {
-        let provider = self.get_provider().await?;
+        let provider = self.get_default_provider().await?;
         if let Some(ref api_key) = provider.key {
             let user_usage = self.services.user_usage(api_key).await?;
             return Ok(Some(user_usage));
@@ -202,20 +209,24 @@ impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> 
         Ok(None)
     }
 
-    async fn get_operating_agent(&self) -> Option<AgentId> {
-        self.services.get_active_agent().await.ok().flatten()
+    async fn get_active_agent(&self) -> Option<AgentId> {
+        self.services.get_active_agent_id().await.ok().flatten()
     }
 
-    async fn set_operating_agent(&self, agent_id: AgentId) -> anyhow::Result<()> {
-        self.services.set_active_agent(agent_id).await
+    async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()> {
+        self.services.set_active_agent_id(agent_id).await
     }
 
-    async fn get_operating_model(&self) -> Option<ModelId> {
-        self.services.get_active_model().await.ok()
+    async fn get_agent_model(&self, agent_id: AgentId) -> Option<ModelId> {
+        self.app().get_model(Some(agent_id)).await.ok()
     }
 
-    async fn set_operating_model(&self, model_id: ModelId) -> anyhow::Result<()> {
-        self.services.set_active_model(model_id).await
+    async fn get_default_model(&self) -> Option<ModelId> {
+        self.app().get_model(None).await.ok()
+    }
+
+    async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()> {
+        self.app().set_default_model(model_id).await
     }
 
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {

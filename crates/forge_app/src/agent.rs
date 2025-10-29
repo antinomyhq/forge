@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use forge_domain::{
-    Agent, ChatCompletionMessage, Context, Conversation, ModelId, ResultStream, ToolCallContext,
-    ToolCallFull, ToolResult,
+    Agent, ChatCompletionMessage, Context, Conversation, ModelId, ProviderId, ResultStream,
+    ToolCallContext, ToolCallFull, ToolResult,
 };
 
 use crate::tool_registry::ToolRegistry;
@@ -17,6 +17,7 @@ pub trait AgentService: Send + Sync + 'static {
         &self,
         id: &ModelId,
         context: Context,
+        provider_id: Option<ProviderId>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error>;
 
     /// Execute a tool call
@@ -45,8 +46,14 @@ impl<T: Services> AgentService for T {
         &self,
         id: &ModelId,
         context: Context,
+        provider_id: Option<ProviderId>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        let provider = self.get_active_provider().await?;
+        let provider = if let Some(provider_id) = provider_id {
+            self.get_provider(provider_id).await?
+        } else {
+            self.get_default_provider().await?
+        };
+
         self.chat(id, context, provider).await
     }
 
