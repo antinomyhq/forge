@@ -222,6 +222,7 @@ mod tests {
             models: forge_app::dto::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
+            auth_methods: vec![],
             credential: None,
         }
     }
@@ -235,6 +236,7 @@ mod tests {
             models: forge_app::dto::Models::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             ),
+            auth_methods: vec![],
             credential: None,
         }
     }
@@ -248,6 +250,7 @@ mod tests {
             models: forge_app::dto::Models::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             ),
+            auth_methods: vec![],
             credential: None,
         }
     }
@@ -261,6 +264,7 @@ mod tests {
             models: forge_app::dto::Models::Url(
                 Url::parse("https://api.anthropic.com/v1/models").unwrap(),
             ),
+            auth_methods: vec![],
             credential: None,
         }
     }
@@ -320,6 +324,7 @@ mod tests {
             url: reqwest::Url::parse(base_url)?,
             key: Some("test-api-key".to_string().into()),
             models: forge_app::dto::Models::Url(reqwest::Url::parse(base_url)?.join("models")?),
+            auth_methods: vec![],
             credential: None,
         };
 

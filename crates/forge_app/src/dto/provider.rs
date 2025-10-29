@@ -4,6 +4,7 @@ use strum_macros::{AsRefStr, Display, EnumIter, EnumString};
 use url::Url;
 
 use super::{ApiKey, ProviderCredential};
+use crate::dto::AuthMethod;
 
 /// --- IMPORTANT ---
 /// The order of providers is important because that would be order in which the
@@ -106,7 +107,7 @@ pub struct Provider {
     pub url: Url,
     pub key: Option<ApiKey>,
     pub models: Models,
-    /// Optional credential information if configured via database
+    pub auth_methods: Vec<AuthMethod>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub credential: Option<ProviderCredential>,
 }
@@ -129,6 +130,7 @@ mod test_helpers {
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
+            auth_methods: vec![],
             credential: None,
         }
     }
@@ -142,6 +144,7 @@ mod test_helpers {
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
             credential: None,
+            auth_methods: vec![],
         }
     }
 
@@ -154,6 +157,7 @@ mod test_helpers {
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
             credential: None,
+            auth_methods: vec![],
         }
     }
 
@@ -166,6 +170,7 @@ mod test_helpers {
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse("https://api.x.ai/v1/models").unwrap()),
             credential: None,
+            auth_methods: vec![],
         }
     }
 
@@ -201,6 +206,7 @@ mod test_helpers {
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse(&model_url).unwrap()),
             credential: None,
+            auth_methods: vec![],
         }
     }
 
@@ -227,6 +233,7 @@ mod test_helpers {
             key: Some(key.to_string().into()),
             models: Models::Url(Url::parse(&model_url).unwrap()),
             credential: None,
+            auth_methods: vec![],
         }
     }
 }
@@ -252,6 +259,7 @@ mod tests {
             key: Some(fixture.to_string().into()),
             models: Models::Url(Url::from_str("https://api.x.ai/v1/models").unwrap()),
             credential: None,
+            auth_methods: vec![],
         };
         assert_eq!(actual, expected);
     }

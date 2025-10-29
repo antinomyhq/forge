@@ -229,6 +229,7 @@ impl<
             url: Url::parse(&url)?,
             key: Some(api_key),
             models,
+            auth_methods: get_provider_auth_methods(provider_id),
             credential: Some(credential.clone()),
         })
     }
@@ -361,6 +362,7 @@ impl<
                         url: parsed_url,
                         key: None,
                         models,
+                        auth_methods: get_provider_auth_methods(&provider_id),
                         credential: None,
                     });
                 }
@@ -399,13 +401,6 @@ impl<
             config.agent = Some(agent_id);
         })
         .await
-    }
-
-    fn get_provider_auth_methods(
-        &self,
-        provider_id: &ProviderId,
-    ) -> Vec<forge_app::dto::AuthMethod> {
-        get_provider_auth_methods(provider_id)
     }
 }
 

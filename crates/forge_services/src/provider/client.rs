@@ -245,6 +245,7 @@ mod tests {
             models: forge_app::dto::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
+            auth_methods: vec![],
             credential: None,
         };
         let client = ClientBuilder::new(provider, "dev")
@@ -266,6 +267,7 @@ mod tests {
             models: forge_app::dto::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
+            auth_methods: vec![],
             credential: None,
         };
         let client = ClientBuilder::new(provider, "dev")
@@ -289,6 +291,7 @@ mod tests {
             models: forge_app::dto::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
+            auth_methods: vec![],
             credential: None,
         };
 
@@ -315,6 +318,7 @@ mod tests {
             models: forge_app::dto::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
+            auth_methods: vec![],
             credential: None,
         };
 

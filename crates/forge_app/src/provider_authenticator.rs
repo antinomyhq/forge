@@ -55,7 +55,15 @@ where
         let auth_method = match credential.auth_type {
             AuthType::OAuth | AuthType::OAuthWithApiKey => {
                 // Get auth methods from registry
-                let methods = self.services.get_provider_auth_methods(&provider.id);
+                let methods = self
+                    .services
+                    .get_all_providers()
+                    .await?
+                    .into_iter()
+                    .find(|p| p.id == provider.id)
+                    .map(|p| p.auth_methods)
+                    .unwrap_or_default();
+
                 methods
                     .into_iter()
                     .find(|m| matches!(m, AuthMethod::OAuthDevice(_) | AuthMethod::OAuthCode(_)))
