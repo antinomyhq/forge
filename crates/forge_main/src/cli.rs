@@ -52,6 +52,10 @@ pub struct Cli {
     #[arg(long, default_value_t = false, short = 'r')]
     pub restricted: bool,
 
+    /// Agent ID to use for this session
+    #[arg(long, alias = "aid")]
+    pub agent_id: Option<String>,
+
     /// Top-level subcommands
     #[command(subcommand)]
     pub subcommands: Option<TopLevelCommand>,
@@ -524,6 +528,31 @@ mod tests {
             _ => false,
         };
         assert_eq!(is_list, true);
+    }
+
+    #[test]
+    fn test_agent_id_long_flag() {
+        let fixture = Cli::parse_from(["forge", "--agent-id", "sage"]);
+        assert_eq!(fixture.agent_id, Some("sage".to_string()));
+    }
+
+    #[test]
+    fn test_agent_id_short_alias() {
+        let fixture = Cli::parse_from(["forge", "--aid", "muse"]);
+        assert_eq!(fixture.agent_id, Some("muse".to_string()));
+    }
+
+    #[test]
+    fn test_agent_id_with_prompt() {
+        let fixture = Cli::parse_from(["forge", "--agent-id", "forge", "-p", "test prompt"]);
+        assert_eq!(fixture.agent_id, Some("forge".to_string()));
+        assert_eq!(fixture.prompt, Some("test prompt".to_string()));
+    }
+
+    #[test]
+    fn test_agent_id_not_provided() {
+        let fixture = Cli::parse_from(["forge"]);
+        assert_eq!(fixture.agent_id, None);
     }
 
     #[test]

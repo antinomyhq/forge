@@ -195,6 +195,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Display the banner in dimmed colors since we're in interactive mode
         self.display_banner()?;
         self.init_state(true).await?;
+
+        // Set agent if provided via CLI
+        if let Some(agent_id_str) = &self.cli.agent_id {
+            let agent_id = AgentId::new(agent_id_str);
+            self.on_agent_change(agent_id).await?;
+        }
+
         self.trace_user();
         self.hydrate_caches();
         self.init_conversation().await?;
