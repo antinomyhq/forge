@@ -1,4 +1,4 @@
-use super::{AuthorizationUrl, OAuthConfig, PkceVerifier, State};
+use super::{AuthorizationCode, AuthorizationUrl, OAuthConfig, PkceVerifier, State};
 
 /// Authorization code OAuth authentication flow
 #[derive(Debug, Clone)]
@@ -9,11 +9,14 @@ pub struct CodeAuthFlow;
 pub struct CodeRequest {
     pub authorization_url: AuthorizationUrl,
     pub state: State,
+    pub pkce_verifier: Option<PkceVerifier>,
+    pub oauth_config: OAuthConfig,
 }
 
-/// Response containing state and optional PKCE verifier
+/// Response containing authorization code, state and optional PKCE verifier
 #[derive(Debug, Clone)]
 pub struct CodeResponse {
+    pub code: AuthorizationCode,
     pub state: State,
     pub pkce_verifier: Option<PkceVerifier>,
 }

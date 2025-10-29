@@ -1,9 +1,7 @@
-use std::collections::HashMap;
-
 use super::{
-    ApiKey, ApiKeyMethod, ApiKeyRequest, ApiKeyResponse, AuthMethod, CodeAuthFlow, CodeMethod,
-    CodeRequest, CodeResponse, DeviceCode, DeviceCodeAuthFlow, DeviceCodeMethod, DeviceCodeRequest,
-    DeviceCodeResponse, OAuthConfig, PkceVerifier, State, URLParam, URLParamValue,
+    ApiKeyMethod, ApiKeyRequest, ApiKeyResponse, AuthMethod, AuthorizationCode, CodeMethod,
+    CodeRequest, CodeResponse, DeviceCode, DeviceCodeMethod, DeviceCodeRequest, DeviceCodeResponse,
+    PkceVerifier, State,
 };
 
 #[derive(Debug, Clone)]
@@ -28,6 +26,25 @@ pub enum AuthContextResponse {
 }
 
 impl AuthContextResponse {
+    /// Creates an API key authentication context
+    pub fn api_key(request: ApiKeyRequest, response: ApiKeyResponse, method: ApiKeyMethod) -> Self {
+        Self::ApiKey(FlowContext { request, response, method })
+    }
+
+    /// Creates a device code authentication context
+    pub fn device_code(
+        request: DeviceCodeRequest,
+        response: DeviceCodeResponse,
+        method: DeviceCodeMethod,
+    ) -> Self {
+        Self::DeviceCode(FlowContext { request, response, method })
+    }
+
+    /// Creates an authorization code authentication context
+    pub fn code(request: CodeRequest, response: CodeResponse, method: CodeMethod) -> Self {
+        Self::Code(FlowContext { request, response, method })
+    }
+
     /// Extracts the method for this auth context
     ///
     /// # Returns
@@ -47,55 +64,24 @@ impl AuthContextResponse {
     /// `None` otherwise
     pub fn as_device_code(&self) -> Option<(&DeviceCode, u64)> {
         match self {
-            Self::DeviceCode(ctx) => Some((&ctx.response.device_code, ctx.response.interval)),
+            Self::DeviceCode(ctx) => Some((&ctx.request.device_code, ctx.request.interval)),
             _ => None,
         }
     }
 
-    /// Extracts state and PKCE verifier from Code variant
+    /// Extracts authorization code, state and PKCE verifier from Code variant
     ///
     /// # Returns
-    /// Returns `Some((state, pkce_verifier))` if this is a Code flow, `None`
-    /// otherwise
-    pub fn as_code(&self) -> Option<(&State, Option<&PkceVerifier>)> {
+    /// Returns `Some((code, state, pkce_verifier))` if this is a Code flow,
+    /// `None` otherwise
+    pub fn as_code(&self) -> Option<(&AuthorizationCode, &State, Option<&PkceVerifier>)> {
         match self {
-            Self::Code(ctx) => Some((&ctx.response.state, ctx.response.pkce_verifier.as_ref())),
+            Self::Code(ctx) => Some((
+                &ctx.response.code,
+                &ctx.response.state,
+                ctx.response.pkce_verifier.as_ref(),
+            )),
             _ => None,
         }
-    }
-}
-
-impl AuthContextRequest {
-    pub fn api_key(request: ApiKeyRequest, response: ApiKeyResponse, method: ApiKeyMethod) -> Self {
-        todo!()
-    }
-
-    pub fn device_code(
-        request: DeviceCodeRequest,
-        response: DeviceCodeResponse,
-        method: DeviceCodeMethod,
-    ) -> Self {
-        todo!()
-    }
-
-    pub fn code(request: CodeRequest, response: CodeResponse, method: CodeMethod) -> Self {
-        todo!()
-    }
-
-    /// Extracts API key and URL parameters from ApiKey variant
-    ///
-    /// # Returns
-    /// Returns `Some((api_key, url_params))` if this is an ApiKey flow, `None`
-    /// otherwise
-    pub fn as_api_key(&self) -> Option<(&ApiKey, &HashMap<URLParam, URLParamValue>)> {
-        todo!()
-    }
-
-    /// Returns OAuth config if this flow uses OAuth
-    ///
-    /// # Returns
-    /// Returns `Some(&OAuthConfig)` for OAuth flows, `None` for ApiKey flow
-    pub fn oauth_config(&self) -> Option<&OAuthConfig> {
-        todo!()
     }
 }

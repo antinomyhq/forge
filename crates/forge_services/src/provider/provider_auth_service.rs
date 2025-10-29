@@ -10,7 +10,9 @@ use std::time::Duration;
 use chrono::Utc;
 use forge_app::ProviderAuthService;
 use forge_app::dto::{
-    AccessToken, ApiKey, AuthContextRequest, AuthContextResponse, AuthResult, AuthorizationCode, OAuthConfig, OAuthTokens, PkceVerifier, Provider, ProviderCredential, ProviderId, RefreshToken, URLParam, URLParamValue
+    AccessToken, ApiKey, AuthContextResponse, AuthResult, AuthorizationCode, OAuthConfig,
+    OAuthTokens, PkceVerifier, Provider, ProviderCredential, ProviderId, RefreshToken, URLParam,
+    URLParamValue,
 };
 
 use super::AuthFlowError;
@@ -46,16 +48,11 @@ impl<I> ForgeProviderAuthService<I> {
         &self,
         required_params: Vec<forge_app::dto::URLParam>,
     ) -> Result<forge_app::dto::AuthContextRequest, super::AuthFlowError> {
-        use forge_app::dto::{ApiKeyMethod, ApiKeyRequest, ApiKeyResponse, AuthContextRequest};
+        use forge_app::dto::{ApiKeyRequest, AuthContextRequest};
 
-        Ok(AuthContextRequest::api_key(
-            ApiKeyRequest { required_params },
-            ApiKeyResponse {
-                api_key: String::new().into(),
-                url_params: std::collections::HashMap::new(),
-            },
-            ApiKeyMethod,
-        ))
+        Ok(AuthContextRequest::ApiKey(ApiKeyRequest {
+            required_params,
+        }))
     }
 
     /// Handles API key authentication completion
@@ -214,31 +211,24 @@ impl<I> ForgeProviderAuthService<I> {
                 ))
             })?;
 
-        use forge_app::dto::{
-            AuthContextRequest, DeviceCodeMethod, DeviceCodeRequest, DeviceCodeResponse,
-        };
+        use forge_app::dto::{AuthContextRequest, DeviceCodeRequest};
 
         // Build the type-safe context
-        Ok(AuthContextRequest::device_code(
-            DeviceCodeRequest {
-                user_code: device_auth_response.user_code().secret().to_string().into(),
-                verification_uri: device_auth_response.verification_uri().to_string().into(),
-                verification_uri_complete: device_auth_response
-                    .verification_uri_complete()
-                    .map(|u| u.secret().to_string().into()),
-                expires_in: device_auth_response.expires_in().as_secs(),
-                interval: device_auth_response.interval().as_secs(),
-            },
-            DeviceCodeResponse {
-                device_code: device_auth_response
-                    .device_code()
-                    .secret()
-                    .to_string()
-                    .into(),
-                interval: device_auth_response.interval().as_secs(),
-            },
-            DeviceCodeMethod { oauth_config: config.clone() },
-        ))
+        Ok(AuthContextRequest::DeviceCode(DeviceCodeRequest {
+            user_code: device_auth_response.user_code().secret().to_string().into(),
+            device_code: device_auth_response
+                .device_code()
+                .secret()
+                .to_string()
+                .into(),
+            verification_uri: device_auth_response.verification_uri().to_string().into(),
+            verification_uri_complete: device_auth_response
+                .verification_uri_complete()
+                .map(|u| u.secret().to_string().into()),
+            expires_in: device_auth_response.expires_in().as_secs(),
+            interval: device_auth_response.interval().as_secs(),
+            oauth_config: config.clone(),
+        }))
     }
 
     /// Handles OAuth device flow polling until completion
@@ -425,20 +415,15 @@ impl<I> ForgeProviderAuthService<I> {
             AuthFlowError::InitiationFailed(format!("Failed to build auth URL: {}", e))
         })?;
 
-        use forge_app::dto::{AuthContextRequest, CodeMethod, CodeRequest, CodeResponse};
+        use forge_app::dto::{AuthContextRequest, CodeRequest};
 
         // Build the type-safe context
-        Ok(AuthContextRequest::code(
-            CodeRequest {
-                authorization_url: auth_params.auth_url.into(),
-                state: auth_params.state.clone().into(),
-            },
-            CodeResponse {
-                state: auth_params.state.into(),
-                pkce_verifier: auth_params.code_verifier.map(Into::into),
-            },
-            CodeMethod { oauth_config: config.clone() },
-        ))
+        Ok(AuthContextRequest::Code(CodeRequest {
+            authorization_url: auth_params.auth_url.into(),
+            state: auth_params.state.into(),
+            pkce_verifier: auth_params.code_verifier.map(Into::into),
+            oauth_config: config.clone(),
+        }))
     }
 
     /// Handles OAuth authorization code flow completion
@@ -832,11 +817,25 @@ where
                     .await?;
                 Ok(())
             }
-            AuthContextResponse::Code(_) => {
-                let result = self
-                    .poll_provider_auth(&context, timeout, method.clone())
-                    .await?;
-                self.complete_provider_auth_with_result(provider_id, result, method)
+            AuthContextResponse::Code(ctx) => {
+                // Extract authorization code and PKCE verifier
+                let code = ctx.response.code.clone();
+                let pkce_verifier = ctx.response.pkce_verifier.clone();
+
+
+                let credential = self
+                    .handle_oauth_code_complete(
+                        provider_id,
+                        code,
+                        pkce_verifier,
+                        &ctx.method.oauth_config,
+                    )
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e))?;
+
+                // Save credential
+                self.infra
+                    .upsert_credential(provider_id, credential)
                     .await?;
                 Ok(())
             }

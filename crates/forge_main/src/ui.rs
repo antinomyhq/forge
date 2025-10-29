@@ -8,10 +8,10 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, ApiKeyMethod, ApiKeyRequest, ApiKeyResponse, AuthContextResponse,
-    AuthorizationUrl, ChatRequest, ChatResponse, CodeMethod, CodeRequest, CodeResponse,
-    Conversation, ConversationId, DeviceCodeMethod, DeviceCodeRequest, DeviceCodeResponse, Event,
-    FlowContext, InterruptionReason, Model, ModelId, Provider, ProviderId, URLParam, Workflow,
+    API, AgentId, ApiKeyMethod, ApiKeyRequest, ApiKeyResponse, AuthContextResponse, ChatRequest,
+    ChatResponse, CodeMethod, CodeRequest, CodeResponse, Conversation, ConversationId,
+    DeviceCodeMethod, DeviceCodeRequest, DeviceCodeResponse, Event, FlowContext,
+    InterruptionReason, Model, ModelId, Provider, ProviderId, Workflow,
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
@@ -485,14 +485,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn handle_api_key_prompt(
         &mut self,
         provider_id: forge_app::dto::ProviderId,
-        required_params: Vec<URLParam>,
         request: &ApiKeyRequest,
     ) -> anyhow::Result<()> {
         use anyhow::Context;
         self.spinner.stop(None)?;
         // Collect URL parameters if required
-        let url_params = required_params
-            .into_iter()
+        let url_params = request
+            .required_params
+            .iter()
             .map(|param| {
                 let param_value = ForgeSelect::input(format!("Enter {}:", param))
                     .prompt()?
@@ -628,15 +628,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .await?;
 
         match &auth_ctx {
-            forge_api::AuthContextRequest::ApiKey(ctx) => {
-                self.handle_api_key_prompt(provider_id, ctx.required_params.clone(), ctx)
-                    .await?
+            forge_api::AuthContextRequest::ApiKey(req) => {
+                self.handle_api_key_prompt(provider_id, req).await?
             }
-            forge_api::AuthContextRequest::DeviceCode(ctx) => {
-                self.handle_device_flow(provider_id, ctx).await?
+            forge_api::AuthContextRequest::DeviceCode(req) => {
+                self.handle_device_flow(provider_id, req).await?
             }
-            forge_api::AuthContextRequest::Code(ctx) => {
-                self.handle_code_flow(provider_id, ctx).await?
+            forge_api::AuthContextRequest::Code(req) => {
+                self.handle_code_flow(provider_id, req).await?
             }
         }
         Ok(())
@@ -667,7 +666,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let response = AuthContextResponse::DeviceCode(FlowContext {
             request: request.clone(),
             response: DeviceCodeResponse,
-            method: DeviceCodeMethod { oauth_config: todo!() },
+            method: DeviceCodeMethod { oauth_config: request.oauth_config.clone() },
         });
 
         self.api
@@ -719,11 +718,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.spinner
             .start(Some("Exchanging authorization code..."))?;
 
-        let response = AuthContextResponse::Code(FlowContext {
-            request: request.clone(),
-            response: CodeResponse { state: todo!(), pkce_verifier: todo!() },
-            method: CodeMethod { oauth_config: todo!() },
-        });
+        let response = AuthContextResponse::code(
+            request.clone(),
+            CodeResponse {
+                code: code.trim().to_string().into(),
+                state: request.state.clone(),
+                pkce_verifier: request.pkce_verifier.clone(),
+            },
+            CodeMethod { oauth_config: request.oauth_config.clone() },
+        );
 
         self.api
             .complete_provider_auth(
