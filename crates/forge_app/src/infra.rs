@@ -3,17 +3,17 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bytes::Bytes;
-use forge_app::domain::{
-    CommandOutput, Conversation, ConversationId, Environment, McpServerConfig, ToolDefinition,
-    ToolName, ToolOutput,
+use forge_domain::{
+    CommandOutput, Conversation, ConversationId, Environment, FileInfo, McpServerConfig, Snapshot,
+    ToolDefinition, ToolName, ToolOutput,
 };
-use forge_app::{WalkedFile, Walker};
-use forge_snaps::Snapshot;
 use reqwest::Response;
 use reqwest::header::HeaderMap;
 use reqwest_eventsource::EventSource;
 use serde::de::DeserializeOwned;
 use url::Url;
+
+use crate::{WalkedFile, Walker};
 
 /// Infrastructure trait for accessing environment configuration and system
 /// variables.
@@ -64,7 +64,7 @@ pub trait FileReaderInfra: Send + Sync {
         path: &Path,
         start_line: u64,
         end_line: u64,
-    ) -> anyhow::Result<(String, forge_fs::FileInfo)>;
+    ) -> anyhow::Result<(String, FileInfo)>;
 }
 
 #[async_trait::async_trait]
@@ -279,6 +279,6 @@ pub trait ConversationRepository: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait AppConfigRepository: Send + Sync {
-    async fn get_app_config(&self) -> anyhow::Result<forge_app::dto::AppConfig>;
-    async fn set_app_config(&self, config: &forge_app::dto::AppConfig) -> anyhow::Result<()>;
+    async fn get_app_config(&self) -> anyhow::Result<crate::dto::AppConfig>;
+    async fn set_app_config(&self, config: &crate::dto::AppConfig) -> anyhow::Result<()>;
 }

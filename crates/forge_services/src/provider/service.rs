@@ -2,17 +2,15 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::ProviderService;
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, HttpConfig, Model, ModelId, Provider,
     ProviderId, ResultStream, RetryConfig,
 };
+use forge_app::{AppConfigRepository, EnvironmentInfra, HttpInfra, ProviderService};
 use tokio::sync::Mutex;
 
 use crate::http::HttpClient;
-use crate::infra::HttpInfra;
 use crate::provider::client::{Client, ClientBuilder};
-use crate::{AppConfigRepository, EnvironmentInfra};
 #[derive(Clone)]
 pub struct ForgeProviderService<I> {
     retry_config: Arc<RetryConfig>,

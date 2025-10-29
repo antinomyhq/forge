@@ -1246,6 +1246,7 @@ dependencies = [
  "derive_setters",
  "eserde",
  "fake",
+ "fnv_rs",
  "forge_json_repair",
  "forge_template",
  "forge_tool_macros",
@@ -1276,6 +1277,7 @@ name = "forge_fs"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "forge_domain",
  "infer",
  "pretty_assertions",
  "tempfile",
@@ -1455,6 +1457,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "fnv_rs",
+ "forge_domain",
  "forge_fs",
  "serde",
  "tempfile",

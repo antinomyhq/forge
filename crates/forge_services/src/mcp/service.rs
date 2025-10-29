@@ -6,11 +6,10 @@ use forge_app::domain::{
     McpConfig, McpServerConfig, McpServers, ServerName, ToolCallFull, ToolDefinition, ToolName,
     ToolOutput,
 };
-use forge_app::{McpConfigManager, McpService};
+use forge_app::{CacheRepository, McpClientInfra, McpConfigManager, McpServerInfra, McpService};
 use tokio::sync::{Mutex, RwLock};
 
 use crate::mcp::tool::McpExecutor;
-use crate::{CacheRepository, McpClientInfra, McpServerInfra};
 
 #[derive(Clone)]
 pub struct ForgeMcpService<M, I, C> {

@@ -1,6 +1,11 @@
 use std::sync::Arc;
 
-use forge_app::Services;
+use forge_app::{
+    AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
+    DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
+    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, Services, SnapshotInfra,
+    UserInfra, WalkerInfra,
+};
 
 use crate::agent_registry::AgentLoaderService as ForgeAgentLoaderService;
 use crate::attachment::ForgeChatRequest;
@@ -10,7 +15,6 @@ use crate::conversation::ForgeConversationService;
 use crate::custom_instructions::ForgeCustomInstructionsService;
 use crate::discovery::ForgeDiscoveryService;
 use crate::env::ForgeEnvironmentService;
-use crate::infra::HttpInfra;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::policy::ForgePolicyService;
 use crate::provider::{ForgeProviderRegistry, ForgeProviderService};
@@ -20,11 +24,6 @@ use crate::tool_services::{
     ForgeFsSearch, ForgeFsUndo, ForgeImageRead, ForgePlanCreate, ForgeShell,
 };
 use crate::workflow::ForgeWorkflowService;
-use crate::{
-    AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
-    DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-    FileRemoverInfra, FileWriterInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
-};
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client>;
 type AuthService<F> = ForgeAuthService<F>;

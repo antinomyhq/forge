@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use forge_services::{FileRemoverInfra, SnapshotInfra};
+use forge_app::{FileRemoverInfra, SnapshotInfra};
 
 #[derive(Default)]
 pub struct ForgeFileRemoveService<S> {

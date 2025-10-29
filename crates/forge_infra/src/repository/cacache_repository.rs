@@ -72,7 +72,7 @@ impl CacacheRepository {
 }
 
 #[async_trait::async_trait]
-impl forge_services::CacheRepository for CacacheRepository {
+impl forge_app::CacheRepository for CacacheRepository {
     async fn cache_get<K, V>(&self, key: &K) -> Result<Option<V>>
     where
         K: Hash + Sync,
@@ -141,7 +141,7 @@ impl forge_services::CacheRepository for CacacheRepository {
 
 #[cfg(test)]
 mod tests {
-    use forge_services::CacheRepository;
+    use forge_app::CacheRepository;
     use pretty_assertions::assert_eq;
     use serde::{Deserialize, Serialize};
 

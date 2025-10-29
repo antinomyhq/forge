@@ -2,9 +2,8 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Result;
-use forge_domain::Environment;
-use forge_services::SnapshotInfra;
-use forge_snaps::Snapshot;
+use forge_app::SnapshotInfra;
+use forge_domain::{Environment, Snapshot};
 
 pub struct ForgeFileSnapshotService {
     inner: Arc<forge_snaps::SnapshotService>,

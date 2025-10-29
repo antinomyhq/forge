@@ -7,14 +7,12 @@ use forge_app::domain::{
     ExecuteRule, Fetch, Permission, PermissionOperation, Policy, PolicyConfig, PolicyEngine,
     ReadRule, Rule, WriteRule,
 };
-use forge_app::{PolicyDecision, PolicyService};
+use forge_app::{
+    DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
+    PolicyDecision, PolicyService, UserInfra,
+};
 use lazy_static::lazy_static;
 use strum_macros::{Display, EnumIter};
-
-use crate::{
-    DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
-    UserInfra,
-};
 
 /// User response for permission confirmation requests
 #[derive(Debug, Clone, PartialEq, Eq, Display, EnumIter, strum_macros::EnumString)]

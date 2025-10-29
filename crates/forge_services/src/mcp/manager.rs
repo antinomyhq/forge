@@ -3,14 +3,12 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use bytes::Bytes;
-use forge_app::McpConfigManager;
 use forge_app::domain::{McpConfig, Scope};
-use merge::Merge;
-
-use crate::{
+use forge_app::{
     CacheRepository, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
-    McpServerInfra,
+    McpConfigManager, McpServerInfra,
 };
+use merge::Merge;
 
 pub struct ForgeMcpManager<I> {
     infra: Arc<I>,

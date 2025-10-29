@@ -1,15 +1,14 @@
 use std::sync::{Arc, OnceLock};
 
-use forge_app::ProviderRegistry;
 use forge_app::domain::{ModelId, Provider, ProviderId, ProviderResponse};
+use forge_app::{AppConfigRepository, EnvironmentInfra, FileReaderInfra, ProviderRegistry};
 use handlebars::Handlebars;
 use merge::Merge;
 use serde::Deserialize;
 use tokio::sync::OnceCell;
 use url::Url;
 
-use crate::{AppConfigRepository, EnvironmentInfra, FileReaderInfra, ProviderError};
-
+use crate::ProviderError;
 /// Represents the source of models for a provider
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
@@ -399,7 +398,7 @@ mod env_tests {
             _path: &std::path::Path,
             _start_line: u64,
             _end_line: u64,
-        ) -> anyhow::Result<(String, forge_fs::FileInfo)> {
+        ) -> anyhow::Result<(String, forge_domain::FileInfo)> {
             Err(anyhow::anyhow!("File not found"))
         }
     }
@@ -571,7 +570,7 @@ mod env_tests {
                 _path: &std::path::Path,
                 _start_line: u64,
                 _end_line: u64,
-            ) -> anyhow::Result<(String, forge_fs::FileInfo)> {
+            ) -> anyhow::Result<(String, forge_domain::FileInfo)> {
                 Err(anyhow::anyhow!("Not implemented"))
             }
         }

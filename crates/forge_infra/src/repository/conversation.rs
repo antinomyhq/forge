@@ -3,10 +3,10 @@ use std::sync::Arc;
 
 use chrono::{DateTime, NaiveDateTime, Utc};
 use diesel::prelude::*;
+use forge_app::ConversationRepository;
 use forge_domain::{
     Context, Conversation, ConversationId, FileChangeMetrics, MetaData, Metrics, WorkspaceId,
 };
-use forge_services::ConversationRepository;
 use serde::{Deserialize, Serialize};
 
 use crate::database::DatabasePool;

@@ -2,13 +2,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_app::TemplateService;
+use forge_app::{EnvironmentInfra, FileReaderInfra, TemplateService};
 use futures::future;
 use handlebars::{Handlebars, no_escape};
 use rust_embed::Embed;
 use tokio::sync::RwLock;
-
-use crate::{EnvironmentInfra, FileReaderInfra};
 
 #[derive(Embed)]
 #[folder = "../../templates/"]

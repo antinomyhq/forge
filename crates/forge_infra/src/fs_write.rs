@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_services::{FileWriterInfra, SnapshotInfra};
+use forge_app::{FileWriterInfra, SnapshotInfra};
 
 pub struct ForgeFileWriteService<S> {
     snaps: Arc<S>,
@@ -61,7 +61,7 @@ impl<S: SnapshotInfra> FileWriterInfra for ForgeFileWriteService<S> {
 mod tests {
     use std::sync::Arc;
 
-    use forge_snaps::Snapshot;
+    use forge_domain::Snapshot;
     use tempfile::tempdir;
 
     use super::*;
@@ -70,7 +70,7 @@ mod tests {
 
     #[async_trait::async_trait]
     impl SnapshotInfra for MockSnapshotService {
-        async fn create_snapshot(&self, _: &Path) -> anyhow::Result<forge_snaps::Snapshot> {
+        async fn create_snapshot(&self, _: &Path) -> anyhow::Result<forge_domain::Snapshot> {
             Ok(Snapshot {
                 id: Default::default(),
                 timestamp: Default::default(),

@@ -3,13 +3,15 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_domain::{CommandOutput, Conversation, ConversationId, Environment, McpServerConfig};
-use forge_fs::FileInfo as FileInfoData;
-use forge_services::{
+use forge_app::{
     AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
     DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
     FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra,
     WalkerInfra,
+};
+use forge_domain::{
+    CommandOutput, Conversation, ConversationId, Environment, FileInfo as FileInfoData,
+    McpServerConfig,
 };
 use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
@@ -173,7 +175,7 @@ impl FileInfoInfra for ForgeInfra {
 
 #[async_trait::async_trait]
 impl SnapshotInfra for ForgeInfra {
-    async fn create_snapshot(&self, file_path: &Path) -> anyhow::Result<forge_snaps::Snapshot> {
+    async fn create_snapshot(&self, file_path: &Path) -> anyhow::Result<forge_domain::Snapshot> {
         self.file_snapshot_service.create_snapshot(file_path).await
     }
 

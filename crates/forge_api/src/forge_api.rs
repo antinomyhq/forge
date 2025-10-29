@@ -4,13 +4,14 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use forge_app::dto::{InitAuth, LoginInfo, ToolsOverview};
 use forge_app::{
-    AgentRegistry, AuthService, CommandLoaderService, ConversationService, EnvironmentService,
-    FileDiscoveryService, ForgeApp, McpConfigManager, McpService, ProviderRegistry,
-    ProviderService, Services, User, UserUsage, Walker, WorkflowService,
+    AgentRegistry, AppConfigRepository, AuthService, CommandInfra, CommandLoaderService,
+    ConversationService, EnvironmentService, FileDiscoveryService, ForgeApp, McpConfigManager,
+    McpService, ProviderRegistry, ProviderService, Services, User, UserUsage, Walker,
+    WorkflowService,
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
-use forge_services::{AppConfigRepository, CommandInfra, ForgeServices};
+use forge_services::ForgeServices;
 use forge_stream::MpscStream;
 
 use crate::API;
