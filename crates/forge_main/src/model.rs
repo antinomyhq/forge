@@ -185,11 +185,11 @@ impl ForgeCommandManager {
     }
 
     fn default_commands() -> Vec<ForgeCommand> {
-        Command::iter()
-            .filter(|command| !matches!(command, Command::Message(_)))
-            .filter(|command| !matches!(command, Command::Custom(_)))
-            .filter(|command| !matches!(command, Command::Shell(_)))
-            .filter(|command| !matches!(command, Command::AgentSwitch(_)))
+        SlashCommand::iter()
+            .filter(|command| !matches!(command, SlashCommand::Message(_)))
+            .filter(|command| !matches!(command, SlashCommand::Custom(_)))
+            .filter(|command| !matches!(command, SlashCommand::Shell(_)))
+            .filter(|command| !matches!(command, SlashCommand::AgentSwitch(_)))
             .map(|command| ForgeCommand {
                 name: command.name().to_string(),
                 description: command.usage().to_string(),
@@ -310,10 +310,10 @@ impl ForgeCommandManager {
         }
     }
 
-    pub fn parse(&self, input: &str) -> anyhow::Result<Command> {
+    pub fn parse(&self, input: &str) -> anyhow::Result<SlashCommand> {
         // Check if it's a shell command (starts with !)
         if input.trim().starts_with("!") {
-            return Ok(Command::Shell(
+            return Ok(SlashCommand::Shell(
                 input
                     .strip_prefix("!")
                     .unwrap_or_default()
@@ -329,36 +329,36 @@ impl ForgeCommandManager {
         // Check if it's a system command (starts with /)
         let is_command = command.starts_with("/");
         if !is_command {
-            return Ok(Command::Message(input.to_string()));
+            return Ok(SlashCommand::Message(input.to_string()));
         }
 
         // TODO: Can leverage Clap to parse commands and provide correct error messages
         match command {
-            "/compact" => Ok(Command::Compact),
-            "/new" => Ok(Command::New),
-            "/info" => Ok(Command::Info),
-            "/usage" => Ok(Command::Usage),
-            "/exit" => Ok(Command::Exit),
-            "/update" => Ok(Command::Update),
+            "/compact" => Ok(SlashCommand::Compact),
+            "/new" => Ok(SlashCommand::New),
+            "/info" => Ok(SlashCommand::Info),
+            "/usage" => Ok(SlashCommand::Usage),
+            "/exit" => Ok(SlashCommand::Exit),
+            "/update" => Ok(SlashCommand::Update),
             "/dump" => {
                 if !parameters.is_empty() && parameters[0] == "html" {
-                    Ok(Command::Dump(Some("html".to_string())))
+                    Ok(SlashCommand::Dump(Some("html".to_string())))
                 } else {
-                    Ok(Command::Dump(None))
+                    Ok(SlashCommand::Dump(None))
                 }
             }
-            "/act" | "/forge" => Ok(Command::Forge),
-            "/plan" | "/muse" => Ok(Command::Muse),
-            "/sage" => Ok(Command::Sage),
-            "/help" => Ok(Command::Help),
-            "/model" => Ok(Command::Model),
-            "/provider" => Ok(Command::Provider),
-            "/tools" => Ok(Command::Tools),
-            "/agent" => Ok(Command::Agent),
-            "/login" => Ok(Command::Login),
-            "/logout" => Ok(Command::Logout),
-            "/retry" => Ok(Command::Retry),
-            "/conversation" | "/conversations" => Ok(Command::Conversations),
+            "/act" | "/forge" => Ok(SlashCommand::Forge),
+            "/plan" | "/muse" => Ok(SlashCommand::Muse),
+            "/sage" => Ok(SlashCommand::Sage),
+            "/help" => Ok(SlashCommand::Help),
+            "/model" => Ok(SlashCommand::Model),
+            "/provider" => Ok(SlashCommand::Provider),
+            "/tools" => Ok(SlashCommand::Tools),
+            "/agent" => Ok(SlashCommand::Agent),
+            "/login" => Ok(SlashCommand::Login),
+            "/logout" => Ok(SlashCommand::Logout),
+            "/retry" => Ok(SlashCommand::Retry),
+            "/conversation" | "/conversations" => Ok(SlashCommand::Conversations),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -369,7 +369,7 @@ impl ForgeCommandManager {
                         if let Some(found_command) = self.find(command_name) {
                             // Extract the agent ID from the command value
                             if let Some(agent_id) = &found_command.value {
-                                return Ok(Command::AgentSwitch(agent_id.clone()));
+                                return Ok(SlashCommand::AgentSwitch(agent_id.clone()));
                             }
                         }
                         return Err(anyhow::anyhow!("{command} is not a valid agent command"));
@@ -380,7 +380,7 @@ impl ForgeCommandManager {
                     if let Some(command) = self.find(command_name) {
                         let value = self.extract_command_value(&command, &parts[1..]);
 
-                        Ok(Command::Custom(PartialEvent::new(
+                        Ok(SlashCommand::Custom(PartialEvent::new(
                             command.name.clone(),
                             value.unwrap_or_default(),
                         )))
@@ -402,7 +402,7 @@ impl ForgeCommandManager {
 /// - Regular chat messages
 /// - File content
 #[derive(Debug, Clone, PartialEq, Eq, EnumProperty, EnumIter)]
-pub enum Command {
+pub enum SlashCommand {
     /// Compact the conversation context. This can be triggered with the
     /// '/compact' command.
     #[strum(props(usage = "Compact the conversation context"))]
@@ -492,32 +492,32 @@ pub enum Command {
     AgentSwitch(String),
 }
 
-impl Command {
+impl SlashCommand {
     pub fn name(&self) -> &str {
         match self {
-            Command::Compact => "compact",
-            Command::New => "new",
-            Command::Message(_) => "message",
-            Command::Update => "update",
-            Command::Info => "info",
-            Command::Usage => "usage",
-            Command::Exit => "exit",
-            Command::Forge => "forge",
-            Command::Muse => "muse",
-            Command::Sage => "sage",
-            Command::Help => "help",
-            Command::Dump(_) => "dump",
-            Command::Model => "model",
-            Command::Provider => "provider",
-            Command::Tools => "tools",
-            Command::Custom(event) => &event.name,
-            Command::Shell(_) => "!shell",
-            Command::Agent => "agent",
-            Command::Login => "login",
-            Command::Logout => "logout",
-            Command::Retry => "retry",
-            Command::Conversations => "conversation",
-            Command::AgentSwitch(agent_id) => agent_id,
+            SlashCommand::Compact => "compact",
+            SlashCommand::New => "new",
+            SlashCommand::Message(_) => "message",
+            SlashCommand::Update => "update",
+            SlashCommand::Info => "info",
+            SlashCommand::Usage => "usage",
+            SlashCommand::Exit => "exit",
+            SlashCommand::Forge => "forge",
+            SlashCommand::Muse => "muse",
+            SlashCommand::Sage => "sage",
+            SlashCommand::Help => "help",
+            SlashCommand::Dump(_) => "dump",
+            SlashCommand::Model => "model",
+            SlashCommand::Provider => "provider",
+            SlashCommand::Tools => "tools",
+            SlashCommand::Custom(event) => &event.name,
+            SlashCommand::Shell(_) => "!shell",
+            SlashCommand::Agent => "agent",
+            SlashCommand::Login => "login",
+            SlashCommand::Logout => "logout",
+            SlashCommand::Retry => "retry",
+            SlashCommand::Conversations => "conversation",
+            SlashCommand::AgentSwitch(agent_id) => agent_id,
         }
     }
 
@@ -683,7 +683,7 @@ mod tests {
 
         // Verify
         match result {
-            Command::Shell(cmd) => assert_eq!(cmd, "ls -la"),
+            SlashCommand::Shell(cmd) => assert_eq!(cmd, "ls -la"),
             _ => panic!("Expected Shell command, got {result:?}"),
         }
     }
@@ -698,7 +698,7 @@ mod tests {
 
         // Verify
         match result {
-            Command::Shell(cmd) => assert_eq!(cmd, ""),
+            SlashCommand::Shell(cmd) => assert_eq!(cmd, ""),
             _ => panic!("Expected Shell command, got {result:?}"),
         }
     }
@@ -713,7 +713,7 @@ mod tests {
 
         // Verify
         match result {
-            Command::Shell(cmd) => assert_eq!(cmd, "echo 'test'"),
+            SlashCommand::Shell(cmd) => assert_eq!(cmd, "echo 'test'"),
             _ => panic!("Expected Shell command, got {result:?}"),
         }
     }
@@ -741,7 +741,7 @@ mod tests {
 
         // Verify
         match result {
-            Command::Conversations => {
+            SlashCommand::Conversations => {
                 // Command parsed correctly
             }
             _ => panic!("Expected List command, got {result:?}"),
@@ -856,7 +856,7 @@ mod tests {
 
         // Verify
         match actual {
-            Command::AgentSwitch(agent_id) => assert_eq!(agent_id, "test-agent"),
+            SlashCommand::AgentSwitch(agent_id) => assert_eq!(agent_id, "test-agent"),
             _ => panic!("Expected AgentSwitch command, got {actual:?}"),
         }
     }
@@ -1046,7 +1046,7 @@ mod tests {
 
         // Verify
         match result {
-            Command::Tools => {
+            SlashCommand::Tools => {
                 // Command parsed correctly
             }
             _ => panic!("Expected Tool command, got {result:?}"),

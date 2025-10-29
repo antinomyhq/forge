@@ -27,7 +27,7 @@ use crate::conversation_selector::ConversationSelector;
 use crate::env::should_show_completion_prompt;
 use crate::info::Info;
 use crate::input::Console;
-use crate::model::{CliModel, CliProvider, Command, ForgeCommandManager, PartialEvent};
+use crate::model::{CliModel, CliProvider, ForgeCommandManager, PartialEvent, SlashCommand};
 use crate::porcelain::Porcelain;
 use crate::prompt::ForgePrompt;
 use crate::state::UIState;
@@ -154,7 +154,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         })
     }
 
-    async fn prompt(&self) -> Result<Command> {
+    async fn prompt(&self) -> Result<SlashCommand> {
         // Get usage from current conversation if available
         let usage = if let Some(conversation_id) = &self.state.conversation_id {
             self.api
@@ -956,70 +956,70 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn on_command(&mut self, command: Command) -> anyhow::Result<bool> {
+    async fn on_command(&mut self, command: SlashCommand) -> anyhow::Result<bool> {
         match command {
-            Command::Conversations => {
+            SlashCommand::Conversations => {
                 self.list_conversations().await?;
             }
-            Command::Compact => {
+            SlashCommand::Compact => {
                 self.spinner.start(Some("Compacting"))?;
                 self.on_compaction().await?;
             }
-            Command::Dump(format) => {
+            SlashCommand::Dump(format) => {
                 self.spinner.start(Some("Dumping"))?;
                 self.on_dump(format).await?;
             }
-            Command::New => {
+            SlashCommand::New => {
                 self.on_new().await?;
             }
-            Command::Info => {
+            SlashCommand::Info => {
                 self.on_info(false, None).await?;
             }
-            Command::Usage => {
+            SlashCommand::Usage => {
                 self.on_usage().await?;
             }
-            Command::Message(ref content) => {
+            SlashCommand::Message(ref content) => {
                 self.spinner.start(None)?;
                 self.on_message(Some(content.clone())).await?;
             }
-            Command::Forge => {
+            SlashCommand::Forge => {
                 self.on_agent_change(AgentId::FORGE).await?;
             }
-            Command::Muse => {
+            SlashCommand::Muse => {
                 self.on_agent_change(AgentId::MUSE).await?;
             }
-            Command::Sage => {
+            SlashCommand::Sage => {
                 self.on_agent_change(AgentId::SAGE).await?;
             }
-            Command::Help => {
+            SlashCommand::Help => {
                 let info = Info::from(self.command.as_ref());
                 self.writeln(info)?;
             }
-            Command::Tools => {
+            SlashCommand::Tools => {
                 let agent_id = self.api.get_active_agent().await.unwrap_or_default();
                 self.on_show_tools(agent_id, false).await?;
             }
-            Command::Update => {
+            SlashCommand::Update => {
                 on_update(self.api.clone(), None).await;
             }
-            Command::Exit => {
+            SlashCommand::Exit => {
                 return Ok(true);
             }
 
-            Command::Custom(event) => {
+            SlashCommand::Custom(event) => {
                 self.spinner.start(None)?;
                 self.on_custom_event(event.into()).await?;
             }
-            Command::Model => {
+            SlashCommand::Model => {
                 self.on_model_selection().await?;
             }
-            Command::Provider => {
+            SlashCommand::Provider => {
                 self.on_provider_selection().await?;
             }
-            Command::Shell(ref command) => {
+            SlashCommand::Shell(ref command) => {
                 self.api.execute_shell_command_raw(command).await?;
             }
-            Command::Agent => {
+            SlashCommand::Agent => {
                 #[derive(Clone)]
                 struct Agent {
                     id: AgentId,
@@ -1062,7 +1062,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     self.on_agent_change(selected_agent.id).await?;
                 }
             }
-            Command::Login => {
+            SlashCommand::Login => {
                 self.spinner.start(Some("Logging in"))?;
                 self.api.logout().await?;
                 self.login().await?;
@@ -1074,7 +1074,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         .unwrap_or_default(),
                 );
             }
-            Command::Logout => {
+            SlashCommand::Logout => {
                 self.spinner.start(Some("Logging out"))?;
                 self.api.logout().await?;
                 self.spinner.stop(None)?;
@@ -1082,11 +1082,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 // Exit the UI after logout
                 return Ok(true);
             }
-            Command::Retry => {
+            SlashCommand::Retry => {
                 self.spinner.start(None)?;
                 self.on_message(None).await?;
             }
-            Command::AgentSwitch(agent_id) => {
+            SlashCommand::AgentSwitch(agent_id) => {
                 // Validate that the agent exists by checking against loaded agents
                 let agents = self.api.get_agents().await?;
                 let agent_exists = agents.iter().any(|agent| agent.id.as_str() == agent_id);
