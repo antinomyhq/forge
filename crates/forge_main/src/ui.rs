@@ -101,7 +101,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.init_state(false).await?;
 
         // Set agent if provided via CLI
-        if let Some(agent_id) = self.cli.agent_id.clone() {
+        if let Some(agent_id) = self.cli.agent.clone() {
             self.api.set_active_agent(agent_id).await?;
         }
 
@@ -1265,7 +1265,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// conversation ID.
     async fn init_conversation(&mut self) -> Result<ConversationId> {
         // Set agent if provided via CLI
-        if let Some(agent_id) = self.cli.agent_id.clone() {
+        if let Some(agent_id) = self.cli.agent.clone() {
             self.api.set_active_agent(agent_id).await?;
         }
 

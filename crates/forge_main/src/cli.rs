@@ -54,7 +54,7 @@ pub struct Cli {
 
     /// Agent ID to use for this session
     #[arg(long, alias = "aid")]
-    pub agent_id: Option<AgentId>,
+    pub agent: Option<AgentId>,
 
     /// Top-level subcommands
     #[command(subcommand)]
@@ -468,26 +468,26 @@ mod tests {
     #[test]
     fn test_agent_id_long_flag() {
         let fixture = Cli::parse_from(["forge", "--agent-id", "sage"]);
-        assert_eq!(fixture.agent_id, Some(AgentId::new("sage")));
+        assert_eq!(fixture.agent, Some(AgentId::new("sage")));
     }
 
     #[test]
     fn test_agent_id_short_alias() {
         let fixture = Cli::parse_from(["forge", "--aid", "muse"]);
-        assert_eq!(fixture.agent_id, Some(AgentId::new("muse")));
+        assert_eq!(fixture.agent, Some(AgentId::new("muse")));
     }
 
     #[test]
     fn test_agent_id_with_prompt() {
         let fixture = Cli::parse_from(["forge", "--agent-id", "forge", "-p", "test prompt"]);
-        assert_eq!(fixture.agent_id, Some(AgentId::new("forge")));
+        assert_eq!(fixture.agent, Some(AgentId::new("forge")));
         assert_eq!(fixture.prompt, Some("test prompt".to_string()));
     }
 
     #[test]
     fn test_agent_id_not_provided() {
         let fixture = Cli::parse_from(["forge"]);
-        assert_eq!(fixture.agent_id, None);
+        assert_eq!(fixture.agent, None);
     }
 
     #[test]

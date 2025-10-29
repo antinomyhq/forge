@@ -55,7 +55,7 @@ function _forge_exec() {
     # Ensure FORGE_ACTIVE_AGENT always has a value, default to "forge"
     local agent_id="${FORGE_ACTIVE_AGENT:-forge}"
     
-    eval "$_FORGE_BIN --agent-id $(printf '%q' "$agent_id") $(printf '%q ' "$@")"
+    eval "$_FORGE_BIN --agent $(printf '%q' "$agent_id") $(printf '%q ' "$@")"
 }
 
 # Helper function to clear buffer and reset prompt
