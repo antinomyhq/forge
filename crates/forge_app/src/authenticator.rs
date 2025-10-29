@@ -9,11 +9,11 @@ use crate::dto::InitAuth;
 use crate::{AuthService, Error};
 
 /// Handles Forge platform and provider authentication
-pub struct Authenticator<S> {
+pub struct ForgeAuthenticator<S> {
     service: Arc<S>,
 }
 
-impl<S: AuthService> Authenticator<S> {
+impl<S: AuthService> ForgeAuthenticator<S> {
     /// Creates new platform authenticator
     pub fn new(service: Arc<S>) -> Self {
         Self { service }

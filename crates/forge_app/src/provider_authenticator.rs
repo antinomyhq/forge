@@ -23,7 +23,7 @@ where
 
     /// Gets the active provider, automatically refreshing OAuth tokens if
     /// needed
-    pub async fn get_active_provider(&self) -> anyhow::Result<Provider> {
+    pub async fn authorized_providers(&self) -> anyhow::Result<Provider> {
         let provider = self.services.get_active_provider().await?;
 
         // Check if OAuth tokens need refresh

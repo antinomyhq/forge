@@ -6,7 +6,7 @@ use chrono::Local;
 use forge_domain::*;
 use forge_stream::MpscStream;
 
-use crate::authenticator::Authenticator;
+use crate::authenticator::ForgeAuthenticator;
 use crate::dto::{InitAuth, ToolsOverview};
 use crate::orch::Orchestrator;
 use crate::provider_authenticator::ProviderAuthenticator;
@@ -25,7 +25,7 @@ use crate::{
 pub struct ForgeApp<S> {
     services: Arc<S>,
     tool_registry: ToolRegistry<S>,
-    authenticator: Authenticator<S>,
+    forge_authenticator: ForgeAuthenticator<S>,
     provider_authenticator: ProviderAuthenticator<S>,
 }
 
@@ -34,7 +34,7 @@ impl<S: Services> ForgeApp<S> {
     pub fn new(services: Arc<S>) -> Self {
         Self {
             tool_registry: ToolRegistry::new(services.clone()),
-            authenticator: Authenticator::new(services.clone()),
+            forge_authenticator: ForgeAuthenticator::new(services.clone()),
             provider_authenticator: ProviderAuthenticator::new(services.clone()),
             services,
         }
@@ -57,7 +57,7 @@ impl<S: Services> ForgeApp<S> {
 
         let provider = self
             .provider_authenticator
-            .get_active_provider()
+            .authorized_providers()
             .await
             .context("Failed to get provider")?;
         let models = services.models(provider).await?;
@@ -242,17 +242,17 @@ impl<S: Services> ForgeApp<S> {
 
     /// Initializes Forge platform authentication
     pub async fn login(&self, init_auth: &InitAuth) -> Result<()> {
-        self.authenticator.login(init_auth).await
+        self.forge_authenticator.login(init_auth).await
     }
 
     /// Returns device code information for user authorization
     pub async fn init_auth(&self) -> Result<InitAuth> {
-        self.authenticator.init().await
+        self.forge_authenticator.init().await
     }
 
     /// Logs out of Forge platform
     pub async fn logout(&self) -> Result<()> {
-        self.authenticator.logout().await
+        self.forge_authenticator.logout().await
     }
 
     /// Initiates authentication for an LLM provider
