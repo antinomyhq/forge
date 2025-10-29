@@ -53,15 +53,7 @@ impl<S> UserPromptBuilder<S> {
                 .render(user_prompt.template.as_str(), &event_context)
                 .await?;
 
-            let render_prompt = if let Some(ctx) = self.event.context.as_ref() {
-                // It's possible that rendered_prompt might have template, so render it again
-                // with event context.
-                self.services.render(rendered_prompt.as_str(), &ctx).await?
-            } else {
-                rendered_prompt
-            };
-
-            Some(render_prompt)
+            Some(rendered_prompt)
         } else {
             // Use the raw event value as content if no user_prompt is provided
             self.event.value.as_ref().map(|v| v.to_string())
