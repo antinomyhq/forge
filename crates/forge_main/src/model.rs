@@ -378,10 +378,15 @@ impl ForgeCommandManager {
                     // Handle custom workflow commands
                     let command_name = command.strip_prefix('/').unwrap_or(command);
                     if let Some(command) = self.find(command_name) {
-                        let actual_command = self.extract_command_value(&command, &parts[1..]);
+                        let actual_command = self
+                            .extract_command_value(&command, &parts[1..])
+                            .unwrap_or_default();
                         Ok(Command::Custom(PartialEvent::new(
                             command.name.clone(),
-                            actual_command,
+                            serde_json::json!({
+                                "parameters": parameters,
+                                "prompt": actual_command
+                            }),
                         )))
                     } else {
                         Err(anyhow::anyhow!("{command} is not valid"))

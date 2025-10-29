@@ -47,13 +47,32 @@ impl<S> UserPromptBuilder<S> {
             }
 
             debug!(event_context = ?event_context, "Event context");
-            // Render the event value into agent's user prompt template.
-            let rendered_prompt = self
-                .services
-                .render(user_prompt.template.as_str(), &event_context)
-                .await?;
 
-            Some(rendered_prompt)
+            // Render the command first.
+            let event_context = match self
+                .event
+                .value
+                .as_ref()
+                .and_then(|v| v.as_object())
+                .and_then(|value| {
+                    value
+                        .get("prompt")
+                        .and_then(|v| v.as_str())
+                        .map(|prompt| (value, prompt))
+                }) {
+                Some((value, prompt)) => {
+                    let rendered_prompt = self.services.render(prompt, value).await?;
+                    event_context.event(self.event.clone().value(rendered_prompt))
+                }
+                None => event_context,
+            };
+
+            // Render the event value into agent's user prompt template.
+            Some(
+                self.services
+                    .render(user_prompt.template.as_str(), &event_context)
+                    .await?,
+            )
         } else {
             // Use the raw event value as content if no user_prompt is provided
             self.event.value.as_ref().map(|v| v.to_string())
