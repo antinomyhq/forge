@@ -4,13 +4,13 @@ pub mod anthropic;
 pub mod openai;
 
 mod app_config;
-mod auth_flow;
+mod auth;
 mod provider;
 mod provider_credential;
 mod tools_overview;
 
 pub use app_config::*;
-pub use auth_flow::*;
+pub use auth::*;
 pub use provider::*;
 pub use provider_credential::*;
 pub use tools_overview::*;

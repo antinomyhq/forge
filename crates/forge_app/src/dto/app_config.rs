@@ -4,8 +4,7 @@ use derive_more::From;
 use forge_domain::{AgentId, ModelId};
 use serde::{Deserialize, Serialize};
 
-use crate::dto::ProviderId;
-use crate::dto::auth_flow::{AccessToken, ApiKey, ApiKeyName, AuthUrl, SessionId};
+use crate::dto::{AccessToken, ApiKey, ApiKeyName, AuthUrl, ProviderId, SessionId};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]

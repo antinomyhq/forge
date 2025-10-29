@@ -6,8 +6,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use strum_macros::Display;
 
-use crate::dto::auth_flow::{AccessToken, ApiKey, RefreshToken};
-use crate::dto::{URLParam, URLParamValue};
+use crate::dto::{AccessToken, ApiKey, RefreshToken, URLParam, URLParamValue};
 
 /// Type of authentication used for a provider
 #[derive(Debug, Clone, PartialEq, Display, Eq, Serialize, Deserialize)]

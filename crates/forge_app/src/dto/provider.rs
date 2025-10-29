@@ -3,8 +3,7 @@ use serde::{Deserialize, Serialize};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumString};
 use url::Url;
 
-use super::auth_flow::ApiKey;
-use super::{AuthType, ProviderCredential};
+use super::{ApiKey, AuthType, ProviderCredential};
 
 /// --- IMPORTANT ---
 /// The order of providers is important because that would be order in which the
