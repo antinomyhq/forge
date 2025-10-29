@@ -402,15 +402,16 @@ impl<I> ForgeProviderAuthService<I> {
     /// Returns error if authorization URL generation fails
     async fn handle_oauth_code_init(
         &self,
-        _provider_id: &ProviderId,
+        provider_id: &ProviderId,
         config: &crate::provider::OAuthConfig,
     ) -> Result<forge_app::dto::AuthContextRequest, super::AuthFlowError> {
         use super::AuthFlowError;
 
         // Build authorization URL with PKCE
-        let auth_params = ForgeOAuthService::build_auth_code_url(config).map_err(|e| {
-            AuthFlowError::InitiationFailed(format!("Failed to build auth URL: {}", e))
-        })?;
+        let auth_params =
+            ForgeOAuthService::build_auth_code_url(provider_id, config).map_err(|e| {
+                AuthFlowError::InitiationFailed(format!("Failed to build auth URL: {}", e))
+            })?;
 
         use forge_app::dto::{AuthContextRequest, CodeRequest};
 
@@ -438,6 +439,7 @@ impl<I> ForgeProviderAuthService<I> {
 
         // Exchange code for tokens with PKCE verifier (if provided)
         let token_response = ForgeOAuthService::exchange_auth_code(
+            &provider_id,
             config,
             code.as_str(),
             code_verifier.as_ref().map(|v| v.as_str()),

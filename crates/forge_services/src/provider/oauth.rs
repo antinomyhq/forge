@@ -178,10 +178,16 @@ impl ForgeOAuthService {
             .expect("Failed to build HTTP response"))
     }
 
-    /// Builds authorization URL for code flow
-    pub fn build_auth_code_url(config: &OAuthConfig) -> anyhow::Result<AuthCodeParams> {
+    /// Builds the authorization code URL for OAuth flow
+    pub fn build_auth_code_url(
+        provider_id: &forge_app::dto::ProviderId,
+        config: &OAuthConfig,
+    ) -> anyhow::Result<AuthCodeParams> {
         // Check if this is Anthropic OAuth (non-standard: state = verifier)
-        let is_anthropic = config.auth_url.contains("claude.ai/oauth");
+        let is_anthropic = matches!(
+            provider_id,
+            forge_app::dto::ProviderId::Anthropic | forge_app::dto::ProviderId::AnthropicCompatible
+        );
 
         if is_anthropic && config.use_pkce {
             // Anthropic requires state to be set to the PKCE verifier (non-standard)
@@ -262,15 +268,14 @@ impl ForgeOAuthService {
 
     /// Exchanges authorization code for tokens
     pub async fn exchange_auth_code(
+        provider_id: &forge_app::dto::ProviderId,
         config: &OAuthConfig,
         auth_code: &str,
         code_verifier: Option<&str>,
     ) -> anyhow::Result<OAuthTokenResponse> {
-        // Check if this is Anthropic OAuth (requires special handling)
-        let is_anthropic = config.auth_url.contains("claude.ai/oauth");
+        let is_anthropic = matches!(provider_id, forge_app::dto::ProviderId::Anthropic);
 
         if is_anthropic {
-            // Anthropic requires JSON body with code, state, and code_verifier
             return Self::exchange_anthropic_token(
                 &config.token_url,
                 auth_code,
@@ -280,30 +285,24 @@ impl ForgeOAuthService {
             .await;
         }
 
-        // Standard OAuth flow for other providers
         let mut client = BasicClient::new(ClientId::new(config.client_id.to_string()))
             .set_auth_uri(AuthUrl::new(config.auth_url.to_string())?)
             .set_token_uri(TokenUrl::new(config.token_url.to_string())?);
 
-        // Add redirect_uri if provided
         if let Some(redirect_uri) = &config.redirect_uri {
             client = client.set_redirect_uri(RedirectUrl::new(redirect_uri.clone())?);
         }
 
-        // Build HTTP client with custom headers
         let http_client = Self::build_http_client(config.custom_headers.as_ref())?;
 
         let code = AuthorizationCode::new(auth_code.to_string());
 
-        // Build token exchange request
         let mut request = client.exchange_code(code);
 
-        // Add PKCE verifier if provided
         if let Some(verifier) = code_verifier {
             request = request.set_pkce_verifier(PkceCodeVerifier::new(verifier.to_string()));
         }
 
-        // Execute token exchange
         let token_result = request.request_async(&http_client).await?;
 
         Ok(token_result.into())
@@ -408,7 +407,8 @@ mod tests {
             extra_auth_params: None,
         };
 
-        let params = ForgeOAuthService::build_auth_code_url(&config).unwrap();
+        let provider_id = forge_app::dto::ProviderId::OpenAI;
+        let params = ForgeOAuthService::build_auth_code_url(&provider_id, &config).unwrap();
 
         assert!(params.auth_url.contains("client_id=test-client"));
         assert!(params.auth_url.contains("response_type=code"));
@@ -437,7 +437,8 @@ mod tests {
             extra_auth_params: None,
         };
 
-        let params = ForgeOAuthService::build_auth_code_url(&config).unwrap();
+        let provider_id = forge_app::dto::ProviderId::OpenAI;
+        let params = ForgeOAuthService::build_auth_code_url(&provider_id, &config).unwrap();
 
         assert!(!params.auth_url.contains("code_challenge"));
         assert!(params.code_verifier.is_none());
@@ -473,9 +474,11 @@ mod tests {
             extra_auth_params: None,
         };
 
-        let response = ForgeOAuthService::exchange_auth_code(&config, "test_auth_code", None)
-            .await
-            .unwrap();
+        let provider_id = forge_app::dto::ProviderId::OpenAI;
+        let response =
+            ForgeOAuthService::exchange_auth_code(&provider_id, &config, "test_auth_code", None)
+                .await
+                .unwrap();
 
         assert_eq!(response.access_token, "test_access_token");
         assert_eq!(
