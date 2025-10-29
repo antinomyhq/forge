@@ -4,7 +4,8 @@ use anyhow::{Context, Result};
 use forge_domain::*;
 
 use crate::{
-    EnvironmentService, ProviderRegistry, ProviderService, Services, ShellService, TemplateService,
+    AgentRegistry, EnvironmentService, ProviderRegistry, ProviderService, Services, ShellService,
+    TemplateService,
 };
 
 /// Errors specific to GitApp operations
@@ -157,18 +158,15 @@ impl<S: Services> GitApp<S> {
             _ => (diff_output.output.stdout.clone(), false),
         };
 
-        // Execute independent operations in parallel
-        let (rendered_prompt, provider, model) = tokio::join!(
+        // Get required services and data in parallel
+        let agent_id = self.services.get_active_agent_id().await?;
+        let (rendered_prompt, provider, model) = tokio::try_join!(
             self.services
                 .template_service()
                 .render_template("{{> forge-commit-message-prompt.md }}", &()),
-            self.services.get_active_provider(),
-            self.services.get_active_model()
-        );
-
-        let rendered_prompt = rendered_prompt?;
-        let provider = provider.context("Failed to get provider")?;
-        let model = model?;
+            self.get_provider(agent_id.clone()),
+            self.get_model(agent_id)
+        )?;
 
         // Create an context
         let truncation_notice = if was_truncated {
@@ -203,5 +201,21 @@ impl<S: Services> GitApp<S> {
         let message = stream.into_full(false).await?;
 
         Ok(CommitMessageDetails { message: message.content, has_staged_files })
+    }
+
+    async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider> {
+        if let Some(agent) = agent
+            && let Some(agent) = self.services.get_agent(&agent).await?
+            && let Some(provider_id) = agent.provider
+        {
+            return self.services.get_provider(provider_id).await;
+        }
+
+        self.services.get_default_provider().await
+    }
+
+    async fn get_model(&self, agent_id: Option<AgentId>) -> anyhow::Result<ModelId> {
+        let provider_id = self.get_provider(agent_id).await?.id;
+        self.services.get_default_model(&provider_id).await
     }
 }
