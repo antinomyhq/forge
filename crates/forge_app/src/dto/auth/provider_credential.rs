@@ -1,66 +1,10 @@
 use std::collections::HashMap;
 
-/// Domain models for provider credentials with OAuth support
-use chrono::{DateTime, Utc};
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
-use strum_macros::Display;
 
-use crate::dto::{AccessToken, ApiKey, RefreshToken, URLParam, URLParamValue};
-
-/// Type of authentication used for a provider
-#[derive(Debug, Clone, PartialEq, Display, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[strum(serialize_all = "snake_case")]
-pub enum AuthType {
-    /// Traditional API key authentication
-    ApiKey,
-
-    /// OAuth authentication (device or code flow)
-    #[serde(rename = "oauth")]
-    #[strum(serialize = "oauth")]
-    OAuth,
-
-    /// OAuth token used to fetch an API key (GitHub Copilot pattern)
-    #[serde(rename = "oauth_with_api_key")]
-    #[strum(serialize = "oauth_with_api_key")]
-    OAuthWithApiKey,
-}
-
-/// OAuth tokens for providers using OAuth authentication
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Setters)]
-#[setters(strip_option, into)]
-pub struct OAuthTokens {
-    /// Long-lived token for getting new access tokens
-    pub refresh_token: RefreshToken,
-
-    /// Short-lived token for API requests
-    pub access_token: AccessToken,
-
-    /// When the access token expires
-    pub expires_at: DateTime<Utc>,
-}
-
-impl OAuthTokens {
-    /// Creates new OAuth tokens
-    pub fn new(
-        refresh_token: impl Into<RefreshToken>,
-        access_token: impl Into<AccessToken>,
-        expires_at: DateTime<Utc>,
-    ) -> Self {
-        Self {
-            refresh_token: refresh_token.into(),
-            access_token: access_token.into(),
-            expires_at,
-        }
-    }
-
-    /// Checks if token will expire within the given duration
-    pub fn expires_within(&self, seconds: i64) -> bool {
-        let threshold = Utc::now() + chrono::Duration::seconds(seconds);
-        self.expires_at <= threshold
-    }
-}
+use super::{AuthType, OAuthTokens};
+use crate::dto::{ApiKey, URLParam, URLParamValue};
 
 /// Provider credential with support for multiple authentication methods
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Setters)]
