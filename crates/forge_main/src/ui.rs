@@ -100,6 +100,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.api = Arc::new((self.new_api)());
         self.init_state(false).await?;
 
+        // Set agent if provided via CLI
+        if let Some(agent_id) = self.cli.agent_id.clone() {
+            self.api.set_active_agent(agent_id).await?;
+        }
+
         // Reset previously set CLI parameters by the user
         self.cli.conversation = None;
         self.cli.conversation_id = None;
@@ -195,12 +200,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Display the banner in dimmed colors since we're in interactive mode
         self.display_banner()?;
         self.init_state(true).await?;
-
-        // Set agent if provided via CLI
-        if let Some(agent_id_str) = &self.cli.agent_id {
-            let agent_id = AgentId::new(agent_id_str);
-            self.on_agent_change(agent_id).await?;
-        }
 
         self.trace_user();
         self.hydrate_caches();

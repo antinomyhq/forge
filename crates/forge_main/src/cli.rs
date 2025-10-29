@@ -54,7 +54,7 @@ pub struct Cli {
 
     /// Agent ID to use for this session
     #[arg(long, alias = "aid")]
-    pub agent_id: Option<String>,
+    pub agent_id: Option<AgentId>,
 
     /// Top-level subcommands
     #[command(subcommand)]

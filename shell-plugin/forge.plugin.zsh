@@ -15,6 +15,13 @@ typeset -h _FORGE_FD_CMD="$(command -v fdfind 2>/dev/null || command -v fd 2>/de
 # Commands cache - loaded lazily on first use
 typeset -h _FORGE_COMMANDS=""
 
+# Store active agent ID in a local variable (session-scoped)
+# Default to "forge" agent
+export FORGE_ACTIVE_AGENT="forge"
+
+# Store conversation ID in a temporary variable (local to plugin)
+export FORGE_CONVERSATION_ID=""
+
 # Style tagged files
 ZSH_HIGHLIGHT_PATTERNS+=('@\[[^]]#\]' 'fg=cyan,bold')
 
@@ -45,7 +52,10 @@ function _forge_fzf() {
 # Helper function to execute forge commands consistently
 # This ensures proper handling of special characters and consistent output
 function _forge_exec() {
-    eval "$_FORGE_BIN $(printf '%q ' "$@")"
+    # Ensure FORGE_ACTIVE_AGENT always has a value, default to "forge"
+    local agent_id="${FORGE_ACTIVE_AGENT:-forge}"
+    
+    eval "$_FORGE_BIN --agent-id $(printf '%q' "$agent_id") $(printf '%q ' "$@")"
 }
 
 # Helper function to clear buffer and reset prompt
@@ -57,7 +67,8 @@ function _forge_reset() {
 
 # Helper function to print operating agent messages with consistent formatting
 function _forge_print_agent_message() {
-    local agent_name="$($_FORGE_BIN config get agent 2>/dev/null)"
+    # Ensure FORGE_ACTIVE_AGENT always has a value, default to "forge"
+    local agent_name="${FORGE_ACTIVE_AGENT:-forge}"
     echo "\033[33m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] \033[1;37m${agent_name:u}\033[0m \033[90mis the active agent\033[0m"
 }
 
@@ -118,9 +129,6 @@ function _forge_handle_session_command() {
     _forge_reset
     return 0
 }
-
-# Store conversation ID in a temporary variable (local to plugin)
-export FORGE_CONVERSATION_ID=""
 
 # Custom completion widget that handles both :commands and @ completion
 function forge-completion() {
@@ -287,8 +295,9 @@ function _forge_action_model() {
 # Action handler: Show tools
 function _forge_action_tools() {
     echo
-    local current_agent="$($_FORGE_BIN config get agent 2>/dev/null)"
-    _forge_exec list tools "$current_agent"
+    # Ensure FORGE_ACTIVE_AGENT always has a value, default to "forge"
+    local agent_id="${FORGE_ACTIVE_AGENT:-forge}"
+    _forge_exec list tools "$agent_id"
     _forge_reset
 }
 
@@ -315,7 +324,9 @@ function _forge_action_default() {
     if [[ -z "$input_text" ]]; then
         if [[ -n "$user_action" ]]; then
             echo
-            _forge_exec config set --agent "$user_action"
+            # Set the agent in the local variable
+            FORGE_ACTIVE_AGENT="$user_action"
+            echo "\033[33m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] \033[1;37m${FORGE_ACTIVE_AGENT:u}\033[0m \033[90mis now the active agent\033[0m"
         fi
         _forge_reset
         return 0
@@ -330,7 +341,7 @@ function _forge_action_default() {
     
     # Only set the agent if user explicitly specified one
     if [[ -n "$user_action" ]]; then
-        _forge_exec config set --agent "$user_action"
+        FORGE_ACTIVE_AGENT="$user_action"
     fi
     
     # Execute the forge command directly with proper escaping
@@ -401,7 +412,7 @@ function forge-accept-line() {
         ;;
         model)
             _forge_action_model
-        ;;
+        ;;        
         tools)
             _forge_action_tools
         ;;
