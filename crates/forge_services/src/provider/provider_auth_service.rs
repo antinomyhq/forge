@@ -10,9 +10,9 @@ use std::time::Duration;
 use chrono::Utc;
 use forge_app::ProviderAuthService;
 use forge_app::dto::{
-    AccessToken, ApiKey, AuthContextResponse, AuthorizationCode, DeviceCodeRequest,
-    DeviceCodeResponse, AuthContext, OAuthConfig, OAuthTokens, PkceVerifier, Provider,
-    ProviderCredential, ProviderId, RefreshToken, URLParam, URLParamValue,
+    AccessToken, ApiKey, AuthContext, AuthContextResponse, AuthorizationCode, DeviceCodeRequest,
+    DeviceCodeResponse, OAuthConfig, OAuthTokens, PkceVerifier, Provider, ProviderCredential,
+    ProviderId, RefreshToken, URLParam, URLParamValue,
 };
 
 use super::AuthFlowError;

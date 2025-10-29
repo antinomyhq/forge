@@ -317,44 +317,43 @@ impl<
             } else {
                 // Provider not configured - show ALL providers so users can configure them
                 if let Some(config) = all_configs.iter().find(|c| c.id == provider_id) {
-                    // Try to render URL - if it has parameters, use a placeholder
                     let empty_data = std::collections::HashMap::<String, String>::new();
-                    let url = self
+
+                    // Try to render and parse the chat URL
+                    // If it fails, use a template URL to show the original template
+                    let parsed_url = self
                         .handlebars
                         .render_template(&config.url, &empty_data)
-                        .ok();
+                        .ok()
+                        .and_then(|url_str| Url::parse(&url_str).ok())
+                        .unwrap_or_else(|| {
+                            // Use template:// scheme to preserve the original template
+                            Url::parse(&format!("template://{}", config.url.replace("://", "___")))
+                                .unwrap()
+                        });
 
+                    // Try to render and parse the models URL
                     let models = match &config.models {
                         Models::Url(url_template) => {
-                            if let Ok(rendered_url) =
-                                self.handlebars.render_template(url_template, &empty_data)
-                            {
-                                if let Ok(parsed_url) = Url::parse(&rendered_url) {
-                                    forge_app::dto::Models::Url(parsed_url)
-                                } else {
-                                    // Can't parse URL, use a placeholder
-                                    forge_app::dto::Models::Url(
-                                        Url::parse("https://example.com/models").unwrap(),
-                                    )
-                                }
-                            } else {
-                                // Template has parameters, use a placeholder
-                                forge_app::dto::Models::Url(
-                                    Url::parse("https://example.com/models").unwrap(),
-                                )
-                            }
+                            let parsed_model_url = self
+                                .handlebars
+                                .render_template(url_template, &empty_data)
+                                .ok()
+                                .and_then(|rendered_url| Url::parse(&rendered_url).ok())
+                                .unwrap_or_else(|| {
+                                    // Use template:// scheme to preserve the original template
+                                    Url::parse(&format!(
+                                        "template://{}",
+                                        url_template.replace("://", "___")
+                                    ))
+                                    .unwrap()
+                                });
+                            forge_app::dto::Models::Url(parsed_model_url)
                         }
                         Models::Hardcoded(models) => {
                             forge_app::dto::Models::Hardcoded(models.clone())
                         }
                     };
-
-                    // If URL rendering succeeded, use it; otherwise use a placeholder
-                    let parsed_url = url
-                        .and_then(|url_str| Url::parse(&url_str).ok())
-                        .unwrap_or_else(|| {
-                            Url::parse("https://example.com/chat/completions").unwrap()
-                        });
 
                     providers.push(Provider {
                         id: provider_id,
