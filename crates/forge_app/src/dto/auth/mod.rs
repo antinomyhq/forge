@@ -1,7 +1,6 @@
 mod api_key_flow;
 mod auth_context;
 mod auth_method;
-mod auth_result;
 mod auth_type;
 mod code_flow;
 mod credentials;
@@ -15,7 +14,6 @@ mod url_types;
 pub use api_key_flow::*;
 pub use auth_context::*;
 pub use auth_method::*;
-pub use auth_result::*;
 pub use auth_type::*;
 pub use code_flow::*;
 pub use credentials::*;

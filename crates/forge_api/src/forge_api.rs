@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use forge_app::dto::{
-    AuthContext, AuthMethod, InitAuth, LoginInfo, Provider, ProviderId, ToolsOverview,
+    AuthContextResponse, AuthMethod, InitAuth, LoginInfo, Provider, ProviderId, ToolsOverview,
 };
 use forge_app::{
     AgentLoaderService, AuthService, CommandLoaderService, ConversationService, EnvironmentService,
@@ -245,7 +245,7 @@ impl<
         &self,
         provider_id: ProviderId,
         method: AuthMethod,
-    ) -> Result<forge_app::dto::AuthContext> {
+    ) -> Result<forge_app::dto::AuthContextRequest> {
         let forge_app = ForgeApp::new(self.services.clone());
         Ok(forge_app.init_provider_auth(provider_id, method).await?)
     }
@@ -253,7 +253,7 @@ impl<
     async fn complete_provider_auth(
         &self,
         provider_id: ProviderId,
-        context: AuthContext,
+        context: AuthContextResponse,
         timeout: Duration,
     ) -> Result<()> {
         let forge_app = ForgeApp::new(self.services.clone());

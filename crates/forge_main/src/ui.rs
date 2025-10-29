@@ -8,8 +8,10 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, AuthorizationUrl, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
-    InterruptionReason, Model, ModelId, Provider, ProviderId, URLParam, Workflow,
+    API, AgentId, ApiKeyMethod, ApiKeyRequest, ApiKeyResponse, AuthContextResponse, ChatRequest,
+    ChatResponse, CodeMethod, CodeRequest, CodeResponse, Conversation, ConversationId,
+    DeviceCodeMethod, DeviceCodeRequest, DeviceCodeResponse, Event, FlowContext,
+    InterruptionReason, Model, ModelId, Provider, ProviderId, Workflow,
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
@@ -483,14 +485,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn handle_api_key_prompt(
         &mut self,
         provider_id: forge_app::dto::ProviderId,
-        required_params: Vec<URLParam>,
-        mut context: forge_api::AuthContext,
+        request: &ApiKeyRequest,
     ) -> anyhow::Result<()> {
         use anyhow::Context;
         self.spinner.stop(None)?;
         // Collect URL parameters if required
-        let url_params = required_params
-            .into_iter()
+        let url_params = request
+            .required_params
+            .iter()
             .map(|param| {
                 let param_value = ForgeSelect::input(format!("Enter {}:", param))
                     .prompt()?
@@ -511,19 +513,22 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         anyhow::ensure!(!api_key_str.is_empty(), "API key cannot be empty");
 
         // Update the context with collected data
-        // TODO: think about this.
-        if let forge_api::AuthContext::ApiKey(ref mut ctx) = context {
-            ctx.response.api_key = api_key_str.to_string().into();
-            ctx.response.url_params = url_params
-                .into_iter()
-                .map(|(k, v)| (k.into(), v.into()))
-                .collect();
-        }
+        let response = AuthContextResponse::ApiKey(FlowContext {
+            request: request.clone(),
+            response: ApiKeyResponse {
+                api_key: api_key_str.to_string().into(),
+                url_params: url_params
+                    .into_iter()
+                    .map(|(k, v)| (k.into(), v.into()))
+                    .collect(),
+            },
+            method: ApiKeyMethod,
+        });
 
         self.api
             .complete_provider_auth(
                 provider_id,
-                context,
+                response,
                 Duration::from_secs(0), // No timeout needed since we have the data
             )
             .await?;
@@ -623,27 +628,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .await?;
 
         match &auth_ctx {
-            forge_api::AuthContext::ApiKey(ctx) => {
-                self.handle_api_key_prompt(
-                    provider_id,
-                    ctx.request.required_params.clone(),
-                    auth_ctx,
-                )
-                .await?
+            forge_api::AuthContextRequest::ApiKey(req) => {
+                self.handle_api_key_prompt(provider_id, req).await?
             }
-            forge_api::AuthContext::DeviceCode(ctx) => {
-                self.handle_device_flow(
-                    provider_id,
-                    ctx.request.user_code.clone(),
-                    ctx.request.verification_uri.clone(),
-                    ctx.request.verification_uri_complete.clone(),
-                    auth_ctx,
-                )
-                .await?
+            forge_api::AuthContextRequest::DeviceCode(req) => {
+                self.handle_device_flow(provider_id, req).await?
             }
-            forge_api::AuthContext::Code(ctx) => {
-                self.handle_code_flow(provider_id, ctx.request.authorization_url.clone(), auth_ctx)
-                    .await?
+            forge_api::AuthContextRequest::Code(req) => {
+                self.handle_code_flow(provider_id, req).await?
             }
         }
         Ok(())
@@ -652,12 +644,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn handle_device_flow(
         &mut self,
         provider_id: ProviderId,
-        user_code: forge_api::UserCode,
-        verification_uri: forge_api::VerificationUri,
-        verification_uri_complete: Option<forge_api::VerificationUri>,
-        context: forge_api::AuthContext,
+        request: &DeviceCodeRequest,
     ) -> Result<()> {
         use std::time::Duration;
+
+        let user_code = request.user_code.clone();
+        let verification_uri = request.verification_uri.clone();
+        let verification_uri_complete = request.verification_uri_complete.clone();
 
         self.spinner.stop(None)?;
         // Display OAuth device information
@@ -670,8 +663,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Step 2: Complete authentication (polls if needed for OAuth flows)
         self.spinner.start(Some("Completing authentication..."))?;
 
+        let response = AuthContextResponse::DeviceCode(FlowContext {
+            request: request.clone(),
+            response: DeviceCodeResponse,
+            method: DeviceCodeMethod { oauth_config: request.oauth_config.clone() },
+        });
+
         self.api
-            .complete_provider_auth(provider_id, context, Duration::from_secs(600))
+            .complete_provider_auth(provider_id, response, Duration::from_secs(600))
             .await?;
 
         self.spinner.stop(None)?;
@@ -685,8 +684,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn handle_code_flow(
         &mut self,
         provider_id: forge_app::dto::ProviderId,
-        authorization_url: AuthorizationUrl,
-        context: forge_api::AuthContext,
+        request: &CodeRequest,
     ) -> anyhow::Result<()> {
         use colored::Colorize;
 
@@ -704,7 +702,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         println!(
             "{} Please visit: {}",
             "→".blue(),
-            authorization_url.blue().underline()
+            request.authorization_url.blue().underline()
         );
         println!();
 
@@ -720,10 +718,20 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.spinner
             .start(Some("Exchanging authorization code..."))?;
 
+        let response = AuthContextResponse::code(
+            request.clone(),
+            CodeResponse {
+                code: code.trim().to_string().into(),
+                state: request.state.clone(),
+                pkce_verifier: request.pkce_verifier.clone(),
+            },
+            CodeMethod { oauth_config: request.oauth_config.clone() },
+        );
+
         self.api
             .complete_provider_auth(
                 provider_id,
-                context,
+                response,
                 Duration::from_secs(0), // No timeout needed since we have the data
             )
             .await?;

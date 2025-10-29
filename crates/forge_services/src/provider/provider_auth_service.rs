@@ -10,8 +10,9 @@ use std::time::Duration;
 use chrono::Utc;
 use forge_app::ProviderAuthService;
 use forge_app::dto::{
-    AccessToken, ApiKey, AuthContext, AuthResult, AuthorizationCode, OAuthConfig, OAuthTokens,
-    PkceVerifier, Provider, ProviderCredential, ProviderId, RefreshToken, URLParam, URLParamValue,
+    AccessToken, ApiKey, AuthContextResponse, AuthorizationCode, DeviceCodeMethod,
+    DeviceCodeRequest, DeviceCodeResponse, FlowContext, OAuthConfig, OAuthTokens, PkceVerifier,
+    Provider, ProviderCredential, ProviderId, RefreshToken, URLParam, URLParamValue,
 };
 
 use super::AuthFlowError;
@@ -46,17 +47,12 @@ impl<I> ForgeProviderAuthService<I> {
     async fn handle_api_key_init(
         &self,
         required_params: Vec<forge_app::dto::URLParam>,
-    ) -> Result<forge_app::dto::AuthContext, super::AuthFlowError> {
-        use forge_app::dto::{ApiKeyMethod, ApiKeyRequest, ApiKeyResponse, AuthContext};
+    ) -> Result<forge_app::dto::AuthContextRequest, super::AuthFlowError> {
+        use forge_app::dto::{ApiKeyRequest, AuthContextRequest};
 
-        Ok(AuthContext::api_key(
-            ApiKeyRequest { required_params },
-            ApiKeyResponse {
-                api_key: String::new().into(),
-                url_params: std::collections::HashMap::new(),
-            },
-            ApiKeyMethod,
-        ))
+        Ok(AuthContextRequest::ApiKey(ApiKeyRequest {
+            required_params,
+        }))
     }
 
     /// Handles API key authentication completion
@@ -170,7 +166,7 @@ impl<I> ForgeProviderAuthService<I> {
     async fn handle_oauth_device_init(
         &self,
         config: &crate::provider::OAuthConfig,
-    ) -> Result<forge_app::dto::AuthContext, super::AuthFlowError> {
+    ) -> Result<forge_app::dto::AuthContextRequest, super::AuthFlowError> {
         // Validate configuration
         // Build oauth2 client
         use oauth2::basic::BasicClient;
@@ -215,31 +211,24 @@ impl<I> ForgeProviderAuthService<I> {
                 ))
             })?;
 
-        use forge_app::dto::{
-            AuthContext, DeviceCodeMethod, DeviceCodeRequest, DeviceCodeResponse,
-        };
+        use forge_app::dto::{AuthContextRequest, DeviceCodeRequest};
 
         // Build the type-safe context
-        Ok(AuthContext::device_code(
-            DeviceCodeRequest {
-                user_code: device_auth_response.user_code().secret().to_string().into(),
-                verification_uri: device_auth_response.verification_uri().to_string().into(),
-                verification_uri_complete: device_auth_response
-                    .verification_uri_complete()
-                    .map(|u| u.secret().to_string().into()),
-                expires_in: device_auth_response.expires_in().as_secs(),
-                interval: device_auth_response.interval().as_secs(),
-            },
-            DeviceCodeResponse {
-                device_code: device_auth_response
-                    .device_code()
-                    .secret()
-                    .to_string()
-                    .into(),
-                interval: device_auth_response.interval().as_secs(),
-            },
-            DeviceCodeMethod { oauth_config: config.clone() },
-        ))
+        Ok(AuthContextRequest::DeviceCode(DeviceCodeRequest {
+            user_code: device_auth_response.user_code().secret().to_string().into(),
+            device_code: device_auth_response
+                .device_code()
+                .secret()
+                .to_string()
+                .into(),
+            verification_uri: device_auth_response.verification_uri().to_string().into(),
+            verification_uri_complete: device_auth_response
+                .verification_uri_complete()
+                .map(|u| u.secret().to_string().into()),
+            expires_in: device_auth_response.expires_in().as_secs(),
+            interval: device_auth_response.interval().as_secs(),
+            oauth_config: config.clone(),
+        }))
     }
 
     /// Handles OAuth device flow polling until completion
@@ -252,7 +241,7 @@ impl<I> ForgeProviderAuthService<I> {
         config: &crate::provider::OAuthConfig,
         timeout: Duration,
         github_compatible: bool,
-    ) -> Result<AuthResult, super::AuthFlowError> {
+    ) -> Result<OAuthTokenResponse, super::AuthFlowError> {
         use super::AuthFlowError;
 
         // Build HTTP client for manual polling
@@ -334,10 +323,13 @@ impl<I> ForgeProviderAuthService<I> {
                 let (access_token, refresh_token, expires_in) =
                     Self::parse_token_response(&body_text)?;
 
-                return Ok(AuthResult::OAuthTokens {
-                    access_token: access_token.into(),
-                    refresh_token: refresh_token.map(Into::into),
+                return Ok(OAuthTokenResponse {
+                    access_token,
+                    refresh_token,
                     expires_in,
+                    expires_at: None,
+                    token_type: "Bearer".to_string(),
+                    scope: None,
                 });
             }
 
@@ -346,10 +338,13 @@ impl<I> ForgeProviderAuthService<I> {
                 let (access_token, refresh_token, expires_in) =
                     Self::parse_token_response(&body_text)?;
 
-                return Ok(AuthResult::OAuthTokens {
-                    access_token: access_token.into(),
-                    refresh_token: refresh_token.map(Into::into),
+                return Ok(OAuthTokenResponse {
+                    access_token,
+                    refresh_token,
                     expires_in,
+                    expires_at: None,
+                    token_type: "Bearer".to_string(),
+                    scope: None,
                 });
             }
 
@@ -383,31 +378,22 @@ impl<I> ForgeProviderAuthService<I> {
     /// Handles OAuth device flow completion
     ///
     /// # Errors
-    /// Returns error if result type is invalid or credential creation fails
+    /// Returns error if credential creation fails
     async fn handle_oauth_device_complete(
         &self,
         provider_id: ProviderId,
-        result: AuthResult,
+        token_response: OAuthTokenResponse,
     ) -> Result<ProviderCredential, super::AuthFlowError> {
-        use super::AuthFlowError;
+        // Use helpers for consistent credential building
+        let expires_at =
+            Self::calculate_token_expiry(token_response.expires_in, chrono::Duration::days(365));
 
-        match result {
-            AuthResult::OAuthTokens { access_token, refresh_token, expires_in } => {
-                // Use helpers for consistent credential building
-                let expires_at =
-                    Self::calculate_token_expiry(expires_in, chrono::Duration::days(365));
-
-                Ok(Self::build_oauth_credential(
-                    provider_id,
-                    access_token,
-                    refresh_token,
-                    expires_at,
-                ))
-            }
-            _ => Err(AuthFlowError::CompletionFailed(
-                "Expected OAuth tokens result".to_string(),
-            )),
-        }
+        Ok(Self::build_oauth_credential(
+            provider_id,
+            token_response.access_token,
+            token_response.refresh_token,
+            expires_at,
+        ))
     }
 
     /// Handles OAuth authorization code flow initiation
@@ -416,30 +402,26 @@ impl<I> ForgeProviderAuthService<I> {
     /// Returns error if authorization URL generation fails
     async fn handle_oauth_code_init(
         &self,
-        _provider_id: &ProviderId,
+        provider_id: &ProviderId,
         config: &crate::provider::OAuthConfig,
-    ) -> Result<forge_app::dto::AuthContext, super::AuthFlowError> {
+    ) -> Result<forge_app::dto::AuthContextRequest, super::AuthFlowError> {
         use super::AuthFlowError;
 
         // Build authorization URL with PKCE
-        let auth_params = ForgeOAuthService::build_auth_code_url(config).map_err(|e| {
-            AuthFlowError::InitiationFailed(format!("Failed to build auth URL: {}", e))
-        })?;
+        let auth_params =
+            ForgeOAuthService::build_auth_code_url(provider_id, config).map_err(|e| {
+                AuthFlowError::InitiationFailed(format!("Failed to build auth URL: {}", e))
+            })?;
 
-        use forge_app::dto::{AuthContext, CodeMethod, CodeRequest, CodeResponse};
+        use forge_app::dto::{AuthContextRequest, CodeRequest};
 
         // Build the type-safe context
-        Ok(AuthContext::code(
-            CodeRequest {
-                authorization_url: auth_params.auth_url.into(),
-                state: auth_params.state.clone().into(),
-            },
-            CodeResponse {
-                state: auth_params.state.into(),
-                pkce_verifier: auth_params.code_verifier.map(Into::into),
-            },
-            CodeMethod { oauth_config: config.clone() },
-        ))
+        Ok(AuthContextRequest::Code(CodeRequest {
+            authorization_url: auth_params.auth_url.into(),
+            state: auth_params.state.into(),
+            pkce_verifier: auth_params.code_verifier.map(Into::into),
+            oauth_config: config.clone(),
+        }))
     }
 
     /// Handles OAuth authorization code flow completion
@@ -457,6 +439,7 @@ impl<I> ForgeProviderAuthService<I> {
 
         // Exchange code for tokens with PKCE verifier (if provided)
         let token_response = ForgeOAuthService::exchange_auth_code(
+            &provider_id,
             config,
             code.as_str(),
             code_verifier.as_ref().map(|v| v.as_str()),
@@ -558,35 +541,30 @@ impl<I> ForgeProviderAuthService<I> {
     async fn handle_oauth_with_apikey_complete(
         &self,
         _provider_id: ProviderId,
-        result: AuthResult,
+        token_response: OAuthTokenResponse,
         config: &crate::provider::OAuthConfig,
     ) -> Result<ProviderCredential, super::AuthFlowError> {
-        use super::AuthFlowError;
+        // Exchange OAuth token for API key using config
+        let (api_key, expires_at) = self
+            .exchange_oauth_for_api_key(&token_response.access_token, config)
+            .await?;
 
-        match result {
-            AuthResult::OAuthTokens { access_token, refresh_token, expires_in: _ } => {
-                // Exchange OAuth token for API key using config
-                let (api_key, expires_at) = self
-                    .exchange_oauth_for_api_key(&access_token, config)
-                    .await?;
+        // Create OAuth tokens structure
+        let oauth_tokens = if let Some(refresh_tok) = token_response.refresh_token {
+            OAuthTokens::new(refresh_tok, token_response.access_token, expires_at)
+        } else {
+            // Use access token as refresh token if none provided
+            OAuthTokens::new(
+                token_response.access_token.as_str().to_string(),
+                token_response.access_token,
+                expires_at,
+            )
+        };
 
-                // Create OAuth tokens structure
-                let oauth_tokens = if let Some(refresh_tok) = refresh_token {
-                    OAuthTokens::new(refresh_tok, access_token, expires_at)
-                } else {
-                    // Use access token as refresh token if none provided
-                    OAuthTokens::new(access_token.as_str().to_string(), access_token, expires_at)
-                };
+        // Create credential with both OAuth token and API key
+        let credential = ProviderCredential::new_oauth_with_api_key(api_key, oauth_tokens);
 
-                // Create credential with both OAuth token and API key
-                let credential = ProviderCredential::new_oauth_with_api_key(api_key, oauth_tokens);
-
-                Ok(credential)
-            }
-            _ => Err(AuthFlowError::CompletionFailed(
-                "Expected OAuthTokens result for OAuth with API key flow".to_string(),
-            )),
-        }
+        Ok(credential)
     }
 
     // ========== Refresh Handlers ==========
@@ -736,7 +714,7 @@ where
         &self,
         provider_id: ProviderId,
         method: AuthMethod,
-    ) -> anyhow::Result<forge_app::dto::AuthContext> {
+    ) -> anyhow::Result<forge_app::dto::AuthContextRequest> {
         // Get URL parameters from provider config
         let url_param_vars = self.get_url_param_vars(&provider_id);
 
@@ -811,37 +789,60 @@ where
     async fn complete_provider_auth(
         &self,
         provider_id: ProviderId,
-        context: AuthContext,
+        context: AuthContextResponse,
         timeout: Duration,
     ) -> anyhow::Result<()> {
-        let method = context.method();
-        match context {
-            AuthContext::ApiKey(ctx) => {
-                let result = AuthResult::ApiKey {
-                    api_key: ctx.response.api_key,
-                    url_params: ctx.response.url_params,
-                };
-                self.complete_provider_auth_with_result(provider_id, result, method)
-                    .await?;
-                Ok(())
+        let credential = match context {
+            AuthContextResponse::ApiKey(ctx) => {
+                // Handle API key auth directly
+                self.handle_api_key_complete(
+                    provider_id,
+                    ctx.response.api_key,
+                    ctx.response.url_params,
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!(e))?
             }
-            AuthContext::DeviceCode(_) => {
-                let result = self
-                    .poll_provider_auth(&context, timeout, method.clone())
-                    .await?;
-                self.complete_provider_auth_with_result(provider_id, result, method)
-                    .await?;
-                Ok(())
+            AuthContextResponse::DeviceCode(ctx) => {
+                // Poll for OAuth tokens
+                let token_response = self.poll_provider_auth(&ctx, timeout).await?;
+
+                let method = &ctx.method;
+                let config = &method.oauth_config;
+
+                // Dispatch based on auth method
+                if config.token_refresh_url.is_some() {
+                    // Handle OAuth with API key completion
+                    self.handle_oauth_with_apikey_complete(provider_id, token_response, config)
+                        .await
+                        .map_err(|e| anyhow::anyhow!(e))?
+                } else {
+                    self.handle_oauth_device_complete(provider_id, token_response)
+                        .await
+                        .map_err(|e| anyhow::anyhow!(e))?
+                }
             }
-            AuthContext::Code(_) => {
-                let result = self
-                    .poll_provider_auth(&context, timeout, method.clone())
-                    .await?;
-                self.complete_provider_auth_with_result(provider_id, result, method)
-                    .await?;
-                Ok(())
+            AuthContextResponse::Code(ctx) => {
+                // Extract authorization code and PKCE verifier
+                let code = ctx.response.code.clone();
+                let pkce_verifier = ctx.response.pkce_verifier.clone();
+
+                // Handle OAuth code flow completion
+                self.handle_oauth_code_complete(
+                    provider_id,
+                    code,
+                    pkce_verifier,
+                    &ctx.method.oauth_config,
+                )
+                .await?
             }
-        }
+        };
+
+        // Store credential via infrastructure
+        self.infra
+            .upsert_credential(provider_id, credential)
+            .await?;
+        Ok(())
     }
 }
 
@@ -855,103 +856,25 @@ where
         + 'static,
 {
     /// Polls until provider authentication completes (for OAuth flows)
-    ///
-    /// # Errors
-    /// Returns error if polling fails, times out, or auth is denied
     async fn poll_provider_auth(
         &self,
-        context: &AuthContext,
+        context: &FlowContext<DeviceCodeRequest, DeviceCodeResponse, DeviceCodeMethod>,
         timeout: Duration,
-        method: AuthMethod,
-    ) -> anyhow::Result<AuthResult> {
-        // Dispatch based on auth method
-        match &method {
-            AuthMethod::ApiKey => {
-                unimplemented!("API key method does not require polling")
-            }
-            AuthMethod::OAuthDevice(config) => {
-                // Extract device code from context
-                let (device_code, _interval) = context
-                    .as_device_code()
-                    .ok_or_else(|| anyhow::anyhow!("Invalid context type for device flow"))?;
+    ) -> anyhow::Result<OAuthTokenResponse> {
+        let config = &context.method.oauth_config;
+        let device_code = &context.request.device_code;
 
-                // Check if this needs OAuth with API key exchange (GitHub Copilot pattern)
-                if config.token_refresh_url.is_some() {
-                    // Handle OAuth with API key polling (GitHub-compatible)
-                    self.handle_oauth_device_poll(device_code, config, timeout, true)
-                        .await
-                        .map_err(|e| anyhow::anyhow!(e))
-                } else {
-                    // Handle OAuth device flow polling (standard OAuth)
-                    self.handle_oauth_device_poll(device_code, config, timeout, false)
-                        .await
-                        .map_err(|e| anyhow::anyhow!(e))
-                }
-            }
-            AuthMethod::OAuthCode(_config) => {
-                unimplemented!("OAuth code flow polling is not required")
-            }
-        }
-    }
-
-    /// Completes provider authentication and saves credential
-    ///
-    /// # Errors
-    /// Returns error if credential creation or storage fails
-    async fn complete_provider_auth_with_result(
-        &self,
-        provider_id: ProviderId,
-        result: AuthResult,
-        method: AuthMethod,
-    ) -> anyhow::Result<ProviderCredential> {
-        // Dispatch based on auth method and result type
-        let credential = match (&method, &result) {
-            (AuthMethod::ApiKey, AuthResult::ApiKey { api_key, url_params }) => {
-                // Handle API key auth directly
-                self.handle_api_key_complete(provider_id, api_key.clone(), url_params.clone())
-                    .await
-                    .map_err(|e| anyhow::anyhow!(e))?
-            }
-            (AuthMethod::OAuthDevice(config), AuthResult::OAuthTokens { .. }) => {
-                // Check if this needs OAuth with API key exchange (GitHub Copilot pattern)
-                if config.token_refresh_url.is_some() {
-                    // Handle OAuth with API key completion directly
-                    self.handle_oauth_with_apikey_complete(provider_id, result, config)
-                        .await
-                        .map_err(|e| anyhow::anyhow!(e))?
-                } else {
-                    // Handle OAuth device flow completion directly
-                    self.handle_oauth_device_complete(provider_id, result)
-                        .await
-                        .map_err(|e| anyhow::anyhow!(e))?
-                }
-            }
-            (
-                AuthMethod::OAuthCode(config),
-                AuthResult::AuthorizationCode { code, code_verifier, .. },
-            ) => {
-                // Handle OAuth code flow completion directly
-                self.handle_oauth_code_complete(
-                    provider_id,
-                    code.clone(),
-                    code_verifier.clone(),
-                    config,
-                )
+        // Check if this needs OAuth with API key exchange (GitHub Copilot pattern)
+        if config.token_refresh_url.is_some() {
+            // Handle OAuth with API key polling (GitHub-compatible)
+            self.handle_oauth_device_poll(device_code, config, timeout, true)
                 .await
-                .map_err(|e| anyhow::anyhow!(e))?
-            }
-            _ => {
-                // Unknown combination
-                return Err(anyhow::anyhow!(
-                    "Unsupported auth method or result type combination"
-                ));
-            }
-        };
-
-        // Store credential via infrastructure (takes ownership)
-        self.infra
-            .upsert_credential(provider_id, credential.clone())
-            .await?;
-        Ok(credential)
+                .map_err(|e| anyhow::anyhow!(e))
+        } else {
+            // Handle OAuth device flow polling (standard OAuth)
+            self.handle_oauth_device_poll(device_code, config, timeout, false)
+                .await
+                .map_err(|e| anyhow::anyhow!(e))
+        }
     }
 }
