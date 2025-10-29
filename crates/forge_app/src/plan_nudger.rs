@@ -35,7 +35,7 @@ impl<'a> PlanNudger<'a> {
         }
 
         // Don't add yield nudge if next iteration would be an interval nudge
-        !self.should_add_interval_nudge(&request_count)
+        !self.should_add_interval_nudge(request_count)
     }
 
     /// Marks that the yield nudge has been sent (consumes the one-time nudge)
