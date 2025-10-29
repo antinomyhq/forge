@@ -17,10 +17,10 @@ typeset -h _FORGE_COMMANDS=""
 
 # Store active agent ID in a local variable (session-scoped)
 # Default to "forge" agent
-export FORGE_ACTIVE_AGENT="forge"
+typeset -h _FORGE_ACTIVE_AGENT="forge"
 
 # Store conversation ID in a temporary variable (local to plugin)
-export FORGE_CONVERSATION_ID=""
+typeset -h _FORGE_CONVERSATION_ID=""
 
 # Style tagged files
 ZSH_HIGHLIGHT_PATTERNS+=('@\[[^]]#\]' 'fg=cyan,bold')
@@ -414,7 +414,7 @@ function forge-accept-line() {
         ;;
         model)
             _forge_action_model
-        ;;        
+        ;;
         tools)
             _forge_action_tools
         ;;
