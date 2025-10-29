@@ -11,7 +11,7 @@ use chrono::Utc;
 use forge_app::ProviderAuthService;
 use forge_app::dto::{
     AccessToken, ApiKey, AuthContextResponse, AuthorizationCode, DeviceCodeRequest,
-    DeviceCodeResponse, FlowContext, OAuthConfig, OAuthTokens, PkceVerifier, Provider,
+    DeviceCodeResponse, AuthContext, OAuthConfig, OAuthTokens, PkceVerifier, Provider,
     ProviderCredential, ProviderId, RefreshToken, URLParam, URLParamValue,
 };
 
@@ -857,7 +857,7 @@ where
     /// Polls until provider authentication completes (for OAuth flows)
     async fn poll_provider_auth(
         &self,
-        context: &FlowContext<DeviceCodeRequest, DeviceCodeResponse>,
+        context: &AuthContext<DeviceCodeRequest, DeviceCodeResponse>,
         timeout: Duration,
     ) -> anyhow::Result<OAuthTokenResponse> {
         let config = &context.request.oauth_config;

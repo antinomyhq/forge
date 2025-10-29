@@ -5,9 +5,7 @@ use super::{
     URLParam, URLParamValue, UserCode, VerificationUri,
 };
 
-// ============================================================================
 // API Key Flow
-// ============================================================================
 
 /// Request parameters for API key authentication
 #[derive(Debug, Clone)]
@@ -22,9 +20,7 @@ pub struct ApiKeyResponse {
     pub url_params: HashMap<URLParam, URLParamValue>,
 }
 
-// ============================================================================
 // Authorization Code Flow
-// ============================================================================
 
 /// Authorization code OAuth authentication flow
 #[derive(Debug, Clone)]
@@ -39,15 +35,13 @@ pub struct CodeRequest {
     pub oauth_config: OAuthConfig,
 }
 
-/// Response containing authorization code, state and optional PKCE verifier
+/// Response containing authorization code
 #[derive(Debug, Clone)]
 pub struct CodeResponse {
     pub code: AuthorizationCode,
 }
 
-// ============================================================================
 // Device Code Flow
-// ============================================================================
 
 /// Device code OAuth authentication flow
 #[derive(Debug, Clone)]
@@ -65,14 +59,18 @@ pub struct DeviceCodeRequest {
     pub oauth_config: OAuthConfig,
 }
 
-/// Response containing device code and polling interval
+/// Response for device code flow
 #[derive(Debug, Clone)]
 pub struct DeviceCodeResponse;
 
-// ============================================================================
-// Auth Context
-// ============================================================================
+/// Generic container that pairs a request with its corresponding response
+#[derive(Debug, Clone)]
+pub struct AuthContext<Request, Response> {
+    pub request: Request,
+    pub response: Response,
+}
 
+/// Represents different types of authentication requests
 #[derive(Debug, Clone)]
 pub enum AuthContextRequest {
     ApiKey(ApiKeyRequest),
@@ -80,17 +78,12 @@ pub enum AuthContextRequest {
     Code(CodeRequest),
 }
 
-#[derive(Debug, Clone)]
-pub struct FlowContext<Request, Response> {
-    pub request: Request,
-    pub response: Response,
-}
-
+/// Represents completed authentication flows with their request/response pairs
 #[derive(Debug, Clone)]
 pub enum AuthContextResponse {
-    ApiKey(FlowContext<ApiKeyRequest, ApiKeyResponse>),
-    DeviceCode(FlowContext<DeviceCodeRequest, DeviceCodeResponse>),
-    Code(FlowContext<CodeRequest, CodeResponse>),
+    ApiKey(AuthContext<ApiKeyRequest, ApiKeyResponse>),
+    DeviceCode(AuthContext<DeviceCodeRequest, DeviceCodeResponse>),
+    Code(AuthContext<CodeRequest, CodeResponse>),
 }
 
 impl AuthContextResponse {
@@ -100,7 +93,7 @@ impl AuthContextResponse {
         api_key: impl ToString,
         url_params: HashMap<String, String>,
     ) -> Self {
-        Self::ApiKey(FlowContext {
+        Self::ApiKey(AuthContext {
             request,
             response: ApiKeyResponse {
                 api_key: api_key.to_string().into(),
@@ -114,12 +107,12 @@ impl AuthContextResponse {
 
     /// Creates a device code authentication context
     pub fn device_code(request: DeviceCodeRequest) -> Self {
-        Self::DeviceCode(FlowContext { request, response: DeviceCodeResponse })
+        Self::DeviceCode(AuthContext { request, response: DeviceCodeResponse })
     }
 
     /// Creates an authorization code authentication context
     pub fn code(request: CodeRequest, code: impl ToString) -> Self {
-        Self::Code(FlowContext {
+        Self::Code(AuthContext {
             request,
             response: CodeResponse { code: code.to_string().into() },
         })
