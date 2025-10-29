@@ -1,12 +1,11 @@
 use std::collections::HashMap;
 
 use derive_setters::Setters;
-use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::conversation::{EVENT_USER_TASK_INIT, EVENT_USER_TASK_UPDATE};
-use crate::{Attachment, NamedTool, ToolDefinition, ToolName};
+use crate::{Attachment, NamedTool, ToolName};
 
 // We'll use simple strings for JSON schema compatibility
 #[derive(Debug, Deserialize, Serialize, Clone, Setters)]
