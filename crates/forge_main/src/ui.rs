@@ -8,10 +8,9 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, ApiKeyMethod, ApiKeyRequest, ApiKeyResponse, AuthContextResponse, ChatRequest,
-    ChatResponse, CodeMethod, CodeRequest, CodeResponse, Conversation, ConversationId,
-    DeviceCodeMethod, DeviceCodeRequest, DeviceCodeResponse, Event, FlowContext,
-    InterruptionReason, Model, ModelId, Provider, ProviderId, Workflow,
+    API, AgentId, ApiKeyRequest, AuthContextResponse, ChatRequest, ChatResponse, CodeRequest,
+    Conversation, ConversationId, DeviceCodeRequest, Event, InterruptionReason, Model, ModelId,
+    Provider, ProviderId, Workflow,
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
@@ -513,17 +512,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         anyhow::ensure!(!api_key_str.is_empty(), "API key cannot be empty");
 
         // Update the context with collected data
-        let response = AuthContextResponse::ApiKey(FlowContext {
-            request: request.clone(),
-            response: ApiKeyResponse {
-                api_key: api_key_str.to_string().into(),
-                url_params: url_params
-                    .into_iter()
-                    .map(|(k, v)| (k.into(), v.into()))
-                    .collect(),
-            },
-            method: ApiKeyMethod,
-        });
+        let response = AuthContextResponse::api_key(request.clone(), api_key_str, url_params);
 
         self.api
             .complete_provider_auth(
@@ -663,11 +652,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Step 2: Complete authentication (polls if needed for OAuth flows)
         self.spinner.start(Some("Completing authentication..."))?;
 
-        let response = AuthContextResponse::DeviceCode(FlowContext {
-            request: request.clone(),
-            response: DeviceCodeResponse,
-            method: DeviceCodeMethod { oauth_config: request.oauth_config.clone() },
-        });
+        let response = AuthContextResponse::device_code(request.clone());
 
         self.api
             .complete_provider_auth(provider_id, response, Duration::from_secs(600))
@@ -718,15 +703,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.spinner
             .start(Some("Exchanging authorization code..."))?;
 
-        let response = AuthContextResponse::code(
-            request.clone(),
-            CodeResponse {
-                code: code.trim().to_string().into(),
-                state: request.state.clone(),
-                pkce_verifier: request.pkce_verifier.clone(),
-            },
-            CodeMethod { oauth_config: request.oauth_config.clone() },
-        );
+        let response = AuthContextResponse::code(request.clone(), &code);
 
         self.api
             .complete_provider_auth(

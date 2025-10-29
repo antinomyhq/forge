@@ -10,9 +10,9 @@ use std::time::Duration;
 use chrono::Utc;
 use forge_app::ProviderAuthService;
 use forge_app::dto::{
-    AccessToken, ApiKey, AuthContextResponse, AuthorizationCode, DeviceCodeMethod,
-    DeviceCodeRequest, DeviceCodeResponse, FlowContext, OAuthConfig, OAuthTokens, PkceVerifier,
-    Provider, ProviderCredential, ProviderId, RefreshToken, URLParam, URLParamValue,
+    AccessToken, ApiKey, AuthContextResponse, AuthorizationCode, DeviceCodeRequest,
+    DeviceCodeResponse, FlowContext, OAuthConfig, OAuthTokens, PkceVerifier, Provider,
+    ProviderCredential, ProviderId, RefreshToken, URLParam, URLParamValue,
 };
 
 use super::AuthFlowError;
@@ -807,8 +807,7 @@ where
                 // Poll for OAuth tokens
                 let token_response = self.poll_provider_auth(&ctx, timeout).await?;
 
-                let method = &ctx.method;
-                let config = &method.oauth_config;
+                let config = &ctx.request.oauth_config;
 
                 // Dispatch based on auth method
                 if config.token_refresh_url.is_some() {
@@ -825,14 +824,14 @@ where
             AuthContextResponse::Code(ctx) => {
                 // Extract authorization code and PKCE verifier
                 let code = ctx.response.code.clone();
-                let pkce_verifier = ctx.response.pkce_verifier.clone();
+                let pkce_verifier = ctx.request.pkce_verifier.clone();
 
                 // Handle OAuth code flow completion
                 self.handle_oauth_code_complete(
                     provider_id,
                     code,
                     pkce_verifier,
-                    &ctx.method.oauth_config,
+                    &ctx.request.oauth_config,
                 )
                 .await?
             }
@@ -858,10 +857,10 @@ where
     /// Polls until provider authentication completes (for OAuth flows)
     async fn poll_provider_auth(
         &self,
-        context: &FlowContext<DeviceCodeRequest, DeviceCodeResponse, DeviceCodeMethod>,
+        context: &FlowContext<DeviceCodeRequest, DeviceCodeResponse>,
         timeout: Duration,
     ) -> anyhow::Result<OAuthTokenResponse> {
-        let config = &context.method.oauth_config;
+        let config = &context.request.oauth_config;
         let device_code = &context.request.device_code;
 
         // Check if this needs OAuth with API key exchange (GitHub Copilot pattern)

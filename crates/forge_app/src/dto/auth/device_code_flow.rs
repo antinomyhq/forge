@@ -19,9 +19,3 @@ pub struct DeviceCodeRequest {
 /// Response containing device code and polling interval
 #[derive(Debug, Clone)]
 pub struct DeviceCodeResponse;
-
-/// Method configuration for device code flow
-#[derive(Debug, Clone)]
-pub struct DeviceCodeMethod {
-    pub oauth_config: OAuthConfig,
-}

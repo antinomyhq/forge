@@ -14,7 +14,3 @@ pub struct ApiKeyResponse {
     pub api_key: ApiKey,
     pub url_params: HashMap<URLParam, URLParamValue>,
 }
-
-/// Method for API key authentication
-#[derive(Debug, Clone)]
-pub struct ApiKeyMethod;
