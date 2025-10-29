@@ -12,6 +12,7 @@ use tracing::{debug, info, warn};
 
 use crate::agent::AgentService;
 use crate::compact::Compactor;
+use crate::plan_nudger::PlanNudger;
 use crate::title_generator::TitleGenerator;
 use crate::user_prompt::UserPromptBuilder;
 
@@ -355,10 +356,13 @@ impl<S: AgentService> Orchestrator<S> {
         // Signals that the task is completed
         let mut is_complete = false;
 
-        let mut request_count = 0;
+        let mut request_count: usize = 0;
 
         // Retrieve the number of requests allowed per tick.
         let max_requests_per_turn = agent.max_requests_per_turn;
+
+        let mut plan_nudger =
+            PlanNudger::new(self.plan_nudge.is_some(), &self.agent.plan_nudge_interval);
 
         let tool_context =
             ToolCallContext::new(self.conversation.metrics.clone()).sender(self.sender.clone());
@@ -368,7 +372,9 @@ impl<S: AgentService> Orchestrator<S> {
 
         while !should_yield {
             // Send plan nudge if applicable
-            context = self.add_plan_nudge(context, request_count);
+            if plan_nudger.should_add_interval_nudge(&request_count) {
+                context = self.add_plan_nudge(context);
+            }
 
             // Set context for the current loop iteration
             self.conversation.context = Some(context.clone());
@@ -524,6 +530,20 @@ impl<S: AgentService> Orchestrator<S> {
                     should_yield = true;
                 }
             }
+
+            // Handle yield with plan nudge
+            if should_yield {
+                if plan_nudger.should_add_yield_nudge(&request_count) {
+                    // Case: Agentic Loop has decided to yield but we were executing some plan and
+                    // not sure if plan is fully executed or not. so we nudge the
+                    // agent to check that here.
+                    context = self.add_plan_nudge(context);
+                    plan_nudger.mark_yield_nudge();
+                    should_yield = false;
+                }
+            } else {
+                plan_nudger.reset_yeild_nudge();
+            }
         }
 
         // Update metrics in conversation
@@ -556,21 +576,15 @@ impl<S: AgentService> Orchestrator<S> {
     }
 
     /// Applies a plan nudge message to the context if conditions are met
-    fn add_plan_nudge(&self, context: Context, request_count: usize) -> Context {
-        match (self.agent.plan_nudge_interval, &self.plan_nudge) {
-            (Some(interval), Some(nudge))
-                if request_count > 0 && request_count.is_multiple_of(interval) =>
-            {
-                info!(
-                    agent_id = %self.agent.id,
-                    request_count,
-                    nudge_interval = interval,
-                    "Sending plan nudge"
-                );
-
-                context.add_message(ContextMessage::user(nudge, self.agent.model.clone()))
-            }
-            _ => context,
+    fn add_plan_nudge(&self, context: Context) -> Context {
+        if let Some(plan_nudge) = &self.plan_nudge {
+            info!(
+                agent_id = %self.agent.id,
+                "Sending plan nudge"
+            );
+            context.add_message(ContextMessage::user(plan_nudge, self.agent.model.clone()))
+        } else {
+            context
         }
     }
 

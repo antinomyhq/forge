@@ -457,6 +457,7 @@ async fn test_plan_nudge_is_added_at_interval() {
             ChatCompletionMessage::assistant("Working").add_tool_call(call.clone()),
             ChatCompletionMessage::assistant("Working").add_tool_call(call),
             ChatCompletionMessage::assistant("Done").finish_reason(FinishReason::Stop),
+            ChatCompletionMessage::assistant("Done").finish_reason(FinishReason::Stop),
         ]);
 
     ctx.run("Follow plans/2025-task.md").await.unwrap();
