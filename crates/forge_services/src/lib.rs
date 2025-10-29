@@ -1,4 +1,4 @@
-mod agent_loader;
+mod agent_registry;
 mod attachment;
 mod auth;
 mod clipper;
@@ -20,7 +20,7 @@ mod tool_services;
 mod utils;
 mod workflow;
 
-pub use agent_loader::*;
+pub use agent_registry::*;
 pub use clipper::*;
 pub use command_loader::*;
 pub use custom_instructions::*;

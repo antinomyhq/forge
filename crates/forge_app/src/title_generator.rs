@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use derive_setters::Setters;
 use forge_domain::{
-    ChatCompletionMessageFull, Context, ContextMessage, ConversationId, ModelId, ReasoningConfig,
-    ResultStreamExt, extract_tag_content,
+    ChatCompletionMessageFull, Context, ContextMessage, ConversationId, ModelId, ProviderId,
+    ReasoningConfig, ResultStreamExt, extract_tag_content,
 };
 use serde_json::Value;
 
@@ -20,11 +20,24 @@ pub struct TitleGenerator<S> {
     model_id: ModelId,
     /// Reasoning configuration for the generator.
     reasoning: Option<ReasoningConfig>,
+    /// The provider ID to use for title generation
+    provider_id: Option<ProviderId>,
 }
 
 impl<S: AS> TitleGenerator<S> {
-    pub fn new(services: Arc<S>, user_prompt: Value, model_id: ModelId) -> Self {
-        Self { services, user_prompt, model_id, reasoning: None }
+    pub fn new(
+        services: Arc<S>,
+        user_prompt: Value,
+        model_id: ModelId,
+        provider_id: Option<ProviderId>,
+    ) -> Self {
+        Self {
+            services,
+            user_prompt,
+            model_id,
+            reasoning: None,
+            provider_id,
+        }
     }
 
     pub async fn generate(&self) -> anyhow::Result<Option<String>> {
@@ -48,7 +61,10 @@ impl<S: AS> TitleGenerator<S> {
             ctx = ctx.reasoning(reasoning.clone());
         }
 
-        let stream = self.services.chat_agent(&self.model_id, ctx).await?;
+        let stream = self
+            .services
+            .chat_agent(&self.model_id, ctx, self.provider_id)
+            .await?;
         let ChatCompletionMessageFull { content, .. } = stream.into_full(false).await?;
         if let Some(extracted) = extract_tag_content(&content, "title") {
             return Ok(Some(extracted.to_string()));

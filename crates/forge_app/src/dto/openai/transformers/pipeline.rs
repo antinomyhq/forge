@@ -1,4 +1,4 @@
-use forge_domain::{DefaultTransformation, Transformer};
+use forge_domain::{DefaultTransformation, Provider, ProviderId, Transformer};
 
 use super::drop_tool_call::DropToolCalls;
 use super::make_cerebras_compat::MakeCerebrasCompat;
@@ -9,7 +9,6 @@ use super::tool_choice::SetToolChoice;
 use super::when_model::when_model;
 use super::zai_reasoning::SetZaiThinking;
 use crate::dto::openai::{Request, ToolChoice};
-use crate::dto::{Provider, ProviderId};
 
 /// Pipeline for transforming requests based on the provider type
 pub struct ProviderPipeline<'a>(&'a Provider);
@@ -70,7 +69,7 @@ mod tests {
     use url::Url;
 
     use super::*;
-    use crate::dto::{Models, ProviderResponse};
+    use crate::domain::{Models, ProviderResponse};
 
     // Test helper functions
     fn forge(key: &str) -> Provider {

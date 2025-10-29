@@ -7,9 +7,9 @@ use anyhow::{Context as _, Result};
 use derive_setters::Setters;
 use forge_app::HttpClientService;
 use forge_app::domain::{
-    ChatCompletionMessage, Context, HttpConfig, Model, ModelId, ResultStream, RetryConfig,
+    ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ProviderResponse,
+    ResultStream, RetryConfig,
 };
-use forge_app::dto::{Provider, ProviderResponse};
 use reqwest::Url;
 use reqwest::header::HeaderMap;
 use tokio::sync::RwLock;
@@ -188,7 +188,7 @@ mod tests {
 
     use bytes::Bytes;
     use forge_app::HttpClientService;
-    use forge_app::dto::{Provider, ProviderId, ProviderResponse};
+    use forge_app::domain::ProviderId;
     use reqwest::Url;
     use reqwest::header::HeaderMap;
     use reqwest_eventsource::EventSource;
@@ -233,7 +233,7 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some("test-key".to_string()),
-            models: forge_app::dto::Models::Url(
+            models: forge_domain::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
         };
@@ -253,7 +253,7 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some("test-key".to_string()),
-            models: forge_app::dto::Models::Url(
+            models: forge_domain::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
         };
@@ -275,7 +275,7 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some("test-key".to_string()),
-            models: forge_app::dto::Models::Url(
+            models: forge_domain::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
         };
@@ -300,7 +300,7 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some("test-key".to_string()),
-            models: forge_app::dto::Models::Url(
+            models: forge_domain::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
         };

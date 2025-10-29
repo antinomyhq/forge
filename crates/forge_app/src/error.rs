@@ -25,8 +25,8 @@ pub enum Error {
     #[error("Authentication still in progress")]
     AuthInProgress,
 
-    #[error("No agent has subscribed to the event: {0}")]
-    UnsubscribedEvent(String),
+    #[error("Agent '{0}' not found")]
+    AgentNotFound(forge_domain::AgentId),
 
     #[error("No active provider configured")]
     NoActiveProvider,
