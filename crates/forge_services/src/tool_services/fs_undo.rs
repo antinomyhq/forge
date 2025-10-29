@@ -1,7 +1,8 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use forge_app::{FileInfoInfra, FileReaderInfra, FsUndoOutput, FsUndoService, SnapshotRepository};
+use forge_app::{FileInfoInfra, FileReaderInfra, FsUndoOutput, FsUndoService};
+use forge_domain::SnapshotRepository;
 
 use crate::utils::assert_absolute_path;
 

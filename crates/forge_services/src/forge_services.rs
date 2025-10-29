@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use forge_app::{
-    AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
-    DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, Services, SnapshotRepository,
-    UserInfra, WalkerInfra,
+    AppConfigRepository, CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
+    FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra,
+    Services, UserInfra, WalkerInfra,
 };
+use forge_domain::{CacheRepository, ConversationRepository, SnapshotRepository};
 
 use crate::agent_registry::AgentLoaderService as ForgeAgentLoaderService;
 use crate::attachment::ForgeChatRequest;

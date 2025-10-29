@@ -1,16 +1,13 @@
-use std::hash::Hash;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bytes::Bytes;
 use forge_domain::{
-    CommandOutput, Conversation, ConversationId, Environment, FileInfo, McpServerConfig, Snapshot,
-    ToolDefinition, ToolName, ToolOutput,
+    CommandOutput, Environment, FileInfo, McpServerConfig, ToolDefinition, ToolName, ToolOutput,
 };
 use reqwest::Response;
 use reqwest::header::HeaderMap;
 use reqwest_eventsource::EventSource;
-use serde::de::DeserializeOwned;
 use url::Url;
 
 use crate::{WalkedFile, Walker};
@@ -105,18 +102,6 @@ pub trait FileInfoInfra: Send + Sync {
 #[async_trait::async_trait]
 pub trait FileDirectoryInfra {
     async fn create_dirs(&self, path: &Path) -> anyhow::Result<()>;
-}
-
-/// Service for managing file snapshots
-#[async_trait::async_trait]
-pub trait SnapshotRepository: Send + Sync {
-    // Creation
-    // FIXME: We should provide the snapshot as input
-    async fn insert_snapshot(&self, file_path: &Path) -> Result<Snapshot>;
-
-    /// Restores the most recent snapshot for the given file path
-    // FIXME: should return a snapshot. Should be applied by a service.
-    async fn undo_snapshot(&self, file_path: &Path) -> Result<()>;
 }
 
 /// Service for executing shell commands
@@ -226,58 +211,7 @@ pub trait DirectoryReaderInfra: Send + Sync {
     ) -> anyhow::Result<Vec<(PathBuf, String)>>;
 }
 
-/// Generic cache infrastructure trait for content-addressable storage.
-///
-/// This trait provides an abstraction over caching operations with support for
-/// arbitrary key and value types. Keys must be hashable and serializable, while
-/// values must be serializable. The trait is designed to work with
-/// content-addressable storage systems like cacache.
-///
-/// Type parameters:
-/// - `K`: Key type with bounds for hashing and serialization
-/// - `V`: Value type with bounds for serialization
-///
-/// All operations return `anyhow::Result` for consistent error handling across
-/// the infrastructure layer.
-#[async_trait::async_trait]
-pub trait CacheRepository: Send + Sync {
-    /// Retrieves a value from the cache by its key.
-    ///
-    /// Returns `Ok(Some(value))` if the key exists in the cache,
-    /// `Ok(None)` if the key doesn't exist, or an error if the operation fails.
-    async fn cache_get<K, V>(&self, key: &K) -> anyhow::Result<Option<V>>
-    where
-        K: Hash + Sync,
-        V: serde::Serialize + DeserializeOwned + Send;
-
-    /// Stores a value in the cache with the given key.
-    ///
-    /// If the key already exists, the value is overwritten.
-    /// Uses content-addressable storage for integrity verification.
-    async fn cache_set<K, V>(&self, key: &K, value: &V) -> anyhow::Result<()>
-    where
-        K: Hash + Sync,
-        V: serde::Serialize + Sync;
-
-    /// Clears all entries from the cache.
-    ///
-    /// This operation removes all cached data. Use with caution.
-    async fn cache_clear(&self) -> anyhow::Result<()>;
-}
-
-#[async_trait::async_trait]
-pub trait ConversationRepository: Send + Sync {
-    async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()>;
-    async fn get_conversation(
-        &self,
-        conversation_id: &ConversationId,
-    ) -> anyhow::Result<Option<Conversation>>;
-    async fn get_all_conversations(
-        &self,
-        limit: Option<usize>,
-    ) -> anyhow::Result<Option<Vec<Conversation>>>;
-    async fn get_last_conversation(&self) -> anyhow::Result<Option<Conversation>>;
-}
+// CacheRepository moved to forge_domain::repo
 
 #[async_trait::async_trait]
 pub trait AppConfigRepository: Send + Sync {

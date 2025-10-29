@@ -315,6 +315,7 @@ pub mod tests {
         }
     }
     #[derive(Debug, Clone)]
+    #[allow(dead_code)]
     struct Mock;
     #[async_trait::async_trait]
     impl McpClientInfra for Mock {

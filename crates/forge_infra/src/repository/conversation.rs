@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use chrono::{DateTime, NaiveDateTime, Utc};
 use diesel::prelude::*;
-use forge_app::ConversationRepository;
 use forge_domain::{
-    Context, Conversation, ConversationId, FileChangeMetrics, MetaData, Metrics, WorkspaceId,
+    Context, Conversation, ConversationId, ConversationRepository, FileChangeMetrics, MetaData,
+    Metrics, WorkspaceId,
 };
 use serde::{Deserialize, Serialize};
 

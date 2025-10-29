@@ -6,7 +6,8 @@ use forge_app::domain::{
     McpConfig, McpServerConfig, McpServers, ServerName, ToolCallFull, ToolDefinition, ToolName,
     ToolOutput,
 };
-use forge_app::{CacheRepository, McpClientInfra, McpConfigManager, McpServerInfra, McpService};
+use forge_app::{McpClientInfra, McpConfigManager, McpServerInfra, McpService};
+use forge_domain::CacheRepository;
 use tokio::sync::{Mutex, RwLock};
 
 use crate::mcp::tool::McpExecutor;
