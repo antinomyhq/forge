@@ -1,5 +1,7 @@
 use forge_domain::{ToolCallArgumentError, ToolName};
 
+use crate::dto::ProviderId;
+
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("Invalid tool call arguments: {0}")]
@@ -33,4 +35,10 @@ pub enum Error {
 
     #[error("No active model configured")]
     NoActiveModel,
+
+    #[error("Provider has no credential to refresh")]
+    NoCredentialToRefresh,
+
+    #[error("No OAuth auth method found for provider {0}")]
+    NoOAuthMethod(ProviderId),
 }

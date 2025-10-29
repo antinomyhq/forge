@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
+use anyhow::Context;
+
 use crate::dto::{AuthMethod, AuthType, Provider};
-use crate::{ProviderAuthService, ProviderRegistry};
+use crate::{Error, ProviderAuthService, ProviderRegistry};
 
 /// App-level orchestrator for provider operations
 ///
@@ -33,20 +35,10 @@ where
             tracing::debug!(provider = ?provider.id, "OAuth tokens need refresh");
 
             // Attempt to refresh tokens
-            match self.refresh_provider_tokens(&provider).await {
-                Ok(refreshed_provider) => {
-                    tracing::info!(provider = ?provider.id, "Successfully refreshed OAuth tokens");
-                    return Ok(refreshed_provider);
-                }
-                Err(e) => {
-                    // Log warning but return original provider - token might still work
-                    tracing::warn!(
-                        provider = ?provider.id,
-                        error = %e,
-                        "Failed to refresh OAuth tokens, will use existing credential"
-                    );
-                }
-            }
+            return self
+                .refresh_provider_tokens(&provider)
+                .await
+                .with_context(|| "Failed to refresh token");
         }
 
         Ok(provider)
@@ -57,7 +49,7 @@ where
         let credential = provider
             .credential
             .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Provider has no credential to refresh"))?;
+            .ok_or(Error::NoCredentialToRefresh)?;
 
         // Determine auth method from credential and provider config
         let auth_method = match credential.auth_type {
@@ -67,9 +59,7 @@ where
                 methods
                     .into_iter()
                     .find(|m| matches!(m, AuthMethod::OAuthDevice(_) | AuthMethod::OAuthCode(_)))
-                    .ok_or_else(|| {
-                        anyhow::anyhow!("No OAuth auth method found for provider {:?}", provider.id)
-                    })?
+                    .ok_or_else(|| Error::NoOAuthMethod(provider.id))?
             }
             AuthType::ApiKey => {
                 // API keys don't need refresh
