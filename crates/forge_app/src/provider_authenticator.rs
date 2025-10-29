@@ -36,7 +36,7 @@ where
 
             // Attempt to refresh tokens
             return self
-                .refresh_provider_tokens(&provider)
+                .refresh_provider_tokens(provider)
                 .await
                 .with_context(|| "Failed to refresh token");
         }
@@ -45,7 +45,7 @@ where
     }
 
     /// Refreshes OAuth tokens for a provider
-    async fn refresh_provider_tokens(&self, provider: &Provider) -> anyhow::Result<Provider> {
+    async fn refresh_provider_tokens(&self, mut provider: Provider) -> anyhow::Result<Provider> {
         let credential = provider
             .credential
             .as_ref()
@@ -59,7 +59,7 @@ where
                 methods
                     .into_iter()
                     .find(|m| matches!(m, AuthMethod::OAuthDevice(_) | AuthMethod::OAuthCode(_)))
-                    .ok_or_else(|| Error::NoOAuthMethod(provider.id))?
+                    .ok_or(Error::NoOAuthMethod(provider.id))?
             }
             AuthType::ApiKey => {
                 // API keys don't need refresh
@@ -68,24 +68,23 @@ where
         };
 
         // Refresh credential using auth service
-        let refreshed_credential = self
+        let credentials = self
             .services
-            .refresh_provider_credential(provider, auth_method)
+            .refresh_provider_credential(&provider, auth_method)
             .await?;
 
         // Return updated provider with refreshed credential
-        let mut refreshed_provider = provider.clone();
-        refreshed_provider.credential = Some(refreshed_credential.clone());
+        provider.credential = Some(credentials.clone());
 
         // Update key if needed based on auth type
-        refreshed_provider.key = match refreshed_credential.auth_type {
-            AuthType::OAuth => refreshed_credential
+        provider.key = match credentials.auth_type {
+            AuthType::OAuth => credentials
                 .oauth_tokens
                 .as_ref()
                 .map(|tokens| tokens.access_token.as_str().to_string().into()),
-            _ => refreshed_provider.key,
+            _ => provider.key,
         };
 
-        Ok(refreshed_provider)
+        Ok(provider)
     }
 }

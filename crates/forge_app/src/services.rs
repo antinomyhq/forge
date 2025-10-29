@@ -357,21 +357,16 @@ pub trait AuthService: Send + Sync {
     async fn get_auth_token(&self) -> anyhow::Result<Option<LoginInfo>>;
     async fn set_auth_token(&self, token: Option<LoginInfo>) -> anyhow::Result<()>;
 }
+
 #[async_trait::async_trait]
 pub trait ProviderRegistry: Send + Sync {
     async fn get_active_provider(&self) -> anyhow::Result<Provider>;
     async fn set_active_provider(&self, provider_id: ProviderId) -> anyhow::Result<()>;
-
-    /// Get all providers with optional credential information
-    /// Returns providers from both database credentials and environment
-    /// variables
     async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>>;
     async fn get_active_model(&self) -> anyhow::Result<ModelId>;
     async fn set_active_model(&self, model: ModelId) -> anyhow::Result<()>;
     async fn get_active_agent(&self) -> anyhow::Result<Option<AgentId>>;
     async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()>;
-
-    /// Get available authentication methods for a provider
     fn get_provider_auth_methods(&self, provider_id: &ProviderId) -> Vec<AuthMethod>;
 }
 
