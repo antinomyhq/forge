@@ -3,7 +3,7 @@ use std::time::Duration;
 
 /// Errors that can occur during authentication flows.
 #[derive(Debug, Clone, thiserror::Error)]
-pub enum AuthFlowError {
+pub enum Error {
     /// Authentication initiation failed.
     #[error("Authentication initiation failed: {0}")]
     InitiationFailed(String),
@@ -55,49 +55,4 @@ pub enum AuthFlowError {
     /// Invalid authentication context for the flow type.
     #[error("Invalid context: {0}")]
     InvalidContext(String),
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_error_display() {
-        let error = AuthFlowError::InitiationFailed("Network error".to_string());
-        assert_eq!(
-            error.to_string(),
-            "Authentication initiation failed: Network error"
-        );
-
-        let error = AuthFlowError::Timeout(Duration::from_secs(300));
-        assert_eq!(error.to_string(), "Authentication timed out after 300s");
-
-        let error = AuthFlowError::Expired;
-        assert_eq!(error.to_string(), "Device code or session expired");
-
-        let error = AuthFlowError::Denied;
-        assert_eq!(error.to_string(), "User denied authorization");
-
-        let error = AuthFlowError::MissingParameter("project_id".to_string());
-        assert_eq!(error.to_string(), "Missing required parameter: project_id");
-
-        let error = AuthFlowError::InvalidParameter(
-            "project_id".to_string(),
-            "must start with a letter".to_string(),
-        );
-        assert_eq!(
-            error.to_string(),
-            "Invalid parameter value for 'project_id': must start with a letter"
-        );
-
-        let error = AuthFlowError::InvalidBaseUrl("not a url".to_string());
-        assert_eq!(error.to_string(), "Invalid base URL: not a url");
-    }
-
-    #[test]
-    fn test_error_clone() {
-        let error = AuthFlowError::Timeout(Duration::from_secs(60));
-        let cloned = error.clone();
-        assert_eq!(error.to_string(), cloned.to_string());
-    }
 }

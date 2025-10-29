@@ -15,7 +15,7 @@ use forge_app::dto::{
     ProviderId, RefreshToken, URLParam, URLParamValue,
 };
 
-use super::AuthFlowError;
+use super::Error;
 use crate::infra::{AppConfigRepository, EnvironmentInfra, ProviderCredentialRepository};
 use crate::provider::{AuthMethod, ForgeOAuthService, OAuthTokenResponse};
 /// Provider authentication service implementation
@@ -47,7 +47,7 @@ impl<I> ForgeProviderAuthService<I> {
     async fn handle_api_key_init(
         &self,
         required_params: Vec<forge_app::dto::URLParam>,
-    ) -> Result<forge_app::dto::AuthContextRequest, super::AuthFlowError> {
+    ) -> Result<forge_app::dto::AuthContextRequest, super::Error> {
         use forge_app::dto::{ApiKeyRequest, AuthContextRequest};
 
         Ok(AuthContextRequest::ApiKey(ApiKeyRequest {
@@ -61,7 +61,7 @@ impl<I> ForgeProviderAuthService<I> {
         _provider_id: ProviderId,
         api_key: ApiKey,
         url_params: std::collections::HashMap<URLParam, URLParamValue>,
-    ) -> Result<ProviderCredential, super::AuthFlowError> {
+    ) -> Result<ProviderCredential, super::Error> {
         Ok(ProviderCredential::new_api_key(api_key).url_params(url_params))
     }
     /// Injects custom headers into a HeaderMap
@@ -83,12 +83,12 @@ impl<I> ForgeProviderAuthService<I> {
     }
 
     /// Parses and handles OAuth error responses during polling
-    fn handle_oauth_error(error_code: &str) -> Result<(), AuthFlowError> {
+    fn handle_oauth_error(error_code: &str) -> Result<(), Error> {
         match error_code {
             "authorization_pending" | "slow_down" => Ok(()),
-            "expired_token" => Err(AuthFlowError::Expired),
-            "access_denied" => Err(AuthFlowError::Denied),
-            _ => Err(AuthFlowError::PollFailed(format!(
+            "expired_token" => Err(Error::Expired),
+            "access_denied" => Err(Error::Denied),
+            _ => Err(Error::PollFailed(format!(
                 "OAuth error: {}",
                 error_code
             ))),
@@ -111,15 +111,15 @@ impl<I> ForgeProviderAuthService<I> {
     /// missing
     fn parse_token_response(
         body: &str,
-    ) -> Result<(String, Option<String>, Option<u64>), AuthFlowError> {
+    ) -> Result<(String, Option<String>, Option<u64>), Error> {
         let token_response: serde_json::Value = serde_json::from_str(body).map_err(|e| {
-            AuthFlowError::PollFailed(format!("Failed to parse token response: {}", e))
+            Error::PollFailed(format!("Failed to parse token response: {}", e))
         })?;
 
         let access_token = token_response["access_token"]
             .as_str()
             .ok_or_else(|| {
-                AuthFlowError::PollFailed("Missing access_token in response".to_string())
+                Error::PollFailed("Missing access_token in response".to_string())
             })?
             .to_string();
 
@@ -166,22 +166,22 @@ impl<I> ForgeProviderAuthService<I> {
     async fn handle_oauth_device_init(
         &self,
         config: &crate::provider::OAuthConfig,
-    ) -> Result<forge_app::dto::AuthContextRequest, super::AuthFlowError> {
+    ) -> Result<forge_app::dto::AuthContextRequest, super::Error> {
         // Validate configuration
         // Build oauth2 client
         use oauth2::basic::BasicClient;
         use oauth2::{ClientId, DeviceAuthorizationUrl, Scope, TokenUrl};
 
-        use super::AuthFlowError;
+        use super::Error;
 
         let client = BasicClient::new(ClientId::new(config.client_id.to_string()))
             .set_device_authorization_url(
                 DeviceAuthorizationUrl::new(config.auth_url.to_string()).map_err(|e| {
-                    AuthFlowError::InitiationFailed(format!("Invalid auth_url: {}", e))
+                    Error::InitiationFailed(format!("Invalid auth_url: {}", e))
                 })?,
             )
             .set_token_uri(TokenUrl::new(config.token_url.to_string()).map_err(|e| {
-                AuthFlowError::InitiationFailed(format!("Invalid token_url: {}", e))
+                Error::InitiationFailed(format!("Invalid token_url: {}", e))
             })?);
 
         // Request device authorization
@@ -193,7 +193,7 @@ impl<I> ForgeProviderAuthService<I> {
         // Build HTTP client with custom headers
         let http_client = ForgeOAuthService::build_http_client(config.custom_headers.as_ref())
             .map_err(|e| {
-                AuthFlowError::InitiationFailed(format!("Failed to build HTTP client: {}", e))
+                Error::InitiationFailed(format!("Failed to build HTTP client: {}", e))
             })?;
 
         let http_fn = |req| {
@@ -205,7 +205,7 @@ impl<I> ForgeProviderAuthService<I> {
 
         let device_auth_response: oauth2::StandardDeviceAuthorizationResponse =
             request.request_async(&http_fn).await.map_err(|e| {
-                AuthFlowError::InitiationFailed(format!(
+                Error::InitiationFailed(format!(
                     "Device authorization request failed: {}",
                     e
                 ))
@@ -241,13 +241,13 @@ impl<I> ForgeProviderAuthService<I> {
         config: &crate::provider::OAuthConfig,
         timeout: Duration,
         github_compatible: bool,
-    ) -> Result<OAuthTokenResponse, super::AuthFlowError> {
-        use super::AuthFlowError;
+    ) -> Result<OAuthTokenResponse, super::Error> {
+        use super::Error;
 
         // Build HTTP client for manual polling
         let http_client = ForgeOAuthService::build_http_client(config.custom_headers.as_ref())
             .map_err(|e| {
-                AuthFlowError::PollFailed(format!("Failed to build HTTP client: {}", e))
+                Error::PollFailed(format!("Failed to build HTTP client: {}", e))
             })?;
 
         use reqwest::header::{HeaderMap, HeaderValue};
@@ -258,7 +258,7 @@ impl<I> ForgeProviderAuthService<I> {
         loop {
             // Check timeout
             if start_time.elapsed() >= timeout {
-                return Err(AuthFlowError::Timeout(timeout));
+                return Err(Error::Timeout(timeout));
             }
 
             // Sleep before polling (GitHub pattern only)
@@ -277,7 +277,7 @@ impl<I> ForgeProviderAuthService<I> {
             ];
 
             let body = serde_urlencoded::to_string(&params).map_err(|e| {
-                AuthFlowError::PollFailed(format!("Failed to encode request: {}", e))
+                Error::PollFailed(format!("Failed to encode request: {}", e))
             })?;
 
             // Make HTTP request with headers
@@ -297,11 +297,11 @@ impl<I> ForgeProviderAuthService<I> {
                 .body(body)
                 .send()
                 .await
-                .map_err(|e| AuthFlowError::PollFailed(format!("HTTP request failed: {}", e)))?;
+                .map_err(|e| Error::PollFailed(format!("HTTP request failed: {}", e)))?;
 
             let status = response.status();
             let body_text = response.text().await.map_err(|e| {
-                AuthFlowError::PollFailed(format!("Failed to read response: {}", e))
+                Error::PollFailed(format!("Failed to read response: {}", e))
             })?;
 
             // GitHub-compatible: HTTP 200 can contain either success or error
@@ -368,7 +368,7 @@ impl<I> ForgeProviderAuthService<I> {
             }
 
             // Unknown error
-            return Err(AuthFlowError::PollFailed(format!(
+            return Err(Error::PollFailed(format!(
                 "HTTP {}: {}",
                 status, body_text
             )));
@@ -383,7 +383,7 @@ impl<I> ForgeProviderAuthService<I> {
         &self,
         provider_id: ProviderId,
         token_response: OAuthTokenResponse,
-    ) -> Result<ProviderCredential, super::AuthFlowError> {
+    ) -> Result<ProviderCredential, super::Error> {
         // Use helpers for consistent credential building
         let expires_at =
             Self::calculate_token_expiry(token_response.expires_in, chrono::Duration::days(365));
@@ -404,13 +404,13 @@ impl<I> ForgeProviderAuthService<I> {
         &self,
         provider_id: &ProviderId,
         config: &crate::provider::OAuthConfig,
-    ) -> Result<forge_app::dto::AuthContextRequest, super::AuthFlowError> {
-        use super::AuthFlowError;
+    ) -> Result<forge_app::dto::AuthContextRequest, super::Error> {
+        use super::Error;
 
         // Build authorization URL with PKCE
         let auth_params =
             ForgeOAuthService::build_auth_code_url(provider_id, config).map_err(|e| {
-                AuthFlowError::InitiationFailed(format!("Failed to build auth URL: {}", e))
+                Error::InitiationFailed(format!("Failed to build auth URL: {}", e))
             })?;
 
         use forge_app::dto::{AuthContextRequest, CodeRequest};
@@ -434,8 +434,8 @@ impl<I> ForgeProviderAuthService<I> {
         code: AuthorizationCode,
         code_verifier: Option<PkceVerifier>,
         config: &crate::provider::OAuthConfig,
-    ) -> Result<ProviderCredential, super::AuthFlowError> {
-        use super::AuthFlowError;
+    ) -> Result<ProviderCredential, super::Error> {
+        use super::Error;
 
         // Exchange code for tokens with PKCE verifier (if provided)
         let token_response = ForgeOAuthService::exchange_auth_code(
@@ -446,7 +446,7 @@ impl<I> ForgeProviderAuthService<I> {
         )
         .await
         .map_err(|e| {
-            AuthFlowError::CompletionFailed(format!("Failed to exchange authorization code: {}", e))
+            Error::CompletionFailed(format!("Failed to exchange authorization code: {}", e))
         })?;
 
         // Use helpers for consistent credential building
@@ -468,11 +468,11 @@ impl<I> ForgeProviderAuthService<I> {
         &self,
         oauth_token: &str,
         config: &crate::provider::OAuthConfig,
-    ) -> Result<(ApiKey, chrono::DateTime<chrono::Utc>), super::AuthFlowError> {
-        use super::AuthFlowError;
+    ) -> Result<(ApiKey, chrono::DateTime<chrono::Utc>), super::Error> {
+        use super::Error;
 
         let token_refresh_url = config.token_refresh_url.as_ref().ok_or_else(|| {
-            AuthFlowError::CompletionFailed("Missing token_refresh_url in config".to_string())
+            Error::CompletionFailed("Missing token_refresh_url in config".to_string())
         })?;
 
         // Build request headers
@@ -480,7 +480,7 @@ impl<I> ForgeProviderAuthService<I> {
         headers.insert(
             reqwest::header::AUTHORIZATION,
             reqwest::header::HeaderValue::from_str(&format!("Bearer {}", oauth_token)).map_err(
-                |e| AuthFlowError::CompletionFailed(format!("Invalid authorization header: {}", e)),
+                |e| Error::CompletionFailed(format!("Invalid authorization header: {}", e)),
             )?,
         );
 
@@ -498,24 +498,24 @@ impl<I> ForgeProviderAuthService<I> {
 
         let response = ForgeOAuthService::build_http_client(config.custom_headers.as_ref())
             .map_err(|e| {
-                AuthFlowError::CompletionFailed(format!("Failed to build HTTP client: {}", e))
+                Error::CompletionFailed(format!("Failed to build HTTP client: {}", e))
             })?
             .get(token_refresh_url.as_str())
             .headers(headers)
             .send()
             .await
             .map_err(|e| {
-                AuthFlowError::CompletionFailed(format!("API key exchange request failed: {}", e))
+                Error::CompletionFailed(format!("API key exchange request failed: {}", e))
             })?;
 
         let status = response.status();
         if !status.is_success() {
             if status.as_u16() == 403 {
-                return Err(AuthFlowError::CompletionFailed(
+                return Err(Error::CompletionFailed(
                     "Access denied. Ensure you have an active subscription.".to_string(),
                 ));
             }
-            return Err(AuthFlowError::CompletionFailed(format!(
+            return Err(Error::CompletionFailed(format!(
                 "API key fetch failed ({}): {}",
                 status,
                 response.text().await.unwrap_or_default()
@@ -524,7 +524,7 @@ impl<I> ForgeProviderAuthService<I> {
 
         let OAuthTokenResponse { access_token, expires_at, .. } =
             response.json().await.map_err(|e| {
-                AuthFlowError::CompletionFailed(format!("Failed to parse API key response: {}", e))
+                Error::CompletionFailed(format!("Failed to parse API key response: {}", e))
             })?;
 
         Ok((
@@ -543,7 +543,7 @@ impl<I> ForgeProviderAuthService<I> {
         _provider_id: ProviderId,
         token_response: OAuthTokenResponse,
         config: &crate::provider::OAuthConfig,
-    ) -> Result<ProviderCredential, super::AuthFlowError> {
+    ) -> Result<ProviderCredential, super::Error> {
         // Exchange OAuth token for API key using config
         let (api_key, expires_at) = self
             .exchange_oauth_for_api_key(&token_response.access_token, config)
@@ -573,9 +573,9 @@ impl<I> ForgeProviderAuthService<I> {
     fn handle_api_key_refresh(
         &self,
         _credential: &ProviderCredential,
-    ) -> Result<ProviderCredential, AuthFlowError> {
+    ) -> Result<ProviderCredential, Error> {
         // Static API keys don't support refresh
-        Err(AuthFlowError::RefreshFailed(
+        Err(Error::RefreshFailed(
             "API key credentials cannot be refreshed".to_string(),
         ))
     }
@@ -585,9 +585,9 @@ impl<I> ForgeProviderAuthService<I> {
         &self,
         credential: &ProviderCredential,
         config: &OAuthConfig,
-    ) -> Result<ProviderCredential, AuthFlowError> {
+    ) -> Result<ProviderCredential, Error> {
         let tokens = credential.oauth_tokens.as_ref().ok_or_else(|| {
-            AuthFlowError::RefreshFailed("No OAuth tokens in credential".to_string())
+            Error::RefreshFailed("No OAuth tokens in credential".to_string())
         })?;
 
         // Use OAuth service to refresh token
@@ -595,7 +595,7 @@ impl<I> ForgeProviderAuthService<I> {
             ForgeOAuthService::refresh_access_token(config, tokens.refresh_token.as_str())
                 .await
                 .map_err(|e| {
-                    AuthFlowError::RefreshFailed(format!("Token refresh failed: {}", e))
+                    Error::RefreshFailed(format!("Token refresh failed: {}", e))
                 })?;
 
         // Use helpers for consistent handling
@@ -620,10 +620,10 @@ impl<I> ForgeProviderAuthService<I> {
         &self,
         credential: &ProviderCredential,
         config: &OAuthConfig,
-    ) -> Result<ProviderCredential, AuthFlowError> {
+    ) -> Result<ProviderCredential, Error> {
         // Get stored OAuth tokens
         let oauth_tokens = credential.oauth_tokens.as_ref().ok_or_else(|| {
-            AuthFlowError::RefreshFailed("Missing OAuth tokens in credential".to_string())
+            Error::RefreshFailed("Missing OAuth tokens in credential".to_string())
         })?;
 
         // Use refresh token to get new access token
@@ -631,7 +631,7 @@ impl<I> ForgeProviderAuthService<I> {
             ForgeOAuthService::refresh_access_token(config, oauth_tokens.refresh_token.as_str())
                 .await
                 .map_err(|e| {
-                    AuthFlowError::RefreshFailed(format!("Failed to refresh access token: {}", e))
+                    Error::RefreshFailed(format!("Failed to refresh access token: {}", e))
                 })?;
 
         // Use helpers for consistent handling
@@ -657,10 +657,10 @@ impl<I> ForgeProviderAuthService<I> {
         &self,
         credential: &ProviderCredential,
         config: &OAuthConfig,
-    ) -> Result<ProviderCredential, AuthFlowError> {
+    ) -> Result<ProviderCredential, Error> {
         // Get stored OAuth tokens
         let oauth_tokens = credential.oauth_tokens.as_ref().ok_or_else(|| {
-            AuthFlowError::RefreshFailed("Missing OAuth tokens in credential".to_string())
+            Error::RefreshFailed("Missing OAuth tokens in credential".to_string())
         })?;
 
         // First, refresh the OAuth access token using the refresh token
@@ -668,7 +668,7 @@ impl<I> ForgeProviderAuthService<I> {
             ForgeOAuthService::refresh_access_token(config, oauth_tokens.refresh_token.as_str())
                 .await
                 .map_err(|e| {
-                    AuthFlowError::RefreshFailed(format!(
+                    Error::RefreshFailed(format!(
                         "Failed to refresh OAuth access token: {}",
                         e
                     ))
@@ -679,7 +679,7 @@ impl<I> ForgeProviderAuthService<I> {
             .exchange_oauth_for_api_key(&token_response.access_token, config)
             .await
             .map_err(|e| {
-                AuthFlowError::RefreshFailed(format!("Failed to refresh API key: {}", e))
+                Error::RefreshFailed(format!("Failed to refresh API key: {}", e))
             })?;
 
         // Create updated OAuth tokens with refreshed access token and new expiry
