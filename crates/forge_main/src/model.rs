@@ -381,10 +381,13 @@ impl ForgeCommandManager {
                         let actual_command = self
                             .extract_command_value(&command, &parts[1..])
                             .unwrap_or_default();
+                        let parameters_str = parameters.join(" ");
+                        let parameters_value = serde_json::from_str(&parameters_str)
+                            .unwrap_or_else(|_| Value::String(parameters_str));
                         Ok(Command::Custom(PartialEvent::new(
                             command.name.clone(),
                             serde_json::json!({
-                                "parameters": parameters,
+                                "parameters": parameters_value,
                                 "prompt": actual_command
                             }),
                         )))
