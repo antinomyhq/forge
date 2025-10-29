@@ -2,7 +2,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Result;
-use forge_app::SnapshotInfra;
+use forge_app::SnapshotRepository;
 use forge_domain::{Environment, Snapshot};
 
 pub struct ForgeFileSnapshotService {
@@ -18,9 +18,9 @@ impl ForgeFileSnapshotService {
 }
 
 #[async_trait::async_trait]
-impl SnapshotInfra for ForgeFileSnapshotService {
+impl SnapshotRepository for ForgeFileSnapshotService {
     // Creation
-    async fn create_snapshot(&self, file_path: &Path) -> Result<Snapshot> {
+    async fn insert_snapshot(&self, file_path: &Path) -> Result<Snapshot> {
         self.inner.create_snapshot(file_path.to_path_buf()).await
     }
 

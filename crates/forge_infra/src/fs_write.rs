@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_app::{FileWriterInfra, SnapshotInfra};
+use forge_app::{FileWriterInfra, SnapshotRepository};
 
 pub struct ForgeFileWriteService<S> {
     snaps: Arc<S>,
@@ -26,7 +26,7 @@ impl<S> ForgeFileWriteService<S> {
 }
 
 #[async_trait::async_trait]
-impl<S: SnapshotInfra> FileWriterInfra for ForgeFileWriteService<S> {
+impl<S: SnapshotRepository> FileWriterInfra for ForgeFileWriteService<S> {
     async fn write(
         &self,
         path: &Path,
@@ -35,7 +35,7 @@ impl<S: SnapshotInfra> FileWriterInfra for ForgeFileWriteService<S> {
     ) -> anyhow::Result<()> {
         self.create_parent_dirs(path).await?;
         if forge_fs::ForgeFS::exists(path) && capture_snapshot {
-            let _ = self.snaps.create_snapshot(path).await?;
+            let _ = self.snaps.insert_snapshot(path).await?;
         }
 
         Ok(forge_fs::ForgeFS::write(path, contents.to_vec()).await?)
@@ -69,8 +69,8 @@ mod tests {
     struct MockSnapshotService;
 
     #[async_trait::async_trait]
-    impl SnapshotInfra for MockSnapshotService {
-        async fn create_snapshot(&self, _: &Path) -> anyhow::Result<forge_domain::Snapshot> {
+    impl SnapshotRepository for MockSnapshotService {
+        async fn insert_snapshot(&self, _: &Path) -> anyhow::Result<forge_domain::Snapshot> {
             Ok(Snapshot {
                 id: Default::default(),
                 timestamp: Default::default(),

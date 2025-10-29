@@ -109,11 +109,13 @@ pub trait FileDirectoryInfra {
 
 /// Service for managing file snapshots
 #[async_trait::async_trait]
-pub trait SnapshotInfra: Send + Sync {
+pub trait SnapshotRepository: Send + Sync {
     // Creation
-    async fn create_snapshot(&self, file_path: &Path) -> Result<Snapshot>;
+    // FIXME: We should provide the snapshot as input
+    async fn insert_snapshot(&self, file_path: &Path) -> Result<Snapshot>;
 
     /// Restores the most recent snapshot for the given file path
+    // FIXME: should return a snapshot. Should be applied by a service.
     async fn undo_snapshot(&self, file_path: &Path) -> Result<()>;
 }
 

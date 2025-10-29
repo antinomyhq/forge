@@ -3,7 +3,7 @@ use std::sync::Arc;
 use forge_app::{
     AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
     DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, Services, SnapshotInfra,
+    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, Services, SnapshotRepository,
     UserInfra, WalkerInfra,
 };
 
@@ -145,7 +145,7 @@ impl<
         + FileWriterInfra
         + CommandInfra
         + UserInfra
-        + SnapshotInfra
+        + SnapshotRepository
         + McpServerInfra
         + FileRemoverInfra
         + FileInfoInfra

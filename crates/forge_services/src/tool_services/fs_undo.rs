@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use forge_app::{FileInfoInfra, FileReaderInfra, FsUndoOutput, FsUndoService, SnapshotInfra};
+use forge_app::{FileInfoInfra, FileReaderInfra, FsUndoOutput, FsUndoService, SnapshotRepository};
 
 use crate::utils::assert_absolute_path;
 
@@ -18,7 +18,7 @@ impl<F> ForgeFsUndo<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: FileInfoInfra + FileReaderInfra + SnapshotInfra> FsUndoService for ForgeFsUndo<F> {
+impl<F: FileInfoInfra + FileReaderInfra + SnapshotRepository> FsUndoService for ForgeFsUndo<F> {
     async fn undo(&self, path: String) -> anyhow::Result<FsUndoOutput> {
         let mut output = FsUndoOutput::default();
         let path = Path::new(&path);

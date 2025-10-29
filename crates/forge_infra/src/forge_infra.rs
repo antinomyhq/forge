@@ -6,7 +6,7 @@ use bytes::Bytes;
 use forge_app::{
     AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
     DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotInfra, UserInfra,
+    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, SnapshotRepository, UserInfra,
     WalkerInfra,
 };
 use forge_domain::{
@@ -174,9 +174,9 @@ impl FileInfoInfra for ForgeInfra {
 }
 
 #[async_trait::async_trait]
-impl SnapshotInfra for ForgeInfra {
-    async fn create_snapshot(&self, file_path: &Path) -> anyhow::Result<forge_domain::Snapshot> {
-        self.file_snapshot_service.create_snapshot(file_path).await
+impl SnapshotRepository for ForgeInfra {
+    async fn insert_snapshot(&self, file_path: &Path) -> anyhow::Result<forge_domain::Snapshot> {
+        self.file_snapshot_service.insert_snapshot(file_path).await
     }
 
     async fn undo_snapshot(&self, file_path: &Path) -> anyhow::Result<()> {

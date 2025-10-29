@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use forge_app::{FileRemoverInfra, SnapshotInfra};
+use forge_app::{FileRemoverInfra, SnapshotRepository};
 
 #[derive(Default)]
 pub struct ForgeFileRemoveService<S> {
@@ -15,9 +15,9 @@ impl<S> ForgeFileRemoveService<S> {
 }
 
 #[async_trait::async_trait]
-impl<S: SnapshotInfra> FileRemoverInfra for ForgeFileRemoveService<S> {
+impl<S: SnapshotRepository> FileRemoverInfra for ForgeFileRemoveService<S> {
     async fn remove(&self, path: &Path) -> anyhow::Result<()> {
-        let _ = self.snaps.create_snapshot(path).await?;
+        let _ = self.snaps.insert_snapshot(path).await?;
         Ok(forge_fs::ForgeFS::remove_file(path).await?)
     }
 }
