@@ -871,4 +871,56 @@ mod tests {
             "Should not be supported when explicitly disabled, even with effort set"
         );
     }
+
+    #[test]
+    fn test_detect_plans_from_messages() {
+        let tool_call =
+            ToolCallFull::new("read")
+                .call_id("tc_1")
+                .arguments(crate::ToolCallArguments::Parsed(
+                    serde_json::json!({"path": "/project/plans/feature.md"}),
+                ));
+
+        let fixture = Context::default()
+            .add_message(ContextMessage::user(
+                "Please check /home/user/plans/2024-task.md",
+                None,
+            ))
+            .add_message(ContextMessage::assistant(
+                "I'll review that",
+                None,
+                Some(vec![tool_call]),
+            ));
+
+        let actual = fixture.detect_plans();
+        let expected = vec![
+            "/home/user/plans/2024-task.md".to_string(),
+            "/project/plans/feature.md".to_string(),
+        ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_detect_plans_from_tool_results() {
+        let fixture = Context::default().add_tool_results(vec![
+            ToolResult::new("read").success("File content from /workspace/plans/test.md"),
+        ]);
+
+        let actual = fixture.detect_plans();
+        let expected = vec!["/workspace/plans/test.md".to_string()];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_detect_plans_empty_when_no_plans() {
+        let fixture =
+            Context::default().add_message(ContextMessage::user("No plan files here", None));
+
+        let actual = fixture.detect_plans();
+        let expected: Vec<String> = vec![];
+
+        assert_eq!(actual, expected);
+    }
 }

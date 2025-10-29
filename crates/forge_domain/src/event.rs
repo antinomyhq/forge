@@ -180,4 +180,39 @@ mod tests {
             Some(serde_json::Value::String("initial content".to_string()))
         );
     }
+
+    #[test]
+    fn test_detect_plans_from_event_value() {
+        let fixture = Event::new(
+            "task",
+            Some("Check the file at /home/user/plans/2024-feature.md"),
+        );
+        let actual = fixture.detect_plans();
+        let expected = vec!["/home/user/plans/2024-feature.md".to_string()];
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_detect_plans_from_attachments() {
+        let fixture = Event::new("task", None::<String>).attachments(vec![Attachment {
+            path: "/workspace/plans/task.md".to_string(),
+            content: crate::AttachmentContent::FileContent {
+                content: String::new(),
+                start_line: 1,
+                end_line: 10,
+                total_lines: 10,
+            },
+        }]);
+        let actual = fixture.detect_plans();
+        let expected = vec!["/workspace/plans/task.md".to_string()];
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_detect_plans_empty_when_no_plans() {
+        let fixture = Event::new("task", Some("No plan files here"));
+        let actual = fixture.detect_plans();
+        let expected: Vec<String> = vec![];
+        assert_eq!(actual, expected);
+    }
 }
