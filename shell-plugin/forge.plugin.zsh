@@ -72,20 +72,38 @@ function _forge_print_agent_message() {
     echo "\033[33m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] \033[1;37m${agent_name:u}\033[0m \033[90mis the active agent\033[0m"
 }
 
+# Helper function to find the index of a value in a list (0-based)
+# Returns the index if found, -1 otherwise
+function _forge_find_index() {
+    local output="$1"
+    local value_to_find="$2"
+    
+    local index=1
+    while IFS= read -r line; do
+        local name="${line%% *}"
+        if [[ "$name" == "$value_to_find" ]]; then
+            return 1
+        fi
+        ((index++))
+    done <<< "$output"
+    
+    return 1
+}
+
 # Helper function to select and set config values with fzf
 function _forge_select_and_set_config() {
     local show_command="$1"
     local config_flag="$2"
     local prompt_text="$3"
-    local with_nth="${4:-}"  # Optional column selection parameter
-    
+    local default_value="$4"
+    local with_nth="${5:-}"  # Optional column selection parameter
     (
         echo
         local output
         # Handle multi-word commands properly
         if [[ "$show_command" == *" "* ]]; then
             # Split the command into words and execute with --porcelain
-            local cmd_parts=(${=show_command})
+            local cmd_parts=("${=show_command}")
             output=$($_FORGE_BIN "${cmd_parts[@]}" --porcelain 2>/dev/null)
         else
             output=$($_FORGE_BIN "$show_command" --porcelain 2>/dev/null)
@@ -93,16 +111,23 @@ function _forge_select_and_set_config() {
         
         if [[ -n "$output" ]]; then
             local selected
-            # Add --with-nth parameter if provided
+            local fzf_args=(--delimiter="$_FORGE_DELIMITER" --prompt="$prompt_text ❯ ")
+            
             if [[ -n "$with_nth" ]]; then
-                selected=$(echo "$output" | _forge_fzf --delimiter="$_FORGE_DELIMITER" --with-nth="$with_nth" --prompt="$prompt_text ❯ ")
-            else
-                selected=$(echo "$output" | _forge_fzf --delimiter="$_FORGE_DELIMITER" --prompt="$prompt_text ❯ ")
+                fzf_args+=(--with-nth="$with_nth")
             fi
+
+            if [[ -n "$default_value" ]]; then
+                local index=$(_forge_find_index "$output" "$default_value")
+                if [[ $index -ge 0 ]]; then
+                    fzf_args+=(--bind="start:pos($index)")
+                fi
+            fi
+            selected=$(echo "$output" | _forge_fzf "${fzf_args[@]}")
             
             if [[ -n "$selected" ]]; then
                 local name="${selected%% *}"
-                _forge_exec config set "--$config_flag" "$name"
+                _forge_exec config set "$config_flag" "$name"
             fi
         fi
     )
@@ -284,13 +309,13 @@ function _forge_action_conversation() {
 
 # Action handler: Select provider
 function _forge_action_provider() {
-    _forge_select_and_set_config "list providers" "provider" "Provider"
+    _forge_select_and_set_config "list providers" "provider" "Provider" "$($FORGE_BIN config get provider --porcelain)"
     _forge_reset
 }
 
 # Action handler: Select model
 function _forge_action_model() {
-    _forge_select_and_set_config "list models" "model" "Model" "1,3.."
+    _forge_select_and_set_config "list models" "model" "Model" "$($FORGE_BIN config get model --porcelain)" "1,3.."
     _forge_reset
 }
 
