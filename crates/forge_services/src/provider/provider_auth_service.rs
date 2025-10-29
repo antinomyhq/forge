@@ -10,8 +10,9 @@ use std::time::Duration;
 use chrono::Utc;
 use forge_app::ProviderAuthService;
 use forge_app::dto::{
-    AccessToken, ApiKey, AuthContextResponse, AuthorizationCode, OAuthConfig, OAuthTokens,
-    PkceVerifier, Provider, ProviderCredential, ProviderId, RefreshToken, URLParam, URLParamValue,
+    AccessToken, ApiKey, AuthContextResponse, AuthorizationCode, DeviceCodeMethod,
+    DeviceCodeRequest, DeviceCodeResponse, FlowContext, OAuthConfig, OAuthTokens, PkceVerifier,
+    Provider, ProviderCredential, ProviderId, RefreshToken, URLParam, URLParamValue,
 };
 
 use super::AuthFlowError;
@@ -789,7 +790,6 @@ where
         context: AuthContextResponse,
         timeout: Duration,
     ) -> anyhow::Result<()> {
-        let method = context.method();
         let credential = match context {
             AuthContextResponse::ApiKey(ctx) => {
                 // Handle API key auth directly
@@ -801,29 +801,23 @@ where
                 .await
                 .map_err(|e| anyhow::anyhow!(e))?
             }
-            AuthContextResponse::DeviceCode(_) => {
+            AuthContextResponse::DeviceCode(ctx) => {
                 // Poll for OAuth tokens
-                let token_response = self
-                    .poll_provider_auth(&context, timeout, method.clone())
-                    .await?;
+                let token_response = self.poll_provider_auth(&ctx, timeout).await?;
+
+                let method = &ctx.method;
+                let config = &method.oauth_config;
 
                 // Dispatch based on auth method
-                match &method {
-                    AuthMethod::OAuthDevice(config) if config.token_refresh_url.is_some() => {
-                        // Handle OAuth with API key completion
-                        self.handle_oauth_with_apikey_complete(provider_id, token_response, config)
-                            .await
-                            .map_err(|e| anyhow::anyhow!(e))?
-                    }
-                    AuthMethod::OAuthDevice(_) => {
-                        // Handle OAuth device flow completion
-                        self.handle_oauth_device_complete(provider_id, token_response)
-                            .await
-                            .map_err(|e| anyhow::anyhow!(e))?
-                    }
-                    _ => {
-                        return Err(anyhow::anyhow!("Invalid auth method for device code flow"));
-                    }
+                if config.token_refresh_url.is_some() {
+                    // Handle OAuth with API key completion
+                    self.handle_oauth_with_apikey_complete(provider_id, token_response, config)
+                        .await
+                        .map_err(|e| anyhow::anyhow!(e))?
+                } else {
+                    self.handle_oauth_device_complete(provider_id, token_response)
+                        .await
+                        .map_err(|e| anyhow::anyhow!(e))?
                 }
             }
             AuthContextResponse::Code(ctx) => {
@@ -838,8 +832,7 @@ where
                     pkce_verifier,
                     &ctx.method.oauth_config,
                 )
-                .await
-                .map_err(|e| anyhow::anyhow!(e))?
+                .await?
             }
         };
 
@@ -861,42 +854,25 @@ where
         + 'static,
 {
     /// Polls until provider authentication completes (for OAuth flows)
-    ///
-    /// # Errors
-    /// Returns error if polling fails, times out, or auth is denied
     async fn poll_provider_auth(
         &self,
-        context: &AuthContextResponse,
+        context: &FlowContext<DeviceCodeRequest, DeviceCodeResponse, DeviceCodeMethod>,
         timeout: Duration,
-        method: AuthMethod,
     ) -> anyhow::Result<OAuthTokenResponse> {
-        // Dispatch based on auth method
-        match &method {
-            AuthMethod::ApiKey => {
-                unimplemented!("API key method does not require polling")
-            }
-            AuthMethod::OAuthDevice(config) => {
-                // Extract device code from context
-                let (device_code, _interval) = context
-                    .as_device_code()
-                    .ok_or_else(|| anyhow::anyhow!("Invalid context type for device flow"))?;
+        let config = &context.method.oauth_config;
+        let device_code = &context.request.device_code;
 
-                // Check if this needs OAuth with API key exchange (GitHub Copilot pattern)
-                if config.token_refresh_url.is_some() {
-                    // Handle OAuth with API key polling (GitHub-compatible)
-                    self.handle_oauth_device_poll(device_code, config, timeout, true)
-                        .await
-                        .map_err(|e| anyhow::anyhow!(e))
-                } else {
-                    // Handle OAuth device flow polling (standard OAuth)
-                    self.handle_oauth_device_poll(device_code, config, timeout, false)
-                        .await
-                        .map_err(|e| anyhow::anyhow!(e))
-                }
-            }
-            AuthMethod::OAuthCode(_config) => {
-                unimplemented!("OAuth code flow polling is not required")
-            }
+        // Check if this needs OAuth with API key exchange (GitHub Copilot pattern)
+        if config.token_refresh_url.is_some() {
+            // Handle OAuth with API key polling (GitHub-compatible)
+            self.handle_oauth_device_poll(device_code, config, timeout, true)
+                .await
+                .map_err(|e| anyhow::anyhow!(e))
+        } else {
+            // Handle OAuth device flow polling (standard OAuth)
+            self.handle_oauth_device_poll(device_code, config, timeout, false)
+                .await
+                .map_err(|e| anyhow::anyhow!(e))
         }
     }
 }
