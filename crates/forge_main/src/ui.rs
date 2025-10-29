@@ -1705,43 +1705,30 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     /// Handle config set command
     async fn handle_config_set(&mut self, args: crate::cli::ConfigSetArgs) -> Result<()> {
-        if args.has_any_field() {
-            // Non-interactive mode: set specified values
-            self.handle_non_interactive_config_set(args).await
-        } else {
-            Ok(())
-        }
-    }
+        use crate::cli::ConfigField;
 
-    /// Handle non-interactive config set
-    async fn handle_non_interactive_config_set(
-        &mut self,
-        args: crate::cli::ConfigSetArgs,
-    ) -> Result<()> {
-        // Set provider if specified
-        if let Some(provider_str) = args.provider {
-            let provider_id = self.validate_provider(&provider_str).await?;
-            self.api.set_default_provider(provider_id).await?;
-            self.writeln_title(TitleFormat::action("Provider set").sub_title(&provider_str))?;
-        }
-
-        // Set agent if specified
-        if let Some(agent_str) = args.agent {
-            let agent_id = self.validate_agent(&agent_str).await?;
-            self.api.set_active_agent(agent_id.clone()).await?;
-            self.writeln_title(
-                TitleFormat::action(agent_id.as_str().to_uppercase().bold().to_string())
-                    .sub_title("is now the active agent"),
-            )?;
-        }
-
-        // Set model if specified
-        if let Some(model_str) = args.model {
-            let model_id = self.validate_model(&model_str).await?;
-            self.api.set_default_model(model_id.clone()).await?;
-            self.writeln_title(
-                TitleFormat::action(model_id.as_str()).sub_title("is not the default model"),
-            )?;
+        // Set the specified field
+        match args.field {
+            ConfigField::Provider => {
+                let provider_id = self.validate_provider(&args.value).await?;
+                self.api.set_default_provider(provider_id).await?;
+                self.writeln_title(TitleFormat::action("Provider set").sub_title(&args.value))?;
+            }
+            ConfigField::Agent => {
+                let agent_id = self.validate_agent(&args.value).await?;
+                self.api.set_active_agent(agent_id.clone()).await?;
+                self.writeln_title(
+                    TitleFormat::action(agent_id.as_str().to_uppercase().bold().to_string())
+                        .sub_title("is now the active agent"),
+                )?;
+            }
+            ConfigField::Model => {
+                let model_id = self.validate_model(&args.value).await?;
+                self.api.set_default_model(model_id.clone()).await?;
+                self.writeln_title(
+                    TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
+                )?;
+            }
         }
 
         Ok(())
