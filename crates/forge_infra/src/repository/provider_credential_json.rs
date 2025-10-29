@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use forge_app::dto::{OAuthTokens, ProviderCredential, ProviderId};
+use forge_app::dto::{ProviderCredential, ProviderId};
 use forge_domain::Environment;
 use forge_fs::ForgeFS;
 use forge_services::ProviderCredentialRepository;
@@ -221,52 +221,12 @@ impl ProviderCredentialRepository for ProviderCredentialJsonRepository {
     async fn get_all_credentials(&self) -> anyhow::Result<HashMap<ProviderId, ProviderCredential>> {
         self.get_cached_credentials().await
     }
-
-    /// Updates OAuth tokens for a provider
-    ///
-    /// # Arguments
-    ///
-    /// * `provider_id` - The provider ID to update
-    /// * `tokens` - The new OAuth tokens
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the credential doesn't exist, or if the file cannot
-    /// be read, written, or parsed.
-    async fn update_oauth_tokens(
-        &self,
-        provider_id: &ProviderId,
-        tokens: OAuthTokens,
-    ) -> anyhow::Result<()> {
-        let mut credentials = self.get_cached_credentials().await?;
-
-        // Find and update the credential
-        let credential = credentials.get_mut(provider_id).ok_or_else(|| {
-            anyhow::anyhow!("Credential not found for provider: {:?}", provider_id)
-        })?;
-
-        credential.oauth_tokens = Some(tokens);
-
-        // Write to file
-        let file = ProviderCredentialsFile {
-            version: 1,
-            credentials: credentials
-                .into_iter()
-                .map(|(id, cred)| FileProviderCredential { provider_id: id, credential: cred })
-                .collect(),
-        };
-        self.write_file(&file).await?;
-
-        // Invalidate cache
-        self.invalidate_cache().await;
-
-        Ok(())
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use chrono::{Duration, Utc};
+    use forge_app::dto::OAuthTokens;
     use pretty_assertions::assert_eq;
     use tempfile::TempDir;
 
@@ -413,62 +373,6 @@ mod tests {
         let actual = repo.get_all_credentials().await?;
 
         assert_eq!(actual.len(), 2);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_update_oauth_tokens_modifies_only_tokens() -> anyhow::Result<()> {
-        let (repo, _temp_dir) = setup()?;
-
-        // Insert credential with initial OAuth tokens
-        let initial_tokens = OAuthTokens {
-            access_token: "initial_access".to_string().into(),
-            refresh_token: "initial_refresh".to_string().into(),
-            expires_at: Utc::now() + Duration::hours(1),
-        };
-        let fixture = ProviderCredential::new_oauth(initial_tokens);
-        repo.upsert_credential(ProviderId::Anthropic, fixture.clone())
-            .await?;
-
-        // Update OAuth tokens
-        let new_tokens = OAuthTokens {
-            access_token: "new_access".to_string().into(),
-            refresh_token: "new_refresh".to_string().into(),
-            expires_at: Utc::now() + Duration::hours(2),
-        };
-        repo.update_oauth_tokens(&ProviderId::Anthropic, new_tokens.clone())
-            .await?;
-
-        // Verify tokens were updated but other fields remain unchanged
-        let actual = repo.get_credential(&ProviderId::Anthropic).await?.unwrap();
-
-        assert_eq!(
-            actual.oauth_tokens.as_ref().unwrap().access_token.as_str(),
-            "new_access"
-        );
-        assert_eq!(
-            actual.oauth_tokens.as_ref().unwrap().refresh_token.as_str(),
-            "new_refresh"
-        );
-        assert_eq!(actual.auth_type, fixture.auth_type);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_update_oauth_tokens_returns_error_if_not_found() -> anyhow::Result<()> {
-        let (repo, _temp_dir) = setup()?;
-
-        let tokens = OAuthTokens {
-            access_token: "access".to_string().into(),
-            refresh_token: "refresh".to_string().into(),
-            expires_at: Utc::now() + Duration::hours(1),
-        };
-
-        let result = repo
-            .update_oauth_tokens(&ProviderId::Anthropic, tokens)
-            .await;
-
-        assert!(result.is_err());
         Ok(())
     }
 

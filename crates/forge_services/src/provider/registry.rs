@@ -593,14 +593,6 @@ mod env_tests {
         > {
             Ok(std::collections::HashMap::new())
         }
-
-        async fn update_oauth_tokens(
-            &self,
-            _provider_id: &forge_app::dto::ProviderId,
-            _tokens: forge_app::dto::OAuthTokens,
-        ) -> anyhow::Result<()> {
-            Ok(())
-        }
     }
 
     #[test]

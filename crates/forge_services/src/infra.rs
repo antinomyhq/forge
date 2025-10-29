@@ -318,15 +318,4 @@ pub trait ProviderCredentialRepository: Send + Sync {
     ) -> anyhow::Result<
         std::collections::HashMap<forge_app::dto::ProviderId, forge_app::dto::ProviderCredential>,
     >;
-
-    /// Updates OAuth tokens for a provider
-    ///
-    /// # Errors
-    ///
-    /// Returns error if database operation fails or encryption fails
-    async fn update_oauth_tokens(
-        &self,
-        provider_id: &forge_app::dto::ProviderId,
-        tokens: forge_app::dto::OAuthTokens,
-    ) -> anyhow::Result<()>;
 }

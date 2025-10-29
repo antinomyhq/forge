@@ -377,16 +377,6 @@ impl ProviderCredentialRepository for ForgeInfra {
             .get_all_credentials()
             .await
     }
-
-    async fn update_oauth_tokens(
-        &self,
-        provider_id: &forge_app::dto::ProviderId,
-        tokens: forge_app::dto::OAuthTokens,
-    ) -> anyhow::Result<()> {
-        self.provider_credential_repository
-            .update_oauth_tokens(provider_id, tokens)
-            .await
-    }
 }
 
 // Note: ForgeInfra implements CacheInfra<String, McpToolCache> directly

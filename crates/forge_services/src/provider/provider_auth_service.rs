@@ -88,10 +88,7 @@ impl<I> ForgeProviderAuthService<I> {
             "authorization_pending" | "slow_down" => Ok(()),
             "expired_token" => Err(Error::Expired),
             "access_denied" => Err(Error::Denied),
-            _ => Err(Error::PollFailed(format!(
-                "OAuth error: {}",
-                error_code
-            ))),
+            _ => Err(Error::PollFailed(format!("OAuth error: {}", error_code))),
         }
     }
 
@@ -109,18 +106,13 @@ impl<I> ForgeProviderAuthService<I> {
     /// # Errors
     /// Returns `AuthFlowError::PollFailed` if parsing fails or access_token is
     /// missing
-    fn parse_token_response(
-        body: &str,
-    ) -> Result<(String, Option<String>, Option<u64>), Error> {
-        let token_response: serde_json::Value = serde_json::from_str(body).map_err(|e| {
-            Error::PollFailed(format!("Failed to parse token response: {}", e))
-        })?;
+    fn parse_token_response(body: &str) -> Result<(String, Option<String>, Option<u64>), Error> {
+        let token_response: serde_json::Value = serde_json::from_str(body)
+            .map_err(|e| Error::PollFailed(format!("Failed to parse token response: {}", e)))?;
 
         let access_token = token_response["access_token"]
             .as_str()
-            .ok_or_else(|| {
-                Error::PollFailed("Missing access_token in response".to_string())
-            })?
+            .ok_or_else(|| Error::PollFailed("Missing access_token in response".to_string()))?
             .to_string();
 
         let refresh_token = token_response["refresh_token"]
@@ -176,13 +168,13 @@ impl<I> ForgeProviderAuthService<I> {
 
         let client = BasicClient::new(ClientId::new(config.client_id.to_string()))
             .set_device_authorization_url(
-                DeviceAuthorizationUrl::new(config.auth_url.to_string()).map_err(|e| {
-                    Error::InitiationFailed(format!("Invalid auth_url: {}", e))
-                })?,
+                DeviceAuthorizationUrl::new(config.auth_url.to_string())
+                    .map_err(|e| Error::InitiationFailed(format!("Invalid auth_url: {}", e)))?,
             )
-            .set_token_uri(TokenUrl::new(config.token_url.to_string()).map_err(|e| {
-                Error::InitiationFailed(format!("Invalid token_url: {}", e))
-            })?);
+            .set_token_uri(
+                TokenUrl::new(config.token_url.to_string())
+                    .map_err(|e| Error::InitiationFailed(format!("Invalid token_url: {}", e)))?,
+            );
 
         // Request device authorization
         let mut request = client.exchange_device_code();
@@ -192,9 +184,7 @@ impl<I> ForgeProviderAuthService<I> {
 
         // Build HTTP client with custom headers
         let http_client = ForgeOAuthService::build_http_client(config.custom_headers.as_ref())
-            .map_err(|e| {
-                Error::InitiationFailed(format!("Failed to build HTTP client: {}", e))
-            })?;
+            .map_err(|e| Error::InitiationFailed(format!("Failed to build HTTP client: {}", e)))?;
 
         let http_fn = |req| {
             crate::provider::ForgeOAuthService::github_compliant_http_request(
@@ -205,10 +195,7 @@ impl<I> ForgeProviderAuthService<I> {
 
         let device_auth_response: oauth2::StandardDeviceAuthorizationResponse =
             request.request_async(&http_fn).await.map_err(|e| {
-                Error::InitiationFailed(format!(
-                    "Device authorization request failed: {}",
-                    e
-                ))
+                Error::InitiationFailed(format!("Device authorization request failed: {}", e))
             })?;
 
         use forge_app::dto::{AuthContextRequest, DeviceCodeRequest};
@@ -246,9 +233,7 @@ impl<I> ForgeProviderAuthService<I> {
 
         // Build HTTP client for manual polling
         let http_client = ForgeOAuthService::build_http_client(config.custom_headers.as_ref())
-            .map_err(|e| {
-                Error::PollFailed(format!("Failed to build HTTP client: {}", e))
-            })?;
+            .map_err(|e| Error::PollFailed(format!("Failed to build HTTP client: {}", e)))?;
 
         use reqwest::header::{HeaderMap, HeaderValue};
 
@@ -276,9 +261,8 @@ impl<I> ForgeProviderAuthService<I> {
                 ("client_id".to_string(), config.client_id.to_string()),
             ];
 
-            let body = serde_urlencoded::to_string(&params).map_err(|e| {
-                Error::PollFailed(format!("Failed to encode request: {}", e))
-            })?;
+            let body = serde_urlencoded::to_string(&params)
+                .map_err(|e| Error::PollFailed(format!("Failed to encode request: {}", e)))?;
 
             // Make HTTP request with headers
             let mut headers = HeaderMap::new();
@@ -300,9 +284,10 @@ impl<I> ForgeProviderAuthService<I> {
                 .map_err(|e| Error::PollFailed(format!("HTTP request failed: {}", e)))?;
 
             let status = response.status();
-            let body_text = response.text().await.map_err(|e| {
-                Error::PollFailed(format!("Failed to read response: {}", e))
-            })?;
+            let body_text = response
+                .text()
+                .await
+                .map_err(|e| Error::PollFailed(format!("Failed to read response: {}", e)))?;
 
             // GitHub-compatible: HTTP 200 can contain either success or error
             if github_compatible && status.is_success() {
@@ -368,10 +353,7 @@ impl<I> ForgeProviderAuthService<I> {
             }
 
             // Unknown error
-            return Err(Error::PollFailed(format!(
-                "HTTP {}: {}",
-                status, body_text
-            )));
+            return Err(Error::PollFailed(format!("HTTP {}: {}", status, body_text)));
         }
     }
 
@@ -408,10 +390,8 @@ impl<I> ForgeProviderAuthService<I> {
         use super::Error;
 
         // Build authorization URL with PKCE
-        let auth_params =
-            ForgeOAuthService::build_auth_code_url(provider_id, config).map_err(|e| {
-                Error::InitiationFailed(format!("Failed to build auth URL: {}", e))
-            })?;
+        let auth_params = ForgeOAuthService::build_auth_code_url(provider_id, config)
+            .map_err(|e| Error::InitiationFailed(format!("Failed to build auth URL: {}", e)))?;
 
         use forge_app::dto::{AuthContextRequest, CodeRequest};
 
@@ -497,9 +477,7 @@ impl<I> ForgeProviderAuthService<I> {
         }
 
         let response = ForgeOAuthService::build_http_client(config.custom_headers.as_ref())
-            .map_err(|e| {
-                Error::CompletionFailed(format!("Failed to build HTTP client: {}", e))
-            })?
+            .map_err(|e| Error::CompletionFailed(format!("Failed to build HTTP client: {}", e)))?
             .get(token_refresh_url.as_str())
             .headers(headers)
             .send()
@@ -586,17 +564,16 @@ impl<I> ForgeProviderAuthService<I> {
         credential: &ProviderCredential,
         config: &OAuthConfig,
     ) -> Result<ProviderCredential, Error> {
-        let tokens = credential.oauth_tokens.as_ref().ok_or_else(|| {
-            Error::RefreshFailed("No OAuth tokens in credential".to_string())
-        })?;
+        let tokens = credential
+            .oauth_tokens
+            .as_ref()
+            .ok_or_else(|| Error::RefreshFailed("No OAuth tokens in credential".to_string()))?;
 
         // Use OAuth service to refresh token
         let token_response =
             ForgeOAuthService::refresh_access_token(config, tokens.refresh_token.as_str())
                 .await
-                .map_err(|e| {
-                    Error::RefreshFailed(format!("Token refresh failed: {}", e))
-                })?;
+                .map_err(|e| Error::RefreshFailed(format!("Token refresh failed: {}", e)))?;
 
         // Use helpers for consistent handling
         let expires_at =
@@ -668,19 +645,14 @@ impl<I> ForgeProviderAuthService<I> {
             ForgeOAuthService::refresh_access_token(config, oauth_tokens.refresh_token.as_str())
                 .await
                 .map_err(|e| {
-                    Error::RefreshFailed(format!(
-                        "Failed to refresh OAuth access token: {}",
-                        e
-                    ))
+                    Error::RefreshFailed(format!("Failed to refresh OAuth access token: {}", e))
                 })?;
 
         // Use the refreshed access token to fetch fresh API key
         let (new_api_key, expires_at) = self
             .exchange_oauth_for_api_key(&token_response.access_token, config)
             .await
-            .map_err(|e| {
-                Error::RefreshFailed(format!("Failed to refresh API key: {}", e))
-            })?;
+            .map_err(|e| Error::RefreshFailed(format!("Failed to refresh API key: {}", e)))?;
 
         // Create updated OAuth tokens with refreshed access token and new expiry
         let updated_tokens = OAuthTokens::new(
