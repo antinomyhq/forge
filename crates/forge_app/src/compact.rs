@@ -178,7 +178,7 @@ impl<S: AgentService> Compactor<S> {
             context = context.max_tokens(max_token);
         }
 
-        let response = self.services.chat_agent(model, context).await?;
+        let response = self.services.chat_agent(model, context, None).await?;
 
         self.collect_completion_stream_content(response).await
     }
@@ -240,7 +240,9 @@ fn zip_with<A, F: FnOnce(A, A) -> A>(a: Option<A>, b: Option<A>, f: F) -> Option
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{ChatCompletionMessage, Content, FinishReason, ModelId, TokenCount, Usage};
+    use forge_domain::{
+        ChatCompletionMessage, Content, FinishReason, ModelId, ProviderId, TokenCount, Usage,
+    };
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -276,6 +278,7 @@ mod tests {
             &self,
             _: &ModelId,
             _: Context,
+            _: Option<ProviderId>,
         ) -> forge_domain::ResultStream<ChatCompletionMessage, anyhow::Error> {
             let msg = ChatCompletionMessage::default()
                 .content(Content::full(self.response.content.clone()))

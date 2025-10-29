@@ -1,7 +1,10 @@
 use derive_setters::Setters;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter, EnumString};
 use url::Url;
+
+use crate::Model;
 
 /// --- IMPORTANT ---
 /// The order of providers is important because that would be order in which the
@@ -20,6 +23,7 @@ use url::Url;
     EnumIter,
     PartialOrd,
     Ord,
+    JsonSchema,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum ProviderId {
@@ -51,7 +55,7 @@ pub enum Models {
     /// Models are fetched from a URL
     Url(Url),
     /// Models are hardcoded in the configuration
-    Hardcoded(Vec<crate::domain::Model>),
+    Hardcoded(Vec<Model>),
 }
 
 /// Providers that can be used.

@@ -16,7 +16,7 @@ impl MarkdownFormat {
     /// Create a new MarkdownFormat with the default skin
     pub fn new() -> Self {
         let mut skin = MadSkin::default();
-        let compound_style = CompoundStyle::new(Some(Color::Cyan), None, Attribute::Bold.into());
+        let compound_style = CompoundStyle::new(Some(Color::Cyan), None, Default::default());
         skin.inline_code = compound_style.clone();
 
         let codeblock_style = CompoundStyle::new(None, None, Default::default());
