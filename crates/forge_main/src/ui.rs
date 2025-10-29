@@ -27,7 +27,7 @@ use crate::conversation_selector::ConversationSelector;
 use crate::env::should_show_completion_prompt;
 use crate::info::Info;
 use crate::input::Console;
-use crate::model::{CliModel, CliProvider, Command, ForgeCommandManager, PartialEvent};
+use crate::model::{CliModel, CliProvider, ForgeCommandManager, PartialEvent, SlashCommand};
 use crate::porcelain::Porcelain;
 use crate::prompt::ForgePrompt;
 use crate::state::UIState;
@@ -100,6 +100,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.api = Arc::new((self.new_api)());
         self.init_state(false).await?;
 
+        // Set agent if provided via CLI
+        if let Some(agent_id) = self.cli.agent.clone() {
+            self.api.set_active_agent(agent_id).await?;
+        }
+
         // Reset previously set CLI parameters by the user
         self.cli.conversation = None;
         self.cli.conversation_id = None;
@@ -154,7 +159,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         })
     }
 
-    async fn prompt(&self) -> Result<Command> {
+    async fn prompt(&self) -> Result<SlashCommand> {
         // Get usage from current conversation if available
         let usage = if let Some(conversation_id) = &self.state.conversation_id {
             self.api
@@ -195,6 +200,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Display the banner in dimmed colors since we're in interactive mode
         self.display_banner()?;
         self.init_state(true).await?;
+
         self.trace_user();
         self.hydrate_caches();
         self.init_conversation().await?;
@@ -692,28 +698,22 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     /// Lists current configuration values
     async fn on_show_config(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let agent = self.api.get_active_agent().await;
         let model = self
-            .get_agent_model(agent.clone())
+            .get_agent_model(None)
             .await
             .map(|m| m.as_str().to_string());
+        let model = model.unwrap_or_else(|| "<not set>".to_string());
         let provider = self
-            .get_provider(agent.clone())
+            .get_provider(None)
             .await
             .ok()
-            .map(|p| p.id.to_string());
-
-        let agent_val = agent
-            .map(|a| a.as_str().to_string())
-            .unwrap_or_else(|| "Not set".to_string());
-        let model_val = model.unwrap_or_else(|| "Not set".to_string());
-        let provider_val = provider.unwrap_or_else(|| "Not set".to_string());
+            .map(|p| p.id.to_string())
+            .unwrap_or_else(|| "<not set>".to_string());
 
         let info = Info::new()
             .add_title("CONFIGURATION")
-            .add_key_value("Agent", agent_val)
-            .add_key_value("Model", model_val)
-            .add_key_value("Provider", provider_val);
+            .add_key_value("Default Model", model)
+            .add_key_value("Default Provider", provider);
 
         if porcelain {
             self.writeln(Porcelain::from(&info).into_long().skip(1).drop_col(0))?;
@@ -949,70 +949,70 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn on_command(&mut self, command: Command) -> anyhow::Result<bool> {
+    async fn on_command(&mut self, command: SlashCommand) -> anyhow::Result<bool> {
         match command {
-            Command::Conversations => {
+            SlashCommand::Conversations => {
                 self.list_conversations().await?;
             }
-            Command::Compact => {
+            SlashCommand::Compact => {
                 self.spinner.start(Some("Compacting"))?;
                 self.on_compaction().await?;
             }
-            Command::Dump(format) => {
+            SlashCommand::Dump(format) => {
                 self.spinner.start(Some("Dumping"))?;
                 self.on_dump(format).await?;
             }
-            Command::New => {
+            SlashCommand::New => {
                 self.on_new().await?;
             }
-            Command::Info => {
+            SlashCommand::Info => {
                 self.on_info(false, None).await?;
             }
-            Command::Usage => {
+            SlashCommand::Usage => {
                 self.on_usage().await?;
             }
-            Command::Message(ref content) => {
+            SlashCommand::Message(ref content) => {
                 self.spinner.start(None)?;
                 self.on_message(Some(content.clone())).await?;
             }
-            Command::Forge => {
+            SlashCommand::Forge => {
                 self.on_agent_change(AgentId::FORGE).await?;
             }
-            Command::Muse => {
+            SlashCommand::Muse => {
                 self.on_agent_change(AgentId::MUSE).await?;
             }
-            Command::Sage => {
+            SlashCommand::Sage => {
                 self.on_agent_change(AgentId::SAGE).await?;
             }
-            Command::Help => {
+            SlashCommand::Help => {
                 let info = Info::from(self.command.as_ref());
                 self.writeln(info)?;
             }
-            Command::Tools => {
+            SlashCommand::Tools => {
                 let agent_id = self.api.get_active_agent().await.unwrap_or_default();
                 self.on_show_tools(agent_id, false).await?;
             }
-            Command::Update => {
+            SlashCommand::Update => {
                 on_update(self.api.clone(), None).await;
             }
-            Command::Exit => {
+            SlashCommand::Exit => {
                 return Ok(true);
             }
 
-            Command::Custom(event) => {
+            SlashCommand::Custom(event) => {
                 self.spinner.start(None)?;
                 self.on_custom_event(event.into()).await?;
             }
-            Command::Model => {
+            SlashCommand::Model => {
                 self.on_model_selection().await?;
             }
-            Command::Provider => {
+            SlashCommand::Provider => {
                 self.on_provider_selection().await?;
             }
-            Command::Shell(ref command) => {
+            SlashCommand::Shell(ref command) => {
                 self.api.execute_shell_command_raw(command).await?;
             }
-            Command::Agent => {
+            SlashCommand::Agent => {
                 #[derive(Clone)]
                 struct Agent {
                     id: AgentId,
@@ -1055,7 +1055,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     self.on_agent_change(selected_agent.id).await?;
                 }
             }
-            Command::Login => {
+            SlashCommand::Login => {
                 self.spinner.start(Some("Logging in"))?;
                 self.api.logout().await?;
                 self.login().await?;
@@ -1067,7 +1067,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         .unwrap_or_default(),
                 );
             }
-            Command::Logout => {
+            SlashCommand::Logout => {
                 self.spinner.start(Some("Logging out"))?;
                 self.api.logout().await?;
                 self.spinner.stop(None)?;
@@ -1075,11 +1075,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 // Exit the UI after logout
                 return Ok(true);
             }
-            Command::Retry => {
+            SlashCommand::Retry => {
                 self.spinner.start(None)?;
                 self.on_message(None).await?;
             }
-            Command::AgentSwitch(agent_id) => {
+            SlashCommand::AgentSwitch(agent_id) => {
                 // Validate that the agent exists by checking against loaded agents
                 let agents = self.api.get_agents().await?;
                 let agent_exists = agents.iter().any(|agent| agent.id.as_str() == agent_id);
@@ -1264,6 +1264,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Displays initialization status and updates UI state with the
     /// conversation ID.
     async fn init_conversation(&mut self) -> Result<ConversationId> {
+        // Set agent if provided via CLI
+        if let Some(agent_id) = self.cli.agent.clone() {
+            self.api.set_active_agent(agent_id).await?;
+        }
+
         let mut is_new = false;
         let id = if let Some(id) = self.state.conversation_id {
             id
@@ -1705,43 +1710,22 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     /// Handle config set command
     async fn handle_config_set(&mut self, args: crate::cli::ConfigSetArgs) -> Result<()> {
-        if args.has_any_field() {
-            // Non-interactive mode: set specified values
-            self.handle_non_interactive_config_set(args).await
-        } else {
-            Ok(())
-        }
-    }
+        use crate::cli::ConfigField;
 
-    /// Handle non-interactive config set
-    async fn handle_non_interactive_config_set(
-        &mut self,
-        args: crate::cli::ConfigSetArgs,
-    ) -> Result<()> {
-        // Set provider if specified
-        if let Some(provider_str) = args.provider {
-            let provider_id = self.validate_provider(&provider_str).await?;
-            self.api.set_default_provider(provider_id).await?;
-            self.writeln_title(TitleFormat::action("Provider set").sub_title(&provider_str))?;
-        }
-
-        // Set agent if specified
-        if let Some(agent_str) = args.agent {
-            let agent_id = self.validate_agent(&agent_str).await?;
-            self.api.set_active_agent(agent_id.clone()).await?;
-            self.writeln_title(
-                TitleFormat::action(agent_id.as_str().to_uppercase().bold().to_string())
-                    .sub_title("is now the active agent"),
-            )?;
-        }
-
-        // Set model if specified
-        if let Some(model_str) = args.model {
-            let model_id = self.validate_model(&model_str).await?;
-            self.api.set_default_model(model_id.clone()).await?;
-            self.writeln_title(
-                TitleFormat::action(model_id.as_str()).sub_title("is not the default model"),
-            )?;
+        // Set the specified field
+        match args.field {
+            ConfigField::Provider => {
+                let provider_id = self.validate_provider(&args.value).await?;
+                self.api.set_default_provider(provider_id).await?;
+                self.writeln_title(TitleFormat::action("Provider set").sub_title(&args.value))?;
+            }
+            ConfigField::Model => {
+                let model_id = self.validate_model(&args.value).await?;
+                self.api.set_default_model(model_id.clone()).await?;
+                self.writeln_title(
+                    TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
+                )?;
+            }
         }
 
         Ok(())
@@ -1753,17 +1737,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Get specific field
         match args.field {
-            ConfigField::Agent => {
-                let agent = self
-                    .api
-                    .get_active_agent()
-                    .await
-                    .map(|a| a.as_str().to_string());
-                match agent {
-                    Some(v) => self.writeln(v.to_string())?,
-                    None => self.writeln("Agent: Not set")?,
-                }
-            }
             ConfigField::Model => {
                 let model = self
                     .api
@@ -1790,23 +1763,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         Ok(())
-    }
-
-    /// Validate agent exists
-    async fn validate_agent(&self, agent_str: &str) -> Result<AgentId> {
-        let agents = self.api.get_agents().await?;
-        let agent_id = AgentId::new(agent_str);
-
-        if agents.iter().any(|a| a.id == agent_id) {
-            Ok(agent_id)
-        } else {
-            let available: Vec<_> = agents.iter().map(|a| a.id.as_str()).collect();
-            Err(anyhow::anyhow!(
-                "Agent '{}' not found. Available agents: {}",
-                agent_str,
-                available.join(", ")
-            ))
-        }
     }
 
     /// Validate model exists

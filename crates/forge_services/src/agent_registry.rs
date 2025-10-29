@@ -6,8 +6,7 @@ use gray_matter::Matter;
 use gray_matter::engine::YAML;
 
 use crate::{
-    AppConfigRepository, DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra,
-    FileWriterInfra,
+    DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
 };
 
 /// A service for loading agent definitions from multiple sources:
@@ -38,23 +37,25 @@ pub struct AgentLoaderService<F> {
     // for this service instance.
     // So that they could live till user starts a new session.
     cache: tokio::sync::OnceCell<Vec<Agent>>,
+
+    // In-memory storage for the active agent ID
+    // This is NOT persisted to disk
+    active_agent_id: tokio::sync::RwLock<Option<forge_app::domain::AgentId>>,
 }
 
 impl<F> AgentLoaderService<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        Self { infra, cache: Default::default() }
+        Self {
+            infra,
+            cache: Default::default(),
+            active_agent_id: tokio::sync::RwLock::new(None),
+        }
     }
 }
 
 #[async_trait::async_trait]
-impl<
-    F: FileReaderInfra
-        + FileWriterInfra
-        + FileInfoInfra
-        + EnvironmentInfra
-        + DirectoryReaderInfra
-        + AppConfigRepository,
-> forge_app::AgentRegistry for AgentLoaderService<F>
+impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
+    forge_app::AgentRegistry for AgentLoaderService<F>
 {
     /// Load all agent definitions from all available sources with conflict
     /// resolution.
@@ -80,40 +81,33 @@ impl<
     }
 
     async fn get_active_agent(&self) -> anyhow::Result<Option<Agent>> {
-        let app_config = self.infra.get_app_config().await?;
+        let agent_id = self.active_agent_id.read().await;
 
-        if let Some(agent_id) = app_config.agent {
+        if let Some(ref id) = *agent_id {
             let agents = self.get_agents().await?;
-            Ok(agents.into_iter().find(|agent| agent.id == agent_id))
+            Ok(agents.into_iter().find(|agent| &agent.id == id))
         } else {
             Ok(None)
         }
     }
 
     async fn get_active_agent_id(&self) -> anyhow::Result<Option<forge_app::domain::AgentId>> {
-        let app_config = self.infra.get_app_config().await?;
-        Ok(app_config.agent)
+        let agent_id = self.active_agent_id.read().await;
+        Ok(agent_id.clone())
     }
 
     async fn set_active_agent_id(
         &self,
         agent_id: forge_app::domain::AgentId,
     ) -> anyhow::Result<()> {
-        let mut config = self.infra.get_app_config().await?;
-        config.agent = Some(agent_id);
-        self.infra.set_app_config(&config).await?;
+        let mut active_agent = self.active_agent_id.write().await;
+        *active_agent = Some(agent_id);
         Ok(())
     }
 }
 
-impl<
-    F: FileReaderInfra
-        + FileWriterInfra
-        + FileInfoInfra
-        + EnvironmentInfra
-        + DirectoryReaderInfra
-        + AppConfigRepository,
-> AgentLoaderService<F>
+impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
+    AgentLoaderService<F>
 {
     /// Load all agent definitions with caching support
     async fn cache_or_init(&self) -> anyhow::Result<Vec<Agent>> {

@@ -5,7 +5,7 @@ use forge_api::Environment;
 use tokio::fs;
 
 use crate::editor::{ForgeEditor, ReadResult};
-use crate::model::{Command, ForgeCommandManager};
+use crate::model::{ForgeCommandManager, SlashCommand};
 use crate::prompt::ForgePrompt;
 use crate::tracker;
 
@@ -24,15 +24,15 @@ impl Console {
 }
 
 impl Console {
-    pub async fn upload<P: Into<PathBuf> + Send>(&self, path: P) -> anyhow::Result<Command> {
+    pub async fn upload<P: Into<PathBuf> + Send>(&self, path: P) -> anyhow::Result<SlashCommand> {
         let path = path.into();
         let content = fs::read_to_string(&path).await?.trim().to_string();
 
         println!("{}", content.clone());
-        Ok(Command::Message(content))
+        Ok(SlashCommand::Message(content))
     }
 
-    pub async fn prompt(&self, prompt: ForgePrompt) -> anyhow::Result<Command> {
+    pub async fn prompt(&self, prompt: ForgePrompt) -> anyhow::Result<SlashCommand> {
         let engine = Mutex::new(ForgeEditor::new(self.env.clone(), self.command.clone()));
 
         loop {
@@ -41,7 +41,7 @@ impl Console {
             drop(forge_editor);
             match user_input {
                 ReadResult::Continue => continue,
-                ReadResult::Exit => return Ok(Command::Exit),
+                ReadResult::Exit => return Ok(SlashCommand::Exit),
                 ReadResult::Empty => continue,
                 ReadResult::Success(text) => {
                     tracker::prompt(text.clone());
