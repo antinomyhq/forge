@@ -113,7 +113,7 @@ impl SpinnerManager {
     }
 
     /// Stop the active spinner if any
-    pub fn stop_inner<F>(&mut self, message: Option<String>, writer: F) -> Result<()>
+    fn stop_inner<F>(&mut self, message: Option<String>, writer: F) -> Result<()>
     where
         F: FnOnce(&str),
     {
@@ -140,25 +140,24 @@ impl SpinnerManager {
         Ok(())
     }
 
-    pub fn write_ln(&mut self, message: impl ToString) -> Result<()> {
+    fn write_with_restart<F>(&mut self, message: impl ToString, writer: F) -> Result<()>
+    where
+        F: FnOnce(&str),
+    {
         let is_running = self.spinner.is_some();
         let prev_message = self.message.clone();
-        self.stop(Some(message.to_string()))?;
+        self.stop_inner(Some(message.to_string()), writer)?;
         if is_running {
             self.start(prev_message.as_deref())?
         }
-
         Ok(())
     }
 
-    pub fn stderr_ln(&mut self, message: impl ToString) -> Result<()> {
-        let is_running = self.spinner.is_some();
-        let prev_message = self.message.clone();
-        self.stop_inner(Some(message.to_string()), |msg| eprintln!("{msg}"))?;
-        if is_running {
-            self.start(prev_message.as_deref())?
-        }
+    pub fn write_ln(&mut self, message: impl ToString) -> Result<()> {
+        self.write_with_restart(message, |msg| println!("{msg}"))
+    }
 
-        Ok(())
+    pub fn stderr_ln(&mut self, message: impl ToString) -> Result<()> {
+        self.write_with_restart(message, |msg| eprintln!("{msg}"))
     }
 }
