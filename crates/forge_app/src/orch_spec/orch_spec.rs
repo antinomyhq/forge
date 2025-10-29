@@ -438,3 +438,56 @@ async fn test_raw_user_message_is_stored() {
         "Raw user message should be stored in TextMessage as a JSON Value"
     );
 }
+
+#[tokio::test]
+async fn test_plan_nudge_is_added_at_interval() {
+    let nudge_message = "Check plan";
+    let call =
+        ToolCallFull::new("fs_read").arguments(ToolCallArguments::from(json!({"path": "f"})));
+    let result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("data")));
+
+    let mut ctx = TestContext::default();
+    let agent = ctx.agent.clone().plan_nudge_interval(2usize);
+
+    ctx = ctx
+        .plan_nudge(Some(nudge_message.to_string()))
+        .agent(agent)
+        .mock_tool_call_responses(vec![(call.clone(), result.clone()), (call.clone(), result)])
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant("Working").add_tool_call(call.clone()),
+            ChatCompletionMessage::assistant("Working").add_tool_call(call),
+            ChatCompletionMessage::assistant("Done").finish_reason(FinishReason::Stop),
+        ]);
+
+    ctx.run("Follow plans/2025-task.md").await.unwrap();
+
+    let has_nudge = ctx.output.context_messages().iter().any(|m| {
+        m.content()
+            .map(|c| c.contains(nudge_message))
+            .unwrap_or(false)
+    });
+
+    assert!(has_nudge, "Should add nudge at interval");
+}
+
+#[tokio::test]
+async fn test_plan_nudge_not_added_when_disabled() {
+    let nudge_message = "Should not appear";
+
+    let mut ctx = TestContext::default()
+        .plan_nudge(Some(nudge_message.to_string()))
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant("Working"),
+            ChatCompletionMessage::assistant("Done").finish_reason(FinishReason::Stop),
+        ]);
+
+    ctx.run("Follow plans/2025-task.md").await.unwrap();
+
+    let has_nudge = ctx.output.context_messages().iter().any(|m| {
+        m.content()
+            .map(|c| c.contains(nudge_message))
+            .unwrap_or(false)
+    });
+
+    assert!(!has_nudge, "Should not add nudge when disabled");
+}
