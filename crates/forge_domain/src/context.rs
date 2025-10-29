@@ -16,7 +16,6 @@ use crate::{
     ConversationId, Image, ModelId, ReasoningFull, ToolChoice, ToolDefinition, ToolOutput,
     ToolValue, Usage,
 };
-
 /// Represents a message being sent to the LLM provider
 /// NOTE: ToolResults message are part of the larger Request object and not part
 /// of the message.

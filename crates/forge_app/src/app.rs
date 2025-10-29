@@ -113,6 +113,9 @@ impl<S: Services> ForgeApp<S> {
             tool_resolver.resolve(&agent).into_iter().cloned().collect();
         let max_tool_failure_per_turn = agent.max_tool_failure_per_turn.unwrap_or(3);
 
+        // Detect and render plan nudge if needed
+        let plan_nudge = self.render_plan_nudge(&conversation, &chat).await?;
+
         // Create the orchestrator with all necessary dependencies
         let orch = Orchestrator::new(
             services.clone(),
@@ -126,7 +129,8 @@ impl<S: Services> ForgeApp<S> {
         .custom_instructions(custom_instructions)
         .tool_definitions(tool_definitions)
         .models(models)
-        .files(files);
+        .files(files)
+        .plan_nudge(plan_nudge);
 
         // Create and return the stream
         let stream = MpscStream::spawn(
@@ -274,5 +278,84 @@ impl<S: Services> ForgeApp<S> {
     pub async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
         let provider_id = self.get_provider(None).await?.id;
         self.services.set_default_model(model, provider_id).await
+    }
+
+    /// Detects plan file references and renders a plan nudge if needed.
+    /// Checks conversation context, current user input, and attachments.
+    async fn render_plan_nudge(
+        &self,
+        conversation: &Conversation,
+        chat: &ChatRequest,
+    ) -> Result<Option<String>> {
+        use crate::utils::extract_plan_paths;
+
+        // Extract plan paths from conversation
+        let plan_paths: Vec<String> = conversation
+            .context
+            .iter()
+            .flat_map(|ctx| &ctx.messages)
+            .flat_map(|message| match message {
+                ContextMessage::Text(text_msg) => {
+                    let mut paths = extract_plan_paths(&text_msg.content);
+                    if let Some(tool_calls) = &text_msg.tool_calls {
+                        paths.extend(
+                            tool_calls
+                                .iter()
+                                .filter_map(|tc| tc.arguments.parse().ok())
+                                .flat_map(|args| extract_plan_paths(&args.to_string())),
+                        );
+                    }
+                    paths
+                }
+                ContextMessage::Tool(tool_result) => tool_result
+                    .output
+                    .values
+                    .iter()
+                    .filter_map(|v| match v {
+                        ToolValue::Text(text) => Some(text.as_str()),
+                        _ => None,
+                    })
+                    .flat_map(extract_plan_paths)
+                    .collect(),
+                _ => Vec::new(),
+            })
+            .chain(
+                chat.event
+                    .value
+                    .as_ref()
+                    .into_iter()
+                    .flat_map(|v| extract_plan_paths(&v.to_string())),
+            )
+            .chain(
+                chat.event
+                    .attachments
+                    .iter()
+                    .flat_map(|a| extract_plan_paths(&a.path)),
+            )
+            .collect();
+
+        if plan_paths.is_empty() {
+            return Ok(None);
+        }
+
+        tracing::info!(
+            conversation_id = %conversation.id,
+            plan_paths = ?plan_paths,
+            "Plan execution detected - preparing nudge reminder"
+        );
+
+        // Render the plan nudge notification message.
+        let rendered = self
+            .services
+            .template_service()
+            .render_template(
+                "{{> forge-plan-nudge.md }}",
+                &serde_json::json!({
+                    "paths": plan_paths,
+                }),
+            )
+            .await?;
+
+        Ok(Some(rendered))
     }
 }

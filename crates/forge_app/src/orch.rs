@@ -16,7 +16,7 @@ use crate::title_generator::TitleGenerator;
 use crate::user_prompt::UserPromptBuilder;
 
 #[derive(Clone, Setters)]
-#[setters(into, strip_option)]
+#[setters(into)]
 pub struct Orchestrator<S> {
     services: Arc<S>,
     sender: Option<ArcSender>,
@@ -31,6 +31,7 @@ pub struct Orchestrator<S> {
     error_tracker: ToolErrorTracker,
     user_prompt_service: UserPromptBuilder<S>,
     current_time: chrono::DateTime<chrono::Local>,
+    plan_nudge: Option<String>,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -61,6 +62,7 @@ impl<S: AgentService> Orchestrator<S> {
             custom_instructions: Default::default(),
             error_tracker: Default::default(),
             current_time,
+            plan_nudge: Default::default(),
         }
     }
 
@@ -240,6 +242,7 @@ impl<S: AgentService> Orchestrator<S> {
 
         response.into_full(!tool_supported).await
     }
+
     /// Checks if compaction is needed and performs it if necessary
     async fn check_and_compact(&self, context: &Context) -> anyhow::Result<Option<Context>> {
         let agent = &self.agent;
@@ -364,6 +367,9 @@ impl<S: AgentService> Orchestrator<S> {
         let title = self.generate_title(model_id.clone());
 
         while !should_yield {
+            // Send plan nudge if applicable
+            context = self.add_plan_nudge(context, request_count);
+
             // Set context for the current loop iteration
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
@@ -547,6 +553,25 @@ impl<S: AgentService> Orchestrator<S> {
             .model
             .clone()
             .ok_or(Error::MissingModel(self.agent.id.clone()))?)
+    }
+
+    /// Applies a plan nudge message to the context if conditions are met
+    fn add_plan_nudge(&self, context: Context, request_count: usize) -> Context {
+        match (self.agent.plan_nudge_interval, &self.plan_nudge) {
+            (Some(interval), Some(nudge))
+                if request_count > 0 && request_count.is_multiple_of(interval) =>
+            {
+                info!(
+                    agent_id = %self.agent.id,
+                    request_count,
+                    nudge_interval = interval,
+                    "Sending plan nudge"
+                );
+
+                context.add_message(ContextMessage::user(nudge, self.agent.model.clone()))
+            }
+            _ => context,
+        }
     }
 
     /// Creates a join handle which eventually resolves with the conversation
