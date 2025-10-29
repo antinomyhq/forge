@@ -19,18 +19,6 @@ pub struct Event {
     pub attachments: Vec<Attachment>,
 }
 
-#[derive(Debug, JsonSchema, Deserialize, Serialize, Clone)]
-pub struct EventMessage {
-    pub name: String,
-    pub value: Value,
-}
-
-impl From<EventMessage> for Event {
-    fn from(value: EventMessage) -> Self {
-        Self::new(value.name, Some(value.value))
-    }
-}
-
 #[derive(Clone, Serialize, Deserialize, Debug, Setters)]
 pub struct EventContext {
     event: Event,
@@ -85,14 +73,6 @@ impl NamedTool for Event {
 }
 
 impl Event {
-    pub fn tool_definition() -> ToolDefinition {
-        ToolDefinition {
-            name: Self::tool_name(),
-            description: "Dispatches an event with the provided name and value".to_string(),
-            input_schema: schema_for!(EventMessage),
-        }
-    }
-
     pub fn new<V: Into<Value>>(name: impl ToString, value: Option<V>) -> Self {
         let id = uuid::Uuid::new_v4().to_string();
         let timestamp = chrono::Utc::now().to_rfc3339();
