@@ -1,10 +1,6 @@
 use std::collections::HashMap;
 
-use super::{ApiKey, AuthFlow, URLParam, URLParamValue};
-
-/// API key authentication flow
-#[derive(Debug, Clone)]
-pub struct ApiKeyAuthFlow;
+use super::{ApiKey, URLParam, URLParamValue};
 
 /// Request parameters for API key authentication
 #[derive(Debug, Clone)]
@@ -22,9 +18,3 @@ pub struct ApiKeyResponse {
 /// Method for API key authentication
 #[derive(Debug, Clone)]
 pub struct ApiKeyMethod;
-
-impl AuthFlow for ApiKeyAuthFlow {
-    type Request = ApiKeyRequest;
-    type Response = ApiKeyResponse;
-    type Method = ApiKeyMethod;
-}

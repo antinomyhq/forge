@@ -16,7 +16,8 @@ use url::Url;
 
 use crate::Walker;
 use crate::dto::{
-    ApiKey, AuthContext, AuthMethod, InitAuth, LoginInfo, Provider, ProviderCredential, ProviderId,
+    ApiKey, AuthContextRequest, AuthContextResponse, AuthMethod, InitAuth, LoginInfo, Provider,
+    ProviderCredential, ProviderId,
 };
 use crate::user::{User, UserUsage};
 
@@ -388,7 +389,7 @@ pub trait ProviderAuthService: Send + Sync {
         &self,
         provider_id: ProviderId,
         method: AuthMethod,
-    ) -> anyhow::Result<crate::dto::AuthContext>;
+    ) -> anyhow::Result<crate::dto::AuthContextRequest>;
 
     /// Complete provider authentication and save credentials
     ///
@@ -397,7 +398,7 @@ pub trait ProviderAuthService: Send + Sync {
     async fn complete_provider_auth(
         &self,
         provider_id: ProviderId,
-        context: AuthContext,
+        context: AuthContextResponse,
         timeout: Duration,
     ) -> anyhow::Result<()>;
 
@@ -838,7 +839,7 @@ impl<I: Services> ProviderAuthService for I {
         &self,
         provider_id: ProviderId,
         method: crate::dto::AuthMethod,
-    ) -> anyhow::Result<crate::dto::AuthContext> {
+    ) -> anyhow::Result<crate::dto::AuthContextRequest> {
         self.provider_auth_service()
             .init_provider_auth(provider_id, method)
             .await
@@ -847,7 +848,7 @@ impl<I: Services> ProviderAuthService for I {
     async fn complete_provider_auth(
         &self,
         provider_id: ProviderId,
-        context: AuthContext,
+        context: AuthContextResponse,
         timeout: Duration,
     ) -> anyhow::Result<()> {
         self.provider_auth_service()

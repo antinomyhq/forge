@@ -10,8 +10,7 @@ use std::time::Duration;
 use chrono::Utc;
 use forge_app::ProviderAuthService;
 use forge_app::dto::{
-    AccessToken, ApiKey, AuthContext, AuthResult, AuthorizationCode, OAuthConfig, OAuthTokens,
-    PkceVerifier, Provider, ProviderCredential, ProviderId, RefreshToken, URLParam, URLParamValue,
+    AccessToken, ApiKey, AuthContextRequest, AuthContextResponse, AuthResult, AuthorizationCode, OAuthConfig, OAuthTokens, PkceVerifier, Provider, ProviderCredential, ProviderId, RefreshToken, URLParam, URLParamValue
 };
 
 use super::AuthFlowError;
@@ -46,10 +45,10 @@ impl<I> ForgeProviderAuthService<I> {
     async fn handle_api_key_init(
         &self,
         required_params: Vec<forge_app::dto::URLParam>,
-    ) -> Result<forge_app::dto::AuthContext, super::AuthFlowError> {
-        use forge_app::dto::{ApiKeyMethod, ApiKeyRequest, ApiKeyResponse, AuthContext};
+    ) -> Result<forge_app::dto::AuthContextRequest, super::AuthFlowError> {
+        use forge_app::dto::{ApiKeyMethod, ApiKeyRequest, ApiKeyResponse, AuthContextRequest};
 
-        Ok(AuthContext::api_key(
+        Ok(AuthContextRequest::api_key(
             ApiKeyRequest { required_params },
             ApiKeyResponse {
                 api_key: String::new().into(),
@@ -170,7 +169,7 @@ impl<I> ForgeProviderAuthService<I> {
     async fn handle_oauth_device_init(
         &self,
         config: &crate::provider::OAuthConfig,
-    ) -> Result<forge_app::dto::AuthContext, super::AuthFlowError> {
+    ) -> Result<forge_app::dto::AuthContextRequest, super::AuthFlowError> {
         // Validate configuration
         // Build oauth2 client
         use oauth2::basic::BasicClient;
@@ -216,11 +215,11 @@ impl<I> ForgeProviderAuthService<I> {
             })?;
 
         use forge_app::dto::{
-            AuthContext, DeviceCodeMethod, DeviceCodeRequest, DeviceCodeResponse,
+            AuthContextRequest, DeviceCodeMethod, DeviceCodeRequest, DeviceCodeResponse,
         };
 
         // Build the type-safe context
-        Ok(AuthContext::device_code(
+        Ok(AuthContextRequest::device_code(
             DeviceCodeRequest {
                 user_code: device_auth_response.user_code().secret().to_string().into(),
                 verification_uri: device_auth_response.verification_uri().to_string().into(),
@@ -418,7 +417,7 @@ impl<I> ForgeProviderAuthService<I> {
         &self,
         _provider_id: &ProviderId,
         config: &crate::provider::OAuthConfig,
-    ) -> Result<forge_app::dto::AuthContext, super::AuthFlowError> {
+    ) -> Result<forge_app::dto::AuthContextRequest, super::AuthFlowError> {
         use super::AuthFlowError;
 
         // Build authorization URL with PKCE
@@ -426,10 +425,10 @@ impl<I> ForgeProviderAuthService<I> {
             AuthFlowError::InitiationFailed(format!("Failed to build auth URL: {}", e))
         })?;
 
-        use forge_app::dto::{AuthContext, CodeMethod, CodeRequest, CodeResponse};
+        use forge_app::dto::{AuthContextRequest, CodeMethod, CodeRequest, CodeResponse};
 
         // Build the type-safe context
-        Ok(AuthContext::code(
+        Ok(AuthContextRequest::code(
             CodeRequest {
                 authorization_url: auth_params.auth_url.into(),
                 state: auth_params.state.clone().into(),
@@ -736,7 +735,7 @@ where
         &self,
         provider_id: ProviderId,
         method: AuthMethod,
-    ) -> anyhow::Result<forge_app::dto::AuthContext> {
+    ) -> anyhow::Result<forge_app::dto::AuthContextRequest> {
         // Get URL parameters from provider config
         let url_param_vars = self.get_url_param_vars(&provider_id);
 
@@ -811,12 +810,12 @@ where
     async fn complete_provider_auth(
         &self,
         provider_id: ProviderId,
-        context: AuthContext,
+        context: AuthContextResponse,
         timeout: Duration,
     ) -> anyhow::Result<()> {
         let method = context.method();
         match context {
-            AuthContext::ApiKey(ctx) => {
+            AuthContextResponse::ApiKey(ctx) => {
                 let result = AuthResult::ApiKey {
                     api_key: ctx.response.api_key,
                     url_params: ctx.response.url_params,
@@ -825,7 +824,7 @@ where
                     .await?;
                 Ok(())
             }
-            AuthContext::DeviceCode(_) => {
+            AuthContextResponse::DeviceCode(_) => {
                 let result = self
                     .poll_provider_auth(&context, timeout, method.clone())
                     .await?;
@@ -833,7 +832,7 @@ where
                     .await?;
                 Ok(())
             }
-            AuthContext::Code(_) => {
+            AuthContextResponse::Code(_) => {
                 let result = self
                     .poll_provider_auth(&context, timeout, method.clone())
                     .await?;
@@ -860,7 +859,7 @@ where
     /// Returns error if polling fails, times out, or auth is denied
     async fn poll_provider_auth(
         &self,
-        context: &AuthContext,
+        context: &AuthContextResponse,
         timeout: Duration,
         method: AuthMethod,
     ) -> anyhow::Result<AuthResult> {

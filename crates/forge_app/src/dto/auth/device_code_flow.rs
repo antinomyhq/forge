@@ -1,4 +1,4 @@
-use super::{AuthFlow, DeviceCode, OAuthConfig, UserCode, VerificationUri};
+use super::{DeviceCode, OAuthConfig, UserCode, VerificationUri};
 
 /// Device code OAuth authentication flow
 #[derive(Debug, Clone)]
@@ -16,19 +16,10 @@ pub struct DeviceCodeRequest {
 
 /// Response containing device code and polling interval
 #[derive(Debug, Clone)]
-pub struct DeviceCodeResponse {
-    pub device_code: DeviceCode,
-    pub interval: u64,
-}
+pub struct DeviceCodeResponse;
 
 /// Method configuration for device code flow
 #[derive(Debug, Clone)]
 pub struct DeviceCodeMethod {
     pub oauth_config: OAuthConfig,
-}
-
-impl AuthFlow for DeviceCodeAuthFlow {
-    type Request = DeviceCodeRequest;
-    type Response = DeviceCodeResponse;
-    type Method = DeviceCodeMethod;
 }

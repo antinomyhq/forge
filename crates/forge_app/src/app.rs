@@ -7,7 +7,7 @@ use forge_domain::*;
 use forge_stream::MpscStream;
 
 use crate::authenticator::ForgeAuthenticator;
-use crate::dto::{InitAuth, ToolsOverview};
+use crate::dto::{AuthContextResponse, InitAuth, ToolsOverview};
 use crate::orch::Orchestrator;
 use crate::provider_authenticator::ProviderAuthenticator;
 use crate::services::{CustomInstructionsService, TemplateService};
@@ -260,7 +260,7 @@ impl<S: Services> ForgeApp<S> {
         &self,
         provider_id: crate::dto::ProviderId,
         method: crate::dto::AuthMethod,
-    ) -> Result<crate::dto::AuthContext> {
+    ) -> Result<crate::dto::AuthContextRequest> {
         self.services.init_provider_auth(provider_id, method).await
     }
 
@@ -270,7 +270,7 @@ impl<S: Services> ForgeApp<S> {
     pub async fn complete_provider_auth(
         &self,
         provider_id: crate::dto::ProviderId,
-        context: crate::dto::AuthContext,
+        context: AuthContextResponse,
         timeout: std::time::Duration,
     ) -> Result<()> {
         self.services

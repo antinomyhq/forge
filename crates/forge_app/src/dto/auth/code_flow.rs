@@ -1,4 +1,4 @@
-use super::{AuthFlow, AuthorizationUrl, OAuthConfig, PkceVerifier, State};
+use super::{AuthorizationUrl, OAuthConfig, PkceVerifier, State};
 
 /// Authorization code OAuth authentication flow
 #[derive(Debug, Clone)]
@@ -22,10 +22,4 @@ pub struct CodeResponse {
 #[derive(Debug, Clone)]
 pub struct CodeMethod {
     pub oauth_config: OAuthConfig,
-}
-
-impl AuthFlow for CodeAuthFlow {
-    type Request = CodeRequest;
-    type Response = CodeResponse;
-    type Method = CodeMethod;
 }
