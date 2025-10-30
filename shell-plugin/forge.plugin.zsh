@@ -58,6 +58,10 @@ function _forge_exec() {
     eval "$_FORGE_BIN --agent $(printf '%q' "$agent_id") $(printf '%q ' "$@")"
 }
 
+function _forge_cmd() {
+    eval '$_FORGE_BIN "$@"'
+}
+
 # Helper function to clear buffer and reset prompt
 function _forge_reset() {
     BUFFER=""
@@ -82,11 +86,13 @@ function _forge_find_index() {
     while IFS= read -r line; do
         local name="${line%% *}"
         if [[ "$name" == "$value_to_find" ]]; then
+            echo "$index"
             return 1
         fi
         ((index++))
     done <<< "$output"
-    
+
+    echo "1"
     return 1
 }
 
@@ -127,7 +133,7 @@ function _forge_select_and_set_config() {
             
             if [[ -n "$selected" ]]; then
                 local name="${selected%% *}"
-                _forge_exec config set "$config_flag" "$name"
+                _forge_cmd config set "$config_flag" "$name"
             fi
         fi
     )
