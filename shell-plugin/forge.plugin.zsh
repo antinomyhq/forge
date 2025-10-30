@@ -102,7 +102,7 @@ function _forge_select_and_set_config() {
             
             if [[ -n "$selected" ]]; then
                 local name="${selected%% *}"
-                _forge_exec config set "--$config_flag" "$name"
+                _forge_exec config set "$config_flag" "$name"
             fi
         fi
     )
@@ -290,7 +290,7 @@ function _forge_action_provider() {
 
 # Action handler: Select model
 function _forge_action_model() {
-    _forge_select_and_set_config "list models" "model" "Model" "1,3.."
+    _forge_select_and_set_config "list models" "model" "Model" "2,3.."
     _forge_reset
 }
 
