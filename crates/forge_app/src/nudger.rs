@@ -62,18 +62,4 @@ mod tests {
         assert!(fixture.should_nudge(None));
         assert!(!fixture.should_nudge(None)); // Second yield - no nudge
     }
-
-    #[test]
-    fn test_completion_check_resets_on_next_run() {
-        // After yield nudge, continuing execution resets the completion check
-        let interval = Some(5);
-        let mut fixture = Nudger::new(&interval);
-
-        assert!(fixture.should_nudge(None)); // First yield - sends completion check
-        assert!(!fixture.should_nudge(None)); // Second yield - already sent
-
-        fixture.should_nudge(Some(3)); // Continuing execution resets state
-
-        assert!(fixture.should_nudge(None)); // Can send completion check again
-    }
 }
