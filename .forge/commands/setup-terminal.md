@@ -63,10 +63,16 @@ Remove any existing FORGE_BIN exports or Forge integration lines to avoid duplic
     commands: `source ~/.zshrc` or `exec zsh`
 
 Run verification tests:
-1. **Basic integration**: Run command `:forge` (should execute without "command not found" error)
+1. **ZLE Widgets Registration**: Check if forge widgets are registered
+   ```bash
+   zsh -i -c 'zle -l | grep -E "forge-(accept-line|completion)"'
+   ```
+   Should return both `forge-accept-line` and `forge-completion`
+
 2. **Syntax highlighting**: Check if `$ZSH_HIGHLIGHT_VERSION` is set (indicates zsh-syntax-highlighting loaded)
+
 3. **fd/fzf integration** (if installed in Step 2):
-   - Check `which fd` returns a path
+   - Check `which fd` or `which fdfind` returns a path
    - Check `which fzf` returns a path
    - If both exist, fuzzy finding features will work
 
