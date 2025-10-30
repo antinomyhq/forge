@@ -7,8 +7,16 @@ Automate the 5-step ZSH integration process from https://forgecode.dev/docs/zsh-
 
 **Step 1: Install zsh-syntax-highlighting (Required)**
 - Try package manager: `brew`/`apt`/`pacman`/`dnf install zsh-syntax-highlighting`
-- Or Oh My Zsh: Clone to `${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting`, add to plugins array
-- Or Manual: Clone and add `source` line to ~/.zshrc
+- Or Oh My Zsh:
+  ```bash
+  git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting
+  ```
+  Then add to plugins in ~/.zshrc: `plugins=(... zsh-syntax-highlighting)` (must be last plugin)
+- Or Manual:
+  ```bash
+  git clone https://github.com/zsh-users/zsh-syntax-highlighting.git
+  echo "source ${(q-)PWD}/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" >> ${ZDOTDIR:-$HOME}/.zshrc
+  ```
 - Must be sourced LAST in ~/.zshrc
 
 **Step 2: Install fd and fzf (Optional but Recommended)**
