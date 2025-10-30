@@ -12,7 +12,7 @@ use tracing::{debug, info, warn};
 
 use crate::agent::AgentService;
 use crate::compact::Compactor;
-use crate::plan_nudger::PlanNudger;
+use crate::nudger::Nudger;
 use crate::title_generator::TitleGenerator;
 use crate::user_prompt::UserPromptBuilder;
 
@@ -361,8 +361,7 @@ impl<S: AgentService> Orchestrator<S> {
         // Retrieve the number of requests allowed per tick.
         let max_requests_per_turn = agent.max_requests_per_turn;
 
-        let mut plan_nudger =
-            PlanNudger::new(self.plan_nudge.is_some(), &self.agent.plan_nudge_interval);
+        let mut nudger = Nudger::new(&self.agent.plan_nudge_interval);
 
         let tool_context =
             ToolCallContext::new(self.conversation.metrics.clone()).sender(self.sender.clone());
@@ -372,7 +371,7 @@ impl<S: AgentService> Orchestrator<S> {
 
         while !should_yield {
             // Check if plan nudge should be added based on request_count
-            if plan_nudger.should_add_nudge(should_yield, request_count) {
+            if self.plan_nudge.is_some() && nudger.should_nudge(Some(request_count)) {
                 context = self.add_plan_nudge(context);
             }
 
@@ -531,10 +530,12 @@ impl<S: AgentService> Orchestrator<S> {
                 }
             }
 
-            // If agent has decided to yeild, then check with plan nudger.
-            if should_yield && plan_nudger.should_add_nudge(should_yield, request_count) {
-                should_yield = false;
-            }
+            // Handle yielding with plan completion check
+            if should_yield && self.plan_nudge.is_some()
+                && nudger.should_nudge(None) {
+                    context = self.add_plan_nudge(context);
+                    should_yield = false;
+                }
         }
 
         // Update metrics in conversation

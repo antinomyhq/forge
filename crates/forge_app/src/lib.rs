@@ -7,11 +7,11 @@ pub mod dto;
 mod error;
 mod fmt;
 mod mcp_executor;
+mod nudger;
 mod operation;
 mod orch;
 #[cfg(test)]
 mod orch_spec;
-mod plan_nudger;
 mod retry;
 mod services;
 mod title_generator;
