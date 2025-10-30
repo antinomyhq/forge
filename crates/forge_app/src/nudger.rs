@@ -16,10 +16,9 @@ impl<'a> Nudger<'a> {
     /// - `None`: Execution yielding - send completion check (once)
     pub fn should_nudge(&mut self, event_count: Option<usize>) -> bool {
         match event_count {
-            Some(count) => {
-                self.interval
-                    .is_some_and(|n| count > 0 && count.is_multiple_of(n))
-            }
+            Some(count) => self
+                .interval
+                .is_some_and(|n| count > 0 && count.is_multiple_of(n)),
             None => !std::mem::replace(&mut self.completion_nudge, true),
         }
     }
