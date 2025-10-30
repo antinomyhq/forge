@@ -1,5 +1,5 @@
 <system-reminder>
-We've detected the following plan files referenced in the context:
+System has detected the following plan files referenced in the context:
 
 <plan_files>
 {{#each paths}}
