@@ -1,56 +1,54 @@
 ---
 name: setup-terminal
-description: Automatically configures ZSH integration with Forge
+description: Automates the ZSH integration setup from docs
 ---
 
-Automate ZSH integration for Forge. Fix issues automatically.
+Automate the 5-step ZSH integration process from https://forgecode.dev/docs/zsh-support/
 
-## Step 1: Detect Environment
+**Step 1: Install zsh-syntax-highlighting (Required)**
+- Try package manager: `brew`/`apt`/`pacman`/`dnf install zsh-syntax-highlighting`
+- Or Oh My Zsh: Clone to `${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting`, add to plugins array
+- Or Manual: Clone and add `source` line to ~/.zshrc
+- Must be sourced LAST in ~/.zshrc
 
-- Verify ZSH is installed and set as default shell
-- Detect Forge method: check if `forge` is global, else use `FORGE_BIN="npx forgecode"`
-- Identify OS and package manager (brew/apt/pacman/dnf)
+**Step 2: Install fd and fzf (Optional but Recommended)**
+- Package manager: `brew install fd fzf` or `apt install fd-find fzf` or `pacman -S fd fzf`
+- Note: Ubuntu/Debian uses `fd-find` package name
+- Skip if installation fails - user can add later
 
-## Step 2: Install Dependencies
+**Step 3: Configure ZSH Integration**
+Detect Forge installation type: Use `which forge` or `command -v forge` to check if installed globally, otherwise use `npx forgecode@latest`
 
-- Backup `.zshrc` to `~/.zshrc.backup.$(date +%Y%m%d_%H%M%S)`
-- Install zsh-syntax-highlighting via package manager
-  - If fails: update package cache and retry
-- Install fd and fzf (optional but recommended)
-  - If fails: try alternative package names (`fd-find`)
-  - Create symlinks if needed
-- On failures: fetch https://forgecode.dev/docs/zsh-support/ for current fixes
+Backup ~/.zshrc first, then add to it:
+```bash
+# If Forge is global
+export FORGE_BIN=forge
+source <($FORGE_BIN extension zsh)
 
-## Step 3: Configure .zshrc
+# OR if using npx
+export FORGE_BIN="npx forgecode@latest"
+source <($FORGE_BIN extension zsh)
+```
+Remove any existing FORGE_BIN exports or Forge integration lines to avoid duplicates.
 
-- Remove any existing Forge integration lines
-- Move zsh-syntax-highlighting to end if present
-- Add before any syntax highlighting:
-  ```bash
-  export FORGE_BIN=<detected-method>
-  source <($FORGE_BIN extension zsh)
-  ```
-- Ensure zsh-syntax-highlighting is sourced last
-- Verify paths exist before adding
+**Critical Loading Order:**
+1. All other plugins
+2. Forge integration (above lines)
+3. zsh-syntax-highlighting source (MUST BE LAST)
 
-## Step 4: Verify
+**Step 4: Verify Installation**
+Reload shell: `source ~/.zshrc` or `exec zsh`
 
-- Source `.zshrc` and check for errors
-  - If sourcing fails: parse error, fix issue (paths/permissions/syntax), retry
-- Test: FORGE_BIN set, extension loaded, syntax highlighting active
-  - If test fails: fix the specific issue and re-source
-- On errors: fetch docs, apply fixes, restore backup if needed
+Run verification tests:
+1. **Basic integration**: `:forge` (should execute without "command not found" error)
+2. **Syntax highlighting**: Check if `$ZSH_HIGHLIGHT_VERSION` is set (indicates zsh-syntax-highlighting loaded)
+3. **fd/fzf integration** (if installed in Step 2):
+   - Check `which fd` returns a path
+   - Check `which fzf` returns a path
+   - If both exist, fuzzy finding features will work
 
-## Step 5: Report
+Report any test failures for troubleshooting.
 
-Show:
-- What was installed
-- Backup location
-- Quick examples:
-  ```bash
-  : hello                    # Basic prompt
-  :reset                     # Clear context
-  ```
-- Link: https://forgecode.dev/docs/zsh-support/
+**Report**: Show what was installed, backup location (if created).
 
-If all fails: rollback, show diagnostics, link to troubleshooting.
+**Auto-heal**: If any step fails, consult the Troubleshooting section at https://forgecode.dev/docs/zsh-support/, diagnose the specific issue, and apply the documented fixes.
