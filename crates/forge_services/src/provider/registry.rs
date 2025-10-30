@@ -133,8 +133,7 @@ impl<F: EnvironmentInfra + FileReaderInfra, R: AppConfigRepository> ForgeProvide
         let api_key = self
             .infra
             .get_env_var(&config.api_key_vars)
-            .ok_or_else(|| ProviderError::env_var_not_found(config.id,
-        &config.api_key_vars))?;
+            .ok_or_else(|| ProviderError::env_var_not_found(config.id, &config.api_key_vars))?;
 
         // Check URL parameter environment variables and build template data
         // URL parameters are optional - only add them if they exist
