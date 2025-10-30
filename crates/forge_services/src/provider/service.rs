@@ -6,24 +6,23 @@ use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, HttpConfig, Model, ModelId, Provider,
     ProviderId, ResultStream, RetryConfig,
 };
-use forge_app::{AppConfigRepository, EnvironmentInfra, HttpInfra, ProviderService};
+use forge_app::{EnvironmentInfra, HttpInfra, ProviderService};
 use tokio::sync::Mutex;
 
 use crate::http::HttpClient;
 use crate::provider::client::{Client, ClientBuilder};
 #[derive(Clone)]
-pub struct ForgeProviderService<I, R> {
+pub struct ForgeProviderService<I> {
     retry_config: Arc<RetryConfig>,
     cached_clients: Arc<Mutex<HashMap<ProviderId, Client<HttpClient<I>>>>>,
     cached_models: Arc<Mutex<HashMap<ProviderId, Vec<Model>>>>,
     version: String,
     timeout_config: HttpConfig,
     http_infra: Arc<I>,
-    repo: Arc<R>,
 }
 
-impl<I: EnvironmentInfra + HttpInfra, R: AppConfigRepository> ForgeProviderService<I, R> {
-    pub fn new(infra: Arc<I>, repo: Arc<R>) -> Self {
+impl<I: EnvironmentInfra + HttpInfra> ForgeProviderService<I> {
+    pub fn new(infra: Arc<I>) -> Self {
         let env = infra.get_environment();
         let version = env.version();
         let retry_config = Arc::new(env.retry_config);
@@ -34,7 +33,6 @@ impl<I: EnvironmentInfra + HttpInfra, R: AppConfigRepository> ForgeProviderServi
             version,
             timeout_config: env.http,
             http_infra: infra,
-            repo,
         }
     }
 
@@ -68,8 +66,8 @@ impl<I: EnvironmentInfra + HttpInfra, R: AppConfigRepository> ForgeProviderServi
 }
 
 #[async_trait::async_trait]
-impl<I: EnvironmentInfra + HttpInfra, R: AppConfigRepository> ProviderService
-    for ForgeProviderService<I, R>
+impl<I: EnvironmentInfra + HttpInfra> ProviderService
+    for ForgeProviderService<I>
 {
     async fn chat(
         &self,

@@ -46,7 +46,7 @@ pub struct ForgeServices<
         + CacheRepository
         + ProviderRepository,
 > {
-    chat_service: Arc<ForgeProviderService<F, R>>,
+    chat_service: Arc<ForgeProviderService<F>>,
     conversation_service: Arc<ForgeConversationService<R>>,
     template_service: Arc<ForgeTemplateService<F>>,
     attachment_service: Arc<ForgeChatRequest<F>>,
@@ -105,7 +105,7 @@ impl<
         let suggestion_service = Arc::new(ForgeDiscoveryService::new(infra.clone()));
         let conversation_service = Arc::new(ForgeConversationService::new(repo.clone()));
         let auth_service = Arc::new(ForgeAuthService::new(infra.clone(), repo.clone()));
-        let chat_service = Arc::new(ForgeProviderService::new(infra.clone(), repo.clone()));
+        let chat_service = Arc::new(ForgeProviderService::new(infra.clone()));
         let file_create_service = Arc::new(ForgeFsCreate::new(infra.clone(), repo.clone()));
         let plan_create_service = Arc::new(ForgePlanCreate::new(infra.clone()));
         let file_read_service = Arc::new(ForgeFsRead::new(infra.clone()));
@@ -179,7 +179,7 @@ impl<
         + 'static,
 > Services for ForgeServices<F, R>
 {
-    type ProviderService = ForgeProviderService<F, R>;
+    type ProviderService = ForgeProviderService<F>;
     type ConversationService = ForgeConversationService<R>;
     type TemplateService = ForgeTemplateService<F>;
     type AttachmentService = ForgeChatRequest<F>;
