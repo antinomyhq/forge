@@ -1160,6 +1160,7 @@ dependencies = [
  "forge_app",
  "forge_domain",
  "forge_infra",
+ "forge_repo",
  "forge_services",
  "forge_stream",
  "tokio",
@@ -1381,6 +1382,29 @@ dependencies = [
  "tracing",
  "update-informer",
  "url",
+]
+
+[[package]]
+name = "forge_repo"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "cacache",
+ "chrono",
+ "diesel",
+ "diesel_migrations",
+ "forge_app",
+ "forge_domain",
+ "forge_fs",
+ "forge_snaps",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "tempfile",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

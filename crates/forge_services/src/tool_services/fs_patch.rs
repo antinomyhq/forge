@@ -4,6 +4,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use forge_app::domain::PatchOperation;
 use forge_app::{FileWriterInfra, FsPatchService, PatchOutput};
+use forge_domain::SnapshotRepository;
 use thiserror::Error;
 use tokio::fs;
 
@@ -188,22 +189,23 @@ fn apply_replacement(
 
 // Using FSPatchInput from forge_domain
 
-/// Modifies files with targeted text operations on matched patterns. Supports
-/// prepend, append, replace, and swap operations on pattern occurrences.
-/// Ideal for precise changes to configs, code, or docs while preserving
-/// context. Not suitable for complex refactoring - use write instead for
-/// complete rewrites and undo for undoing the last operation. Fails if
-/// search pattern isn't found.
-pub struct ForgeFsPatch<F>(Arc<F>);
+/// Service for patching files with snapshot coordination
+///
+/// This service coordinates between infrastructure (file I/O) and repository
+/// (snapshots) to modify files while preserving the ability to undo changes.
+pub struct ForgeFsPatch<F, R> {
+    infra: Arc<F>,
+    repo: Arc<R>,
+}
 
-impl<F> ForgeFsPatch<F> {
-    pub fn new(input: Arc<F>) -> Self {
-        Self(input)
+impl<F, R> ForgeFsPatch<F, R> {
+    pub fn new(infra: Arc<F>, repo: Arc<R>) -> Self {
+        Self { infra, repo }
     }
 }
 
 #[async_trait::async_trait]
-impl<F: FileWriterInfra> FsPatchService for ForgeFsPatch<F> {
+impl<F: FileWriterInfra, R: SnapshotRepository> FsPatchService for ForgeFsPatch<F, R> {
     async fn patch(
         &self,
         input_path: String,
@@ -224,9 +226,12 @@ impl<F: FileWriterInfra> FsPatchService for ForgeFsPatch<F> {
         // Apply the replacement
         current_content = apply_replacement(current_content, search, &operation, &content)?;
 
+        // SNAPSHOT COORDINATION: Always capture snapshot before modifying
+        self.repo.insert_snapshot(path).await?;
+
         // Write final content to file after all patches are applied
-        self.0
-            .write(path, Bytes::from(current_content.clone()), true)
+        self.infra
+            .write(path, Bytes::from(current_content.clone()), false) // Pass false since we handle snapshots above
             .await?;
 
         Ok(PatchOutput {

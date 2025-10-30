@@ -5,7 +5,8 @@ use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation,
     ConversationId, Environment, File, Image, McpConfig, McpServers, Model, ModelId,
-    PatchOperation, Provider, ProviderId, ResultStream, Scope, ToolCallFull, ToolOutput, Workflow,
+    PatchOperation, Provider, ProviderRepository, ResultStream, Scope, ToolCallFull, ToolOutput,
+    Workflow,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -354,19 +355,6 @@ pub trait AuthService: Send + Sync {
     async fn get_auth_token(&self) -> anyhow::Result<Option<LoginInfo>>;
     async fn set_auth_token(&self, token: Option<LoginInfo>) -> anyhow::Result<()>;
 }
-#[async_trait::async_trait]
-pub trait ProviderRegistry: Send + Sync {
-    async fn get_default_provider(&self) -> anyhow::Result<Provider>;
-    async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()>;
-    async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>>;
-    async fn get_default_model(&self, provider_id: &ProviderId) -> anyhow::Result<ModelId>;
-    async fn set_default_model(
-        &self,
-        model: ModelId,
-        provider_id: ProviderId,
-    ) -> anyhow::Result<()>;
-    async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider>;
-}
 
 #[async_trait::async_trait]
 pub trait AgentRegistry: Send + Sync {
@@ -406,7 +394,7 @@ pub trait PolicyService: Send + Sync {
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
-pub trait Services: Send + Sync + 'static + Clone {
+pub trait Services: forge_domain::ProviderRepository + Send + Sync + 'static + Clone {
     type ProviderService: ProviderService;
     type ConversationService: ConversationService;
     type TemplateService: TemplateService;
@@ -429,10 +417,10 @@ pub trait Services: Send + Sync + 'static + Clone {
     type ShellService: ShellService;
     type McpService: McpService;
     type AuthService: AuthService;
-    type ProviderRegistry: ProviderRegistry;
     type AgentRegistry: AgentRegistry;
     type CommandLoaderService: CommandLoaderService;
     type PolicyService: PolicyService;
+    type ProviderRepository: ProviderRepository;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn conversation_service(&self) -> &Self::ConversationService;
@@ -456,7 +444,6 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn environment_service(&self) -> &Self::EnvironmentService;
     fn custom_instructions_service(&self) -> &Self::CustomInstructionsService;
     fn auth_service(&self) -> &Self::AuthService;
-    fn provider_registry(&self) -> &Self::ProviderRegistry;
     fn agent_registry(&self) -> &Self::AgentRegistry;
     fn command_loader_service(&self) -> &Self::CommandLoaderService;
     fn policy_service(&self) -> &Self::PolicyService;
@@ -730,43 +717,6 @@ impl<I: Services> CustomInstructionsService for I {
         self.custom_instructions_service()
             .get_custom_instructions()
             .await
-    }
-}
-
-#[async_trait::async_trait]
-impl<I: Services> ProviderRegistry for I {
-    async fn get_default_provider(&self) -> anyhow::Result<Provider> {
-        self.provider_registry().get_default_provider().await
-    }
-
-    async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        self.provider_registry()
-            .set_default_provider(provider_id)
-            .await
-    }
-
-    async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
-        self.provider_registry().get_all_providers().await
-    }
-
-    async fn get_default_model(&self, provider_id: &ProviderId) -> anyhow::Result<ModelId> {
-        self.provider_registry()
-            .get_default_model(provider_id)
-            .await
-    }
-
-    async fn set_default_model(
-        &self,
-        model: ModelId,
-        provider_id: ProviderId,
-    ) -> anyhow::Result<()> {
-        self.provider_registry()
-            .set_default_model(model, provider_id)
-            .await
-    }
-
-    async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider> {
-        self.provider_registry().get_provider(id).await
     }
 }
 

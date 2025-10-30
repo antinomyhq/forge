@@ -1,7 +1,8 @@
 use std::sync::{Arc, OnceLock};
 
 use forge_app::domain::{ModelId, Provider, ProviderId, ProviderResponse};
-use forge_app::{AppConfigRepository, EnvironmentInfra, FileReaderInfra, ProviderRegistry};
+use forge_app::{AppConfigRepository, EnvironmentInfra, FileReaderInfra};
+use forge_domain::ProviderRepository;
 use handlebars::Handlebars;
 use merge::Merge;
 use serde::Deserialize;
@@ -73,16 +74,18 @@ fn get_provider_configs() -> &'static Vec<ProviderConfig> {
     })
 }
 
-pub struct ForgeProviderRegistry<F> {
+pub struct ForgeProviderRegistry<F, R> {
     infra: Arc<F>,
+    repo: Arc<R>,
     handlebars: &'static Handlebars<'static>,
     providers: OnceCell<Vec<Provider>>,
 }
 
-impl<F: EnvironmentInfra + AppConfigRepository + FileReaderInfra> ForgeProviderRegistry<F> {
-    pub fn new(infra: Arc<F>) -> Self {
+impl<F: EnvironmentInfra + FileReaderInfra, R: AppConfigRepository> ForgeProviderRegistry<F, R> {
+    pub fn new(infra: Arc<F>, repo: Arc<R>) -> Self {
         Self {
             infra,
+            repo,
             handlebars: get_handlebars(),
             providers: OnceCell::new(),
         }
@@ -121,6 +124,12 @@ impl<F: EnvironmentInfra + AppConfigRepository + FileReaderInfra> ForgeProviderR
 
     fn create_provider(&self, config: &ProviderConfig) -> anyhow::Result<Provider> {
         // Check API key environment variable
+        // let api_key = self
+        //     .infra
+        //     .get_env_var(&config.api_key_vars)
+        //     .ok_or_else(|| ProviderError::env_var_not_found(config.id,
+        // &config.api_key_vars))?;
+
         let api_key = self
             .infra
             .get_env_var(&config.api_key_vars)
@@ -209,9 +218,9 @@ impl<F: EnvironmentInfra + AppConfigRepository + FileReaderInfra> ForgeProviderR
     where
         U: FnOnce(&mut forge_app::dto::AppConfig),
     {
-        let mut config = self.infra.get_app_config().await?;
+        let mut config = self.repo.get_app_config().await?;
         updater(&mut config);
-        self.infra.set_app_config(&config).await?;
+        self.repo.set_app_config(&config).await?;
         Ok(())
     }
 
@@ -228,11 +237,11 @@ impl<F: EnvironmentInfra + AppConfigRepository + FileReaderInfra> ForgeProviderR
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + AppConfigRepository + FileReaderInfra> ProviderRegistry
-    for ForgeProviderRegistry<F>
+impl<F: EnvironmentInfra + FileReaderInfra + Sync, R: AppConfigRepository> ProviderRepository
+    for ForgeProviderRegistry<F, R>
 {
     async fn get_default_provider(&self) -> anyhow::Result<Provider> {
-        let app_config = self.infra.get_app_config().await?;
+        let app_config = self.repo.get_app_config().await?;
         if let Some(provider_id) = app_config.provider {
             return self.provider_from_id(provider_id).await;
         }
@@ -253,7 +262,7 @@ impl<F: EnvironmentInfra + AppConfigRepository + FileReaderInfra> ProviderRegist
     }
 
     async fn get_default_model(&self, provider_id: &ProviderId) -> anyhow::Result<ModelId> {
-        if let Some(model_id) = self.infra.get_app_config().await?.model.get(provider_id) {
+        if let Some(model_id) = self.repo.get_app_config().await?.model.get(provider_id) {
             return Ok(model_id.clone());
         }
 
@@ -414,6 +423,37 @@ mod env_tests {
         }
     }
 
+    #[async_trait::async_trait]
+    impl ProviderRepository for MockInfra {
+        async fn get_default_provider(&self) -> anyhow::Result<Provider> {
+            Err(anyhow::anyhow!("No default provider configured"))
+        }
+
+        async fn set_default_provider(&self, _provider_id: ProviderId) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
+            Ok(vec![])
+        }
+
+        async fn get_default_model(&self, _provider_id: &ProviderId) -> anyhow::Result<ModelId> {
+            Err(anyhow::anyhow!("No default model configured"))
+        }
+
+        async fn set_default_model(
+            &self,
+            _model: ModelId,
+            _provider_id: ProviderId,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn get_provider(&self, _id: ProviderId) -> anyhow::Result<Provider> {
+            Err(anyhow::anyhow!("Provider not found"))
+        }
+    }
+
     #[tokio::test]
     async fn test_create_azure_provider_with_handlebars_urls() {
         let mut env_vars = HashMap::new();
@@ -432,7 +472,8 @@ mod env_tests {
         );
 
         let infra = Arc::new(MockInfra { env_vars });
-        let registry = ForgeProviderRegistry::new(infra);
+        let repo = infra.clone();
+        let registry = ForgeProviderRegistry::new(infra, repo);
 
         // Get Azure config from embedded configs
         let configs = get_provider_configs();
@@ -484,7 +525,8 @@ mod env_tests {
         );
 
         let infra = Arc::new(MockInfra { env_vars });
-        let registry = ForgeProviderRegistry::new(infra);
+        let repo = infra.clone();
+        let registry = ForgeProviderRegistry::new(infra, repo);
         let providers = registry.get_all_providers().await.unwrap();
 
         let openai_provider = providers
@@ -589,8 +631,43 @@ mod env_tests {
             }
         }
 
+        #[async_trait::async_trait]
+        impl ProviderRepository for CustomMockInfra {
+            async fn get_default_provider(&self) -> anyhow::Result<Provider> {
+                Err(anyhow::anyhow!("No default provider configured"))
+            }
+
+            async fn set_default_provider(&self, _provider_id: ProviderId) -> anyhow::Result<()> {
+                Ok(())
+            }
+
+            async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
+                Ok(vec![])
+            }
+
+            async fn get_default_model(
+                &self,
+                _provider_id: &ProviderId,
+            ) -> anyhow::Result<ModelId> {
+                Err(anyhow::anyhow!("No default model configured"))
+            }
+
+            async fn set_default_model(
+                &self,
+                _model: ModelId,
+                _provider_id: ProviderId,
+            ) -> anyhow::Result<()> {
+                Ok(())
+            }
+
+            async fn get_provider(&self, _id: ProviderId) -> anyhow::Result<Provider> {
+                Err(anyhow::anyhow!("Provider not found"))
+            }
+        }
+
         let infra = Arc::new(CustomMockInfra { env_vars, base_path });
-        let registry = ForgeProviderRegistry::new(infra);
+        let repo = infra.clone();
+        let registry = ForgeProviderRegistry::new(infra, repo);
 
         // Get merged configs
         let merged_configs = registry.get_merged_configs().await;

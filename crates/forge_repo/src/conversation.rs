@@ -9,8 +9,8 @@ use forge_domain::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::database::DatabasePool;
 use crate::database::schema::conversations;
+use crate::database::DatabasePool;
 
 /// Database representation of file change metrics
 /// Mirrors `forge_domain::FileChangeMetrics` for compile-time safety

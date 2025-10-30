@@ -1,21 +1,20 @@
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::FileWriterInfra;
-use forge_domain::SnapshotRepository;
 
-pub struct ForgeFileWriteService<S> {
-    snaps: Arc<S>,
-}
+/// Low-level file write service
+///
+/// Provides primitive file write operations without snapshot coordination.
+/// Snapshot management should be handled at the service layer.
+pub struct ForgeFileWriteService;
 
-impl<S> ForgeFileWriteService<S> {
-    pub fn new(snaps: Arc<S>) -> Self {
-        Self { snaps }
+impl ForgeFileWriteService {
+    pub fn new() -> Self {
+        Self
     }
 
-    // To ensure the path is valid, create parent directories for the given file
-    // if the file did not exist.
+    /// Creates parent directories for the given file path if they don't exist
     async fn create_parent_dirs(&self, path: &Path) -> anyhow::Result<()> {
         if !forge_fs::ForgeFS::exists(path)
             && let Some(parent) = path.parent()
@@ -26,19 +25,21 @@ impl<S> ForgeFileWriteService<S> {
     }
 }
 
+impl Default for ForgeFileWriteService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait::async_trait]
-impl<S: SnapshotRepository> FileWriterInfra for ForgeFileWriteService<S> {
+impl FileWriterInfra for ForgeFileWriteService {
     async fn write(
         &self,
         path: &Path,
         contents: Bytes,
-        capture_snapshot: bool,
+        _capture_snapshot: bool,
     ) -> anyhow::Result<()> {
         self.create_parent_dirs(path).await?;
-        if forge_fs::ForgeFS::exists(path) && capture_snapshot {
-            let _ = self.snaps.insert_snapshot(path).await?;
-        }
-
         Ok(forge_fs::ForgeFS::write(path, contents.to_vec()).await?)
     }
 
@@ -60,32 +61,12 @@ impl<S: SnapshotRepository> FileWriterInfra for ForgeFileWriteService<S> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use forge_domain::Snapshot;
     use tempfile::tempdir;
 
     use super::*;
 
-    struct MockSnapshotService;
-
-    #[async_trait::async_trait]
-    impl SnapshotRepository for MockSnapshotService {
-        async fn insert_snapshot(&self, _: &Path) -> anyhow::Result<forge_domain::Snapshot> {
-            Ok(Snapshot {
-                id: Default::default(),
-                timestamp: Default::default(),
-                path: "".to_string(),
-            })
-        }
-
-        async fn undo_snapshot(&self, _path: &Path) -> anyhow::Result<()> {
-            Ok(())
-        }
-    }
-
-    fn create_test_service() -> ForgeFileWriteService<MockSnapshotService> {
-        ForgeFileWriteService::new(Arc::new(MockSnapshotService))
+    fn create_test_service() -> ForgeFileWriteService {
+        ForgeFileWriteService::new()
     }
 
     #[tokio::test]

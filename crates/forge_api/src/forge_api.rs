@@ -5,25 +5,27 @@ use anyhow::{Context, Result};
 use forge_app::dto::{InitAuth, LoginInfo, ToolsOverview};
 use forge_app::{
     AgentRegistry, AppConfigRepository, AuthService, CommandInfra, CommandLoaderService,
-    ConversationService, EnvironmentService, FileDiscoveryService, ForgeApp, McpConfigManager,
-    McpService, ProviderRegistry, ProviderService, Services, User, UserUsage, Walker,
+    ConversationService, EnvironmentInfra, EnvironmentService, FileDiscoveryService, ForgeApp,
+    McpConfigManager, McpService, ProviderService, Services, User, UserUsage, Walker,
     WorkflowService,
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;
+use forge_repo::ForgeRepo;
 use forge_services::ForgeServices;
 use forge_stream::MpscStream;
 
 use crate::API;
 
-pub struct ForgeAPI<S, F> {
+pub struct ForgeAPI<S, F, R> {
     services: Arc<S>,
     infra: Arc<F>,
+    repo: Arc<R>,
 }
 
-impl<A, F> ForgeAPI<A, F> {
-    pub fn new(services: Arc<A>, infra: Arc<F>) -> Self {
-        Self { services, infra }
+impl<A, F, R> ForgeAPI<A, F, R> {
+    pub fn new(services: Arc<A>, infra: Arc<F>, repo: Arc<R>) -> Self {
+        Self { services, infra, repo }
     }
 
     /// Creates a ForgeApp instance with the current services
@@ -35,16 +37,17 @@ impl<A, F> ForgeAPI<A, F> {
     }
 }
 
-impl ForgeAPI<ForgeServices<ForgeInfra>, ForgeInfra> {
+impl ForgeAPI<ForgeServices<ForgeInfra, ForgeRepo>, ForgeInfra, ForgeRepo> {
     pub fn init(restricted: bool, cwd: PathBuf) -> Self {
         let infra = Arc::new(ForgeInfra::new(restricted, cwd));
-        let app = Arc::new(ForgeServices::new(infra.clone()));
-        ForgeAPI::new(app, infra)
+        let repo = Arc::new(ForgeRepo::new(infra.get_environment().clone()));
+        let app = Arc::new(ForgeServices::new(infra.clone(), repo.clone()));
+        ForgeAPI::new(app, infra, repo)
     }
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> {
+impl<A: Services, F: CommandInfra, R: AppConfigRepository> API for ForgeAPI<A, F, R> {
     async fn discover(&self) -> Result<Vec<File>> {
         let environment = self.services.get_environment();
         let config = Walker::unlimited().cwd(environment.cwd);

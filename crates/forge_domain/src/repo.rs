@@ -4,7 +4,7 @@ use std::path::Path;
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 
-use crate::{Conversation, ConversationId, Snapshot};
+use crate::{Conversation, ConversationId, ModelId, Provider, ProviderId, Snapshot};
 
 /// Repository for managing file snapshots
 ///
@@ -123,4 +123,18 @@ pub trait ConversationRepository: Send + Sync {
     /// # Errors
     /// Returns an error if the operation fails
     async fn get_last_conversation(&self) -> Result<Option<Conversation>>;
+}
+
+#[async_trait::async_trait]
+pub trait ProviderRepository: Send + Sync {
+    async fn get_default_provider(&self) -> anyhow::Result<Provider>;
+    async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()>;
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>>;
+    async fn get_default_model(&self, provider_id: &ProviderId) -> anyhow::Result<ModelId>;
+    async fn set_default_model(
+        &self,
+        model: ModelId,
+        provider_id: ProviderId,
+    ) -> anyhow::Result<()>;
+    async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider>;
 }
