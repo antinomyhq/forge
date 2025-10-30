@@ -45,6 +45,12 @@ impl From<ReleaseBuilderJob> for Job {
                     .with(("target", "${{ matrix.target }}"))
                     .if_condition(Expression::new("${{ matrix.cross == 'false' }}")),
             )
+            // Explicitly add the target to ensure it's available
+            .add_step(
+                Step::new("Add Rust target")
+                    .run("rustup target add ${{ matrix.target }}")
+                    .if_condition(Expression::new("${{ matrix.cross == 'false' }}")),
+            )
             // Build add link flags
             .add_step(
                 Step::new("Set Rust Flags")
