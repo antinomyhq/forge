@@ -16,7 +16,6 @@ use crate::{
     ConversationId, Image, ModelId, ReasoningFull, ToolChoice, ToolDefinition, ToolOutput,
     ToolValue, Usage,
 };
-
 /// Represents a message being sent to the LLM provider
 /// NOTE: ToolResults message are part of the larger Request object and not part
 /// of the message.
@@ -386,6 +385,40 @@ impl Context {
         }
 
         format!("<chat_history>{lines}</chat_history>")
+    }
+
+    /// Extracts plan file paths from all messages in the context
+    ///
+    /// Searches through text messages, tool calls, and tool results for
+    /// references to plan files matching the pattern `/plans/`
+    pub fn detect_plans(&self) -> Vec<String> {
+        self.messages
+            .iter()
+            .flat_map(|message| match message {
+                ContextMessage::Text(text_msg) => {
+                    let content_paths = crate::utils::extract_plan_paths(&text_msg.content);
+                    let tool_call_paths = text_msg
+                        .tool_calls
+                        .iter()
+                        .flatten()
+                        .filter_map(|tc| tc.arguments.parse().ok())
+                        .flat_map(|args| crate::utils::extract_plan_paths(&args.to_string()));
+
+                    content_paths.into_iter().chain(tool_call_paths).collect()
+                }
+                ContextMessage::Tool(tool_result) => tool_result
+                    .output
+                    .values
+                    .iter()
+                    .filter_map(|v| match v {
+                        ToolValue::Text(text) => Some(text.as_str()),
+                        _ => None,
+                    })
+                    .flat_map(crate::utils::extract_plan_paths)
+                    .collect(),
+                _ => Vec::new(),
+            })
+            .collect()
     }
 
     /// Will append a message to the context. This method always assumes tools
@@ -837,5 +870,57 @@ mod tests {
             actual, expected,
             "Should not be supported when explicitly disabled, even with effort set"
         );
+    }
+
+    #[test]
+    fn test_detect_plans_from_messages() {
+        let tool_call =
+            ToolCallFull::new("read")
+                .call_id("tc_1")
+                .arguments(crate::ToolCallArguments::Parsed(
+                    serde_json::json!({"path": "/project/plans/feature.md"}),
+                ));
+
+        let fixture = Context::default()
+            .add_message(ContextMessage::user(
+                "Please check /home/user/plans/2024-task.md",
+                None,
+            ))
+            .add_message(ContextMessage::assistant(
+                "I'll review that",
+                None,
+                Some(vec![tool_call]),
+            ));
+
+        let actual = fixture.detect_plans();
+        let expected = vec![
+            "/home/user/plans/2024-task.md".to_string(),
+            "/project/plans/feature.md".to_string(),
+        ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_detect_plans_from_tool_results() {
+        let fixture = Context::default().add_tool_results(vec![
+            ToolResult::new("read").success("File content from /workspace/plans/test.md"),
+        ]);
+
+        let actual = fixture.detect_plans();
+        let expected = vec!["/workspace/plans/test.md".to_string()];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_detect_plans_empty_when_no_plans() {
+        let fixture =
+            Context::default().add_message(ContextMessage::user("No plan files here", None));
+
+        let actual = fixture.detect_plans();
+        let expected: Vec<String> = vec![];
+
+        assert_eq!(actual, expected);
     }
 }

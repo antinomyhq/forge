@@ -12,11 +12,12 @@ use tracing::{debug, info, warn};
 
 use crate::agent::AgentService;
 use crate::compact::Compactor;
+use crate::nudger::Nudger;
 use crate::title_generator::TitleGenerator;
 use crate::user_prompt::UserPromptBuilder;
 
 #[derive(Clone, Setters)]
-#[setters(into, strip_option)]
+#[setters(into)]
 pub struct Orchestrator<S> {
     services: Arc<S>,
     sender: Option<ArcSender>,
@@ -31,6 +32,7 @@ pub struct Orchestrator<S> {
     error_tracker: ToolErrorTracker,
     user_prompt_service: UserPromptBuilder<S>,
     current_time: chrono::DateTime<chrono::Local>,
+    plan_nudge: Option<String>,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -61,6 +63,7 @@ impl<S: AgentService> Orchestrator<S> {
             custom_instructions: Default::default(),
             error_tracker: Default::default(),
             current_time,
+            plan_nudge: Default::default(),
         }
     }
 
@@ -240,6 +243,7 @@ impl<S: AgentService> Orchestrator<S> {
 
         response.into_full(!tool_supported).await
     }
+
     /// Checks if compaction is needed and performs it if necessary
     async fn check_and_compact(&self, context: &Context) -> anyhow::Result<Option<Context>> {
         let agent = &self.agent;
@@ -352,10 +356,12 @@ impl<S: AgentService> Orchestrator<S> {
         // Signals that the task is completed
         let mut is_complete = false;
 
-        let mut request_count = 0;
+        let mut request_count: usize = 0;
 
         // Retrieve the number of requests allowed per tick.
         let max_requests_per_turn = agent.max_requests_per_turn;
+
+        let mut nudger = Nudger::new(&self.agent.plan_nudge_interval);
 
         let tool_context =
             ToolCallContext::new(self.conversation.metrics.clone()).sender(self.sender.clone());
@@ -364,6 +370,14 @@ impl<S: AgentService> Orchestrator<S> {
         let title = self.generate_title(model_id.clone());
 
         while !should_yield {
+            // Check if plan nudge should be added based on request_count
+            if let Some(plan_nudge) = &self.plan_nudge
+                && nudger.should_nudge(Some(request_count))
+            {
+                context =
+                    context.add_message(ContextMessage::user(plan_nudge, self.agent.model.clone()));
+            }
+
             // Set context for the current loop iteration
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
@@ -516,6 +530,17 @@ impl<S: AgentService> Orchestrator<S> {
                     .await?;
                     // force completion
                     should_yield = true;
+                }
+            }
+
+            // Handle yielding with plan completion check
+            if should_yield && let Some(plan_nudge) = &self.plan_nudge {
+                if nudger.should_nudge(None) {
+                    context = context
+                        .add_message(ContextMessage::user(plan_nudge, self.agent.model.clone()));
+                    should_yield = false;
+                } else {
+                    nudger.reset_completion_nudge();
                 }
             }
         }

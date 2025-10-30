@@ -7,6 +7,7 @@ pub mod dto;
 mod error;
 mod fmt;
 mod mcp_executor;
+mod nudger;
 mod operation;
 mod orch;
 #[cfg(test)]

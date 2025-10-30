@@ -113,6 +113,9 @@ impl<S: Services> ForgeApp<S> {
             tool_resolver.resolve(&agent).into_iter().cloned().collect();
         let max_tool_failure_per_turn = agent.max_tool_failure_per_turn.unwrap_or(3);
 
+        // Detect and render plan nudge if needed
+        let plan_nudge = self.plan_nudge(&conversation, &chat).await?;
+
         // Create the orchestrator with all necessary dependencies
         let orch = Orchestrator::new(
             services.clone(),
@@ -126,7 +129,8 @@ impl<S: Services> ForgeApp<S> {
         .custom_instructions(custom_instructions)
         .tool_definitions(tool_definitions)
         .models(models)
-        .files(files);
+        .files(files)
+        .plan_nudge(plan_nudge);
 
         // Create and return the stream
         let stream = MpscStream::spawn(
@@ -274,5 +278,45 @@ impl<S: Services> ForgeApp<S> {
     pub async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
         let provider_id = self.get_provider(None).await?.id;
         self.services.set_default_model(model, provider_id).await
+    }
+
+    /// Detects plan file references and renders a plan nudge if needed.
+    /// Checks conversation context, current user input, and attachments.
+    async fn plan_nudge(
+        &self,
+        conversation: &Conversation,
+        chat: &ChatRequest,
+    ) -> Result<Option<String>> {
+        // Extract plan paths from conversation context and current event
+        let paths: Vec<String> = conversation
+            .context
+            .iter()
+            .flat_map(|ctx| ctx.detect_plans())
+            .chain(chat.event.detect_plans())
+            .collect();
+
+        if paths.is_empty() {
+            return Ok(None);
+        }
+
+        tracing::info!(
+            conversation_id = %conversation.id,
+            plan_paths = ?paths,
+            "Plan execution detected - preparing nudge reminder"
+        );
+
+        // Render the plan nudge notification message.
+        let rendered = self
+            .services
+            .template_service()
+            .render_template(
+                "{{> forge-plan-nudge.md }}",
+                &serde_json::json!({
+                    "paths": paths,
+                }),
+            )
+            .await?;
+
+        Ok(Some(rendered))
     }
 }

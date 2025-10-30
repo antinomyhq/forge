@@ -186,6 +186,12 @@ pub struct Agent {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub max_requests_per_turn: Option<usize>,
+
+    /// Number of requests after which to send a plan nudge reminder
+    /// Only applies when executing a plan.
+    #[merge(strategy = crate::merge::std::overwrite)]
+    #[serde(default)]
+    pub plan_nudge_interval: Option<usize>,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, Setters, JsonSchema, PartialEq)]
@@ -255,6 +261,7 @@ impl Agent {
             max_tool_failure_per_turn: Default::default(),
             max_requests_per_turn: Default::default(),
             provider: Default::default(),
+            plan_nudge_interval: Default::default(),
         }
     }
 
