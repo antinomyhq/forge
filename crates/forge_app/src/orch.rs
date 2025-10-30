@@ -371,8 +371,8 @@ impl<S: AgentService> Orchestrator<S> {
         let title = self.generate_title(model_id.clone());
 
         while !should_yield {
-            // Send plan nudge if applicable
-            if plan_nudger.should_add_interval_nudge(&request_count) {
+            // Check if plan nudge should be added based on request_count
+            if plan_nudger.should_add_nudge(should_yield, request_count) {
                 context = self.add_plan_nudge(context);
             }
 
@@ -531,21 +531,9 @@ impl<S: AgentService> Orchestrator<S> {
                 }
             }
 
-            // Handle yield with plan nudge
-            if should_yield {
-                if plan_nudger.should_add_yield_nudge(&request_count) {
-                    // Case: Agentic Loop has decided to yield but we were executing some plan and
-                    // not sure if plan is fully executed or not. so we nudge the
-                    // agent to check that here.
-                    context = self.add_plan_nudge(context);
-                    plan_nudger.mark_yield_nudge();
-                    should_yield = false;
-                } else if plan_nudger.should_add_interval_nudge(&request_count) {
-                    // check if we nudge will get added in `should_add_interval_nudge` check.
-                    should_yield = false;
-                }
-            } else {
-                plan_nudger.reset_yeild_nudge();
+            // If agent has decided to yeild, then check with plan nudger.
+            if should_yield && plan_nudger.should_add_nudge(should_yield, request_count) {
+                should_yield = false;
             }
         }
 
