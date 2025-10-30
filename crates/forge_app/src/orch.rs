@@ -540,6 +540,9 @@ impl<S: AgentService> Orchestrator<S> {
                     context = self.add_plan_nudge(context);
                     plan_nudger.mark_yield_nudge();
                     should_yield = false;
+                } else if plan_nudger.should_add_interval_nudge(&request_count) {
+                    // check if we nudge will get added in `should_add_interval_nudge` check.
+                    should_yield = false;
                 }
             } else {
                 plan_nudger.reset_yeild_nudge();
