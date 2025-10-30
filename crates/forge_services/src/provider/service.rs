@@ -66,9 +66,7 @@ impl<I: EnvironmentInfra + HttpInfra> ForgeProviderService<I> {
 }
 
 #[async_trait::async_trait]
-impl<I: EnvironmentInfra + HttpInfra> ProviderService
-    for ForgeProviderService<I>
-{
+impl<I: EnvironmentInfra + HttpInfra> ProviderService for ForgeProviderService<I> {
     async fn chat(
         &self,
         model: &ModelId,

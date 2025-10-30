@@ -4,10 +4,9 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use forge_app::dto::{InitAuth, LoginInfo, ToolsOverview};
 use forge_app::{
-    AgentRegistry, AuthService, CommandInfra, CommandLoaderService,
-    ConversationService, EnvironmentInfra, EnvironmentService, FileDiscoveryService, ForgeApp,
-    McpConfigManager, McpService, ProviderService, Services, User, UserUsage, Walker,
-    WorkflowService,
+    AgentRegistry, AuthService, CommandInfra, CommandLoaderService, ConversationService,
+    EnvironmentInfra, EnvironmentService, FileDiscoveryService, ForgeApp, McpConfigManager,
+    McpService, ProviderService, Services, User, UserUsage, Walker, WorkflowService,
 };
 use forge_domain::*;
 use forge_infra::ForgeInfra;

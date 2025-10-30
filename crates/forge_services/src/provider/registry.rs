@@ -130,16 +130,11 @@ impl<F: EnvironmentInfra + FileReaderInfra, R: AppConfigRepository> ForgeProvide
 
     fn create_provider(&self, config: &ProviderConfig) -> anyhow::Result<Provider> {
         // Check API key environment variable
-        // let api_key = self
-        //     .infra
-        //     .get_env_var(&config.api_key_vars)
-        //     .ok_or_else(|| ProviderError::env_var_not_found(config.id,
-        // &config.api_key_vars))?;
-
         let api_key = self
             .infra
             .get_env_var(&config.api_key_vars)
-            .ok_or_else(|| ProviderError::env_var_not_found(config.id, &config.api_key_vars))?;
+            .ok_or_else(|| ProviderError::env_var_not_found(config.id,
+        &config.api_key_vars))?;
 
         // Check URL parameter environment variables and build template data
         // URL parameters are optional - only add them if they exist
@@ -387,6 +382,8 @@ mod env_tests {
         env_vars: HashMap<String, String>,
     }
 
+    struct MockRepo;
+
     impl EnvironmentInfra for MockInfra {
         fn get_environment(&self) -> Environment {
             use fake::{Fake, Faker};
@@ -419,7 +416,7 @@ mod env_tests {
     }
 
     #[async_trait::async_trait]
-    impl AppConfigRepository for MockInfra {
+    impl AppConfigRepository for MockRepo {
         async fn get_app_config(&self) -> anyhow::Result<forge_app::dto::AppConfig> {
             Ok(forge_app::dto::AppConfig::default())
         }
@@ -430,7 +427,7 @@ mod env_tests {
     }
 
     #[async_trait::async_trait]
-    impl ProviderRepository for MockInfra {
+    impl ProviderRepository for MockRepo {
         async fn get_default_provider(&self) -> anyhow::Result<Provider> {
             Err(anyhow::anyhow!("No default provider configured"))
         }
@@ -478,7 +475,7 @@ mod env_tests {
         );
 
         let infra = Arc::new(MockInfra { env_vars });
-        let repo = infra.clone();
+        let repo = Arc::new(MockRepo);
         let registry = ForgeProviderRegistry::new(infra, repo);
 
         // Get Azure config from embedded configs
@@ -531,7 +528,7 @@ mod env_tests {
         );
 
         let infra = Arc::new(MockInfra { env_vars });
-        let repo = infra.clone();
+        let repo = Arc::new(MockRepo);
         let registry = ForgeProviderRegistry::new(infra, repo);
         let providers = registry.get_all_providers().await.unwrap();
 
@@ -672,7 +669,7 @@ mod env_tests {
         }
 
         let infra = Arc::new(CustomMockInfra { env_vars, base_path });
-        let repo = infra.clone();
+        let repo = Arc::new(MockRepo);
         let registry = ForgeProviderRegistry::new(infra, repo);
 
         // Get merged configs
@@ -714,7 +711,8 @@ mod env_tests {
 
         for _ in 0..100 {
             let infra = Arc::new(MockInfra { env_vars: env_vars.clone() });
-            let registry = ForgeProviderRegistry::new(infra);
+            let repo = Arc::new(MockRepo);
+            let registry = ForgeProviderRegistry::new(infra, repo);
             let first_provider = registry.get_first_available_provider().await.unwrap();
             all_first_providers.insert(first_provider.id);
         }
@@ -731,7 +729,8 @@ mod env_tests {
 
         // Verify it's always OpenAI (first in ProviderId enum after Forge)
         let infra = Arc::new(MockInfra { env_vars });
-        let registry = ForgeProviderRegistry::new(infra);
+        let repo = Arc::new(MockRepo);
+        let registry = ForgeProviderRegistry::new(infra, repo);
         let first_provider = registry.get_first_available_provider().await.unwrap();
         assert_eq!(
             first_provider.id,
