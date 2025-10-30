@@ -119,7 +119,8 @@ impl<F: EnvironmentInfra + AppConfigRepository + FileReaderInfra> ForgeProviderR
             })
             .collect();
 
-        // Sort by ProviderId enum order to ensure deterministic, priority-based ordering
+        // Sort by ProviderId enum order to ensure deterministic, priority-based
+        // ordering
         providers.sort_by(|a, b| a.id.cmp(&b.id));
 
         providers
@@ -626,21 +627,21 @@ mod env_tests {
         let mut env_vars = HashMap::new();
         env_vars.insert("OPENAI_API_KEY".to_string(), "openai-key".to_string());
         env_vars.insert("ANTHROPIC_API_KEY".to_string(), "anthropic-key".to_string());
-        env_vars.insert("OPENROUTER_API_KEY".to_string(), "openrouter-key".to_string());
+        env_vars.insert(
+            "OPENROUTER_API_KEY".to_string(),
+            "openrouter-key".to_string(),
+        );
 
         // Create multiple registry instances to expose non-deterministic behavior
         // Each instance will have a different provider order without sorting
         let mut all_first_providers = std::collections::HashSet::new();
 
         for _ in 0..100 {
-            let infra = Arc::new(MockInfra {
-                env_vars: env_vars.clone(),
-            });
+            let infra = Arc::new(MockInfra { env_vars: env_vars.clone() });
             let registry = ForgeProviderRegistry::new(infra);
             let first_provider = registry.get_first_available_provider().await.unwrap();
             all_first_providers.insert(first_provider.id);
         }
-        
 
         // Without sorting, we might get different providers each time
         // With sorting, we should always get OpenAI
