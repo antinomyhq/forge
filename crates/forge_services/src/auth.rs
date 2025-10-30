@@ -14,14 +14,13 @@ const USER_INFO_ROUTE: &str = "auth/user";
 const USER_USAGE_ROUTE: &str = "auth/usage";
 
 #[derive(Default, Clone)]
-pub struct ForgeAuthService<I, R> {
+pub struct ForgeAuthService<I> {
     infra: Arc<I>,
-    repo: Arc<R>,
 }
 
-impl<I: HttpInfra + EnvironmentInfra, R: AppConfigRepository> ForgeAuthService<I, R> {
-    pub fn new(infra: Arc<I>, repo: Arc<R>) -> Self {
-        Self { infra, repo }
+impl<I: HttpInfra + EnvironmentInfra + AppConfigRepository> ForgeAuthService<I> {
+    pub fn new(infra: Arc<I>) -> Self {
+        Self { infra }
     }
     async fn init(&self) -> anyhow::Result<InitAuth> {
         let init_url = format!("{}{AUTH_ROUTE}", self.infra.get_environment().forge_api_url);
@@ -100,22 +99,20 @@ impl<I: HttpInfra + EnvironmentInfra, R: AppConfigRepository> ForgeAuthService<I
     }
 
     async fn get_auth_token(&self) -> anyhow::Result<Option<LoginInfo>> {
-        let config = self.repo.get_app_config().await?;
+        let config = self.infra.get_app_config().await?;
         Ok(config.key_info)
     }
 
     async fn set_auth_token(&self, login: Option<LoginInfo>) -> anyhow::Result<()> {
-        let mut config = self.repo.get_app_config().await?;
+        let mut config = self.infra.get_app_config().await?;
         config.key_info = login;
-        self.repo.set_app_config(&config).await?;
+        self.infra.set_app_config(&config).await?;
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl<I: HttpInfra + EnvironmentInfra, R: AppConfigRepository> AuthService
-    for ForgeAuthService<I, R>
-{
+impl<I: HttpInfra + EnvironmentInfra + AppConfigRepository> AuthService for ForgeAuthService<I> {
     async fn init_auth(&self) -> anyhow::Result<InitAuth> {
         self.init().await
     }

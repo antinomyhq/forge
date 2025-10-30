@@ -11,18 +11,16 @@ use forge_app::{
 use forge_domain::CacheRepository;
 use merge::Merge;
 
-pub struct ForgeMcpManager<I, R> {
+pub struct ForgeMcpManager<I> {
     infra: Arc<I>,
-    repo: Arc<R>,
 }
 
-impl<I, R> ForgeMcpManager<I, R>
+impl<I> ForgeMcpManager<I>
 where
-    I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra,
-    R: CacheRepository,
+    I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra + CacheRepository,
 {
-    pub fn new(infra: Arc<I>, repo: Arc<R>) -> Self {
-        Self { infra, repo }
+    pub fn new(infra: Arc<I>) -> Self {
+        Self { infra }
     }
 
     async fn read_config(&self, path: &Path) -> anyhow::Result<McpConfig> {
@@ -40,10 +38,14 @@ where
 }
 
 #[async_trait::async_trait]
-impl<I, R> McpConfigManager for ForgeMcpManager<I, R>
+impl<I> McpConfigManager for ForgeMcpManager<I>
 where
-    I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra + FileWriterInfra,
-    R: CacheRepository,
+    I: McpServerInfra
+        + FileReaderInfra
+        + FileInfoInfra
+        + EnvironmentInfra
+        + FileWriterInfra
+        + CacheRepository,
 {
     async fn read_mcp_config(&self, scope: Option<&Scope>) -> anyhow::Result<McpConfig> {
         match scope {
@@ -91,7 +93,7 @@ where
 
         // Clear the unified cache to force refresh on next use
         // Since we now use a merged hash, clearing any scope invalidates the cache
-        self.repo.cache_clear().await?;
+        self.infra.cache_clear().await?;
 
         Ok(())
     }

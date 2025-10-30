@@ -16,22 +16,26 @@ use crate::utils::assert_absolute_path;
 ///
 /// This service coordinates between infrastructure (file I/O) and repository
 /// (snapshots) to create files while preserving the ability to undo changes.
-pub struct ForgeFsCreate<F, R> {
+pub struct ForgeFsCreate<F> {
     infra: Arc<F>,
-    repo: Arc<R>,
 }
 
-impl<F, R> ForgeFsCreate<F, R> {
-    pub fn new(infra: Arc<F>, repo: Arc<R>) -> Self {
-        Self { infra, repo }
+impl<F> ForgeFsCreate<F> {
+    pub fn new(infra: Arc<F>) -> Self {
+        Self { infra }
     }
 }
 
 #[async_trait::async_trait]
 impl<
-    F: FileDirectoryInfra + FileInfoInfra + FileReaderInfra + FileWriterInfra + Send + Sync,
-    R: SnapshotRepository,
-> FsCreateService for ForgeFsCreate<F, R>
+    F: FileDirectoryInfra
+        + FileInfoInfra
+        + FileReaderInfra
+        + FileWriterInfra
+        + SnapshotRepository
+        + Send
+        + Sync,
+> FsCreateService for ForgeFsCreate<F>
 {
     async fn create(
         &self,
@@ -74,7 +78,7 @@ impl<
         // SNAPSHOT COORDINATION: Capture snapshot before writing if requested and file
         // exists
         if file_exists && capture_snapshot {
-            self.repo.insert_snapshot(path).await?;
+            self.infra.insert_snapshot(path).await?;
         }
 
         // Write file only after validation passes and directories are created

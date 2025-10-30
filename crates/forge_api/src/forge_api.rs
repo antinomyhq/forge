@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use forge_app::dto::{InitAuth, LoginInfo, ToolsOverview};
 use forge_app::{
     AgentRegistry, AuthService, CommandInfra, CommandLoaderService, ConversationService,
-    EnvironmentInfra, EnvironmentService, FileDiscoveryService, ForgeApp, McpConfigManager,
+    EnvironmentService, FileDiscoveryService, ForgeApp, McpConfigManager,
     McpService, ProviderService, Services, User, UserUsage, Walker, WorkflowService,
 };
 use forge_domain::*;
@@ -35,11 +35,11 @@ impl<A, F> ForgeAPI<A, F> {
     }
 }
 
-impl ForgeAPI<ForgeServices<ForgeInfra, ForgeRepo>, ForgeInfra> {
+impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeInfra> {
     pub fn init(restricted: bool, cwd: PathBuf) -> Self {
         let infra = Arc::new(ForgeInfra::new(restricted, cwd));
-        let repo = Arc::new(ForgeRepo::new(infra.get_environment().clone()));
-        let app = Arc::new(ForgeServices::new(infra.clone(), repo.clone()));
+        let repo = Arc::new(ForgeRepo::new(infra.clone()));
+        let app = Arc::new(ForgeServices::new(repo.clone()));
         ForgeAPI::new(app, infra)
     }
 }

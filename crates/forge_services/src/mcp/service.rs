@@ -13,13 +13,12 @@ use tokio::sync::{Mutex, RwLock};
 use crate::mcp::tool::McpExecutor;
 
 #[derive(Clone)]
-pub struct ForgeMcpService<M, I, C, R> {
+pub struct ForgeMcpService<M, I, C> {
     tools: Arc<RwLock<HashMap<ToolName, ToolHolder<McpExecutor<C>>>>>,
     failed_servers: Arc<RwLock<HashMap<ServerName, String>>>,
     previous_config_hash: Arc<Mutex<u64>>,
     manager: Arc<M>,
     infra: Arc<I>,
-    repo: Arc<R>,
 }
 
 #[derive(Clone)]
@@ -29,22 +28,20 @@ struct ToolHolder<T> {
     server_name: String,
 }
 
-impl<M, I, C, R> ForgeMcpService<M, I, C, R>
+impl<M, I, C> ForgeMcpService<M, I, C>
 where
     M: McpConfigManager,
-    I: McpServerInfra,
+    I: McpServerInfra + CacheRepository,
     C: McpClientInfra + Clone,
     C: From<<I as McpServerInfra>::Client>,
-    R: CacheRepository,
 {
-    pub fn new(manager: Arc<M>, infra: Arc<I>, repo: Arc<R>) -> Self {
+    pub fn new(manager: Arc<M>, infra: Arc<I>) -> Self {
         Self {
             tools: Default::default(),
             failed_servers: Default::default(),
             previous_config_hash: Arc::new(Mutex::new(Default::default())),
             manager,
             infra,
-            repo,
         }
     }
 
@@ -181,15 +178,15 @@ where
     /// Refresh the MCP cache by fetching fresh data
     async fn refresh_cache(&self) -> anyhow::Result<()> {
         // Fetch fresh tools by calling list() which connects to MCPs
-        self.repo.cache_clear().await?;
+        self.infra.cache_clear().await?;
         let _ = self.get_mcp_servers().await?;
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl<M: McpConfigManager, I: McpServerInfra, R: CacheRepository, C> McpService
-    for ForgeMcpService<M, I, C, R>
+impl<M: McpConfigManager, I: McpServerInfra + CacheRepository, C> McpService
+    for ForgeMcpService<M, I, C>
 where
     C: McpClientInfra + Clone,
     C: From<<I as McpServerInfra>::Client>,
@@ -203,12 +200,12 @@ where
 
         // Check if cache is valid (exists and not expired)
         // Cache is valid, retrieve it
-        if let Some(cache) = self.repo.cache_get::<_, McpServers>(&config_hash).await? {
+        if let Some(cache) = self.infra.cache_get::<_, McpServers>(&config_hash).await? {
             return Ok(cache.clone());
         }
 
         let servers = self.list().await?;
-        self.repo.cache_set(&config_hash, &servers).await?;
+        self.infra.cache_set(&config_hash, &servers).await?;
         Ok(servers)
     }
 

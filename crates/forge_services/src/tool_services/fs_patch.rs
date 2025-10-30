@@ -193,19 +193,18 @@ fn apply_replacement(
 ///
 /// This service coordinates between infrastructure (file I/O) and repository
 /// (snapshots) to modify files while preserving the ability to undo changes.
-pub struct ForgeFsPatch<F, R> {
+pub struct ForgeFsPatch<F> {
     infra: Arc<F>,
-    repo: Arc<R>,
 }
 
-impl<F, R> ForgeFsPatch<F, R> {
-    pub fn new(infra: Arc<F>, repo: Arc<R>) -> Self {
-        Self { infra, repo }
+impl<F> ForgeFsPatch<F> {
+    pub fn new(infra: Arc<F>) -> Self {
+        Self { infra }
     }
 }
 
 #[async_trait::async_trait]
-impl<F: FileWriterInfra, R: SnapshotRepository> FsPatchService for ForgeFsPatch<F, R> {
+impl<F: FileWriterInfra + SnapshotRepository> FsPatchService for ForgeFsPatch<F> {
     async fn patch(
         &self,
         input_path: String,
@@ -227,7 +226,7 @@ impl<F: FileWriterInfra, R: SnapshotRepository> FsPatchService for ForgeFsPatch<
         current_content = apply_replacement(current_content, search, &operation, &content)?;
 
         // SNAPSHOT COORDINATION: Always capture snapshot before modifying
-        self.repo.insert_snapshot(path).await?;
+        self.infra.insert_snapshot(path).await?;
 
         // Write final content to file after all patches are applied
         self.infra

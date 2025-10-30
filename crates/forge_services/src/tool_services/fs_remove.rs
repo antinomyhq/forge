@@ -11,20 +11,19 @@ use crate::utils::assert_absolute_path;
 /// This service coordinates between infrastructure (file I/O) and repository
 /// (snapshots) to remove files while preserving the ability to undo the
 /// deletion.
-pub struct ForgeFsRemove<F, R> {
+pub struct ForgeFsRemove<F> {
     infra: Arc<F>,
-    repo: Arc<R>,
 }
 
-impl<F, R> ForgeFsRemove<F, R> {
-    pub fn new(infra: Arc<F>, repo: Arc<R>) -> Self {
-        Self { infra, repo }
+impl<F> ForgeFsRemove<F> {
+    pub fn new(infra: Arc<F>) -> Self {
+        Self { infra }
     }
 }
 
 #[async_trait::async_trait]
-impl<F: FileReaderInfra + FileRemoverInfra, R: SnapshotRepository> FsRemoveService
-    for ForgeFsRemove<F, R>
+impl<F: FileReaderInfra + FileRemoverInfra + SnapshotRepository> FsRemoveService
+    for ForgeFsRemove<F>
 {
     async fn remove(&self, input_path: String) -> anyhow::Result<FsRemoveOutput> {
         let path = Path::new(&input_path);
@@ -33,7 +32,7 @@ impl<F: FileReaderInfra + FileRemoverInfra, R: SnapshotRepository> FsRemoveServi
         let content = self.infra.read_utf8(path).await.unwrap_or_default();
 
         // SNAPSHOT COORDINATION: Always capture snapshot before removing
-        self.repo.insert_snapshot(path).await?;
+        self.infra.insert_snapshot(path).await?;
 
         self.infra.remove(path).await?;
 
