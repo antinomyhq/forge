@@ -57,10 +57,13 @@ Remove any existing FORGE_BIN exports or Forge integration lines to avoid duplic
 3. zsh-syntax-highlighting source (MUST BE LAST)
 
 **Step 4: Verify Installation**
-Reload shell: `source ~/.zshrc` or `exec zsh`
+
+**IMPORTANT**:
+  - Before we run the verification steps, we've to reload shell with following commands.
+    commands: `source ~/.zshrc` or `exec zsh`
 
 Run verification tests:
-1. **Basic integration**: `:forge` (should execute without "command not found" error)
+1. **Basic integration**: Run command `:forge` (should execute without "command not found" error)
 2. **Syntax highlighting**: Check if `$ZSH_HIGHLIGHT_VERSION` is set (indicates zsh-syntax-highlighting loaded)
 3. **fd/fzf integration** (if installed in Step 2):
    - Check `which fd` returns a path
