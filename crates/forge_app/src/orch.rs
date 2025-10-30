@@ -531,11 +531,10 @@ impl<S: AgentService> Orchestrator<S> {
             }
 
             // Handle yielding with plan completion check
-            if should_yield && self.plan_nudge.is_some()
-                && nudger.should_nudge(None) {
-                    context = self.add_plan_nudge(context);
-                    should_yield = false;
-                }
+            if should_yield && self.plan_nudge.is_some() && nudger.should_nudge(None) {
+                context = self.add_plan_nudge(context);
+                should_yield = false;
+            }
         }
 
         // Update metrics in conversation
