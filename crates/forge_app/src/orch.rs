@@ -371,8 +371,11 @@ impl<S: AgentService> Orchestrator<S> {
 
         while !should_yield {
             // Check if plan nudge should be added based on request_count
-            if self.plan_nudge.is_some() && nudger.should_nudge(Some(request_count)) {
-                context = self.add_plan_nudge(context);
+            if let Some(plan_nudge) = &self.plan_nudge
+                && nudger.should_nudge(Some(request_count))
+            {
+                context =
+                    context.add_message(ContextMessage::user(plan_nudge, self.agent.model.clone()));
             }
 
             // Set context for the current loop iteration
@@ -531,9 +534,10 @@ impl<S: AgentService> Orchestrator<S> {
             }
 
             // Handle yielding with plan completion check
-            if should_yield && self.plan_nudge.is_some() {
+            if should_yield && let Some(plan_nudge) = &self.plan_nudge {
                 if nudger.should_nudge(None) {
-                    context = self.add_plan_nudge(context);
+                    context = context
+                        .add_message(ContextMessage::user(plan_nudge, self.agent.model.clone()));
                     should_yield = false;
                 } else {
                     nudger.reset_completion_nudge();
@@ -568,19 +572,6 @@ impl<S: AgentService> Orchestrator<S> {
             .model
             .clone()
             .ok_or(Error::MissingModel(self.agent.id.clone()))?)
-    }
-
-    /// Applies a plan nudge message to the context if conditions are met
-    fn add_plan_nudge(&self, context: Context) -> Context {
-        if let Some(plan_nudge) = &self.plan_nudge {
-            info!(
-                agent_id = %self.agent.id,
-                "Sending plan nudge"
-            );
-            context.add_message(ContextMessage::user(plan_nudge, self.agent.model.clone()))
-        } else {
-            context
-        }
     }
 
     /// Creates a join handle which eventually resolves with the conversation
