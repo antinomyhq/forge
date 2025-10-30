@@ -5,19 +5,31 @@ description: Automates the ZSH integration setup from docs
 
 Automate the 5-step ZSH integration process from https://forgecode.dev/docs/zsh-support/
 
+**IMPORTANT**: 
+  - Do NOT create bash scripts or intermediate files.
+  - Check for package manager first before cloning repositories. Package manager installations are simpler and easier to maintain.
+
 **Step 1: Install zsh-syntax-highlighting (Required)**
-- Try package manager: `brew`/`apt`/`pacman`/`dnf install zsh-syntax-highlighting`
-- Or Oh My Zsh:
-  ```bash
-  git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting
-  ```
-  Then add to plugins in ~/.zshrc: `plugins=(... zsh-syntax-highlighting)` (must be last plugin)
-- Or Manual:
-  ```bash
-  git clone https://github.com/zsh-users/zsh-syntax-highlighting.git
-  echo "source ${(q-)PWD}/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" >> ${ZDOTDIR:-$HOME}/.zshrc
-  ```
-- Must be sourced LAST in ~/.zshrc
+Priority order (check in this sequence):
+1. **Package Manager** (PREFERRED on macOS/Linux):
+   - macOS: `brew install zsh-syntax-highlighting`
+   - Ubuntu/Debian: `apt install zsh-syntax-highlighting`
+   - Arch: `pacman -S zsh-syntax-highlighting`
+   - Fedora: `dnf install zsh-syntax-highlighting`
+   
+2. **Oh My Zsh Plugin** (only if package manager not available):
+   ```bash
+   git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting
+   ```
+   Then add to plugins in ~/.zshrc: `plugins=(... zsh-syntax-highlighting)` (must be last plugin)
+
+3. **Manual Installation** (last resort):
+   ```bash
+   git clone https://github.com/zsh-users/zsh-syntax-highlighting.git
+   echo "source ${(q-)PWD}/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" >> ${ZDOTDIR:-$HOME}/.zshrc
+   ```
+
+**Note**: When using package managers (brew/apt/etc), the sourcing is handled automatically. With Oh My Zsh plugins or manual installation, you must ensure it loads LAST in ~/.zshrc.
 
 **Step 2: Install fd and fzf (Optional but Recommended)**
 - Package manager: `brew install fd fzf` or `apt install fd-find fzf` or `pacman -S fd fzf`
