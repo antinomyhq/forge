@@ -17,12 +17,15 @@ impl<'a> Nudger<'a> {
     pub fn should_nudge(&mut self, event_count: Option<usize>) -> bool {
         match event_count {
             Some(count) => {
-                self.completion_nudge = false;
                 self.interval
                     .is_some_and(|n| count > 0 && count.is_multiple_of(n))
             }
             None => !std::mem::replace(&mut self.completion_nudge, true),
         }
+    }
+
+    pub fn reset_completion_nudge(&mut self) {
+        self.completion_nudge = false;
     }
 }
 
