@@ -101,7 +101,9 @@ impl Runner {
 
         conversation.metrics.started_at = Some(setup.current_time.with_timezone(&chrono::Utc));
         conversation.context = conversation.context.map(|ctx| ctx.apply_from_agent(&agent));
-        conversation.context = conversation.context.map(|ctx| ctx.conversation_id(conversation.id.clone()));
+        conversation.context = conversation
+            .context
+            .map(|ctx| ctx.conversation_id(conversation.id));
 
         let orch = Orchestrator::new(
             services.clone(),
