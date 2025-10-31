@@ -5,7 +5,8 @@ use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation,
     ConversationId, Environment, File, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model,
-    ModelId, PatchOperation, Provider, ResultStream, Scope, ToolCallFull, ToolOutput, Workflow,
+    ModelId, PatchOperation, Provider, ResultStream, Scope, Template, ToolCallFull, ToolOutput,
+    Workflow,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -203,10 +204,10 @@ pub trait ConversationService: Send + Sync {
 #[async_trait::async_trait]
 pub trait TemplateService: Send + Sync {
     async fn register_template(&self, path: PathBuf) -> anyhow::Result<()>;
-    async fn render_template(
+    async fn render_template<V: serde::Serialize + Send + Sync>(
         &self,
-        template: impl ToString + Send,
-        object: &(impl serde::Serialize + Sync),
+        template: Template<V>,
+        object: &V,
     ) -> anyhow::Result<String>;
 }
 
@@ -566,10 +567,10 @@ impl<I: Services> TemplateService for I {
         self.template_service().register_template(path).await
     }
 
-    async fn render_template(
+    async fn render_template<V: serde::Serialize + Send + Sync>(
         &self,
-        template: impl ToString + Send,
-        object: &(impl serde::Serialize + Sync),
+        template: Template<V>,
+        object: &V,
     ) -> anyhow::Result<String> {
         self.template_service()
             .render_template(template, object)

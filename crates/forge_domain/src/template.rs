@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Default, Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[serde(transparent)]
 pub struct Template<V> {
     pub template: String,

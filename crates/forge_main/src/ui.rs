@@ -12,7 +12,7 @@ use forge_api::{
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
 use forge_display::MarkdownFormat;
-use forge_domain::{ChatResponseContent, ContextMessage, Role, TitleFormat};
+use forge_domain::{ChatResponseContent, ContextMessage, Role, TitleFormat, UserCommand};
 use forge_fs::ForgeFS;
 use forge_select::ForgeSelect;
 use forge_spinner::SpinnerManager;
@@ -27,7 +27,7 @@ use crate::conversation_selector::ConversationSelector;
 use crate::env::should_show_completion_prompt;
 use crate::info::Info;
 use crate::input::Console;
-use crate::model::{CliModel, CliProvider, ForgeCommandManager, PartialEvent, SlashCommand};
+use crate::model::{CliModel, CliProvider, ForgeCommandManager, SlashCommand};
 use crate::porcelain::Porcelain;
 use crate::prompt::ForgePrompt;
 use crate::state::UIState;
@@ -1251,7 +1251,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let conversation_id = self.init_conversation().await?;
 
         // Parse the JSON to determine the event name and value
-        let event: PartialEvent = serde_json::from_str(&json)?;
+        let event: UserCommand = serde_json::from_str(&json)?;
 
         // Create the chat request with the event
         let chat = ChatRequest::new(event.into(), conversation_id);

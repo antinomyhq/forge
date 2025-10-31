@@ -2,16 +2,17 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use forge_domain::{
-    ChatCompletionMessage, ChatResponse, Conversation, ConversationId, Event, ProviderId,
-    ToolCallFull, ToolErrorTracker, ToolResult,
+    Attachment, ChatCompletionMessage, ChatResponse, Conversation, ConversationId, Event,
+    ProviderId, ToolCallFull, ToolErrorTracker, ToolResult,
 };
 use handlebars::{Handlebars, no_escape};
 use rust_embed::Embed;
 use tokio::sync::Mutex;
 
 pub use super::orch_setup::TestContext;
-use crate::AgentService;
 use crate::orch::Orchestrator;
+use crate::user_prompt::UserPromptGenerator;
+use crate::{AgentService, AttachmentService, TemplateService};
 
 #[derive(Embed)]
 #[folder = "../../templates/"]
@@ -27,6 +28,8 @@ pub struct Runner {
 
     // Mock completions from the LLM (Each value is produced as an event in the stream)
     test_completions: Mutex<VecDeque<ChatCompletionMessage>>,
+
+    attachments: Vec<Attachment>,
 }
 
 impl Runner {
@@ -43,6 +46,7 @@ impl Runner {
 
         Self {
             hb,
+            attachments: setup.attachments.clone(),
             conversation_history: Mutex::new(Vec::new()),
             test_tool_calls: Mutex::new(VecDeque::from(setup.mock_tool_call_responses.clone())),
             test_completions: Mutex::new(VecDeque::from(setup.mock_assistant_responses.clone())),
@@ -73,6 +77,16 @@ impl Runner {
 
         let agent = setup.agent.clone();
         let system_tools = setup.tools.clone();
+
+        // Render user prompt into context.
+        let conversation = UserPromptGenerator::new(
+            services.clone(),
+            agent.clone(),
+            event.clone(),
+            setup.current_time,
+        )
+        .add_user_prompt(conversation)
+        .await?;
 
         let orch = Orchestrator::new(
             services.clone(),
@@ -146,16 +160,38 @@ impl AgentService for Runner {
         panic!("No mock tool call not found: {name}")
     }
 
-    async fn render(
+    async fn render<V: serde::Serialize + Send + Sync>(
         &self,
-        template: &str,
-        object: &(impl serde::Serialize + Sync),
+        template: forge_domain::Template<V>,
+        object: &V,
     ) -> anyhow::Result<String> {
-        Ok(self.hb.render_template(template, object)?)
+        Ok(self.hb.render_template(&template.template, object)?)
     }
 
     async fn update(&self, conversation: Conversation) -> anyhow::Result<()> {
         self.conversation_history.lock().await.push(conversation);
         Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl TemplateService for Runner {
+    async fn register_template(&self, _path: std::path::PathBuf) -> anyhow::Result<()> {
+        unimplemented!()
+    }
+
+    async fn render_template<V: serde::Serialize + Send + Sync>(
+        &self,
+        template: forge_domain::Template<V>,
+        object: &V,
+    ) -> anyhow::Result<String> {
+        Ok(self.hb.render_template(&template.template, object)?)
+    }
+}
+
+#[async_trait::async_trait]
+impl AttachmentService for Runner {
+    async fn attachments(&self, _url: &str) -> anyhow::Result<Vec<forge_domain::Attachment>> {
+        Ok(self.attachments.clone())
     }
 }

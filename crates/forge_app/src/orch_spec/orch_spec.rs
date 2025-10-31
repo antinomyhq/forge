@@ -1,5 +1,5 @@
 use forge_domain::{
-    ChatCompletionMessage, ChatResponse, Content, FinishReason, ReasoningConfig, Role,
+    ChatCompletionMessage, ChatResponse, Content, EventValue, FinishReason, ReasoningConfig, Role,
     ToolCallArguments, ToolCallFull, ToolOutput, ToolResult,
 };
 use pretty_assertions::assert_eq;
@@ -431,10 +431,11 @@ async fn test_raw_user_message_is_stored() {
         .expect("Should have user message");
 
     // Verify raw content is stored
-    let raw_content = user_message.raw_content().unwrap();
-    assert_eq!(
-        raw_content,
-        &serde_json::Value::String(raw_task.to_string()),
-        "Raw user message should be stored in TextMessage as a JSON Value"
+    let actual = user_message.as_value().unwrap();
+    let expected = &EventValue::Text(
+        "This is a raw user message\nwith multiple lines\nfor testing"
+            .to_string()
+            .into(),
     );
+    assert_eq!(actual, expected);
 }
