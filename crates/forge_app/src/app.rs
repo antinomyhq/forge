@@ -52,7 +52,7 @@ impl<S: Services> ForgeApp<S> {
         let services = self.services.clone();
 
         // Get the conversation for the chat request
-        let mut conversation = services
+        let conversation = services
             .find_conversation(&chat.conversation_id)
             .await
             .unwrap_or_default()
