@@ -1,5 +1,6 @@
 use forge_domain::{
-    ChatCompletionMessage, ChatResponse, Content, EventValue, FinishReason, ReasoningConfig, Role, ToolCallArguments, ToolCallFull, ToolOutput, ToolResult
+    ChatCompletionMessage, ChatResponse, Content, EventValue, FinishReason, ReasoningConfig, Role,
+    ToolCallArguments, ToolCallFull, ToolOutput, ToolResult,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
