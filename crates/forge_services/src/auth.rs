@@ -2,10 +2,8 @@ use std::sync::Arc;
 
 use anyhow::bail;
 use bytes::Bytes;
-use forge_app::dto::{InitAuth, LoginInfo};
-use forge_app::{
-    AppConfigRepository, AuthService, EnvironmentInfra, Error, HttpInfra, User, UserUsage,
-};
+use forge_app::{AuthService, EnvironmentInfra, Error, HttpInfra, User, UserUsage};
+use forge_domain::{AppConfigRepository, InitAuth, LoginInfo};
 use reqwest::Url;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 

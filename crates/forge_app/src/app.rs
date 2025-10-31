@@ -3,13 +3,13 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use chrono::Local;
-use forge_domain::*;
+use forge_domain::{InitAuth, *};
 use forge_stream::MpscStream;
 
 use crate::authenticator::Authenticator;
-use crate::dto::{InitAuth, ToolsOverview};
+use crate::dto::ToolsOverview;
 use crate::orch::Orchestrator;
-use crate::services::{CustomInstructionsService, TemplateService};
+use crate::services::{CustomInstructionsService, ProviderPreferencesService, TemplateService};
 use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
 use crate::{
@@ -261,18 +261,27 @@ impl<S: Services> ForgeApp<S> {
 
         // Fall back to original logic if there is no agent
         // set yet.
-        self.services.get_default_provider().await
+        self.services
+            .provider_preferences_service()
+            .get_default_provider()
+            .await
     }
 
     /// Gets the model for the specified agent, or the default model if no agent
     /// is provided
     pub async fn get_model(&self, agent_id: Option<AgentId>) -> anyhow::Result<ModelId> {
         let provider_id = self.get_provider(agent_id).await?.id;
-        self.services.get_default_model(&provider_id).await
+        self.services
+            .provider_preferences_service()
+            .get_default_model(&provider_id)
+            .await
     }
 
     pub async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
         let provider_id = self.get_provider(None).await?.id;
-        self.services.set_default_model(model, provider_id).await
+        self.services
+            .provider_preferences_service()
+            .set_default_model(model, provider_id)
+            .await
     }
 }

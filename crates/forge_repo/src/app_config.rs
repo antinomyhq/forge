@@ -1,8 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use forge_app::dto::AppConfig;
-use forge_app::AppConfigRepository;
+use forge_domain::{AppConfig, AppConfigRepository};
 use forge_fs::ForgeFS;
 use tokio::sync::Mutex;
 
@@ -67,7 +66,7 @@ impl AppConfigRepository for AppConfigRepositoryImpl {
 #[cfg(test)]
 mod tests {
 
-    use forge_app::dto::AppConfig;
+    use forge_domain::AppConfig;
     use pretty_assertions::assert_eq;
     use tempfile::TempDir;
 

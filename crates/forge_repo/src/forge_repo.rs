@@ -3,10 +3,14 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::{
-    AppConfigRepository, CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, UserInfra, WalkedFile, Walker, WalkerInfra
+    CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
+    FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, UserInfra,
+    WalkedFile, Walker, WalkerInfra,
 };
 use forge_domain::{
-    CacheRepository, CommandOutput, Conversation, ConversationId, ConversationRepository, Environment, FileInfo, McpServerConfig, ModelId, Provider, ProviderId, ProviderRepository, Snapshot, SnapshotRepository
+    AppConfig, AppConfigRepository, CacheRepository, CommandOutput, Conversation, ConversationId,
+    ConversationRepository, Environment, FileInfo, McpServerConfig, Provider, ProviderId,
+    ProviderRepository, Snapshot, SnapshotRepository,
 };
 use reqwest::header::HeaderMap;
 use reqwest::Response;
@@ -14,6 +18,7 @@ use reqwest_eventsource::EventSource;
 use url::Url;
 
 use crate::fs_snap::ForgeFileSnapshotService;
+use crate::provider_repository::ForgeProviderRepository;
 use crate::{
     AppConfigRepositoryImpl, CacacheRepository, ConversationRepositoryImpl, DatabasePool,
     PoolConfig,
@@ -30,9 +35,10 @@ pub struct ForgeRepo<F> {
     conversation_repository: Arc<ConversationRepositoryImpl>,
     app_config_repository: Arc<AppConfigRepositoryImpl>,
     mcp_cache_repository: Arc<CacacheRepository>,
+    provider_repository: Arc<ForgeProviderRepository<F>>,
 }
 
-impl<F: EnvironmentInfra> ForgeRepo<F> {
+impl<F: EnvironmentInfra + FileReaderInfra> ForgeRepo<F> {
     pub fn new(infra: Arc<F>) -> Self {
         let env = infra.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
@@ -49,12 +55,15 @@ impl<F: EnvironmentInfra> ForgeRepo<F> {
             env.cache_dir().join("mcp_cache"),
             Some(3600),
         )); // 1 hour TTL
+
+        let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
         Self {
             infra,
             file_snapshot_service,
             conversation_repository,
             app_config_repository,
             mcp_cache_repository,
+            provider_repository,
         }
     }
 }
@@ -101,46 +110,24 @@ impl<F: Send + Sync> ConversationRepository for ForgeRepo<F> {
     }
 }
 
-// FIXME: Implement ProviderRepository by delegating to the appropriate
-// repository
 #[async_trait::async_trait]
-impl<F: Send + Sync> ProviderRepository for ForgeRepo<F> {
-    async fn get_default_provider(&self) -> anyhow::Result<Provider> {
-        unimplemented!()
-    }
-
-    async fn set_default_provider(&self, _provider_id: ProviderId) -> anyhow::Result<()> {
-        unimplemented!()
-    }
-
+impl<F: EnvironmentInfra + FileReaderInfra + Send + Sync> ProviderRepository for ForgeRepo<F> {
     async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
-        unimplemented!()
+        self.provider_repository.get_all_providers().await
     }
 
-    async fn get_default_model(&self, _provider_id: &ProviderId) -> anyhow::Result<ModelId> {
-        unimplemented!()
-    }
-
-    async fn set_default_model(
-        &self,
-        _model: ModelId,
-        _provider_id: ProviderId,
-    ) -> anyhow::Result<()> {
-        unimplemented!()
-    }
-
-    async fn get_provider(&self, _id: ProviderId) -> anyhow::Result<Provider> {
-        unimplemented!()
+    async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider> {
+        self.provider_repository.get_provider(id).await
     }
 }
 
 #[async_trait::async_trait]
 impl<F: Send + Sync> AppConfigRepository for ForgeRepo<F> {
-    async fn get_app_config(&self) -> anyhow::Result<forge_app::dto::AppConfig> {
+    async fn get_app_config(&self) -> anyhow::Result<AppConfig> {
         self.app_config_repository.get_app_config().await
     }
 
-    async fn set_app_config(&self, config: &forge_app::dto::AppConfig) -> anyhow::Result<()> {
+    async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
         self.app_config_repository.set_app_config(config).await
     }
 }
@@ -292,7 +279,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl <F> DirectoryReaderInfra for ForgeRepo<F>
+impl<F> DirectoryReaderInfra for ForgeRepo<F>
 where
     F: DirectoryReaderInfra + Send + Sync,
 {
@@ -306,15 +293,14 @@ where
 }
 
 #[async_trait::async_trait]
-impl <F> UserInfra for ForgeRepo<F>
+impl<F> UserInfra for ForgeRepo<F>
 where
     F: UserInfra + Send + Sync,
 {
-    
     async fn prompt_question(&self, question: &str) -> anyhow::Result<Option<String>> {
         self.infra.prompt_question(question).await
     }
-    
+
     async fn select_one<T: std::fmt::Display + Send + 'static>(
         &self,
         message: &str,
@@ -335,14 +321,13 @@ where
         &self,
         message: &str,
         options: Vec<T>,
-    ) -> anyhow::Result<Option<Vec<T>>>
-    {
+    ) -> anyhow::Result<Option<Vec<T>>> {
         self.infra.select_many(message, options).await
     }
 }
 
 #[async_trait::async_trait]
-impl <F> McpServerInfra for ForgeRepo<F>
+impl<F> McpServerInfra for ForgeRepo<F>
 where
     F: McpServerInfra + Send + Sync,
 {

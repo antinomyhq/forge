@@ -7,6 +7,7 @@ use forge_app::domain::{
     ProviderId, ResultStream, RetryConfig,
 };
 use forge_app::{EnvironmentInfra, HttpInfra, ProviderService};
+use forge_domain::ProviderRepository;
 use tokio::sync::Mutex;
 
 use crate::http::HttpClient;
@@ -66,7 +67,9 @@ impl<I: EnvironmentInfra + HttpInfra> ForgeProviderService<I> {
 }
 
 #[async_trait::async_trait]
-impl<I: EnvironmentInfra + HttpInfra> ProviderService for ForgeProviderService<I> {
+impl<I: EnvironmentInfra + HttpInfra + ProviderRepository> ProviderService
+    for ForgeProviderService<I>
+{
     async fn chat(
         &self,
         model: &ModelId,
@@ -103,5 +106,13 @@ impl<I: EnvironmentInfra + HttpInfra> ProviderService for ForgeProviderService<I
         }
 
         Ok(models)
+    }
+
+    async fn get_provider(&self, id: ProviderId) -> Result<Provider> {
+        self.http_infra.get_provider(id).await
+    }
+
+    async fn get_all_providers(&self) -> Result<Vec<Provider>> {
+        self.http_infra.get_all_providers().await
     }
 }

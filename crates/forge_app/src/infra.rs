@@ -210,11 +210,3 @@ pub trait DirectoryReaderInfra: Send + Sync {
         pattern: Option<&str>, // Optional glob pattern like "*.md"
     ) -> anyhow::Result<Vec<(PathBuf, String)>>;
 }
-
-// CacheRepository moved to forge_domain::repo
-
-#[async_trait::async_trait]
-pub trait AppConfigRepository: Send + Sync {
-    async fn get_app_config(&self) -> anyhow::Result<crate::dto::AppConfig>;
-    async fn set_app_config(&self, config: &crate::dto::AppConfig) -> anyhow::Result<()>;
-}

@@ -2,13 +2,14 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::dto::{InitAuth, LoginInfo, ToolsOverview};
+use forge_app::dto::ToolsOverview;
 use forge_app::{
     AgentRegistry, AuthService, CommandInfra, CommandLoaderService, ConversationService,
-    EnvironmentService, FileDiscoveryService, ForgeApp, McpConfigManager,
-    McpService, ProviderService, Services, User, UserUsage, Walker, WorkflowService,
+    EnvironmentInfra, EnvironmentService, FileDiscoveryService, ForgeApp, McpConfigManager,
+    McpService, ProviderPreferencesService, ProviderService, Services, User, UserUsage, Walker,
+    WorkflowService,
 };
-use forge_domain::*;
+use forge_domain::{InitAuth, LoginInfo, *};
 use forge_infra::ForgeInfra;
 use forge_repo::ForgeRepo;
 use forge_services::ForgeServices;
@@ -45,7 +46,7 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeInfra> {
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
+impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     async fn discover(&self) -> Result<Vec<File>> {
         let environment = self.services.get_environment();
         let config = Walker::unlimited().cwd(environment.cwd);
@@ -59,6 +60,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     async fn get_models(&self) -> Result<Vec<Model>> {
         Ok(self
             .services
+            .provider_service()
             .models(
                 self.get_default_provider()
                     .await
@@ -71,7 +73,7 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     }
 
     async fn get_providers(&self) -> Result<Vec<Provider>> {
-        Ok(self.services.get_all_providers().await?)
+        Ok(self.services.provider_service().get_all_providers().await?)
     }
 
     async fn chat(
@@ -190,7 +192,10 @@ impl<A: Services, F: CommandInfra> API for ForgeAPI<A, F> {
     }
 
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        self.services.set_default_provider(provider_id).await
+        self.services
+            .provider_preferences_service()
+            .set_default_provider(provider_id)
+            .await
     }
 
     async fn user_info(&self) -> Result<Option<User>> {

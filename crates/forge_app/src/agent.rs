@@ -5,6 +5,7 @@ use forge_domain::{
     ToolCallContext, ToolCallFull, ToolResult,
 };
 
+use crate::services::ProviderPreferencesService;
 use crate::tool_registry::ToolRegistry;
 use crate::{ConversationService, ProviderService, Services, TemplateService};
 
@@ -49,12 +50,14 @@ impl<T: Services> AgentService for T {
         provider_id: Option<ProviderId>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         let provider = if let Some(provider_id) = provider_id {
-            self.get_provider(provider_id).await?
+            self.provider_service().get_provider(provider_id).await?
         } else {
-            self.get_default_provider().await?
+            self.provider_preferences_service()
+                .get_default_provider()
+                .await?
         };
 
-        self.chat(id, context, provider).await
+        self.provider_service().chat(id, context, provider).await
     }
 
     async fn call(

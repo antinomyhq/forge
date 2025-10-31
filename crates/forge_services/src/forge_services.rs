@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
 use forge_app::{
-    AppConfigRepository, CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
-    FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra,
-    Services, UserInfra, WalkerInfra,
+    CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
+    FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, Services,
+    UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    CacheRepository, ConversationRepository, ProviderRepository, SnapshotRepository,
+    AppConfigRepository, CacheRepository, ConversationRepository, ProviderRepository,
+    SnapshotRepository,
 };
 
 use crate::agent_registry::AgentLoaderService as ForgeAgentLoaderService;
@@ -19,7 +20,8 @@ use crate::discovery::ForgeDiscoveryService;
 use crate::env::ForgeEnvironmentService;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::policy::ForgePolicyService;
-use crate::provider::{ForgeProviderRegistry, ForgeProviderService};
+use crate::provider::ForgeProviderService;
+use crate::provider_preferences::ForgeProviderPreferencesService;
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead, ForgeFsRemove,
@@ -50,6 +52,7 @@ pub struct ForgeServices<
         + ProviderRepository,
 > {
     chat_service: Arc<ForgeProviderService<F>>,
+    provider_preferences_service: Arc<ForgeProviderPreferencesService<F>>,
     conversation_service: Arc<ForgeConversationService<F>>,
     template_service: Arc<ForgeTemplateService<F>>,
     attachment_service: Arc<ForgeChatRequest<F>>,
@@ -74,7 +77,6 @@ pub struct ForgeServices<
     agent_loader_service: Arc<ForgeAgentLoaderService<F>>,
     command_loader_service: Arc<ForgeCommandLoaderService<F>>,
     policy_service: ForgePolicyService<F>,
-    provider_registry: Arc<ForgeProviderRegistry<F>>,
 }
 
 impl<
@@ -91,8 +93,8 @@ impl<
         + SnapshotRepository
         + ConversationRepository
         + AppConfigRepository
-        + CacheRepository
-        + ProviderRepository,
+        + ProviderRepository
+        + CacheRepository,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -105,6 +107,8 @@ impl<
         let conversation_service = Arc::new(ForgeConversationService::new(infra.clone()));
         let auth_service = Arc::new(ForgeAuthService::new(infra.clone()));
         let chat_service = Arc::new(ForgeProviderService::new(infra.clone()));
+        let provider_preferences_service =
+            Arc::new(ForgeProviderPreferencesService::new(infra.clone()));
         let file_create_service = Arc::new(ForgeFsCreate::new(infra.clone()));
         let plan_create_service = Arc::new(ForgePlanCreate::new(infra.clone()));
         let file_read_service = Arc::new(ForgeFsRead::new(infra.clone()));
@@ -122,7 +126,6 @@ impl<
         let agent_loader_service = Arc::new(ForgeAgentLoaderService::new(infra.clone()));
         let command_loader_service = Arc::new(ForgeCommandLoaderService::new(infra.clone()));
         let policy_service = ForgePolicyService::new(infra.clone());
-        let provider_registry = Arc::new(ForgeProviderRegistry::new(infra.clone()));
 
         Self {
             conversation_service,
@@ -147,10 +150,10 @@ impl<
             custom_instructions_service,
             auth_service,
             chat_service,
+            provider_preferences_service,
             agent_loader_service,
             command_loader_service,
             policy_service,
-            provider_registry,
         }
     }
 }
@@ -179,6 +182,7 @@ impl<
 > Services for ForgeServices<F>
 {
     type ProviderService = ForgeProviderService<F>;
+    type ProviderPreferencesService = ForgeProviderPreferencesService<F>;
     type ConversationService = ForgeConversationService<F>;
     type TemplateService = ForgeTemplateService<F>;
     type AttachmentService = ForgeChatRequest<F>;
@@ -203,10 +207,13 @@ impl<
     type AgentRegistry = ForgeAgentLoaderService<F>;
     type CommandLoaderService = ForgeCommandLoaderService<F>;
     type PolicyService = ForgePolicyService<F>;
-    type ProviderRepository = ForgeProviderRegistry<F>;
 
     fn provider_service(&self) -> &Self::ProviderService {
         &self.chat_service
+    }
+
+    fn provider_preferences_service(&self) -> &Self::ProviderPreferencesService {
+        &self.provider_preferences_service
     }
 
     fn conversation_service(&self) -> &Self::ConversationService {
@@ -301,68 +308,5 @@ impl<
     }
     fn image_read_service(&self) -> &Self::ImageReadService {
         &self.image_read_service
-    }
-}
-
-#[async_trait::async_trait]
-impl<
-    F: McpServerInfra
-        + EnvironmentInfra
-        + FileWriterInfra
-        + FileInfoInfra
-        + FileReaderInfra
-        + HttpInfra
-        + WalkerInfra
-        + DirectoryReaderInfra
-        + CommandInfra
-        + UserInfra
-        + FileDirectoryInfra
-        + FileRemoverInfra
-        + SnapshotRepository
-        + ConversationRepository
-        + AppConfigRepository
-        + CacheRepository
-        + ProviderRepository,
-> forge_domain::ProviderRepository for ForgeServices<F>
-{
-    async fn get_default_provider(&self) -> anyhow::Result<forge_domain::Provider> {
-        self.provider_registry.get_default_provider().await
-    }
-
-    async fn set_default_provider(
-        &self,
-        provider_id: forge_domain::ProviderId,
-    ) -> anyhow::Result<()> {
-        self.provider_registry
-            .set_default_provider(provider_id)
-            .await
-    }
-
-    async fn get_all_providers(&self) -> anyhow::Result<Vec<forge_domain::Provider>> {
-        self.provider_registry.get_all_providers().await
-    }
-
-    async fn get_default_model(
-        &self,
-        provider_id: &forge_domain::ProviderId,
-    ) -> anyhow::Result<forge_domain::ModelId> {
-        self.provider_registry.get_default_model(provider_id).await
-    }
-
-    async fn set_default_model(
-        &self,
-        model: forge_domain::ModelId,
-        provider_id: forge_domain::ProviderId,
-    ) -> anyhow::Result<()> {
-        self.provider_registry
-            .set_default_model(model, provider_id)
-            .await
-    }
-
-    async fn get_provider(
-        &self,
-        id: forge_domain::ProviderId,
-    ) -> anyhow::Result<forge_domain::Provider> {
-        self.provider_registry.get_provider(id).await
     }
 }

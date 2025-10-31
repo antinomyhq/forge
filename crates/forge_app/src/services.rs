@@ -4,9 +4,8 @@ use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation,
-    ConversationId, Environment, File, Image, McpConfig, McpServers, Model, ModelId,
-    PatchOperation, Provider, ProviderRepository, ResultStream, Scope, ToolCallFull, ToolOutput,
-    Workflow,
+    ConversationId, Environment, File, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model,
+    ModelId, PatchOperation, Provider, ResultStream, Scope, ToolCallFull, ToolOutput, Workflow,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -15,7 +14,6 @@ use reqwest_eventsource::EventSource;
 use url::Url;
 
 use crate::Walker;
-use crate::dto::{InitAuth, LoginInfo};
 use crate::user::{User, UserUsage};
 
 #[derive(Debug)]
@@ -130,6 +128,35 @@ pub trait ProviderService: Send + Sync {
         provider: Provider,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error>;
     async fn models(&self, provider: Provider) -> anyhow::Result<Vec<Model>>;
+    async fn get_provider(&self, id: forge_domain::ProviderId) -> anyhow::Result<Provider>;
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>>;
+}
+
+/// Manages user preferences for default providers and models.
+#[async_trait::async_trait]
+pub trait ProviderPreferencesService: Send + Sync {
+    /// Gets the user's default provider, or falls back to the first available
+    /// provider.
+    async fn get_default_provider(&self) -> anyhow::Result<Provider>;
+
+    /// Sets the user's default provider preference.
+    async fn set_default_provider(
+        &self,
+        provider_id: forge_domain::ProviderId,
+    ) -> anyhow::Result<()>;
+
+    /// Gets the user's default model for a specific provider.
+    async fn get_default_model(
+        &self,
+        provider_id: &forge_domain::ProviderId,
+    ) -> anyhow::Result<ModelId>;
+
+    /// Sets the user's default model for a specific provider.
+    async fn set_default_model(
+        &self,
+        model: ModelId,
+        provider_id: forge_domain::ProviderId,
+    ) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -394,8 +421,9 @@ pub trait PolicyService: Send + Sync {
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
-pub trait Services: forge_domain::ProviderRepository + Send + Sync + 'static + Clone {
+pub trait Services: Send + Sync + 'static + Clone {
     type ProviderService: ProviderService;
+    type ProviderPreferencesService: ProviderPreferencesService;
     type ConversationService: ConversationService;
     type TemplateService: TemplateService;
     type AttachmentService: AttachmentService;
@@ -420,9 +448,9 @@ pub trait Services: forge_domain::ProviderRepository + Send + Sync + 'static + C
     type AgentRegistry: AgentRegistry;
     type CommandLoaderService: CommandLoaderService;
     type PolicyService: PolicyService;
-    type ProviderRepository: ProviderRepository;
 
     fn provider_service(&self) -> &Self::ProviderService;
+    fn provider_preferences_service(&self) -> &Self::ProviderPreferencesService;
     fn conversation_service(&self) -> &Self::ConversationService;
     fn template_service(&self) -> &Self::TemplateService;
     fn attachment_service(&self) -> &Self::AttachmentService;
@@ -493,6 +521,14 @@ impl<I: Services> ProviderService for I {
 
     async fn models(&self, provider: Provider) -> anyhow::Result<Vec<Model>> {
         self.provider_service().models(provider).await
+    }
+
+    async fn get_provider(&self, id: forge_domain::ProviderId) -> anyhow::Result<Provider> {
+        self.provider_service().get_provider(id).await
+    }
+
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
+        self.provider_service().get_all_providers().await
     }
 }
 
