@@ -210,34 +210,8 @@ impl<S: AgentService> Orchestrator<S> {
 
         let mut context = self.conversation.context.clone().unwrap_or_default();
 
-        // attach the conversation ID to the context
-        context = context.conversation_id(self.conversation.id);
-
-        // Reset all the available tools
-        context = context.tools(self.tool_definitions.clone());
-
         // Create agent reference for the rest of the method
         let agent = &self.agent;
-
-        if let Some(temperature) = agent.temperature {
-            context = context.temperature(temperature);
-        }
-
-        if let Some(top_p) = agent.top_p {
-            context = context.top_p(top_p);
-        }
-
-        if let Some(top_k) = agent.top_k {
-            context = context.top_k(top_k);
-        }
-
-        if let Some(max_tokens) = agent.max_tokens {
-            context = context.max_tokens(max_tokens.value() as usize);
-        }
-
-        if let Some(reasoning) = agent.reasoning.as_ref() {
-            context = context.reasoning(reasoning.clone());
-        }
 
         // Signals that the loop should suspend (task may or may not be completed)
         let mut should_yield = false;

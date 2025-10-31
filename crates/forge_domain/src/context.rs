@@ -12,8 +12,8 @@ use crate::temperature::Temperature;
 use crate::top_k::TopK;
 use crate::top_p::TopP;
 use crate::{
-    Attachment, AttachmentContent, ConversationId, EventValue, Image, ModelId, ReasoningFull,
-    ToolChoice, ToolDefinition, ToolOutput, ToolValue, Usage,
+    Agent, Attachment, AttachmentContent, ConversationId, EventValue, Image, ModelId,
+    ReasoningFull, ToolChoice, ToolDefinition, ToolOutput, ToolValue, Usage,
 };
 
 /// Represents a message being sent to the LLM provider
@@ -392,6 +392,31 @@ impl Context {
             }
             self
         }
+    }
+
+    pub fn apply_from_agent(self, agent: &Agent) -> Self {
+        let mut context = self;
+        if let Some(temperature) = agent.temperature {
+            context = context.temperature(temperature);
+        }
+
+        if let Some(top_p) = agent.top_p {
+            context = context.top_p(top_p);
+        }
+
+        if let Some(top_k) = agent.top_k {
+            context = context.top_k(top_k);
+        }
+
+        if let Some(max_tokens) = agent.max_tokens {
+            context = context.max_tokens(max_tokens.value() as usize);
+        }
+
+        if let Some(reasoning) = agent.reasoning.as_ref() {
+            context = context.reasoning(reasoning.clone());
+        }
+
+        context
     }
 
     /// Converts the context to textual format
