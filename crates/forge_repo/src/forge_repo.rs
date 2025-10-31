@@ -31,12 +31,12 @@ pub struct ForgeRepo<F> {
     infra: Arc<F>,
     file_snapshot_service: Arc<ForgeFileSnapshotService>,
     conversation_repository: Arc<ConversationRepositoryImpl>,
-    app_config_repository: Arc<AppConfigRepositoryImpl>,
+    app_config_repository: Arc<AppConfigRepositoryImpl<F>>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
 }
 
-impl<F: EnvironmentInfra + FileReaderInfra> ForgeRepo<F> {
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
     pub fn new(infra: Arc<F>) -> Self {
         let env = infra.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
@@ -45,9 +45,7 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeRepo<F> {
         let conversation_repository =
             Arc::new(ConversationRepositoryImpl::new(db_pool, env.workspace_id()));
 
-        let app_config_repository = Arc::new(AppConfigRepositoryImpl::new(
-            env.app_config().as_path().to_path_buf(),
-        ));
+        let app_config_repository = Arc::new(AppConfigRepositoryImpl::new(infra.clone()));
 
         let mcp_cache_repository = Arc::new(CacacheStorage::new(
             env.cache_dir().join("mcp_cache"),
@@ -120,7 +118,9 @@ impl<F: EnvironmentInfra + FileReaderInfra + Send + Sync> ProviderRepository for
 }
 
 #[async_trait::async_trait]
-impl<F: Send + Sync> AppConfigRepository for ForgeRepo<F> {
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> AppConfigRepository
+    for ForgeRepo<F>
+{
     async fn get_app_config(&self) -> anyhow::Result<AppConfig> {
         self.app_config_repository.get_app_config().await
     }

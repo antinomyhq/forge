@@ -1,39 +1,51 @@
-use std::path::PathBuf;
 use std::sync::Arc;
 
+use bytes::Bytes;
+use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra};
 use forge_domain::{AppConfig, AppConfigRepository};
-use forge_fs::ForgeFS;
 use tokio::sync::Mutex;
 
-pub struct AppConfigRepositoryImpl {
-    pub config_path: PathBuf,
+/// Repository for managing application configuration with caching support.
+///
+/// This repository uses infrastructure traits for file I/O operations and
+/// maintains an in-memory cache to reduce file system access. The configuration
+/// file path is automatically inferred from the environment.
+pub struct AppConfigRepositoryImpl<F> {
+    infra: Arc<F>,
     cache: Arc<Mutex<Option<AppConfig>>>,
 }
 
-impl AppConfigRepositoryImpl {
-    pub fn new(config_path: PathBuf) -> Self {
-        Self { config_path, cache: Arc::new(Mutex::new(None)) }
+impl<F> AppConfigRepositoryImpl<F> {
+    pub fn new(infra: Arc<F>) -> Self {
+        Self { infra, cache: Arc::new(Mutex::new(None)) }
     }
+}
 
+impl<F: EnvironmentInfra + FileReaderInfra> AppConfigRepositoryImpl<F> {
     async fn read_inner(&self) -> anyhow::Result<AppConfig> {
-        let path = &self.config_path;
-        let content = ForgeFS::read_utf8(&path).await?;
+        let path = self.infra.get_environment().app_config();
+        let content = self.infra.read_utf8(&path).await?;
         Ok(serde_json::from_str(&content)?)
     }
 
     async fn read(&self) -> AppConfig {
         self.read_inner().await.unwrap_or_default()
     }
+}
 
+impl<F: EnvironmentInfra + FileWriterInfra> AppConfigRepositoryImpl<F> {
     async fn write(&self, config: &AppConfig) -> anyhow::Result<()> {
+        let path = self.infra.get_environment().app_config();
         let content = serde_json::to_string_pretty(config)?;
-        ForgeFS::write(&self.config_path, content).await?;
+        self.infra.write(&path, Bytes::from(content)).await?;
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl AppConfigRepository for AppConfigRepositoryImpl {
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> AppConfigRepository
+    for AppConfigRepositoryImpl<F>
+{
     async fn get_app_config(&self) -> anyhow::Result<AppConfig> {
         // Check cache first
         let cache = self.cache.lock().await;
@@ -66,121 +78,191 @@ impl AppConfigRepository for AppConfigRepositoryImpl {
 #[cfg(test)]
 mod tests {
 
-    use forge_domain::AppConfig;
+    use std::collections::HashMap;
+    use std::path::{Path, PathBuf};
+    use std::sync::Mutex;
+
+    use bytes::Bytes;
+    use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra};
+    use forge_domain::{AppConfig, Environment};
     use pretty_assertions::assert_eq;
     use tempfile::TempDir;
 
     use super::*;
 
-    fn repository_fixture() -> anyhow::Result<(AppConfigRepositoryImpl, TempDir)> {
-        let temp_dir = tempfile::tempdir()?;
-        let config_path = temp_dir.path().join(".config.json");
-        Ok((AppConfigRepositoryImpl::new(config_path), temp_dir))
+    /// Mock infrastructure for testing that stores files in memory
+    #[derive(Clone)]
+    struct MockInfra {
+        files: Arc<Mutex<HashMap<PathBuf, String>>>,
+        config_path: PathBuf,
     }
 
-    fn repository_with_config_fixture() -> anyhow::Result<(AppConfigRepositoryImpl, TempDir)> {
-        let temp_dir = tempfile::tempdir()?;
+    impl MockInfra {
+        fn new(config_path: PathBuf) -> Self {
+            Self { files: Arc::new(Mutex::new(HashMap::new())), config_path }
+        }
+    }
+
+    impl EnvironmentInfra for MockInfra {
+        fn get_environment(&self) -> Environment {
+            use fake::{Fake, Faker};
+            let env: Environment = Faker.fake();
+            env.base_path(self.config_path.parent().unwrap().to_path_buf())
+        }
+
+        fn get_env_var(&self, _key: &str) -> Option<String> {
+            None
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl FileReaderInfra for MockInfra {
+        async fn read_utf8(&self, path: &Path) -> anyhow::Result<String> {
+            self.files
+                .lock()
+                .unwrap()
+                .get(path)
+                .cloned()
+                .ok_or_else(|| anyhow::anyhow!("File not found"))
+        }
+
+        async fn read(&self, _path: &Path) -> anyhow::Result<Vec<u8>> {
+            unimplemented!()
+        }
+
+        async fn range_read_utf8(
+            &self,
+            _path: &Path,
+            _start_line: u64,
+            _end_line: u64,
+        ) -> anyhow::Result<(String, forge_domain::FileInfo)> {
+            unimplemented!()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl FileWriterInfra for MockInfra {
+        async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()> {
+            let content = String::from_utf8(contents.to_vec())?;
+            self.files
+                .lock()
+                .unwrap()
+                .insert(path.to_path_buf(), content);
+            Ok(())
+        }
+
+        async fn write_temp(&self, _: &str, _: &str, _: &str) -> anyhow::Result<PathBuf> {
+            unimplemented!()
+        }
+    }
+
+    fn repository_fixture() -> (AppConfigRepositoryImpl<MockInfra>, TempDir) {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_path = temp_dir.path().join(".config.json");
+        let infra = Arc::new(MockInfra::new(config_path));
+        (AppConfigRepositoryImpl::new(infra), temp_dir)
+    }
+
+    fn repository_with_config_fixture() -> (AppConfigRepositoryImpl<MockInfra>, TempDir) {
+        let temp_dir = tempfile::tempdir().unwrap();
         let config_path = temp_dir.path().join(".config.json");
 
         // Create a config file with default config
         let config = AppConfig::default();
-        let content = serde_json::to_string_pretty(&config)?;
-        std::fs::write(&config_path, content)?;
+        let content = serde_json::to_string_pretty(&config).unwrap();
 
-        Ok((AppConfigRepositoryImpl::new(config_path), temp_dir))
+        let infra = Arc::new(MockInfra::new(config_path.clone()));
+        infra.files.lock().unwrap().insert(config_path, content);
+
+        (AppConfigRepositoryImpl::new(infra), temp_dir)
     }
 
     #[tokio::test]
-    async fn test_get_app_config_exists() -> anyhow::Result<()> {
+    async fn test_get_app_config_exists() {
         let expected = AppConfig::default();
-        let (repo, _temp_dir) = repository_with_config_fixture()?;
+        let (repo, _temp_dir) = repository_with_config_fixture();
 
-        let actual = repo.get_app_config().await?;
+        let actual = repo.get_app_config().await.unwrap();
 
         assert_eq!(actual, expected);
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_get_app_config_not_exists() -> anyhow::Result<()> {
-        let (repo, _temp_dir) = repository_fixture()?;
+    async fn test_get_app_config_not_exists() {
+        let (repo, _temp_dir) = repository_fixture();
 
-        let actual = repo.get_app_config().await?;
+        let actual = repo.get_app_config().await.unwrap();
 
         // Should return default config when file doesn't exist
         let expected = AppConfig::default();
         assert_eq!(actual, expected);
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_set_app_config() -> anyhow::Result<()> {
+    async fn test_set_app_config() {
         let fixture = AppConfig::default();
-        let (repo, _temp_dir) = repository_fixture()?;
+        let (repo, _temp_dir) = repository_fixture();
 
         let actual = repo.set_app_config(&fixture).await;
 
         assert!(actual.is_ok());
 
         // Verify the config was actually written by reading it back
-        let read_config = repo.get_app_config().await?;
+        let read_config = repo.get_app_config().await.unwrap();
         assert_eq!(read_config, fixture);
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_cache_behavior() -> anyhow::Result<()> {
-        let (repo, _temp_dir) = repository_with_config_fixture()?;
+    async fn test_cache_behavior() {
+        let (repo, _temp_dir) = repository_with_config_fixture();
 
         // First read should populate cache
-        let first_read = repo.get_app_config().await?;
+        let first_read = repo.get_app_config().await.unwrap();
 
         // Second read should use cache (no file system access)
-        let second_read = repo.get_app_config().await?;
+        let second_read = repo.get_app_config().await.unwrap();
         assert_eq!(first_read, second_read);
 
         // Write new config should bust cache
         let new_config = AppConfig::default();
-        repo.set_app_config(&new_config).await?;
+        repo.set_app_config(&new_config).await.unwrap();
 
         // Next read should get fresh data
-        let third_read = repo.get_app_config().await?;
+        let third_read = repo.get_app_config().await.unwrap();
         assert_eq!(third_read, new_config);
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_read_handles_invalid_provider_gracefully() -> anyhow::Result<()> {
+    async fn test_read_handles_invalid_provider_gracefully() {
         let fixture = r#"{
             "provider": "xyz",
             "model": {}
         }"#;
-        let temp_dir = tempfile::tempdir()?;
+        let temp_dir = tempfile::tempdir().unwrap();
         let config_path = temp_dir.path().join(".config.json");
-        std::fs::write(&config_path, fixture)?;
-        let repo = AppConfigRepositoryImpl::new(config_path.clone());
 
-        let actual = repo.get_app_config().await?;
+        let infra = Arc::new(MockInfra::new(config_path.clone()));
+        infra
+            .files
+            .lock()
+            .unwrap()
+            .insert(config_path, fixture.to_string());
+
+        let repo = AppConfigRepositoryImpl::new(infra);
+
+        let actual = repo.get_app_config().await.unwrap();
 
         let expected = AppConfig::default();
         assert_eq!(actual, expected);
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_read_returns_default_if_not_exists() -> anyhow::Result<()> {
-        let (repo, _temp_dir) = repository_fixture()?;
+    async fn test_read_returns_default_if_not_exists() {
+        let (repo, _temp_dir) = repository_fixture();
 
-        // File should not exist initially
-        assert!(!repo.config_path.exists());
-
-        let config = repo.get_app_config().await?;
+        let config = repo.get_app_config().await.unwrap();
 
         // Config should be the default
         assert_eq!(config, AppConfig::default());
-
-        Ok(())
     }
 }
