@@ -420,17 +420,6 @@ impl<S: AgentService> Orchestrator<S> {
             .ok_or(Error::MissingModel(self.agent.id.clone()))?)
     }
 
-    /// Adds externally changed files notification to the context
-    fn add_externally_changed_files(&self, context: Context, model_id: &ModelId) -> Context {
-        if let Some(rendered_message) = &self.changed_files {
-            return context.add_message(ContextMessage::user(
-                rendered_message.clone(),
-                model_id.clone().into(),
-            ));
-        }
-        context
-    }
-
     /// Creates a join handle which eventually resolves with the conversation
     /// title
     fn generate_title(&self, model: ModelId) -> JoinHandle<Option<String>> {
