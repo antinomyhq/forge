@@ -104,9 +104,7 @@ impl Runner {
             services.clone(),
             setup.env.clone(),
             conversation,
-            agent
-                .apply_workflow_config(&setup.workflow)
-                .set_model_deeply(setup.model.clone()),
+            agent,
             event,
         )
         .error_tracker(ToolErrorTracker::new(3))
