@@ -1,21 +1,26 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use chrono::Local;
 use forge_domain::*;
 use forge_stream::MpscStream;
 
+use crate::apply_tunable_parameters::ApplyTunableParameters;
 use crate::authenticator::Authenticator;
+use crate::changed_files::ChangedFiles;
 use crate::dto::{InitAuth, ToolsOverview};
+use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
 use crate::services::{CustomInstructionsService, TemplateService};
+use crate::set_conversation_id::SetConversationId;
+use crate::system_prompt::SystemPrompt;
 use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
+use crate::user_prompt::UserPromptGenerator;
 use crate::{
-    AgentLoaderService, AttachmentService, CommandLoaderService, ConversationService,
-    EnvironmentService, FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker,
-    WorkflowService,
+    AgentRegistry, ConversationService, EnvironmentService, FileDiscoveryService, ProviderRegistry,
+    ProviderService, Services, Walker, WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -41,7 +46,8 @@ impl<S: Services> ForgeApp<S> {
     /// This method contains the core chat logic extracted from ForgeAPI.
     pub async fn chat(
         &self,
-        mut chat: ChatRequest,
+        agent_id: AgentId,
+        chat: ChatRequest,
     ) -> Result<MpscStream<Result<ChatResponse, anyhow::Error>>> {
         let services = self.services.clone();
 
@@ -51,12 +57,6 @@ impl<S: Services> ForgeApp<S> {
             .await
             .unwrap_or_default()
             .expect("conversation for the request should've been created at this point.");
-
-        let provider = services
-            .get_active_provider()
-            .await
-            .context("Failed to get provider")?;
-        let models = services.models(provider).await?;
 
         // Discover files using the discovery service
         let workflow = self.services.read_merged(None).await.unwrap_or_default();
@@ -87,28 +87,24 @@ impl<S: Services> ForgeApp<S> {
 
         services.register_template(template_path).await?;
 
-        // Always try to get attachments and overwrite them
-        if let Some(value) = chat.event.value.as_ref() {
-            let attachments = services.attachments(&value.to_string()).await?;
-            chat.event = chat.event.attachments(attachments);
-        }
-
         let custom_instructions = services.get_custom_instructions().await;
 
-        // Prepare agents with user configuration and subscriptions
-        let agents = services.get_agents().await?;
-        let model = services.get_active_model().await?;
-        let commands = services.get_commands().await?;
-        let agent = agents
+        // Prepare agents with user configuration
+        let active_model = self.get_model(Some(agent_id.clone())).await?;
+        let agent = services
+            .get_agents()
+            .await?
             .into_iter()
             .map(|agent| {
                 agent
                     .apply_workflow_config(&workflow)
-                    .set_model_deeply(model.clone())
-                    .subscribe_commands(&commands)
+                    .set_model_deeply(active_model.clone())
             })
-            .find(|agent| agent.has_subscription(&chat.event.name))
-            .ok_or(crate::Error::UnsubscribedEvent(chat.event.name.to_owned()))?;
+            .find(|agent| agent.id == agent_id)
+            .ok_or(crate::Error::AgentNotFound(agent_id))?;
+
+        let agent_provider = self.get_provider(Some(agent.id.clone())).await?;
+        let models = services.models(agent_provider).await?;
 
         // Get system and mcp tool definitions and resolve them for the agent
         let all_tool_definitions = self.tool_registry.list().await?;
@@ -117,26 +113,48 @@ impl<S: Services> ForgeApp<S> {
             tool_resolver.resolve(&agent).into_iter().cloned().collect();
         let max_tool_failure_per_turn = agent.max_tool_failure_per_turn.unwrap_or(3);
 
+        let current_time = Local::now();
+
+        // Insert system prompt
+        let conversation =
+            SystemPrompt::new(self.services.clone(), environment.clone(), agent.clone())
+                .custom_instructions(custom_instructions.clone())
+                .tool_definitions(tool_definitions.clone())
+                .models(models.clone())
+                .files(files.clone())
+                .add_system_message(conversation)
+                .await?;
+
+        // Insert user prompt
+        let conversation = UserPromptGenerator::new(
+            self.services.clone(),
+            agent.clone(),
+            chat.event.clone(),
+            current_time,
+        )
+        .add_user_prompt(conversation)
+        .await?;
+
         // Detect and render externally changed files notification
-        let rendered_changed_files = crate::changed_files::ChangedFiles::new(services.clone())
-            .detect_and_render(&mut conversation)
+        let conversation = ChangedFiles::new(services.clone(), agent.clone())
+            .detect_externally_modified_files(conversation)
             .await;
+
+        let conversation = InitConversationMetrics::new(current_time).apply(conversation);
+        let conversation = ApplyTunableParameters::new(agent.clone()).apply(conversation);
+        let conversation = SetConversationId.apply(conversation);
 
         // Create the orchestrator with all necessary dependencies
         let orch = Orchestrator::new(
             services.clone(),
             environment.clone(),
             conversation,
-            Local::now(),
             agent,
             chat.event,
         )
         .error_tracker(ToolErrorTracker::new(max_tool_failure_per_turn))
-        .custom_instructions(custom_instructions)
         .tool_definitions(tool_definitions)
-        .models(models)
-        .files(files)
-        .changed_files(rendered_changed_files);
+        .models(models);
 
         // Create and return the stream
         let stream = MpscStream::spawn(
@@ -192,15 +210,15 @@ impl<S: Services> ForgeApp<S> {
         // Calculate original metrics
         let original_messages = context.messages.len();
         let original_token_count = *context.token_count();
-        let model = self.services.get_active_model().await?;
+        let active_agent_id = self.services.get_active_agent_id().await?;
+        let model = self.get_model(active_agent_id.clone()).await?;
         let workflow = self.services.read_merged(None).await.unwrap_or_default();
-        let active_agent = self.services.get_active_agent().await?;
         let Some(compact) = self
             .services
             .get_agents()
             .await?
             .into_iter()
-            .find(|agent| active_agent.as_ref().is_some_and(|id| agent.id == *id))
+            .find(|agent| active_agent_id.as_ref().is_some_and(|id| agent.id == *id))
             .and_then(|agent| {
                 agent
                     .apply_workflow_config(&workflow)
@@ -259,5 +277,30 @@ impl<S: Services> ForgeApp<S> {
     }
     pub async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> Result<()> {
         self.services.write_workflow(path, workflow).await
+    }
+
+    pub async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider> {
+        if let Some(agent) = agent
+            && let Some(agent) = self.services.get_agent(&agent).await?
+            && let Some(provider_id) = agent.provider
+        {
+            return self.services.get_provider(provider_id).await;
+        }
+
+        // Fall back to original logic if there is no agent
+        // set yet.
+        self.services.get_default_provider().await
+    }
+
+    /// Gets the model for the specified agent, or the default model if no agent
+    /// is provided
+    pub async fn get_model(&self, agent_id: Option<AgentId>) -> anyhow::Result<ModelId> {
+        let provider_id = self.get_provider(agent_id).await?.id;
+        self.services.get_default_model(&provider_id).await
+    }
+
+    pub async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
+        let provider_id = self.get_provider(None).await?.id;
+        self.services.set_default_model(model, provider_id).await
     }
 }

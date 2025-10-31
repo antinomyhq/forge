@@ -74,6 +74,20 @@ impl Porcelain {
             })
         })
     }
+
+    pub fn swap_cols(self, col1: usize, col2: usize) -> Self {
+        Porcelain(
+            self.0
+                .into_iter()
+                .map(|mut row| {
+                    if row.len() > col1.max(col2) {
+                        row.swap(col1, col2);
+                    }
+                    row
+                })
+                .collect(),
+        )
+    }
     #[allow(unused)]
     pub fn into_body(self) -> Vec<Vec<Option<String>>> {
         // Skip headers and return
@@ -180,7 +194,7 @@ impl fmt::Display for Porcelain {
                 } else {
                     // Pad to column width
                     line.push_str(&format!("{:<width$}", content, width = col_widths[i]));
-                    line.push(' ');
+                    line.push_str("  ");
                 }
             }
             lines.push(line);
@@ -390,6 +404,31 @@ mod tests {
     }
 
     #[test]
+    fn test_swap_cols() {
+        let info = Porcelain(vec![
+            vec![
+                Some("user1".into()),
+                Some("Alice".into()),
+                Some("30".into()),
+            ],
+            vec![Some("user2".into()), Some("Bob".into()), Some("25".into())],
+        ]);
+
+        let actual = info.swap_cols(0, 1).into_rows();
+
+        let expected = vec![
+            vec![
+                Some("Alice".into()),
+                Some("user1".into()),
+                Some("30".into()),
+            ],
+            vec![Some("Bob".into()), Some("user2".into()), Some("25".into())],
+        ];
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
     fn test_into_long() {
         let info = Info::new()
             .add_title("env")
@@ -536,9 +575,9 @@ mod tests {
         let actual = info.to_string();
         let expected = [
             //
-            "$ID   name  age",
-            "user1 Alice 30",
-            "user2 Bob   25",
+            "$ID    name   age",
+            "user1  Alice  30",
+            "user2  Bob    25",
         ]
         .join("\n");
 
@@ -560,9 +599,9 @@ mod tests {
         let actual = info.to_string();
         let expected = [
             //
-            "$ID   name  age",
-            "user1 Alice 30",
-            "user2       25",
+            "$ID    name   age",
+            "user1  Alice  30",
+            "user2         25",
         ]
         .join("\n");
 

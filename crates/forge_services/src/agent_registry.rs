@@ -37,17 +37,25 @@ pub struct AgentLoaderService<F> {
     // for this service instance.
     // So that they could live till user starts a new session.
     cache: tokio::sync::OnceCell<Vec<Agent>>,
+
+    // In-memory storage for the active agent ID
+    // This is NOT persisted to disk
+    active_agent_id: tokio::sync::RwLock<Option<forge_app::domain::AgentId>>,
 }
 
 impl<F> AgentLoaderService<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        Self { infra, cache: Default::default() }
+        Self {
+            infra,
+            cache: Default::default(),
+            active_agent_id: tokio::sync::RwLock::new(None),
+        }
     }
 }
 
 #[async_trait::async_trait]
 impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
-    forge_app::AgentLoaderService for AgentLoaderService<F>
+    forge_app::AgentRegistry for AgentLoaderService<F>
 {
     /// Load all agent definitions from all available sources with conflict
     /// resolution.
@@ -62,6 +70,39 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
     /// built-in agents.
     async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
         self.cache_or_init().await
+    }
+
+    async fn get_agent(
+        &self,
+        agent_id: &forge_app::domain::AgentId,
+    ) -> anyhow::Result<Option<Agent>> {
+        let agents = self.get_agents().await?;
+        Ok(agents.into_iter().find(|agent| &agent.id == agent_id))
+    }
+
+    async fn get_active_agent(&self) -> anyhow::Result<Option<Agent>> {
+        let agent_id = self.active_agent_id.read().await;
+
+        if let Some(ref id) = *agent_id {
+            let agents = self.get_agents().await?;
+            Ok(agents.into_iter().find(|agent| &agent.id == id))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn get_active_agent_id(&self) -> anyhow::Result<Option<forge_app::domain::AgentId>> {
+        let agent_id = self.active_agent_id.read().await;
+        Ok(agent_id.clone())
+    }
+
+    async fn set_active_agent_id(
+        &self,
+        agent_id: forge_app::domain::AgentId,
+    ) -> anyhow::Result<()> {
+        let mut active_agent = self.active_agent_id.write().await;
+        *active_agent = Some(agent_id);
+        Ok(())
     }
 }
 

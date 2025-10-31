@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_app::TemplateService;
+use forge_domain::Template;
 use futures::future;
 use handlebars::{Handlebars, no_escape};
 use rust_embed::Embed;
@@ -120,13 +121,16 @@ impl<F: EnvironmentInfra + FileReaderInfra> TemplateService for ForgeTemplateSer
         Ok(())
     }
 
-    async fn render_template(
+    async fn render_template<V: serde::Serialize + Send + Sync>(
         &self,
-        template: impl ToString + Send,
-        object: &(impl serde::Serialize + Sync),
+        template: Template<V>,
+        object: &V,
     ) -> anyhow::Result<String> {
-        let template = template.to_string();
-        let rendered = self.hb.read().await.render_template(&template, object)?;
+        let rendered = self
+            .hb
+            .read()
+            .await
+            .render_template(&template.template, object)?;
         Ok(rendered)
     }
 }
@@ -151,7 +155,10 @@ mod tests {
 
         // Actual: Render a simple template
         let template = "App: {{name}} v{{version}} - Features: {{#each features}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}";
-        let actual = service.render_template(template, &data).await.unwrap();
+        let actual = service
+            .render_template(Template::new(template), &data)
+            .await
+            .unwrap();
 
         // Expected: Result should match the expected string
         let expected = "App: Forge v1.0 - Features: templates, rendering, handlebars";
@@ -178,7 +185,7 @@ mod tests {
 
         // Actual: Render the partial-system-info template
         let actual = service
-            .render_template("{{> forge-partial-system-info.md }}", &data)
+            .render_template(Template::new("{{> forge-partial-system-info.md }}"), &data)
             .await
             .unwrap();
 

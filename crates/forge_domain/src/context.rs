@@ -12,8 +12,8 @@ use crate::temperature::Temperature;
 use crate::top_k::TopK;
 use crate::top_p::TopP;
 use crate::{
-    ConversationId, Image, ModelId, ReasoningFull, ToolChoice, ToolDefinition, ToolOutput,
-    ToolValue, Usage,
+    Attachment, AttachmentContent, ConversationId, EventValue, Image, ModelId, ReasoningFull,
+    ToolChoice, ToolDefinition, ToolOutput, ToolValue, Usage,
 };
 
 /// Represents a message being sent to the LLM provider
@@ -53,6 +53,16 @@ impl ContextMessage {
     pub fn content(&self) -> Option<&str> {
         match self {
             ContextMessage::Text(text_message) => Some(&text_message.content),
+            ContextMessage::Tool(_) => None,
+            ContextMessage::Image(_) => None,
+        }
+    }
+
+    /// Returns the raw content before template rendering (only for User
+    /// messages)
+    pub fn as_value(&self) -> Option<&EventValue> {
+        match self {
+            ContextMessage::Text(text_message) => text_message.raw_content.as_ref(),
             ContextMessage::Tool(_) => None,
             ContextMessage::Image(_) => None,
         }
@@ -133,6 +143,7 @@ impl ContextMessage {
         TextMessage {
             role: Role::User,
             content: content.to_string(),
+            raw_content: None,
             tool_calls: None,
             reasoning_details: None,
             model,
@@ -144,6 +155,7 @@ impl ContextMessage {
         TextMessage {
             role: Role::System,
             content: content.to_string(),
+            raw_content: None,
             tool_calls: None,
             model: None,
             reasoning_details: None,
@@ -161,6 +173,7 @@ impl ContextMessage {
         TextMessage {
             role: Role::Assistant,
             content: content.to_string(),
+            raw_content: None,
             tool_calls,
             reasoning_details,
             model: None,
@@ -240,6 +253,9 @@ fn reasoning_content_char_count(text_message: &TextMessage) -> usize {
 pub struct TextMessage {
     pub role: Role,
     pub content: String,
+    /// The raw content before any template rendering (only for User messages)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub raw_content: Option<EventValue>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_calls: Option<Vec<ToolCallFull>>,
     // note: this used to track model used for this message.
@@ -262,6 +278,7 @@ impl TextMessage {
         Self {
             role: Role::Assistant,
             content: content.to_string(),
+            raw_content: None,
             tool_calls: None,
             reasoning_details,
             model,
@@ -328,6 +345,24 @@ impl Context {
         self.messages.push(content);
 
         self
+    }
+
+    pub fn add_attachments(self, attachments: Vec<Attachment>, model_id: Option<ModelId>) -> Self {
+        attachments.into_iter().fold(self, |ctx, attachment| {
+            ctx.add_message(match attachment.content {
+                AttachmentContent::Image(image) => ContextMessage::Image(image),
+                AttachmentContent::FileContent { content, start_line, end_line, total_lines } => {
+                    let elm = Element::new("file_content")
+                        .attr("path", attachment.path)
+                        .attr("start_line", start_line)
+                        .attr("end_line", end_line)
+                        .attr("total_lines", total_lines)
+                        .cdata(content);
+
+                    ContextMessage::user(elm, model_id.clone())
+                }
+            })
+        })
     }
 
     pub fn add_tool_results(mut self, results: Vec<ToolResult>) -> Self {

@@ -5,7 +5,7 @@
     "url_param_vars": [],
     "response_type": "OpenAI",
     "url": "https://antinomy.ai/api/v1/chat/completions",
-    "model_url": "https://antinomy.ai/api/v1/models"
+    "models": "https://antinomy.ai/api/v1/models"
   },
   {
     "id": "open_router",
@@ -13,7 +13,7 @@
     "url_param_vars": [],
     "response_type": "OpenAI",
     "url": "https://openrouter.ai/api/v1/chat/completions",
-    "model_url": "https://openrouter.ai/api/v1/models"
+    "models": "https://openrouter.ai/api/v1/models"
   },
   {
     "id": "requesty",
@@ -21,7 +21,7 @@
     "url_param_vars": [],
     "response_type": "OpenAI",
     "url": "https://router.requesty.ai/v1/chat/completions",
-    "model_url": "https://router.requesty.ai/v1/models"
+    "models": "https://router.requesty.ai/v1/models"
   },
   {
     "id": "xai",
@@ -29,7 +29,7 @@
     "url_param_vars": [],
     "response_type": "OpenAI",
     "url": "https://api.x.ai/v1/chat/completions",
-    "model_url": "https://api.x.ai/v1/models"
+    "models": "https://api.x.ai/v1/models"
   },
   {
     "id": "openai",
@@ -37,7 +37,7 @@
     "url_param_vars": ["OPENAI_URL"],
     "response_type": "OpenAI",
     "url": "{{#if OPENAI_URL}}{{OPENAI_URL}}{{else}}https://api.openai.com/v1{{/if}}/chat/completions",
-    "model_url": "{{#if OPENAI_URL}}{{OPENAI_URL}}{{else}}https://api.openai.com/v1{{/if}}/models"
+    "models": "{{#if OPENAI_URL}}{{OPENAI_URL}}{{else}}https://api.openai.com/v1{{/if}}/models"
   },
   {
     "id": "anthropic",
@@ -45,7 +45,7 @@
     "url_param_vars": ["ANTHROPIC_URL"],
     "response_type": "Anthropic",
     "url": "{{ANTHROPIC_URL}}/messages",
-    "model_url": "{{ANTHROPIC_URL}}/models"
+    "models": "{{ANTHROPIC_URL}}/models"
   },
   {
     "id": "cerebras",
@@ -53,7 +53,7 @@
     "url_param_vars": [],
     "response_type": "OpenAI",
     "url": "https://api.cerebras.ai/v1/chat/completions",
-    "model_url": "https://api.cerebras.ai/v1/models"
+    "models": "https://api.cerebras.ai/v1/models"
   },
   {
     "id": "zai",
@@ -61,7 +61,71 @@
     "url_param_vars": [],
     "response_type": "OpenAI",
     "url": "https://api.z.ai/api/paas/v4/chat/completions",
-    "model_url": "https://api.z.ai/api/paas/v4/models"
+    "models": [
+      {
+        "id": "glm-4.6",
+        "name": "GLM-4.6",
+        "description": "Latest flagship model series, foundational models specifically designed for agent applications with 200K context window and 128K maximum output",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4.5",
+        "name": "GLM-4.5",
+        "description": "Advanced model with 128K context window and 96K maximum output, supports chain of thought",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4.5-air",
+        "name": "GLM-4.5-air",
+        "description": "Lightweight version of GLM-4.5 with 128K context window and optimized performance",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4.5-x",
+        "name": "GLM-4.5-x",
+        "description": "Extended version of GLM-4.5 with 128K context window and enhanced capabilities",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4.5-airx",
+        "name": "GLM-4.5-airx",
+        "description": "Optimized version of GLM-4.5 with 128K context window and balanced performance and capabilities",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4.5-flash",
+        "name": "GLM-4.5-flash",
+        "description": "Fast inference model with 128K context window for quick responses",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4-32b-0414-128k",
+        "name": "GLM-4-32B-0414-128K",
+        "description": "32B parameter model with 128K context window and 16K maximum output",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": false
+      }
+    ]
   },
   {
     "id": "zai_coding",
@@ -69,7 +133,71 @@
     "url_param_vars": [],
     "response_type": "OpenAI",
     "url": "https://api.z.ai/api/coding/paas/v4/chat/completions",
-    "model_url": "https://api.z.ai/api/paas/v4/models"
+    "models": [
+      {
+        "id": "glm-4.6",
+        "name": "GLM-4.6",
+        "description": "Latest flagship model series, foundational models specifically designed for agent applications with 200K context window and 128K maximum output",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4.5",
+        "name": "GLM-4.5",
+        "description": "Advanced model with 128K context window and 96K maximum output, supports chain of thought",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4.5-air",
+        "name": "GLM-4.5-air",
+        "description": "Lightweight version of GLM-4.5 with 128K context window and optimized performance",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4.5-x",
+        "name": "GLM-4.5-x",
+        "description": "Extended version of GLM-4.5 with 128K context window and enhanced capabilities",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4.5-airx",
+        "name": "GLM-4.5-airx",
+        "description": "Optimized version of GLM-4.5 with 128K context window and balanced performance and capabilities",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4.5-flash",
+        "name": "GLM-4.5-flash",
+        "description": "Fast inference model with 128K context window for quick responses",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4-32b-0414-128k",
+        "name": "GLM-4-32B-0414-128K",
+        "description": "32B parameter model with 128K context window and 16K maximum output",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": false
+      }
+    ]
   },
   {
     "id": "big_model",
@@ -77,7 +205,7 @@
     "url_param_vars": [],
     "response_type": "OpenAI",
     "url": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
-    "model_url": "https://open.bigmodel.cn/api/paas/v4/models"
+    "models": "https://open.bigmodel.cn/api/paas/v4/models"
   },
   {
     "id": "vertex_ai",
@@ -85,7 +213,7 @@
     "url_param_vars": ["PROJECT_ID", "LOCATION"],
     "response_type": "OpenAI",
     "url": "{{#if (eq LOCATION \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/chat/completions{{else}}https://{{LOCATION}}-aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/chat/completions{{/if}}",
-    "model_url": "{{#if (eq LOCATION \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/models{{else}}https://{{LOCATION}}-aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/models{{/if}}"
+    "models": "{{#if (eq LOCATION \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/models{{else}}https://{{LOCATION}}-aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/models{{/if}}"
   },
   {
     "id": "azure",
@@ -97,6 +225,6 @@
     ],
     "response_type": "OpenAI",
     "url": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/deployments/{{AZURE_DEPLOYMENT_NAME}}/chat/completions?api-version={{AZURE_API_VERSION}}",
-    "model_url": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/models?api-version={{AZURE_API_VERSION}}"
+    "models": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/models?api-version={{AZURE_API_VERSION}}"
   }
 ]

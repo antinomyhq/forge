@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use forge_domain::Conversation;
+use forge_domain::{Agent, ContextMessage, Conversation, Template};
 
 use crate::Services;
 use crate::agent::AgentService;
@@ -9,26 +9,27 @@ use crate::agent::AgentService;
 /// notifications
 pub struct ChangedFiles<S> {
     services: Arc<S>,
+    agent: Agent,
 }
 
 impl<S: Services> ChangedFiles<S> {
     /// Creates a new ChangedFiles
-    pub fn new(services: Arc<S>) -> Self {
-        Self { services }
+    pub fn new(services: Arc<S>, agent: Agent) -> Self {
+        Self { services, agent }
     }
 
     /// Detects externally changed files and renders a notification if changes
     /// are found. Updates file hashes in conversation metrics to prevent
     /// duplicate notifications.
-    pub async fn detect_and_render(&self, conversation: &mut Conversation) -> Option<String> {
+    pub async fn detect_externally_modified_files(&self, mut conversation: Conversation) -> Conversation {
         use crate::file_tracking::FileChangeDetector;
-
+        let mut context = conversation.context.take().unwrap_or_default();
         let changes = FileChangeDetector::new(self.services.clone())
             .detect(&conversation.metrics)
             .await;
 
         if changes.is_empty() {
-            return None;
+            return conversation;
         }
 
         // Update file hashes to prevent duplicate notifications
@@ -45,12 +46,20 @@ impl<S: Services> ChangedFiles<S> {
             .map(|change| change.path.display().to_string())
             .collect();
 
-        self.services
+        if let Ok(rendered_prompt) = self
+            .services
             .render(
-                "{{> forge-file-changes-notification.md }}",
+                Template::new("{{> forge-file-changes-notification.md }}"),
                 &serde_json::json!({ "files": file_paths }),
             )
             .await
-            .ok()
+        {
+            context = context.add_message(ContextMessage::user(
+                rendered_prompt,
+                self.agent.model.clone(),
+            ))
+        }
+
+        conversation.context(context)
     }
 }

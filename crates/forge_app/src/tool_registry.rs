@@ -4,7 +4,7 @@ use std::time::Duration;
 use anyhow::Context;
 use console::style;
 use forge_domain::{
-    Agent, AgentInput, ChatResponse, ChatResponseContent, ToolCallContext, ToolCallFull,
+    Agent, AgentId, AgentInput, ChatResponse, ChatResponseContent, ToolCallContext, ToolCallFull,
     ToolDefinition, ToolName, ToolOutput, ToolResult, Tools,
 };
 use futures::future::join_all;
@@ -74,15 +74,13 @@ impl<S: Services> ToolRegistry<S> {
             let agent_input = AgentInput::try_from(&input)?;
             let executor = self.agent_executor.clone();
             // NOTE: Agents should not timeout
-            let outputs = join_all(
-                agent_input
-                    .tasks
-                    .into_iter()
-                    .map(|task| executor.execute(input.name.to_string(), task, context)),
-            )
-            .await
-            .into_iter()
-            .collect::<anyhow::Result<Vec<_>>>()?;
+            let outputs =
+                join_all(agent_input.tasks.into_iter().map(|task| {
+                    executor.execute(AgentId::new(input.name.as_str()), task, context)
+                }))
+                .await
+                .into_iter()
+                .collect::<anyhow::Result<Vec<_>>>()?;
             Ok(ToolOutput::from(outputs.into_iter()))
         } else if self.mcp_executor.contains_tool(&input.name).await? {
             let output = self
