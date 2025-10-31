@@ -21,7 +21,10 @@ impl<S: Services> ChangedFiles<S> {
     /// Detects externally changed files and renders a notification if changes
     /// are found. Updates file hashes in conversation metrics to prevent
     /// duplicate notifications.
-    pub async fn detect_externally_modified_files(&self, mut conversation: Conversation) -> Conversation {
+    pub async fn detect_externally_modified_files(
+        &self,
+        mut conversation: Conversation,
+    ) -> Conversation {
         use crate::file_tracking::FileChangeDetector;
         let mut context = conversation.context.take().unwrap_or_default();
         let changes = FileChangeDetector::new(self.services.clone())
