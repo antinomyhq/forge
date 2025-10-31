@@ -71,7 +71,10 @@ impl<S: TemplateService + AttachmentService> UserPromptGenerator<S> {
                             &json!({"parameters": command.parameters.join(" ")}),
                         )
                         .await?;
-                    event_context.event(EventContextValue::new(self.event.name.clone(), rendered_prompt))
+                    event_context.event(EventContextValue::new(
+                        self.event.name.clone(),
+                        rendered_prompt,
+                    ))
                 }
                 None => event_context,
             };

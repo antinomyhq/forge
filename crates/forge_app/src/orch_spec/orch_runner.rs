@@ -2,16 +2,17 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use forge_domain::{
-    Attachment, ChatCompletionMessage, ChatResponse, Conversation, ConversationId, Event, ProviderId, ToolCallFull, ToolErrorTracker, ToolResult
+    Attachment, ChatCompletionMessage, ChatResponse, Conversation, ConversationId, Event,
+    ProviderId, ToolCallFull, ToolErrorTracker, ToolResult,
 };
 use handlebars::{Handlebars, no_escape};
 use rust_embed::Embed;
 use tokio::sync::Mutex;
 
 pub use super::orch_setup::TestContext;
-use crate::{AgentService, AttachmentService, TemplateService};
 use crate::orch::Orchestrator;
 use crate::user_prompt::UserPromptGenerator;
+use crate::{AgentService, AttachmentService, TemplateService};
 
 #[derive(Embed)]
 #[folder = "../../templates/"]
@@ -81,9 +82,14 @@ impl Runner {
             .set_model_deeply(setup.model.clone());
 
         // Render user prompt into context.
-        let conversation =
-            UserPromptGenerator::new(services.clone(), agent.clone(), event.clone(), setup.current_time)
-                .add_user_prompt(conversation).await?;
+        let conversation = UserPromptGenerator::new(
+            services.clone(),
+            agent.clone(),
+            event.clone(),
+            setup.current_time,
+        )
+        .add_user_prompt(conversation)
+        .await?;
 
         let orch = Orchestrator::new(
             services.clone(),

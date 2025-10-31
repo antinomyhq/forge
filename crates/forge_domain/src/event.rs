@@ -98,13 +98,9 @@ pub struct EventContextValue {
 
 impl EventContextValue {
     pub fn new<S: Into<String>>(name: S, value: S) -> Self {
-        Self {
-            name: name.into(),
-            value: value.into(),
-        }
+        Self { name: name.into(), value: value.into() }
     }
 }
-
 
 impl EventContext {
     pub fn new(event: impl Into<EventContextValue>) -> Self {
