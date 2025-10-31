@@ -33,12 +33,7 @@ impl Default for ForgeFileWriteService {
 
 #[async_trait::async_trait]
 impl FileWriterInfra for ForgeFileWriteService {
-    async fn write(
-        &self,
-        path: &Path,
-        contents: Bytes,
-        _capture_snapshot: bool,
-    ) -> anyhow::Result<()> {
+    async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()> {
         self.create_parent_dirs(path).await?;
         Ok(forge_fs::ForgeFS::write(path, contents.to_vec()).await?)
     }
@@ -53,7 +48,7 @@ impl FileWriterInfra for ForgeFileWriteService {
             .to_path_buf();
 
         self.create_parent_dirs(&path).await?;
-        self.write(&path, content.to_string().into(), false).await?;
+        self.write(&path, content.to_string().into()).await?;
 
         Ok(path)
     }
@@ -81,11 +76,7 @@ mod tests {
             .join("test.txt");
 
         let actual = service
-            .write(
-                &nested_file_path,
-                Bytes::from_static("foo".as_bytes()),
-                false,
-            )
+            .write(&nested_file_path, Bytes::from_static("foo".as_bytes()))
             .await;
 
         assert!(actual.is_ok());

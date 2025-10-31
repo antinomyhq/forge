@@ -224,13 +224,8 @@ impl<F> FileWriterInfra for ForgeRepo<F>
 where
     F: FileWriterInfra + Send + Sync,
 {
-    async fn write(
-        &self,
-        path: &Path,
-        contents: Bytes,
-        capture_snapshot: bool,
-    ) -> anyhow::Result<()> {
-        self.infra.write(path, contents, capture_snapshot).await
+    async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()> {
+        self.infra.write(path, contents).await
     }
     async fn write_temp(&self, prefix: &str, ext: &str, content: &str) -> anyhow::Result<PathBuf> {
         self.infra.write_temp(prefix, ext, content).await

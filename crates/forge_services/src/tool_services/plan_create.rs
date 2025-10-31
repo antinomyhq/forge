@@ -67,7 +67,7 @@ impl<
 
         // Write the plan file
         self.0
-            .write(&file_path, Bytes::from(content), true)
+            .write(&file_path, Bytes::from(content))
             .await
             .with_context(|| format!("Failed to write plan file: {}", file_path.display()))?;
 

@@ -42,7 +42,6 @@ impl<
         path: String,
         content: String,
         overwrite: bool,
-        capture_snapshot: bool,
     ) -> anyhow::Result<FsCreateOutput> {
         let path = Path::new(&path);
         assert_absolute_path(path)?;
@@ -75,16 +74,13 @@ impl<
             None
         };
 
-        // SNAPSHOT COORDINATION: Capture snapshot before writing if requested and file
-        // exists
-        if file_exists && capture_snapshot {
+        // SNAPSHOT COORDINATION: Capture snapshot before writing if file exists
+        if file_exists {
             self.infra.insert_snapshot(path).await?;
         }
 
         // Write file only after validation passes and directories are created
-        self.infra
-            .write(path, Bytes::from(content), false) // Pass false since we handle snapshots above
-            .await?;
+        self.infra.write(path, Bytes::from(content)).await?;
 
         Ok(FsCreateOutput {
             path: path.display().to_string(),

@@ -275,7 +275,6 @@ pub trait FsCreateService: Send + Sync {
         path: String,
         content: String,
         overwrite: bool,
-        capture_snapshot: bool,
     ) -> anyhow::Result<FsCreateOutput>;
 }
 
@@ -621,10 +620,9 @@ impl<I: Services> FsCreateService for I {
         path: String,
         content: String,
         overwrite: bool,
-        capture_snapshot: bool,
     ) -> anyhow::Result<FsCreateOutput> {
         self.fs_create_service()
-            .create(path, content, overwrite, capture_snapshot)
+            .create(path, content, overwrite)
             .await
     }
 }

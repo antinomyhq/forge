@@ -254,12 +254,7 @@ pub mod tests {
 
     #[async_trait::async_trait]
     impl FileWriterInfra for MockFileService {
-        async fn write(
-            &self,
-            path: &Path,
-            contents: Bytes,
-            _capture_snapshot: bool,
-        ) -> anyhow::Result<()> {
+        async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()> {
             let index = self.files.lock().unwrap().iter().position(|v| v.0 == path);
             if let Some(index) = index {
                 self.files.lock().unwrap().remove(index);
@@ -275,7 +270,7 @@ pub mod tests {
             let temp_dir = crate::utils::TempDir::new().unwrap();
             let path = temp_dir.path();
 
-            self.write(&path, content.to_string().into(), false).await?;
+            self.write(&path, content.to_string().into()).await?;
 
             Ok(path)
         }

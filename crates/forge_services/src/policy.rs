@@ -104,7 +104,7 @@ where
 
         // Write the updated content
         self.infra
-            .write(&policies_path, Bytes::from(new_content.to_owned()), true)
+            .write(&policies_path, Bytes::from(new_content.to_owned()))
             .await?;
 
         Ok(())
@@ -126,7 +126,7 @@ where
 
         // Write the default policies to the file
         self.infra
-            .write(&policies_path, Bytes::from(content), false)
+            .write(&policies_path, Bytes::from(content))
             .await?;
 
         Ok(())

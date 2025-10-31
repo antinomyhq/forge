@@ -106,15 +106,8 @@ impl FileReaderInfra for ForgeInfra {
 
 #[async_trait::async_trait]
 impl FileWriterInfra for ForgeInfra {
-    async fn write(
-        &self,
-        path: &Path,
-        contents: Bytes,
-        capture_snapshot: bool,
-    ) -> anyhow::Result<()> {
-        self.file_write_service
-            .write(path, contents, capture_snapshot)
-            .await
+    async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()> {
+        self.file_write_service.write(path, contents).await
     }
 
     async fn write_temp(&self, prefix: &str, ext: &str, content: &str) -> anyhow::Result<PathBuf> {

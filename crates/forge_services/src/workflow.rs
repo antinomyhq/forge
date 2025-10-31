@@ -64,7 +64,7 @@ impl<F: FileWriterInfra + FileReaderInfra> ForgeWorkflowService<F> {
         if !path.exists() {
             let workflow = Workflow::new();
             self.infra
-                .write(path, self.serialize_workflow(&workflow)?.into(), true)
+                .write(path, self.serialize_workflow(&workflow)?.into())
                 .await?;
 
             Ok(workflow)
@@ -105,7 +105,7 @@ impl<F: FileWriterInfra + FileReaderInfra> WorkflowService for ForgeWorkflowServ
         let resolved_path = self.resolve_path(Some(path_buf)).await;
 
         let content = self.serialize_workflow(workflow)?;
-        self.infra.write(&resolved_path, content.into(), true).await
+        self.infra.write(&resolved_path, content.into()).await
     }
 
     async fn update_workflow<Func>(&self, path: Option<&Path>, f: Func) -> anyhow::Result<Workflow>

@@ -230,7 +230,7 @@ impl<F: FileWriterInfra + SnapshotRepository> FsPatchService for ForgeFsPatch<F>
 
         // Write final content to file after all patches are applied
         self.infra
-            .write(path, Bytes::from(current_content.clone()), false) // Pass false since we handle snapshots above
+            .write(path, Bytes::from(current_content.clone()))
             .await?;
 
         Ok(PatchOutput {
