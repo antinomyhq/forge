@@ -6,10 +6,13 @@ use chrono::Local;
 use forge_domain::*;
 use forge_stream::MpscStream;
 
+use crate::apply_tunable_parameters::ApplyTunableParameters;
 use crate::authenticator::Authenticator;
 use crate::dto::{InitAuth, ToolsOverview};
+use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
 use crate::services::{CustomInstructionsService, TemplateService};
+use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
@@ -122,7 +125,7 @@ impl<S: Services> ForgeApp<S> {
                 .await?;
 
         // Insert user prompt
-        let mut conversation = UserPromptGenerator::new(
+        let conversation = UserPromptGenerator::new(
             self.services.clone(),
             agent.clone(),
             chat.event.clone(),
@@ -131,13 +134,9 @@ impl<S: Services> ForgeApp<S> {
         .add_user_prompt(conversation)
         .await?;
 
-        conversation.metrics.started_at = Some(current_time.with_timezone(&chrono::Utc));
-        // Apply configuration on context from agent.
-        conversation.context = conversation.context.map(|ctx| ctx.apply_from_agent(&agent));
-        // Set conversation_id on context.
-        conversation.context = conversation
-            .context
-            .map(|ctx| ctx.conversation_id(conversation.id));
+        let conversation = InitConversationMetrics::new(current_time).apply(conversation);
+        let conversation = ApplyTunableParameters::new(agent.clone()).apply(conversation);
+        let conversation = SetConversationId.apply(conversation);
 
         // Create the orchestrator with all necessary dependencies
         let orch = Orchestrator::new(

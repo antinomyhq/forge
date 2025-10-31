@@ -10,7 +10,10 @@ use rust_embed::Embed;
 use tokio::sync::Mutex;
 
 pub use super::orch_setup::TestContext;
+use crate::apply_tunable_parameters::ApplyTunableParameters;
+use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
+use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::user_prompt::UserPromptGenerator;
 use crate::{AgentService, AttachmentService, TemplateService};
@@ -90,7 +93,7 @@ impl Runner {
             .await?;
 
         // Render user prompt into context.
-        let mut conversation = UserPromptGenerator::new(
+        let conversation = UserPromptGenerator::new(
             services.clone(),
             agent.clone(),
             event.clone(),
@@ -99,11 +102,9 @@ impl Runner {
         .add_user_prompt(conversation)
         .await?;
 
-        conversation.metrics.started_at = Some(setup.current_time.with_timezone(&chrono::Utc));
-        conversation.context = conversation.context.map(|ctx| ctx.apply_from_agent(&agent));
-        conversation.context = conversation
-            .context
-            .map(|ctx| ctx.conversation_id(conversation.id));
+        let conversation = InitConversationMetrics::new(setup.current_time).apply(conversation);
+        let conversation = ApplyTunableParameters::new(agent.clone()).apply(conversation);
+        let conversation = SetConversationId.apply(conversation);
 
         let orch = Orchestrator::new(
             services.clone(),
