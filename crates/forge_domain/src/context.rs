@@ -5,7 +5,6 @@ use derive_more::derive::{Display, From};
 use derive_setters::Setters;
 use forge_template::Element;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use tracing::debug;
 
 use super::{ToolCallFull, ToolResult};
@@ -13,8 +12,8 @@ use crate::temperature::Temperature;
 use crate::top_k::TopK;
 use crate::top_p::TopP;
 use crate::{
-    ConversationId, Image, ModelId, ReasoningFull, ToolChoice, ToolDefinition, ToolOutput,
-    ToolValue, Usage,
+    ConversationId, EventValue, Image, ModelId, ReasoningFull, ToolChoice, ToolDefinition,
+    ToolOutput, ToolValue, Usage,
 };
 
 /// Represents a message being sent to the LLM provider
@@ -61,7 +60,7 @@ impl ContextMessage {
 
     /// Returns the raw content before template rendering (only for User
     /// messages)
-    pub fn raw_content(&self) -> Option<&Value> {
+    pub fn as_value(&self) -> Option<&EventValue> {
         match self {
             ContextMessage::Text(text_message) => text_message.raw_content.as_ref(),
             ContextMessage::Tool(_) => None,
@@ -256,7 +255,7 @@ pub struct TextMessage {
     pub content: String,
     /// The raw content before any template rendering (only for User messages)
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub raw_content: Option<Value>,
+    pub raw_content: Option<EventValue>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_calls: Option<Vec<ToolCallFull>>,
     // note: this used to track model used for this message.

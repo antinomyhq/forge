@@ -83,7 +83,14 @@ impl<S: Services> ForgeApp<S> {
 
         // Always try to get attachments and overwrite them
         if let Some(value) = chat.event.value.as_ref() {
-            let attachments = services.attachments(&value.to_string()).await?;
+            let attachments = match value {
+                EventValue::Text(value) => services.attachments(value.as_str()).await?,
+                EventValue::Command(_value) => {
+                    // FIXME: Need to render the template before adding attachments
+                    // services.attachments(command.template) .await?
+                    todo!()
+                }
+            };
             chat.event = chat.event.attachments(attachments);
         }
 

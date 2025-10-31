@@ -2,36 +2,12 @@ use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
 use colored::Colorize;
-use forge_api::{Event, Model, Provider};
-use forge_domain::Agent;
-use serde::Deserialize;
-use serde_json::Value;
+use forge_api::{Model, Provider, Template};
+use forge_domain::{Agent, UserCommand};
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumProperty};
 
 use crate::info::Info;
-
-/// Represents a partial event structure used for CLI event dispatching
-///
-/// This is an intermediate structure for parsing event JSON from the CLI
-/// before converting it to a full Event type.
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Default)]
-pub struct CustomCommand {
-    pub name: String,
-    pub value: Value,
-}
-
-impl CustomCommand {
-    pub fn new<V: Into<Value>>(name: impl ToString, value: V) -> Self {
-        Self { name: name.to_string(), value: value.into() }
-    }
-}
-
-impl From<CustomCommand> for Event {
-    fn from(value: CustomCommand) -> Self {
-        Event::new(value.name, Some(value.value))
-    }
-}
 
 /// Wrapper for displaying models in selection menus
 ///
@@ -378,18 +354,14 @@ impl ForgeCommandManager {
                     // Handle custom workflow commands
                     let command_name = command.strip_prefix('/').unwrap_or(command);
                     if let Some(command) = self.find(command_name) {
-                        let actual_command = self
-                            .extract_command_value(&command, &parts[1..])
-                            .unwrap_or_default();
-                        let parameters_str = parameters.join(" ");
-                        let parameters_value = serde_json::from_str(&parameters_str)
-                            .unwrap_or(Value::String(parameters_str));
-                        Ok(SlashCommand::Custom(CustomCommand::new(
+                        let template = Template::new(
+                            self.extract_command_value(&command, &parts[1..])
+                                .unwrap_or_default(),
+                        );
+                        Ok(SlashCommand::Custom(UserCommand::new(
                             command.name.clone(),
-                            serde_json::json!({
-                                "parameters": parameters_value,
-                                "prompt": actual_command
-                            }),
+                            template,
+                            parameters.into_iter().map(|s| s.to_owned()).collect(),
                         )))
                     } else {
                         Err(anyhow::anyhow!("{command} is not valid"))
@@ -469,7 +441,7 @@ pub enum SlashCommand {
     #[strum(props(usage = "List all available tools with their descriptions and schema"))]
     Tools,
     /// Handles custom command defined in workflow file.
-    Custom(CustomCommand),
+    Custom(UserCommand),
     /// Executes a native shell command.
     /// This can be triggered with commands starting with '!' character.
     #[strum(props(usage = "Execute a native shell command"))]

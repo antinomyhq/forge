@@ -31,6 +31,7 @@ pub trait AgentService: Send + Sync + 'static {
     /// Render a template with the provided object
     async fn render(
         &self,
+        // TODO: should take a template instance
         template: &str,
         object: &(impl serde::Serialize + Sync),
     ) -> anyhow::Result<String>;

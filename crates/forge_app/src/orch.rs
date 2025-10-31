@@ -554,7 +554,7 @@ impl<S: AgentService> Orchestrator<S> {
     fn generate_title(&self, model: ModelId) -> JoinHandle<Option<String>> {
         let prompt = &self.event.value;
         if self.conversation.title.is_none()
-            && let Some(prompt) = prompt
+            && let Some(prompt) = prompt.as_ref().and_then(|p| p.as_user_prompt())
         {
             let generator = TitleGenerator::new(
                 self.services.clone(),

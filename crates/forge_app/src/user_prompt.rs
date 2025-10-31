@@ -1,6 +1,8 @@
+use std::ops::Deref;
 use std::sync::Arc;
 
 use forge_domain::*;
+use serde_json::json;
 use tracing::debug;
 
 use crate::agent::AgentService;
@@ -31,7 +33,7 @@ impl<S> UserPromptBuilder<S> {
     where
         S: AgentService,
     {
-        let raw_message = self.event.value.clone();
+        let event_value = self.event.value.clone();
 
         let content = if let Some(user_prompt) = &self.agent.user_prompt
             && self.event.value.is_some()
@@ -51,19 +53,16 @@ impl<S> UserPromptBuilder<S> {
             debug!(event_context = ?event_context, "Event context");
 
             // Render the command first.
-            let event_context = match self
-                .event
-                .value
-                .as_ref()
-                .and_then(|v| v.as_object())
-                .and_then(|value| {
-                    value
-                        .get("prompt")
-                        .and_then(|v| v.as_str())
-                        .map(|prompt| (value, prompt))
-                }) {
-                Some((value, prompt)) => {
-                    let rendered_prompt = self.services.render(prompt, value).await?;
+            // FIXME: Rethink
+            let event_context = match self.event.value.as_ref().and_then(|v| v.as_command()) {
+                Some(command) => {
+                    let rendered_prompt = self
+                        .services
+                        .render(
+                            &command.template.template,
+                            &json!({"parameters": command.parameters.join(" ")}),
+                        )
+                        .await?;
                     event_context.event(self.event.clone().value(rendered_prompt))
                 }
                 None => event_context,
@@ -77,17 +76,16 @@ impl<S> UserPromptBuilder<S> {
             )
         } else {
             // Use the raw event value as content if no user_prompt is provided
-            raw_message.as_ref().map(|v| match v {
-                serde_json::Value::String(s) => s.clone(),
-                other => other.to_string(),
-            })
+            event_value
+                .as_ref()
+                .and_then(|v| v.as_user_prompt().map(|p| p.deref().to_owned()))
         };
 
         if let Some(content) = content {
             let message = TextMessage {
                 role: Role::User,
                 content,
-                raw_content: raw_message,
+                raw_content: event_value,
                 tool_calls: None,
                 reasoning_details: None,
                 model: self.agent.model.clone(),
