@@ -35,9 +35,9 @@ impl<S: TemplateService> SystemPrompt<S> {
 
     pub async fn add_system_message(
         &self,
-        conversation: Conversation,
+        mut conversation: Conversation,
     ) -> anyhow::Result<Conversation> {
-        let context = conversation.context.clone().unwrap_or_default();
+        let context = conversation.context.take().unwrap_or_default();
         let agent = &self.agent;
         let context = if let Some(system_prompt) = &agent.system_prompt {
             let env = self.environment.clone();

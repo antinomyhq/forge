@@ -31,10 +31,9 @@ impl<S: TemplateService + AttachmentService> UserPromptGenerator<S> {
     /// event data
     pub async fn add_user_prompt(
         &self,
-        conversation: Conversation,
+        mut conversation: Conversation,
     ) -> anyhow::Result<Conversation> {
-        // TODO: clone is expensive
-        let mut context = conversation.context.clone().unwrap_or_default();
+        let mut context = conversation.context.take().unwrap_or_default();
         let event_value = self.event.value.clone();
 
         let content = if let Some(user_prompt) = &self.agent.user_prompt
