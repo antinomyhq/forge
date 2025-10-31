@@ -8,7 +8,7 @@ use forge_app::{
     WalkedFile, Walker, WalkerInfra,
 };
 use forge_domain::{
-    AppConfig, AppConfigRepository, CacheRepository, CommandOutput, Conversation, ConversationId,
+    AppConfig, AppConfigRepository, KVStore, CommandOutput, Conversation, ConversationId,
     ConversationRepository, Environment, FileInfo, McpServerConfig, Provider, ProviderId,
     ProviderRepository, Snapshot, SnapshotRepository,
 };
@@ -133,7 +133,7 @@ impl<F: Send + Sync> AppConfigRepository for ForgeRepo<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: Send + Sync> CacheRepository for ForgeRepo<F> {
+impl<F: Send + Sync> KVStore for ForgeRepo<F> {
     async fn cache_get<K, V>(&self, key: &K) -> anyhow::Result<Option<V>>
     where
         K: std::hash::Hash + Sync,

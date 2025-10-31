@@ -7,7 +7,7 @@ use forge_app::domain::{
     ToolOutput,
 };
 use forge_app::{McpClientInfra, McpConfigManager, McpServerInfra, McpService};
-use forge_domain::CacheRepository;
+use forge_domain::KVStore;
 use tokio::sync::{Mutex, RwLock};
 
 use crate::mcp::tool::McpExecutor;
@@ -31,7 +31,7 @@ struct ToolHolder<T> {
 impl<M, I, C> ForgeMcpService<M, I, C>
 where
     M: McpConfigManager,
-    I: McpServerInfra + CacheRepository,
+    I: McpServerInfra + KVStore,
     C: McpClientInfra + Clone,
     C: From<<I as McpServerInfra>::Client>,
 {
@@ -185,7 +185,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<M: McpConfigManager, I: McpServerInfra + CacheRepository, C> McpService
+impl<M: McpConfigManager, I: McpServerInfra + KVStore, C> McpService
     for ForgeMcpService<M, I, C>
 where
     C: McpClientInfra + Clone,

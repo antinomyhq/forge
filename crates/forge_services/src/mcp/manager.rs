@@ -8,7 +8,7 @@ use forge_app::{
     EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, McpConfigManager,
     McpServerInfra,
 };
-use forge_domain::CacheRepository;
+use forge_domain::KVStore;
 use merge::Merge;
 
 pub struct ForgeMcpManager<I> {
@@ -17,7 +17,7 @@ pub struct ForgeMcpManager<I> {
 
 impl<I> ForgeMcpManager<I>
 where
-    I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra + CacheRepository,
+    I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra + KVStore,
 {
     pub fn new(infra: Arc<I>) -> Self {
         Self { infra }
@@ -45,7 +45,7 @@ where
         + FileInfoInfra
         + EnvironmentInfra
         + FileWriterInfra
-        + CacheRepository,
+        + KVStore,
 {
     async fn read_mcp_config(&self, scope: Option<&Scope>) -> anyhow::Result<McpConfig> {
         match scope {

@@ -6,7 +6,7 @@ use forge_app::{
     UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    AppConfigRepository, CacheRepository, ConversationRepository, ProviderRepository,
+    AppConfigRepository, KVStore, ConversationRepository, ProviderRepository,
     SnapshotRepository,
 };
 
@@ -48,7 +48,7 @@ pub struct ForgeServices<
         + SnapshotRepository
         + ConversationRepository
         + AppConfigRepository
-        + CacheRepository
+        + KVStore
         + ProviderRepository,
 > {
     chat_service: Arc<ForgeProviderService<F>>,
@@ -94,7 +94,7 @@ impl<
         + ConversationRepository
         + AppConfigRepository
         + ProviderRepository
-        + CacheRepository,
+        + KVStore,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -175,7 +175,7 @@ impl<
         + SnapshotRepository
         + ConversationRepository
         + AppConfigRepository
-        + CacheRepository
+        + KVStore
         + ProviderRepository
         + Clone
         + 'static,

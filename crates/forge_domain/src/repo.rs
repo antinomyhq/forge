@@ -41,7 +41,7 @@ pub trait SnapshotRepository: Send + Sync {
 /// All operations return `anyhow::Result` for consistent error handling across
 /// the infrastructure layer.
 #[async_trait::async_trait]
-pub trait CacheRepository: Send + Sync {
+pub trait KVStore: Send + Sync {
     /// Retrieves a value from the cache by its key.
     ///
     /// # Arguments
