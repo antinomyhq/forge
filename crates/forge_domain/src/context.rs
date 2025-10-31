@@ -468,6 +468,31 @@ impl Context {
             reasoning.effort.is_some() || reasoning.max_tokens.is_some_and(|token| token > 0)
         })
     }
+
+    /// Returns a vector of user messages, selecting the first message from
+    /// each consecutive sequence of user messages.
+    pub fn first_user_messages(&self) -> Vec<&ContextMessage> {
+        if self.messages.is_empty() {
+            return Vec::new();
+        }
+
+        let mut result = Vec::new();
+        let mut is_user = false;
+
+        for msg in &self.messages {
+            if msg.has_role(Role::User) {
+                // Only add the first message of each consecutive user sequence
+                if !is_user {
+                    result.push(msg);
+                    is_user = true;
+                }
+            } else {
+                is_user = false;
+            }
+        }
+
+        result
+    }
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
