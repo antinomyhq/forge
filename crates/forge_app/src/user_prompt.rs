@@ -5,8 +5,7 @@ use forge_domain::*;
 use serde_json::json;
 use tracing::debug;
 
-use crate::TemplateService;
-use crate::agent::AgentService;
+use crate::{AttachmentService, TemplateService};
 
 /// Service responsible for setting user prompts in the conversation context
 #[derive(Clone)]
@@ -17,7 +16,7 @@ pub struct UserPromptGenerator<S> {
     current_time: chrono::DateTime<chrono::Local>,
 }
 
-impl<S: TemplateService> UserPromptGenerator<S> {
+impl<S: TemplateService + AttachmentService> UserPromptGenerator<S> {
     /// Creates a new UserPromptService
     pub fn new(
         service: Arc<S>,
@@ -56,7 +55,6 @@ impl<S: TemplateService> UserPromptGenerator<S> {
             debug!(event_context = ?event_context, "Event context");
 
             // Render the command first.
-            // FIXME: Rethink
             let event_context = match self.event.value.as_ref().and_then(|v| v.as_command()) {
                 Some(command) => {
                     let rendered_prompt = self
@@ -85,6 +83,10 @@ impl<S: TemplateService> UserPromptGenerator<S> {
         };
 
         if let Some(content) = content {
+            // Parse Attachments
+            let attachments = self.services.attachments(content.as_str()).await?;
+
+            // Create User Message
             let message = TextMessage {
                 role: Role::User,
                 content,
@@ -93,7 +95,9 @@ impl<S: TemplateService> UserPromptGenerator<S> {
                 reasoning_details: None,
                 model: self.agent.model.clone(),
             };
-            context = context.add_message(ContextMessage::Text(message));
+            context = context
+                .add_message(ContextMessage::Text(message))
+                .add_attachments(attachments, self.agent.model.clone());
         }
 
         Ok(conversation.context(context))

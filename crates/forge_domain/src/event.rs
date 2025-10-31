@@ -15,9 +15,7 @@ use crate::{Attachment, NamedTool, Template, ToolName};
 #[derive(Debug, Default, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct UserCommand {
     pub name: String,
-    // FIXME: should have `template: Template`
     pub template: Template<Value>,
-
     pub parameters: Vec<String>,
 }
 

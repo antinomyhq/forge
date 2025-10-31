@@ -12,8 +12,8 @@ use crate::temperature::Temperature;
 use crate::top_k::TopK;
 use crate::top_p::TopP;
 use crate::{
-    ConversationId, EventValue, Image, ModelId, ReasoningFull, ToolChoice, ToolDefinition,
-    ToolOutput, ToolValue, Usage,
+    Attachment, AttachmentContent, ConversationId, EventValue, Image, ModelId, ReasoningFull,
+    ToolChoice, ToolDefinition, ToolOutput, ToolValue, Usage,
 };
 
 /// Represents a message being sent to the LLM provider
@@ -345,6 +345,24 @@ impl Context {
         self.messages.push(content);
 
         self
+    }
+
+    pub fn add_attachments(self, attachments: Vec<Attachment>, model_id: Option<ModelId>) -> Self {
+        attachments.into_iter().fold(self, |ctx, attachment| {
+            ctx.add_message(match attachment.content {
+                AttachmentContent::Image(image) => ContextMessage::Image(image),
+                AttachmentContent::FileContent { content, start_line, end_line, total_lines } => {
+                    let elm = Element::new("file_content")
+                        .attr("path", attachment.path)
+                        .attr("start_line", start_line)
+                        .attr("end_line", end_line)
+                        .attr("total_lines", total_lines)
+                        .cdata(content);
+
+                    ContextMessage::user(elm, model_id.clone())
+                }
+            })
+        })
     }
 
     pub fn add_tool_results(mut self, results: Vec<ToolResult>) -> Self {

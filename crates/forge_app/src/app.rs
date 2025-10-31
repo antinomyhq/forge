@@ -14,8 +14,8 @@ use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
 use crate::user_prompt::UserPromptGenerator;
 use crate::{
-    AgentRegistry, AttachmentService, ConversationService, EnvironmentService,
-    FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker, WorkflowService,
+    AgentRegistry, ConversationService, EnvironmentService, FileDiscoveryService, ProviderRegistry,
+    ProviderService, Services, Walker, WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -42,7 +42,7 @@ impl<S: Services> ForgeApp<S> {
     pub async fn chat(
         &self,
         agent_id: AgentId,
-        mut chat: ChatRequest,
+        chat: ChatRequest,
     ) -> Result<MpscStream<Result<ChatResponse, anyhow::Error>>> {
         let services = self.services.clone();
 
@@ -81,19 +81,6 @@ impl<S: Services> ForgeApp<S> {
             });
 
         services.register_template(template_path).await?;
-
-        // Always try to get attachments and overwrite them
-        if let Some(value) = chat.event.value.as_ref() {
-            let attachments = match value {
-                EventValue::Text(value) => services.attachments(value.as_str()).await?,
-                EventValue::Command(_value) => {
-                    // FIXME: Need to render the template before adding attachments
-                    // services.attachments(command.template) .await?
-                    todo!()
-                }
-            };
-            chat.event = chat.event.attachments(attachments);
-        }
 
         let custom_instructions = services.get_custom_instructions().await;
 
