@@ -15,7 +15,7 @@ use crate::compact::Compactor;
 use crate::title_generator::TitleGenerator;
 
 #[derive(Clone, Setters)]
-#[setters(into, strip_option)]
+#[setters(into)]
 pub struct Orchestrator<S> {
     services: Arc<S>,
     sender: Option<ArcSender>,
@@ -389,12 +389,12 @@ impl<S: AgentService> Orchestrator<S> {
                     should_yield = true;
                 }
             }
-        }
 
-        // Update metrics in conversation
-        tool_context.with_metrics(|metrics| {
-            self.conversation.metrics = metrics.clone();
-        })?;
+            // Update metrics in conversation
+            tool_context.with_metrics(|metrics| {
+                self.conversation.metrics = metrics.clone();
+            })?;
+        }
 
         // Set conversation title
         if let Some(title) = title.await.ok().flatten() {
