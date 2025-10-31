@@ -135,7 +135,7 @@ pub trait ProviderService: Send + Sync {
 
 /// Manages user preferences for default providers and models.
 #[async_trait::async_trait]
-pub trait ProviderPreferencesService: Send + Sync {
+pub trait AppConfigService: Send + Sync {
     /// Gets the user's default provider, or falls back to the first available
     /// provider.
     async fn get_default_provider(&self) -> anyhow::Result<Provider>;
@@ -424,7 +424,7 @@ pub trait PolicyService: Send + Sync {
 /// and service/repository composition.
 pub trait Services: Send + Sync + 'static + Clone {
     type ProviderService: ProviderService;
-    type ProviderPreferencesService: ProviderPreferencesService;
+    type AppConfigService: AppConfigService;
     type ConversationService: ConversationService;
     type TemplateService: TemplateService;
     type AttachmentService: AttachmentService;
@@ -451,7 +451,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type PolicyService: PolicyService;
 
     fn provider_service(&self) -> &Self::ProviderService;
-    fn provider_preferences_service(&self) -> &Self::ProviderPreferencesService;
+    fn config_service(&self) -> &Self::AppConfigService;
     fn conversation_service(&self) -> &Self::ConversationService;
     fn template_service(&self) -> &Self::TemplateService;
     fn attachment_service(&self) -> &Self::AttachmentService;
@@ -843,18 +843,16 @@ impl<I: Services> PolicyService for I {
 }
 
 #[async_trait::async_trait]
-impl<I: Services> ProviderPreferencesService for I {
+impl<I: Services> AppConfigService for I {
     async fn get_default_provider(&self) -> anyhow::Result<Provider> {
-        self.provider_preferences_service()
-            .get_default_provider()
-            .await
+        self.config_service().get_default_provider().await
     }
 
     async fn set_default_provider(
         &self,
         provider_id: forge_domain::ProviderId,
     ) -> anyhow::Result<()> {
-        self.provider_preferences_service()
+        self.config_service()
             .set_default_provider(provider_id)
             .await
     }
@@ -863,9 +861,7 @@ impl<I: Services> ProviderPreferencesService for I {
         &self,
         provider_id: &forge_domain::ProviderId,
     ) -> anyhow::Result<ModelId> {
-        self.provider_preferences_service()
-            .get_default_model(provider_id)
-            .await
+        self.config_service().get_default_model(provider_id).await
     }
 
     async fn set_default_model(
@@ -873,7 +869,7 @@ impl<I: Services> ProviderPreferencesService for I {
         model: ModelId,
         provider_id: forge_domain::ProviderId,
     ) -> anyhow::Result<()> {
-        self.provider_preferences_service()
+        self.config_service()
             .set_default_model(model, provider_id)
             .await
     }

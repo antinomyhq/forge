@@ -12,6 +12,7 @@ use forge_domain::{
     ConversationRepository, Environment, FileInfo, McpServerConfig, Provider, ProviderId,
     ProviderRepository, Snapshot, SnapshotRepository,
 };
+use forge_infra::CacacheStorage;
 use reqwest::header::HeaderMap;
 use reqwest::Response;
 use reqwest_eventsource::EventSource;
@@ -19,10 +20,7 @@ use url::Url;
 
 use crate::fs_snap::ForgeFileSnapshotService;
 use crate::provider_repository::ForgeProviderRepository;
-use crate::{
-    AppConfigRepositoryImpl, CacacheRepository, ConversationRepositoryImpl, DatabasePool,
-    PoolConfig,
-};
+use crate::{AppConfigRepositoryImpl, ConversationRepositoryImpl, DatabasePool, PoolConfig};
 
 /// Repository layer that implements all domain repository traits
 ///
@@ -34,7 +32,7 @@ pub struct ForgeRepo<F> {
     file_snapshot_service: Arc<ForgeFileSnapshotService>,
     conversation_repository: Arc<ConversationRepositoryImpl>,
     app_config_repository: Arc<AppConfigRepositoryImpl>,
-    mcp_cache_repository: Arc<CacacheRepository>,
+    mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
 }
 
@@ -51,7 +49,7 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeRepo<F> {
             env.app_config().as_path().to_path_buf(),
         ));
 
-        let mcp_cache_repository = Arc::new(CacacheRepository::new(
+        let mcp_cache_repository = Arc::new(CacacheStorage::new(
             env.cache_dir().join("mcp_cache"),
             Some(3600),
         )); // 1 hour TTL

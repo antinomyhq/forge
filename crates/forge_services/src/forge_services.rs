@@ -19,8 +19,8 @@ use crate::discovery::ForgeDiscoveryService;
 use crate::env::ForgeEnvironmentService;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::policy::ForgePolicyService;
+use crate::preferences::ForgeAppConfigService;
 use crate::provider::ForgeProviderService;
-use crate::provider_preferences::ForgeProviderPreferencesService;
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead, ForgeFsRemove,
@@ -51,7 +51,7 @@ pub struct ForgeServices<
         + ProviderRepository,
 > {
     chat_service: Arc<ForgeProviderService<F>>,
-    provider_preferences_service: Arc<ForgeProviderPreferencesService<F>>,
+    config_service: Arc<ForgeAppConfigService<F>>,
     conversation_service: Arc<ForgeConversationService<F>>,
     template_service: Arc<ForgeTemplateService<F>>,
     attachment_service: Arc<ForgeChatRequest<F>>,
@@ -106,8 +106,7 @@ impl<
         let conversation_service = Arc::new(ForgeConversationService::new(infra.clone()));
         let auth_service = Arc::new(ForgeAuthService::new(infra.clone()));
         let chat_service = Arc::new(ForgeProviderService::new(infra.clone()));
-        let provider_preferences_service =
-            Arc::new(ForgeProviderPreferencesService::new(infra.clone()));
+        let config_service = Arc::new(ForgeAppConfigService::new(infra.clone()));
         let file_create_service = Arc::new(ForgeFsCreate::new(infra.clone()));
         let plan_create_service = Arc::new(ForgePlanCreate::new(infra.clone()));
         let file_read_service = Arc::new(ForgeFsRead::new(infra.clone()));
@@ -149,7 +148,7 @@ impl<
             custom_instructions_service,
             auth_service,
             chat_service,
-            provider_preferences_service,
+            config_service,
             agent_loader_service,
             command_loader_service,
             policy_service,
@@ -181,7 +180,7 @@ impl<
 > Services for ForgeServices<F>
 {
     type ProviderService = ForgeProviderService<F>;
-    type ProviderPreferencesService = ForgeProviderPreferencesService<F>;
+    type AppConfigService = ForgeAppConfigService<F>;
     type ConversationService = ForgeConversationService<F>;
     type TemplateService = ForgeTemplateService<F>;
     type AttachmentService = ForgeChatRequest<F>;
@@ -211,8 +210,8 @@ impl<
         &self.chat_service
     }
 
-    fn provider_preferences_service(&self) -> &Self::ProviderPreferencesService {
-        &self.provider_preferences_service
+    fn config_service(&self) -> &Self::AppConfigService {
+        &self.config_service
     }
 
     fn conversation_service(&self) -> &Self::ConversationService {

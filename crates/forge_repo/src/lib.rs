@@ -1,5 +1,4 @@
 mod app_config;
-mod cacache_repository;
 mod conversation;
 mod database;
 mod error;
@@ -8,7 +7,6 @@ mod fs_snap;
 mod provider_repository;
 
 pub use app_config::*;
-pub use cacache_repository::*;
 pub use conversation::*;
 pub use database::*;
 pub use error::*;

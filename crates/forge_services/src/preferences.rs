@@ -1,23 +1,23 @@
 use std::sync::Arc;
 
-use forge_app::ProviderPreferencesService;
+use forge_app::AppConfigService;
 use forge_domain::{
     AppConfig, AppConfigRepository, ModelId, Provider, ProviderId, ProviderRepository,
 };
 
 /// Service for managing user preferences for default providers and models.
-pub struct ForgeProviderPreferencesService<F> {
+pub struct ForgeAppConfigService<F> {
     infra: Arc<F>,
 }
 
-impl<F> ForgeProviderPreferencesService<F> {
+impl<F> ForgeAppConfigService<F> {
     /// Creates a new provider preferences service.
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
     }
 }
 
-impl<F: ProviderRepository + AppConfigRepository> ForgeProviderPreferencesService<F> {
+impl<F: ProviderRepository + AppConfigRepository> ForgeAppConfigService<F> {
     /// Helper method to update app configuration atomically.
     async fn update<U>(&self, updater: U) -> anyhow::Result<()>
     where
@@ -41,8 +41,8 @@ impl<F: ProviderRepository + AppConfigRepository> ForgeProviderPreferencesServic
 }
 
 #[async_trait::async_trait]
-impl<F: ProviderRepository + AppConfigRepository + Send + Sync> ProviderPreferencesService
-    for ForgeProviderPreferencesService<F>
+impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
+    for ForgeAppConfigService<F>
 {
     async fn get_default_provider(&self) -> anyhow::Result<Provider> {
         let app_config = self.infra.get_app_config().await?;
@@ -169,7 +169,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_default_provider_when_none_set() -> anyhow::Result<()> {
         let fixture = MockInfra::new();
-        let service = ForgeProviderPreferencesService::new(Arc::new(fixture));
+        let service = ForgeAppConfigService::new(Arc::new(fixture));
 
         let actual = service.get_default_provider().await?;
         let expected = ProviderId::OpenAI;
@@ -181,7 +181,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_default_provider_when_set() -> anyhow::Result<()> {
         let fixture = MockInfra::new();
-        let service = ForgeProviderPreferencesService::new(Arc::new(fixture.clone()));
+        let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
         service.set_default_provider(ProviderId::Anthropic).await?;
         let actual = service.get_default_provider().await?;
@@ -194,7 +194,7 @@ mod tests {
     #[tokio::test]
     async fn test_set_default_provider() -> anyhow::Result<()> {
         let fixture = MockInfra::new();
-        let service = ForgeProviderPreferencesService::new(Arc::new(fixture.clone()));
+        let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
         service.set_default_provider(ProviderId::Anthropic).await?;
 
@@ -209,7 +209,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_default_model_when_none_set() -> anyhow::Result<()> {
         let fixture = MockInfra::new();
-        let service = ForgeProviderPreferencesService::new(Arc::new(fixture));
+        let service = ForgeAppConfigService::new(Arc::new(fixture));
 
         let result = service.get_default_model(&ProviderId::OpenAI).await;
 
@@ -220,7 +220,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_default_model_when_set() -> anyhow::Result<()> {
         let fixture = MockInfra::new();
-        let service = ForgeProviderPreferencesService::new(Arc::new(fixture.clone()));
+        let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
         service
             .set_default_model("gpt-4".to_string().into(), ProviderId::OpenAI)
@@ -235,7 +235,7 @@ mod tests {
     #[tokio::test]
     async fn test_set_default_model() -> anyhow::Result<()> {
         let fixture = MockInfra::new();
-        let service = ForgeProviderPreferencesService::new(Arc::new(fixture.clone()));
+        let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
         service
             .set_default_model("gpt-4".to_string().into(), ProviderId::OpenAI)
@@ -252,7 +252,7 @@ mod tests {
     #[tokio::test]
     async fn test_set_multiple_default_models() -> anyhow::Result<()> {
         let fixture = MockInfra::new();
-        let service = ForgeProviderPreferencesService::new(Arc::new(fixture.clone()));
+        let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
         service
             .set_default_model("gpt-4".to_string().into(), ProviderId::OpenAI)
@@ -285,7 +285,7 @@ mod tests {
 
         for _ in 0..100 {
             let fixture = MockInfra::new();
-            let service = ForgeProviderPreferencesService::new(Arc::new(fixture));
+            let service = ForgeAppConfigService::new(Arc::new(fixture));
             let first_provider = service.get_first_available_provider().await?;
             all_first_providers.insert(first_provider.id);
         }
@@ -300,7 +300,7 @@ mod tests {
 
         // Verify it's always OpenAI (first in ProviderId enum after Forge)
         let fixture = MockInfra::new();
-        let service = ForgeProviderPreferencesService::new(Arc::new(fixture));
+        let service = ForgeAppConfigService::new(Arc::new(fixture));
         let first_provider = service.get_first_available_provider().await?;
         assert_eq!(
             first_provider.id,

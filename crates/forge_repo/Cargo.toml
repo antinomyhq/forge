@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 forge_app.workspace = true
 forge_domain.workspace = true
+forge_infra.workspace = true
 forge_snaps.workspace = true
 forge_fs.workspace = true
 
@@ -25,7 +26,6 @@ merge.workspace = true
 chrono = { version = "0.4", features = ["serde"] }
 diesel = { version = "2.2.12", features = ["sqlite", "r2d2", "chrono"] }
 diesel_migrations = "2.2.0"
-cacache = { version = "13.1.0", features = ["tokio-runtime"], default-features = false }
 thiserror.workspace = true
 
 [dev-dependencies]

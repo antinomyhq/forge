@@ -11,9 +11,11 @@ mod fs_remove;
 mod fs_write;
 mod http;
 mod inquire;
+mod kv_storage;
 mod mcp_client;
 mod mcp_server;
 mod walker;
 
 pub use executor::ForgeCommandExecutorService;
 pub use forge_infra::*;
+pub use kv_storage::CacacheStorage;

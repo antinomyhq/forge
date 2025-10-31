@@ -4,9 +4,9 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use forge_app::dto::ToolsOverview;
 use forge_app::{
-    AgentRegistry, AuthService, CommandInfra, CommandLoaderService, ConversationService,
-    EnvironmentInfra, EnvironmentService, FileDiscoveryService, ForgeApp, McpConfigManager,
-    McpService, ProviderPreferencesService, ProviderService, Services, User, UserUsage, Walker,
+    AgentRegistry, AppConfigService, AuthService, CommandInfra, CommandLoaderService,
+    ConversationService, EnvironmentInfra, EnvironmentService, FileDiscoveryService, ForgeApp,
+    McpConfigManager, McpService, ProviderService, Services, User, UserUsage, Walker,
     WorkflowService,
 };
 use forge_domain::{InitAuth, LoginInfo, *};
@@ -193,7 +193,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
 
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
         self.services
-            .provider_preferences_service()
+            .config_service()
             .set_default_provider(provider_id)
             .await
     }
