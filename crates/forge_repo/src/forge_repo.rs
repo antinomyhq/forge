@@ -4,11 +4,11 @@ use std::sync::Arc;
 use bytes::Bytes;
 use forge_app::{
     CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
-    FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, UserInfra,
-    WalkedFile, Walker, WalkerInfra,
+    FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, KVStore, McpServerInfra,
+    UserInfra, WalkedFile, Walker, WalkerInfra,
 };
 use forge_domain::{
-    AppConfig, AppConfigRepository, KVStore, CommandOutput, Conversation, ConversationId,
+    AppConfig, AppConfigRepository, CommandOutput, Conversation, ConversationId,
     ConversationRepository, Environment, FileInfo, McpServerConfig, Provider, ProviderId,
     ProviderRepository, Snapshot, SnapshotRepository,
 };

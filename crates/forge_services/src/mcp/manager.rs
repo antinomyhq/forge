@@ -5,10 +5,9 @@ use anyhow::Context;
 use bytes::Bytes;
 use forge_app::domain::{McpConfig, Scope};
 use forge_app::{
-    EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, McpConfigManager,
+    EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, KVStore, McpConfigManager,
     McpServerInfra,
 };
-use forge_domain::KVStore;
 use merge::Merge;
 
 pub struct ForgeMcpManager<I> {

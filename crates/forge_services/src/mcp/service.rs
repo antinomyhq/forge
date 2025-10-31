@@ -6,8 +6,7 @@ use forge_app::domain::{
     McpConfig, McpServerConfig, McpServers, ServerName, ToolCallFull, ToolDefinition, ToolName,
     ToolOutput,
 };
-use forge_app::{McpClientInfra, McpConfigManager, McpServerInfra, McpService};
-use forge_domain::KVStore;
+use forge_app::{KVStore, McpClientInfra, McpConfigManager, McpServerInfra, McpService};
 use tokio::sync::{Mutex, RwLock};
 
 use crate::mcp::tool::McpExecutor;
@@ -185,8 +184,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<M: McpConfigManager, I: McpServerInfra + KVStore, C> McpService
-    for ForgeMcpService<M, I, C>
+impl<M: McpConfigManager, I: McpServerInfra + KVStore, C> McpService for ForgeMcpService<M, I, C>
 where
     C: McpClientInfra + Clone,
     C: From<<I as McpServerInfra>::Client>,

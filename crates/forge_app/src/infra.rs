@@ -1,3 +1,4 @@
+use std::hash::Hash;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
@@ -8,6 +9,7 @@ use forge_domain::{
 use reqwest::Response;
 use reqwest::header::HeaderMap;
 use reqwest_eventsource::EventSource;
+use serde::de::DeserializeOwned;
 use url::Url;
 
 use crate::{WalkedFile, Walker};
@@ -209,4 +211,52 @@ pub trait DirectoryReaderInfra: Send + Sync {
         directory: &Path,
         pattern: Option<&str>, // Optional glob pattern like "*.md"
     ) -> anyhow::Result<Vec<(PathBuf, String)>>;
+}
+
+/// Generic cache repository for content-addressable storage.
+///
+/// This trait provides an abstraction over caching operations with support for
+/// arbitrary key and value types. Keys must be hashable and serializable, while
+/// values must be serializable. The trait is designed to work with
+/// content-addressable storage systems like cacache.
+///
+/// All operations return `anyhow::Result` for consistent error handling across
+/// the infrastructure layer.
+#[async_trait::async_trait]
+pub trait KVStore: Send + Sync {
+    /// Retrieves a value from the cache by its key.
+    ///
+    /// # Arguments
+    /// * `key` - The key to look up in the cache
+    ///
+    /// # Errors
+    /// Returns an error if the cache operation fails
+    async fn cache_get<K, V>(&self, key: &K) -> Result<Option<V>>
+    where
+        K: Hash + Sync,
+        V: serde::Serialize + DeserializeOwned + Send;
+
+    /// Stores a value in the cache with the given key.
+    ///
+    /// If the key already exists, the value is overwritten.
+    /// Uses content-addressable storage for integrity verification.
+    ///
+    /// # Arguments
+    /// * `key` - The key to store the value under
+    /// * `value` - The value to cache
+    ///
+    /// # Errors
+    /// Returns an error if the cache operation fails
+    async fn cache_set<K, V>(&self, key: &K, value: &V) -> Result<()>
+    where
+        K: Hash + Sync,
+        V: serde::Serialize + Sync;
+
+    /// Clears all entries from the cache.
+    ///
+    /// This operation removes all cached data. Use with caution.
+    ///
+    /// # Errors
+    /// Returns an error if the cache clear operation fails
+    async fn cache_clear(&self) -> Result<()>;
 }

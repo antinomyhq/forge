@@ -841,3 +841,40 @@ impl<I: Services> PolicyService for I {
             .await
     }
 }
+
+#[async_trait::async_trait]
+impl<I: Services> ProviderPreferencesService for I {
+    async fn get_default_provider(&self) -> anyhow::Result<Provider> {
+        self.provider_preferences_service()
+            .get_default_provider()
+            .await
+    }
+
+    async fn set_default_provider(
+        &self,
+        provider_id: forge_domain::ProviderId,
+    ) -> anyhow::Result<()> {
+        self.provider_preferences_service()
+            .set_default_provider(provider_id)
+            .await
+    }
+
+    async fn get_default_model(
+        &self,
+        provider_id: &forge_domain::ProviderId,
+    ) -> anyhow::Result<ModelId> {
+        self.provider_preferences_service()
+            .get_default_model(provider_id)
+            .await
+    }
+
+    async fn set_default_model(
+        &self,
+        model: ModelId,
+        provider_id: forge_domain::ProviderId,
+    ) -> anyhow::Result<()> {
+        self.provider_preferences_service()
+            .set_default_model(model, provider_id)
+            .await
+    }
+}
