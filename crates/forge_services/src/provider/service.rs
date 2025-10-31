@@ -2,17 +2,16 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::ProviderService;
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, HttpConfig, Model, ModelId, Provider,
     ProviderId, ResultStream, RetryConfig,
 };
+use forge_app::{EnvironmentInfra, HttpInfra, ProviderService};
+use forge_domain::ProviderRepository;
 use tokio::sync::Mutex;
 
 use crate::http::HttpClient;
-use crate::infra::HttpInfra;
 use crate::provider::client::{Client, ClientBuilder};
-use crate::{AppConfigRepository, EnvironmentInfra};
 #[derive(Clone)]
 pub struct ForgeProviderService<I> {
     retry_config: Arc<RetryConfig>,
@@ -23,7 +22,7 @@ pub struct ForgeProviderService<I> {
     http_infra: Arc<I>,
 }
 
-impl<I: EnvironmentInfra + HttpInfra + AppConfigRepository> ForgeProviderService<I> {
+impl<I: EnvironmentInfra + HttpInfra> ForgeProviderService<I> {
     pub fn new(infra: Arc<I>) -> Self {
         let env = infra.get_environment();
         let version = env.version();
@@ -68,7 +67,7 @@ impl<I: EnvironmentInfra + HttpInfra + AppConfigRepository> ForgeProviderService
 }
 
 #[async_trait::async_trait]
-impl<I: EnvironmentInfra + HttpInfra + AppConfigRepository> ProviderService
+impl<I: EnvironmentInfra + HttpInfra + ProviderRepository> ProviderService
     for ForgeProviderService<I>
 {
     async fn chat(
@@ -107,5 +106,13 @@ impl<I: EnvironmentInfra + HttpInfra + AppConfigRepository> ProviderService
         }
 
         Ok(models)
+    }
+
+    async fn get_provider(&self, id: ProviderId) -> Result<Provider> {
+        self.http_infra.get_provider(id).await
+    }
+
+    async fn get_all_providers(&self) -> Result<Vec<Provider>> {
+        self.http_infra.get_all_providers().await
     }
 }

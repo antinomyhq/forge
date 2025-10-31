@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
+use forge_app::DirectoryReaderInfra;
 use forge_fs::ForgeFS;
-use forge_services::DirectoryReaderInfra;
 use futures::future::join_all;
 use globset::{Glob, GlobSetBuilder};
 

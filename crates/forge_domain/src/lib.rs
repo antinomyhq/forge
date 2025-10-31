@@ -1,4 +1,5 @@
 mod agent;
+mod app_config;
 mod attachment;
 mod chat_request;
 mod chat_response;
@@ -24,10 +25,12 @@ mod point;
 mod policies;
 mod provider;
 mod reasoning;
+mod repo;
 mod result_stream_ext;
 mod retry_config;
 mod session_metrics;
 mod shell;
+mod snapshot;
 mod suggestion;
 mod system_context;
 mod temperature;
@@ -74,10 +77,12 @@ pub use point::*;
 pub use policies::*;
 pub use provider::*;
 pub use reasoning::*;
+pub use repo::*;
 pub use result_stream_ext::*;
 pub use retry_config::*;
 pub use session_metrics::*;
 pub use shell::*;
+pub use snapshot::*;
 pub use suggestion::*;
 pub use system_context::*;
 pub use temperature::*;
@@ -98,8 +103,8 @@ pub use transformer::*;
 pub use update::*;
 pub use workflow::*;
 pub use xml::*;
-
 pub mod line_numbers;
+pub use app_config::*;
 pub use line_numbers::*;
 
 /// Type alias for tokio mpsc Sender that sends ChatResponse results

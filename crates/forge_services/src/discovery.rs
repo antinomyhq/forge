@@ -2,9 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use forge_app::domain::File;
-use forge_app::{FileDiscoveryService, Walker};
-
-use crate::{EnvironmentInfra, WalkerInfra};
+use forge_app::{EnvironmentInfra, FileDiscoveryService, Walker, WalkerInfra};
 
 pub struct ForgeDiscoveryService<F> {
     service: Arc<F>,

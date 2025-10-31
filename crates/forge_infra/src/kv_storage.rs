@@ -13,19 +13,19 @@ struct CachedEntry<V> {
     timestamp: u128,
 }
 
-/// Generic content-addressable cache repository using cacache.
+/// Generic content-addressable key-value storage using cacache.
 ///
-/// This repository provides a type-safe wrapper around cacache for arbitrary
+/// This storage provides a type-safe wrapper around cacache for arbitrary
 /// key-value caching with content verification. Keys are serialized to
-/// deterministic strings using serde_json, and values are stored as JSON
+/// deterministic strings using hash values, and values are stored as JSON
 /// using serde_json for maximum compatibility.
-pub struct CacacheRepository {
+pub struct CacacheStorage {
     cache_dir: PathBuf,
     ttl_seconds: Option<u128>,
 }
 
-impl CacacheRepository {
-    /// Creates a new cache repository with the specified cache directory.
+impl CacacheStorage {
+    /// Creates a new key-value storage with the specified cache directory.
     ///
     /// The directory will be created if it doesn't exist. All cache data
     /// will be stored under this directory using cacache's content-addressable
@@ -72,7 +72,7 @@ impl CacacheRepository {
 }
 
 #[async_trait::async_trait]
-impl forge_services::CacheRepository for CacacheRepository {
+impl forge_app::KVStore for CacacheStorage {
     async fn cache_get<K, V>(&self, key: &K) -> Result<Option<V>>
     where
         K: Hash + Sync,
@@ -141,7 +141,7 @@ impl forge_services::CacheRepository for CacacheRepository {
 
 #[cfg(test)]
 mod tests {
-    use forge_services::CacheRepository;
+    use forge_app::KVStore;
     use pretty_assertions::assert_eq;
     use serde::{Deserialize, Serialize};
 
@@ -165,7 +165,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_nonexistent_key() {
         let cache_dir = test_cache_dir();
-        let cache = CacacheRepository::new(cache_dir, None);
+        let cache = CacacheStorage::new(cache_dir, None);
 
         let key = TestKey { id: "test".to_string() };
         let result: Option<TestValue> = cache.cache_get(&key).await.unwrap();
@@ -176,7 +176,7 @@ mod tests {
     #[tokio::test]
     async fn test_set_and_get() {
         let cache_dir = test_cache_dir();
-        let cache = CacacheRepository::new(cache_dir, None);
+        let cache = CacacheStorage::new(cache_dir, None);
 
         let key = TestKey { id: "test".to_string() };
         let value = TestValue { data: "hello".to_string(), count: 42 };
@@ -190,7 +190,7 @@ mod tests {
     #[tokio::test]
     async fn test_clear() {
         let cache_dir = test_cache_dir();
-        let cache = CacacheRepository::new(cache_dir, None);
+        let cache = CacacheStorage::new(cache_dir, None);
 
         let key1 = TestKey { id: "test1".to_string() };
         let key2 = TestKey { id: "test2".to_string() };
@@ -211,7 +211,7 @@ mod tests {
     #[tokio::test]
     async fn test_ttl_not_expired() {
         let cache_dir = test_cache_dir();
-        let cache = CacacheRepository::new(cache_dir, Some(60)); // 60 seconds TTL
+        let cache = CacacheStorage::new(cache_dir, Some(60)); // 60 seconds TTL
 
         let key = TestKey { id: "test".to_string() };
         let value = TestValue { data: "hello".to_string(), count: 42 };
@@ -227,7 +227,7 @@ mod tests {
     #[tokio::test]
     async fn test_ttl_expired() {
         let cache_dir = test_cache_dir();
-        let cache = CacacheRepository::new(cache_dir, Some(1)); // 1 second TTL
+        let cache = CacacheStorage::new(cache_dir, Some(1)); // 1 second TTL
 
         let key = TestKey { id: "test".to_string() };
         let value = TestValue { data: "hello".to_string(), count: 42 };
@@ -245,7 +245,7 @@ mod tests {
     #[tokio::test]
     async fn test_ttl_none_never_expires() {
         let cache_dir = test_cache_dir();
-        let cache = CacacheRepository::new(cache_dir, None); // No TTL
+        let cache = CacacheStorage::new(cache_dir, None); // No TTL
 
         let key = TestKey { id: "test".to_string() };
         let value = TestValue { data: "hello".to_string(), count: 42 };

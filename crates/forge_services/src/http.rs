@@ -1,12 +1,10 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_app::HttpClientService;
+use forge_app::{HttpClientService, HttpInfra};
 use reqwest::Response;
 use reqwest::header::HeaderMap;
 use url::Url;
-
-use crate::HttpInfra;
 
 #[derive(Clone)]
 pub struct HttpClient<I>(Arc<I>);

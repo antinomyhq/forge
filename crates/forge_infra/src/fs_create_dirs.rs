@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use forge_services::FileDirectoryInfra;
+use forge_app::FileDirectoryInfra;
 
 #[derive(Default)]
 pub struct ForgeCreateDirsService;

@@ -3,10 +3,8 @@ use std::sync::Arc;
 
 use anyhow::bail;
 use forge_app::domain::Environment;
-use forge_app::{ShellOutput, ShellService};
+use forge_app::{CommandInfra, EnvironmentInfra, ShellOutput, ShellService};
 use strip_ansi_escapes::strip;
-
-use crate::{CommandInfra, EnvironmentInfra};
 
 // Strips out the ansi codes from content.
 fn strip_ansi(content: String) -> String {
@@ -70,12 +68,11 @@ mod tests {
     use std::sync::Arc;
 
     use async_trait::async_trait;
-    use forge_app::ShellService;
     use forge_app::domain::{CommandOutput, Environment};
+    use forge_app::{CommandInfra, ShellService};
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::infra::CommandInfra;
 
     struct MockCommandInfra {
         expected_env_vars: Option<Vec<String>>,

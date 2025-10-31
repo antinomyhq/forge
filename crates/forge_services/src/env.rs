@@ -1,9 +1,7 @@
 use std::sync::Arc;
 
-use forge_app::EnvironmentService;
 use forge_app::domain::Environment;
-
-use crate::EnvironmentInfra;
+use forge_app::{EnvironmentInfra, EnvironmentService};
 
 pub struct ForgeEnvironmentService<F>(Arc<F>);
 

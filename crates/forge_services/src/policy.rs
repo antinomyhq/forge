@@ -7,14 +7,12 @@ use forge_app::domain::{
     ExecuteRule, Fetch, Permission, PermissionOperation, Policy, PolicyConfig, PolicyEngine,
     ReadRule, Rule, WriteRule,
 };
-use forge_app::{PolicyDecision, PolicyService};
+use forge_app::{
+    DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
+    PolicyDecision, PolicyService, UserInfra,
+};
 use lazy_static::lazy_static;
 use strum_macros::{Display, EnumIter};
-
-use crate::{
-    DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
-    UserInfra,
-};
 
 /// User response for permission confirmation requests
 #[derive(Debug, Clone, PartialEq, Eq, Display, EnumIter, strum_macros::EnumString)]
@@ -106,7 +104,7 @@ where
 
         // Write the updated content
         self.infra
-            .write(&policies_path, Bytes::from(new_content.to_owned()), true)
+            .write(&policies_path, Bytes::from(new_content.to_owned()))
             .await?;
 
         Ok(())
@@ -128,7 +126,7 @@ where
 
         // Write the default policies to the file
         self.infra
-            .write(&policies_path, Bytes::from(content), false)
+            .write(&policies_path, Bytes::from(content))
             .await?;
 
         Ok(())

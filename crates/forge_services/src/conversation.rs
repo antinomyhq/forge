@@ -3,8 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use forge_app::ConversationService;
 use forge_app::domain::{Conversation, ConversationId};
-
-use crate::ConversationRepository;
+use forge_domain::ConversationRepository;
 
 /// Service for managing conversations, including creation, retrieval, and
 /// updates

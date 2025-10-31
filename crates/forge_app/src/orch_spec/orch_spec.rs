@@ -87,6 +87,7 @@ async fn test_followup_does_not_trigger_session_summary() {
         .flatten()
         .any(|response| matches!(response, ChatResponse::TaskComplete));
 
+    assert!(!ctx.output.tools().is_empty(), "Context should've tools.");
     assert!(
         !has_chat_complete,
         "Should NOT have TaskComplete response for followup"
@@ -185,6 +186,7 @@ async fn test_tool_call_start_end_responses_for_non_agent_tools() {
         Some(&tool_result),
         "ToolCallEnd should contain the tool result"
     );
+    assert!(!ctx.output.tools().is_empty(), "Context should've tools.");
 }
 
 #[tokio::test]
@@ -233,6 +235,7 @@ async fn test_no_tool_call_start_end_responses_for_agent_tools() {
         tool_call_end_count, 0,
         "Should have 0 ToolCallEnd responses for agent tools"
     );
+    assert!(!ctx.output.tools().is_empty(), "Context should've tools.");
 }
 
 #[tokio::test]
@@ -311,6 +314,7 @@ async fn test_mixed_agent_and_non_agent_tool_calls() {
         tool_call_end_names.contains(&"fs_read"),
         "Should have ToolCallEnd for fs_read"
     );
+    assert!(!ctx.output.tools().is_empty(), "Context should've tools.");
 }
 
 #[tokio::test]
@@ -385,7 +389,7 @@ async fn test_multiple_consecutive_tool_calls() {
         .filter(|response| matches!(response, ChatResponse::TaskComplete))
         .count();
 
-    assert_eq!(retry_attempts, 1, "Should complete the task")
+    assert_eq!(retry_attempts, 1, "Should complete the task");
 }
 
 #[tokio::test]

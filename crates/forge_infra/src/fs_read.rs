@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use anyhow::Result;
-use forge_services::FileReaderInfra;
+use forge_app::FileReaderInfra;
 
 pub struct ForgeFileReadService;
 
@@ -32,7 +32,7 @@ impl FileReaderInfra for ForgeFileReadService {
         path: &Path,
         start_line: u64,
         end_line: u64,
-    ) -> Result<(String, forge_fs::FileInfo)> {
+    ) -> Result<(String, forge_domain::FileInfo)> {
         forge_fs::ForgeFS::read_range_utf8(path, start_line, end_line).await
     }
 }

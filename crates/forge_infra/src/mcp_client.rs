@@ -3,8 +3,8 @@ use std::future::Future;
 use std::sync::{Arc, RwLock};
 
 use backon::{ExponentialBuilder, Retryable};
+use forge_app::McpClientInfra;
 use forge_domain::{Image, McpServerConfig, ToolDefinition, ToolName, ToolOutput};
-use forge_services::McpClientInfra;
 use rmcp::model::{CallToolRequestParam, ClientInfo, Implementation, InitializeRequestParam};
 use rmcp::service::RunningService;
 use rmcp::transport::{SseClientTransport, TokioChildProcess};

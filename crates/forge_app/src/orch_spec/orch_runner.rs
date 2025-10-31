@@ -103,7 +103,8 @@ impl Runner {
         .await?;
 
         let conversation = InitConversationMetrics::new(setup.current_time).apply(conversation);
-        let conversation = ApplyTunableParameters::new(agent.clone()).apply(conversation);
+        let conversation =
+            ApplyTunableParameters::new(agent.clone(), system_tools.clone()).apply(conversation);
         let conversation = SetConversationId.apply(conversation);
 
         let orch = Orchestrator::new(

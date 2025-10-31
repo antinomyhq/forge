@@ -1,20 +1,20 @@
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use bytes::Bytes;
-use forge_services::{FileWriterInfra, SnapshotInfra};
+use forge_app::FileWriterInfra;
 
-pub struct ForgeFileWriteService<S> {
-    snaps: Arc<S>,
-}
+/// Low-level file write service
+///
+/// Provides primitive file write operations without snapshot coordination.
+/// Snapshot management should be handled at the service layer.
+pub struct ForgeFileWriteService;
 
-impl<S> ForgeFileWriteService<S> {
-    pub fn new(snaps: Arc<S>) -> Self {
-        Self { snaps }
+impl ForgeFileWriteService {
+    pub fn new() -> Self {
+        Self
     }
 
-    // To ensure the path is valid, create parent directories for the given file
-    // if the file did not exist.
+    /// Creates parent directories for the given file path if they don't exist
     async fn create_parent_dirs(&self, path: &Path) -> anyhow::Result<()> {
         if !forge_fs::ForgeFS::exists(path)
             && let Some(parent) = path.parent()
@@ -25,19 +25,16 @@ impl<S> ForgeFileWriteService<S> {
     }
 }
 
-#[async_trait::async_trait]
-impl<S: SnapshotInfra> FileWriterInfra for ForgeFileWriteService<S> {
-    async fn write(
-        &self,
-        path: &Path,
-        contents: Bytes,
-        capture_snapshot: bool,
-    ) -> anyhow::Result<()> {
-        self.create_parent_dirs(path).await?;
-        if forge_fs::ForgeFS::exists(path) && capture_snapshot {
-            let _ = self.snaps.create_snapshot(path).await?;
-        }
+impl Default for ForgeFileWriteService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
+#[async_trait::async_trait]
+impl FileWriterInfra for ForgeFileWriteService {
+    async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()> {
+        self.create_parent_dirs(path).await?;
         Ok(forge_fs::ForgeFS::write(path, contents.to_vec()).await?)
     }
 
@@ -51,7 +48,7 @@ impl<S: SnapshotInfra> FileWriterInfra for ForgeFileWriteService<S> {
             .to_path_buf();
 
         self.create_parent_dirs(&path).await?;
-        self.write(&path, content.to_string().into(), false).await?;
+        self.write(&path, content.to_string().into()).await?;
 
         Ok(path)
     }
@@ -59,32 +56,12 @@ impl<S: SnapshotInfra> FileWriterInfra for ForgeFileWriteService<S> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use forge_snaps::Snapshot;
     use tempfile::tempdir;
 
     use super::*;
 
-    struct MockSnapshotService;
-
-    #[async_trait::async_trait]
-    impl SnapshotInfra for MockSnapshotService {
-        async fn create_snapshot(&self, _: &Path) -> anyhow::Result<forge_snaps::Snapshot> {
-            Ok(Snapshot {
-                id: Default::default(),
-                timestamp: Default::default(),
-                path: "".to_string(),
-            })
-        }
-
-        async fn undo_snapshot(&self, _path: &Path) -> anyhow::Result<()> {
-            Ok(())
-        }
-    }
-
-    fn create_test_service() -> ForgeFileWriteService<MockSnapshotService> {
-        ForgeFileWriteService::new(Arc::new(MockSnapshotService))
+    fn create_test_service() -> ForgeFileWriteService {
+        ForgeFileWriteService::new()
     }
 
     #[tokio::test]
@@ -99,11 +76,7 @@ mod tests {
             .join("test.txt");
 
         let actual = service
-            .write(
-                &nested_file_path,
-                Bytes::from_static("foo".as_bytes()),
-                false,
-            )
+            .write(&nested_file_path, Bytes::from_static("foo".as_bytes()))
             .await;
 
         assert!(actual.is_ok());

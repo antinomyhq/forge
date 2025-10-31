@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use forge_app::FollowUpService;
-
-use crate::UserInfra;
+use forge_app::{FollowUpService, UserInfra};
 
 /// Use this tool when you encounter ambiguities, need clarification, or require
 /// more details to proceed effectively. Use this tool judiciously to maintain a

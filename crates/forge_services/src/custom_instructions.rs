@@ -1,10 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use forge_app::CustomInstructionsService;
-
-use crate::CommandInfra;
-use crate::infra::{EnvironmentInfra, FileReaderInfra};
+use forge_app::{CommandInfra, CustomInstructionsService, EnvironmentInfra, FileReaderInfra};
 
 /// This service looks for AGENTS.md files in three locations in order of
 /// priority:

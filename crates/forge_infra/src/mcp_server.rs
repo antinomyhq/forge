@@ -1,5 +1,5 @@
+use forge_app::McpServerInfra;
 use forge_domain::McpServerConfig;
-use forge_services::McpServerInfra;
 
 use crate::mcp_client::ForgeMcpClient;
 

@@ -5,8 +5,9 @@ use forge_domain::{
     Template, ToolCallContext, ToolCallFull, ToolResult,
 };
 
+use crate::services::AppConfigService;
 use crate::tool_registry::ToolRegistry;
-use crate::{ConversationService, ProviderRegistry, ProviderService, Services, TemplateService};
+use crate::{ConversationService, ProviderService, Services, TemplateService};
 
 /// Agent service trait that provides core chat and tool call functionality.
 /// This trait abstracts the essential operations needed by the Orchestrator.

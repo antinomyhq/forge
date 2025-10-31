@@ -3,14 +3,12 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use bytes::Bytes;
-use forge_app::McpConfigManager;
 use forge_app::domain::{McpConfig, Scope};
-use merge::Merge;
-
-use crate::{
-    CacheRepository, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
+use forge_app::{
+    EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, KVStore, McpConfigManager,
     McpServerInfra,
 };
+use merge::Merge;
 
 pub struct ForgeMcpManager<I> {
     infra: Arc<I>,
@@ -18,7 +16,7 @@ pub struct ForgeMcpManager<I> {
 
 impl<I> ForgeMcpManager<I>
 where
-    I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra + CacheRepository,
+    I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra + KVStore,
 {
     pub fn new(infra: Arc<I>) -> Self {
         Self { infra }
@@ -46,7 +44,7 @@ where
         + FileInfoInfra
         + EnvironmentInfra
         + FileWriterInfra
-        + CacheRepository,
+        + KVStore,
 {
     async fn read_mcp_config(&self, scope: Option<&Scope>) -> anyhow::Result<McpConfig> {
         match scope {
@@ -88,7 +86,6 @@ where
             .write(
                 self.config_path(scope).await?.as_path(),
                 Bytes::from(serde_json::to_string_pretty(config)?),
-                true,
             )
             .await?;
 
