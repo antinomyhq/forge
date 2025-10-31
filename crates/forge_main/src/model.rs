@@ -336,7 +336,7 @@ impl ForgeCommandManager {
             "/logout" => Ok(SlashCommand::Logout),
             "/retry" => Ok(SlashCommand::Retry),
             "/conversation" | "/conversations" => Ok(SlashCommand::Conversations),
-             "/commit" => {
+            "/commit" => {
                 // Support flexible syntax:
                 // /commit              -> commit with AI message
                 // /commit preview      -> preview message only
@@ -345,7 +345,7 @@ impl ForgeCommandManager {
                 let preview = parameters.contains(&"preview");
                 let max_diff_size = parameters.iter().find_map(|&p| p.parse::<usize>().ok());
                 Ok(SlashCommand::Commit { preview, max_diff_size })
-            },
+            }
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -524,7 +524,6 @@ impl SlashCommand {
             SlashCommand::Retry => "retry",
             SlashCommand::Conversations => "conversation",
             SlashCommand::AgentSwitch(agent_id) => agent_id,
-            
         }
     }
 
