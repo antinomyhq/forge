@@ -108,6 +108,9 @@ pub enum TopLevelCommand {
     /// Session management commands (dump, retry, resume, list)
     Session(SessionCommandGroup),
 
+    /// Generate and optionally commit changes with AI-generated message
+    Commit(CommitCommandGroup),
+
     /// MCP server management commands
     Mcp(McpCommandGroup),
 }
@@ -167,6 +170,11 @@ pub enum ListCommand {
     ///
     /// Example: forge list session
     Session,
+
+    /// Generates AI-powered commit messages and commits changes.
+    ///
+    /// Example: forge commit --preview
+    Commit(CommitCommandGroup),
 }
 
 /// Group of extension-related commands
@@ -381,6 +389,22 @@ pub enum SessionCommand {
         /// Conversation ID
         id: String,
     },
+}
+
+/// Group of Commit-related commands
+#[derive(Parser, Debug, Clone)]
+pub struct CommitCommandGroup {
+    /// Preview the commit message without committing
+    #[arg(long)]
+    pub preview: bool,
+
+    /// Maximum git diff size in bytes (unlimited by default)
+    ///
+    /// Limits the size of the git diff sent to the AI model. Large diffs are
+    /// truncated to save tokens and reduce API costs. Omit for unlimited size.
+    /// Minimum value is 5000 bytes.
+    #[arg(long = "max-diff", value_parser = clap::builder::RangedI64ValueParser::<usize>::new().range(5000..))]
+    pub max_diff_size: Option<usize>,
 }
 
 #[cfg(test)]

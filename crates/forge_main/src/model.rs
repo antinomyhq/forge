@@ -157,6 +157,7 @@ impl ForgeCommandManager {
                 | "retry"
                 | "conversations"
                 | "list"
+                | "commit"
         )
     }
 
@@ -335,6 +336,16 @@ impl ForgeCommandManager {
             "/logout" => Ok(SlashCommand::Logout),
             "/retry" => Ok(SlashCommand::Retry),
             "/conversation" | "/conversations" => Ok(SlashCommand::Conversations),
+            "/commit" => {
+                // Support flexible syntax:
+                // /commit              -> commit with AI message
+                // /commit preview      -> preview message only
+                // /commit 5000         -> commit with max-diff of 5000 bytes
+                // /commit preview 5000 -> preview with max-diff
+                let preview = parameters.contains(&"preview");
+                let max_diff_size = parameters.iter().find_map(|&p| p.parse::<usize>().ok());
+                Ok(SlashCommand::Commit { preview, max_diff_size })
+            }
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -469,6 +480,21 @@ pub enum SlashCommand {
     /// Switch directly to a specific agent by ID
     #[strum(props(usage = "Switch directly to a specific agent"))]
     AgentSwitch(String),
+
+    /// Generate and optionally commit changes with AI-generated message
+    ///
+    /// Examples:
+    /// - `/commit` - Generate message and commit
+    /// - `/commit preview` - Preview message without committing
+    /// - `/commit 5000` - Commit with max diff of 5000 bytes
+    /// - `/commit preview 5000` - Preview with max diff limit
+    #[strum(props(
+        usage = "Generate AI commit message and commit changes. Format: /commit <max-diff|preview>"
+    ))]
+    Commit {
+        preview: bool,
+        max_diff_size: Option<usize>,
+    },
 }
 
 impl SlashCommand {
@@ -486,6 +512,7 @@ impl SlashCommand {
             SlashCommand::Sage => "sage",
             SlashCommand::Help => "help",
             SlashCommand::Dump(_) => "dump",
+            SlashCommand::Commit { .. } => "commit",
             SlashCommand::Model => "model",
             SlashCommand::Provider => "provider",
             SlashCommand::Tools => "tools",
@@ -995,6 +1022,69 @@ mod tests {
         let actual = format!("{}", CliProvider(fixture));
         let expected = "Forge [localhost]";
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_commit_command() {
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture.parse("/commit").unwrap();
+        match actual {
+            SlashCommand::Commit { preview, max_diff_size } => {
+                assert_eq!(preview, false);
+                assert_eq!(max_diff_size, None);
+            }
+            _ => panic!("Expected Commit command, got {actual:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_commit_command_with_preview() {
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture.parse("/commit preview").unwrap();
+        match actual {
+            SlashCommand::Commit { preview, max_diff_size } => {
+                assert_eq!(preview, true);
+                assert_eq!(max_diff_size, None);
+            }
+            _ => panic!("Expected Commit command with preview, got {actual:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_commit_command_with_max_diff() {
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture.parse("/commit 5000").unwrap();
+        match actual {
+            SlashCommand::Commit { preview, max_diff_size } => {
+                assert_eq!(preview, false);
+                assert_eq!(max_diff_size, Some(5000));
+            }
+            _ => panic!("Expected Commit command with max_diff_size, got {actual:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_commit_command_with_all_flags() {
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture.parse("/commit preview 10000").unwrap();
+        match actual {
+            SlashCommand::Commit { preview, max_diff_size } => {
+                assert_eq!(preview, true);
+                assert_eq!(max_diff_size, Some(10000));
+            }
+            _ => panic!("Expected Commit command with all flags, got {actual:?}"),
+        }
+    }
+
+    #[test]
+    fn test_commit_command_in_default_commands() {
+        let manager = ForgeCommandManager::default();
+        let commands = manager.list();
+        let contains_commit = commands.iter().any(|cmd| cmd.name == "commit");
+        assert!(
+            contains_commit,
+            "Commit command should be in default commands"
+        );
     }
 
     #[test]

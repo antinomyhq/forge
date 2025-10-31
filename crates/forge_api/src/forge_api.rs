@@ -6,7 +6,7 @@ use forge_app::dto::ToolsOverview;
 use forge_app::{
     AgentRegistry, AppConfigService, AuthService, CommandInfra, CommandLoaderService,
     ConversationService, EnvironmentInfra, EnvironmentService, FileDiscoveryService, ForgeApp,
-    McpConfigManager, McpService, ProviderService, Services, User, UserUsage, Walker,
+    GitApp, McpConfigManager, McpService, ProviderService, Services, User, UserUsage, Walker,
     WorkflowService,
 };
 use forge_domain::{InitAuth, LoginInfo, *};
@@ -73,6 +73,15 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
 
     async fn get_providers(&self) -> Result<Vec<Provider>> {
         Ok(self.services.get_all_providers().await?)
+    }
+
+    async fn commit(
+        &self,
+        preview: bool,
+        max_diff_size: Option<usize>,
+    ) -> Result<forge_app::CommitResult> {
+        let git_app = GitApp::new(self.services.clone());
+        git_app.commit(preview, max_diff_size).await
     }
 
     async fn chat(

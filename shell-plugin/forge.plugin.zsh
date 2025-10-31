@@ -7,6 +7,7 @@
 # Using typeset to keep variables local to plugin scope and prevent public exposure
 typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
 typeset -h _FORGE_CONVERSATION_PATTERN=":"
+typeset -h _FORGE_MAX_COMMIT_DIFF="${FORGE_MAX_COMMIT_DIFF:-5000}"
 typeset -h _FORGE_DELIMITER='\s\s+'
 
 # Detect fd command - Ubuntu/Debian use 'fdfind', others use 'fd'
@@ -294,6 +295,33 @@ function _forge_action_model() {
     _forge_reset
 }
 
+# Action handler: Commit changes with AI-generated message
+function _forge_action_commit() {
+    local commit_message
+    # Generate AI commit message
+    echo
+    commit_message=$($_FORGE_BIN commit --preview --max-diff "$_FORGE_MAX_COMMIT_DIFF")
+    
+    # Proceed only if command succeeded
+    if [[ -n "$commit_message" ]]; then
+        # Check if there are staged changes to determine commit strategy
+        if git diff --staged --quiet; then
+            # No staged changes: commit all tracked changes with -a flag
+            BUFFER="git commit -a -F- <<'EOF'\n${commit_message}\nEOF"
+        else
+            # Staged changes exist: commit only what's staged
+            BUFFER="git commit -F- <<'EOF'\n${commit_message}\nEOF"
+        fi
+        # Move cursor to end of buffer for immediate execution
+        CURSOR=${#BUFFER}
+        # Refresh display to show the new command
+        zle reset-prompt
+    else
+        echo "$commit_message"
+        _forge_reset
+    fi
+}
+
 # Action handler: Show tools
 function _forge_action_tools() {
     echo
@@ -418,6 +446,9 @@ function forge-accept-line() {
         tools)
             _forge_action_tools
         ;;
+        commit)
+            _forge_action_commit
+        ;;
         *)
             _forge_action_default "$user_action" "$input_text"
         ;;
@@ -435,3 +466,6 @@ bindkey '^M' forge-accept-line
 bindkey '^J' forge-accept-line
 # Update the Tab binding to use the new completion widget
 bindkey '^I' forge-completion  # Tab for both @ and :command completion
+
+# Aliases
+alias fc="$_FORGE_BIN commit"

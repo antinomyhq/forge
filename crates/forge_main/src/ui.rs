@@ -9,8 +9,8 @@ use forge_api::{
     API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
     InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, Workflow,
 };
-use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
+use forge_app::{GitAppError, ToolResolver};
 use forge_display::MarkdownFormat;
 use forge_domain::{ChatResponseContent, ContextMessage, Role, TitleFormat, UserCommand};
 use forge_fs::ForgeFS;
@@ -22,7 +22,10 @@ use strum::IntoEnumIterator;
 use tokio_stream::StreamExt;
 use tracing::debug;
 
-use crate::cli::{Cli, ExtensionCommand, ListCommand, McpCommand, SessionCommand, TopLevelCommand};
+use crate::cli::{
+    Cli, CommitCommandGroup, ExtensionCommand, ListCommand, McpCommand, SessionCommand,
+    TopLevelCommand,
+};
 use crate::conversation_selector::ConversationSelector;
 use crate::env::should_show_completion_prompt;
 use crate::info::Info;
@@ -59,6 +62,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Writes a TitleFormat to the console output with proper formatting
     fn writeln_title(&mut self, title: TitleFormat) -> anyhow::Result<()> {
         self.spinner.write_ln(title.display())
+    }
+
+    fn writeln_to_stderr(&mut self, title: String) -> anyhow::Result<()> {
+        self.spinner.stderr_ln(title)
     }
 
     /// Retrieve available models
@@ -187,7 +194,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Ok(_) => {}
             Err(error) => {
                 tracing::error!(error = ?error);
-                let _ = self.writeln_title(TitleFormat::error(format!("{error:?}")));
+                let _ = self.writeln_to_stderr(
+                    TitleFormat::error(format!("{error:?}"))
+                        .display()
+                        .to_string(),
+                );
             }
         }
     }
@@ -307,6 +318,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     ListCommand::Session => {
                         self.on_show_conversations(porcelain).await?;
                     }
+                    ListCommand::Commit(commit_group) => {
+                        self.handle_commit_command(commit_group).await?;
+                    }
                 }
                 return Ok(());
             }
@@ -411,6 +425,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.handle_session_command(session_group).await?;
                 return Ok(());
             }
+
+            TopLevelCommand::Commit(commit_group) => {
+                self.handle_commit_command(commit_group).await?;
+                return Ok(());
+            }
         }
         Ok(())
     }
@@ -512,6 +531,39 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 "Conversation '{}' not found. Use 'forge session list' to see available conversations.",
                 conversation_id
             );
+        }
+
+        Ok(())
+    }
+
+    async fn handle_commit_command(
+        &mut self,
+        commit_group: CommitCommandGroup,
+    ) -> anyhow::Result<()> {
+        self.spinner.start(Some("Generating commit message"))?;
+
+        // Handle the commit command
+        match self
+            .api
+            .commit(commit_group.preview, commit_group.max_diff_size)
+            .await
+        {
+            Ok(result) => {
+                self.spinner.stop(None)?;
+                if commit_group.preview {
+                    // Print the generated git commit message.
+                    self.writeln(&result.message)?;
+                }
+            }
+            Err(e) => {
+                self.spinner.stop(None)?;
+                if let Some(git_err) = e.downcast_ref::<GitAppError>()
+                    && matches!(git_err, GitAppError::NoChangesToCommit)
+                {
+                    return self.writeln_to_stderr(git_err.to_string());
+                }
+                return Err(e);
+            }
         }
 
         Ok(())
@@ -671,7 +723,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .add_key_value(
                 "tools",
                 "List all available tools with their descriptions and schema",
-            );
+            )
+            .add_key_value("commit", "Generate AI commit message and commit changes.");
 
         // Add alias commands
         info = info
@@ -1016,6 +1069,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
             SlashCommand::Shell(ref command) => {
                 self.api.execute_shell_command_raw(command).await?;
+            }
+            SlashCommand::Commit { preview, max_diff_size } => {
+                let args = CommitCommandGroup { preview, max_diff_size };
+                self.handle_commit_command(args).await?;
             }
             SlashCommand::Agent => {
                 #[derive(Clone)]
