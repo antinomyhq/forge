@@ -5,18 +5,19 @@ use forge_domain::*;
 use serde_json::json;
 use tracing::debug;
 
+use crate::TemplateService;
 use crate::agent::AgentService;
 
 /// Service responsible for setting user prompts in the conversation context
 #[derive(Clone)]
-pub struct UserPromptBuilder<S> {
+pub struct UserPromptGenerator<S> {
     services: Arc<S>,
     agent: Agent,
     event: Event,
     current_time: chrono::DateTime<chrono::Local>,
 }
 
-impl<S> UserPromptBuilder<S> {
+impl<S: TemplateService> UserPromptGenerator<S> {
     /// Creates a new UserPromptService
     pub fn new(
         service: Arc<S>,
@@ -29,10 +30,12 @@ impl<S> UserPromptBuilder<S> {
 
     /// Sets the user prompt in the context based on agent configuration and
     /// event data
-    pub async fn set_user_prompt(&self, mut context: Context) -> anyhow::Result<Context>
-    where
-        S: AgentService,
-    {
+    pub async fn add_user_prompt(
+        &self,
+        conversation: Conversation,
+    ) -> anyhow::Result<Conversation> {
+        // TODO: clone is expensive
+        let mut context = conversation.context.clone().unwrap_or_default();
         let event_value = self.event.value.clone();
 
         let content = if let Some(user_prompt) = &self.agent.user_prompt
@@ -58,7 +61,7 @@ impl<S> UserPromptBuilder<S> {
                 Some(command) => {
                     let rendered_prompt = self
                         .services
-                        .render(
+                        .render_template(
                             &command.template.template,
                             &json!({"parameters": command.parameters.join(" ")}),
                         )
@@ -71,7 +74,7 @@ impl<S> UserPromptBuilder<S> {
             // Render the event value into agent's user prompt template.
             Some(
                 self.services
-                    .render(user_prompt.template.as_str(), &event_context)
+                    .render_template(user_prompt.template.as_str(), &event_context)
                     .await?,
             )
         } else {
@@ -93,6 +96,6 @@ impl<S> UserPromptBuilder<S> {
             context = context.add_message(ContextMessage::Text(message));
         }
 
-        Ok(context)
+        Ok(conversation.context(context))
     }
 }

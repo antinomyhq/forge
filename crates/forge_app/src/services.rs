@@ -177,6 +177,8 @@ pub trait TemplateService: Send + Sync {
     async fn register_template(&self, path: PathBuf) -> anyhow::Result<()>;
     async fn render_template(
         &self,
+
+        // FIXME: Use Template type
         template: impl ToString + Send,
         object: &(impl serde::Serialize + Sync),
     ) -> anyhow::Result<String>;

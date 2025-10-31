@@ -12,6 +12,7 @@ use crate::orch::Orchestrator;
 use crate::services::{CustomInstructionsService, TemplateService};
 use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
+use crate::user_prompt::UserPromptGenerator;
 use crate::{
     AgentRegistry, AttachmentService, ConversationService, EnvironmentService,
     FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker, WorkflowService,
@@ -120,12 +121,25 @@ impl<S: Services> ForgeApp<S> {
             tool_resolver.resolve(&agent).into_iter().cloned().collect();
         let max_tool_failure_per_turn = agent.max_tool_failure_per_turn.unwrap_or(3);
 
+        let current_time = Local::now();
+
+        // Insert user prompt
+        let conversation = UserPromptGenerator::new(
+            self.services.clone(),
+            agent.clone(),
+            chat.event.clone(),
+            current_time,
+        )
+        .add_user_prompt(conversation)
+        .await?;
+
         // Create the orchestrator with all necessary dependencies
+
         let orch = Orchestrator::new(
             services.clone(),
             environment.clone(),
             conversation,
-            Local::now(),
+            current_time,
             agent,
             chat.event,
         )

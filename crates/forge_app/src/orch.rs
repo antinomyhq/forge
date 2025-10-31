@@ -13,7 +13,7 @@ use tracing::{debug, info, warn};
 use crate::agent::AgentService;
 use crate::compact::Compactor;
 use crate::title_generator::TitleGenerator;
-use crate::user_prompt::UserPromptBuilder;
+use crate::user_prompt::UserPromptGenerator;
 
 #[derive(Clone, Setters)]
 #[setters(into, strip_option)]
@@ -29,7 +29,6 @@ pub struct Orchestrator<S> {
     agent: Agent,
     event: Event,
     error_tracker: ToolErrorTracker,
-    user_prompt_service: UserPromptBuilder<S>,
     current_time: chrono::DateTime<chrono::Local>,
 }
 
@@ -43,12 +42,6 @@ impl<S: AgentService> Orchestrator<S> {
         event: Event,
     ) -> Self {
         Self {
-            user_prompt_service: UserPromptBuilder::new(
-                services.clone(),
-                agent.clone(),
-                event.clone(),
-                current_time,
-            ),
             conversation,
             environment,
             services,
@@ -291,7 +284,7 @@ impl<S: AgentService> Orchestrator<S> {
         context = self.set_system_prompt(context).await?;
 
         // Render user prompts
-        context = self.user_prompt_service.set_user_prompt(context).await?;
+        // context = self.user_prompt_service.set_user_prompt(context).await?;
 
         // Reset metrics timer for this turn
         self.conversation.metrics.started_at = Some(self.current_time.with_timezone(&chrono::Utc));
