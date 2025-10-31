@@ -1,14 +1,15 @@
-use forge_domain::{Agent, Conversation};
+use forge_domain::{Agent, Conversation, ToolDefinition};
 
 /// Applies tunable parameters from agent to conversation context
 #[derive(Debug, Clone)]
 pub struct ApplyTunableParameters {
     agent: Agent,
+    tool_definitions: Vec<ToolDefinition>,
 }
 
 impl ApplyTunableParameters {
-    pub const fn new(agent: Agent) -> Self {
-        Self { agent }
+    pub const fn new(agent: Agent, tool_definitions: Vec<ToolDefinition>) -> Self {
+        Self { agent, tool_definitions }
     }
 
     pub fn apply(self, mut conversation: Conversation) -> Conversation {
@@ -30,7 +31,7 @@ impl ApplyTunableParameters {
             ctx = ctx.reasoning(reasoning.clone());
         }
 
-        conversation.context(ctx)
+        conversation.context(ctx.tools(self.tool_definitions))
     }
 }
 
