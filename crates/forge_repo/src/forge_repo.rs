@@ -19,7 +19,7 @@ use reqwest_eventsource::EventSource;
 use url::Url;
 
 use crate::fs_snap::ForgeFileSnapshotService;
-use crate::provider_repository::ForgeProviderRepository;
+use crate::provider::ForgeProviderRepository;
 use crate::{AppConfigRepositoryImpl, ConversationRepositoryImpl, DatabasePool, PoolConfig};
 
 /// Repository layer that implements all domain repository traits

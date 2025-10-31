@@ -4,7 +4,7 @@ mod database;
 mod error;
 mod forge_repo;
 mod fs_snap;
-mod provider_repository;
+mod provider;
 
 pub use app_config::*;
 pub use conversation::*;
