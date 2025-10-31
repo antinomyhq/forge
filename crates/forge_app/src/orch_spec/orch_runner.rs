@@ -10,7 +10,11 @@ use rust_embed::Embed;
 use tokio::sync::Mutex;
 
 pub use super::orch_setup::TestContext;
+use crate::apply_tunable_parameters::ApplyTunableParameters;
+use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
+use crate::set_conversation_id::SetConversationId;
+use crate::system_prompt::SystemPrompt;
 use crate::user_prompt::UserPromptGenerator;
 use crate::{AgentService, AttachmentService, TemplateService};
 
@@ -77,6 +81,16 @@ impl Runner {
 
         let agent = setup.agent.clone();
         let system_tools = setup.tools.clone();
+        let agent = agent
+            .apply_workflow_config(&setup.workflow)
+            .set_model_deeply(setup.model.clone());
+
+        // Render system prompt into context.
+        let conversation = SystemPrompt::new(services.clone(), setup.env.clone(), agent.clone())
+            .files(setup.files.clone())
+            .tool_definitions(system_tools.clone())
+            .add_system_message(conversation)
+            .await?;
 
         // Render user prompt into context.
         let conversation = UserPromptGenerator::new(
@@ -88,20 +102,20 @@ impl Runner {
         .add_user_prompt(conversation)
         .await?;
 
+        let conversation = InitConversationMetrics::new(setup.current_time).apply(conversation);
+        let conversation = ApplyTunableParameters::new(agent.clone()).apply(conversation);
+        let conversation = SetConversationId.apply(conversation);
+
         let orch = Orchestrator::new(
             services.clone(),
             setup.env.clone(),
             conversation,
-            setup.current_time,
-            agent
-                .apply_workflow_config(&setup.workflow)
-                .set_model_deeply(setup.model.clone()),
+            agent,
             event,
         )
         .error_tracker(ToolErrorTracker::new(3))
         .tool_definitions(system_tools)
-        .sender(tx)
-        .files(setup.files.clone());
+        .sender(tx);
 
         let (mut orch, runner) = (orch, services);
 

@@ -23,12 +23,9 @@ pub struct Orchestrator<S> {
     environment: Environment,
     tool_definitions: Vec<ToolDefinition>,
     models: Vec<Model>,
-    files: Vec<String>,
-    custom_instructions: Vec<String>,
     agent: Agent,
     event: Event,
     error_tracker: ToolErrorTracker,
-    current_time: chrono::DateTime<chrono::Local>,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -36,7 +33,6 @@ impl<S: AgentService> Orchestrator<S> {
         services: Arc<S>,
         environment: Environment,
         conversation: Conversation,
-        current_time: chrono::DateTime<chrono::Local>,
         agent: Agent,
         event: Event,
     ) -> Self {
@@ -49,10 +45,7 @@ impl<S: AgentService> Orchestrator<S> {
             sender: Default::default(),
             tool_definitions: Default::default(),
             models: Default::default(),
-            files: Default::default(),
-            custom_instructions: Default::default(),
             error_tracker: Default::default(),
-            current_time,
         }
     }
 
@@ -122,17 +115,6 @@ impl<S: AgentService> Orchestrator<S> {
         Ok(())
     }
 
-    /// Checks if parallel tool calls is supported by agent
-    fn is_parallel_tool_call_supported(&self) -> bool {
-        let agent = &self.agent;
-        agent
-            .model
-            .as_ref()
-            .and_then(|model_id| self.models.iter().find(|model| &model.id == model_id))
-            .and_then(|model| model.supports_parallel_tool_calls)
-            .unwrap_or_default()
-    }
-
     // Returns if agent supports tool or not.
     fn is_tool_supported(&self) -> anyhow::Result<bool> {
         let agent = &self.agent;
@@ -161,54 +143,6 @@ impl<S: AgentService> Orchestrator<S> {
             "Tool support check"
         );
         Ok(tool_supported)
-    }
-
-    async fn set_system_prompt(&self, context: Context) -> anyhow::Result<Context> {
-        let agent = &self.agent;
-        Ok(if let Some(system_prompt) = &agent.system_prompt {
-            let env = self.environment.clone();
-            let mut files = self.files.clone();
-            files.sort();
-
-            let tool_supported = self.is_tool_supported()?;
-            let supports_parallel_tool_calls = self.is_parallel_tool_call_supported();
-            let tool_information = match tool_supported {
-                true => None,
-                false => Some(ToolUsagePrompt::from(&self.tool_definitions).to_string()),
-            };
-
-            let mut custom_rules = Vec::new();
-
-            agent.custom_rules.iter().for_each(|rule| {
-                custom_rules.push(rule.as_str());
-            });
-
-            self.custom_instructions.iter().for_each(|rule| {
-                custom_rules.push(rule.as_str());
-            });
-
-            let ctx = SystemContext {
-                env: Some(env),
-                tool_information,
-                tool_supported,
-                files,
-                custom_rules: custom_rules.join("\n\n"),
-                supports_parallel_tool_calls,
-            };
-
-            let static_block = self
-                .services
-                .render(Template::new(&system_prompt.template), &())
-                .await?;
-            let non_static_block = self
-                .services
-                .render(Template::new("{{> forge-custom-agent-template.md }}"), &ctx)
-                .await?;
-
-            context.set_system_messages(vec![static_block, non_static_block])
-        } else {
-            context
-        })
     }
 
     async fn execute_chat_turn(
@@ -276,43 +210,8 @@ impl<S: AgentService> Orchestrator<S> {
 
         let mut context = self.conversation.context.clone().unwrap_or_default();
 
-        // attach the conversation ID to the context
-        context = context.conversation_id(self.conversation.id);
-
-        // Reset all the available tools
-        context = context.tools(self.tool_definitions.clone());
-
-        // Render the system prompts with the variables
-        context = self.set_system_prompt(context).await?;
-
-        // Render user prompts
-        // context = self.user_prompt_service.set_user_prompt(context).await?;
-
-        // Reset metrics timer for this turn
-        self.conversation.metrics.started_at = Some(self.current_time.with_timezone(&chrono::Utc));
-
         // Create agent reference for the rest of the method
         let agent = &self.agent;
-
-        if let Some(temperature) = agent.temperature {
-            context = context.temperature(temperature);
-        }
-
-        if let Some(top_p) = agent.top_p {
-            context = context.top_p(top_p);
-        }
-
-        if let Some(top_k) = agent.top_k {
-            context = context.top_k(top_k);
-        }
-
-        if let Some(max_tokens) = agent.max_tokens {
-            context = context.max_tokens(max_tokens.value() as usize);
-        }
-
-        if let Some(reasoning) = agent.reasoning.as_ref() {
-            context = context.reasoning(reasoning.clone());
-        }
 
         // Signals that the loop should suspend (task may or may not be completed)
         let mut should_yield = false;

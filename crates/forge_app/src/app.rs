@@ -6,10 +6,14 @@ use chrono::Local;
 use forge_domain::{InitAuth, *};
 use forge_stream::MpscStream;
 
+use crate::apply_tunable_parameters::ApplyTunableParameters;
 use crate::authenticator::Authenticator;
 use crate::dto::ToolsOverview;
+use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
 use crate::services::{AppConfigService, CustomInstructionsService, TemplateService};
+use crate::set_conversation_id::SetConversationId;
+use crate::system_prompt::SystemPrompt;
 use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
 use crate::user_prompt::UserPromptGenerator;
@@ -110,6 +114,16 @@ impl<S: Services> ForgeApp<S> {
 
         let current_time = Local::now();
 
+        // Insert system prompt
+        let conversation =
+            SystemPrompt::new(self.services.clone(), environment.clone(), agent.clone())
+                .custom_instructions(custom_instructions.clone())
+                .tool_definitions(tool_definitions.clone())
+                .models(models.clone())
+                .files(files.clone())
+                .add_system_message(conversation)
+                .await?;
+
         // Insert user prompt
         let conversation = UserPromptGenerator::new(
             self.services.clone(),
@@ -120,21 +134,21 @@ impl<S: Services> ForgeApp<S> {
         .add_user_prompt(conversation)
         .await?;
 
-        // Create the orchestrator with all necessary dependencies
+        let conversation = InitConversationMetrics::new(current_time).apply(conversation);
+        let conversation = ApplyTunableParameters::new(agent.clone()).apply(conversation);
+        let conversation = SetConversationId.apply(conversation);
 
+        // Create the orchestrator with all necessary dependencies
         let orch = Orchestrator::new(
             services.clone(),
             environment.clone(),
             conversation,
-            current_time,
             agent,
             chat.event,
         )
         .error_tracker(ToolErrorTracker::new(max_tool_failure_per_turn))
-        .custom_instructions(custom_instructions)
         .tool_definitions(tool_definitions)
-        .models(models)
-        .files(files);
+        .models(models);
 
         // Create and return the stream
         let stream = MpscStream::spawn(
