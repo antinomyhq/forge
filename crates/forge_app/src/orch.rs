@@ -196,10 +196,13 @@ impl<S: AgentService> Orchestrator<S> {
                 supports_parallel_tool_calls,
             };
 
-            let static_block = self.services.render(&system_prompt.template, &()).await?;
+            let static_block = self
+                .services
+                .render(Template::new(&system_prompt.template), &())
+                .await?;
             let non_static_block = self
                 .services
-                .render("{{> forge-custom-agent-template.md }}", &ctx)
+                .render(Template::new("{{> forge-custom-agent-template.md }}"), &ctx)
                 .await?;
 
             context.set_system_messages(vec![static_block, non_static_block])
@@ -435,7 +438,10 @@ impl<S: AgentService> Orchestrator<S> {
                     });
                     let text = self
                         .services
-                        .render("{{> forge-tool-retry-message.md }}", &context)
+                        .render(
+                            Template::new("{{> forge-tool-retry-message.md }}"),
+                            &context,
+                        )
                         .await?;
                     let message = Element::new("retry").text(text);
 

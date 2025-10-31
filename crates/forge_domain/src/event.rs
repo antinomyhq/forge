@@ -84,16 +84,22 @@ pub struct UserPrompt(String);
 
 #[derive(Clone, Serialize, Deserialize, Debug, Setters)]
 pub struct EventContext {
-    event: Event,
+    event: EventContextValue,
     suggestions: Vec<String>,
     variables: HashMap<String, Value>,
     current_date: String,
 }
 
+#[derive(Clone, Serialize, Deserialize, Debug, Setters)]
+pub struct EventContextValue {
+    pub name: String,
+    pub value: String,
+}
+
 impl EventContext {
-    pub fn new(event: Event) -> Self {
+    pub fn new(event: impl Into<EventContextValue>) -> Self {
         Self {
-            event,
+            event: event.into(),
             suggestions: Default::default(),
             variables: Default::default(),
             current_date: chrono::Local::now().format("%Y-%m-%d").to_string(),
@@ -202,9 +208,6 @@ mod tests {
         let context = EventContext::new(event).into_task();
 
         assert_eq!(context.event.name, "agent_123/user_task_init");
-        assert_eq!(
-            context.event.value,
-            Some(EventValue::text("initial content"))
-        );
+        assert_eq!(context.event.value, "initial content");
     }
 }

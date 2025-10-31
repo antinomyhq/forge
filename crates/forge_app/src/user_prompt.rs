@@ -40,8 +40,8 @@ impl<S: TemplateService + AttachmentService> UserPromptGenerator<S> {
         let content = if let Some(user_prompt) = &self.agent.user_prompt
             && self.event.value.is_some()
         {
-            let mut event_context = EventContext::new(self.event.clone())
-                .current_date(self.current_time.format("%Y-%m-%d").to_string());
+            let mut event_context =
+                EventContext::new(self.event.clone()).current_date(current_date);
 
             // Check if context already contains user messages to determine if it's feedback
             let has_user_messages = context.messages.iter().any(|msg| msg.has_role(Role::User));
@@ -60,7 +60,7 @@ impl<S: TemplateService + AttachmentService> UserPromptGenerator<S> {
                     let rendered_prompt = self
                         .services
                         .render_template(
-                            &command.template.template,
+                            command.template.clone(),
                             &json!({"parameters": command.parameters.join(" ")}),
                         )
                         .await?;
@@ -72,7 +72,7 @@ impl<S: TemplateService + AttachmentService> UserPromptGenerator<S> {
             // Render the event value into agent's user prompt template.
             Some(
                 self.services
-                    .render_template(user_prompt.template.as_str(), &event_context)
+                    .render_template(Template::new(user_prompt.template.as_str()), &event_context)
                     .await?,
             )
         } else {

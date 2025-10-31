@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use forge_domain::{
     Agent, ChatCompletionMessage, Context, Conversation, ModelId, ProviderId, ResultStream,
-    ToolCallContext, ToolCallFull, ToolResult,
+    Template, ToolCallContext, ToolCallFull, ToolResult,
 };
 
 use crate::tool_registry::ToolRegistry;
@@ -29,11 +29,10 @@ pub trait AgentService: Send + Sync + 'static {
     ) -> ToolResult;
 
     /// Render a template with the provided object
-    async fn render(
+    async fn render<V: serde::Serialize + Send + Sync>(
         &self,
-        // TODO: should take a template instance
-        template: &str,
-        object: &(impl serde::Serialize + Sync),
+        template: Template<V>,
+        object: &V,
     ) -> anyhow::Result<String>;
 
     /// Synchronize the on-going conversation
@@ -68,10 +67,10 @@ impl<T: Services> AgentService for T {
         registry.call(agent, context, call).await
     }
 
-    async fn render(
+    async fn render<V: serde::Serialize + Send + Sync>(
         &self,
-        template: &str,
-        object: &(impl serde::Serialize + Sync),
+        template: Template<V>,
+        object: &V,
     ) -> anyhow::Result<String> {
         self.render_template(template, object).await
     }
