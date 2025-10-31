@@ -47,6 +47,8 @@ pub enum ChatResponse {
     TaskMessage { content: ChatResponseContent },
     TaskReasoning { content: String },
     TaskComplete,
+    StartOfStream,
+    EndOfStream,
     ToolCallStart(ToolCallFull),
     ToolCallEnd(ToolResult),
     Usage(Usage),
@@ -65,9 +67,10 @@ impl ChatResponse {
             ChatResponse::TaskMessage { content } => match content {
                 ChatResponseContent::Title(_) => false,
                 ChatResponseContent::PlainText(content) => content.trim().is_empty(),
-                ChatResponseContent::Markdown(content) => content.trim().is_empty(),
+                ChatResponseContent::Markdown(content) => content.is_empty(),
             },
             ChatResponse::TaskReasoning { content } => content.trim().is_empty(),
+            ChatResponse::StartOfStream | ChatResponse::EndOfStream => false,
             _ => false,
         }
     }
