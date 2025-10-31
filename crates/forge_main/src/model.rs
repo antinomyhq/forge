@@ -1030,7 +1030,7 @@ mod tests {
         let fixture = ForgeCommandManager::default();
         let actual = fixture.parse("/commit").unwrap();
         match actual {
-            Command::Commit { preview, max_diff_size } => {
+            SlashCommand::Commit { preview, max_diff_size } => {
                 assert_eq!(preview, false);
                 assert_eq!(max_diff_size, None);
             }
@@ -1043,7 +1043,7 @@ mod tests {
         let fixture = ForgeCommandManager::default();
         let actual = fixture.parse("/commit preview").unwrap();
         match actual {
-            Command::Commit { preview, max_diff_size } => {
+            SlashCommand::Commit { preview, max_diff_size } => {
                 assert_eq!(preview, true);
                 assert_eq!(max_diff_size, None);
             }
@@ -1056,7 +1056,7 @@ mod tests {
         let fixture = ForgeCommandManager::default();
         let actual = fixture.parse("/commit 5000").unwrap();
         match actual {
-            Command::Commit { preview, max_diff_size } => {
+            SlashCommand::Commit { preview, max_diff_size } => {
                 assert_eq!(preview, false);
                 assert_eq!(max_diff_size, Some(5000));
             }
@@ -1069,7 +1069,7 @@ mod tests {
         let fixture = ForgeCommandManager::default();
         let actual = fixture.parse("/commit preview 10000").unwrap();
         match actual {
-            Command::Commit { preview, max_diff_size } => {
+            SlashCommand::Commit { preview, max_diff_size } => {
                 assert_eq!(preview, true);
                 assert_eq!(max_diff_size, Some(10000));
             }
