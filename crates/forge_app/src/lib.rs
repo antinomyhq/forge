@@ -20,6 +20,7 @@ mod tool_resolver;
 mod truncation;
 mod user;
 pub mod user_prompt;
+pub mod system_prompt;
 pub mod utils;
 mod walker;
 

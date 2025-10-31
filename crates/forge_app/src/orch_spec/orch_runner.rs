@@ -11,6 +11,7 @@ use tokio::sync::Mutex;
 
 pub use super::orch_setup::TestContext;
 use crate::orch::Orchestrator;
+use crate::system_prompt::SystemPrompt;
 use crate::user_prompt::UserPromptGenerator;
 use crate::{AgentService, AttachmentService, TemplateService};
 
@@ -81,21 +82,28 @@ impl Runner {
             .apply_workflow_config(&setup.workflow)
             .set_model_deeply(setup.model.clone());
 
+        // Render system prompt into context.
+        let conversation = SystemPrompt::new(services.clone(), setup.env.clone(), agent.clone())
+            .files(setup.files.clone())
+            .tool_definitions(system_tools.clone())
+            .add_system_message(conversation)
+            .await?;
+
         // Render user prompt into context.
-        let conversation = UserPromptGenerator::new(
+        let mut conversation = UserPromptGenerator::new(
             services.clone(),
             agent.clone(),
             event.clone(),
-            setup.current_time,
+            setup.current_time.clone(),
         )
         .add_user_prompt(conversation)
         .await?;
 
+        conversation.metrics.started_at = Some(setup.current_time.with_timezone(&chrono::Utc));
         let orch = Orchestrator::new(
             services.clone(),
             setup.env.clone(),
             conversation,
-            setup.current_time,
             agent
                 .apply_workflow_config(&setup.workflow)
                 .set_model_deeply(setup.model.clone()),
@@ -103,8 +111,7 @@ impl Runner {
         )
         .error_tracker(ToolErrorTracker::new(3))
         .tool_definitions(system_tools)
-        .sender(tx)
-        .files(setup.files.clone());
+        .sender(tx);
 
         let (mut orch, runner) = (orch, services);
 
