@@ -16,19 +16,19 @@ use crate::info::Info;
 /// This is an intermediate structure for parsing event JSON from the CLI
 /// before converting it to a full Event type.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, Default)]
-pub struct PartialEvent {
+pub struct CustomCommand {
     pub name: String,
     pub value: Value,
 }
 
-impl PartialEvent {
+impl CustomCommand {
     pub fn new<V: Into<Value>>(name: impl ToString, value: V) -> Self {
         Self { name: name.to_string(), value: value.into() }
     }
 }
 
-impl From<PartialEvent> for Event {
-    fn from(value: PartialEvent) -> Self {
+impl From<CustomCommand> for Event {
+    fn from(value: CustomCommand) -> Self {
         Event::new(value.name, Some(value.value))
     }
 }
@@ -384,7 +384,7 @@ impl ForgeCommandManager {
                         let parameters_str = parameters.join(" ");
                         let parameters_value = serde_json::from_str(&parameters_str)
                             .unwrap_or(Value::String(parameters_str));
-                        Ok(SlashCommand::Custom(PartialEvent::new(
+                        Ok(SlashCommand::Custom(CustomCommand::new(
                             command.name.clone(),
                             serde_json::json!({
                                 "parameters": parameters_value,
@@ -469,7 +469,7 @@ pub enum SlashCommand {
     #[strum(props(usage = "List all available tools with their descriptions and schema"))]
     Tools,
     /// Handles custom command defined in workflow file.
-    Custom(PartialEvent),
+    Custom(CustomCommand),
     /// Executes a native shell command.
     /// This can be triggered with commands starting with '!' character.
     #[strum(props(usage = "Execute a native shell command"))]
