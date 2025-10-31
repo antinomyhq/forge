@@ -135,7 +135,8 @@ impl<S: Services> ForgeApp<S> {
         .await?;
 
         let conversation = InitConversationMetrics::new(current_time).apply(conversation);
-        let conversation = ApplyTunableParameters::new(agent.clone()).apply(conversation);
+        let conversation = ApplyTunableParameters::new(agent.clone(), tool_definitions.clone())
+            .apply(conversation);
         let conversation = SetConversationId.apply(conversation);
 
         // Create the orchestrator with all necessary dependencies
