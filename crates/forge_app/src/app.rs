@@ -112,13 +112,14 @@ impl<S: Services> ForgeApp<S> {
         let current_time = Local::now();
 
         // Insert system prompt
-        let conversation = SystemPrompt::new(self.services.clone(), environment.clone(), agent.clone())
-            .custom_instructions(custom_instructions.clone())
-            .tool_definitions(tool_definitions.clone())
-            .models(models.clone())
-            .files(files.clone())
-            .add_system_message(conversation)
-            .await?;
+        let conversation =
+            SystemPrompt::new(self.services.clone(), environment.clone(), agent.clone())
+                .custom_instructions(custom_instructions.clone())
+                .tool_definitions(tool_definitions.clone())
+                .models(models.clone())
+                .files(files.clone())
+                .add_system_message(conversation)
+                .await?;
 
         // Insert user prompt
         let mut conversation = UserPromptGenerator::new(

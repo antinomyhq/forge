@@ -94,7 +94,7 @@ impl Runner {
             services.clone(),
             agent.clone(),
             event.clone(),
-            setup.current_time.clone(),
+            setup.current_time,
         )
         .add_user_prompt(conversation)
         .await?;
