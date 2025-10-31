@@ -3,12 +3,13 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_app::{FsSearchService, Match, MatchResult, SearchResult, Walker};
+use forge_app::{
+    FileInfoInfra, FileReaderInfra, FsSearchService, Match, MatchResult, SearchResult, Walker,
+    WalkerInfra,
+};
 use grep_searcher::sinks::UTF8;
 
-use crate::infra::WalkerInfra;
 use crate::utils::assert_absolute_path;
-use crate::{FileInfoInfra, FileReaderInfra};
 
 // Using FSSearchInput from forge_domain
 
@@ -202,7 +203,7 @@ mod test {
     use std::sync::Arc;
 
     use forge_app::{WalkedFile, Walker};
-    use forge_fs::FileInfo;
+    use forge_domain::FileInfo;
     use tokio::fs;
 
     use super::*;
