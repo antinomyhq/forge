@@ -133,6 +133,7 @@ impl<S: Services> ForgeApp<S> {
         conversation.metrics.started_at = Some(current_time.with_timezone(&chrono::Utc));
 
         // Create the orchestrator with all necessary dependencies
+
         let orch = Orchestrator::new(
             services.clone(),
             environment.clone(),

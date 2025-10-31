@@ -108,7 +108,7 @@ impl<F: EnvironmentInfra + AppConfigRepository + FileReaderInfra> ForgeProviderR
     async fn init_providers(&self) -> Vec<Provider> {
         let configs = self.get_merged_configs().await;
 
-        configs
+        let mut providers: Vec<Provider> = configs
             .into_iter()
             .filter_map(|config| {
                 // Skip Forge provider as it's handled specially
@@ -117,7 +117,13 @@ impl<F: EnvironmentInfra + AppConfigRepository + FileReaderInfra> ForgeProviderR
                 }
                 self.create_provider(&config).ok()
             })
-            .collect()
+            .collect();
+
+        // Sort by ProviderId enum order to ensure deterministic, priority-based
+        // ordering
+        providers.sort_by(|a, b| a.id.cmp(&b.id));
+
+        providers
     }
 
     fn create_provider(&self, config: &ProviderConfig) -> anyhow::Result<Provider> {
@@ -612,5 +618,49 @@ mod env_tests {
             .iter()
             .find(|c| c.id == ProviderId::OpenRouter);
         assert!(openrouter_config.is_some());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_get_first_available_provider_is_deterministic() {
+        // Setup mock with multiple providers
+        // Without sorting, the order from filter_map().collect() is non-deterministic
+        let mut env_vars = HashMap::new();
+        env_vars.insert("OPENAI_API_KEY".to_string(), "openai-key".to_string());
+        env_vars.insert("ANTHROPIC_API_KEY".to_string(), "anthropic-key".to_string());
+        env_vars.insert(
+            "OPENROUTER_API_KEY".to_string(),
+            "openrouter-key".to_string(),
+        );
+
+        // Create multiple registry instances to expose non-deterministic behavior
+        // Each instance will have a different provider order without sorting
+        let mut all_first_providers = std::collections::HashSet::new();
+
+        for _ in 0..100 {
+            let infra = Arc::new(MockInfra { env_vars: env_vars.clone() });
+            let registry = ForgeProviderRegistry::new(infra);
+            let first_provider = registry.get_first_available_provider().await.unwrap();
+            all_first_providers.insert(first_provider.id);
+        }
+
+        // Without sorting, we might get different providers each time
+        // With sorting, we should always get OpenAI
+        // This assertion will FAIL without the fix
+        assert_eq!(
+            all_first_providers.len(),
+            1,
+            "get_first_available_provider should always return the same provider consistently across multiple registry instances, got: {:?}",
+            all_first_providers
+        );
+
+        // Verify it's always OpenAI (first in ProviderId enum after Forge)
+        let infra = Arc::new(MockInfra { env_vars });
+        let registry = ForgeProviderRegistry::new(infra);
+        let first_provider = registry.get_first_available_provider().await.unwrap();
+        assert_eq!(
+            first_provider.id,
+            ProviderId::OpenAI,
+            "First provider should be OpenAI (first in ProviderId enum order after Forge)"
+        );
     }
 }
