@@ -135,7 +135,9 @@ impl<S: Services> ForgeApp<S> {
         // Apply configuration on context from agent.
         conversation.context = conversation.context.map(|ctx| ctx.apply_from_agent(&agent));
         // Set conversation_id on context.
-        conversation.context = conversation.context.map(|ctx| ctx.conversation_id(conversation.id.clone()));
+        conversation.context = conversation
+            .context
+            .map(|ctx| ctx.conversation_id(conversation.id));
 
         // Create the orchestrator with all necessary dependencies
         let orch = Orchestrator::new(
