@@ -77,9 +77,6 @@ impl Runner {
 
         let agent = setup.agent.clone();
         let system_tools = setup.tools.clone();
-        let agent = agent
-            .apply_workflow_config(&setup.workflow)
-            .set_model_deeply(setup.model.clone());
 
         // Render user prompt into context.
         let conversation = UserPromptGenerator::new(
