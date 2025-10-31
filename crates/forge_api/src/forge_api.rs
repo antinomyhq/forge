@@ -60,7 +60,6 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     async fn get_models(&self) -> Result<Vec<Model>> {
         Ok(self
             .services
-            .provider_service()
             .models(
                 self.get_default_provider()
                     .await
@@ -73,7 +72,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     }
 
     async fn get_providers(&self) -> Result<Vec<Provider>> {
-        Ok(self.services.provider_service().get_all_providers().await?)
+        Ok(self.services.get_all_providers().await?)
     }
 
     async fn chat(
@@ -192,10 +191,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     }
 
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        self.services
-            .config_service()
-            .set_default_provider(provider_id)
-            .await
+        self.services.set_default_provider(provider_id).await
     }
 
     async fn user_info(&self) -> Result<Option<User>> {
