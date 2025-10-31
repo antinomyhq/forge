@@ -1,23 +1,23 @@
 use std::path::Path;
-use std::sync::Arc;
 
-use forge_services::{FileRemoverInfra, SnapshotInfra};
+use forge_app::FileRemoverInfra;
 
+/// Low-level file remove service
+///
+/// Provides primitive file deletion operations without snapshot coordination.
+/// Snapshot management should be handled at the service layer.
 #[derive(Default)]
-pub struct ForgeFileRemoveService<S> {
-    snaps: Arc<S>,
-}
+pub struct ForgeFileRemoveService;
 
-impl<S> ForgeFileRemoveService<S> {
-    pub fn new(snaps: Arc<S>) -> Self {
-        Self { snaps }
+impl ForgeFileRemoveService {
+    pub fn new() -> Self {
+        Self
     }
 }
 
 #[async_trait::async_trait]
-impl<S: SnapshotInfra> FileRemoverInfra for ForgeFileRemoveService<S> {
+impl FileRemoverInfra for ForgeFileRemoveService {
     async fn remove(&self, path: &Path) -> anyhow::Result<()> {
-        let _ = self.snaps.create_snapshot(path).await?;
         Ok(forge_fs::ForgeFS::remove_file(path).await?)
     }
 }

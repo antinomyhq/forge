@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use forge_domain::*;
 
 use crate::{
-    AgentRegistry, EnvironmentService, ProviderRegistry, ProviderService, Services, ShellService,
+    AgentRegistry, AppConfigService, EnvironmentService, ProviderService, Services, ShellService,
     TemplateService,
 };
 
@@ -163,7 +163,7 @@ impl<S: Services> GitApp<S> {
         let (rendered_prompt, provider, model) = tokio::try_join!(
             self.services
                 .template_service()
-                .render_template("{{> forge-commit-message-prompt.md }}", &()),
+                .render_template(Template::new("{{> forge-commit-message-prompt.md }}"), &()),
             self.get_provider(agent_id.clone()),
             self.get_model(agent_id)
         )?;
@@ -203,7 +203,7 @@ impl<S: Services> GitApp<S> {
         Ok(CommitMessageDetails { message: message.content, has_staged_files })
     }
 
-    async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider> {
+    pub async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider> {
         if let Some(agent) = agent
             && let Some(agent) = self.services.get_agent(&agent).await?
             && let Some(provider_id) = agent.provider
@@ -211,10 +211,14 @@ impl<S: Services> GitApp<S> {
             return self.services.get_provider(provider_id).await;
         }
 
+        // Fall back to original logic if there is no agent
+        // set yet.
         self.services.get_default_provider().await
     }
 
-    async fn get_model(&self, agent_id: Option<AgentId>) -> anyhow::Result<ModelId> {
+    /// Gets the model for the specified agent, or the default model if no agent
+    /// is provided
+    pub async fn get_model(&self, agent_id: Option<AgentId>) -> anyhow::Result<ModelId> {
         let provider_id = self.get_provider(agent_id).await?.id;
         self.services.get_default_model(&provider_id).await
     }

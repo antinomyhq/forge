@@ -1,6 +1,6 @@
 use anyhow::Result;
+use forge_app::UserInfra;
 use forge_select::ForgeSelect;
-use forge_services::UserInfra;
 
 pub struct ForgeInquire;
 

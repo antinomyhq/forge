@@ -3,8 +3,6 @@
 pub mod anthropic;
 pub mod openai;
 
-mod app_config;
 mod tools_overview;
 
-pub use app_config::*;
 pub use tools_overview::*;

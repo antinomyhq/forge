@@ -389,7 +389,10 @@ pub fn format_reset_time(seconds: u64) -> String {
 
 /// Extracts the first line of raw content from a context message.
 fn format_user_message(msg: &forge_api::ContextMessage) -> Option<String> {
-    let content = msg.raw_content().and_then(|v| v.as_str())?;
+    let content = msg
+        .as_value()
+        .and_then(|v| v.as_user_prompt())
+        .map(|p| p.as_str())?;
     let trimmed = content.lines().next().unwrap_or(content);
     Some(trimmed.to_string())
 }
@@ -439,7 +442,7 @@ mod tests {
     use std::path::PathBuf;
 
     use chrono::Utc;
-    use forge_api::Environment;
+    use forge_api::{Environment, EventValue};
     use pretty_assertions::assert_eq;
 
     // Helper to create minimal test environment
@@ -685,7 +688,7 @@ mod tests {
             .add_message(ContextMessage::Text(forge_domain::TextMessage {
                 role: Role::User,
                 content: "First user message".to_string(),
-                raw_content: Some(serde_json::json!("First user message")),
+                raw_content: Some(EventValue::text("First user message")),
                 tool_calls: None,
                 model: None,
                 reasoning_details: None,
@@ -694,7 +697,7 @@ mod tests {
             .add_message(ContextMessage::Text(forge_domain::TextMessage {
                 role: Role::User,
                 content: "Create a new feature".to_string(),
-                raw_content: Some(serde_json::json!("Create a new feature")),
+                raw_content: Some(EventValue::text("Create a new feature")),
                 tool_calls: None,
                 model: None,
                 reasoning_details: None,

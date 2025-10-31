@@ -144,7 +144,6 @@ impl<
                 path.to_string_lossy().to_string(),
                 content.to_string(),
                 true,
-                false,
             )
             .await?;
         Ok(path)
@@ -181,12 +180,7 @@ impl<
                 let normalized_path = self.normalize_path(input.path.clone());
                 let output = self
                     .services
-                    .create(
-                        normalized_path,
-                        input.content.clone(),
-                        input.overwrite,
-                        true,
-                    )
+                    .create(normalized_path, input.content.clone(), input.overwrite)
                     .await?;
                 (input, output).into()
             }

@@ -1,10 +1,9 @@
 use std::sync::Arc;
 
-use forge_app::AttachmentService;
 use forge_app::domain::{Attachment, AttachmentContent, FileTag, Image, LineNumbers};
+use forge_app::{AttachmentService, EnvironmentInfra, FileReaderInfra};
 
 use crate::range::resolve_range;
-use crate::{EnvironmentInfra, FileReaderInfra};
 
 #[derive(Clone)]
 pub struct ForgeChatRequest<F> {
@@ -84,17 +83,18 @@ pub mod tests {
 
     use base64::Engine;
     use bytes::Bytes;
-    use forge_app::AttachmentService;
     use forge_app::domain::{
         AttachmentContent, CommandOutput, Environment, ToolDefinition, ToolName, ToolOutput,
     };
+    use forge_app::{
+        AttachmentService, CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
+        FileReaderInfra, FileRemoverInfra, FileWriterInfra, McpClientInfra, McpServerInfra,
+        UserInfra,
+    };
+    use forge_domain::FileInfo;
     use serde_json::Value;
 
     use crate::attachment::ForgeChatRequest;
-    use crate::{
-        CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-        FileRemoverInfra, FileWriterInfra, McpClientInfra, McpServerInfra, UserInfra,
-    };
 
     #[derive(Debug)]
     pub struct MockEnvironmentInfra {}
@@ -186,7 +186,7 @@ pub mod tests {
             path: &Path,
             start_line: u64,
             end_line: u64,
-        ) -> anyhow::Result<(String, forge_fs::FileInfo)> {
+        ) -> anyhow::Result<(String, FileInfo)> {
             // Read the full content first
             let full_content = self.read_utf8(path).await?;
             let all_lines: Vec<&str> = full_content.lines().collect();
@@ -219,7 +219,7 @@ pub mod tests {
 
             Ok((
                 filtered_content,
-                forge_fs::FileInfo::new(actual_start, actual_end, all_lines.len() as u64),
+                forge_domain::FileInfo::new(actual_start, actual_end, all_lines.len() as u64),
             ))
         }
     }
@@ -254,12 +254,7 @@ pub mod tests {
 
     #[async_trait::async_trait]
     impl FileWriterInfra for MockFileService {
-        async fn write(
-            &self,
-            path: &Path,
-            contents: Bytes,
-            _capture_snapshot: bool,
-        ) -> anyhow::Result<()> {
+        async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()> {
             let index = self.files.lock().unwrap().iter().position(|v| v.0 == path);
             if let Some(index) = index {
                 self.files.lock().unwrap().remove(index);
@@ -275,7 +270,7 @@ pub mod tests {
             let temp_dir = crate::utils::TempDir::new().unwrap();
             let path = temp_dir.path();
 
-            self.write(&path, content.to_string().into(), false).await?;
+            self.write(&path, content.to_string().into()).await?;
 
             Ok(path)
         }
@@ -314,9 +309,11 @@ pub mod tests {
             }
         }
     }
-
+    #[derive(Debug, Clone)]
+    #[allow(dead_code)]
+    struct Mock;
     #[async_trait::async_trait]
-    impl McpClientInfra for () {
+    impl McpClientInfra for Mock {
         async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
             Ok(vec![])
         }
@@ -327,19 +324,19 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
-    impl McpServerInfra for () {
-        type Client = ();
+    impl McpServerInfra for Mock {
+        type Client = Mock;
 
         async fn connect(
             &self,
             _: forge_app::domain::McpServerConfig,
         ) -> anyhow::Result<Self::Client> {
-            Ok(())
+            Ok(Mock)
         }
     }
 
     #[async_trait::async_trait]
-    impl CommandInfra for () {
+    impl CommandInfra for Mock {
         async fn execute_command(
             &self,
             command: String,
@@ -470,7 +467,7 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
-    impl UserInfra for () {
+    impl UserInfra for Mock {
         /// Prompts the user with question
         async fn prompt_question(&self, question: &str) -> anyhow::Result<Option<String>> {
             // For testing, we can just return the question as the answer
@@ -539,7 +536,7 @@ pub mod tests {
             path: &Path,
             start_line: u64,
             end_line: u64,
-        ) -> anyhow::Result<(String, forge_fs::FileInfo)> {
+        ) -> anyhow::Result<(String, forge_domain::FileInfo)> {
             self.file_service
                 .range_read_utf8(path, start_line, end_line)
                 .await
