@@ -172,7 +172,7 @@ mod tests {
 
     #[test]
     fn test_into_feedback() {
-        let event = Event::new("test_event", None::<String>);
+        let event = EventContextValue::new("test_event", "");
         let context = EventContext::new(event);
 
         let feedback_context = context.into_feedback();
@@ -182,7 +182,7 @@ mod tests {
 
     #[test]
     fn test_into_task() {
-        let event = Event::new("test_event", None::<String>);
+        let event = EventContextValue::new("test_event", "");
         let context = EventContext::new(event);
 
         let task_context = context.into_task();
@@ -192,7 +192,7 @@ mod tests {
 
     #[test]
     fn test_into_feedback_prevents_duplicate_suffix() {
-        let event = Event::new("test_event", None::<String>);
+        let event = EventContextValue::new("test_event", "");
         let context = EventContext::new(event);
 
         // Call into_feedback twice
@@ -203,7 +203,7 @@ mod tests {
 
     #[test]
     fn test_into_task_prevents_duplicate_suffix() {
-        let event = Event::new("test_event", None::<String>);
+        let event = EventContextValue::new("test_event", "");
         let context = EventContext::new(event);
 
         // Call into_task twice
@@ -214,7 +214,7 @@ mod tests {
 
     #[test]
     fn test_chaining_methods() {
-        let event = Event::new("agent_123", Some("initial content"));
+        let event = EventContextValue::new("agent_123", "initial content");
         let context = EventContext::new(event).into_task();
 
         assert_eq!(context.event.name, "agent_123/user_task_init");
