@@ -37,23 +37,46 @@ impl ApplyTunableParameters {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{AgentId, Context, ConversationId, MaxTokens, Temperature};
+    use forge_domain::{
+        AgentId, Context, ConversationId, MaxTokens, ReasoningConfig, Temperature, ToolDefinition,
+        TopK, TopP,
+    };
     use pretty_assertions::assert_eq;
 
     use super::*;
 
+    #[derive(schemars::JsonSchema)]
+    #[allow(dead_code)]
+    struct TestToolInput {
+        param: String,
+    }
+
     #[test]
     fn test_apply_sets_parameters() {
+        let reasoning = ReasoningConfig::default().max_tokens(2000);
+
         let agent = Agent::new(AgentId::new("test"))
             .temperature(Temperature::new(0.7).unwrap())
-            .max_tokens(MaxTokens::new(1000).unwrap());
+            .max_tokens(MaxTokens::new(1000).unwrap())
+            .top_k(TopK::new(50).unwrap())
+            .top_p(TopP::new(0.9).unwrap())
+            .reasoning(reasoning.clone());
+
+        let tool_def = ToolDefinition::new("test_tool")
+            .description("A test tool")
+            .input_schema(schemars::schema_for!(TestToolInput));
+
         let conversation =
             Conversation::new(ConversationId::generate()).context(Context::default());
 
-        let actual = ApplyTunableParameters::new(agent).apply(conversation);
+        let actual = ApplyTunableParameters::new(agent, vec![tool_def.clone()]).apply(conversation);
 
         let ctx = actual.context.unwrap();
         assert_eq!(ctx.temperature, Some(Temperature::new(0.7).unwrap()));
         assert_eq!(ctx.max_tokens, Some(1000));
+        assert_eq!(ctx.top_k, Some(TopK::new(50).unwrap()));
+        assert_eq!(ctx.top_p, Some(TopP::new(0.9).unwrap()));
+        assert_eq!(ctx.reasoning, Some(reasoning));
+        assert_eq!(ctx.tools, vec![tool_def]);
     }
 }
