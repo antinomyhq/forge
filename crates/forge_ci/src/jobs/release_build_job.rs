@@ -56,7 +56,7 @@ impl From<ReleaseBuilderJob> for Job {
                 Step::new("Set Rust Flags")
                     .run(r#"echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV"#)
                     .if_condition(Expression::new(
-                        "!contains(matrix.target, '-unknown-linux-')",
+                        "!(contains(matrix.target, '-unknown-linux-') || contains(matrix.target, '-unknown-linux-'))",
                     )),
             )
             // Build release binary
@@ -66,7 +66,7 @@ impl From<ReleaseBuilderJob> for Job {
                     .add_with(("command", "build --release"))
                     .add_with(("args", "--target ${{ matrix.target }}"))
                     .add_with(("use-cross", "${{ matrix.cross }}"))
-                    .add_with(("cross-version", "0.2.4"))
+                    .add_with(("cross-version", "0.2.5"))
                     .add_env(("RUSTFLAGS", "${{ env.RUSTFLAGS }}"))
                     .add_env(("POSTHOG_API_SECRET", "${{secrets.POSTHOG_API_SECRET}}"))
                     .add_env(("APP_VERSION", value.version.to_string())),

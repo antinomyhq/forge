@@ -90,7 +90,7 @@ jobs:
       if: ${{ matrix.cross == 'false' }}
       run: rustup target add ${{ matrix.target }}
     - name: Set Rust Flags
-      if: '!contains(matrix.target, ''-unknown-linux-'')'
+      if: '!(contains(matrix.target, ''-unknown-linux-'') || contains(matrix.target, '-android))'
       run: echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV
     - name: Build Binary
       uses: ClementTsang/cargo-action@v0.0.7
@@ -98,7 +98,7 @@ jobs:
         command: build --release
         args: --target ${{ matrix.target }}
         use-cross: ${{ matrix.cross }}
-        cross-version: 0.2.4
+        cross-version: 0.2.5
       env:
         RUSTFLAGS: ${{ env.RUSTFLAGS }}
         POSTHOG_API_SECRET: ${{secrets.POSTHOG_API_SECRET}}
