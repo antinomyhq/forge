@@ -3,12 +3,11 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::domain::Command;
-use gray_matter::Matter;
-use gray_matter::engine::YAML;
-
-use crate::{
+use forge_app::{
     DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
 };
+use gray_matter::Matter;
+use gray_matter::engine::YAML;
 
 pub struct CommandLoaderService<F> {
     infra: Arc<F>,

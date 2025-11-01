@@ -1,9 +1,8 @@
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
+use forge_domain::Snapshot;
 use forge_fs::ForgeFS;
-
-use crate::snapshot::Snapshot;
 
 /// Implementation of the SnapshotService
 #[derive(Debug)]
@@ -29,10 +28,9 @@ impl SnapshotService {
             ForgeFS::create_dir_all(parent).await?;
         }
 
-        snapshot
-            .save(Some(self.snapshots_directory.clone()))
-            .await?;
-
+        let content = ForgeFS::read(&snapshot.path).await?;
+        let path = snapshot.snapshot_path(Some(self.snapshots_directory.clone()));
+        ForgeFS::write(path, content).await?;
         Ok(snapshot)
     }
 

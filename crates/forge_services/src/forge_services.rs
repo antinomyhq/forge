@@ -1,6 +1,13 @@
 use std::sync::Arc;
 
-use forge_app::Services;
+use forge_app::{
+    CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
+    FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, KVStore, McpServerInfra,
+    Services, UserInfra, WalkerInfra,
+};
+use forge_domain::{
+    AppConfigRepository, ConversationRepository, ProviderRepository, SnapshotRepository,
+};
 
 use crate::agent_registry::AgentLoaderService as ForgeAgentLoaderService;
 use crate::attachment::ForgeChatRequest;
@@ -10,21 +17,16 @@ use crate::conversation::ForgeConversationService;
 use crate::custom_instructions::ForgeCustomInstructionsService;
 use crate::discovery::ForgeDiscoveryService;
 use crate::env::ForgeEnvironmentService;
-use crate::infra::HttpInfra;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::policy::ForgePolicyService;
-use crate::provider::{ForgeProviderRegistry, ForgeProviderService};
+use crate::preferences::ForgeAppConfigService;
+use crate::provider::ForgeProviderService;
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead, ForgeFsRemove,
     ForgeFsSearch, ForgeFsUndo, ForgeImageRead, ForgePlanCreate, ForgeShell,
 };
 use crate::workflow::ForgeWorkflowService;
-use crate::{
-    AppConfigRepository, CacheRepository, CommandInfra, ConversationRepository,
-    DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-    FileRemoverInfra, FileWriterInfra, McpServerInfra, SnapshotInfra, UserInfra, WalkerInfra,
-};
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client>;
 type AuthService<F> = ForgeAuthService<F>;
@@ -35,9 +37,21 @@ type AuthService<F> = ForgeAuthService<F>;
 /// Type Parameters:
 /// - F: The infrastructure implementation that provides core services like
 ///   environment, file reading, vector indexing, and embedding.
+/// - R: The repository implementation that provides data persistence
 #[derive(Clone)]
-pub struct ForgeServices<F: HttpInfra + EnvironmentInfra + McpServerInfra + WalkerInfra> {
+pub struct ForgeServices<
+    F: HttpInfra
+        + EnvironmentInfra
+        + McpServerInfra
+        + WalkerInfra
+        + SnapshotRepository
+        + ConversationRepository
+        + AppConfigRepository
+        + KVStore
+        + ProviderRepository,
+> {
     chat_service: Arc<ForgeProviderService<F>>,
+    config_service: Arc<ForgeAppConfigService<F>>,
     conversation_service: Arc<ForgeConversationService<F>>,
     template_service: Arc<ForgeTemplateService<F>>,
     attachment_service: Arc<ForgeChatRequest<F>>,
@@ -59,7 +73,6 @@ pub struct ForgeServices<F: HttpInfra + EnvironmentInfra + McpServerInfra + Walk
     env_service: Arc<ForgeEnvironmentService<F>>,
     custom_instructions_service: Arc<ForgeCustomInstructionsService<F>>,
     auth_service: Arc<AuthService<F>>,
-    provider_service: Arc<ForgeProviderRegistry<F>>,
     agent_loader_service: Arc<ForgeAgentLoaderService<F>>,
     command_loader_service: Arc<ForgeCommandLoaderService<F>>,
     policy_service: ForgePolicyService<F>,
@@ -76,9 +89,11 @@ impl<
         + DirectoryReaderInfra
         + CommandInfra
         + UserInfra
+        + SnapshotRepository
         + ConversationRepository
         + AppConfigRepository
-        + CacheRepository,
+        + ProviderRepository
+        + KVStore,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -90,7 +105,8 @@ impl<
         let suggestion_service = Arc::new(ForgeDiscoveryService::new(infra.clone()));
         let conversation_service = Arc::new(ForgeConversationService::new(infra.clone()));
         let auth_service = Arc::new(ForgeAuthService::new(infra.clone()));
-        let chat_service = Arc::new(ForgeProviderService::<F>::new(infra.clone()));
+        let chat_service = Arc::new(ForgeProviderService::new(infra.clone()));
+        let config_service = Arc::new(ForgeAppConfigService::new(infra.clone()));
         let file_create_service = Arc::new(ForgeFsCreate::new(infra.clone()));
         let plan_create_service = Arc::new(ForgePlanCreate::new(infra.clone()));
         let file_read_service = Arc::new(ForgeFsRead::new(infra.clone()));
@@ -102,7 +118,6 @@ impl<
         let shell_service = Arc::new(ForgeShell::new(infra.clone()));
         let fetch_service = Arc::new(ForgeFetch::new());
         let followup_service = Arc::new(ForgeFollowup::new(infra.clone()));
-        let provider_service = Arc::new(ForgeProviderRegistry::new(infra.clone()));
         let env_service = Arc::new(ForgeEnvironmentService::new(infra.clone()));
         let custom_instructions_service =
             Arc::new(ForgeCustomInstructionsService::new(infra.clone()));
@@ -133,7 +148,7 @@ impl<
             custom_instructions_service,
             auth_service,
             chat_service,
-            provider_service,
+            config_service,
             agent_loader_service,
             command_loader_service,
             policy_service,
@@ -146,7 +161,6 @@ impl<
         + FileWriterInfra
         + CommandInfra
         + UserInfra
-        + SnapshotInfra
         + McpServerInfra
         + FileRemoverInfra
         + FileInfoInfra
@@ -155,13 +169,18 @@ impl<
         + DirectoryReaderInfra
         + HttpInfra
         + WalkerInfra
+        + Clone
+        + SnapshotRepository
         + ConversationRepository
         + AppConfigRepository
-        + CacheRepository
-        + Clone,
+        + KVStore
+        + ProviderRepository
+        + Clone
+        + 'static,
 > Services for ForgeServices<F>
 {
     type ProviderService = ForgeProviderService<F>;
+    type AppConfigService = ForgeAppConfigService<F>;
     type ConversationService = ForgeConversationService<F>;
     type TemplateService = ForgeTemplateService<F>;
     type AttachmentService = ForgeChatRequest<F>;
@@ -183,13 +202,16 @@ impl<
     type ShellService = ForgeShell<F>;
     type McpService = McpService<F>;
     type AuthService = AuthService<F>;
-    type ProviderRegistry = ForgeProviderRegistry<F>;
     type AgentRegistry = ForgeAgentLoaderService<F>;
     type CommandLoaderService = ForgeCommandLoaderService<F>;
     type PolicyService = ForgePolicyService<F>;
 
     fn provider_service(&self) -> &Self::ProviderService {
         &self.chat_service
+    }
+
+    fn config_service(&self) -> &Self::AppConfigService {
+        &self.config_service
     }
 
     fn conversation_service(&self) -> &Self::ConversationService {
@@ -271,9 +293,6 @@ impl<
         self.auth_service.as_ref()
     }
 
-    fn provider_registry(&self) -> &Self::ProviderRegistry {
-        &self.provider_service
-    }
     fn agent_registry(&self) -> &Self::AgentRegistry {
         &self.agent_loader_service
     }
