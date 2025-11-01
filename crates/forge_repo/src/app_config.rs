@@ -237,7 +237,7 @@ mod tests {
         let fixture = r#"{
             "provider": "xyz",
             "model": {}
-        }"#;
+        "#; // Missing closing brace
         let temp_dir = tempfile::tempdir().unwrap();
         let config_path = temp_dir.path().join(".config.json");
 
