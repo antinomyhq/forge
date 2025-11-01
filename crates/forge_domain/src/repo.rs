@@ -90,7 +90,7 @@ pub trait AppConfigRepository: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait ProviderCredentialRepository: Send + Sync {
+pub trait AuthRepository: Send + Sync {
     async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()>;
     async fn get_credential(&self, id: &ProviderId) -> anyhow::Result<Option<AuthCredential>>;
 }

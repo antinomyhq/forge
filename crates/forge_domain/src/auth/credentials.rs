@@ -8,9 +8,9 @@ use crate::{AccessToken, ApiKey, OAuthConfig, ProviderId, RefreshToken, URLParam
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Setters)]
 pub struct AuthCredential {
-    id: ProviderId,
-    auth_details: AuthDetails,
-    url_params: Option<HashMap<URLParam, URLParamValue>>,
+    pub id: ProviderId,
+    pub auth_details: AuthDetails,
+    pub url_params: Option<HashMap<URLParam, URLParamValue>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
