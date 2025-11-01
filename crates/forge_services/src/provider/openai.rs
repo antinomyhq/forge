@@ -49,7 +49,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
                 request.session_id.clone().unwrap(),
             ));
             debug!(
-                provider = %self.provider.url,
+                provider = %self.provider.url.as_resolved().unwrap(),
                 session_id = %request.session_id.as_ref().unwrap(),
                 "Added Session-Id header for zai provider"
             );
