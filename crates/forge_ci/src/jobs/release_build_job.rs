@@ -56,14 +56,14 @@ impl From<ReleaseBuilderJob> for Job {
                 Step::new("Set Rust Flags")
                     .run(r#"echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV"#)
                     .if_condition(Expression::new(
-                        "!(contains(matrix.target, '-unknown-linux-') || contains(matrix.target, '-unknown-linux-'))",
+                        "!(contains(matrix.target, '-unknown-linux-') || contains(matrix.target, '-android'))",
                     )),
             )
             // Build release binary
             .add_step(
                 Step::new("Build Binary")
                     .uses("ClementTsang", "cargo-action", "v0.0.7")
-                    .add_with(("command", "build --release"))
+                    .add_with(("command", "build"))
                     .add_with(("args", "--target ${{ matrix.target }}"))
                     .add_with(("use-cross", "${{ matrix.cross }}"))
                     .add_with(("cross-version", "0.2.5"))
