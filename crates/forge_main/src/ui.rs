@@ -1198,8 +1198,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             None => return Ok(()),
         };
 
+        let active_agent = self.api.get_active_agent().await;
+
         // Update the operating model via API
-        self.api.set_default_model(model.clone()).await?;
+        self.api
+            .set_default_model(active_agent, model.clone())
+            .await?;
 
         // Update the UI state with the new model
         self.update_model(Some(model.clone()));
@@ -1358,11 +1362,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .await
             .is_none()
         {
+            let active_agent = self.api.get_active_agent().await;
             let model = self
                 .select_model()
                 .await?
                 .ok_or(anyhow::anyhow!("Model selection is required to continue"))?;
-            self.api.set_default_model(model).await?;
+            self.api.set_default_model(active_agent, model).await?;
         }
 
         // Create base workflow and trigger updates if this is the first initialization
@@ -1726,7 +1731,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
             ConfigField::Model => {
                 let model_id = self.validate_model(&args.value).await?;
-                self.api.set_default_model(model_id.clone()).await?;
+                let active_agent = self.api.get_active_agent().await;
+                self.api
+                    .set_default_model(active_agent, model_id.clone())
+                    .await?;
                 self.writeln_title(
                     TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
                 )?;
