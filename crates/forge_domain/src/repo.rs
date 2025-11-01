@@ -2,7 +2,9 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::{AppConfig, Conversation, ConversationId, Provider, ProviderId, Snapshot};
+use crate::{
+    AppConfig, AuthCredential, Conversation, ConversationId, Provider, ProviderId, Snapshot,
+};
 
 /// Repository for managing file snapshots
 ///
@@ -85,4 +87,10 @@ pub trait ProviderRepository: Send + Sync {
 pub trait AppConfigRepository: Send + Sync {
     async fn get_app_config(&self) -> anyhow::Result<AppConfig>;
     async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()>;
+}
+
+#[async_trait::async_trait]
+pub trait ProviderCredentialRepository: Send + Sync {
+    async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()>;
+    async fn get_credential(&self, id: &ProviderId) -> anyhow::Result<Option<AuthCredential>>;
 }
