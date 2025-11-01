@@ -67,7 +67,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         let mut pipeline = ProviderPipeline::new(&self.provider);
         request = pipeline.transform(request);
 
-        let url = self.provider.url.clone();
+        let url = self.provider.url.to_resolved(&self.provider.id)?.clone();
         let headers = create_headers(self.get_headers_with_request(&request));
 
         info!(
@@ -101,6 +101,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         } else {
             match &self.provider.models {
                 forge_domain::Models::Url(url) => {
+                    let url = url.to_resolved(&self.provider.id)?.clone();
                     debug!(url = %url, "Fetching models");
                     match self.fetch_models(url.as_str()).await {
                         Err(error) => {
@@ -199,11 +200,16 @@ mod tests {
         Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
+            url: Url::parse("https://api.openai.com/v1/chat/completions")
+                .unwrap()
+                .into(),
             key: Some(key.into()),
             models: forge_domain::Models::Url(
-                Url::parse("https://api.openai.com/v1/models").unwrap(),
+                Url::parse("https://api.openai.com/v1/models")
+                    .unwrap()
+                    .into(),
             ),
+            configured: true,
         }
     }
 
@@ -211,11 +217,16 @@ mod tests {
         Provider {
             id: ProviderId::Zai,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
+            url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions")
+                .unwrap()
+                .into(),
             key: Some(key.into()),
             models: forge_domain::Models::Url(
-                Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+                Url::parse("https://api.z.ai/api/paas/v4/models")
+                    .unwrap()
+                    .into(),
             ),
+            configured: true,
         }
     }
 
@@ -223,11 +234,16 @@ mod tests {
         Provider {
             id: ProviderId::ZaiCoding,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
+            url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions")
+                .unwrap()
+                .into(),
             key: Some(key.into()),
             models: forge_domain::Models::Url(
-                Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+                Url::parse("https://api.z.ai/api/paas/v4/models")
+                    .unwrap()
+                    .into(),
             ),
+            configured: true,
         }
     }
 
@@ -235,11 +251,16 @@ mod tests {
         Provider {
             id: ProviderId::Anthropic,
             response: ProviderResponse::Anthropic,
-            url: Url::parse("https://api.anthropic.com/v1/messages").unwrap(),
+            url: Url::parse("https://api.anthropic.com/v1/messages")
+                .unwrap()
+                .into(),
             key: Some(key.into()),
             models: forge_domain::Models::Url(
-                Url::parse("https://api.anthropic.com/v1/models").unwrap(),
+                Url::parse("https://api.anthropic.com/v1/models")
+                    .unwrap()
+                    .into(),
             ),
+            configured: true,
         }
     }
 
@@ -295,9 +316,12 @@ mod tests {
         let provider = Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
-            url: reqwest::Url::parse(base_url)?,
+            url: reqwest::Url::parse(base_url)?.into(),
             key: Some("test-api-key".to_string()),
-            models: forge_domain::Models::Url(reqwest::Url::parse(base_url)?.join("models")?),
+            models: forge_domain::Models::Url(
+                reqwest::Url::parse(base_url)?.join("models")?.into(),
+            ),
+            configured: true,
         };
 
         Ok(OpenAIProvider::new(
