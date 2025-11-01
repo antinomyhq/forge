@@ -107,7 +107,7 @@ mod tests {
                     Provider {
                         id: ProviderId::OpenAI,
                         response: ProviderResponse::OpenAI,
-                        url: Url::parse("https://api.openai.com").unwrap(),
+                        url: Url::parse("https://api.openai.com").unwrap().into(),
                         key: Some("test-key".to_string()),
                         models: Models::Hardcoded(vec![Model {
                             id: "gpt-4".to_string().into(),
@@ -118,11 +118,12 @@ mod tests {
                             supports_parallel_tool_calls: Some(true),
                             supports_reasoning: Some(false),
                         }]),
+                        configured: true,
                     },
                     Provider {
                         id: ProviderId::Anthropic,
                         response: ProviderResponse::Anthropic,
-                        url: Url::parse("https://api.anthropic.com").unwrap(),
+                        url: Url::parse("https://api.anthropic.com").unwrap().into(),
                         key: Some("test-key".to_string()),
                         models: Models::Hardcoded(vec![Model {
                             id: "claude-3".to_string().into(),
@@ -133,6 +134,7 @@ mod tests {
                             supports_parallel_tool_calls: Some(true),
                             supports_reasoning: Some(true),
                         }]),
+                        configured: true,
                     },
                 ],
             }

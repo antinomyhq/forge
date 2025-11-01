@@ -22,6 +22,7 @@ pub struct Anthropic<T> {
     chat_url: Url,
     models: forge_domain::Models,
     anthropic_version: String,
+    provider_id: forge_app::domain::ProviderId,
 }
 
 impl<H: HttpClientService> Anthropic<H> {
@@ -31,8 +32,16 @@ impl<H: HttpClientService> Anthropic<H> {
         chat_url: Url,
         models: forge_domain::Models,
         version: String,
+        provider_id: forge_app::domain::ProviderId,
     ) -> Self {
-        Self { http, api_key, chat_url, models, anthropic_version: version }
+        Self {
+            http,
+            api_key,
+            chat_url,
+            models,
+            anthropic_version: version,
+            provider_id,
+        }
     }
 
     fn get_headers(&self) -> Vec<(String, String)> {
@@ -88,6 +97,7 @@ impl<T: HttpClientService> Anthropic<T> {
         match &self.models {
             forge_domain::Models::Url(url) => {
                 debug!(url = %url, "Fetching models");
+                let url = url.to_resolved(&self.provider_id)?;
 
                 let response = self
                     .http
@@ -191,8 +201,9 @@ mod tests {
             Arc::new(MockHttpClient::new()),
             "sk-test-key".to_string(),
             chat_url,
-            forge_domain::Models::Url(model_url),
+            forge_domain::Models::Url(model_url.into()),
             "2023-06-01".to_string(),
+            forge_app::domain::ProviderId::Anthropic,
         ))
     }
 
@@ -241,11 +252,13 @@ mod tests {
             Arc::new(MockHttpClient::new()),
             "sk-some-key".to_string(),
             chat_url,
-            forge_domain::Models::Url(model_url.clone()),
+            forge_domain::Models::Url(model_url.clone().into()),
             "v1".to_string(),
+            forge_app::domain::ProviderId::Anthropic,
         );
         match &anthropic.models {
             forge_domain::Models::Url(url) => {
+                let url = url.as_resolved().unwrap();
                 assert_eq!(url.as_str(), "https://api.anthropic.com/v1/models");
             }
             _ => panic!("Expected Models::Url variant"),

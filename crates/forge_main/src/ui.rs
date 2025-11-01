@@ -563,20 +563,23 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         for provider in providers.iter() {
             let id = provider.id.to_string();
-            let domain = provider
-                .url
-                .domain()
-                .map(|d| format!("[{}]", d))
-                .unwrap_or_default();
+            let domain = match &provider.url {
+                forge_api::ProviderUrl::Template(_) => "[not configured]".to_string(),
+                forge_api::ProviderUrl::Resolved(u) => {
+                    u.domain().map(|d| format!("[{}]", d)).unwrap_or_default()
+                }
+            };
             info = info
                 .add_title(id.to_case(Case::UpperSnake))
                 .add_key_value("id", id)
                 .add_key_value("host", domain);
+            if provider.configured {
+                info = info.add_key_value("status", "Configured");
+            };
         }
 
         if porcelain {
             let porcelain = Porcelain::from(&info).skip(1).drop_col(0);
-            //.drop_column(0);
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -836,7 +839,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
             (Some(provider), _) | (_, Some(provider)) => {
                 // Show single provider (either default or agent-specific)
-                info = info.add_key_value("Provider (URL)", provider.url);
+                info = info.add_key_value("Provider (URL)", provider.url.to_string());
                 if let Some(ref api_key) = provider.key {
                     info = info.add_key_value("API Key", truncate_key(api_key));
                 }
@@ -1225,6 +1228,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Some(provider) => provider,
             None => return Ok(()),
         };
+
+        if !provider.configured {
+            self.writeln_title(TitleFormat::error(format!(
+                    "Provider '{}' is not configured. Please set the required API keys in your environment variables.",
+                    provider.id
+                )))?;
+            return Ok(());
+        }
 
         // Set the provider via API
         self.api.set_default_provider(provider.id).await?;
@@ -1818,7 +1829,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Check if provider has valid API key
         let providers = self.api.get_providers().await?;
-        if providers.iter().any(|p| p.id == provider_id) {
+        if providers
+            .iter()
+            .any(|p| p.id == provider_id && p.configured)
+        {
             Ok(provider_id)
         } else {
             Err(anyhow::anyhow!(
