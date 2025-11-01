@@ -5,7 +5,34 @@
     "url_param_vars": [],
     "response_type": "OpenAI",
     "url": "https://antinomy.ai/api/v1/chat/completions",
-    "models": "https://antinomy.ai/api/v1/models"
+    "models": "https://antinomy.ai/api/v1/models",
+    "auth_methods": ["api_key"]
+  },
+  {
+    "id": "github_copilot",
+    "api_key_vars": "GITHUB_COPILOT_API_KEY",
+    "url_param_vars": [],
+    "response_type": "OpenAI",
+    "url": "https://api.githubcopilot.com/chat/completions",
+    "models": "https://api.githubcopilot.com/models",
+    "auth_methods": [
+      {
+        "oauth_device": {
+          "auth_url": "https://github.com/login/device/code",
+          "token_url": "https://github.com/login/oauth/access_token",
+          "client_id": "Iv1.b507a08c87ecfe98",
+          "scopes": ["read:user"],
+          "use_pkce": false,
+          "token_refresh_url": "https://api.github.com/copilot_internal/v2/token",
+          "custom_headers": {
+            "User-Agent": "GitHubCopilotChat/0.26.7",
+            "Accept": "application/json",
+            "editor-version": "vscode/1.99.3",
+            "editor-plugin-version": "copilot-chat/0.26.7"
+          }
+        }
+      }
+    ]
   },
   {
     "id": "open_router",
@@ -13,7 +40,8 @@
     "url_param_vars": [],
     "response_type": "OpenAI",
     "url": "https://openrouter.ai/api/v1/chat/completions",
-    "models": "https://openrouter.ai/api/v1/models"
+    "models": "https://openrouter.ai/api/v1/models",
+    "auth_methods": ["api_key"]
   },
   {
     "id": "requesty",
@@ -21,7 +49,8 @@
     "url_param_vars": [],
     "response_type": "OpenAI",
     "url": "https://router.requesty.ai/v1/chat/completions",
-    "models": "https://router.requesty.ai/v1/models"
+    "models": "https://router.requesty.ai/v1/models",
+    "auth_methods": ["api_key"]
   },
   {
     "id": "xai",
@@ -29,23 +58,59 @@
     "url_param_vars": [],
     "response_type": "OpenAI",
     "url": "https://api.x.ai/v1/chat/completions",
-    "models": "https://api.x.ai/v1/models"
+    "models": "https://api.x.ai/v1/models",
+    "auth_methods": ["api_key"]
   },
   {
     "id": "openai",
     "api_key_vars": "OPENAI_API_KEY",
+    "url_param_vars": [],
+    "response_type": "OpenAI",
+    "url": "https://api.openai.com/v1/chat/completions",
+    "models": "https://api.openai.com/v1/models",
+    "auth_methods": ["api_key"]
+  },
+  {
+    "id": "openai_compatible",
+    "api_key_vars": "OPENAI_API_KEY",
     "url_param_vars": ["OPENAI_URL"],
     "response_type": "OpenAI",
-    "url": "{{#if OPENAI_URL}}{{OPENAI_URL}}{{else}}https://api.openai.com/v1{{/if}}/chat/completions",
-    "models": "{{#if OPENAI_URL}}{{OPENAI_URL}}{{else}}https://api.openai.com/v1{{/if}}/models"
+    "url": "{{OPENAI_URL}}/chat/completions",
+    "models": "{{OPENAI_URL}}/models",
+    "auth_methods": ["api_key"]
   },
   {
     "id": "anthropic",
     "api_key_vars": "ANTHROPIC_API_KEY",
+    "url_param_vars": [],
+    "response_type": "Anthropic",
+    "url": "https://api.anthropic.com/v1/messages",
+    "models": "https://api.anthropic.com/v1/models",
+    "auth_methods": [
+      "api_key",
+      {
+        "oauth_code": {
+          "auth_url": "https://claude.ai/oauth/authorize",
+          "token_url": "https://console.anthropic.com/v1/oauth/token",
+          "client_id": "9d1c250a-e61b-44d9-88ed-5944d1962f5e",
+          "scopes": ["org:create_api_key", "user:profile", "user:inference"],
+          "redirect_uri": "https://console.anthropic.com/oauth/code/callback",
+          "use_pkce": true,
+          "extra_auth_params": {
+            "code": "true"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "anthropic_compatible",
+    "api_key_vars": "ANTHROPIC_API_KEY",
     "url_param_vars": ["ANTHROPIC_URL"],
     "response_type": "Anthropic",
     "url": "{{ANTHROPIC_URL}}/messages",
-    "models": "{{ANTHROPIC_URL}}/models"
+    "models": "{{ANTHROPIC_URL}}/models",
+    "auth_methods": ["api_key"]
   },
   {
     "id": "cerebras",
@@ -53,7 +118,8 @@
     "url_param_vars": [],
     "response_type": "OpenAI",
     "url": "https://api.cerebras.ai/v1/chat/completions",
-    "models": "https://api.cerebras.ai/v1/models"
+    "models": "https://api.cerebras.ai/v1/models",
+    "auth_methods": ["api_key"]
   },
   {
     "id": "zai",
@@ -125,7 +191,8 @@
         "supports_parallel_tool_calls": false,
         "supports_reasoning": false
       }
-    ]
+    ],
+    "auth_methods": ["api_key"]
   },
   {
     "id": "zai_coding",
@@ -197,7 +264,8 @@
         "supports_parallel_tool_calls": false,
         "supports_reasoning": false
       }
-    ]
+    ],
+    "auth_methods": ["api_key"]
   },
   {
     "id": "big_model",
@@ -205,7 +273,8 @@
     "url_param_vars": [],
     "response_type": "OpenAI",
     "url": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
-    "models": "https://open.bigmodel.cn/api/paas/v4/models"
+    "models": "https://open.bigmodel.cn/api/paas/v4/models",
+    "auth_methods": ["api_key"]
   },
   {
     "id": "vertex_ai",
@@ -213,7 +282,8 @@
     "url_param_vars": ["PROJECT_ID", "LOCATION"],
     "response_type": "OpenAI",
     "url": "{{#if (eq LOCATION \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/chat/completions{{else}}https://{{LOCATION}}-aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/chat/completions{{/if}}",
-    "models": "{{#if (eq LOCATION \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/models{{else}}https://{{LOCATION}}-aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/models{{/if}}"
+    "models": "{{#if (eq LOCATION \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/models{{else}}https://{{LOCATION}}-aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/endpoints/openapi/models{{/if}}",
+    "auth_methods": ["api_key"]
   },
   {
     "id": "azure",
@@ -225,6 +295,7 @@
     ],
     "response_type": "OpenAI",
     "url": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/deployments/{{AZURE_DEPLOYMENT_NAME}}/chat/completions?api-version={{AZURE_API_VERSION}}",
-    "models": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/models?api-version={{AZURE_API_VERSION}}"
+    "models": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/models?api-version={{AZURE_API_VERSION}}",
+    "auth_methods": ["api_key"]
   }
 ]

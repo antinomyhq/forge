@@ -8,9 +8,9 @@ use forge_app::{
     UserInfra, WalkedFile, Walker, WalkerInfra,
 };
 use forge_domain::{
-    AppConfig, AppConfigRepository, CommandOutput, Conversation, ConversationId,
-    ConversationRepository, Environment, FileInfo, McpServerConfig, Provider, ProviderId,
-    ProviderRepository, Snapshot, SnapshotRepository,
+    AppConfig, AppConfigRepository, AuthCredential, AuthRepository, CommandOutput, Conversation,
+    ConversationId, ConversationRepository, Environment, FileInfo, McpServerConfig, Provider,
+    ProviderId, ProviderRepository, Snapshot, SnapshotRepository,
 };
 use forge_infra::CacacheStorage;
 use reqwest::header::HeaderMap;
@@ -20,7 +20,10 @@ use url::Url;
 
 use crate::fs_snap::ForgeFileSnapshotService;
 use crate::provider::ForgeProviderRepository;
-use crate::{AppConfigRepositoryImpl, ConversationRepositoryImpl, DatabasePool, PoolConfig};
+use crate::{
+    AppConfigRepositoryImpl, AuthCredentialRepo, ConversationRepositoryImpl, DatabasePool,
+    PoolConfig,
+};
 
 /// Repository layer that implements all domain repository traits
 ///
@@ -34,6 +37,7 @@ pub struct ForgeRepo<F> {
     app_config_repository: Arc<AppConfigRepositoryImpl<F>>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
+    auth_repository: Arc<AuthCredentialRepo<F>>,
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
@@ -53,6 +57,8 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
         )); // 1 hour TTL
 
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
+
+        let auth_repository = Arc::new(AuthCredentialRepo::new(infra.clone()));
         Self {
             infra,
             file_snapshot_service,
@@ -60,6 +66,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
             app_config_repository,
             mcp_cache_repository,
             provider_repository,
+            auth_repository,
         }
     }
 }
@@ -114,6 +121,18 @@ impl<F: EnvironmentInfra + FileReaderInfra + Send + Sync> ProviderRepository for
 
     async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider> {
         self.provider_repository.get_provider(id).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> AuthRepository
+    for ForgeRepo<F>
+{
+    async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()> {
+        self.auth_repository.upsert_credential(credential).await
+    }
+    async fn get_credential(&self, id: &ProviderId) -> anyhow::Result<Option<AuthCredential>> {
+        self.auth_repository.get_credential(id).await
     }
 }
 
