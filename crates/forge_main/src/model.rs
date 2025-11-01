@@ -977,7 +977,7 @@ mod tests {
             configured: true,
         };
         let actual = format!("{}", CliProvider(fixture));
-        let expected = "OpenAI [api.openai.com]";
+        let expected = "OpenAI [api.openai.com] ✓";
         assert_eq!(actual, expected);
     }
 
@@ -998,7 +998,7 @@ mod tests {
             configured: true,
         };
         let actual = format!("{}", CliProvider(fixture));
-        let expected = "OpenRouter [openrouter.ai]";
+        let expected = "OpenRouter [openrouter.ai] ✓";
         assert_eq!(actual, expected);
     }
 
@@ -1015,7 +1015,7 @@ mod tests {
             configured: true,
         };
         let actual = format!("{}", CliProvider(fixture));
-        let expected = "Forge [localhost]";
+        let expected = "Forge [localhost] ✓";
         assert_eq!(actual, expected);
     }
 

@@ -96,8 +96,8 @@ impl<T: HttpClientService> Anthropic<T> {
     pub async fn models(&self) -> anyhow::Result<Vec<Model>> {
         match &self.models {
             forge_domain::Models::Url(url) => {
-                debug!(url = %url, "Fetching models");
                 let url = url.to_resolved(&self.provider_id)?;
+                debug!(url = %url, "Fetching models");
 
                 let response = self
                     .http

@@ -50,7 +50,7 @@ pub enum ProviderResponse {
 
 /// Represents a provider URL which can be either a template string or a
 /// resolved URL.
-#[derive(Debug, Display, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ProviderUrl {
     Template(String),
