@@ -1,14 +1,15 @@
 use std::sync::{Arc, OnceLock};
 
-use forge_app::ProviderRegistry;
-use forge_app::domain::{ModelId, Provider, ProviderId, ProviderResponse};
+use forge_app::domain::{Provider, ProviderId, ProviderResponse};
+use forge_app::{EnvironmentInfra, FileReaderInfra};
+use forge_domain::ProviderRepository;
 use handlebars::Handlebars;
 use merge::Merge;
 use serde::Deserialize;
 use tokio::sync::OnceCell;
 use url::Url;
 
-use crate::{AppConfigRepository, EnvironmentInfra, FileReaderInfra, ProviderError};
+use crate::error::ProviderError;
 
 /// Represents the source of models for a provider
 #[derive(Debug, Clone, Deserialize)]
@@ -74,13 +75,13 @@ fn get_provider_configs() -> &'static Vec<ProviderConfig> {
     })
 }
 
-pub struct ForgeProviderRegistry<F> {
+pub struct ForgeProviderRepository<F> {
     infra: Arc<F>,
     handlebars: &'static Handlebars<'static>,
     providers: OnceCell<Vec<Provider>>,
 }
 
-impl<F: EnvironmentInfra + AppConfigRepository + FileReaderInfra> ForgeProviderRegistry<F> {
+impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self {
             infra,
@@ -108,7 +109,7 @@ impl<F: EnvironmentInfra + AppConfigRepository + FileReaderInfra> ForgeProviderR
     async fn init_providers(&self) -> Vec<Provider> {
         let configs = self.get_merged_configs().await;
 
-        configs
+        let mut providers: Vec<Provider> = configs
             .into_iter()
             .filter_map(|config| {
                 // Skip Forge provider as it's handled specially
@@ -117,7 +118,13 @@ impl<F: EnvironmentInfra + AppConfigRepository + FileReaderInfra> ForgeProviderR
                 }
                 self.create_provider(&config).ok()
             })
-            .collect()
+            .collect();
+
+        // Sort by ProviderId enum order to ensure deterministic, priority-based
+        // ordering
+        providers.sort_by(|a, b| a.id.cmp(&b.id));
+
+        providers
     }
 
     fn create_provider(&self, config: &ProviderConfig) -> anyhow::Result<Provider> {
@@ -198,24 +205,6 @@ impl<F: EnvironmentInfra + AppConfigRepository + FileReaderInfra> ForgeProviderR
             .ok_or_else(|| ProviderError::provider_not_available(id).into())
     }
 
-    async fn get_first_available_provider(&self) -> anyhow::Result<Provider> {
-        self.get_providers()
-            .await
-            .first()
-            .cloned()
-            .ok_or_else(|| forge_app::Error::NoActiveProvider.into())
-    }
-
-    async fn update<U>(&self, updater: U) -> anyhow::Result<()>
-    where
-        U: FnOnce(&mut forge_app::dto::AppConfig),
-    {
-        let mut config = self.infra.get_app_config().await?;
-        updater(&mut config);
-        self.infra.set_app_config(&config).await?;
-        Ok(())
-    }
-
     /// Returns merged provider configs (embedded + custom)
     async fn get_merged_configs(&self) -> Vec<ProviderConfig> {
         let mut configs = ProviderConfigs(get_provider_configs().clone());
@@ -229,48 +218,11 @@ impl<F: EnvironmentInfra + AppConfigRepository + FileReaderInfra> ForgeProviderR
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + AppConfigRepository + FileReaderInfra> ProviderRegistry
-    for ForgeProviderRegistry<F>
+impl<F: EnvironmentInfra + FileReaderInfra + Sync> ProviderRepository
+    for ForgeProviderRepository<F>
 {
-    async fn get_default_provider(&self) -> anyhow::Result<Provider> {
-        let app_config = self.infra.get_app_config().await?;
-        if let Some(provider_id) = app_config.provider {
-            return self.provider_from_id(provider_id).await;
-        }
-
-        // No active provider set, try to find the first available one
-        self.get_first_available_provider().await
-    }
-
-    async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        self.update(|config| {
-            config.provider = Some(provider_id);
-        })
-        .await
-    }
-
     async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
         Ok(self.get_providers().await.clone())
-    }
-
-    async fn get_default_model(&self, provider_id: &ProviderId) -> anyhow::Result<ModelId> {
-        if let Some(model_id) = self.infra.get_app_config().await?.model.get(provider_id) {
-            return Ok(model_id.clone());
-        }
-
-        // No active model set for the active provider, throw an error
-        Err(forge_app::Error::NoActiveModel.into())
-    }
-
-    async fn set_default_model(
-        &self,
-        model: ModelId,
-        provider_id: ProviderId,
-    ) -> anyhow::Result<()> {
-        self.update(|config| {
-            config.model.insert(provider_id, model.clone());
-        })
-        .await
     }
 
     async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider> {
@@ -399,19 +351,19 @@ mod env_tests {
             _path: &std::path::Path,
             _start_line: u64,
             _end_line: u64,
-        ) -> anyhow::Result<(String, forge_fs::FileInfo)> {
+        ) -> anyhow::Result<(String, forge_domain::FileInfo)> {
             Err(anyhow::anyhow!("File not found"))
         }
     }
 
     #[async_trait::async_trait]
-    impl AppConfigRepository for MockInfra {
-        async fn get_app_config(&self) -> anyhow::Result<forge_app::dto::AppConfig> {
-            Ok(forge_app::dto::AppConfig::default())
+    impl ProviderRepository for MockInfra {
+        async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
+            Ok(vec![])
         }
 
-        async fn set_app_config(&self, _config: &forge_app::dto::AppConfig) -> anyhow::Result<()> {
-            Ok(())
+        async fn get_provider(&self, _id: ProviderId) -> anyhow::Result<Provider> {
+            Err(anyhow::anyhow!("Provider not found"))
         }
     }
 
@@ -433,7 +385,7 @@ mod env_tests {
         );
 
         let infra = Arc::new(MockInfra { env_vars });
-        let registry = ForgeProviderRegistry::new(infra);
+        let registry = ForgeProviderRepository::new(infra);
 
         // Get Azure config from embedded configs
         let configs = get_provider_configs();
@@ -485,7 +437,7 @@ mod env_tests {
         );
 
         let infra = Arc::new(MockInfra { env_vars });
-        let registry = ForgeProviderRegistry::new(infra);
+        let registry = ForgeProviderRepository::new(infra);
         let providers = registry.get_all_providers().await.unwrap();
 
         let openai_provider = providers
@@ -571,27 +523,24 @@ mod env_tests {
                 _path: &std::path::Path,
                 _start_line: u64,
                 _end_line: u64,
-            ) -> anyhow::Result<(String, forge_fs::FileInfo)> {
+            ) -> anyhow::Result<(String, forge_domain::FileInfo)> {
                 Err(anyhow::anyhow!("Not implemented"))
             }
         }
 
         #[async_trait::async_trait]
-        impl AppConfigRepository for CustomMockInfra {
-            async fn get_app_config(&self) -> anyhow::Result<forge_app::dto::AppConfig> {
-                Ok(forge_app::dto::AppConfig::default())
+        impl ProviderRepository for CustomMockInfra {
+            async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
+                Ok(vec![])
             }
 
-            async fn set_app_config(
-                &self,
-                _config: &forge_app::dto::AppConfig,
-            ) -> anyhow::Result<()> {
-                Ok(())
+            async fn get_provider(&self, _id: ProviderId) -> anyhow::Result<Provider> {
+                Err(anyhow::anyhow!("Provider not found"))
             }
         }
 
         let infra = Arc::new(CustomMockInfra { env_vars, base_path });
-        let registry = ForgeProviderRegistry::new(infra);
+        let registry = ForgeProviderRepository::new(infra);
 
         // Get merged configs
         let merged_configs = registry.get_merged_configs().await;

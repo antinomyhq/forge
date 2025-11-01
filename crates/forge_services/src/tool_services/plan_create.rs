@@ -3,10 +3,9 @@ use std::sync::Arc;
 use anyhow::Context;
 use bytes::Bytes;
 use chrono::Local;
-use forge_app::{PlanCreateOutput, PlanCreateService};
-
-use crate::{
+use forge_app::{
     EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
+    PlanCreateOutput, PlanCreateService,
 };
 
 /// Creates a new plan file with the specified name, version, and content. Use
@@ -68,7 +67,7 @@ impl<
 
         // Write the plan file
         self.0
-            .write(&file_path, Bytes::from(content), true)
+            .write(&file_path, Bytes::from(content))
             .await
             .with_context(|| format!("Failed to write plan file: {}", file_path.display()))?;
 

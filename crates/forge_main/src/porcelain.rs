@@ -74,6 +74,20 @@ impl Porcelain {
             })
         })
     }
+
+    pub fn swap_cols(self, col1: usize, col2: usize) -> Self {
+        Porcelain(
+            self.0
+                .into_iter()
+                .map(|mut row| {
+                    if row.len() > col1.max(col2) {
+                        row.swap(col1, col2);
+                    }
+                    row
+                })
+                .collect(),
+        )
+    }
     #[allow(unused)]
     pub fn into_body(self) -> Vec<Vec<Option<String>>> {
         // Skip headers and return
@@ -384,6 +398,31 @@ mod tests {
                 Some("Bob".into()),
                 Some("short".into()),
             ],
+        ];
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn test_swap_cols() {
+        let info = Porcelain(vec![
+            vec![
+                Some("user1".into()),
+                Some("Alice".into()),
+                Some("30".into()),
+            ],
+            vec![Some("user2".into()), Some("Bob".into()), Some("25".into())],
+        ]);
+
+        let actual = info.swap_cols(0, 1).into_rows();
+
+        let expected = vec![
+            vec![
+                Some("Alice".into()),
+                Some("user1".into()),
+                Some("30".into()),
+            ],
+            vec![Some("Bob".into()), Some("user2".into()), Some("25".into())],
         ];
 
         assert_eq!(actual, expected)

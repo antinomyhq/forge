@@ -81,7 +81,7 @@ function _forge_print_agent_message() {
 function _forge_find_index() {
     local output="$1"
     local value_to_find="$2"
-    
+
     local index=1
     while IFS= read -r line; do
         local name="${line%% *}"
@@ -118,7 +118,7 @@ function _forge_select_and_set_config() {
         if [[ -n "$output" ]]; then
             local selected
             local fzf_args=(--delimiter="$_FORGE_DELIMITER" --prompt="$prompt_text ❯ ")
-            
+
             if [[ -n "$with_nth" ]]; then
                 fzf_args+=(--with-nth="$with_nth")
             fi
@@ -130,7 +130,7 @@ function _forge_select_and_set_config() {
                 fi
             fi
             selected=$(echo "$output" | _forge_fzf "${fzf_args[@]}")
-            
+
             if [[ -n "$selected" ]]; then
                 local name="${selected%% *}"
                 _forge_cmd config set "$config_flag" "$name"
@@ -321,7 +321,7 @@ function _forge_action_provider() {
 
 # Action handler: Select model
 function _forge_action_model() {
-    _forge_select_and_set_config "list models" "model" "Model" "$($FORGE_BIN config get model --porcelain)" "1,3.."
+    _forge_select_and_set_config "list models" "model" "Model" "$($FORGE_BIN config get model --porcelain)" "2,3.."
     _forge_reset
 }
 
