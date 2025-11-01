@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter, EnumString};
 use url::Url;
 
-use crate::Model;
+use crate::{Error, Model};
 
 /// --- IMPORTANT ---
 /// The order of providers is important because that would be order in which the
@@ -83,7 +83,7 @@ impl ProviderUrl {
     /// Get the resolved URL or return an error if it's a template
     pub fn to_resolved(&self, provider_id: &ProviderId) -> anyhow::Result<&Url> {
         self.as_resolved()
-            .ok_or_else(|| anyhow::anyhow!("Cannot use unconfigured provider: {}", provider_id))
+            .ok_or_else(|| Error::provider_not_available(*provider_id).into())
     }
 }
 
