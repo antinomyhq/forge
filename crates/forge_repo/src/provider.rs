@@ -9,7 +9,7 @@ use serde::Deserialize;
 use tokio::sync::OnceCell;
 use url::Url;
 
-use crate::error::ProviderError;
+use forge_domain::Error;
 
 /// Represents the source of models for a provider
 #[derive(Debug, Clone, Deserialize)]
@@ -135,7 +135,7 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
         let api_key = self
             .infra
             .get_env_var(&config.api_key_vars)
-            .ok_or_else(|| ProviderError::env_var_not_found(config.id, &config.api_key_vars))?;
+            .ok_or_else(|| Error::env_var_not_found(config.id, &config.api_key_vars))?;
 
         // Check URL parameter environment variables and build template data
         // URL parameters are optional - only add them if they exist
@@ -149,7 +149,7 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
             } else if env_var == "ANTHROPIC_URL" {
                 template_data.insert(env_var, "https://api.anthropic.com/v1".to_string());
             } else {
-                return Err(ProviderError::env_var_not_found(config.id, env_var).into());
+                return Err(Error::env_var_not_found(config.id, env_var).into());
             }
         }
 
@@ -215,7 +215,7 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
         // Handle special cases first
         if id == ProviderId::Forge {
             // Forge provider isn't typically configured via env vars in the registry
-            return Err(ProviderError::provider_not_available(ProviderId::Forge).into());
+            return Err(Error::provider_not_available(ProviderId::Forge).into());
         }
 
         // Look up provider from cached providers - only return configured ones
@@ -224,7 +224,7 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
             .iter()
             .find(|p| p.id == id && p.configured)
             .cloned()
-            .ok_or_else(|| ProviderError::provider_not_available(id).into())
+            .ok_or_else(|| Error::provider_not_available(id).into())
     }
 
     /// Returns merged provider configs (embedded + custom)
