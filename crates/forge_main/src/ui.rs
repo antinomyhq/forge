@@ -1220,11 +1220,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         };
 
         // Set the provider via API
-        self.api.set_default_provider(provider.id).await?;
+        let provider_id = provider.id.clone();
+        self.api.set_default_provider(provider_id).await?;
 
         self.writeln_title(TitleFormat::action(format!(
             "Switched to provider: {}",
-            CliProvider(provider.clone())
+            CliProvider(provider)
         )))?;
 
         // Check if the current model is available for the new provider
@@ -1796,12 +1797,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     /// Validate provider exists and has API key
     async fn validate_provider(&self, provider_str: &str) -> Result<ProviderId> {
-        // Parse provider ID from string
-        let provider_id = ProviderId::from_str(provider_str).with_context(|| {
-            format!(
+        // Parse provider ID from string (now supports custom providers)
+        let provider_id = ProviderId::from_str(provider_str).map_err(|_| {
+            anyhow::anyhow!(
                 "Invalid provider: '{}'. Valid providers are: {}",
                 provider_str,
-                get_valid_provider_names().join(", ")
+                get_valid_builtin_provider_names().join(", ")
             )
         })?;
 
@@ -1810,14 +1811,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         if providers.iter().any(|p| p.id == provider_id) {
             Ok(provider_id)
         } else {
+            let available_names: Vec<_> = providers.iter().map(|p| p.id.to_string()).collect();
             Err(anyhow::anyhow!(
                 "Provider '{}' is not available. Make sure the API key is set. Available providers: {}",
                 provider_str,
-                providers
-                    .iter()
-                    .map(|p| p.id.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ")
+                available_names.join(", ")
             ))
         }
     }
@@ -1856,7 +1854,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 }
 
-/// Get list of valid provider names
-fn get_valid_provider_names() -> Vec<String> {
+/// Get list of valid built-in provider names (for error messages)
+fn get_valid_builtin_provider_names() -> Vec<String> {
     ProviderId::iter().map(|p| p.to_string()).collect()
 }

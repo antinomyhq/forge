@@ -48,10 +48,12 @@ fn overwrite<T>(base: &mut T, other: T) {
 struct ProviderConfigs(#[merge(strategy = merge_configs)] Vec<ProviderConfig>);
 
 fn merge_configs(base: &mut Vec<ProviderConfig>, other: Vec<ProviderConfig>) {
-    let mut map: std::collections::HashMap<_, _> = base.drain(..).map(|c| (c.id, c)).collect();
+    let mut map: std::collections::HashMap<_, _> =
+        base.drain(..).map(|c| (c.id.clone(), c)).collect();
 
     for other_config in other {
-        map.entry(other_config.id)
+        let config_id = other_config.id.clone();
+        map.entry(config_id)
             .and_modify(|base_config| base_config.merge(other_config.clone()))
             .or_insert(other_config);
     }
@@ -95,9 +97,24 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
         let environment = self.infra.get_environment();
         let provider_json_path = environment.base_path.join("provider.json");
 
-        let json_str = self.infra.read_utf8(&provider_json_path).await?;
-        let configs = serde_json::from_str(&json_str)?;
-        Ok(configs)
+        match self.infra.read_utf8(&provider_json_path).await {
+            Ok(json_str) => {
+                let configs = serde_json::from_str(&json_str)?;
+                Ok(configs)
+            }
+            Err(e) => {
+                // Check if it's a "file not found" error, which is expected for most users
+                if e.to_string().contains("No such file or directory")
+                    || e.to_string().contains("file not found")
+                    || e.to_string().contains("does not exist")
+                {
+                    Ok(Vec::new()) // No custom configs is OK
+                } else {
+                    // Propagate other errors (like parsing errors)
+                    Err(e)
+                }
+            }
+        }
     }
 
     async fn get_providers(&self) -> &Vec<Provider> {
@@ -132,7 +149,9 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
         let api_key = self
             .infra
             .get_env_var(&config.api_key_vars)
-            .ok_or_else(|| ProviderError::env_var_not_found(config.id, &config.api_key_vars))?;
+            .ok_or_else(|| {
+                ProviderError::env_var_not_found(config.id.clone(), &config.api_key_vars)
+            })?;
 
         // Check URL parameter environment variables and build template data
         // URL parameters are optional - only add them if they exist
@@ -146,7 +165,7 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
             } else if env_var == "ANTHROPIC_URL" {
                 template_data.insert(env_var, "https://api.anthropic.com/v1".to_string());
             } else {
-                return Err(ProviderError::env_var_not_found(config.id, env_var).into());
+                return Err(ProviderError::env_var_not_found(config.id.clone(), env_var).into());
             }
         }
 
@@ -181,7 +200,7 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
         };
 
         Ok(Provider {
-            id: config.id,
+            id: config.id.clone(),
             response: config.response_type.clone(),
             url: final_url,
             key: Some(api_key),
@@ -208,10 +227,18 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
     /// Returns merged provider configs (embedded + custom)
     async fn get_merged_configs(&self) -> Vec<ProviderConfig> {
         let mut configs = ProviderConfigs(get_provider_configs().clone());
-        // Merge custom configs into embedded configs
-        configs.merge(ProviderConfigs(
-            self.get_custom_provider_configs().await.unwrap_or_default(),
-        ));
+
+        // Load custom configs
+        match self.get_custom_provider_configs().await {
+            Ok(custom_configs) => {
+                // Merge custom configs into embedded configs
+                configs.merge(ProviderConfigs(custom_configs));
+            }
+            Err(_) => {
+                // Log error but continue with embedded configs only
+                // In a production system, we might want to log this
+            }
+        }
 
         configs.0
     }
@@ -561,5 +588,52 @@ mod env_tests {
             .iter()
             .find(|c| c.id == ProviderId::OpenRouter);
         assert!(openrouter_config.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_custom_provider_config_parsing() {
+        // Test that we can create a custom provider config directly
+        let custom_config = ProviderConfig {
+            id: ProviderId::Custom("vllmlocal".to_string()),
+            api_key_vars: "VLLM_API_KEY".to_string(),
+            url_param_vars: vec![],
+            response_type: ProviderResponse::OpenAI,
+            url: "http://localhost:8000/v1/chat/completions".to_string(),
+            models: Models::Url("http://localhost:8000/v1/models".to_string()),
+        };
+
+        assert!(custom_config.id.is_custom());
+        assert_eq!(custom_config.id.as_str(), "vllmlocal");
+        assert_eq!(custom_config.api_key_vars, "VLLM_API_KEY");
+        assert_eq!(
+            custom_config.url,
+            "http://localhost:8000/v1/chat/completions"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_custom_provider_from_str() {
+        // Test parsing custom provider from string
+        let custom_id: ProviderId = "my_custom_provider".parse().unwrap();
+        assert!(custom_id.is_custom());
+        assert_eq!(custom_id.as_str(), "my_custom_provider");
+        assert_eq!(
+            custom_id,
+            ProviderId::Custom("my_custom_provider".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_builtin_provider_still_works() {
+        // Test that built-in providers still work as before
+        let openai_id: ProviderId = "openai".parse().unwrap();
+        assert!(!openai_id.is_custom());
+        assert_eq!(openai_id.as_str(), "openai");
+        assert_eq!(openai_id, ProviderId::OpenAI);
+
+        let anthropic_id: ProviderId = "anthropic".parse().unwrap();
+        assert!(!anthropic_id.is_custom());
+        assert_eq!(anthropic_id.as_str(), "anthropic");
+        assert_eq!(anthropic_id, ProviderId::Anthropic);
     }
 }
