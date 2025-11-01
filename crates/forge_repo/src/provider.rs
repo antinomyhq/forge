@@ -2,14 +2,12 @@ use std::sync::{Arc, OnceLock};
 
 use forge_app::domain::{Provider, ProviderId, ProviderResponse};
 use forge_app::{EnvironmentInfra, FileReaderInfra};
-use forge_domain::ProviderRepository;
+use forge_domain::{Error, ProviderRepository};
 use handlebars::Handlebars;
 use merge::Merge;
 use serde::Deserialize;
 use tokio::sync::OnceCell;
 use url::Url;
-
-use forge_domain::Error;
 
 /// Represents the source of models for a provider
 #[derive(Debug, Clone, Deserialize)]
