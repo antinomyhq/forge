@@ -436,7 +436,7 @@ mod env_tests {
         match provider.models {
             forge_domain::Models::Url(model_url) => {
                 assert_eq!(
-                    model_url.to_string(),
+                    model_url.as_resolved().expect("Should be resolved URL").as_str(),
                     "https://my-test-resource.openai.azure.com/openai/models?api-version=2024-02-01-preview"
                 );
             }
