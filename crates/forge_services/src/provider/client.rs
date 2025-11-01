@@ -54,13 +54,17 @@ impl ClientBuilder {
                 http.clone(),
             ))),
 
-            ProviderResponse::Anthropic => InnerClient::Anthropic(Box::new(Anthropic::new(
-                http.clone(),
-                provider.key.clone().unwrap_or_default(),
-                provider.url,
-                provider.models,
-                "2023-06-01".to_string(),
-            ))),
+            ProviderResponse::Anthropic => {
+                let url = provider.url.to_resolved(&provider.id)?.clone();
+                InnerClient::Anthropic(Box::new(Anthropic::new(
+                    http.clone(),
+                    provider.key.clone().unwrap_or_default(),
+                    url,
+                    provider.models,
+                    "2023-06-01".to_string(),
+                    provider.id,
+                )))
+            }
         };
 
         Ok(Client {
@@ -231,11 +235,16 @@ mod tests {
         let provider = Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
+            url: Url::parse("https://api.openai.com/v1/chat/completions")
+                .unwrap()
+                .into(),
             key: Some("test-key".to_string()),
             models: forge_domain::Models::Url(
-                Url::parse("https://api.openai.com/v1/models").unwrap(),
+                Url::parse("https://api.openai.com/v1/models")
+                    .unwrap()
+                    .into(),
             ),
+            configured: true,
         };
         let client = ClientBuilder::new(provider, "dev")
             .build(Arc::new(MockHttpClient))
@@ -251,11 +260,16 @@ mod tests {
         let provider = Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
+            url: Url::parse("https://api.openai.com/v1/chat/completions")
+                .unwrap()
+                .into(),
             key: Some("test-key".to_string()),
             models: forge_domain::Models::Url(
-                Url::parse("https://api.openai.com/v1/models").unwrap(),
+                Url::parse("https://api.openai.com/v1/models")
+                    .unwrap()
+                    .into(),
             ),
+            configured: true,
         };
         let client = ClientBuilder::new(provider, "dev")
             .build(Arc::new(MockHttpClient))
@@ -273,11 +287,16 @@ mod tests {
         let provider = Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
+            url: Url::parse("https://api.openai.com/v1/chat/completions")
+                .unwrap()
+                .into(),
             key: Some("test-key".to_string()),
             models: forge_domain::Models::Url(
-                Url::parse("https://api.openai.com/v1/models").unwrap(),
+                Url::parse("https://api.openai.com/v1/models")
+                    .unwrap()
+                    .into(),
             ),
+            configured: true,
         };
 
         // Test the builder pattern API
@@ -298,11 +317,16 @@ mod tests {
         let provider = Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
+            url: Url::parse("https://api.openai.com/v1/chat/completions")
+                .unwrap()
+                .into(),
             key: Some("test-key".to_string()),
             models: forge_domain::Models::Url(
-                Url::parse("https://api.openai.com/v1/models").unwrap(),
+                Url::parse("https://api.openai.com/v1/models")
+                    .unwrap()
+                    .into(),
             ),
+            configured: true,
         };
 
         // Test that ClientBuilder::new works with minimal parameters

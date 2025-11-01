@@ -2,14 +2,12 @@ use std::sync::{Arc, OnceLock};
 
 use forge_app::domain::{Provider, ProviderId, ProviderResponse};
 use forge_app::{EnvironmentInfra, FileReaderInfra};
-use forge_domain::ProviderRepository;
+use forge_domain::{Error, ProviderRepository};
 use handlebars::Handlebars;
 use merge::Merge;
 use serde::Deserialize;
 use tokio::sync::OnceCell;
 use url::Url;
-
-use crate::error::ProviderError;
 
 /// Represents the source of models for a provider
 #[derive(Debug, Clone, Deserialize)]
@@ -116,7 +114,10 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
                 if config.id == ProviderId::Forge {
                     return None;
                 }
-                self.create_provider(&config).ok()
+                // Try to create configured provider, fallback to unconfigured
+                self.create_provider(&config)
+                    .or_else(|_| self.create_unconfigured_provider(&config))
+                    .ok()
             })
             .collect();
 
@@ -132,7 +133,7 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
         let api_key = self
             .infra
             .get_env_var(&config.api_key_vars)
-            .ok_or_else(|| ProviderError::env_var_not_found(config.id, &config.api_key_vars))?;
+            .ok_or_else(|| Error::env_var_not_found(config.id, &config.api_key_vars))?;
 
         // Check URL parameter environment variables and build template data
         // URL parameters are optional - only add them if they exist
@@ -146,7 +147,7 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
             } else if env_var == "ANTHROPIC_URL" {
                 template_data.insert(env_var, "https://api.anthropic.com/v1".to_string());
             } else {
-                return Err(ProviderError::env_var_not_found(config.id, env_var).into());
+                return Err(Error::env_var_not_found(config.id, env_var).into());
             }
         }
 
@@ -175,7 +176,7 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
                             )
                         })?,
                 )?;
-                forge_domain::Models::Url(model_url)
+                forge_domain::Models::Url(model_url.into())
             }
             Models::Hardcoded(model_list) => forge_domain::Models::Hardcoded(model_list.clone()),
         };
@@ -183,9 +184,28 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
         Ok(Provider {
             id: config.id,
             response: config.response_type.clone(),
-            url: final_url,
+            url: final_url.into(),
             key: Some(api_key),
             models,
+            configured: true,
+        })
+    }
+
+    /// Creates an unconfigured provider when environment variables are missing.
+    fn create_unconfigured_provider(&self, config: &ProviderConfig) -> anyhow::Result<Provider> {
+        let models = match &config.models {
+            Models::Url(model_url_template) => forge_domain::Models::Url(
+                forge_domain::ProviderUrl::Template(model_url_template.clone()),
+            ),
+            Models::Hardcoded(model_list) => forge_domain::Models::Hardcoded(model_list.clone()),
+        };
+        Ok(Provider {
+            id: config.id,
+            response: config.response_type.clone(),
+            url: forge_domain::ProviderUrl::Template(config.url.clone()),
+            key: None,
+            models,
+            configured: false,
         })
     }
 
@@ -193,16 +213,16 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
         // Handle special cases first
         if id == ProviderId::Forge {
             // Forge provider isn't typically configured via env vars in the registry
-            return Err(ProviderError::provider_not_available(ProviderId::Forge).into());
+            return Err(Error::provider_not_available(ProviderId::Forge).into());
         }
 
-        // Look up provider from cached providers
+        // Look up provider from cached providers - only return configured ones
         self.get_providers()
             .await
             .iter()
-            .find(|p| p.id == id)
+            .find(|p| p.id == id && p.configured)
             .cloned()
-            .ok_or_else(|| ProviderError::provider_not_available(id).into())
+            .ok_or_else(|| Error::provider_not_available(id).into())
     }
 
     /// Returns merged provider configs (embedded + custom)
@@ -404,7 +424,7 @@ mod env_tests {
         assert_eq!(provider.key, Some("test-key-123".to_string()));
 
         // Check chat completion URL (url field now contains the chat completion URL)
-        let chat_url = provider.url;
+        let chat_url = provider.url.as_resolved().expect("Should be resolved URL");
         assert_eq!(
             chat_url.as_str(),
             "https://my-test-resource.openai.azure.com/openai/deployments/gpt-4-deployment/chat/completions?api-version=2024-02-01-preview"
@@ -414,7 +434,7 @@ mod env_tests {
         match provider.models {
             forge_domain::Models::Url(model_url) => {
                 assert_eq!(
-                    model_url.as_str(),
+                    model_url.as_resolved().expect("Should be resolved URL").as_str(),
                     "https://my-test-resource.openai.azure.com/openai/models?api-version=2024-02-01-preview"
                 );
             }
@@ -423,18 +443,10 @@ mod env_tests {
     }
 
     #[tokio::test]
-    async fn test_custom_provider_urls() {
+    async fn test_default_provider_urls() {
         let mut env_vars = HashMap::new();
         env_vars.insert("OPENAI_API_KEY".to_string(), "test-key".to_string());
-        env_vars.insert(
-            "OPENAI_URL".to_string(),
-            "https://custom.openai.com/v1".to_string(),
-        );
         env_vars.insert("ANTHROPIC_API_KEY".to_string(), "test-key".to_string());
-        env_vars.insert(
-            "ANTHROPIC_URL".to_string(),
-            "https://custom.anthropic.com/v1".to_string(),
-        );
 
         let infra = Arc::new(MockInfra { env_vars });
         let registry = ForgeProviderRepository::new(infra);
@@ -449,13 +461,22 @@ mod env_tests {
             .find(|p| p.id == ProviderId::Anthropic)
             .unwrap();
 
+        // Regular OpenAI and Anthropic providers use hardcoded URLs
         assert_eq!(
-            openai_provider.url.as_str(),
-            "https://custom.openai.com/v1/chat/completions"
+            openai_provider
+                .url
+                .as_resolved()
+                .expect("Should be resolved")
+                .as_str(),
+            "https://api.openai.com/v1/chat/completions"
         );
         assert_eq!(
-            anthropic_provider.url.as_str(),
-            "https://custom.anthropic.com/v1/messages"
+            anthropic_provider
+                .url
+                .as_resolved()
+                .expect("Should be resolved")
+                .as_str(),
+            "https://api.anthropic.com/v1/messages"
         );
     }
 

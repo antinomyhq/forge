@@ -60,8 +60,13 @@ impl Display for CliProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let name = self.0.id.to_string();
         write!(f, "{name}")?;
-        if let Some(domain) = self.0.url.domain() {
+        if let Some(url) = self.0.url.as_resolved()
+            && let Some(domain) = url.domain()
+        {
             write!(f, " [{domain}]")?;
+        }
+        if let Some(configured) = self.0.configured.then(|| "✓".green()) {
+            write!(f, " {configured}")?;
         }
         Ok(())
     }
@@ -960,12 +965,19 @@ mod tests {
         let fixture = Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
+            url: Url::parse("https://api.openai.com/v1/chat/completions")
+                .unwrap()
+                .into(),
             key: None,
-            models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
+            models: Models::Url(
+                Url::parse("https://api.openai.com/v1/models")
+                    .unwrap()
+                    .into(),
+            ),
+            configured: true,
         };
         let actual = format!("{}", CliProvider(fixture));
-        let expected = "OpenAI [api.openai.com]";
+        let expected = "OpenAI [api.openai.com] ✓";
         assert_eq!(actual, expected);
     }
 
@@ -974,12 +986,19 @@ mod tests {
         let fixture = Provider {
             id: ProviderId::OpenRouter,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://openrouter.ai/api/v1/chat/completions").unwrap(),
+            url: Url::parse("https://openrouter.ai/api/v1/chat/completions")
+                .unwrap()
+                .into(),
             key: None,
-            models: Models::Url(Url::parse("https://openrouter.ai/api/v1/models").unwrap()),
+            models: Models::Url(
+                Url::parse("https://openrouter.ai/api/v1/models")
+                    .unwrap()
+                    .into(),
+            ),
+            configured: true,
         };
         let actual = format!("{}", CliProvider(fixture));
-        let expected = "OpenRouter [openrouter.ai]";
+        let expected = "OpenRouter [openrouter.ai] ✓";
         assert_eq!(actual, expected);
     }
 
@@ -988,12 +1007,15 @@ mod tests {
         let fixture = Provider {
             id: ProviderId::Forge,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("http://localhost:8080/chat/completions").unwrap(),
+            url: Url::parse("http://localhost:8080/chat/completions")
+                .unwrap()
+                .into(),
             key: None,
-            models: Models::Url(Url::parse("http://localhost:8080/models").unwrap()),
+            models: Models::Url(Url::parse("http://localhost:8080/models").unwrap().into()),
+            configured: true,
         };
         let actual = format!("{}", CliProvider(fixture));
-        let expected = "Forge [localhost]";
+        let expected = "Forge [localhost] ✓";
         assert_eq!(actual, expected);
     }
 
