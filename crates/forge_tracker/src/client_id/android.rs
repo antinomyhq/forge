@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+
 use uuid::Uuid;
 
 const CLIENT_ID_FILE: &str = ".forge_client_id";
