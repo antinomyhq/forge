@@ -56,7 +56,7 @@ impl From<ReleaseBuilderJob> for Job {
                 Step::new("Set Rust Flags")
                     .run(r#"echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV"#)
                     .if_condition(Expression::new(
-                        "!(contains(matrix.target, '-unknown-linux-') || contains(matrix.target, '-unknown-linux-'))",
+                        "!(contains(matrix.target, '-unknown-linux-') || contains(matrix.target, '-android'))",
                     )),
             )
             // Build release binary
