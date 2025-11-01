@@ -1202,7 +1202,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Update the operating model via API
         self.api
-            .set_active_model(active_agent, model.clone())
+            .set_default_model(active_agent, model.clone())
             .await?;
 
         // Update the UI state with the new model
@@ -1367,7 +1367,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .select_model()
                 .await?
                 .ok_or(anyhow::anyhow!("Model selection is required to continue"))?;
-            self.api.set_active_model(active_agent, model).await?;
+            self.api.set_default_model(active_agent, model).await?;
         }
 
         // Create base workflow and trigger updates if this is the first initialization
@@ -1733,7 +1733,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 let model_id = self.validate_model(&args.value).await?;
                 let active_agent = self.api.get_active_agent().await;
                 self.api
-                    .set_active_model(active_agent, model_id.clone())
+                    .set_default_model(active_agent, model_id.clone())
                     .await?;
                 self.writeln_title(
                     TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),

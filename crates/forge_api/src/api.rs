@@ -139,7 +139,7 @@ pub trait API: Sync + Send {
     async fn get_default_model(&self) -> Option<ModelId>;
 
     /// Sets the operating model
-    async fn set_active_model(
+    async fn set_default_model(
         &self,
         agent_id: Option<AgentId>,
         model_id: ModelId,
