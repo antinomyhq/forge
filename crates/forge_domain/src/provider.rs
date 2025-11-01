@@ -1,7 +1,7 @@
 use derive_setters::Setters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use strum_macros::{Display, EnumIter, EnumString};
+use strum_macros::EnumIter;
 use url::Url;
 
 use crate::Model;
@@ -10,20 +10,7 @@ use crate::Model;
 /// The order of providers is important because that would be order in which the
 /// providers will be resolved
 #[derive(
-    Debug,
-    Copy,
-    Clone,
-    PartialEq,
-    Eq,
-    Hash,
-    Serialize,
-    Deserialize,
-    Display,
-    EnumString,
-    EnumIter,
-    PartialOrd,
-    Ord,
-    JsonSchema,
+    Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, EnumIter, PartialOrd, Ord, JsonSchema,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum ProviderId {
@@ -40,6 +27,82 @@ pub enum ProviderId {
     VertexAi,
     BigModel,
     Azure,
+
+    // Dynamic custom providers
+    #[serde(untagged)]
+    Custom(String),
+}
+
+impl ProviderId {
+    /// Check if this is a custom provider
+    pub fn is_custom(&self) -> bool {
+        matches!(self, ProviderId::Custom(_))
+    }
+
+    /// Get the string representation for both built-in and custom providers
+    pub fn as_str(&self) -> &str {
+        match self {
+            ProviderId::Forge => "forge",
+            ProviderId::OpenAI => "openai",
+            ProviderId::OpenRouter => "open_router",
+            ProviderId::Requesty => "requesty",
+            ProviderId::Zai => "zai",
+            ProviderId::ZaiCoding => "zai_coding",
+            ProviderId::Cerebras => "cerebras",
+            ProviderId::Xai => "xai",
+            ProviderId::Anthropic => "anthropic",
+            ProviderId::VertexAi => "vertex_ai",
+            ProviderId::BigModel => "big_model",
+            ProviderId::Azure => "azure",
+            ProviderId::Custom(name) => name,
+        }
+    }
+
+    /// Helper for built-in provider parsing
+    fn from_str_builtin(s: &str) -> Result<Self, String> {
+        match s {
+            "forge" => Ok(ProviderId::Forge),
+            "openai" => Ok(ProviderId::OpenAI),
+            "open_router" => Ok(ProviderId::OpenRouter),
+            "requesty" => Ok(ProviderId::Requesty),
+            "zai" => Ok(ProviderId::Zai),
+            "zai_coding" => Ok(ProviderId::ZaiCoding),
+            "cerebras" => Ok(ProviderId::Cerebras),
+            "xai" => Ok(ProviderId::Xai),
+            "anthropic" => Ok(ProviderId::Anthropic),
+            "vertex_ai" => Ok(ProviderId::VertexAi),
+            "big_model" => Ok(ProviderId::BigModel),
+            "azure" => Ok(ProviderId::Azure),
+            _ => Err(format!("Unknown built-in provider: {}", s)),
+        }
+    }
+}
+
+impl From<&str> for ProviderId {
+    fn from(s: &str) -> Self {
+        s.parse()
+            .unwrap_or_else(|_| ProviderId::Custom(s.to_string()))
+    }
+}
+
+impl std::str::FromStr for ProviderId {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // First try built-in providers
+        if let Ok(built_in) = Self::from_str_builtin(s) {
+            return Ok(built_in);
+        }
+
+        // Fallback to custom provider
+        Ok(ProviderId::Custom(s.to_string()))
+    }
+}
+
+impl std::fmt::Display for ProviderId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -294,5 +357,105 @@ mod tests {
                 .unwrap(),
         );
         assert_eq!(actual_model, expected_model);
+    }
+
+    #[test]
+    fn test_custom_provider_id() {
+        let custom_id = ProviderId::Custom("vllmlocal".to_string());
+        assert!(custom_id.is_custom());
+        assert_eq!(custom_id.as_str(), "vllmlocal");
+        assert_eq!(custom_id.to_string(), "vllmlocal");
+    }
+
+    #[test]
+    fn test_builtin_provider_from_str() {
+        let openai_id = ProviderId::from_str("openai").unwrap();
+        assert!(!openai_id.is_custom());
+        assert_eq!(openai_id, ProviderId::OpenAI);
+        assert_eq!(openai_id.as_str(), "openai");
+
+        let anthropic_id = ProviderId::from_str("anthropic").unwrap();
+        assert!(!anthropic_id.is_custom());
+        assert_eq!(anthropic_id, ProviderId::Anthropic);
+        assert_eq!(anthropic_id.as_str(), "anthropic");
+    }
+
+    #[test]
+    fn test_custom_provider_from_str() {
+        let custom_id = ProviderId::from_str("my_custom_provider").unwrap();
+        assert!(custom_id.is_custom());
+        assert_eq!(
+            custom_id,
+            ProviderId::Custom("my_custom_provider".to_string())
+        );
+        assert_eq!(custom_id.as_str(), "my_custom_provider");
+    }
+
+    #[test]
+    fn test_provider_id_from_trait() {
+        // Built-in provider
+        let openai_id = ProviderId::from("openai");
+        assert_eq!(openai_id, ProviderId::OpenAI);
+        assert!(!openai_id.is_custom());
+
+        // Custom provider
+        let custom_id = ProviderId::from("my_provider");
+        assert!(custom_id.is_custom());
+        assert_eq!(custom_id, ProviderId::Custom("my_provider".to_string()));
+    }
+
+    #[test]
+    fn test_backward_compatibility() {
+        // Verify all built-in providers work as before
+        let built_in_providers = [
+            ("forge", ProviderId::Forge),
+            ("openai", ProviderId::OpenAI),
+            ("open_router", ProviderId::OpenRouter),
+            ("requesty", ProviderId::Requesty),
+            ("zai", ProviderId::Zai),
+            ("zai_coding", ProviderId::ZaiCoding),
+            ("cerebras", ProviderId::Cerebras),
+            ("xai", ProviderId::Xai),
+            ("anthropic", ProviderId::Anthropic),
+            ("vertex_ai", ProviderId::VertexAi),
+            ("big_model", ProviderId::BigModel),
+            ("azure", ProviderId::Azure),
+        ];
+
+        for (name, expected_id) in built_in_providers {
+            let parsed_id = ProviderId::from_str(name).unwrap();
+            assert_eq!(parsed_id, expected_id, "Failed to parse {}", name);
+            assert!(!parsed_id.is_custom(), "{} should not be custom", name);
+            assert_eq!(
+                parsed_id.as_str(),
+                name,
+                "String representation mismatch for {}",
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn test_custom_provider_serialization() {
+        let custom_id = ProviderId::Custom("test_provider".to_string());
+
+        // Test Display trait
+        assert_eq!(custom_id.to_string(), "test_provider");
+
+        // Test that we can parse it back
+        let parsed: ProviderId = custom_id.to_string().parse().unwrap();
+        assert_eq!(parsed, custom_id);
+    }
+
+    #[test]
+    fn test_builtin_provider_serialization() {
+        let openai_id = ProviderId::OpenAI;
+
+        // Test Display trait
+        assert_eq!(openai_id.to_string(), "openai");
+
+        // Test that we can parse it back
+        let parsed: ProviderId = openai_id.to_string().parse().unwrap();
+        assert_eq!(parsed, openai_id);
     }
 }
