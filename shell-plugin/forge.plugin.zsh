@@ -7,12 +7,20 @@
 # Using typeset to keep variables local to plugin scope and prevent public exposure
 typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
 typeset -h _FORGE_CONVERSATION_PATTERN=":"
+typeset -h _FORGE_DELIMITER='\s\s+'
 
 # Detect fd command - Ubuntu/Debian use 'fdfind', others use 'fd'
 typeset -h _FORGE_FD_CMD="$(command -v fdfind 2>/dev/null || command -v fd 2>/dev/null || echo 'fd')"
 
 # Commands cache - loaded lazily on first use
 typeset -h _FORGE_COMMANDS=""
+
+# Store active agent ID in a local variable (session-scoped)
+# Default to "forge" agent
+typeset -h _FORGE_ACTIVE_AGENT="forge"
+
+# Store conversation ID in a temporary variable (local to plugin)
+typeset -h _FORGE_CONVERSATION_ID=""
 
 # Style tagged files
 ZSH_HIGHLIGHT_PATTERNS+=('@\[[^]]#\]' 'fg=cyan,bold')
@@ -38,13 +46,16 @@ function _forge_get_commands() {
 
 # Private fzf function with common options for consistent UX
 function _forge_fzf() {
-    fzf --cycle --select-1 --height 40% --reverse "$@"
+    fzf --cycle --select-1 --height 100% --reverse --no-scrollbar "$@"
 }
 
 # Helper function to execute forge commands consistently
 # This ensures proper handling of special characters and consistent output
 function _forge_exec() {
-    eval "$_FORGE_BIN $(printf '%q ' "$@")"
+    # Ensure FORGE_ACTIVE_AGENT always has a value, default to "forge"
+    local agent_id="${_FORGE_ACTIVE_AGENT:-forge}"
+    
+    eval "$_FORGE_BIN --agent $(printf '%q' "$agent_id") $(printf '%q ' "$@")"
 }
 
 # Helper function to clear buffer and reset prompt
@@ -56,8 +67,9 @@ function _forge_reset() {
 
 # Helper function to print operating agent messages with consistent formatting
 function _forge_print_agent_message() {
-    local agent_name="${1:-${FORGE_ACTIVE_AGENT}}"
-    echo "\033[33m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] \033[1;37m${agent_name:u}\033[0m \033[90mis now the active agent\033[0m"
+    # Ensure FORGE_ACTIVE_AGENT always has a value, default to "forge"
+    local agent_name="${_FORGE_ACTIVE_AGENT:-forge}"
+    echo "\033[33m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] \033[1;37m${agent_name:u}\033[0m \033[90mis the active agent\033[0m"
 }
 
 # Helper function to select and set config values with fzf
@@ -65,6 +77,7 @@ function _forge_select_and_set_config() {
     local show_command="$1"
     local config_flag="$2"
     local prompt_text="$3"
+    local with_nth="${4:-}"  # Optional column selection parameter
     
     (
         echo
@@ -80,11 +93,16 @@ function _forge_select_and_set_config() {
         
         if [[ -n "$output" ]]; then
             local selected
-            selected=$(echo "$output" | _forge_fzf --prompt="$prompt_text ❯ ")
+            # Add --with-nth parameter if provided
+            if [[ -n "$with_nth" ]]; then
+                selected=$(echo "$output" | _forge_fzf --delimiter="$_FORGE_DELIMITER" --with-nth="$with_nth" --prompt="$prompt_text ❯ ")
+            else
+                selected=$(echo "$output" | _forge_fzf --delimiter="$_FORGE_DELIMITER" --prompt="$prompt_text ❯ ")
+            fi
             
             if [[ -n "$selected" ]]; then
                 local name="${selected%% *}"
-                _forge_exec config set "--$config_flag" "$name"
+                _forge_exec config set "$config_flag" "$name"
             fi
         fi
     )
@@ -99,22 +117,18 @@ function _forge_handle_session_command() {
     echo
     
     # Check if FORGE_CONVERSATION_ID is set
-    if [[ -z "$FORGE_CONVERSATION_ID" ]]; then
+    if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
         echo "\033[31m✗\033[0m No active conversation. Start a conversation first or use :list to see existing ones"
         _forge_reset
         return 0
     fi
     
     # Execute the session command with conversation ID and any extra arguments
-    _forge_exec session "$subcommand" "$FORGE_CONVERSATION_ID" "$@"
+    _forge_exec session "$subcommand" "$_FORGE_CONVERSATION_ID" "$@"
     
     _forge_reset
     return 0
 }
-
-# Store conversation ID in a temporary variable (local to plugin)
-export FORGE_CONVERSATION_ID=""
-export FORGE_ACTIVE_AGENT="forge"
 
 # Custom completion widget that handles both :commands and @ completion
 function forge-completion() {
@@ -152,9 +166,9 @@ function forge-completion() {
             # Use fzf for interactive selection with prefilled filter
             local selected
             if [[ -n "$filter_text" ]]; then
-                selected=$(echo "$commands_list" | _forge_fzf --nth=1 --query "$filter_text" --prompt="Command ❯ ")
+                selected=$(echo "$commands_list" | _forge_fzf --delimiter="$_FORGE_DELIMITER" --nth=1 --query "$filter_text" --prompt="Command ❯ ")
             else
-                selected=$(echo "$commands_list" | _forge_fzf --nth=1 --prompt="Command ❯ ")
+                selected=$(echo "$commands_list" | _forge_fzf --delimiter="$_FORGE_DELIMITER" --nth=1 --prompt="Command ❯ ")
             fi
             
             if [[ -n "$selected" ]]; then
@@ -176,18 +190,23 @@ function forge-completion() {
 
 # Action handler: Start a new conversation
 function _forge_action_new() {
+    _FORGE_CONVERSATION_ID=""
+    _FORGE_ACTIVE_AGENT="forge"
+    
     echo
     _forge_exec banner
-    _forge_print_agent_message "FORGE"
-    FORGE_CONVERSATION_ID=""
-    FORGE_ACTIVE_AGENT="forge"
+    _forge_print_agent_message
     _forge_reset
 }
 
-# Action handler: Show info
+# Action handler: Show session info
 function _forge_action_info() {
     echo
-    _forge_exec info 
+    if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
+        _forge_exec info --cid "$_FORGE_CONVERSATION_ID"
+    else
+        _forge_exec info
+    fi
     _forge_reset
 }
 
@@ -221,7 +240,7 @@ function _forge_action_conversation() {
     
     if [[ -n "$conversations_output" ]]; then
         # Get current conversation ID if set
-        local current_id="$FORGE_CONVERSATION_ID"
+        local current_id="$_FORGE_CONVERSATION_ID"
         
         # Create prompt with current conversation
         local prompt_text="Conversation ❯ "
@@ -230,16 +249,31 @@ function _forge_action_conversation() {
         fi
         
         local selected_conversation
-        selected_conversation=$(echo "$conversations_output" | _forge_fzf --prompt="$prompt_text")
+        # Use fzf with preview showing the last message from the conversation
+        selected_conversation=$(echo "$conversations_output" | _forge_fzf \
+            --prompt="$prompt_text" \
+            --delimiter="$_FORGE_DELIMITER" \
+            --with-nth=2,3 \
+            --preview="$_FORGE_BIN session show {1}" \
+            --preview-window=right:60%:wrap:border-sharp
+        )
         
         if [[ -n "$selected_conversation" ]]; then
-            # Strip ANSI codes first, then extract the last field (UUID)
-            local conversation_id=$(echo "$selected_conversation" | sed 's/\x1b\[[0-9;]*m//g' | sed 's/\x1b\[K//g' | awk '{print $NF}' | tr -d '\n')
+            # Extract the first field (UUID) - everything before the first multi-space delimiter
+            local conversation_id=$(echo "$selected_conversation" | sed -E 's/  .*//' | tr -d '\n')
             
             # Set the selected conversation as active (in parent shell)
-            FORGE_CONVERSATION_ID="$conversation_id"
+            _FORGE_CONVERSATION_ID="$conversation_id"
+            # Show conversation content
+            echo
+            _forge_exec session show "$conversation_id"
             
+            # Show conversation info
+            _forge_exec session info "$conversation_id"
+            
+            # Print log about conversation switching
             echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Switched to conversation \033[1m${conversation_id}\033[0m"
+            
         fi
     else
         echo "\033[31m✗\033[0m No conversations found"
@@ -256,14 +290,16 @@ function _forge_action_provider() {
 
 # Action handler: Select model
 function _forge_action_model() {
-    _forge_select_and_set_config "list models" "model" "Model"
+    _forge_select_and_set_config "list models" "model" "Model" "2,3.."
     _forge_reset
 }
 
 # Action handler: Show tools
 function _forge_action_tools() {
     echo
-    _forge_exec list tools "${FORGE_ACTIVE_AGENT}"
+    # Ensure FORGE_ACTIVE_AGENT always has a value, default to "forge"
+    local agent_id="${_FORGE_ACTIVE_AGENT:-forge}"
+    _forge_exec list tools "$agent_id"
     _forge_reset
 }
 
@@ -286,27 +322,32 @@ function _forge_action_default() {
         fi
     fi
     
-    # If input_text is empty, just set the active agent
+    # If input_text is empty, just set the active agent (only if user explicitly specified one)
     if [[ -z "$input_text" ]]; then
-        echo
-        FORGE_ACTIVE_AGENT="${user_action:-${FORGE_ACTIVE_AGENT}}"
-        _forge_print_agent_message
+        if [[ -n "$user_action" ]]; then
+            echo
+            # Set the agent in the local variable
+            _FORGE_ACTIVE_AGENT="$user_action"
+            echo "\033[33m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] \033[1;37m${_FORGE_ACTIVE_AGENT:u}\033[0m \033[90mis now the active agent\033[0m"
+        fi
         _forge_reset
         return 0
     fi
     
     # Generate conversation ID if needed (in parent shell context)
-    if [[ -z "$FORGE_CONVERSATION_ID" ]]; then
-        FORGE_CONVERSATION_ID=$($_FORGE_BIN session new)
+    if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
+        _FORGE_CONVERSATION_ID=$($_FORGE_BIN session new)
     fi
-    
-    # Set the active agent for this execution
-    FORGE_ACTIVE_AGENT="${user_action:-${FORGE_ACTIVE_AGENT}}"
     
     echo
     
+    # Only set the agent if user explicitly specified one
+    if [[ -n "$user_action" ]]; then
+        _FORGE_ACTIVE_AGENT="$user_action"
+    fi
+    
     # Execute the forge command directly with proper escaping
-    _forge_exec -p "$input_text"
+    _forge_exec -p "$input_text" --cid "$_FORGE_CONVERSATION_ID"
     
     # Reset the prompt
     _forge_reset

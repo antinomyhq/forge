@@ -4,8 +4,9 @@ use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation,
-    ConversationId, Environment, File, Image, McpConfig, McpServers, Model, ModelId,
-    PatchOperation, ResultStream, Scope, ToolCallFull, ToolOutput, Workflow,
+    ConversationId, Environment, File, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model,
+    ModelId, PatchOperation, Provider, ResultStream, Scope, Template, ToolCallFull, ToolOutput,
+    Workflow,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -14,7 +15,6 @@ use reqwest_eventsource::EventSource;
 use url::Url;
 
 use crate::Walker;
-use crate::dto::{InitAuth, LoginInfo, Provider, ProviderId};
 use crate::user::{User, UserUsage};
 
 #[derive(Debug)]
@@ -129,6 +129,35 @@ pub trait ProviderService: Send + Sync {
         provider: Provider,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error>;
     async fn models(&self, provider: Provider) -> anyhow::Result<Vec<Model>>;
+    async fn get_provider(&self, id: forge_domain::ProviderId) -> anyhow::Result<Provider>;
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>>;
+}
+
+/// Manages user preferences for default providers and models.
+#[async_trait::async_trait]
+pub trait AppConfigService: Send + Sync {
+    /// Gets the user's default provider, or falls back to the first available
+    /// provider.
+    async fn get_default_provider(&self) -> anyhow::Result<Provider>;
+
+    /// Sets the user's default provider preference.
+    async fn set_default_provider(
+        &self,
+        provider_id: forge_domain::ProviderId,
+    ) -> anyhow::Result<()>;
+
+    /// Gets the user's default model for a specific provider.
+    async fn get_default_model(
+        &self,
+        provider_id: &forge_domain::ProviderId,
+    ) -> anyhow::Result<ModelId>;
+
+    /// Sets the user's default model for a specific provider.
+    async fn set_default_model(
+        &self,
+        model: ModelId,
+        provider_id: forge_domain::ProviderId,
+    ) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -175,10 +204,10 @@ pub trait ConversationService: Send + Sync {
 #[async_trait::async_trait]
 pub trait TemplateService: Send + Sync {
     async fn register_template(&self, path: PathBuf) -> anyhow::Result<()>;
-    async fn render_template(
+    async fn render_template<V: serde::Serialize + Send + Sync>(
         &self,
-        template: impl ToString + Send,
-        object: &(impl serde::Serialize + Sync),
+        template: Template<V>,
+        object: &V,
     ) -> anyhow::Result<String>;
 }
 
@@ -246,7 +275,6 @@ pub trait FsCreateService: Send + Sync {
         path: String,
         content: String,
         overwrite: bool,
-        capture_snapshot: bool,
     ) -> anyhow::Result<FsCreateOutput>;
 }
 
@@ -354,21 +382,23 @@ pub trait AuthService: Send + Sync {
     async fn get_auth_token(&self) -> anyhow::Result<Option<LoginInfo>>;
     async fn set_auth_token(&self, token: Option<LoginInfo>) -> anyhow::Result<()>;
 }
-#[async_trait::async_trait]
-pub trait ProviderRegistry: Send + Sync {
-    async fn get_active_provider(&self) -> anyhow::Result<Provider>;
-    async fn set_active_provider(&self, provider_id: ProviderId) -> anyhow::Result<()>;
-    async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>>;
-    async fn get_active_model(&self) -> anyhow::Result<ModelId>;
-    async fn set_active_model(&self, model: ModelId) -> anyhow::Result<()>;
-    async fn get_active_agent(&self) -> anyhow::Result<Option<AgentId>>;
-    async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()>;
-}
 
 #[async_trait::async_trait]
-pub trait AgentLoaderService: Send + Sync {
+pub trait AgentRegistry: Send + Sync {
     /// Load all agent definitions from the forge/agent directory
     async fn get_agents(&self) -> anyhow::Result<Vec<Agent>>;
+
+    /// Get agent by ID
+    async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<Agent>>;
+
+    /// Get the currently active agent
+    async fn get_active_agent(&self) -> anyhow::Result<Option<Agent>>;
+
+    /// Get the active agent ID
+    async fn get_active_agent_id(&self) -> anyhow::Result<Option<AgentId>>;
+
+    /// Set the active agent ID
+    async fn set_active_agent_id(&self, agent_id: AgentId) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -393,6 +423,7 @@ pub trait PolicyService: Send + Sync {
 /// and service/repository composition.
 pub trait Services: Send + Sync + 'static + Clone {
     type ProviderService: ProviderService;
+    type AppConfigService: AppConfigService;
     type ConversationService: ConversationService;
     type TemplateService: TemplateService;
     type AttachmentService: AttachmentService;
@@ -414,12 +445,12 @@ pub trait Services: Send + Sync + 'static + Clone {
     type ShellService: ShellService;
     type McpService: McpService;
     type AuthService: AuthService;
-    type ProviderRegistry: ProviderRegistry;
-    type AgentLoaderService: AgentLoaderService;
+    type AgentRegistry: AgentRegistry;
     type CommandLoaderService: CommandLoaderService;
     type PolicyService: PolicyService;
 
     fn provider_service(&self) -> &Self::ProviderService;
+    fn config_service(&self) -> &Self::AppConfigService;
     fn conversation_service(&self) -> &Self::ConversationService;
     fn template_service(&self) -> &Self::TemplateService;
     fn attachment_service(&self) -> &Self::AttachmentService;
@@ -441,8 +472,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn environment_service(&self) -> &Self::EnvironmentService;
     fn custom_instructions_service(&self) -> &Self::CustomInstructionsService;
     fn auth_service(&self) -> &Self::AuthService;
-    fn provider_registry(&self) -> &Self::ProviderRegistry;
-    fn agent_loader_service(&self) -> &Self::AgentLoaderService;
+    fn agent_registry(&self) -> &Self::AgentRegistry;
     fn command_loader_service(&self) -> &Self::CommandLoaderService;
     fn policy_service(&self) -> &Self::PolicyService;
 }
@@ -492,6 +522,14 @@ impl<I: Services> ProviderService for I {
     async fn models(&self, provider: Provider) -> anyhow::Result<Vec<Model>> {
         self.provider_service().models(provider).await
     }
+
+    async fn get_provider(&self, id: forge_domain::ProviderId) -> anyhow::Result<Provider> {
+        self.provider_service().get_provider(id).await
+    }
+
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
+        self.provider_service().get_all_providers().await
+    }
 }
 
 #[async_trait::async_trait]
@@ -528,10 +566,10 @@ impl<I: Services> TemplateService for I {
         self.template_service().register_template(path).await
     }
 
-    async fn render_template(
+    async fn render_template<V: serde::Serialize + Send + Sync>(
         &self,
-        template: impl ToString + Send,
-        object: &(impl serde::Serialize + Sync),
+        template: Template<V>,
+        object: &V,
     ) -> anyhow::Result<String> {
         self.template_service()
             .render_template(template, object)
@@ -582,10 +620,9 @@ impl<I: Services> FsCreateService for I {
         path: String,
         content: String,
         overwrite: bool,
-        capture_snapshot: bool,
     ) -> anyhow::Result<FsCreateOutput> {
         self.fs_create_service()
-            .create(path, content, overwrite, capture_snapshot)
+            .create(path, content, overwrite)
             .await
     }
 }
@@ -719,39 +756,6 @@ impl<I: Services> CustomInstructionsService for I {
 }
 
 #[async_trait::async_trait]
-impl<I: Services> ProviderRegistry for I {
-    async fn get_active_provider(&self) -> anyhow::Result<Provider> {
-        self.provider_registry().get_active_provider().await
-    }
-
-    async fn set_active_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        self.provider_registry()
-            .set_active_provider(provider_id)
-            .await
-    }
-
-    async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
-        self.provider_registry().get_all_providers().await
-    }
-
-    async fn get_active_model(&self) -> anyhow::Result<ModelId> {
-        self.provider_registry().get_active_model().await
-    }
-
-    async fn set_active_model(&self, model: ModelId) -> anyhow::Result<()> {
-        self.provider_registry().set_active_model(model).await
-    }
-
-    async fn get_active_agent(&self) -> anyhow::Result<Option<AgentId>> {
-        self.provider_registry().get_active_agent().await
-    }
-
-    async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()> {
-        self.provider_registry().set_active_agent(agent_id).await
-    }
-}
-
-#[async_trait::async_trait]
 impl<I: Services> AuthService for I {
     async fn init_auth(&self) -> anyhow::Result<InitAuth> {
         self.auth_service().init_auth().await
@@ -795,9 +799,25 @@ pub trait HttpClientService: Send + Sync + 'static {
 }
 
 #[async_trait::async_trait]
-impl<I: Services> AgentLoaderService for I {
+impl<I: Services> AgentRegistry for I {
     async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
-        self.agent_loader_service().get_agents().await
+        self.agent_registry().get_agents().await
+    }
+
+    async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<Agent>> {
+        self.agent_registry().get_agent(agent_id).await
+    }
+
+    async fn get_active_agent(&self) -> anyhow::Result<Option<Agent>> {
+        self.agent_registry().get_active_agent().await
+    }
+
+    async fn get_active_agent_id(&self) -> anyhow::Result<Option<AgentId>> {
+        self.agent_registry().get_active_agent_id().await
+    }
+
+    async fn set_active_agent_id(&self, agent_id: AgentId) -> anyhow::Result<()> {
+        self.agent_registry().set_active_agent_id(agent_id).await
     }
 }
 
@@ -816,6 +836,39 @@ impl<I: Services> PolicyService for I {
     ) -> anyhow::Result<PolicyDecision> {
         self.policy_service()
             .check_operation_permission(operation)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> AppConfigService for I {
+    async fn get_default_provider(&self) -> anyhow::Result<Provider> {
+        self.config_service().get_default_provider().await
+    }
+
+    async fn set_default_provider(
+        &self,
+        provider_id: forge_domain::ProviderId,
+    ) -> anyhow::Result<()> {
+        self.config_service()
+            .set_default_provider(provider_id)
+            .await
+    }
+
+    async fn get_default_model(
+        &self,
+        provider_id: &forge_domain::ProviderId,
+    ) -> anyhow::Result<ModelId> {
+        self.config_service().get_default_model(provider_id).await
+    }
+
+    async fn set_default_model(
+        &self,
+        model: ModelId,
+        provider_id: forge_domain::ProviderId,
+    ) -> anyhow::Result<()> {
+        self.config_service()
+            .set_default_model(model, provider_id)
             .await
     }
 }

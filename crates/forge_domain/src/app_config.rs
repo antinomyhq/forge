@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 
 use derive_more::From;
-use forge_domain::{AgentId, ModelId};
 use serde::{Deserialize, Serialize};
 
-use crate::dto::ProviderId;
+use crate::{ModelId, ProviderId};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -18,8 +17,6 @@ pub struct InitAuth {
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
     pub key_info: Option<LoginInfo>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub agent: Option<AgentId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider: Option<ProviderId>,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]

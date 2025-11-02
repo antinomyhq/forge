@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use forge_domain::{
     ChatCompletionMessage, ChatCompletionMessageFull, Compact, CompactionStrategy, Context,
-    ContextMessage, ResultStreamExt, TokenCount, Usage, extract_tag_content,
+    ContextMessage, ResultStreamExt, Template, TokenCount, Usage, extract_tag_content,
 };
 use futures::Stream;
 use tracing::info;
@@ -77,7 +77,7 @@ impl<S: AgentService> Compactor<S> {
         let summary = self
             .services
             .render(
-                "{{> forge-partial-summary-frame.md}}",
+                Template::new("{{> forge-partial-summary-frame.md}}"),
                 &serde_json::json!({"summary": summary, "feedback": feedback}),
             )
             .await?;
@@ -156,10 +156,12 @@ impl<S: AgentService> Compactor<S> {
         let prompt = self
             .services
             .render(
-                self.compact
-                    .prompt
-                    .as_deref()
-                    .unwrap_or("{{> forge-system-prompt-context-summarizer.md}}"),
+                Template::new(
+                    self.compact
+                        .prompt
+                        .as_deref()
+                        .unwrap_or("{{> forge-system-prompt-context-summarizer.md}}"),
+                ),
                 &ctx,
             )
             .await?;
@@ -178,7 +180,7 @@ impl<S: AgentService> Compactor<S> {
             context = context.max_tokens(max_token);
         }
 
-        let response = self.services.chat_agent(model, context).await?;
+        let response = self.services.chat_agent(model, context, None).await?;
 
         self.collect_completion_stream_content(response).await
     }
@@ -240,7 +242,9 @@ fn zip_with<A, F: FnOnce(A, A) -> A>(a: Option<A>, b: Option<A>, f: F) -> Option
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{ChatCompletionMessage, Content, FinishReason, ModelId, TokenCount, Usage};
+    use forge_domain::{
+        ChatCompletionMessage, Content, FinishReason, ModelId, ProviderId, TokenCount, Usage,
+    };
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -276,6 +280,7 @@ mod tests {
             &self,
             _: &ModelId,
             _: Context,
+            _: Option<ProviderId>,
         ) -> forge_domain::ResultStream<ChatCompletionMessage, anyhow::Error> {
             let msg = ChatCompletionMessage::default()
                 .content(Content::full(self.response.content.clone()))
@@ -293,10 +298,10 @@ mod tests {
             unimplemented!()
         }
 
-        async fn render(
+        async fn render<V: serde::Serialize + Send + Sync>(
             &self,
-            _: &str,
-            _: &(impl serde::Serialize + Sync),
+            _: forge_domain::Template<V>,
+            _: &V,
         ) -> anyhow::Result<String> {
             Ok("Summary frame".to_string())
         }

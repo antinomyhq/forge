@@ -2,12 +2,11 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_app::ImageReadService;
 use forge_app::domain::Image;
+use forge_app::{EnvironmentInfra, FileInfoInfra, ImageReadService};
 use strum_macros::{Display, EnumString};
 
 use crate::utils::assert_absolute_path;
-use crate::{EnvironmentInfra, FileInfoInfra};
 
 pub struct ForgeImageRead<F>(Arc<F>);
 
@@ -45,7 +44,7 @@ impl<F> ForgeImageRead<F> {
     }
 }
 #[async_trait::async_trait]
-impl<F: FileInfoInfra + EnvironmentInfra + crate::infra::FileReaderInfra> ImageReadService
+impl<F: FileInfoInfra + EnvironmentInfra + forge_app::FileReaderInfra> ImageReadService
     for ForgeImageRead<F>
 {
     async fn read_image(&self, path: String) -> anyhow::Result<Image> {

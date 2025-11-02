@@ -1,0 +1,36 @@
+[package]
+name = "forge_repo"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+forge_app.workspace = true
+forge_domain.workspace = true
+forge_infra.workspace = true
+forge_snaps.workspace = true
+forge_fs.workspace = true
+
+anyhow.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+reqwest.workspace = true
+url.workspace = true
+bytes.workspace = true
+strum.workspace = true
+reqwest-eventsource.workspace = true
+handlebars.workspace = true
+merge.workspace = true
+chrono = { version = "0.4", features = ["serde"] }
+diesel = { version = "2.2.12", features = ["sqlite", "r2d2", "chrono"] }
+diesel_migrations = "2.2.0"
+thiserror.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
+tempfile = { workspace = true }
+pretty_assertions = { workspace = true }
+serial_test = "3.2"
+fake = { version = "4.4.0", features = ["derive"] }

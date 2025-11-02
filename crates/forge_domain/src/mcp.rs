@@ -113,9 +113,10 @@ impl Display for McpServerConfig {
 pub struct ServerName(String);
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Hash, Merge)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct McpConfig {
     #[merge(strategy = std::collections::BTreeMap::extend)]
+    #[serde(default)]
     pub mcp_servers: BTreeMap<ServerName, McpServerConfig>,
 }
 
@@ -295,7 +296,7 @@ mod tests {
         let json = "{}";
         let result = serde_json::from_str::<McpConfig>(json);
 
-        assert!(result.is_err());
+        assert!(result.is_ok());
     }
 
     #[test]

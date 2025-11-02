@@ -4,13 +4,13 @@ use std::sync::Arc;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use diesel::prelude::*;
 use forge_domain::{
-    Context, Conversation, ConversationId, FileChangeMetrics, MetaData, Metrics, WorkspaceId,
+    Context, Conversation, ConversationId, ConversationRepository, FileChangeMetrics, MetaData,
+    Metrics, WorkspaceId,
 };
-use forge_services::ConversationRepository;
 use serde::{Deserialize, Serialize};
 
-use crate::database::DatabasePool;
 use crate::database::schema::conversations;
+use crate::database::DatabasePool;
 
 /// Database representation of file change metrics
 /// Mirrors `forge_domain::FileChangeMetrics` for compile-time safety

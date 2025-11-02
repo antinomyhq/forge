@@ -1,10 +1,9 @@
 use std::sync::Arc;
 
-use forge_app::AttachmentService;
 use forge_app::domain::{Attachment, AttachmentContent, FileTag, Image, LineNumbers};
+use forge_app::{AttachmentService, EnvironmentInfra, FileReaderInfra};
 
 use crate::range::resolve_range;
-use crate::{EnvironmentInfra, FileReaderInfra};
 
 #[derive(Clone)]
 pub struct ForgeChatRequest<F> {
@@ -84,17 +83,18 @@ pub mod tests {
 
     use base64::Engine;
     use bytes::Bytes;
-    use forge_app::AttachmentService;
     use forge_app::domain::{
         AttachmentContent, CommandOutput, Environment, ToolDefinition, ToolName, ToolOutput,
     };
+    use forge_app::{
+        AttachmentService, CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
+        FileReaderInfra, FileRemoverInfra, FileWriterInfra, McpClientInfra, McpServerInfra,
+        UserInfra,
+    };
+    use forge_domain::FileInfo;
     use serde_json::Value;
 
     use crate::attachment::ForgeChatRequest;
-    use crate::{
-        CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
-        FileRemoverInfra, FileWriterInfra, McpClientInfra, McpServerInfra, UserInfra,
-    };
 
     #[derive(Debug)]
     pub struct MockEnvironmentInfra {}
@@ -186,7 +186,7 @@ pub mod tests {
             path: &Path,
             start_line: u64,
             end_line: u64,
-        ) -> anyhow::Result<(String, forge_fs::FileInfo)> {
+        ) -> anyhow::Result<(String, FileInfo)> {
             // Read the full content first
             let full_content = self.read_utf8(path).await?;
             let all_lines: Vec<&str> = full_content.lines().collect();
@@ -219,7 +219,7 @@ pub mod tests {
 
             Ok((
                 filtered_content,
-                forge_fs::FileInfo::new(actual_start, actual_end, all_lines.len() as u64),
+                forge_domain::FileInfo::new(actual_start, actual_end, all_lines.len() as u64),
             ))
         }
     }
@@ -254,12 +254,7 @@ pub mod tests {
 
     #[async_trait::async_trait]
     impl FileWriterInfra for MockFileService {
-        async fn write(
-            &self,
-            path: &Path,
-            contents: Bytes,
-            _capture_snapshot: bool,
-        ) -> anyhow::Result<()> {
+        async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()> {
             let index = self.files.lock().unwrap().iter().position(|v| v.0 == path);
             if let Some(index) = index {
                 self.files.lock().unwrap().remove(index);
@@ -275,7 +270,7 @@ pub mod tests {
             let temp_dir = crate::utils::TempDir::new().unwrap();
             let path = temp_dir.path();
 
-            self.write(&path, content.to_string().into(), false).await?;
+            self.write(&path, content.to_string().into()).await?;
 
             Ok(path)
         }
@@ -314,9 +309,11 @@ pub mod tests {
             }
         }
     }
-
+    #[derive(Debug, Clone)]
+    #[allow(dead_code)]
+    struct Mock;
     #[async_trait::async_trait]
-    impl McpClientInfra for () {
+    impl McpClientInfra for Mock {
         async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
             Ok(vec![])
         }
@@ -327,19 +324,19 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
-    impl McpServerInfra for () {
-        type Client = ();
+    impl McpServerInfra for Mock {
+        type Client = Mock;
 
         async fn connect(
             &self,
             _: forge_app::domain::McpServerConfig,
         ) -> anyhow::Result<Self::Client> {
-            Ok(())
+            Ok(Mock)
         }
     }
 
     #[async_trait::async_trait]
-    impl CommandInfra for () {
+    impl CommandInfra for Mock {
         async fn execute_command(
             &self,
             command: String,
@@ -470,7 +467,7 @@ pub mod tests {
     }
 
     #[async_trait::async_trait]
-    impl UserInfra for () {
+    impl UserInfra for Mock {
         /// Prompts the user with question
         async fn prompt_question(&self, question: &str) -> anyhow::Result<Option<String>> {
             // For testing, we can just return the question as the answer
@@ -539,7 +536,7 @@ pub mod tests {
             path: &Path,
             start_line: u64,
             end_line: u64,
-        ) -> anyhow::Result<(String, forge_fs::FileInfo)> {
+        ) -> anyhow::Result<(String, forge_domain::FileInfo)> {
             self.file_service
                 .range_read_utf8(path, start_line, end_line)
                 .await
@@ -816,7 +813,7 @@ pub mod tests {
         assert_eq!(
             attachments[0].content,
             AttachmentContent::FileContent {
-                content: "2: Line 2".to_string(),
+                content: "2:Line 2".to_string(),
                 start_line: 2,
                 end_line: 2,
                 total_lines: 5,
@@ -845,7 +842,7 @@ pub mod tests {
         assert_eq!(
             attachments[0].content,
             AttachmentContent::FileContent {
-                content: "2: Line 2\n3: Line 3\n4: Line 4".to_string(),
+                content: "2:Line 2\n3:Line 3\n4:Line 4".to_string(),
                 start_line: 2,
                 end_line: 4,
                 total_lines: 6,
@@ -870,7 +867,7 @@ pub mod tests {
         assert_eq!(
             attachments[0].content,
             AttachmentContent::FileContent {
-                content: "1: First\n2: Second".to_string(),
+                content: "1:First\n2:Second".to_string(),
                 start_line: 1,
                 end_line: 2,
                 total_lines: 4,
@@ -895,7 +892,7 @@ pub mod tests {
         assert_eq!(
             attachments[0].content,
             AttachmentContent::FileContent {
-                content: "3: Gamma\n4: Delta\n5: Epsilon".to_string(),
+                content: "3:Gamma\n4:Delta\n5:Epsilon".to_string(),
                 start_line: 3,
                 end_line: 5,
                 total_lines: 5,
@@ -920,7 +917,7 @@ pub mod tests {
         assert_eq!(
             attachments[0].content,
             AttachmentContent::FileContent {
-                content: "1: Only line".to_string(),
+                content: "1:Only line".to_string(),
                 start_line: 1,
                 end_line: 1,
                 total_lines: 1,
@@ -948,7 +945,7 @@ pub mod tests {
         assert_eq!(
             attachments[0].content,
             AttachmentContent::FileContent {
-                content: "1: A1\n2: A2".to_string(),
+                content: "1:A1\n2:A2".to_string(),
                 start_line: 1,
                 end_line: 2,
                 total_lines: 3,
@@ -957,7 +954,7 @@ pub mod tests {
         assert_eq!(
             attachments[1].content,
             AttachmentContent::FileContent {
-                content: "3: B3\n4: B4".to_string(),
+                content: "3:B3\n4:B4".to_string(),
                 start_line: 3,
                 end_line: 4,
                 total_lines: 4,
@@ -985,7 +982,7 @@ pub mod tests {
         assert_eq!(
             attachments[0].content,
             AttachmentContent::FileContent {
-                content: "3: Meta3\n4: Meta4\n5: Meta5".to_string(),
+                content: "3:Meta3\n4:Meta4\n5:Meta5".to_string(),
                 start_line: 3,
                 end_line: 5,
                 total_lines: 7,
@@ -1017,7 +1014,7 @@ pub mod tests {
         assert_eq!(
             attachments_full[0].content,
             AttachmentContent::FileContent {
-                content: "1: Full1\n2: Full2\n3: Full3\n4: Full4\n5: Full5".to_string(),
+                content: "1:Full1\n2:Full2\n3:Full3\n4:Full4\n5:Full5".to_string(),
                 start_line: 1,
                 end_line: 5,
                 total_lines: 5,
@@ -1028,7 +1025,7 @@ pub mod tests {
         assert_eq!(
             attachments_range[0].content,
             AttachmentContent::FileContent {
-                content: "2: Full2\n3: Full3\n4: Full4".to_string(),
+                content: "2:Full2\n3:Full3\n4:Full4".to_string(),
                 start_line: 2,
                 end_line: 4,
                 total_lines: 5,
@@ -1039,7 +1036,7 @@ pub mod tests {
         assert_eq!(
             attachments_range_start[0].content,
             AttachmentContent::FileContent {
-                content: "2: Full2\n3: Full3\n4: Full4\n5: Full5".to_string(),
+                content: "2:Full2\n3:Full3\n4:Full4\n5:Full5".to_string(),
                 start_line: 2,
                 end_line: 5,
                 total_lines: 5,

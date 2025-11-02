@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use forge_domain::{ChatResponseContent, Environment, TitleFormat, Tools};
 
@@ -35,11 +35,16 @@ impl FormatContent for Tools {
                 Some(TitleFormat::debug("Image").sub_title(display_path).into())
             }
             Tools::Write(input) => {
+                let path = PathBuf::from(&input.path);
                 let display_path = display_path_for(&input.path);
-                let title = if input.overwrite {
-                    "Overwrite"
-                } else {
-                    "Create"
+                let title = match (path.exists(), input.overwrite) {
+                    (true, true) => "Overwrite",
+                    (true, false) => {
+                        // Case: file exists but overwrite is false then we throw error from tool,
+                        // so it's good idea to not print anything on CLI.
+                        return None;
+                    }
+                    (false, _) => "Create",
                 };
                 Some(TitleFormat::debug(title).sub_title(display_path).into())
             }
