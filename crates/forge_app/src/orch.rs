@@ -390,8 +390,8 @@ impl<S: AgentService> Orchestrator<S> {
                 }
             }
 
-            if should_yield && let Ok(Some(active_plan)) = tool_context.get_active_plan() {
-                if !active_plan.is_complete() {
+            if should_yield && let Ok(Some(active_plan)) = tool_context.get_active_plan()
+                && !active_plan.is_complete() {
                     let Ok(rendered_prompt) = self
                         .services
                         .render(
@@ -410,7 +410,6 @@ impl<S: AgentService> Orchestrator<S> {
                     ));
                     should_yield = false;
                 }
-            }
         }
 
         // Update metrics in conversation
