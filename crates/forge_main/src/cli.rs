@@ -105,8 +105,9 @@ pub enum TopLevelCommand {
     /// Configuration management commands
     Config(ConfigCommandGroup),
 
-    /// Session management commands (dump, retry, resume, list)
-    Session(SessionCommandGroup),
+    /// Conversation management commands (dump, retry, resume, list)
+    #[command(alias = "session")]
+    Conversation(ConversationCommandGroup),
 
     /// MCP server management commands
     Mcp(McpCommandGroup),
@@ -163,10 +164,11 @@ pub enum ListCommand {
     /// Example: forge list mcp
     Mcp,
 
-    /// List all conversations (sessions)
+    /// List all conversations
     ///
-    /// Example: forge list session
-    Session,
+    /// Example: forge list conversation
+    #[command(alias = "session")]
+    Conversation,
 }
 
 /// Group of extension-related commands
@@ -308,11 +310,11 @@ pub struct ConfigGetArgs {
     pub field: ConfigField,
 }
 
-/// Group of Session-related commands
+/// Group of Conversation-related commands
 #[derive(Parser, Debug, Clone)]
-pub struct SessionCommandGroup {
+pub struct ConversationCommandGroup {
     #[command(subcommand)]
-    pub command: SessionCommand,
+    pub command: ConversationCommand,
 
     /// Output in machine-readable format
     #[arg(long, global = true)]
@@ -320,20 +322,20 @@ pub struct SessionCommandGroup {
 }
 
 #[derive(Subcommand, Debug, Clone)]
-pub enum SessionCommand {
+pub enum ConversationCommand {
     /// List all conversations
     ///
-    /// Example: forge session list
+    /// Example: forge conversation list
     List,
 
     /// Create a new conversation
     ///
-    /// Example: forge session new
+    /// Example: forge conversation new
     New,
 
     /// Dump conversation as JSON or HTML
     ///
-    /// Example: forge session dump abc123 html
+    /// Example: forge conversation dump abc123 html
     Dump {
         /// Conversation ID
         id: String,
@@ -344,7 +346,7 @@ pub enum SessionCommand {
 
     /// Compact the conversation context
     ///
-    /// Example: forge session compact abc123
+    /// Example: forge conversation compact abc123
     Compact {
         /// Conversation ID
         id: String,
@@ -352,7 +354,7 @@ pub enum SessionCommand {
 
     /// Retry the last command without modifying context
     ///
-    /// Example: forge session retry abc123
+    /// Example: forge conversation retry abc123
     Retry {
         /// Conversation ID
         id: String,
@@ -360,7 +362,7 @@ pub enum SessionCommand {
 
     /// Resume a conversation
     ///
-    /// Example: forge session resume abc123
+    /// Example: forge conversation resume abc123
     Resume {
         /// Conversation ID
         id: String,
@@ -368,15 +370,15 @@ pub enum SessionCommand {
 
     /// Show the last assistant message from a conversation
     ///
-    /// Example: forge session show abc123
+    /// Example: forge conversation show abc123
     Show {
         /// Conversation ID
         id: String,
     },
 
-    /// Show detailed information about a session
+    /// Show detailed information about a conversation
     ///
-    /// Example: forge session info abc123
+    /// Example: forge conversation info abc123
     Info {
         /// Conversation ID
         id: String,
@@ -454,11 +456,23 @@ mod tests {
     }
 
     #[test]
-    fn test_session_list() {
+    fn test_conversation_list() {
+        let fixture = Cli::parse_from(["forge", "conversation", "list"]);
+        let is_list = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => {
+                matches!(conversation.command, ConversationCommand::List)
+            }
+            _ => false,
+        };
+        assert_eq!(is_list, true);
+    }
+
+    #[test]
+    fn test_session_alias_list() {
         let fixture = Cli::parse_from(["forge", "session", "list"]);
         let is_list = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => {
-                matches!(session.command, SessionCommand::List)
+            Some(TopLevelCommand::Conversation(conversation)) => {
+                matches!(conversation.command, ConversationCommand::List)
             }
             _ => false,
         };
@@ -491,11 +505,11 @@ mod tests {
     }
 
     #[test]
-    fn test_session_dump_json_with_id() {
-        let fixture = Cli::parse_from(["forge", "session", "dump", "abc123"]);
+    fn test_conversation_dump_json_with_id() {
+        let fixture = Cli::parse_from(["forge", "conversation", "dump", "abc123"]);
         let (id, format) = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => match session.command {
-                SessionCommand::Dump { id, format } => (id, format),
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Dump { id, format } => (id, format),
                 _ => (String::new(), None),
             },
             _ => (String::new(), None),
@@ -505,11 +519,11 @@ mod tests {
     }
 
     #[test]
-    fn test_session_dump_html_with_id() {
-        let fixture = Cli::parse_from(["forge", "session", "dump", "abc123", "html"]);
+    fn test_conversation_dump_html_with_id() {
+        let fixture = Cli::parse_from(["forge", "conversation", "dump", "abc123", "html"]);
         let (id, format) = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => match session.command {
-                SessionCommand::Dump { id, format } => (id, format),
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Dump { id, format } => (id, format),
                 _ => (String::new(), None),
             },
             _ => (String::new(), None),
@@ -519,11 +533,11 @@ mod tests {
     }
 
     #[test]
-    fn test_session_retry_with_id() {
-        let fixture = Cli::parse_from(["forge", "session", "retry", "xyz789"]);
+    fn test_conversation_retry_with_id() {
+        let fixture = Cli::parse_from(["forge", "conversation", "retry", "xyz789"]);
         let id = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => match session.command {
-                SessionCommand::Retry { id } => id,
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Retry { id } => id,
                 _ => String::new(),
             },
             _ => String::new(),
@@ -532,11 +546,11 @@ mod tests {
     }
 
     #[test]
-    fn test_session_compact_with_id() {
-        let fixture = Cli::parse_from(["forge", "session", "compact", "abc123"]);
+    fn test_conversation_compact_with_id() {
+        let fixture = Cli::parse_from(["forge", "conversation", "compact", "abc123"]);
         let id = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => match session.command {
-                SessionCommand::Compact { id } => id,
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Compact { id } => id,
                 _ => String::new(),
             },
             _ => String::new(),
@@ -545,11 +559,11 @@ mod tests {
     }
 
     #[test]
-    fn test_session_last_with_id() {
-        let fixture = Cli::parse_from(["forge", "session", "show", "test123"]);
+    fn test_conversation_last_with_id() {
+        let fixture = Cli::parse_from(["forge", "conversation", "show", "test123"]);
         let id = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => match session.command {
-                SessionCommand::Show { id } => id,
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Show { id } => id,
                 _ => String::new(),
             },
             _ => String::new(),
@@ -558,11 +572,11 @@ mod tests {
     }
 
     #[test]
-    fn test_session_resume() {
-        let fixture = Cli::parse_from(["forge", "session", "resume", "def456"]);
+    fn test_conversation_resume() {
+        let fixture = Cli::parse_from(["forge", "conversation", "resume", "def456"]);
         let id = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => match session.command {
-                SessionCommand::Resume { id } => id,
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Resume { id } => id,
                 _ => String::new(),
             },
             _ => String::new(),
@@ -585,13 +599,23 @@ mod tests {
     }
 
     #[test]
-    fn test_list_session_command() {
-        let fixture = Cli::parse_from(["forge", "list", "session"]);
-        let is_session_list = match fixture.subcommands {
-            Some(TopLevelCommand::List(list)) => matches!(list.command, ListCommand::Session),
+    fn test_list_conversation_command() {
+        let fixture = Cli::parse_from(["forge", "list", "conversation"]);
+        let is_conversation_list = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => matches!(list.command, ListCommand::Conversation),
             _ => false,
         };
-        assert_eq!(is_session_list, true);
+        assert_eq!(is_conversation_list, true);
+    }
+
+    #[test]
+    fn test_list_session_alias_command() {
+        let fixture = Cli::parse_from(["forge", "list", "session"]);
+        let is_conversation_list = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => matches!(list.command, ListCommand::Conversation),
+            _ => false,
+        };
+        assert_eq!(is_conversation_list, true);
     }
 
     #[test]
@@ -685,10 +709,10 @@ mod tests {
     }
 
     #[test]
-    fn test_session_list_with_porcelain() {
-        let fixture = Cli::parse_from(["forge", "session", "list", "--porcelain"]);
+    fn test_conversation_list_with_porcelain() {
+        let fixture = Cli::parse_from(["forge", "conversation", "list", "--porcelain"]);
         let actual = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => session.porcelain,
+            Some(TopLevelCommand::Conversation(conversation)) => conversation.porcelain,
             _ => false,
         };
         let expected = true;
@@ -718,11 +742,11 @@ mod tests {
     }
 
     #[test]
-    fn test_session_info_with_id() {
-        let fixture = Cli::parse_from(["forge", "session", "info", "abc123"]);
+    fn test_conversation_info_with_id() {
+        let fixture = Cli::parse_from(["forge", "conversation", "info", "abc123"]);
         let id = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => match session.command {
-                SessionCommand::Info { id } => id,
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Info { id } => id,
                 _ => String::new(),
             },
             _ => String::new(),
@@ -731,17 +755,44 @@ mod tests {
     }
 
     #[test]
-    fn test_session_info_with_porcelain() {
-        let fixture = Cli::parse_from(["forge", "session", "info", "test123", "--porcelain"]);
+    fn test_conversation_info_with_porcelain() {
+        let fixture = Cli::parse_from(["forge", "conversation", "info", "test123", "--porcelain"]);
         let (id, porcelain) = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => match session.command {
-                SessionCommand::Info { id } => (id, session.porcelain),
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Info { id } => (id, conversation.porcelain),
                 _ => (String::new(), false),
             },
             _ => (String::new(), false),
         };
         assert_eq!(id, "test123");
         assert_eq!(porcelain, true);
+    }
+
+    #[test]
+    fn test_session_alias_dump() {
+        let fixture = Cli::parse_from(["forge", "session", "dump", "abc123"]);
+        let (id, format) = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Dump { id, format } => (id, format),
+                _ => (String::new(), None),
+            },
+            _ => (String::new(), None),
+        };
+        assert_eq!(id, "abc123");
+        assert_eq!(format, None);
+    }
+
+    #[test]
+    fn test_session_alias_retry() {
+        let fixture = Cli::parse_from(["forge", "session", "retry", "xyz789"]);
+        let id = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Retry { id } => id,
+                _ => String::new(),
+            },
+            _ => String::new(),
+        };
+        assert_eq!(id, "xyz789");
     }
 
     #[test]
