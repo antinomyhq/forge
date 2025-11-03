@@ -87,30 +87,39 @@ impl<S: Services> CommandGenerator<S> {
         let env = self.services.environment_service().get_environment();
 
         // First try to use HISTFILE environment variable
-        let history_file = std::env::var("HISTFILE").ok().or_else(|| {
-            let home = env.home.as_ref()?;
+        let history_file = std::env::var("HISTFILE")
+            .ok()
+            .map(PathBuf::from)
+            .filter(|path| path.exists())
+            .or_else(|| {
+                let home = env.home.as_ref()?;
 
-            match env.shell.as_str() {
-                s if s.contains("zsh") => Some(format!("{}/.zsh_history", home.display())),
-                s if s.contains("bash") => Some(format!("{}/.bash_history", home.display())),
-                _ => None,
-            }
-        });
+                match env.shell.as_str() {
+                    s if s.contains("zsh") => {
+                        let path = home.join(".zsh_history");
+                        path.exists().then_some(path)
+                    }
+                    s if s.contains("bash") => {
+                        let path = home.join(".bash_history");
+                        path.exists().then_some(path)
+                    }
+                    _ => None,
+                }
+            });
 
         if let Some(history_path) = history_file {
             // Read the history file directly, handling potential non-UTF-8 bytes
             if let Ok(bytes) = tokio::fs::read(&history_path).await {
                 let content = String::from_utf8_lossy(&bytes);
-                let commands: Vec<String> = content
+                let all_commands: Vec<String> = content
                     .lines()
                     .filter(|line| !line.trim().is_empty())
                     .map(|s| s.to_string())
-                    .rev() // Reverse to get most recent first
-                    .take(10) // Take last 10 commands
-                    .collect::<Vec<_>>()
-                    .into_iter()
-                    .rev() // Reverse back to chronological order
                     .collect();
+
+                // Take the last 10 commands in chronological order
+                let start = all_commands.len().saturating_sub(10);
+                let commands = all_commands[start..].to_vec();
 
                 return Ok(commands);
             }
