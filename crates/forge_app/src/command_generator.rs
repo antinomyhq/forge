@@ -5,7 +5,8 @@ use anyhow::Result;
 use forge_domain::*;
 
 use crate::{
-    AgentRegistry, AppConfigService, EnvironmentService, ProviderService, Services, TemplateService,
+    AgentRegistry, AppConfigService, EnvironmentService, FsReadService, ProviderService, Services,
+    TemplateService,
 };
 
 /// CommandGenerator handles shell command generation from natural language
@@ -33,7 +34,6 @@ impl<S: Services> CommandGenerator<S> {
                 Template::new("{{> forge-command-generator-prompt.md }}"),
                 &serde_json::json!({
                     "env": env,
-                    "recent_commands": history_context,
                 }),
             )
             .await?;
@@ -49,7 +49,15 @@ impl<S: Services> CommandGenerator<S> {
         let ctx = Context::default()
             .add_message(ContextMessage::system(rendered_system_prompt))
             .add_message(ContextMessage::user(
-                format!("<task>{}</task>", prompt.as_str()),
+                format!(
+                    "<recently_executed_commands>{}</recently_executed_commands>\n\n<task>{}</task>",
+                    history_context
+                        .into_iter()
+                        .map(|h| format!("- {}", h))
+                        .collect::<Vec<_>>()
+                        .join("\n"),
+                    prompt.as_str()
+                ),
                 Some(model.clone()),
             ));
 
