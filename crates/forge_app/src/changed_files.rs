@@ -73,7 +73,8 @@ mod tests {
     use std::collections::HashMap;
 
     use forge_domain::{
-        Agent, AgentId, Conversation, ConversationId, FileChangeMetrics, Metrics, ModelId, Template,
+        Agent, AgentId, Context, Conversation, ConversationId, FileChangeMetrics, Metrics, ModelId,
+        Template,
     };
     use pretty_assertions::assert_eq;
 
@@ -157,16 +158,21 @@ mod tests {
         let content = "hello world";
         let hash = crate::compute_hash(content);
 
-        let (service, conversation) = fixture(
+        let (service, mut conversation) = fixture(
             [("/test/file.txt".into(), content.into())].into(),
             [("/test/file.txt".into(), Some(hash))].into(),
         );
+
+        conversation.context = Some(Context::default().add_message(ContextMessage::user(
+            "Hey, there!",
+            Some(ModelId::new("test")),
+        )));
 
         let actual = service
             .detect_externally_modified_files(conversation.clone())
             .await;
 
-        assert_eq!(actual.context.clone().unwrap_or_default().messages.len(), 0);
+        assert_eq!(actual.context.clone().unwrap_or_default().messages.len(), 1);
         assert_eq!(actual.context, conversation.context);
     }
 
