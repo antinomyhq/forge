@@ -84,7 +84,7 @@ impl Provider<Url> {
 }
 
 impl Provider<Template<String>> {
-    pub fn to_view(&self) -> ProviderEntry {
+    pub fn to_entry(&self) -> ProviderEntry {
         ProviderEntry::Unavailable(self.clone())
     }
 }
