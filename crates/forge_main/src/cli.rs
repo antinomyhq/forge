@@ -110,6 +110,14 @@ pub enum TopLevelCommand {
 
     /// MCP server management commands
     Mcp(McpCommandGroup),
+
+    /// Convert natural language to a shell command
+    ///
+    /// Example: forge cmd "run tests in the current project"
+    Cmd {
+        /// Natural language description of what you want to do
+        prompt: String,
+    },
 }
 
 /// Group of list-related commands

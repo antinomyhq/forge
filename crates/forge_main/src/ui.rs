@@ -7,7 +7,7 @@ use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
-    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, Workflow,
+    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, UserPrompt, Workflow,
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
@@ -409,6 +409,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
             TopLevelCommand::Session(session_group) => {
                 self.handle_session_command(session_group).await?;
+                return Ok(());
+            }
+
+            TopLevelCommand::Cmd { prompt } => {
+                self.on_cmd(UserPrompt::from(prompt)).await?;
                 return Ok(());
             }
         }
@@ -871,6 +876,23 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_zsh_prompt(&self) -> anyhow::Result<()> {
         println!("{}", include_str!("../../../shell-plugin/forge.plugin.zsh"));
         Ok(())
+    }
+
+    /// Handle the cmd command - generates shell command from natural language
+    async fn on_cmd(&mut self, prompt: UserPrompt) -> anyhow::Result<()> {
+        self.spinner.start(Some("Generating command"))?;
+
+        match self.api.generate_command(prompt).await {
+            Ok(command) => {
+                self.spinner.stop(None)?;
+                self.writeln(command)?;
+                Ok(())
+            }
+            Err(err) => {
+                self.spinner.stop(None)?;
+                Err(err)
+            }
+        }
     }
 
     async fn list_conversations(&mut self) -> anyhow::Result<()> {

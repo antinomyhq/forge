@@ -245,4 +245,10 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     async fn get_commands(&self) -> Result<Vec<Command>> {
         self.services.get_commands().await
     }
+
+    async fn generate_command(&self, prompt: UserPrompt) -> Result<String> {
+        use forge_app::CommandGenerator;
+        let generator = CommandGenerator::new(self.services.clone());
+        generator.generate(prompt).await
+    }
 }
