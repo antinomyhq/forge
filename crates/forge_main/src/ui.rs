@@ -22,7 +22,9 @@ use strum::IntoEnumIterator;
 use tokio_stream::StreamExt;
 use tracing::debug;
 
-use crate::cli::{Cli, ExtensionCommand, ListCommand, McpCommand, SessionCommand, TopLevelCommand};
+use crate::cli::{
+    Cli, ConversationCommand, ExtensionCommand, ListCommand, McpCommand, TopLevelCommand,
+};
 use crate::conversation_selector::ConversationSelector;
 use crate::env::should_show_completion_prompt;
 use crate::info::Info;
@@ -304,7 +306,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     ListCommand::Mcp => {
                         self.on_show_mcp_servers(porcelain).await?;
                     }
-                    ListCommand::Session => {
+                    ListCommand::Conversation => {
                         self.on_show_conversations(porcelain).await?;
                     }
                 }
@@ -407,32 +409,33 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 return Ok(());
             }
 
-            TopLevelCommand::Session(session_group) => {
-                self.handle_session_command(session_group).await?;
+            TopLevelCommand::Conversation(conversation_group) => {
+                self.handle_conversation_command(conversation_group).await?;
                 return Ok(());
             }
         }
         Ok(())
     }
 
-    async fn handle_session_command(
+    async fn handle_conversation_command(
         &mut self,
-        session_group: crate::cli::SessionCommandGroup,
+        conversation_group: crate::cli::ConversationCommandGroup,
     ) -> anyhow::Result<()> {
         use forge_domain::ConversationId;
 
-        match session_group.command {
-            SessionCommand::List => {
-                self.on_show_conversations(session_group.porcelain).await?;
+        match conversation_group.command {
+            ConversationCommand::List => {
+                self.on_show_conversations(conversation_group.porcelain)
+                    .await?;
             }
-            SessionCommand::New => {
+            ConversationCommand::New => {
                 self.handle_generate_conversation_id().await?;
             }
-            SessionCommand::Dump { id, format } => {
+            ConversationCommand::Dump { id, format } => {
                 let conversation_id = ConversationId::parse(&id)
                     .context(format!("Invalid conversation ID: {}", id))?;
 
-                self.validate_session_exists(&conversation_id).await?;
+                self.validate_conversation_exists(&conversation_id).await?;
 
                 let original_id = self.state.conversation_id;
                 self.state.conversation_id = Some(conversation_id);
@@ -442,11 +445,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                 self.state.conversation_id = original_id;
             }
-            SessionCommand::Compact { id } => {
+            ConversationCommand::Compact { id } => {
                 let conversation_id = ConversationId::parse(&id)
                     .context(format!("Invalid conversation ID: {}", id))?;
 
-                self.validate_session_exists(&conversation_id).await?;
+                self.validate_conversation_exists(&conversation_id).await?;
 
                 let original_id = self.state.conversation_id;
                 self.state.conversation_id = Some(conversation_id);
@@ -456,11 +459,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                 self.state.conversation_id = original_id;
             }
-            SessionCommand::Retry { id } => {
+            ConversationCommand::Retry { id } => {
                 let conversation_id = ConversationId::parse(&id)
                     .context(format!("Invalid conversation ID: {}", id))?;
 
-                self.validate_session_exists(&conversation_id).await?;
+                self.validate_conversation_exists(&conversation_id).await?;
 
                 let original_id = self.state.conversation_id;
                 self.state.conversation_id = Some(conversation_id);
@@ -470,29 +473,29 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                 self.state.conversation_id = original_id;
             }
-            SessionCommand::Resume { id } => {
+            ConversationCommand::Resume { id } => {
                 let conversation_id = ConversationId::parse(&id)
                     .context(format!("Invalid conversation ID: {}", id))?;
 
-                self.validate_session_exists(&conversation_id).await?;
+                self.validate_conversation_exists(&conversation_id).await?;
 
                 self.state.conversation_id = Some(conversation_id);
                 self.writeln_title(TitleFormat::info(format!("Resumed conversation: {}", id)))?;
                 // Interactive mode will be handled by the main loop
             }
-            SessionCommand::Show { id } => {
+            ConversationCommand::Show { id } => {
                 let conversation_id = ConversationId::parse(&id)
                     .context(format!("Invalid conversation ID: {}", id))?;
 
-                self.validate_session_exists(&conversation_id).await?;
+                self.validate_conversation_exists(&conversation_id).await?;
 
                 self.on_show_last_message(&conversation_id).await?;
             }
-            SessionCommand::Info { id } => {
+            ConversationCommand::Info { id } => {
                 let conversation_id = ConversationId::parse(&id)
                     .context(format!("Invalid conversation ID: {}", id))?;
 
-                self.validate_session_exists(&conversation_id).await?;
+                self.validate_conversation_exists(&conversation_id).await?;
 
                 self.on_show_conv_info(conversation_id).await?;
             }
@@ -501,7 +504,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn validate_session_exists(
+    async fn validate_conversation_exists(
         &self,
         conversation_id: &ConversationId,
     ) -> anyhow::Result<()> {
@@ -509,7 +512,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         if conversation.is_none() {
             anyhow::bail!(
-                "Conversation '{}' not found. Use 'forge session list' to see available conversations.",
+                "Conversation '{}' not found. Use 'forge conversation list' to see available conversations.",
                 conversation_id
             );
         }
