@@ -1,5 +1,4 @@
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 use forge_domain::*;
@@ -39,11 +38,8 @@ impl<S: Services> CommandGenerator<S> {
             .await?;
 
         // Get required services and data
-        let agent_id = self.services.get_active_agent_id().await?;
-        let (provider, model) = tokio::try_join!(
-            self.get_provider(agent_id.clone()),
-            self.get_model(agent_id)
-        )?;
+        let provider = self.services.get_default_provider().await?;
+        let model = self.services.get_default_model(&provider.id).await?;
 
         // Create context with system and user prompts
         let ctx = Context::default()
@@ -70,25 +66,6 @@ impl<S: Services> CommandGenerator<S> {
         let message = stream.into_full(false).await?;
 
         Ok(message.content)
-    }
-
-    /// Gets the provider for the specified agent
-    async fn get_provider(&self, agent: Option<AgentId>) -> Result<Provider> {
-        if let Some(agent) = agent
-            && let Some(agent) = self.services.get_agent(&agent).await?
-            && let Some(provider_id) = agent.provider
-        {
-            return self.services.get_provider(provider_id).await;
-        }
-
-        self.services.get_default_provider().await
-    }
-
-    /// Gets the model for the specified agent, or the default model if no agent
-    /// is provided
-    async fn get_model(&self, agent_id: Option<AgentId>) -> Result<ModelId> {
-        let provider_id = self.get_provider(agent_id).await?.id;
-        self.services.get_default_model(&provider_id).await
     }
 
     /// Get recent command history for context
