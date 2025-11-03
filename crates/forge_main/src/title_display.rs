@@ -41,14 +41,8 @@ impl TitleDisplay {
 
         // Add timestamp if requested
         if self.with_timestamp {
-            let timestamp_str = if let Some(timestamp) = self.inner.timestamp {
-                // Use replay timestamp if provided
-                let local_time: chrono::DateTime<Local> = timestamp.into();
-                format!("[{}] ", local_time.format("%H:%M:%S"))
-            } else {
-                // Use current time for live conversations
-                format!("[{}] ", Local::now().format("%H:%M:%S"))
-            };
+            let local_time: chrono::DateTime<Local> = self.inner.timestamp.into();
+            let timestamp_str = format!("[{}] ", local_time.format("%H:%M:%S"));
             buf.push_str(timestamp_str.dimmed().to_string().as_str());
         }
 
@@ -76,14 +70,8 @@ impl TitleDisplay {
 
         // Add timestamp if requested
         if self.with_timestamp {
-            let timestamp_str = if let Some(replay_ts) = self.inner.timestamp {
-                // Use replay timestamp if provided
-                let local_time: chrono::DateTime<Local> = replay_ts.into();
-                format!("[{}] ", local_time.format("%H:%M:%S"))
-            } else {
-                // Use current time for live conversations
-                format!("[{}] ", Local::now().format("%H:%M:%S"))
-            };
+            let local_time: chrono::DateTime<Local> = self.inner.timestamp.into();
+            let timestamp_str = format!("[{}] ", local_time.format("%H:%M:%S"));
             buf.push_str(&timestamp_str);
         }
 

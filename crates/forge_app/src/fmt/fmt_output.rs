@@ -48,7 +48,7 @@ mod tests {
 
     use console::strip_ansi_codes;
     use forge_display::DiffFormat;
-    use forge_domain::{ChatResponseContent, Environment, PatchOperation, TitleFormat};
+    use forge_domain::{ChatResponseContent, Environment, PatchOperation};
     use insta::assert_snapshot;
     use pretty_assertions::assert_eq;
 
@@ -503,10 +503,12 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
-        let expected = Some(ChatResponseContent::Title(TitleFormat::debug(
-            "Create plans/2024-08-11-test-plan-v1.md",
-        )));
-
-        assert_eq!(actual, expected);
+        if let Some(ChatResponseContent::Title(title)) = actual {
+            assert_eq!(title.title, "Create plans/2024-08-11-test-plan-v1.md");
+            assert_eq!(title.category, forge_domain::Category::Debug);
+            assert_eq!(title.sub_title, None);
+        } else {
+            panic!("Expected Title content");
+        }
     }
 }
