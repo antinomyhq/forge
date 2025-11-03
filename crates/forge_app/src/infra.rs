@@ -3,17 +3,16 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bytes::Bytes;
-use forge_app::domain::{
-    CommandOutput, Conversation, ConversationId, Environment, McpServerConfig, ToolDefinition,
-    ToolName, ToolOutput,
+use forge_domain::{
+    CommandOutput, Environment, FileInfo, McpServerConfig, ToolDefinition, ToolName, ToolOutput,
 };
-use forge_app::{WalkedFile, Walker};
-use forge_snaps::Snapshot;
 use reqwest::Response;
 use reqwest::header::HeaderMap;
 use reqwest_eventsource::EventSource;
 use serde::de::DeserializeOwned;
 use url::Url;
+
+use crate::{WalkedFile, Walker};
 
 /// Infrastructure trait for accessing environment configuration and system
 /// variables.
@@ -64,18 +63,13 @@ pub trait FileReaderInfra: Send + Sync {
         path: &Path,
         start_line: u64,
         end_line: u64,
-    ) -> anyhow::Result<(String, forge_fs::FileInfo)>;
+    ) -> anyhow::Result<(String, FileInfo)>;
 }
 
 #[async_trait::async_trait]
 pub trait FileWriterInfra: Send + Sync {
     /// Writes the content of a file at the specified path.
-    async fn write(
-        &self,
-        path: &Path,
-        contents: Bytes,
-        capture_snapshot: bool,
-    ) -> anyhow::Result<()>;
+    async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()>;
 
     /// Writes content to a temporary file with the given prefix and extension,
     /// and returns its path. The file will be kept (not deleted) after
@@ -105,16 +99,6 @@ pub trait FileInfoInfra: Send + Sync {
 #[async_trait::async_trait]
 pub trait FileDirectoryInfra {
     async fn create_dirs(&self, path: &Path) -> anyhow::Result<()>;
-}
-
-/// Service for managing file snapshots
-#[async_trait::async_trait]
-pub trait SnapshotInfra: Send + Sync {
-    // Creation
-    async fn create_snapshot(&self, file_path: &Path) -> Result<Snapshot>;
-
-    /// Restores the most recent snapshot for the given file path
-    async fn undo_snapshot(&self, file_path: &Path) -> Result<()>;
 }
 
 /// Service for executing shell commands
@@ -224,26 +208,25 @@ pub trait DirectoryReaderInfra: Send + Sync {
     ) -> anyhow::Result<Vec<(PathBuf, String)>>;
 }
 
-/// Generic cache infrastructure trait for content-addressable storage.
+/// Generic cache repository for content-addressable storage.
 ///
 /// This trait provides an abstraction over caching operations with support for
 /// arbitrary key and value types. Keys must be hashable and serializable, while
 /// values must be serializable. The trait is designed to work with
 /// content-addressable storage systems like cacache.
 ///
-/// Type parameters:
-/// - `K`: Key type with bounds for hashing and serialization
-/// - `V`: Value type with bounds for serialization
-///
 /// All operations return `anyhow::Result` for consistent error handling across
 /// the infrastructure layer.
 #[async_trait::async_trait]
-pub trait CacheRepository: Send + Sync {
+pub trait KVStore: Send + Sync {
     /// Retrieves a value from the cache by its key.
     ///
-    /// Returns `Ok(Some(value))` if the key exists in the cache,
-    /// `Ok(None)` if the key doesn't exist, or an error if the operation fails.
-    async fn cache_get<K, V>(&self, key: &K) -> anyhow::Result<Option<V>>
+    /// # Arguments
+    /// * `key` - The key to look up in the cache
+    ///
+    /// # Errors
+    /// Returns an error if the cache operation fails
+    async fn cache_get<K, V>(&self, key: &K) -> Result<Option<V>>
     where
         K: Hash + Sync,
         V: serde::Serialize + DeserializeOwned + Send;
@@ -252,7 +235,14 @@ pub trait CacheRepository: Send + Sync {
     ///
     /// If the key already exists, the value is overwritten.
     /// Uses content-addressable storage for integrity verification.
-    async fn cache_set<K, V>(&self, key: &K, value: &V) -> anyhow::Result<()>
+    ///
+    /// # Arguments
+    /// * `key` - The key to store the value under
+    /// * `value` - The value to cache
+    ///
+    /// # Errors
+    /// Returns an error if the cache operation fails
+    async fn cache_set<K, V>(&self, key: &K, value: &V) -> Result<()>
     where
         K: Hash + Sync,
         V: serde::Serialize + Sync;
@@ -260,25 +250,8 @@ pub trait CacheRepository: Send + Sync {
     /// Clears all entries from the cache.
     ///
     /// This operation removes all cached data. Use with caution.
-    async fn cache_clear(&self) -> anyhow::Result<()>;
-}
-
-#[async_trait::async_trait]
-pub trait ConversationRepository: Send + Sync {
-    async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()>;
-    async fn get_conversation(
-        &self,
-        conversation_id: &ConversationId,
-    ) -> anyhow::Result<Option<Conversation>>;
-    async fn get_all_conversations(
-        &self,
-        limit: Option<usize>,
-    ) -> anyhow::Result<Option<Vec<Conversation>>>;
-    async fn get_last_conversation(&self) -> anyhow::Result<Option<Conversation>>;
-}
-
-#[async_trait::async_trait]
-pub trait AppConfigRepository: Send + Sync {
-    async fn get_app_config(&self) -> anyhow::Result<forge_app::dto::AppConfig>;
-    async fn set_app_config(&self, config: &forge_app::dto::AppConfig) -> anyhow::Result<()>;
+    ///
+    /// # Errors
+    /// Returns an error if the cache clear operation fails
+    async fn cache_clear(&self) -> Result<()>;
 }

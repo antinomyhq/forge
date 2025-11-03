@@ -4,9 +4,9 @@ use std::path::PathBuf;
 use chrono::{DateTime, Local};
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, AgentId, ChatCompletionMessage, ChatResponse, ContextMessage, Conversation, Environment,
-    Event, HttpConfig, ModelId, RetryConfig, Role, Template, ToolCallFull, ToolDefinition,
-    ToolResult, Workflow,
+    Agent, AgentId, Attachment, ChatCompletionMessage, ChatResponse, ContextMessage, Conversation,
+    Environment, Event, HttpConfig, ModelId, RetryConfig, Role, Template, ToolCallFull,
+    ToolDefinition, ToolResult, Workflow,
 };
 use url::Url;
 
@@ -35,6 +35,7 @@ pub struct TestContext {
     pub title: Option<String>,
     pub model: ModelId,
     pub plan_nudge: Option<String>,
+    pub attachments: Vec<Attachment>,
 
     // Final output of the test is store in the context
     pub output: TestOutput,
@@ -54,6 +55,7 @@ impl Default for TestContext {
             templates: Default::default(),
             files: Default::default(),
             plan_nudge: Default::default(),
+            attachments: Default::default(),
             env: Environment {
                 os: "MacOS".to_string(),
                 pid: 1234,
@@ -138,6 +140,15 @@ impl TestOutput {
             .last()
             .and_then(|c| c.context.as_ref())
             .map(|c| c.messages.clone())
+            .clone()
+            .unwrap_or_default()
+    }
+
+    pub fn tools(&self) -> Vec<ToolDefinition> {
+        self.conversation_history
+            .last()
+            .and_then(|c| c.context.as_ref())
+            .map(|c| c.tools.clone())
             .clone()
             .unwrap_or_default()
     }

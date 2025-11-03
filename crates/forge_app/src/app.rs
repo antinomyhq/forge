@@ -3,18 +3,23 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use chrono::Local;
-use forge_domain::*;
+use forge_domain::{InitAuth, *};
 use forge_stream::MpscStream;
 
+use crate::apply_tunable_parameters::ApplyTunableParameters;
 use crate::authenticator::Authenticator;
-use crate::dto::{InitAuth, ToolsOverview};
+use crate::dto::ToolsOverview;
+use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
-use crate::services::{CustomInstructionsService, TemplateService};
+use crate::services::{AppConfigService, CustomInstructionsService, TemplateService};
+use crate::set_conversation_id::SetConversationId;
+use crate::system_prompt::SystemPrompt;
 use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
+use crate::user_prompt::UserPromptGenerator;
 use crate::{
-    AgentRegistry, AttachmentService, ConversationService, EnvironmentService,
-    FileDiscoveryService, ProviderRegistry, ProviderService, Services, Walker, WorkflowService,
+    AgentRegistry, ConversationService, EnvironmentService, FileDiscoveryService, ProviderService,
+    Services, Walker, WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -41,7 +46,7 @@ impl<S: Services> ForgeApp<S> {
     pub async fn chat(
         &self,
         agent_id: AgentId,
-        mut chat: ChatRequest,
+        chat: ChatRequest,
     ) -> Result<MpscStream<Result<ChatResponse, anyhow::Error>>> {
         let services = self.services.clone();
 
@@ -81,12 +86,6 @@ impl<S: Services> ForgeApp<S> {
 
         services.register_template(template_path).await?;
 
-        // Always try to get attachments and overwrite them
-        if let Some(value) = chat.event.value.as_ref() {
-            let attachments = services.attachments(&value.to_string()).await?;
-            chat.event = chat.event.attachments(attachments);
-        }
-
         let custom_instructions = services.get_custom_instructions().await;
 
         // Prepare agents with user configuration
@@ -113,23 +112,45 @@ impl<S: Services> ForgeApp<S> {
             tool_resolver.resolve(&agent).into_iter().cloned().collect();
         let max_tool_failure_per_turn = agent.max_tool_failure_per_turn.unwrap_or(3);
 
-        // Detect and render plan nudge if needed
-        let plan_nudge = self.plan_nudge(&conversation, &chat).await?;
+        let current_time = Local::now();
+
+        // Insert system prompt
+        let conversation =
+            SystemPrompt::new(self.services.clone(), environment.clone(), agent.clone())
+                .custom_instructions(custom_instructions.clone())
+                .tool_definitions(tool_definitions.clone())
+                .models(models.clone())
+                .files(files.clone())
+                .add_system_message(conversation)
+                .await?;
+
+        // Insert user prompt
+        let conversation = UserPromptGenerator::new(
+            self.services.clone(),
+            agent.clone(),
+            chat.event.clone(),
+            current_time,
+        )
+        .add_user_prompt(conversation)
+        .await?;
+
+        let conversation = InitConversationMetrics::new(current_time).apply(conversation);
+        let conversation = ApplyTunableParameters::new(agent.clone(), tool_definitions.clone())
+            .apply(conversation);
+        let conversation = SetConversationId.apply(conversation);
+        let plan_nudge = self.plan_nudge(&conversation).await?;
 
         // Create the orchestrator with all necessary dependencies
         let orch = Orchestrator::new(
             services.clone(),
             environment.clone(),
             conversation,
-            Local::now(),
             agent,
             chat.event,
         )
         .error_tracker(ToolErrorTracker::new(max_tool_failure_per_turn))
-        .custom_instructions(custom_instructions)
         .tool_definitions(tool_definitions)
         .models(models)
-        .files(files)
         .plan_nudge(plan_nudge);
 
         // Create and return the stream
@@ -282,18 +303,13 @@ impl<S: Services> ForgeApp<S> {
 
     /// Detects plan file references and renders a plan nudge if needed.
     /// Checks conversation context, current user input, and attachments.
-    async fn plan_nudge(
-        &self,
-        conversation: &Conversation,
-        chat: &ChatRequest,
-    ) -> Result<Option<String>> {
+    async fn plan_nudge(&self, conversation: &Conversation) -> Result<Option<String>> {
         // Extract plan paths from conversation context and current event
-        let paths: Vec<String> = conversation
+        let paths = conversation
             .context
             .iter()
             .flat_map(|ctx| ctx.detect_plans())
-            .chain(chat.event.detect_plans())
-            .collect();
+            .collect::<Vec<_>>();
 
         if paths.is_empty() {
             return Ok(None);
@@ -310,7 +326,7 @@ impl<S: Services> ForgeApp<S> {
             .services
             .template_service()
             .render_template(
-                "{{> forge-plan-nudge.md }}",
+                Template::new("{{> forge-plan-nudge.md }}"),
                 &serde_json::json!({
                     "paths": paths,
                 }),

@@ -2,15 +2,17 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::dto::{InitAuth, LoginInfo, ToolsOverview};
+use forge_app::dto::ToolsOverview;
 use forge_app::{
-    AgentRegistry, AuthService, CommandLoaderService, ConversationService, EnvironmentService,
-    FileDiscoveryService, ForgeApp, McpConfigManager, McpService, ProviderRegistry,
-    ProviderService, Services, User, UserUsage, Walker, WorkflowService,
+    AgentRegistry, AppConfigService, AuthService, CommandInfra, CommandLoaderService,
+    ConversationService, EnvironmentInfra, EnvironmentService, FileDiscoveryService, ForgeApp,
+    McpConfigManager, McpService, ProviderService, Services, User, UserUsage, Walker,
+    WorkflowService,
 };
-use forge_domain::*;
+use forge_domain::{InitAuth, LoginInfo, *};
 use forge_infra::ForgeInfra;
-use forge_services::{AppConfigRepository, CommandInfra, ForgeServices};
+use forge_repo::ForgeRepo;
+use forge_services::ForgeServices;
 use forge_stream::MpscStream;
 
 use crate::API;
@@ -34,16 +36,17 @@ impl<A, F> ForgeAPI<A, F> {
     }
 }
 
-impl ForgeAPI<ForgeServices<ForgeInfra>, ForgeInfra> {
+impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeInfra> {
     pub fn init(restricted: bool, cwd: PathBuf) -> Self {
         let infra = Arc::new(ForgeInfra::new(restricted, cwd));
-        let app = Arc::new(ForgeServices::new(infra.clone()));
+        let repo = Arc::new(ForgeRepo::new(infra.clone()));
+        let app = Arc::new(ForgeServices::new(repo.clone()));
         ForgeAPI::new(app, infra)
     }
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: CommandInfra + AppConfigRepository> API for ForgeAPI<A, F> {
+impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     async fn discover(&self) -> Result<Vec<File>> {
         let environment = self.services.get_environment();
         let config = Walker::unlimited().cwd(environment.cwd);
