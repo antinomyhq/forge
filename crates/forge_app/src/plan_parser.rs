@@ -5,7 +5,7 @@ use forge_domain::{ActivePlan, PlanStat};
 /// Parse a plan file and extract task statistics
 pub fn parse_plan(path: PathBuf, content: &str) -> ActivePlan {
     let plan_stats = parse_task_stats(content);
-    ActivePlan { path, plan_stats }
+    ActivePlan { path, stat: plan_stats }
 }
 
 /// Parse task statistics from plan content
@@ -63,10 +63,10 @@ mod tests {
 "#;
         let plan = parse_plan(PathBuf::from("/test/plan.md"), content);
 
-        assert_eq!(plan.plan_stats.todo, 1);
-        assert_eq!(plan.plan_stats.in_progress, 1);
-        assert_eq!(plan.plan_stats.completed, 1);
-        assert_eq!(plan.plan_stats.failed, 1);
+        assert_eq!(plan.stat.todo, 1);
+        assert_eq!(plan.stat.in_progress, 1);
+        assert_eq!(plan.stat.completed, 1);
+        assert_eq!(plan.stat.failed, 1);
     }
 
     #[test]
@@ -74,10 +74,10 @@ mod tests {
         let content = "# Plan\n\nNo tasks";
         let plan = parse_plan(PathBuf::from("/test/plan.md"), content);
 
-        assert_eq!(plan.plan_stats.todo, 0);
-        assert_eq!(plan.plan_stats.in_progress, 0);
-        assert_eq!(plan.plan_stats.completed, 0);
-        assert_eq!(plan.plan_stats.failed, 0);
+        assert_eq!(plan.stat.todo, 0);
+        assert_eq!(plan.stat.in_progress, 0);
+        assert_eq!(plan.stat.completed, 0);
+        assert_eq!(plan.stat.failed, 0);
     }
 
     #[test]
@@ -91,8 +91,8 @@ mod tests {
 "#;
         let plan = parse_plan(PathBuf::from("/test/plan.md"), content);
 
-        assert_eq!(plan.plan_stats.completed, 3);
-        assert_eq!(plan.plan_stats.todo, 0);
+        assert_eq!(plan.stat.completed, 3);
+        assert_eq!(plan.stat.todo, 0);
         assert!(plan.is_complete());
     }
 
@@ -108,7 +108,7 @@ mod tests {
 "#;
         let plan = parse_plan(PathBuf::from("/test/plan.md"), content);
 
-        assert_eq!(plan.plan_stats.completed, 1);
-        assert_eq!(plan.plan_stats.todo, 1);
+        assert_eq!(plan.stat.completed, 1);
+        assert_eq!(plan.stat.todo, 1);
     }
 }

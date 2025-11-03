@@ -17,18 +17,18 @@ pub struct ToolCallContext {
 #[derive(Debug, Clone, Serialize)]
 pub struct ActivePlan {
     pub path: PathBuf,
-    pub plan_stats: PlanStat,
+    pub stat: PlanStat,
 }
 
 impl ActivePlan {
     /// Check if the plan is complete (all tasks are done and no tasks are
     /// pending or in progress)
     pub fn is_complete(&self) -> bool {
-        self.plan_stats.todo == 0 && self.plan_stats.in_progress == 0 && self.plan_stats.failed == 0
+        self.stat.todo == 0 && self.stat.in_progress == 0 && self.stat.failed == 0
     }
 
     pub fn complete_percentage(&self) -> f32 {
-        self.plan_stats.completed as f32 / self.plan_stats.total() as f32
+        self.stat.completed as f32 / self.stat.total() as f32
     }
 }
 

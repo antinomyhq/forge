@@ -293,11 +293,11 @@ impl<
                 let output = format!(
                     "Plan execution started: {} (Total: {}, Todo: {}, In Progress: {}, Completed: {}, Failed: {})",
                     path.display(),
-                    active_plan.plan_stats.total(),
-                    active_plan.plan_stats.todo,
-                    active_plan.plan_stats.in_progress,
-                    active_plan.plan_stats.completed,
-                    active_plan.plan_stats.failed
+                    active_plan.stat.total(),
+                    active_plan.stat.todo,
+                    active_plan.stat.in_progress,
+                    active_plan.stat.completed,
+                    active_plan.stat.failed
                 );
 
                 ToolOperation::PlanExecutionStarted {
