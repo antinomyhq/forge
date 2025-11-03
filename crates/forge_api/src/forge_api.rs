@@ -81,7 +81,15 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         max_diff_size: Option<usize>,
     ) -> Result<forge_app::CommitResult> {
         let git_app = GitApp::new(self.services.clone());
-        git_app.commit(preview, max_diff_size).await
+        let result = git_app.commit_message(max_diff_size).await?;
+
+        if preview {
+            Ok(result)
+        } else {
+            git_app
+                .commit(result.message, result.has_staged_files)
+                .await
+        }
     }
 
     async fn chat(

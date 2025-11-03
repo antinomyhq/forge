@@ -27,6 +27,8 @@ pub struct CommitResult {
     pub message: String,
     /// Whether the commit was actually executed (false for preview mode)
     pub committed: bool,
+    /// Whether there are staged files (used internally)
+    pub has_staged_files: bool,
 }
 
 /// Details about commit message generation
@@ -44,29 +46,34 @@ impl<S: Services> GitApp<S> {
         Self { services }
     }
 
-    /// Commits changes with an AI-generated commit message
+    /// Generates a commit message without committing
     ///
     /// # Arguments
     ///
-    /// * `preview` - If true, only generates the message without committing
     /// * `max_diff_size` - Maximum size of git diff in bytes. None for
     ///   unlimited.
     ///
     /// # Errors
     ///
     /// Returns an error if git operations fail or AI generation fails
-    pub async fn commit(
-        &self,
-        preview: bool,
-        max_diff_size: Option<usize>,
-    ) -> Result<CommitResult> {
+    pub async fn commit_message(&self, max_diff_size: Option<usize>) -> Result<CommitResult> {
         let CommitMessageDetails { message, has_staged_files } =
             self.generate_commit_message(max_diff_size).await?;
 
-        if preview {
-            return Ok(CommitResult { message, committed: false });
-        }
+        Ok(CommitResult { message, committed: false, has_staged_files })
+    }
 
+    /// Commits changes with the provided commit message
+    ///
+    /// # Arguments
+    ///
+    /// * `message` - The commit message to use
+    /// * `has_staged_files` - Whether there are staged files
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if git commit fails
+    pub async fn commit(&self, message: String, has_staged_files: bool) -> Result<CommitResult> {
         let cwd = self.services.environment_service().get_environment().cwd;
 
         let flags = if has_staged_files { "" } else { " -a" };
@@ -83,7 +90,7 @@ impl<S: Services> GitApp<S> {
             anyhow::bail!("Git commit failed: {}", commit_result.output.stderr);
         }
 
-        Ok(CommitResult { message, committed: true })
+        Ok(CommitResult { message, committed: true, has_staged_files })
     }
 
     /// Generates a commit message based on staged git changes and returns
