@@ -9,6 +9,10 @@ use crate::{EnvironmentInfra, FileReaderInfra};
 const ZSH_HISTORY_FILE: &str = ".zsh_history";
 const BASH_HISTORY_FILE: &str = ".bash_history";
 const FISH_HISTORY_FILE: &str = ".local/share/fish/fish_history";
+const POWERSHELL_HISTORY_FILE_WINDOWS: &str =
+    "AppData/Roaming/Microsoft/Windows/PowerShell/PSReadLine/ConsoleHost_history.txt";
+const POWERSHELL_HISTORY_FILE_UNIX: &str =
+    ".local/share/powershell/PSReadLine/ConsoleHost_history.txt";
 
 /// Represents a Fish shell history entry
 #[derive(Debug, Deserialize)]
@@ -31,6 +35,7 @@ enum HistoryFile {
     Zsh,
     Bash,
     Fish,
+    PowerShell,
     Unknown,
 }
 
@@ -44,6 +49,10 @@ impl HistoryFile {
             Self::Bash
         } else if path_str.ends_with(FISH_HISTORY_FILE) {
             Self::Fish
+        } else if path_str.ends_with(POWERSHELL_HISTORY_FILE_WINDOWS)
+            || path_str.ends_with(POWERSHELL_HISTORY_FILE_UNIX)
+        {
+            Self::PowerShell
         } else {
             Self::Unknown
         }
@@ -52,7 +61,9 @@ impl HistoryFile {
     /// Parses history file content based on the shell format
     fn parse(self, content: &str) -> Vec<String> {
         match self {
-            Self::Unknown | Self::Bash => content.lines().map(String::from).collect(),
+            Self::Unknown | Self::Bash | Self::PowerShell => {
+                content.lines().map(String::from).collect()
+            }
             Self::Zsh => content
                 .lines()
                 .filter_map(|line| {
@@ -77,6 +88,13 @@ impl HistoryFile {
             BASH_HISTORY_FILE
         } else if shell.contains("fish") {
             FISH_HISTORY_FILE
+        } else if shell.contains("pwsh") || shell.contains("powershell") {
+            // Try Unix location first, then Windows
+            let unix_path = home.join(POWERSHELL_HISTORY_FILE_UNIX);
+            if unix_path.exists() {
+                return Some(unix_path);
+            }
+            POWERSHELL_HISTORY_FILE_WINDOWS
         } else {
             return None;
         };
@@ -157,16 +175,25 @@ mod tests {
         let fixture_zsh = PathBuf::from("/home/user/.zsh_history");
         let fixture_bash = PathBuf::from("/home/user/.bash_history");
         let fixture_fish = PathBuf::from("/home/user/.local/share/fish/fish_history");
+        let fixture_powershell_unix =
+            PathBuf::from("/home/user/.local/share/powershell/PSReadLine/ConsoleHost_history.txt");
+        let fixture_powershell_windows = PathBuf::from(
+            "C:/Users/user/AppData/Roaming/Microsoft/Windows/PowerShell/PSReadLine/ConsoleHost_history.txt",
+        );
         let fixture_unknown = PathBuf::from("/home/user/.unknown_history");
 
         let actual_zsh = HistoryFile::from_path(&fixture_zsh);
         let actual_bash = HistoryFile::from_path(&fixture_bash);
         let actual_fish = HistoryFile::from_path(&fixture_fish);
+        let actual_powershell_unix = HistoryFile::from_path(&fixture_powershell_unix);
+        let actual_powershell_windows = HistoryFile::from_path(&fixture_powershell_windows);
         let actual_unknown = HistoryFile::from_path(&fixture_unknown);
 
         assert!(matches!(actual_zsh, HistoryFile::Zsh));
         assert!(matches!(actual_bash, HistoryFile::Bash));
         assert!(matches!(actual_fish, HistoryFile::Fish));
+        assert!(matches!(actual_powershell_unix, HistoryFile::PowerShell));
+        assert!(matches!(actual_powershell_windows, HistoryFile::PowerShell));
         assert!(matches!(actual_unknown, HistoryFile::Unknown));
     }
 
@@ -192,6 +219,19 @@ mod tests {
             "echo hello".to_string(),
             "ls -la".to_string(),
             "cd /tmp".to_string(),
+        ];
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_history_file_parse_powershell() {
+        let fixture = "Get-Process\nSet-Location C:\\Projects\ndotnet build";
+        let actual = HistoryFile::PowerShell.parse(fixture);
+
+        let expected = vec![
+            "Get-Process".to_string(),
+            "Set-Location C:\\Projects".to_string(),
+            "dotnet build".to_string(),
         ];
         assert_eq!(actual, expected);
     }
