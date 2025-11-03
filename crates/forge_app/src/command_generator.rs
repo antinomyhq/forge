@@ -3,10 +3,7 @@ use std::{path::PathBuf, sync::Arc};
 use anyhow::Result;
 use forge_domain::*;
 
-use crate::{
-    AgentRegistry, AppConfigService, EnvironmentService, FsReadService, ProviderService, Services,
-    TemplateService,
-};
+use crate::{AppConfigService, EnvironmentService, ProviderService, Services, TemplateService};
 
 /// CommandGenerator handles shell command generation from natural language
 pub struct CommandGenerator<S> {
@@ -41,21 +38,25 @@ impl<S: Services> CommandGenerator<S> {
         let provider = self.services.get_default_provider().await?;
         let model = self.services.get_default_model(&provider.id).await?;
 
+        // Build user prompt with task and recent commands
+        let user_content = if history_context.is_empty() {
+            format!("<task>{}</task>", prompt.as_str())
+        } else {
+            format!(
+                "<recently_executed_commands>\n{}\n</recently_executed_commands>\n\n<task>{}</task>",
+                history_context
+                    .into_iter()
+                    .map(|h| format!("- {}", h))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+                prompt.as_str()
+            )
+        };
+
         // Create context with system and user prompts
         let ctx = Context::default()
             .add_message(ContextMessage::system(rendered_system_prompt))
-            .add_message(ContextMessage::user(
-                format!(
-                    "<recently_executed_commands>{}</recently_executed_commands>\n\n<task>{}</task>",
-                    history_context
-                        .into_iter()
-                        .map(|h| format!("- {}", h))
-                        .collect::<Vec<_>>()
-                        .join("\n"),
-                    prompt.as_str()
-                ),
-                Some(model.clone()),
-            ));
+            .add_message(ContextMessage::user(user_content, Some(model.clone())));
 
         // Send message to LLM
         let stream = self
