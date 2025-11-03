@@ -275,15 +275,25 @@ function _forge_action_conversation() {
             prompt_text="Conversation [Current: ${current_id}] ❯ "
         fi
         
-        local selected_conversation
-        # Use fzf with preview showing the last message from the conversation
-        selected_conversation=$(echo "$conversations_output" | _forge_fzf \
-            --prompt="$prompt_text" \
-            --delimiter="$_FORGE_DELIMITER" \
-            --with-nth=2,3 \
-            --preview="$_FORGE_BIN session show {1}" \
+        local fzf_args=(
+            --prompt="$prompt_text"
+            --delimiter="$_FORGE_DELIMITER"
+            --with-nth=2 3
+            --preview="$_FORGE_BIN session show {1}"
             --preview-window=right:60%:wrap:border-sharp
         )
+        
+        # If there's a current conversation, position cursor on it
+        if [[ -n "$current_id" ]]; then
+            local index=$(_forge_find_index "$conversations_output" "$current_id")
+            if [[ $index -ge 0 ]]; then
+                fzf_args+=(--bind="start:pos($index)")
+            fi
+        fi
+        
+        local selected_conversation
+        # Use fzf with preview showing the last message from the conversation
+        selected_conversation=$(echo "$conversations_output" | _forge_fzf "${fzf_args[@]}")
         
         if [[ -n "$selected_conversation" ]]; then
             # Extract the first field (UUID) - everything before the first multi-space delimiter
