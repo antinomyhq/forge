@@ -245,7 +245,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_shell_commands_filters_forge_commands() {
-        let actual = get_recently_executed_shell_commands("echo hello\nforge --help\ngit status", 10).await;
+        let actual =
+            get_recently_executed_shell_commands("echo hello\nforge --help\ngit status", 10).await;
         let expected = vec!["echo hello".to_string(), "git status".to_string()];
         assert_eq!(actual, expected);
     }
@@ -259,8 +260,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_shell_commands_deduplicates_keeping_last_occurrence() {
-        let actual =
-            get_recently_executed_shell_commands("git status\nls\ngit status\necho hello\nls\npwd", 10).await;
+        let actual = get_recently_executed_shell_commands(
+            "git status\nls\ngit status\necho hello\nls\npwd",
+            10,
+        )
+        .await;
         let expected = vec![
             "git status".to_string(),
             "echo hello".to_string(),
