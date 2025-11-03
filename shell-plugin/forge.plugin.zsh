@@ -37,6 +37,50 @@ function _forge_get_commands() {
     echo "$_FORGE_COMMANDS"
 }
 
+
+# Verify that all required dependencies are installed
+# Returns 0 if all dependencies are present, 1 if any are missing
+function forge_verify_dependencies() {
+    local missing_deps=()
+    local warnings=()
+    
+    # Check forge binary
+    command -v "$_FORGE_BIN" &>/dev/null || missing_deps+=("forge")
+    
+    # Check ZLE widgets registration
+    if ! zle -l | grep -q "forge-accept-line"; then
+        warnings+=("ZLE widget 'forge-accept-line' not registered")
+    fi
+    if ! zle -l | grep -q "forge-completion"; then
+        warnings+=("ZLE widget 'forge-completion' not registered")
+    fi
+    
+    # Check zsh-syntax-highlighting
+    if [[ -z "$ZSH_HIGHLIGHT_VERSION" ]]; then
+        missing_deps+=("zsh-syntax-highlighting")
+    fi
+    
+    # Check optional dependencies
+    command -v fzf &>/dev/null || warnings+=("fzf (optional)")
+    command -v fd &>/dev/null || command -v fdfind &>/dev/null || warnings+=("fd (optional)")
+    
+    # Report results
+    if [[ ${#missing_deps[@]} -eq 0 && ${#warnings[@]} -eq 0 ]]; then
+        echo "\033[32m✓\033[0m All dependencies verified:"
+        echo "  • forge: $($_FORGE_BIN --version 2>/dev/null | head -1)"
+        echo "  • ZLE widgets: forge-accept-line, forge-completion"
+        echo "  • zsh-syntax-highlighting: v$ZSH_HIGHLIGHT_VERSION"
+        command -v fzf &>/dev/null && echo "  • fzf: $(fzf --version 2>/dev/null)"
+        command -v fd &>/dev/null && echo "  • fd: $(fd --version 2>/dev/null | head -1)"
+        command -v fdfind &>/dev/null && echo "  • fd: $(fdfind --version 2>/dev/null | head -1)"
+        return 0
+    else
+        [[ ${#missing_deps[@]} -gt 0 ]] && echo "\033[31m✗\033[0m Missing (required): ${missing_deps[*]}"
+        [[ ${#warnings[@]} -gt 0 ]] && echo "\033[33m⚠\033[0m Warnings: ${warnings[*]}"
+        return 1
+    fi
+}
+
 # Private fzf function with common options for consistent UX
 function _forge_fzf() {
     fzf --cycle --select-1 --height 100% --reverse --no-scrollbar "$@"

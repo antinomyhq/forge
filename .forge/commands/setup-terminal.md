@@ -31,10 +31,9 @@ Priority order (check in this sequence):
 
 **Note**: When using package managers (brew/apt/etc), the sourcing is handled automatically. With Oh My Zsh plugins or manual installation, you must ensure it loads LAST in ~/.zshrc.
 
-**Step 2: Install fd and fzf (Optional but Recommended)**
+**Step 2: Install fd and fzf**
 - Package manager: `brew install fd fzf` or `apt install fd-find fzf` or `pacman -S fd fzf`
 - Note: Ubuntu/Debian uses `fd-find` package name
-- Skip if installation fails - user can add later
 
 **Step 3: Configure ZSH Integration**
 Detect Forge installation type: Use `which forge` or `command -v forge` to check if installed globally, otherwise use `npx forgecode@latest`
@@ -62,19 +61,15 @@ Remove any existing FORGE_BIN exports or Forge integration lines to avoid duplic
   - Before we run the verification steps, we've to reload shell with following commands.
     commands: `source ~/.zshrc` or `exec zsh`
 
-Run verification tests:
-1. **ZLE Widgets Registration**: Check if forge widgets are registered
-   ```bash
-   zsh -i -c 'zle -l | grep -E "forge-(accept-line|completion)"'
-   ```
-   Should return both `forge-accept-line` and `forge-completion`
+Run verification using the built-in function:
+```bash
+zsh -i -c 'forge_verify_dependencies'
+```
 
-2. **Syntax highlighting**: Check if `$ZSH_HIGHLIGHT_VERSION` is set (indicates zsh-syntax-highlighting loaded)
-
-3. **fd/fzf integration** (if installed in Step 2):
-   - Check `which fd` or `which fdfind` returns a path
-   - Check `which fzf` returns a path
-   - If both exist, fuzzy finding features will work
+This function will automatically check:
+- ZLE Widgets Registration (forge-accept-line and forge-completion)
+- zsh-syntax-highlighting installation and version
+- fd/fzf integration
 
 Report any test failures for troubleshooting.
 
