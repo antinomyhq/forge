@@ -390,26 +390,28 @@ impl<S: AgentService> Orchestrator<S> {
                 }
             }
 
-            if should_yield && let Ok(Some(active_plan)) = tool_context.get_active_plan()
-                && !active_plan.is_complete() {
-                    let Ok(rendered_prompt) = self
-                        .services
-                        .render(
-                            Template::new("forge-plan-notification.md"),
-                            &serde_json::json!({
-                                "plan": active_plan
-                            }),
-                        )
-                        .await
-                    else {
-                        continue;
-                    };
-                    context = context.add_message(ContextMessage::user(
-                        rendered_prompt,
-                        self.agent.model.clone(),
-                    ));
-                    should_yield = false;
-                }
+            if should_yield
+                && let Ok(Some(active_plan)) = tool_context.get_active_plan()
+                && !active_plan.is_complete()
+            {
+                let Ok(rendered_prompt) = self
+                    .services
+                    .render(
+                        Template::new("forge-plan-notification.md"),
+                        &serde_json::json!({
+                            "plan": active_plan
+                        }),
+                    )
+                    .await
+                else {
+                    continue;
+                };
+                context = context.add_message(ContextMessage::user(
+                    rendered_prompt,
+                    self.agent.model.clone(),
+                ));
+                should_yield = false;
+            }
         }
 
         // Update metrics in conversation
