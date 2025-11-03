@@ -29,6 +29,9 @@ ZSH_HIGHLIGHT_HIGHLIGHTERS+=(pattern)
 # Style the conversation pattern with appropriate highlighting
 # Keywords in yellow, rest in default white
 
+# Highlight :? command in yellow
+ZSH_HIGHLIGHT_PATTERNS+=('(#s):\?' 'fg=yellow,bold')
+
 # Highlight colon + word at the beginning in yellow
 ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z]#' 'fg=yellow,bold')
 
@@ -303,6 +306,33 @@ function _forge_action_tools() {
     _forge_reset
 }
 
+# Action handler: Generate shell command from natural language
+# Usage: :? <description>
+function _forge_action_cmd() {
+    local description="$1"
+    
+    if [[ -z "$description" ]]; then
+        echo "\033[31m✗\033[0m Please provide a command description"
+        _forge_reset
+        return 0
+    fi
+    
+    # Generate the command
+    echo
+    local generated_command
+    generated_command=$(_forge_exec cmd "$description")
+    
+    if [[ -n "$generated_command" ]]; then
+        # Replace the buffer with the generated command
+        BUFFER="$generated_command"
+        CURSOR=${#BUFFER}
+        zle reset-prompt
+    else
+        echo "\033[31m✗\033[0m Failed to generate command"
+        _forge_reset
+    fi
+}
+
 # Action handler: Set active agent or execute command
 function _forge_action_default() {
     local user_action="$1"
@@ -362,11 +392,15 @@ function forge-accept-line() {
     local input_text=""
     
     # Check if the line starts with any of the supported patterns
-    if [[ "$BUFFER" =~ "^:([a-zA-Z][a-zA-Z0-9_-]*)( (.*))?$" ]]; then
+    if [[ "$BUFFER" =~ "^:\? (.*)$" ]]; then
+        # Command generation: :? <description>
+        user_action="cmd"
+        input_text="${match[1]}"
+    elif [[ "$BUFFER" =~ "^:([a-zA-Z][a-zA-Z0-9_-]*)( (.*))?$" ]]; then
         # Action with or without parameters: :foo or :foo bar baz
         user_action="${match[1]}"
         input_text="${match[3]:-}"  # Use empty string if no parameters
-        elif [[ "$BUFFER" =~ "^: (.*)$" ]]; then
+    elif [[ "$BUFFER" =~ "^: (.*)$" ]]; then
         # Default action with parameters: : something
         user_action=""
         input_text="${match[1]}"
@@ -417,6 +451,9 @@ function forge-accept-line() {
         ;;
         tools)
             _forge_action_tools
+        ;;
+        cmd)
+            _forge_action_cmd "$input_text"
         ;;
         *)
             _forge_action_default "$user_action" "$input_text"
