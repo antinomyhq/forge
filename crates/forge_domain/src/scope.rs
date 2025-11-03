@@ -24,4 +24,3 @@ pub trait ResolveScopeConfig {
     /// Sets configuration at the specified scope.
     async fn set(&self, scope: &ConfigScope, config: Self::Config) -> anyhow::Result<()>;
 }
-
