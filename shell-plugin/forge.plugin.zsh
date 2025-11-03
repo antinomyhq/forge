@@ -58,10 +58,6 @@ function _forge_exec() {
     eval "$_FORGE_BIN --agent $(printf '%q' "$agent_id") $(printf '%q ' "$@")"
 }
 
-function _forge_cmd() {
-    eval '$_FORGE_BIN "$@"'
-}
-
 # Helper function to clear buffer and reset prompt
 function _forge_reset() {
     BUFFER=""
@@ -133,7 +129,7 @@ function _forge_select_and_set_config() {
 
             if [[ -n "$selected" ]]; then
                 local name="${selected%% *}"
-                _forge_cmd config set "$config_flag" "$name"
+                _forge_exec config set "$config_flag" "$name"
             fi
         fi
     )
