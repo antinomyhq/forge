@@ -96,9 +96,20 @@ impl<F: EnvironmentInfra + FileReaderInfra> ExecutedCommands<F> {
             .filter_map(Self::filter_command)
             .collect();
 
+        // Deduplicate commands while preserving order (keep last occurrence)
+        let mut seen = std::collections::HashSet::new();
+        let deduped: Vec<_> = commands
+            .into_iter()
+            .rev()
+            .filter(|cmd| seen.insert(cmd.clone()))
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
+
         // Take the last N commands in chronological order
-        let start = commands.len().saturating_sub(limit);
-        Ok(commands[start..].to_vec())
+        let start = deduped.len().saturating_sub(limit);
+        Ok(deduped[start..].to_vec())
     }
 
     fn filter_command(cmd: String) -> Option<String> {
@@ -225,7 +236,7 @@ mod tests {
         }
     }
 
-    async fn run_shell_commands(content: &str, limit: usize) -> Vec<String> {
+    async fn get_recently_executed_shell_commands(content: &str, limit: usize) -> Vec<String> {
         use fake::{Fake, Faker};
         let fixture = ExecutedCommands::new(Arc::new(MockInfra::new(content.to_string())));
         let env: Environment = Faker.fake();
@@ -234,15 +245,28 @@ mod tests {
 
     #[tokio::test]
     async fn test_shell_commands_filters_forge_commands() {
-        let actual = run_shell_commands("echo hello\nforge --help\ngit status", 10).await;
+        let actual = get_recently_executed_shell_commands("echo hello\nforge --help\ngit status", 10).await;
         let expected = vec!["echo hello".to_string(), "git status".to_string()];
         assert_eq!(actual, expected);
     }
 
     #[tokio::test]
     async fn test_shell_commands_respects_limit() {
-        let actual = run_shell_commands("cmd1\ncmd2\ncmd3\ncmd4\ncmd5", 3).await;
+        let actual = get_recently_executed_shell_commands("cmd1\ncmd2\ncmd3\ncmd4\ncmd5", 3).await;
         let expected = vec!["cmd3".to_string(), "cmd4".to_string(), "cmd5".to_string()];
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_shell_commands_deduplicates_keeping_last_occurrence() {
+        let actual =
+            get_recently_executed_shell_commands("git status\nls\ngit status\necho hello\nls\npwd", 10).await;
+        let expected = vec![
+            "git status".to_string(),
+            "echo hello".to_string(),
+            "ls".to_string(),
+            "pwd".to_string(),
+        ];
         assert_eq!(actual, expected);
     }
 }
