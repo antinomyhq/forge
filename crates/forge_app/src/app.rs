@@ -276,17 +276,14 @@ impl<S: Services> ForgeApp<S> {
 
     pub async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider> {
         let scope = if let Some(agent_id) = agent {
-            ConfigScope::Or(
-                Box::new(ConfigScope::Agent(agent_id)),
-                Box::new(ConfigScope::Global),
-            )
+            ConfigScope::Agent(agent_id).or(ConfigScope::Global)
         } else {
             ConfigScope::Global
         };
 
         let resolver = crate::ProviderResolver::new(self.services.clone());
-        resolver
-            .get(&scope)
+        scope
+            .get(&resolver)
             .await?
             .context("No provider configured")
     }
@@ -295,16 +292,13 @@ impl<S: Services> ForgeApp<S> {
     /// is provided
     pub async fn get_model(&self, agent_id: Option<AgentId>) -> anyhow::Result<ModelId> {
         let scope = if let Some(agent_id) = agent_id {
-            ConfigScope::Or(
-                Box::new(ConfigScope::Agent(agent_id)),
-                Box::new(ConfigScope::Global),
-            )
+            ConfigScope::Agent(agent_id).or(ConfigScope::Global)
         } else {
             ConfigScope::Global
         };
 
         let resolver = crate::ModelResolver::new(self.services.clone());
-        resolver.get(&scope).await?.context("No model configured")
+        scope.get(&resolver).await?.context("No model configured")
     }
 
     pub async fn set_default_model(
@@ -319,6 +313,8 @@ impl<S: Services> ForgeApp<S> {
         };
 
         let resolver = crate::ModelResolver::new(self.services.clone());
-        resolver.set(&scope, model).await
+        // resolver.set(&scope, model).await
+
+        todo!()
     }
 }

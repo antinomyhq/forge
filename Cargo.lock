@@ -1238,6 +1238,7 @@ name = "forge_domain"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-recursion",
  "async-trait",
  "base64 0.22.1",
  "chrono",
@@ -1251,6 +1252,7 @@ dependencies = [
  "forge_json_repair",
  "forge_template",
  "forge_tool_macros",
+ "futures",
  "glob",
  "insta",
  "is_ci",
