@@ -294,8 +294,12 @@ impl<S: Services> ForgeApp<S> {
         self.services.get_default_model(&provider_id).await
     }
 
-    pub async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
-        let provider_id = self.get_provider(None).await?.id;
+    pub async fn set_default_model(
+        &self,
+        agent_id: Option<AgentId>,
+        model: ModelId,
+    ) -> anyhow::Result<()> {
+        let provider_id = self.get_provider(agent_id).await?.id;
         self.services.set_default_model(model, provider_id).await
     }
 }
