@@ -109,8 +109,8 @@ function _forge_select_and_set_config() {
 }
 
 
-# Helper function to handle session commands that require an active conversation
-function _forge_handle_session_command() {
+# Helper function to handle conversation commands that require an active conversation
+function _forge_handle_conversation_command() {
     local subcommand="$1"
     shift  # Remove first argument, remaining args become extra parameters
     
@@ -123,8 +123,8 @@ function _forge_handle_session_command() {
         return 0
     fi
     
-    # Execute the session command with conversation ID and any extra arguments
-    _forge_exec session "$subcommand" "$_FORGE_CONVERSATION_ID" "$@"
+    # Execute the conversation command with conversation ID and any extra arguments
+    _forge_exec conversation "$subcommand" "$_FORGE_CONVERSATION_ID" "$@"
     
     _forge_reset
     return 0
@@ -214,20 +214,20 @@ function _forge_action_info() {
 function _forge_action_dump() {
     local input_text="$1"
     if [[ "$input_text" == "html" ]]; then
-        _forge_handle_session_command "dump" "html"
+        _forge_handle_conversation_command "dump" "html"
     else
-        _forge_handle_session_command "dump"
+        _forge_handle_conversation_command "dump"
     fi
 }
 
 # Action handler: Compact conversation
 function _forge_action_compact() {
-    _forge_handle_session_command "compact"
+    _forge_handle_conversation_command "compact"
 }
 
 # Action handler: Retry last message
 function _forge_action_retry() {
-    _forge_handle_session_command "retry"
+    _forge_handle_conversation_command "retry"
 }
 
 # Action handler: List/switch conversations
@@ -236,7 +236,7 @@ function _forge_action_conversation() {
     
     # Get conversations list
     local conversations_output
-    conversations_output=$($_FORGE_BIN session list --porcelain 2>/dev/null)
+    conversations_output=$($_FORGE_BIN conversation list --porcelain 2>/dev/null)
     
     if [[ -n "$conversations_output" ]]; then
         # Get current conversation ID if set
@@ -254,7 +254,7 @@ function _forge_action_conversation() {
             --prompt="$prompt_text" \
             --delimiter="$_FORGE_DELIMITER" \
             --with-nth=2,3 \
-            --preview="CLICOLOR_FORCE=1 $_FORGE_BIN session info {1}; echo; CLICOLOR_FORCE=1 $_FORGE_BIN session show {1}" \
+            --preview="CLICOLOR_FORCE=1 $_FORGE_BIN conversation info {1}; echo; CLICOLOR_FORCE=1 $_FORGE_BIN conversation show {1}" \
             --preview-window=right:60%:wrap:border-sharp
         )
         
@@ -266,10 +266,10 @@ function _forge_action_conversation() {
             _FORGE_CONVERSATION_ID="$conversation_id"
             # Show conversation content
             echo
-            _forge_exec session show "$conversation_id"
+            _forge_exec conversation show "$conversation_id"
             
             # Show conversation info
-            _forge_exec session info "$conversation_id"
+            _forge_exec conversation info "$conversation_id"
             
             # Print log about conversation switching
             echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Switched to conversation \033[1m${conversation_id}\033[0m"
@@ -336,7 +336,7 @@ function _forge_action_default() {
     
     # Generate conversation ID if needed (in parent shell context)
     if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
-        _FORGE_CONVERSATION_ID=$($_FORGE_BIN session new)
+        _FORGE_CONVERSATION_ID=$($_FORGE_BIN conversation new)
     fi
     
     echo
