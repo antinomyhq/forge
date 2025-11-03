@@ -1,8 +1,8 @@
 use std::sync::{Arc, OnceLock};
 
-use forge_app::domain::{Provider, ProviderId, ProviderResponse};
+use forge_app::domain::{ProviderId, ProviderResponse};
 use forge_app::{EnvironmentInfra, FileReaderInfra};
-use forge_domain::{Error, ProviderRepository};
+use forge_domain::{Error, Provider, ProviderEntry, ProviderRepository};
 use handlebars::Handlebars;
 use merge::Merge;
 use serde::Deserialize;
@@ -76,7 +76,7 @@ fn get_provider_configs() -> &'static Vec<ProviderConfig> {
 pub struct ForgeProviderRepository<F> {
     infra: Arc<F>,
     handlebars: &'static Handlebars<'static>,
-    providers: OnceCell<Vec<Provider>>,
+    providers: OnceCell<Vec<ProviderEntry>>,
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
@@ -98,16 +98,16 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
         Ok(configs)
     }
 
-    async fn get_providers(&self) -> &Vec<Provider> {
+    async fn get_providers(&self) -> &Vec<ProviderEntry> {
         self.providers
             .get_or_init(|| async { self.init_providers().await })
             .await
     }
 
-    async fn init_providers(&self) -> Vec<Provider> {
+    async fn init_providers(&self) -> Vec<ProviderEntry> {
         let configs = self.get_merged_configs().await;
 
-        let mut providers: Vec<Provider> = configs
+        let mut providers: Vec<ProviderEntry> = configs
             .into_iter()
             .filter_map(|config| {
                 // Skip Forge provider as it's handled specially
@@ -116,19 +116,23 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
                 }
                 // Try to create configured provider, fallback to unconfigured
                 self.create_provider(&config)
-                    .or_else(|_| self.create_unconfigured_provider(&config))
+                    .map(|p| p.to_entry())
+                    .or_else(|_| {
+                        self.create_unconfigured_provider(&config)
+                            .map(|p| p.to_view())
+                    })
                     .ok()
             })
             .collect();
 
         // Sort by ProviderId enum order to ensure deterministic, priority-based
         // ordering
-        providers.sort_by(|a, b| a.id.cmp(&b.id));
+        providers.sort_by_key(|a| a.id());
 
         providers
     }
 
-    fn create_provider(&self, config: &ProviderConfig) -> anyhow::Result<Provider> {
+    fn create_provider(&self, config: &ProviderConfig) -> anyhow::Result<Provider<Url>> {
         // Check API key environment variable
         let api_key = self
             .infra
@@ -176,7 +180,7 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
                             )
                         })?,
                 )?;
-                forge_domain::Models::Url(model_url.into())
+                forge_domain::Models::Url(model_url)
             }
             Models::Hardcoded(model_list) => forge_domain::Models::Hardcoded(model_list.clone()),
         };
@@ -184,32 +188,33 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
         Ok(Provider {
             id: config.id,
             response: config.response_type.clone(),
-            url: final_url.into(),
+            url: final_url,
             key: Some(api_key),
             models,
-            configured: true,
         })
     }
 
     /// Creates an unconfigured provider when environment variables are missing.
-    fn create_unconfigured_provider(&self, config: &ProviderConfig) -> anyhow::Result<Provider> {
+    fn create_unconfigured_provider(
+        &self,
+        config: &ProviderConfig,
+    ) -> anyhow::Result<Provider<forge_domain::Template<String>>> {
         let models = match &config.models {
-            Models::Url(model_url_template) => forge_domain::Models::Url(
-                forge_domain::ProviderUrl::Template(model_url_template.clone()),
-            ),
+            Models::Url(model_url_template) => {
+                forge_domain::Models::Url(forge_domain::Template::new(model_url_template))
+            }
             Models::Hardcoded(model_list) => forge_domain::Models::Hardcoded(model_list.clone()),
         };
         Ok(Provider {
             id: config.id,
             response: config.response_type.clone(),
-            url: forge_domain::ProviderUrl::Template(config.url.clone()),
+            url: forge_domain::Template::new(&config.url),
             key: None,
             models,
-            configured: false,
         })
     }
 
-    async fn provider_from_id(&self, id: ProviderId) -> anyhow::Result<Provider> {
+    async fn provider_from_id(&self, id: ProviderId) -> anyhow::Result<Provider<Url>> {
         // Handle special cases first
         if id == ProviderId::Forge {
             // Forge provider isn't typically configured via env vars in the registry
@@ -220,8 +225,10 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
         self.get_providers()
             .await
             .iter()
-            .find(|p| p.id == id && p.configured)
-            .cloned()
+            .find_map(|p| match p {
+                ProviderEntry::Available(cp) if cp.id == id => Some(cp.clone()),
+                _ => None,
+            })
             .ok_or_else(|| Error::provider_not_available(id).into())
     }
 
@@ -241,11 +248,11 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
 impl<F: EnvironmentInfra + FileReaderInfra + Sync> ProviderRepository
     for ForgeProviderRepository<F>
 {
-    async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>> {
         Ok(self.get_providers().await.clone())
     }
 
-    async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider> {
+    async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider<Url>> {
         self.provider_from_id(id).await
     }
 }
@@ -378,11 +385,11 @@ mod env_tests {
 
     #[async_trait::async_trait]
     impl ProviderRepository for MockInfra {
-        async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
+        async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>> {
             Ok(vec![])
         }
 
-        async fn get_provider(&self, _id: ProviderId) -> anyhow::Result<Provider> {
+        async fn get_provider(&self, _id: ProviderId) -> anyhow::Result<Provider<Url>> {
             Err(anyhow::anyhow!("Provider not found"))
         }
     }
@@ -424,17 +431,17 @@ mod env_tests {
         assert_eq!(provider.key, Some("test-key-123".to_string()));
 
         // Check chat completion URL (url field now contains the chat completion URL)
-        let chat_url = provider.url.as_resolved().expect("Should be resolved URL");
+        let chat_url = provider.url();
         assert_eq!(
             chat_url.as_str(),
             "https://my-test-resource.openai.azure.com/openai/deployments/gpt-4-deployment/chat/completions?api-version=2024-02-01-preview"
         );
 
         // Check model URL
-        match provider.models {
+        match &provider.models {
             forge_domain::Models::Url(model_url) => {
                 assert_eq!(
-                    model_url.as_resolved().expect("Should be resolved URL").as_str(),
+                    model_url.as_str(),
                     "https://my-test-resource.openai.azure.com/openai/models?api-version=2024-02-01-preview"
                 );
             }
@@ -454,28 +461,26 @@ mod env_tests {
 
         let openai_provider = providers
             .iter()
-            .find(|p| p.id == ProviderId::OpenAI)
+            .find_map(|p| match p {
+                ProviderEntry::Available(cp) if cp.id == ProviderId::OpenAI => Some(cp),
+                _ => None,
+            })
             .unwrap();
         let anthropic_provider = providers
             .iter()
-            .find(|p| p.id == ProviderId::Anthropic)
+            .find_map(|p| match p {
+                ProviderEntry::Available(cp) if cp.id == ProviderId::Anthropic => Some(cp),
+                _ => None,
+            })
             .unwrap();
 
         // Regular OpenAI and Anthropic providers use hardcoded URLs
         assert_eq!(
-            openai_provider
-                .url
-                .as_resolved()
-                .expect("Should be resolved")
-                .as_str(),
+            openai_provider.url().as_str(),
             "https://api.openai.com/v1/chat/completions"
         );
         assert_eq!(
-            anthropic_provider
-                .url
-                .as_resolved()
-                .expect("Should be resolved")
-                .as_str(),
+            anthropic_provider.url().as_str(),
             "https://api.anthropic.com/v1/messages"
         );
     }
@@ -551,11 +556,11 @@ mod env_tests {
 
         #[async_trait::async_trait]
         impl ProviderRepository for CustomMockInfra {
-            async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
+            async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>> {
                 Ok(vec![])
             }
 
-            async fn get_provider(&self, _id: ProviderId) -> anyhow::Result<Provider> {
+            async fn get_provider(&self, _id: ProviderId) -> anyhow::Result<Provider<Url>> {
                 Err(anyhow::anyhow!("Provider not found"))
             }
         }

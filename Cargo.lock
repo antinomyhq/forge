@@ -1164,6 +1164,7 @@ dependencies = [
  "forge_services",
  "forge_stream",
  "tokio",
+ "url",
 ]
 
 [[package]]

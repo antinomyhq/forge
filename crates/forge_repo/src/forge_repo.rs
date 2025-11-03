@@ -10,7 +10,7 @@ use forge_app::{
 use forge_domain::{
     AppConfig, AppConfigRepository, AuthCredential, AuthRepository, CommandOutput, Conversation,
     ConversationId, ConversationRepository, Environment, FileInfo, McpServerConfig, Provider,
-    ProviderId, ProviderRepository, Snapshot, SnapshotRepository,
+    ProviderEntry, ProviderId, ProviderRepository, Snapshot, SnapshotRepository,
 };
 use forge_infra::CacacheStorage;
 use reqwest::header::HeaderMap;
@@ -115,11 +115,11 @@ impl<F: Send + Sync> ConversationRepository for ForgeRepo<F> {
 
 #[async_trait::async_trait]
 impl<F: EnvironmentInfra + FileReaderInfra + Send + Sync> ProviderRepository for ForgeRepo<F> {
-    async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>> {
         self.provider_repository.get_all_providers().await
     }
 
-    async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider> {
+    async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider<Url>> {
         self.provider_repository.get_provider(id).await
     }
 }

@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
 use colored::Colorize;
-use forge_api::{Model, Provider, Template};
+use forge_api::{Model, ProviderEntry, Template};
 use forge_domain::{Agent, UserCommand};
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumProperty};
@@ -54,19 +54,23 @@ impl Display for CliModel {
 /// This component provides consistent formatting for provider selection across
 /// the application, showing provider ID with domain information.
 #[derive(Clone)]
-pub struct CliProvider(pub Provider);
+pub struct CliProvider(pub ProviderEntry);
 
 impl Display for CliProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = self.0.id.to_string();
+        let name = self.0.id().to_string();
         write!(f, "{name}")?;
-        if let Some(url) = self.0.url.as_resolved()
-            && let Some(domain) = url.domain()
-        {
-            write!(f, " [{domain}]")?;
-        }
-        if let Some(configured) = self.0.configured.then(|| "✓".green()) {
-            write!(f, " {configured}")?;
+
+        match &self.0 {
+            ProviderEntry::Available(provider) => {
+                if let Some(domain) = provider.url.domain() {
+                    write!(f, " [{domain}]")?;
+                }
+                write!(f, " {}", "✓".green())?;
+            }
+            ProviderEntry::Unavailable(_) => {
+                // No domain or checkmark for unconfigured providers
+            }
         }
         Ok(())
     }
@@ -515,6 +519,7 @@ impl SlashCommand {
 mod tests {
     use console::strip_ansi_codes;
     use forge_api::{ModelId, Models, ProviderId, ProviderResponse};
+    use forge_domain::{Provider, ProviderEntry};
     use pretty_assertions::assert_eq;
     use url::Url;
 
@@ -962,59 +967,45 @@ mod tests {
 
     #[test]
     fn test_cli_provider_display_minimal() {
-        let fixture = Provider {
+        let fixture = ProviderEntry::Available(Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.openai.com/v1/chat/completions")
-                .unwrap()
-                .into(),
+            url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: None,
-            models: Models::Url(
-                Url::parse("https://api.openai.com/v1/models")
-                    .unwrap()
-                    .into(),
-            ),
-            configured: true,
-        };
-        let actual = format!("{}", CliProvider(fixture));
+            models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
+        });
+        let formatted = format!("{}", CliProvider(fixture));
+        let actual = strip_ansi_codes(&formatted);
         let expected = "OpenAI [api.openai.com] ✓";
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_cli_provider_display_with_subdomain() {
-        let fixture = Provider {
+        let fixture = ProviderEntry::Available(Provider {
             id: ProviderId::OpenRouter,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://openrouter.ai/api/v1/chat/completions")
-                .unwrap()
-                .into(),
+            url: Url::parse("https://openrouter.ai/api/v1/chat/completions").unwrap(),
             key: None,
-            models: Models::Url(
-                Url::parse("https://openrouter.ai/api/v1/models")
-                    .unwrap()
-                    .into(),
-            ),
-            configured: true,
-        };
-        let actual = format!("{}", CliProvider(fixture));
+            models: Models::Url(Url::parse("https://openrouter.ai/api/v1/models").unwrap()),
+        });
+        let formatted = format!("{}", CliProvider(fixture));
+        let actual = strip_ansi_codes(&formatted);
         let expected = "OpenRouter [openrouter.ai] ✓";
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_cli_provider_display_no_domain() {
-        let fixture = Provider {
+        let fixture = ProviderEntry::Available(Provider {
             id: ProviderId::Forge,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("http://localhost:8080/chat/completions")
-                .unwrap()
-                .into(),
+            url: Url::parse("http://localhost:8080/chat/completions").unwrap(),
             key: None,
-            models: Models::Url(Url::parse("http://localhost:8080/models").unwrap().into()),
-            configured: true,
-        };
-        let actual = format!("{}", CliProvider(fixture));
+            models: Models::Url(Url::parse("http://localhost:8080/models").unwrap()),
+        });
+        let formatted = format!("{}", CliProvider(fixture));
+        let actual = strip_ansi_codes(&formatted);
         let expected = "Forge [localhost] ✓";
         assert_eq!(actual, expected);
     }

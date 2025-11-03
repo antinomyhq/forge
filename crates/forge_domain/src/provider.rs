@@ -1,10 +1,9 @@
-use derive_setters::Setters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter, EnumString};
 use url::Url;
 
-use crate::{Error, Model};
+use crate::{Model, Template};
 
 /// --- IMPORTANT ---
 /// The order of providers is important because that would be order in which the
@@ -52,145 +51,145 @@ pub enum ProviderResponse {
     Anthropic,
 }
 
-/// Represents a provider URL which can be either a template string or a
-/// resolved URL.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum ProviderUrl {
-    Template(String),
-    Resolved(Url),
-}
-
-impl ProviderUrl {
-    pub fn is_template(&self) -> bool {
-        matches!(self, ProviderUrl::Template(_))
-    }
-
-    pub fn is_resolved(&self) -> bool {
-        matches!(self, ProviderUrl::Resolved(_))
-    }
-
-    pub fn as_template(&self) -> Option<&str> {
-        match self {
-            ProviderUrl::Template(s) => Some(s),
-            ProviderUrl::Resolved(_) => None,
-        }
-    }
-
-    pub fn as_resolved(&self) -> Option<&Url> {
-        match self {
-            ProviderUrl::Template(_) => None,
-            ProviderUrl::Resolved(url) => Some(url),
-        }
-    }
-
-    /// Get the resolved URL or return an error if it's a template
-    pub fn to_resolved(&self, provider_id: &ProviderId) -> anyhow::Result<&Url> {
-        self.as_resolved()
-            .ok_or_else(|| Error::provider_not_available(*provider_id).into())
-    }
-}
-
-impl From<Url> for ProviderUrl {
-    fn from(url: Url) -> Self {
-        ProviderUrl::Resolved(url)
-    }
-}
-
 /// Represents the source of models for a provider
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum Models {
-    /// Models are fetched from a URL
-    Url(ProviderUrl),
-    /// Models are hardcoded in the configuration
+pub enum Models<T> {
+    Url(T),
     Hardcoded(Vec<Model>),
 }
 
-/// Providers that can be used.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Setters)]
-pub struct Provider {
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Provider<T> {
     pub id: ProviderId,
     pub response: ProviderResponse,
-    pub url: ProviderUrl,
+    pub url: T,
     pub key: Option<String>,
-    pub models: Models,
-    pub configured: bool,
+    pub models: Models<T>,
+}
+
+impl<T> Provider<T> {
+    pub fn is_configured(&self) -> bool {
+        self.key.is_some()
+    }
+    pub fn models(&self) -> &Models<T> {
+        &self.models
+    }
+}
+
+impl Provider<Url> {
+    pub fn url(&self) -> &Url {
+        &self.url
+    }
+
+    pub fn to_entry(&self) -> ProviderEntry {
+        ProviderEntry::Available(self.clone())
+    }
+}
+
+impl Provider<Template<String>> {
+    pub fn to_view(&self) -> ProviderEntry {
+        ProviderEntry::Unavailable(self.clone())
+    }
+}
+
+/// Enum for viewing providers in listings where both configured and
+/// unconfigured.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ProviderEntry {
+    Available(Provider<Url>),
+    Unavailable(Provider<Template<String>>),
+}
+
+impl ProviderEntry {
+    /// Returns whether this provider is configured
+    pub fn is_configured(&self) -> bool {
+        match self {
+            ProviderEntry::Available(p) => p.is_configured(),
+            ProviderEntry::Unavailable(p) => p.is_configured(),
+        }
+    }
+
+    pub fn id(&self) -> ProviderId {
+        match self {
+            ProviderEntry::Available(p) => p.id,
+            ProviderEntry::Unavailable(p) => p.id,
+        }
+    }
+
+    /// Gets the response type
+    pub fn response(&self) -> &ProviderResponse {
+        match self {
+            ProviderEntry::Available(p) => &p.response,
+            ProviderEntry::Unavailable(p) => &p.response,
+        }
+    }
+
+    pub fn key(&self) -> Option<&str> {
+        match self {
+            ProviderEntry::Available(p) => p.key.as_deref(),
+            ProviderEntry::Unavailable(p) => p.key.as_deref(),
+        }
+    }
+
+    /// Gets the resolved URL if this is a configured provider
+    pub fn url(&self) -> Option<&Url> {
+        match self {
+            ProviderEntry::Available(p) => Some(p.url()),
+            ProviderEntry::Unavailable(_) => None,
+        }
+    }
 }
 
 #[cfg(test)]
 mod test_helpers {
     use super::*;
     /// Test helper for creating a ZAI provider
-    pub(super) fn zai(key: &str) -> Provider {
+    pub(super) fn zai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::Zai,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions")
-                .unwrap()
-                .into(),
+            url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
             key: Some(key.into()),
-            models: Models::Url(
-                Url::parse("https://api.z.ai/api/paas/v4/models")
-                    .unwrap()
-                    .into(),
-            ),
-            configured: true,
+            models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
         }
     }
 
     /// Test helper for creating a ZAI Coding provider
-    pub(super) fn zai_coding(key: &str) -> Provider {
+    pub(super) fn zai_coding(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::ZaiCoding,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions")
-                .unwrap()
-                .into(),
+            url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
             key: Some(key.into()),
-            models: Models::Url(
-                Url::parse("https://api.z.ai/api/paas/v4/models")
-                    .unwrap()
-                    .into(),
-            ),
-            configured: true,
+            models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
         }
     }
 
     /// Test helper for creating an OpenAI provider
-    pub(super) fn openai(key: &str) -> Provider {
+    pub(super) fn openai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.openai.com/v1/chat/completions")
-                .unwrap()
-                .into(),
+            url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some(key.into()),
-            models: Models::Url(
-                Url::parse("https://api.openai.com/v1/models")
-                    .unwrap()
-                    .into(),
-            ),
-            configured: true,
+            models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
         }
     }
 
     /// Test helper for creating an XAI provider
-    pub(super) fn xai(key: &str) -> Provider {
+    pub(super) fn xai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::Xai,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.x.ai/v1/chat/completions")
-                .unwrap()
-                .into(),
+            url: Url::parse("https://api.x.ai/v1/chat/completions").unwrap(),
             key: Some(key.into()),
-            models: Models::Url(Url::parse("https://api.x.ai/v1/models").unwrap().into()),
-            configured: true,
+            models: Models::Url(Url::parse("https://api.x.ai/v1/models").unwrap()),
         }
     }
 
     /// Test helper for creating a Vertex AI provider
-    pub(super) fn vertex_ai(key: &str, project_id: &str, location: &str) -> Provider {
+    pub(super) fn vertex_ai(key: &str, project_id: &str, location: &str) -> Provider<Url> {
         let (chat_url, model_url) = if location == "global" {
             (
                 format!(
@@ -217,10 +216,9 @@ mod test_helpers {
         Provider {
             id: ProviderId::VertexAi,
             response: ProviderResponse::OpenAI,
-            url: Url::parse(&chat_url).unwrap().into(),
+            url: Url::parse(&chat_url).unwrap(),
             key: Some(key.into()),
-            models: Models::Url(Url::parse(&model_url).unwrap().into()),
-            configured: true,
+            models: Models::Url(Url::parse(&model_url).unwrap()),
         }
     }
 
@@ -230,7 +228,7 @@ mod test_helpers {
         resource_name: &str,
         deployment_name: &str,
         api_version: &str,
-    ) -> Provider {
+    ) -> Provider<Url> {
         let chat_url = format!(
             "https://{}.openai.azure.com/openai/deployments/{}/chat/completions?api-version={}",
             resource_name, deployment_name, api_version
@@ -243,10 +241,9 @@ mod test_helpers {
         Provider {
             id: ProviderId::Azure,
             response: ProviderResponse::OpenAI,
-            url: Url::parse(&chat_url).unwrap().into(),
+            url: Url::parse(&chat_url).unwrap(),
             key: Some(key.into()),
-            models: Models::Url(Url::parse(&model_url).unwrap().into()),
-            configured: true,
+            models: Models::Url(Url::parse(&model_url).unwrap()),
         }
     }
 }
@@ -267,12 +264,9 @@ mod tests {
         let expected = Provider {
             id: ProviderId::Xai,
             response: ProviderResponse::OpenAI,
-            url: Url::from_str("https://api.x.ai/v1/chat/completions")
-                .unwrap()
-                .into(),
+            url: Url::from_str("https://api.x.ai/v1/chat/completions").unwrap(),
             key: Some(fixture.to_string()),
-            models: Models::Url(Url::from_str("https://api.x.ai/v1/models").unwrap().into()),
-            configured: true,
+            models: Models::Url(Url::from_str("https://api.x.ai/v1/models").unwrap()),
         };
         assert_eq!(actual, expected);
     }
@@ -290,9 +284,7 @@ mod tests {
     fn test_zai_coding_to_chat_url() {
         let fixture = zai_coding("test_key");
         let actual = fixture.url.clone();
-        let expected = Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions")
-            .unwrap()
-            .into();
+        let expected = Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap();
         assert_eq!(actual, expected);
     }
 
@@ -300,11 +292,7 @@ mod tests {
     fn test_zai_coding_to_model_url() {
         let fixture = zai_coding("test_key");
         let actual = fixture.models.clone();
-        let expected = Models::Url(
-            Url::parse("https://api.z.ai/api/paas/v4/models")
-                .unwrap()
-                .into(),
-        );
+        let expected = Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap());
         assert_eq!(actual, expected);
     }
 
@@ -312,9 +300,7 @@ mod tests {
     fn test_regular_zai_to_chat_url() {
         let fixture = zai("test_key");
         let actual = fixture.url.clone();
-        let expected = Url::parse("https://api.z.ai/api/paas/v4/chat/completions")
-            .unwrap()
-            .into();
+        let expected = Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap();
         assert_eq!(actual, expected);
     }
 
@@ -322,11 +308,7 @@ mod tests {
     fn test_regular_zai_to_model_url() {
         let fixture = zai("test_key");
         let actual = fixture.models.clone();
-        let expected = Models::Url(
-            Url::parse("https://api.z.ai/api/paas/v4/models")
-                .unwrap()
-                .into(),
-        );
+        let expected = Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap());
         assert_eq!(actual, expected);
     }
 
@@ -334,7 +316,7 @@ mod tests {
     fn test_vertex_ai_global_location() {
         let fixture = vertex_ai("test_token", "forge-452914", "global");
         let actual = fixture.url.clone();
-        let expected = Url::parse("https://aiplatform.googleapis.com/v1/projects/forge-452914/locations/global/endpoints/openapi/chat/completions").unwrap().into();
+        let expected = Url::parse("https://aiplatform.googleapis.com/v1/projects/forge-452914/locations/global/endpoints/openapi/chat/completions").unwrap();
         assert_eq!(actual, expected);
     }
 
@@ -342,7 +324,7 @@ mod tests {
     fn test_vertex_ai_regular_location() {
         let fixture = vertex_ai("test_token", "test_project", "us-central1");
         let actual = fixture.url.clone();
-        let expected = Url::parse("https://us-central1-aiplatform.googleapis.com/v1/projects/test_project/locations/us-central1/endpoints/openapi/chat/completions").unwrap().into();
+        let expected = Url::parse("https://us-central1-aiplatform.googleapis.com/v1/projects/test_project/locations/us-central1/endpoints/openapi/chat/completions").unwrap();
         assert_eq!(actual, expected);
     }
 
@@ -352,7 +334,7 @@ mod tests {
 
         // Check chat completion URL (url field now contains the chat completion URL)
         let actual_chat = fixture.url.clone();
-        let expected_chat = Url::parse("https://my-resource.openai.azure.com/openai/deployments/gpt-4/chat/completions?api-version=2024-02-15-preview").unwrap().into();
+        let expected_chat = Url::parse("https://my-resource.openai.azure.com/openai/deployments/gpt-4/chat/completions?api-version=2024-02-15-preview").unwrap();
         assert_eq!(actual_chat, expected_chat);
 
         // Check model URL
@@ -361,8 +343,7 @@ mod tests {
             Url::parse(
                 "https://my-resource.openai.azure.com/openai/models?api-version=2024-02-15-preview",
             )
-            .unwrap()
-            .into(),
+            .unwrap(),
         );
         assert_eq!(actual_model, expected_model);
 
@@ -376,15 +357,14 @@ mod tests {
 
         // Check chat completion URL
         let actual_chat = fixture.url.clone();
-        let expected_chat = Url::parse("https://east-us.openai.azure.com/openai/deployments/gpt-35-turbo/chat/completions?api-version=2023-05-15").unwrap().into();
+        let expected_chat = Url::parse("https://east-us.openai.azure.com/openai/deployments/gpt-35-turbo/chat/completions?api-version=2023-05-15").unwrap();
         assert_eq!(actual_chat, expected_chat);
 
         // Check model URL
         let actual_model = fixture.models.clone();
         let expected_model = Models::Url(
             Url::parse("https://east-us.openai.azure.com/openai/models?api-version=2023-05-15")
-                .unwrap()
-                .into(),
+                .unwrap(),
         );
         assert_eq!(actual_model, expected_model);
     }

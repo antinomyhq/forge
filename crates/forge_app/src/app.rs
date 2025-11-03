@@ -274,7 +274,7 @@ impl<S: Services> ForgeApp<S> {
         self.services.write_workflow(path, workflow).await
     }
 
-    pub async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider> {
+    pub async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider<url::Url>> {
         if let Some(agent) = agent
             && let Some(agent) = self.services.get_agent(&agent).await?
             && let Some(provider_id) = agent.provider
@@ -294,8 +294,12 @@ impl<S: Services> ForgeApp<S> {
         self.services.get_default_model(&provider_id).await
     }
 
-    pub async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
-        let provider_id = self.get_provider(None).await?.id;
+    pub async fn set_default_model(
+        &self,
+        agent_id: Option<AgentId>,
+        model: ModelId,
+    ) -> anyhow::Result<()> {
+        let provider_id = self.get_provider(agent_id).await?.id;
         self.services.set_default_model(model, provider_id).await
     }
 }
