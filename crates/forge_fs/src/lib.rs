@@ -10,7 +10,6 @@
 
 mod binary_detection;
 mod error;
-mod file_info;
 mod file_size;
 mod is_binary;
 mod meta;
@@ -20,7 +19,6 @@ mod write;
 
 pub use crate::binary_detection::is_binary;
 pub use crate::error::Error;
-pub use crate::file_info::FileInfo;
 
 /// ForgeFS provides a standardized interface for file system operations
 /// with consistent error handling.

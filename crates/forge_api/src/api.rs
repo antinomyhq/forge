@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use forge_app::dto::{InitAuth, ToolsOverview};
+use forge_app::dto::ToolsOverview;
 use forge_app::{User, UserUsage};
-use forge_domain::{AgentId, ModelId};
+use forge_domain::{AgentId, InitAuth, ModelId};
 use forge_stream::MpscStream;
 
 use crate::*;
@@ -139,7 +139,11 @@ pub trait API: Sync + Send {
     async fn get_default_model(&self) -> Option<ModelId>;
 
     /// Sets the operating model
-    async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()>;
+    async fn set_default_model(
+        &self,
+        agent_id: Option<AgentId>,
+        model_id: ModelId,
+    ) -> anyhow::Result<()>;
 
     /// Refresh MCP caches by fetching fresh data
     async fn reload_mcp(&self) -> Result<()>;

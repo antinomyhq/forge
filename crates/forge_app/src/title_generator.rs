@@ -3,9 +3,8 @@ use std::sync::Arc;
 use derive_setters::Setters;
 use forge_domain::{
     ChatCompletionMessageFull, Context, ContextMessage, ConversationId, ModelId, ProviderId,
-    ReasoningConfig, ResultStreamExt, extract_tag_content,
+    ReasoningConfig, ResultStreamExt, Template, UserPrompt, extract_tag_content,
 };
-use serde_json::Value;
 
 use crate::agent::AgentService as AS;
 
@@ -15,7 +14,7 @@ pub struct TitleGenerator<S> {
     /// Shared reference to the agent services used for AI interactions
     services: Arc<S>,
     /// The user prompt to generate a title for
-    user_prompt: Value,
+    user_prompt: UserPrompt,
     /// The model ID to use for title generation
     model_id: ModelId,
     /// Reasoning configuration for the generator.
@@ -27,7 +26,7 @@ pub struct TitleGenerator<S> {
 impl<S: AS> TitleGenerator<S> {
     pub fn new(
         services: Arc<S>,
-        user_prompt: Value,
+        user_prompt: UserPrompt,
         model_id: ModelId,
         provider_id: Option<ProviderId>,
     ) -> Self {
@@ -43,13 +42,13 @@ impl<S: AS> TitleGenerator<S> {
     pub async fn generate(&self) -> anyhow::Result<Option<String>> {
         let template = self
             .services
-            .render("{{> forge-system-prompt-title-generation.md }}", &())
+            .render(
+                Template::new("{{> forge-system-prompt-title-generation.md }}"),
+                &(),
+            )
             .await?;
 
-        let prompt = format!(
-            "<user_prompt>{}</user_prompt>",
-            self.user_prompt.as_str().unwrap_or_default()
-        );
+        let prompt = format!("<user_prompt>{}</user_prompt>", self.user_prompt.as_str());
         let mut ctx = Context::default()
             .temperature(1.0f32)
             .conversation_id(ConversationId::generate())

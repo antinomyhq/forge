@@ -52,6 +52,10 @@ pub struct Cli {
     #[arg(long, default_value_t = false, short = 'r')]
     pub restricted: bool,
 
+    /// Agent ID to use for this session
+    #[arg(long, alias = "aid")]
+    pub agent: Option<AgentId>,
+
     /// Top-level subcommands
     #[command(subcommand)]
     pub subcommands: Option<TopLevelCommand>,
@@ -285,29 +289,15 @@ pub enum ConfigCommand {
 
 #[derive(Parser, Debug, Clone)]
 pub struct ConfigSetArgs {
-    /// Agent to set as active
-    #[arg(long)]
-    pub agent: Option<String>,
+    /// Config field to set
+    pub field: ConfigField,
 
-    /// Model to set as active
-    #[arg(long)]
-    pub model: Option<String>,
-
-    /// Provider to set as active
-    #[arg(long)]
-    pub provider: Option<String>,
-}
-
-impl ConfigSetArgs {
-    /// Check if any field is set (non-interactive mode)
-    pub fn has_any_field(&self) -> bool {
-        self.agent.is_some() || self.model.is_some() || self.provider.is_some()
-    }
+    /// Value to set
+    pub value: String,
 }
 
 #[derive(clap::ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConfigField {
-    Agent,
     Model,
     Provider,
 }
@@ -401,31 +391,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_config_set_with_agent() {
-        let fixture = Cli::parse_from(["forge", "config", "set", "--agent", "muse"]);
-        let actual = match fixture.subcommands {
-            Some(TopLevelCommand::Config(config)) => match config.command {
-                ConfigCommand::Set(args) => args.agent,
-                _ => None,
-            },
-            _ => None,
-        };
-        let expected = Some("muse".to_string());
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
     fn test_config_set_with_model() {
         let fixture = Cli::parse_from([
             "forge",
             "config",
             "set",
-            "--model",
+            "model",
             "anthropic/claude-sonnet-4",
         ]);
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::Config(config)) => match config.command {
-                ConfigCommand::Set(args) => args.model,
+                ConfigCommand::Set(args) if args.field == ConfigField::Model => {
+                    Some(args.value.clone())
+                }
                 _ => None,
             },
             _ => None,
@@ -436,54 +414,17 @@ mod tests {
 
     #[test]
     fn test_config_set_with_provider() {
-        let fixture = Cli::parse_from(["forge", "config", "set", "--provider", "OpenAI"]);
+        let fixture = Cli::parse_from(["forge", "config", "set", "provider", "OpenAI"]);
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::Config(config)) => match config.command {
-                ConfigCommand::Set(args) => args.provider,
+                ConfigCommand::Set(args) if args.field == ConfigField::Provider => {
+                    Some(args.value.clone())
+                }
                 _ => None,
             },
             _ => None,
         };
         let expected = Some("OpenAI".to_string());
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_config_set_with_multiple_fields() {
-        let fixture = Cli::parse_from([
-            "forge",
-            "config",
-            "set",
-            "--agent",
-            "sage",
-            "--model",
-            "gpt-4",
-            "--provider",
-            "OpenAI",
-        ]);
-        let (agent, model, provider) = match fixture.subcommands {
-            Some(TopLevelCommand::Config(config)) => match config.command {
-                ConfigCommand::Set(args) => (args.agent, args.model, args.provider),
-                _ => (None, None, None),
-            },
-            _ => (None, None, None),
-        };
-        assert_eq!(agent, Some("sage".to_string()));
-        assert_eq!(model, Some("gpt-4".to_string()));
-        assert_eq!(provider, Some("OpenAI".to_string()));
-    }
-
-    #[test]
-    fn test_config_set_no_fields() {
-        let fixture = Cli::parse_from(["forge", "config", "set"]);
-        let actual = match fixture.subcommands {
-            Some(TopLevelCommand::Config(config)) => match config.command {
-                ConfigCommand::Set(args) => args.has_any_field(),
-                _ => true,
-            },
-            _ => true,
-        };
-        let expected = false;
         assert_eq!(actual, expected);
     }
 
@@ -513,50 +454,6 @@ mod tests {
     }
 
     #[test]
-    fn test_config_set_args_has_any_field_with_agent() {
-        let fixture = ConfigSetArgs {
-            agent: Some("forge".to_string()),
-            model: None,
-            provider: None,
-        };
-        let actual = fixture.has_any_field();
-        let expected = true;
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_config_set_args_has_any_field_with_model() {
-        let fixture = ConfigSetArgs {
-            agent: None,
-            model: Some("gpt-4".to_string()),
-            provider: None,
-        };
-        let actual = fixture.has_any_field();
-        let expected = true;
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_config_set_args_has_any_field_with_provider() {
-        let fixture = ConfigSetArgs {
-            agent: None,
-            model: None,
-            provider: Some("OpenAI".to_string()),
-        };
-        let actual = fixture.has_any_field();
-        let expected = true;
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_config_set_args_has_no_field() {
-        let fixture = ConfigSetArgs { agent: None, model: None, provider: None };
-        let actual = fixture.has_any_field();
-        let expected = false;
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
     fn test_session_list() {
         let fixture = Cli::parse_from(["forge", "session", "list"]);
         let is_list = match fixture.subcommands {
@@ -566,6 +463,31 @@ mod tests {
             _ => false,
         };
         assert_eq!(is_list, true);
+    }
+
+    #[test]
+    fn test_agent_id_long_flag() {
+        let fixture = Cli::parse_from(["forge", "--agent", "sage"]);
+        assert_eq!(fixture.agent, Some(AgentId::new("sage")));
+    }
+
+    #[test]
+    fn test_agent_id_short_alias() {
+        let fixture = Cli::parse_from(["forge", "--aid", "muse"]);
+        assert_eq!(fixture.agent, Some(AgentId::new("muse")));
+    }
+
+    #[test]
+    fn test_agent_id_with_prompt() {
+        let fixture = Cli::parse_from(["forge", "--agent", "forge", "-p", "test prompt"]);
+        assert_eq!(fixture.agent, Some(AgentId::new("forge")));
+        assert_eq!(fixture.prompt, Some("test prompt".to_string()));
+    }
+
+    #[test]
+    fn test_agent_id_not_provided() {
+        let fixture = Cli::parse_from(["forge"]);
+        assert_eq!(fixture.agent, None);
     }
 
     #[test]

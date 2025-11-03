@@ -1160,6 +1160,7 @@ dependencies = [
  "forge_app",
  "forge_domain",
  "forge_infra",
+ "forge_repo",
  "forge_services",
  "forge_stream",
  "tokio",
@@ -1246,6 +1247,7 @@ dependencies = [
  "derive_setters",
  "eserde",
  "fake",
+ "fnv_rs",
  "forge_json_repair",
  "forge_template",
  "forge_tool_macros",
@@ -1276,6 +1278,7 @@ name = "forge_fs"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "forge_domain",
  "infer",
  "pretty_assertions",
  "tempfile",
@@ -1382,6 +1385,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "forge_repo"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bytes",
+ "chrono",
+ "diesel",
+ "diesel_migrations",
+ "fake",
+ "forge_app",
+ "forge_domain",
+ "forge_fs",
+ "forge_infra",
+ "forge_snaps",
+ "handlebars",
+ "merge 0.2.0",
+ "pretty_assertions",
+ "reqwest 0.12.23",
+ "reqwest-eventsource",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "strum 0.27.2",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
 name = "forge_select"
 version = "0.1.0"
 dependencies = [
@@ -1455,6 +1490,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "fnv_rs",
+ "forge_domain",
  "forge_fs",
  "serde",
  "tempfile",
