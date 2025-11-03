@@ -4,14 +4,14 @@ use std::sync::Arc;
 use anyhow::Result;
 use forge_domain::*;
 
-use crate::{AppConfigService, EnvironmentService, ProviderService, Services, TemplateService};
+use crate::{AppConfigService, EnvironmentInfra, EnvironmentService, ProviderService, Services, TemplateService};
 
 /// CommandGenerator handles shell command generation from natural language
 pub struct CommandGenerator<S> {
     services: Arc<S>,
 }
 
-impl<S: Services> CommandGenerator<S> {
+impl<S: Services + EnvironmentInfra> CommandGenerator<S> {
     /// Creates a new CommandGenerator instance with the provided services.
     pub fn new(services: Arc<S>) -> Self {
         Self { services }
@@ -75,8 +75,7 @@ impl<S: Services> CommandGenerator<S> {
         let env = self.services.environment_service().get_environment();
 
         // First try to use HISTFILE environment variable
-        let history_file = std::env::var("HISTFILE")
-            .ok()
+        let history_file = self.services.get_env_var("HISTFILE")
             .map(PathBuf::from)
             .filter(|path| path.exists())
             .or_else(|| {
