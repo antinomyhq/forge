@@ -104,8 +104,15 @@ impl<S: Services + EnvironmentInfra> CommandGenerator<S> {
                     .map(|s| s.to_string())
                     .collect();
 
-                // Take the last 10 commands in chronological order
-                let start = all_commands.len().saturating_sub(10);
+                // Get the limit from environment variable using infra service, default to 10
+                let limit: usize = self
+                    .services
+                    .get_env_var("FORGE_COMMAND_HISTORY_LIMIT")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(10);
+
+                // Take the last N commands in chronological order
+                let start = all_commands.len().saturating_sub(limit);
                 let commands = all_commands[start..].to_vec();
 
                 return Ok(commands);
