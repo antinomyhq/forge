@@ -10,7 +10,7 @@ use forge_api::{
     InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, Workflow,
 };
 use forge_app::utils::truncate_key;
-use forge_app::{GitAppError, ToolResolver};
+use forge_app::{CommitResult, GitAppError, ToolResolver};
 use forge_display::MarkdownFormat;
 use forge_domain::{ChatResponseContent, ContextMessage, Role, TitleFormat, UserCommand};
 use forge_fs::ForgeFS;
@@ -195,7 +195,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Err(error) => {
                 tracing::error!(error = ?error);
                 let _ = self.writeln_to_stderr(
-                    TitleFormat::error(format!("{error:?}"))
+                    TitleFormat::error(error.to_string())
                         .display()
                         .to_string(),
                 );
@@ -253,7 +253,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                                     tracker::error(&error);
                                     tracing::error!(error = ?error);
                                     self.spinner.stop(None)?;
-                                    self.writeln_title(TitleFormat::error(format!("{error:?}")))?;
+                                    self.writeln_to_stderr(TitleFormat::error(error.to_string()).display().to_string())?;
                                 },
                             }
                         }
@@ -265,7 +265,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     tracker::error(&error);
                     tracing::error!(error = ?error);
                     self.spinner.stop(None)?;
-                    self.writeln_title(TitleFormat::error(format!("{error:?}")))?;
+                    self.writeln_to_stderr(TitleFormat::error(error.to_string()).display().to_string())?;
                 }
             }
             // Centralized prompt call at the end of the loop
@@ -539,34 +539,35 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn handle_commit_command(
         &mut self,
         commit_group: CommitCommandGroup,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<CommitResult> {
         self.spinner.start(Some("Generating commit message"))?;
 
-        // Handle the commit command 
-        match self
+        // Handle the commit command
+        let result = self
             .api
             .commit(commit_group.preview, commit_group.max_diff_size)
-            .await
-        {
+            .await;
+
+        match result {
             Ok(result) => {
                 self.spinner.stop(None)?;
                 if commit_group.preview {
-                    // Print the generated git commit message.
                     self.writeln(&result.message)?;
                 }
+                Ok(result)
             }
             Err(e) => {
                 self.spinner.stop(None)?;
                 if let Some(git_err) = e.downcast_ref::<GitAppError>()
                     && matches!(git_err, GitAppError::NoChangesToCommit)
                 {
-                    return self.writeln_to_stderr(git_err.to_string());
+                    self.writeln_to_stderr(git_err.to_string())?;
+                    Err(e)
+                } else {
+                    Err(e)
                 }
-                return Err(e);
             }
         }
-
-        Ok(())
     }
 
     async fn on_show_agents(&mut self, porcelain: bool) -> anyhow::Result<()> {
@@ -1070,9 +1071,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             SlashCommand::Shell(ref command) => {
                 self.api.execute_shell_command_raw(command).await?;
             }
-            SlashCommand::Commit { preview, max_diff_size } => {
-                let args = CommitCommandGroup { preview, max_diff_size };
-                self.handle_commit_command(args).await?;
+            SlashCommand::Commit { max_diff_size } => {
+                let args = CommitCommandGroup { preview: true, max_diff_size };
+                let result = self.handle_commit_command(args).await?;
+                let flags = if result.has_staged_files { "" } else { " -a" };
+                let commit_command = format!("!git commit{flags} -F -<<'EOF'\n{}\nEOF", result.message);
+                self.console.set_buffer(commit_command);
             }
             SlashCommand::Agent => {
                 #[derive(Clone)]

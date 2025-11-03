@@ -339,12 +339,9 @@ impl ForgeCommandManager {
             "/commit" => {
                 // Support flexible syntax:
                 // /commit              -> commit with AI message
-                // /commit preview      -> preview message only
                 // /commit 5000         -> commit with max-diff of 5000 bytes
-                // /commit preview 5000 -> preview with max-diff
-                let preview = parameters.contains(&"preview");
                 let max_diff_size = parameters.iter().find_map(|&p| p.parse::<usize>().ok());
-                Ok(SlashCommand::Commit { preview, max_diff_size })
+                Ok(SlashCommand::Commit { max_diff_size })
             }
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
@@ -485,16 +482,11 @@ pub enum SlashCommand {
     ///
     /// Examples:
     /// - `/commit` - Generate message and commit
-    /// - `/commit preview` - Preview message without committing
     /// - `/commit 5000` - Commit with max diff of 5000 bytes
-    /// - `/commit preview 5000` - Preview with max diff limit
     #[strum(props(
         usage = "Generate AI commit message and commit changes. Format: /commit <max-diff|preview>"
     ))]
-    Commit {
-        preview: bool,
-        max_diff_size: Option<usize>,
-    },
+    Commit { max_diff_size: Option<usize> },
 }
 
 impl SlashCommand {
@@ -1029,8 +1021,7 @@ mod tests {
         let fixture = ForgeCommandManager::default();
         let actual = fixture.parse("/commit").unwrap();
         match actual {
-            SlashCommand::Commit { preview, max_diff_size } => {
-                assert_eq!(preview, false);
+            SlashCommand::Commit { max_diff_size } => {
                 assert_eq!(max_diff_size, None);
             }
             _ => panic!("Expected Commit command, got {actual:?}"),
@@ -1042,8 +1033,7 @@ mod tests {
         let fixture = ForgeCommandManager::default();
         let actual = fixture.parse("/commit preview").unwrap();
         match actual {
-            SlashCommand::Commit { preview, max_diff_size } => {
-                assert_eq!(preview, true);
+            SlashCommand::Commit { max_diff_size } => {
                 assert_eq!(max_diff_size, None);
             }
             _ => panic!("Expected Commit command with preview, got {actual:?}"),
@@ -1055,8 +1045,7 @@ mod tests {
         let fixture = ForgeCommandManager::default();
         let actual = fixture.parse("/commit 5000").unwrap();
         match actual {
-            SlashCommand::Commit { preview, max_diff_size } => {
-                assert_eq!(preview, false);
+            SlashCommand::Commit { max_diff_size } => {
                 assert_eq!(max_diff_size, Some(5000));
             }
             _ => panic!("Expected Commit command with max_diff_size, got {actual:?}"),
@@ -1068,8 +1057,7 @@ mod tests {
         let fixture = ForgeCommandManager::default();
         let actual = fixture.parse("/commit preview 10000").unwrap();
         match actual {
-            SlashCommand::Commit { preview, max_diff_size } => {
-                assert_eq!(preview, true);
+            SlashCommand::Commit { max_diff_size } => {
                 assert_eq!(max_diff_size, Some(10000));
             }
             _ => panic!("Expected Commit command with all flags, got {actual:?}"),
