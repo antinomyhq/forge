@@ -1,12 +1,11 @@
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Result;
 use forge_domain::*;
 
 use crate::{
-    AppConfigService, EnvironmentInfra, EnvironmentService, ProviderService, Services,
-    TemplateService,
+    AppConfigService, EnvironmentInfra, EnvironmentService, ExecutedCommands, FileReaderInfra,
+    ProviderService, Services, TemplateService,
 };
 
 /// CommandGenerator handles shell command generation from natural language
@@ -15,7 +14,7 @@ pub struct CommandGenerator<S, F> {
     infra: Arc<F>,
 }
 
-impl<S: Services, F: EnvironmentInfra> CommandGenerator<S, F> {
+impl<S: Services, F: EnvironmentInfra + FileReaderInfra> CommandGenerator<S, F> {
     /// Creates a new CommandGenerator instance with the provided services.
     pub fn new(services: Arc<S>, infra: Arc<F>) -> Self {
         Self { services, infra }
@@ -27,7 +26,14 @@ impl<S: Services, F: EnvironmentInfra> CommandGenerator<S, F> {
         let env = self.services.environment_service().get_environment();
 
         // Read command history if available
-        let history_context = self.get_command_history().await.unwrap_or_default();
+        let limit: usize = self
+            .infra
+            .get_env_var("FORGE_COMMAND_HISTORY_LIMIT")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(10);
+        let history_context = ExecutedCommands::new(self.infra.clone())
+            .shell_commands(&env, limit)
+            .await?;
 
         let rendered_system_prompt = self
             .services
@@ -72,59 +78,5 @@ impl<S: Services, F: EnvironmentInfra> CommandGenerator<S, F> {
         let message = stream.into_full(false).await?;
 
         Ok(message.content)
-    }
-
-    /// Get recent command history for context
-    async fn get_command_history(&self) -> Result<Vec<String>> {
-        let env = self.services.environment_service().get_environment();
-
-        // First try to use HISTFILE environment variable
-        let history_file = self
-            .infra
-            .get_env_var("HISTFILE")
-            .map(PathBuf::from)
-            .filter(|path| path.exists())
-            .or_else(|| {
-                let home = env.home.as_ref()?;
-
-                match env.shell.as_str() {
-                    s if s.contains("zsh") => {
-                        let path = home.join(".zsh_history");
-                        path.exists().then_some(path)
-                    }
-                    s if s.contains("bash") => {
-                        let path = home.join(".bash_history");
-                        path.exists().then_some(path)
-                    }
-                    _ => None,
-                }
-            });
-
-        if let Some(history_path) = history_file {
-            // Read the history file directly, handling potential non-UTF-8 bytes
-            if let Ok(bytes) = tokio::fs::read(&history_path).await {
-                let content = String::from_utf8_lossy(&bytes);
-                let all_commands: Vec<String> = content
-                    .lines()
-                    .filter(|line| !line.trim().is_empty())
-                    .map(|s| s.to_string())
-                    .collect();
-
-                // Get the limit from environment variable using infra service, default to 10
-                let limit: usize = self
-                    .infra
-                    .get_env_var("FORGE_COMMAND_HISTORY_LIMIT")
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(10);
-
-                // Take the last N commands in chronological order
-                let start = all_commands.len().saturating_sub(limit);
-                let commands = all_commands[start..].to_vec();
-
-                return Ok(commands);
-            }
-        }
-
-        Ok(Vec::new())
     }
 }
