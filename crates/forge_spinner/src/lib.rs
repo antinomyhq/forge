@@ -157,7 +157,7 @@ impl SpinnerManager {
         self.write_with_restart(message, |msg| println!("{msg}"))
     }
 
-    pub fn stderr_ln(&mut self, message: impl ToString) -> Result<()> {
+    pub fn ewrite_ln(&mut self, message: impl ToString) -> Result<()> {
         self.write_with_restart(message, |msg| eprintln!("{msg}"))
     }
 }

@@ -65,7 +65,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     fn writeln_to_stderr(&mut self, title: String) -> anyhow::Result<()> {
-        self.spinner.stderr_ln(title)
+        self.spinner.ewrite_ln(title)
     }
 
     /// Retrieve available models
