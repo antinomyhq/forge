@@ -67,6 +67,11 @@ function forge_verify_dependencies() {
         missing_deps+=("zsh-syntax-highlighting")
     fi
     
+    # Check zsh-autosuggestions
+    if [[ -z "$ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE" ]]; then
+        missing_deps+=("zsh-autosuggestions")
+    fi
+    
     # Check optional dependencies
     command -v fzf &>/dev/null || warnings+=("fzf (optional)")
     command -v fd &>/dev/null || command -v fdfind &>/dev/null || warnings+=("fd (optional)")
@@ -77,6 +82,7 @@ function forge_verify_dependencies() {
         echo "  • forge: $($_FORGE_BIN --version 2>/dev/null | head -1)"
         echo "  • ZLE widgets: forge-accept-line, forge-completion"
         echo "  • zsh-syntax-highlighting: v$ZSH_HIGHLIGHT_VERSION"
+        echo "  • zsh-autosuggestions: v$ZSH_AUTOSUGGEST_VERSION"
         command -v fzf &>/dev/null && echo "  • fzf: $(fzf --version 2>/dev/null)"
         command -v fd &>/dev/null && echo "  • fd: $(fd --version 2>/dev/null | head -1)"
         command -v fdfind &>/dev/null && echo "  • fd: $(fdfind --version 2>/dev/null | head -1)"
