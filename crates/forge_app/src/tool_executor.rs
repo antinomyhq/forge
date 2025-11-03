@@ -347,6 +347,7 @@ impl<
             let edited_path = match &operation {
                 ToolOperation::FsCreate { input, .. } => Some(PathBuf::from(&input.path)),
                 ToolOperation::FsPatch { input, .. } => Some(PathBuf::from(&input.path)),
+                ToolOperation::FsUndo { input, .. } => Some(PathBuf::from(&input.path)),
                 _ => None,
             };
 
