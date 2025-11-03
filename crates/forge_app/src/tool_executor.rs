@@ -342,6 +342,33 @@ impl<
 
         let operation = execution_result?;
 
+        // If an edit operation was performed on the active plan file, reload and update it
+        if let Some(active_plan) = context.get_active_plan()? {
+            let edited_path = match &operation {
+                ToolOperation::FsCreate { input, .. } => Some(PathBuf::from(&input.path)),
+                ToolOperation::FsPatch { input, .. } => Some(PathBuf::from(&input.path)),
+                _ => None,
+            };
+
+            if let Some(edited_path) = edited_path {
+                if edited_path == active_plan.path {
+                    // Reload the plan file
+                    let normalized_path = self.normalize_path(edited_path.display().to_string());
+                    let content = self
+                        .services
+                        .read(normalized_path, None, None)
+                        .await?
+                        .content
+                        .file_content()
+                        .to_string();
+
+                    // Parse and update the active plan
+                    let updated_plan = crate::plan_parser::parse_plan(edited_path, &content);
+                    context.set_active_plan(updated_plan)?;
+                }
+            }
+        }
+
         // Send formatted output message
         if let Some(output) = operation.to_content(&env) {
             context.send(output).await?;
