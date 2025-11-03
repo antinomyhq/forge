@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use forge_app::dto::ToolsOverview;
 use forge_app::{User, UserUsage};
-use forge_domain::{AgentId, InitAuth, ModelId};
+use forge_domain::{AgentId, ConfigScope, InitAuth, ModelId};
 use forge_stream::MpscStream;
 
 use crate::*;
@@ -111,14 +111,11 @@ pub trait API: Sync + Send {
     /// Logs out the current user and clears authentication data
     async fn logout(&self) -> anyhow::Result<()>;
 
-    /// Retrieves the provider configuration for the specified agent
-    async fn get_agent_provider(&self, agent_id: AgentId) -> anyhow::Result<Provider>;
+    /// Gets the provider for a given configuration scope
+    async fn get_provider(&self, scope: &ConfigScope) -> anyhow::Result<Option<Provider>>;
 
-    /// Retrieves the provider configuration for the default agent
-    async fn get_default_provider(&self) -> anyhow::Result<Provider>;
-
-    /// Sets the default provider for all the agents
-    async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()>;
+    /// Sets the provider for a given configuration scope
+    async fn set_provider(&self, scope: &ConfigScope, provider: Provider) -> anyhow::Result<()>;
 
     /// Retrieves information about the currently authenticated user
     async fn user_info(&self) -> anyhow::Result<Option<User>>;
@@ -132,18 +129,11 @@ pub trait API: Sync + Send {
     /// Sets the active agent
     async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()>;
 
-    /// Gets the model for the specified agent
-    async fn get_agent_model(&self, agent_id: AgentId) -> Option<ModelId>;
+    /// Gets the model for a given configuration scope
+    async fn get_model(&self, scope: &ConfigScope) -> anyhow::Result<Option<ModelId>>;
 
-    /// Gets the default model
-    async fn get_default_model(&self) -> Option<ModelId>;
-
-    /// Sets the operating model
-    async fn set_default_model(
-        &self,
-        agent_id: Option<AgentId>,
-        model_id: ModelId,
-    ) -> anyhow::Result<()>;
+    /// Sets the model for a given configuration scope
+    async fn set_model(&self, scope: &ConfigScope, model: ModelId) -> anyhow::Result<()>;
 
     /// Refresh MCP caches by fetching fresh data
     async fn reload_mcp(&self) -> Result<()>;

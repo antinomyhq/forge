@@ -14,6 +14,7 @@ mod operation;
 mod orch;
 #[cfg(test)]
 mod orch_spec;
+mod resolvers;
 mod retry;
 mod services;
 mod set_conversation_id;
@@ -32,6 +33,7 @@ pub use agent::*;
 pub use app::*;
 pub use error::*;
 pub use infra::*;
+pub use resolvers::*;
 pub use services::*;
 pub use tool_resolver::*;
 pub use user::*;

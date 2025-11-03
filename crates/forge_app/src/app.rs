@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono::Local;
 use forge_domain::{InitAuth, *};
 use forge_stream::MpscStream;
@@ -11,7 +11,7 @@ use crate::authenticator::Authenticator;
 use crate::dto::ToolsOverview;
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
-use crate::services::{AppConfigService, CustomInstructionsService, TemplateService};
+use crate::services::{CustomInstructionsService, TemplateService};
 use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::tool_registry::ToolRegistry;
@@ -275,23 +275,36 @@ impl<S: Services> ForgeApp<S> {
     }
 
     pub async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider> {
-        if let Some(agent) = agent
-            && let Some(agent) = self.services.get_agent(&agent).await?
-            && let Some(provider_id) = agent.provider
-        {
-            return self.services.get_provider(provider_id).await;
-        }
+        let scope = if let Some(agent_id) = agent {
+            ConfigScope::Or(
+                Box::new(ConfigScope::Agent(agent_id)),
+                Box::new(ConfigScope::Global),
+            )
+        } else {
+            ConfigScope::Global
+        };
 
-        // Fall back to original logic if there is no agent
-        // set yet.
-        self.services.get_default_provider().await
+        let resolver = crate::ProviderResolver::new(self.services.clone());
+        resolver
+            .get(&scope)
+            .await?
+            .context("No provider configured")
     }
 
     /// Gets the model for the specified agent, or the default model if no agent
     /// is provided
     pub async fn get_model(&self, agent_id: Option<AgentId>) -> anyhow::Result<ModelId> {
-        let provider_id = self.get_provider(agent_id).await?.id;
-        self.services.get_default_model(&provider_id).await
+        let scope = if let Some(agent_id) = agent_id {
+            ConfigScope::Or(
+                Box::new(ConfigScope::Agent(agent_id)),
+                Box::new(ConfigScope::Global),
+            )
+        } else {
+            ConfigScope::Global
+        };
+
+        let resolver = crate::ModelResolver::new(self.services.clone());
+        resolver.get(&scope).await?.context("No model configured")
     }
 
     pub async fn set_default_model(
@@ -299,7 +312,13 @@ impl<S: Services> ForgeApp<S> {
         agent_id: Option<AgentId>,
         model: ModelId,
     ) -> anyhow::Result<()> {
-        let provider_id = self.get_provider(agent_id).await?.id;
-        self.services.set_default_model(model, provider_id).await
+        let scope = if let Some(agent_id) = agent_id {
+            ConfigScope::Agent(agent_id)
+        } else {
+            ConfigScope::Global
+        };
+
+        let resolver = crate::ModelResolver::new(self.services.clone());
+        resolver.set(&scope, model).await
     }
 }

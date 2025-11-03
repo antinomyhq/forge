@@ -4,10 +4,9 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use forge_app::dto::ToolsOverview;
 use forge_app::{
-    AgentRegistry, AppConfigService, AuthService, CommandInfra, CommandLoaderService,
-    ConversationService, EnvironmentInfra, EnvironmentService, FileDiscoveryService, ForgeApp,
-    McpConfigManager, McpService, ProviderService, Services, User, UserUsage, Walker,
-    WorkflowService,
+    AgentRegistry, AuthService, CommandInfra, CommandLoaderService, ConversationService,
+    EnvironmentInfra, EnvironmentService, FileDiscoveryService, ForgeApp, McpConfigManager,
+    McpService, ProviderService, Services, User, UserUsage, Walker, WorkflowService,
 };
 use forge_domain::{InitAuth, LoginInfo, *};
 use forge_infra::ForgeInfra;
@@ -58,14 +57,12 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     }
 
     async fn get_models(&self) -> Result<Vec<Model>> {
-        Ok(self
-            .services
-            .models(
-                self.get_default_provider()
-                    .await
-                    .context("Failed to fetch models")?,
-            )
-            .await?)
+        let provider = self
+            .get_provider(&ConfigScope::Global)
+            .await
+            .context("Failed to fetch models")?
+            .context("No provider configured")?;
+        Ok(self.services.models(provider).await?)
     }
     async fn get_agents(&self) -> Result<Vec<Agent>> {
         Ok(self.services.get_agents().await?)
@@ -182,20 +179,22 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     async fn logout(&self) -> Result<()> {
         self.app().logout().await
     }
-    async fn get_agent_provider(&self, agent_id: AgentId) -> anyhow::Result<Provider> {
-        self.app().get_provider(Some(agent_id)).await
+
+    async fn get_provider(&self, scope: &ConfigScope) -> anyhow::Result<Option<Provider>> {
+        let resolver = forge_app::ProviderResolver::new(self.services.clone());
+        resolver.get(scope).await
     }
 
-    async fn get_default_provider(&self) -> anyhow::Result<Provider> {
-        self.app().get_provider(None).await
-    }
-
-    async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        self.services.set_default_provider(provider_id).await
+    async fn set_provider(&self, scope: &ConfigScope, provider: Provider) -> anyhow::Result<()> {
+        let resolver = forge_app::ProviderResolver::new(self.services.clone());
+        resolver.set(scope, provider).await
     }
 
     async fn user_info(&self) -> Result<Option<User>> {
-        let provider = self.get_default_provider().await?;
+        let provider = self
+            .get_provider(&ConfigScope::Global)
+            .await?
+            .context("No provider configured")?;
         if let Some(ref api_key) = provider.key {
             let user_info = self.services.user_info(api_key).await?;
             return Ok(Some(user_info));
@@ -204,7 +203,10 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     }
 
     async fn user_usage(&self) -> Result<Option<UserUsage>> {
-        let provider = self.get_default_provider().await?;
+        let provider = self
+            .get_provider(&ConfigScope::Global)
+            .await?
+            .context("No provider configured")?;
         if let Some(ref api_key) = provider.key {
             let user_usage = self.services.user_usage(api_key).await?;
             return Ok(Some(user_usage));
@@ -220,19 +222,14 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         self.services.set_active_agent_id(agent_id).await
     }
 
-    async fn get_agent_model(&self, agent_id: AgentId) -> Option<ModelId> {
-        self.app().get_model(Some(agent_id)).await.ok()
+    async fn get_model(&self, scope: &ConfigScope) -> anyhow::Result<Option<ModelId>> {
+        let resolver = forge_app::ModelResolver::new(self.services.clone());
+        resolver.get(scope).await
     }
 
-    async fn get_default_model(&self) -> Option<ModelId> {
-        self.app().get_model(None).await.ok()
-    }
-    async fn set_default_model(
-        &self,
-        agent_id: Option<AgentId>,
-        model_id: ModelId,
-    ) -> anyhow::Result<()> {
-        self.app().set_default_model(agent_id, model_id).await
+    async fn set_model(&self, scope: &ConfigScope, model: ModelId) -> anyhow::Result<()> {
+        let resolver = forge_app::ModelResolver::new(self.services.clone());
+        resolver.set(scope, model).await
     }
 
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {
