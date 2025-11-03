@@ -10,4 +10,4 @@ Convert natural language descriptions into executable shell commands.
 {{> forge-partial-system-info.md }}
 </system_information>
 
-The user's task will be provided in <task> tags. If available, recently executed commands will be provided in <recent_commands> tags for context. Output only the executable command but nothing else.
+The user's task will be provided in <task> tags. If available, recently executed commands will be provided in <recently_executed_commands> tags for context. Output only the executable command but nothing else.
