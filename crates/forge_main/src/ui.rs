@@ -542,7 +542,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     ) -> anyhow::Result<()> {
         self.spinner.start(Some("Generating commit message"))?;
 
-        // Handle the commit command
+        // Handle the commit command 
         match self
             .api
             .commit(commit_group.preview, commit_group.max_diff_size)
