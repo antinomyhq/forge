@@ -32,7 +32,7 @@ impl<S: Services> ChangedFiles<S> {
             .await;
 
         if changes.is_empty() {
-            return conversation;
+            return conversation.context(context);
         }
 
         // Update file hashes to prevent duplicate notifications
