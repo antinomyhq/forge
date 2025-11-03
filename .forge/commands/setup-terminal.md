@@ -21,7 +21,7 @@ Detect the package managers installed on the system and use the appropriate one 
 
 ## Step 2: Install Dependencies
 
-Use detected package manager to install (only if not already installed):
+Use detected package manager to install dependency if it's not installed already.
 - zsh-syntax-highlighting
 - zsh-autosuggestions
 - fd (note: use `fd-find` on Ubuntu/Debian)
