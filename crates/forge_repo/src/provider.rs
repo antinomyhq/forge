@@ -110,25 +110,31 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
     }
 
     async fn init_providers(&self) -> Vec<ProviderEntry> {
+        // Run migration if needed (one-time)
+        self.migrate_env_to_file().await.ok();
+
         let configs = self.get_merged_configs().await;
 
-        let mut providers: Vec<ProviderEntry> = configs
-            .into_iter()
-            .filter_map(|config| {
-                // Skip Forge provider as it's handled specially
-                if config.id == ProviderId::Forge {
-                    return None;
-                }
-                // Try to create configured provider, fallback to unconfigured
-                self.create_provider(&config)
-                    .map(|p| p.to_entry())
-                    .or_else(|_| {
-                        self.create_unconfigured_provider(&config)
-                            .map(|p| p.to_view())
-                    })
-                    .ok()
-            })
-            .collect();
+        let mut providers: Vec<ProviderEntry> = Vec::new();
+        for config in configs {
+            // Skip Forge provider as it's handled specially
+            if config.id == ProviderId::Forge {
+                continue;
+            }
+
+            // Try to create configured provider, fallback to unconfigured
+            let provider_entry = if let Ok(provider) = self.create_provider(&config).await {
+                Some(provider.to_entry())
+            } else if let Ok(provider) = self.create_unconfigured_provider(&config) {
+                Some(provider.to_view())
+            } else {
+                None
+            };
+
+            if let Some(entry) = provider_entry {
+                providers.push(entry);
+            }
+        }
 
         // Sort by ProviderId enum order to ensure deterministic, priority-based
         // ordering
@@ -137,28 +143,109 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
         providers
     }
 
-    fn create_provider(&self, config: &ProviderConfig) -> anyhow::Result<Provider<Url>> {
+    /// Migrates environment variable-based credentials to file-based
+    /// credentials. This is a one-time migration that runs only if the
+    /// credentials file doesn't exist.
+    async fn migrate_env_to_file(&self) -> anyhow::Result<()> {
+        let path = self
+            .infra
+            .get_environment()
+            .base_path
+            .join(".provider_credentials.json");
+
+        // Check if credentials file already exists
+        if self.infra.read_utf8(&path).await.is_ok() {
+            return Ok(());
+        }
+
+        let mut credentials = Vec::new();
+        let configs = self.get_merged_configs().await;
+
+        let has_openai_url = self.infra.get_env_var("OPENAI_URL").is_some();
+        let has_anthropic_url = self.infra.get_env_var("ANTHROPIC_URL").is_some();
+
+        for config in configs {
+            // Skip Forge provider
+            if config.id == ProviderId::Forge {
+                continue;
+            }
+
+            if config.id == ProviderId::OpenAI && has_openai_url {
+                continue;
+            }
+            if config.id == ProviderId::OpenAICompatible && !has_openai_url {
+                continue;
+            }
+            if config.id == ProviderId::Anthropic && has_anthropic_url {
+                continue;
+            }
+            if config.id == ProviderId::AnthropicCompatible && !has_anthropic_url {
+                continue;
+            }
+
+            // Try to create credential from environment variables
+            if let Ok(credential) = self.create_credential_from_env(&config) {
+                credentials.push(credential);
+            }
+        }
+
+        // Only write if we have credentials to migrate
+        if !credentials.is_empty() {
+            self.write_credentials(&credentials).await?;
+        }
+
+        Ok(())
+    }
+
+    /// Creates a credential from environment variables for a given config
+    fn create_credential_from_env(
+        &self,
+        config: &ProviderConfig,
+    ) -> anyhow::Result<AuthCredential> {
         // Check API key environment variable
         let api_key = self
             .infra
             .get_env_var(&config.api_key_vars)
             .ok_or_else(|| Error::env_var_not_found(config.id, &config.api_key_vars))?;
 
-        // Check URL parameter environment variables and build template data
-        // URL parameters are optional - only add them if they exist
-        let mut template_data = std::collections::HashMap::new();
+        // Check URL parameter environment variables
         let mut url_params = std::collections::HashMap::new();
 
         for env_var in &config.url_param_vars {
             if let Some(value) = self.infra.get_env_var(env_var) {
-                template_data.insert(env_var, value.clone());
                 url_params.insert(URLParam::from(env_var.clone()), URLParamValue::from(value));
-            } else if env_var == "OPENAI_URL" {
-                template_data.insert(env_var, "https://api.openai.com/v1".to_string());
-            } else if env_var == "ANTHROPIC_URL" {
-                template_data.insert(env_var, "https://api.anthropic.com/v1".to_string());
             } else {
                 return Err(Error::env_var_not_found(config.id, env_var).into());
+            }
+        }
+
+        // Create AuthCredential
+        Ok(AuthCredential {
+            id: config.id,
+            auth_details: AuthDetails::ApiKey(ApiKey::from(api_key)),
+            url_params: if url_params.is_empty() {
+                None
+            } else {
+                Some(url_params)
+            },
+        })
+    }
+
+    /// Creates a configured provider from file-based credentials.
+    /// The credential file (.provider_credentials.json) is the single source of
+    /// truth.
+    async fn create_provider(&self, config: &ProviderConfig) -> anyhow::Result<Provider<Url>> {
+        // Get credential from file
+        let credential = self
+            .get_credential(&config.id)
+            .await?
+            .ok_or_else(|| Error::provider_not_available(config.id))?;
+
+        // Build template data from URL parameters in credential
+        let mut template_data = std::collections::HashMap::new();
+        if let Some(ref url_params) = credential.url_params {
+            for (param, value) in url_params {
+                template_data.insert(param.as_str(), value.as_str());
             }
         }
 
@@ -192,17 +279,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
             Models::Hardcoded(model_list) => forge_domain::Models::Hardcoded(model_list.clone()),
         };
 
-        // Create AuthCredential
-        let credential = AuthCredential {
-            id: config.id,
-            auth_details: AuthDetails::ApiKey(ApiKey::from(api_key)),
-            url_params: if url_params.is_empty() {
-                None
-            } else {
-                Some(url_params)
-            },
-        };
-
         Ok(Provider {
             id: config.id,
             response: config.response_type.clone(),
@@ -212,7 +288,9 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
         })
     }
 
-    /// Creates an unconfigured provider when environment variables are missing.
+    /// Creates an unconfigured provider when credentials are not available.
+    /// Used to show providers in listings even when they haven't been
+    /// configured.
     fn create_unconfigured_provider(
         &self,
         config: &ProviderConfig,
@@ -260,6 +338,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
 
         configs.0
     }
+
     async fn read_credentials(&self) -> Vec<AuthCredential> {
         let path = self
             .infra
@@ -309,6 +388,11 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Sync> ProviderRep
             credentials.push(credential);
         }
         self.write_credentials(&credentials).await?;
+
+        // Clear cached providers to force reload with new credentials
+        // Note: We can't actually clear OnceCell, so the providers will only be
+        // updated on next app restart. This is acceptable as credential changes
+        // are rare.
 
         Ok(())
     }
@@ -396,6 +480,34 @@ mod tests {
             Models::Hardcoded(_) => panic!("Expected Models::Url variant"),
         }
     }
+
+    #[test]
+    fn test_openai_compatible_config() {
+        let configs = get_provider_configs();
+        let config = configs
+            .iter()
+            .find(|c| c.id == ProviderId::OpenAICompatible)
+            .unwrap();
+        assert_eq!(config.id, ProviderId::OpenAICompatible);
+        assert_eq!(config.api_key_vars, "OPENAI_API_KEY");
+        assert_eq!(config.url_param_vars, vec!["OPENAI_URL".to_string()]);
+        assert_eq!(config.response_type, ProviderResponse::OpenAI);
+        assert!(config.url.contains("{{OPENAI_URL}}"));
+    }
+
+    #[test]
+    fn test_anthropic_compatible_config() {
+        let configs = get_provider_configs();
+        let config = configs
+            .iter()
+            .find(|c| c.id == ProviderId::AnthropicCompatible)
+            .unwrap();
+        assert_eq!(config.id, ProviderId::AnthropicCompatible);
+        assert_eq!(config.api_key_vars, "ANTHROPIC_API_KEY");
+        assert_eq!(config.url_param_vars, vec!["ANTHROPIC_URL".to_string()]);
+        assert_eq!(config.response_type, ProviderResponse::Anthropic);
+        assert!(config.url.contains("{{ANTHROPIC_URL}}"));
+    }
 }
 
 #[cfg(test)]
@@ -412,12 +524,27 @@ mod env_tests {
     // Mock infrastructure that provides environment variables
     struct MockInfra {
         env_vars: HashMap<String, String>,
+        base_path: PathBuf,
+        credentials: tokio::sync::Mutex<Option<Vec<AuthCredential>>>,
+    }
+
+    impl MockInfra {
+        fn new(env_vars: HashMap<String, String>) -> Self {
+            use fake::{Fake, Faker};
+            Self {
+                env_vars,
+                base_path: Faker.fake(),
+                credentials: tokio::sync::Mutex::new(None),
+            }
+        }
     }
 
     impl EnvironmentInfra for MockInfra {
         fn get_environment(&self) -> Environment {
             use fake::{Fake, Faker};
-            Faker.fake()
+            let mut env: Environment = Faker.fake();
+            env.base_path = self.base_path.clone();
+            env
         }
 
         fn get_env_var(&self, key: &str) -> Option<String> {
@@ -427,7 +554,14 @@ mod env_tests {
 
     #[async_trait::async_trait]
     impl FileReaderInfra for MockInfra {
-        async fn read_utf8(&self, _path: &std::path::Path) -> anyhow::Result<String> {
+        async fn read_utf8(&self, path: &std::path::Path) -> anyhow::Result<String> {
+            // Check if it's the credentials file
+            if path.ends_with(".provider_credentials.json") {
+                let guard = self.credentials.lock().await;
+                if let Some(ref creds) = *guard {
+                    return Ok(serde_json::to_string(creds)?);
+                }
+            }
             Err(anyhow::anyhow!("File not found"))
         }
 
@@ -447,7 +581,14 @@ mod env_tests {
 
     #[async_trait::async_trait]
     impl FileWriterInfra for MockInfra {
-        async fn write(&self, _path: &std::path::Path, _content: Bytes) -> anyhow::Result<()> {
+        async fn write(&self, path: &std::path::Path, content: Bytes) -> anyhow::Result<()> {
+            // Capture writes to credentials file
+            if path.ends_with(".provider_credentials.json") {
+                let content_str = String::from_utf8(content.to_vec())?;
+                let creds: Vec<AuthCredential> = serde_json::from_str(&content_str)?;
+                let mut guard = self.credentials.lock().await;
+                *guard = Some(creds);
+            }
             Ok(())
         }
 
@@ -487,6 +628,147 @@ mod env_tests {
     }
 
     #[tokio::test]
+    async fn test_migration_from_env_to_file() {
+        let mut env_vars = HashMap::new();
+        env_vars.insert("OPENAI_API_KEY".to_string(), "test-openai-key".to_string());
+        env_vars.insert(
+            "ANTHROPIC_API_KEY".to_string(),
+            "test-anthropic-key".to_string(),
+        );
+        env_vars.insert(
+            "OPENAI_URL".to_string(),
+            "https://custom.openai.com/v1".to_string(),
+        );
+
+        let infra = Arc::new(MockInfra::new(env_vars));
+        let registry = ForgeProviderRepository::new(infra.clone());
+
+        // Trigger migration
+        registry.migrate_env_to_file().await.unwrap();
+
+        // Verify credentials were written
+        let credentials_guard = infra.credentials.lock().await;
+        let credentials = credentials_guard.as_ref().unwrap();
+
+        // Should have migrated OpenAICompatible (not OpenAI) and Anthropic (not
+        // AnthropicCompatible)
+        assert!(
+            !credentials.iter().any(|c| c.id == ProviderId::OpenAI),
+            "Should NOT create OpenAI credential when OPENAI_URL is set"
+        );
+        assert!(
+            credentials
+                .iter()
+                .any(|c| c.id == ProviderId::OpenAICompatible),
+            "Should create OpenAICompatible credential when OPENAI_URL is set"
+        );
+        assert!(
+            credentials.iter().any(|c| c.id == ProviderId::Anthropic),
+            "Should create Anthropic credential when ANTHROPIC_URL is NOT set"
+        );
+        assert!(
+            !credentials
+                .iter()
+                .any(|c| c.id == ProviderId::AnthropicCompatible),
+            "Should NOT create AnthropicCompatible credential when ANTHROPIC_URL is NOT set"
+        );
+
+        // Verify OpenAICompatible credential
+        let openai_compat_cred = credentials
+            .iter()
+            .find(|c| c.id == ProviderId::OpenAICompatible)
+            .unwrap();
+        match &openai_compat_cred.auth_details {
+            AuthDetails::ApiKey(key) => assert_eq!(key.as_str(), "test-openai-key"),
+            _ => panic!("Expected API key"),
+        }
+
+        // Verify OpenAICompatible has URL param
+        assert!(openai_compat_cred.url_params.is_some());
+        let url_params = openai_compat_cred.url_params.as_ref().unwrap();
+        assert_eq!(
+            url_params
+                .get(&URLParam::from("OPENAI_URL".to_string()))
+                .map(|v| v.as_str()),
+            Some("https://custom.openai.com/v1")
+        );
+
+        // Verify Anthropic credential
+        let anthropic_cred = credentials
+            .iter()
+            .find(|c| c.id == ProviderId::Anthropic)
+            .unwrap();
+        match &anthropic_cred.auth_details {
+            AuthDetails::ApiKey(key) => assert_eq!(key.as_str(), "test-anthropic-key"),
+            _ => panic!("Expected API key"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_migration_both_compatible_urls() {
+        let mut env_vars = HashMap::new();
+        env_vars.insert("OPENAI_API_KEY".to_string(), "test-openai-key".to_string());
+        env_vars.insert(
+            "ANTHROPIC_API_KEY".to_string(),
+            "test-anthropic-key".to_string(),
+        );
+        env_vars.insert(
+            "OPENAI_URL".to_string(),
+            "https://custom.openai.com/v1".to_string(),
+        );
+        env_vars.insert(
+            "ANTHROPIC_URL".to_string(),
+            "https://custom.anthropic.com/v1".to_string(),
+        );
+
+        let infra = Arc::new(MockInfra::new(env_vars));
+        let registry = ForgeProviderRepository::new(infra.clone());
+
+        // Trigger migration
+        registry.migrate_env_to_file().await.unwrap();
+
+        // Verify credentials were written
+        let credentials_guard = infra.credentials.lock().await;
+        let credentials = credentials_guard.as_ref().unwrap();
+
+        // Should have migrated only compatible versions
+        assert!(
+            !credentials.iter().any(|c| c.id == ProviderId::OpenAI),
+            "Should NOT create OpenAI credential when OPENAI_URL is set"
+        );
+        assert!(
+            credentials
+                .iter()
+                .any(|c| c.id == ProviderId::OpenAICompatible),
+            "Should create OpenAICompatible credential when OPENAI_URL is set"
+        );
+        assert!(
+            !credentials.iter().any(|c| c.id == ProviderId::Anthropic),
+            "Should NOT create Anthropic credential when ANTHROPIC_URL is set"
+        );
+        assert!(
+            credentials
+                .iter()
+                .any(|c| c.id == ProviderId::AnthropicCompatible),
+            "Should create AnthropicCompatible credential when ANTHROPIC_URL is set"
+        );
+
+        // Verify AnthropicCompatible has URL param
+        let anthropic_compat_cred = credentials
+            .iter()
+            .find(|c| c.id == ProviderId::AnthropicCompatible)
+            .unwrap();
+        assert!(anthropic_compat_cred.url_params.is_some());
+        let url_params = anthropic_compat_cred.url_params.as_ref().unwrap();
+        assert_eq!(
+            url_params
+                .get(&URLParam::from("ANTHROPIC_URL".to_string()))
+                .map(|v| v.as_str()),
+            Some("https://custom.anthropic.com/v1")
+        );
+    }
+
+    #[tokio::test]
     async fn test_create_azure_provider_with_handlebars_urls() {
         let mut env_vars = HashMap::new();
         env_vars.insert("AZURE_API_KEY".to_string(), "test-key-123".to_string());
@@ -503,8 +785,11 @@ mod env_tests {
             "2024-02-01-preview".to_string(),
         );
 
-        let infra = Arc::new(MockInfra { env_vars });
+        let infra = Arc::new(MockInfra::new(env_vars));
         let registry = ForgeProviderRepository::new(infra);
+
+        // Trigger migration to populate credentials file
+        registry.migrate_env_to_file().await.unwrap();
 
         // Get Azure config from embedded configs
         let configs = get_provider_configs();
@@ -513,9 +798,10 @@ mod env_tests {
             .find(|c| c.id == ProviderId::Azure)
             .expect("Azure config should exist");
 
-        // Create provider using the registry's test_create_provider method
+        // Create provider using the registry's create_provider method
         let provider = registry
             .create_provider(azure_config)
+            .await
             .expect("Should create Azure provider");
 
         // Verify all URLs are correctly rendered
@@ -556,7 +842,7 @@ mod env_tests {
         env_vars.insert("OPENAI_API_KEY".to_string(), "test-key".to_string());
         env_vars.insert("ANTHROPIC_API_KEY".to_string(), "test-key".to_string());
 
-        let infra = Arc::new(MockInfra { env_vars });
+        let infra = Arc::new(MockInfra::new(env_vars));
         let registry = ForgeProviderRepository::new(infra);
         let providers = registry.get_all_providers().await.unwrap();
 
