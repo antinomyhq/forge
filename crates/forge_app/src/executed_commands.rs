@@ -90,22 +90,24 @@ impl<F: EnvironmentInfra + FileReaderInfra> ExecutedCommands<F> {
         let content = self.infra.read_utf8(&history_path).await?;
         let file_type = HistoryFile::from_path(&history_path);
 
-        let filtered_commands: Vec<_> = file_type
+        let commands: Vec<_> = file_type
             .parse(&content)
             .into_iter()
-            .filter_map(|cmd| {
-                let cmd = cmd.trim();
-                if cmd.is_empty() || cmd.starts_with("forge") || cmd.starts_with(':') {
-                    None
-                } else {
-                    Some(cmd.to_owned())
-                }
-            })
+            .filter_map(Self::filter_command)
             .collect();
 
         // Take the last N commands in chronological order
-        let start = filtered_commands.len().saturating_sub(limit);
-        Ok(filtered_commands[start..].to_vec())
+        let start = commands.len().saturating_sub(limit);
+        Ok(commands[start..].to_vec())
+    }
+
+    fn filter_command(cmd: String) -> Option<String> {
+        let trimmed = cmd.trim();
+        if trimmed.is_empty() || trimmed.starts_with("forge") || trimmed.starts_with(':') {
+            None
+        } else {
+            Some(trimmed.to_owned())
+        }
     }
 }
 
@@ -175,6 +177,72 @@ mod tests {
         let fixture = ": 1234567890:0;echo hello\nmalformed line\n: 1234567891:5;ls -la";
         let actual = HistoryFile::Zsh.parse(fixture);
         let expected = vec!["echo hello".to_string(), "ls -la".to_string()];
+        assert_eq!(actual, expected);
+    }
+
+    struct MockInfra {
+        content: String,
+        histfile: PathBuf,
+    }
+
+    impl MockInfra {
+        pub fn new(content: String) -> Self {
+            Self {
+                content,
+                histfile: PathBuf::from(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/src/executed_commands.rs"
+                )),
+            }
+        }
+    }
+
+    impl crate::EnvironmentInfra for MockInfra {
+        fn get_environment(&self) -> Environment {
+            use fake::{Fake, Faker};
+            Faker.fake()
+        }
+        fn get_env_var(&self, key: &str) -> Option<String> {
+            (key == "HISTFILE").then(|| self.histfile.to_string_lossy().to_string())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl crate::FileReaderInfra for MockInfra {
+        async fn read_utf8(&self, _path: &Path) -> anyhow::Result<String> {
+            Ok(self.content.clone())
+        }
+        async fn read(&self, _path: &Path) -> anyhow::Result<Vec<u8>> {
+            unimplemented!()
+        }
+        async fn range_read_utf8(
+            &self,
+            _path: &Path,
+            _start_line: u64,
+            _end_line: u64,
+        ) -> anyhow::Result<(String, forge_domain::FileInfo)> {
+            unimplemented!()
+        }
+    }
+
+    async fn run_shell_commands(content: &str, limit: usize) -> Vec<String> {
+        use fake::{Fake, Faker};
+        let fixture = ExecutedCommands::new(Arc::new(MockInfra::new(content.to_string())));
+        let env: Environment = Faker.fake();
+        fixture.shell_commands(&env, limit).await.unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_shell_commands_filters_forge_commands() {
+        let actual = run_shell_commands("echo hello\nforge --help\ngit status", 10).await;
+        let expected = vec!["echo hello".to_string(), "git status".to_string()];
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_shell_commands_respects_limit() {
+        let actual = run_shell_commands("cmd1\ncmd2\ncmd3\ncmd4\ncmd5", 3).await;
+        let expected = vec!["cmd3".to_string(), "cmd4".to_string(), "cmd5".to_string()];
         assert_eq!(actual, expected);
     }
 }
