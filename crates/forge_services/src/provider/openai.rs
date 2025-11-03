@@ -3,13 +3,14 @@ use std::sync::Arc;
 use anyhow::{Context as _, Result};
 use forge_app::HttpClientService;
 use forge_app::domain::{
-    ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ProviderId, ResultStream,
-    Transformer,
+    ChatCompletionMessage, Context as ChatContext, ModelId, ProviderId, ResultStream, Transformer,
 };
 use forge_app::dto::openai::{ListModelResponse, ProviderPipeline, Request, Response};
+use forge_domain::Provider;
 use lazy_static::lazy_static;
 use reqwest::header::AUTHORIZATION;
 use tracing::{debug, info};
+use url::Url;
 
 use crate::provider::client::{create_headers, join_url};
 use crate::provider::event::into_chat_completion_message;
@@ -17,12 +18,12 @@ use crate::provider::utils::{format_http_context, sanitize_headers};
 
 #[derive(Clone)]
 pub struct OpenAIProvider<H> {
-    provider: Provider,
+    provider: Provider<Url>,
     http: Arc<H>,
 }
 
 impl<H: HttpClientService> OpenAIProvider<H> {
-    pub fn new(provider: Provider, http: Arc<H>) -> Self {
+    pub fn new(provider: Provider<Url>, http: Arc<H>) -> Self {
         Self { provider, http }
     }
 
@@ -49,7 +50,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
                 request.session_id.clone().unwrap(),
             ));
             debug!(
-                provider = %self.provider.url.as_resolved().unwrap(),
+                provider = %self.provider.url,
                 session_id = %request.session_id.as_ref().unwrap(),
                 "Added Session-Id header for zai provider"
             );
@@ -67,7 +68,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         let mut pipeline = ProviderPipeline::new(&self.provider);
         request = pipeline.transform(request);
 
-        let url = self.provider.url.to_resolved(&self.provider.id)?.clone();
+        let url = self.provider.url.clone();
         let headers = create_headers(self.get_headers_with_request(&request));
 
         info!(
@@ -101,7 +102,6 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         } else {
             match &self.provider.models {
                 forge_domain::Models::Url(url) => {
-                    let url = url.to_resolved(&self.provider.id)?.clone();
                     debug!(url = %url, "Fetching models");
                     match self.fetch_models(url.as_str()).await {
                         Err(error) => {
@@ -196,71 +196,51 @@ mod tests {
     use crate::provider::mock_server::{MockServer, normalize_ports};
 
     // Test helper functions
-    fn openai(key: &str) -> Provider {
+    fn openai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.openai.com/v1/chat/completions")
-                .unwrap()
-                .into(),
+            url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some(key.into()),
             models: forge_domain::Models::Url(
-                Url::parse("https://api.openai.com/v1/models")
-                    .unwrap()
-                    .into(),
+                Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
-            configured: true,
         }
     }
 
-    fn zai(key: &str) -> Provider {
+    fn zai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::Zai,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions")
-                .unwrap()
-                .into(),
+            url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
             key: Some(key.into()),
             models: forge_domain::Models::Url(
-                Url::parse("https://api.z.ai/api/paas/v4/models")
-                    .unwrap()
-                    .into(),
+                Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             ),
-            configured: true,
         }
     }
 
-    fn zai_coding(key: &str) -> Provider {
+    fn zai_coding(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::ZaiCoding,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions")
-                .unwrap()
-                .into(),
+            url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
             key: Some(key.into()),
             models: forge_domain::Models::Url(
-                Url::parse("https://api.z.ai/api/paas/v4/models")
-                    .unwrap()
-                    .into(),
+                Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             ),
-            configured: true,
         }
     }
 
-    fn anthropic(key: &str) -> Provider {
+    fn anthropic(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::Anthropic,
             response: ProviderResponse::Anthropic,
-            url: Url::parse("https://api.anthropic.com/v1/messages")
-                .unwrap()
-                .into(),
+            url: Url::parse("https://api.anthropic.com/v1/messages").unwrap(),
             key: Some(key.into()),
             models: forge_domain::Models::Url(
-                Url::parse("https://api.anthropic.com/v1/models")
-                    .unwrap()
-                    .into(),
+                Url::parse("https://api.anthropic.com/v1/models").unwrap(),
             ),
-            configured: true,
         }
     }
 
@@ -316,12 +296,9 @@ mod tests {
         let provider = Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
-            url: reqwest::Url::parse(base_url)?.into(),
+            url: reqwest::Url::parse(base_url)?,
             key: Some("test-api-key".to_string()),
-            models: forge_domain::Models::Url(
-                reqwest::Url::parse(base_url)?.join("models")?.into(),
-            ),
-            configured: true,
+            models: forge_domain::Models::Url(reqwest::Url::parse(base_url)?.join("models")?),
         };
 
         Ok(OpenAIProvider::new(

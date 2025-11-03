@@ -20,9 +20,8 @@ pub struct Anthropic<T> {
     http: Arc<T>,
     api_key: String,
     chat_url: Url,
-    models: forge_domain::Models,
+    models: forge_domain::Models<Url>,
     anthropic_version: String,
-    provider_id: forge_app::domain::ProviderId,
 }
 
 impl<H: HttpClientService> Anthropic<H> {
@@ -30,18 +29,10 @@ impl<H: HttpClientService> Anthropic<H> {
         http: Arc<H>,
         api_key: String,
         chat_url: Url,
-        models: forge_domain::Models,
+        models: forge_domain::Models<Url>,
         version: String,
-        provider_id: forge_app::domain::ProviderId,
     ) -> Self {
-        Self {
-            http,
-            api_key,
-            chat_url,
-            models,
-            anthropic_version: version,
-            provider_id,
-        }
+        Self { http, api_key, chat_url, models, anthropic_version: version }
     }
 
     fn get_headers(&self) -> Vec<(String, String)> {
@@ -96,18 +87,17 @@ impl<T: HttpClientService> Anthropic<T> {
     pub async fn models(&self) -> anyhow::Result<Vec<Model>> {
         match &self.models {
             forge_domain::Models::Url(url) => {
-                let url = url.to_resolved(&self.provider_id)?;
                 debug!(url = %url, "Fetching models");
 
                 let response = self
                     .http
-                    .get(url, Some(create_headers(self.get_headers())))
+                    .get(&url, Some(create_headers(self.get_headers())))
                     .await
-                    .with_context(|| format_http_context(None, "GET", url))
+                    .with_context(|| format_http_context(None, "GET", &url))
                     .with_context(|| "Failed to fetch models")?;
 
                 let status = response.status();
-                let ctx_msg = format_http_context(Some(status), "GET", url);
+                let ctx_msg = format_http_context(Some(status), "GET", &url);
                 let text = response
                     .text()
                     .await
@@ -201,9 +191,8 @@ mod tests {
             Arc::new(MockHttpClient::new()),
             "sk-test-key".to_string(),
             chat_url,
-            forge_domain::Models::Url(model_url.into()),
+            forge_domain::Models::Url(model_url),
             "2023-06-01".to_string(),
-            forge_app::domain::ProviderId::Anthropic,
         ))
     }
 
@@ -252,13 +241,11 @@ mod tests {
             Arc::new(MockHttpClient::new()),
             "sk-some-key".to_string(),
             chat_url,
-            forge_domain::Models::Url(model_url.clone().into()),
+            forge_domain::Models::Url(model_url.clone()),
             "v1".to_string(),
-            forge_app::domain::ProviderId::Anthropic,
         );
         match &anthropic.models {
             forge_domain::Models::Url(url) => {
-                let url = url.as_resolved().unwrap();
                 assert_eq!(url.as_str(), "https://api.anthropic.com/v1/models");
             }
             _ => panic!("Expected Models::Url variant"),

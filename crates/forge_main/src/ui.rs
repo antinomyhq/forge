@@ -7,7 +7,7 @@ use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
-    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, Workflow,
+    InterruptionReason, Model, ModelId, Provider, ProviderEntry, ProviderId, TextMessage, Workflow,
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
@@ -21,6 +21,7 @@ use merge::Merge;
 use strum::IntoEnumIterator;
 use tokio_stream::StreamExt;
 use tracing::debug;
+use url::Url;
 
 use crate::cli::{Cli, ExtensionCommand, ListCommand, McpCommand, SessionCommand, TopLevelCommand};
 use crate::conversation_selector::ConversationSelector;
@@ -71,7 +72,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     /// Helper to get provider for an optional agent, defaulting to the current
     /// active agent's provider
-    async fn get_provider(&self, agent_id: Option<AgentId>) -> Result<Provider> {
+    async fn get_provider(&self, agent_id: Option<AgentId>) -> Result<Provider<Url>> {
         match agent_id {
             Some(id) => self.api.get_agent_provider(id).await,
             None => self.api.get_default_provider().await,
@@ -559,18 +560,22 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let mut info = Info::new();
 
         for provider in providers.iter() {
-            let id = provider.id.to_string();
-            let domain = match &provider.url {
-                forge_api::ProviderUrl::Template(_) => "[not configured]".to_string(),
-                forge_api::ProviderUrl::Resolved(u) => {
-                    u.domain().map(|d| format!("[{}]", d)).unwrap_or_default()
-                }
+            let id = provider.id().to_string();
+            let (domain, configured) = match provider {
+                ProviderEntry::Available(p) => (
+                    p.url
+                        .domain()
+                        .map(|d| format!("[{}]", d))
+                        .unwrap_or_default(),
+                    true,
+                ),
+                ProviderEntry::Unavailable(_) => ("[not configured]".to_string(), false),
             };
             info = info
                 .add_title(id.to_case(Case::UpperSnake))
                 .add_key_value("id", id)
                 .add_key_value("host", domain);
-            if provider.configured {
+            if configured {
                 info = info.add_key_value("status", "Configured");
             };
         }
@@ -824,23 +829,19 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         match (default_provider, agent_provider) {
             (Some(default), Some(agent_specific)) if default.id != agent_specific.id => {
                 // Show both providers if they're different
-                info = info.add_key_value(
-                    "Agent Provider (URL)",
-                    agent_specific.url.as_resolved().unwrap(),
-                );
+                info = info.add_key_value("Agent Provider (URL)", &agent_specific.url);
                 if let Some(ref api_key) = agent_specific.key {
                     info = info.add_key_value("Agent API Key", truncate_key(api_key));
                 }
 
-                info = info
-                    .add_key_value("Default Provider (URL)", default.url.as_resolved().unwrap());
+                info = info.add_key_value("Default Provider (URL)", &default.url);
                 if let Some(ref api_key) = default.key {
                     info = info.add_key_value("Default API Key", truncate_key(api_key));
                 }
             }
-            (Some(provider), _) | (_, Some(provider)) if provider.configured => {
+            (Some(provider), _) | (_, Some(provider)) => {
                 // Show single provider (either default or agent-specific)
-                info = info.add_key_value("Provider (URL)", provider.url.as_resolved().unwrap());
+                info = info.add_key_value("Provider (URL)", &provider.url);
                 if let Some(ref api_key) = provider.key {
                     info = info.add_key_value("API Key", truncate_key(api_key));
                 }
@@ -1156,7 +1157,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
     }
 
-    async fn select_provider(&mut self) -> Result<Option<Provider>> {
+    async fn select_provider(&mut self) -> Result<Option<Provider<Url>>> {
         // Fetch available providers
         let mut providers = self
             .api
@@ -1180,7 +1181,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .ok();
         let starting_cursor = current_provider
             .as_ref()
-            .and_then(|current| providers.iter().position(|p| p.0.id == current.id))
+            .and_then(|current| providers.iter().position(|p| p.0.id() == current.id))
             .unwrap_or(0);
 
         // Use the centralized select module
@@ -1189,7 +1190,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
             .prompt()?
         {
-            Some(provider) => Ok(Some(provider.0)),
+            Some(provider) => {
+                // Only return configured providers
+                match provider.0 {
+                    ProviderEntry::Available(p) => Ok(Some(p)),
+                    ProviderEntry::Unavailable(_) => {
+                        Err(anyhow::anyhow!("Selected provider is not configured"))
+                    }
+                }
+            }
             None => Ok(None),
         }
     }
@@ -1226,20 +1235,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             None => return Ok(()),
         };
 
-        if !provider.configured {
-            self.writeln_title(TitleFormat::error(format!(
-                    "Provider '{}' is not configured. Please set the required API keys in your environment variables.",
-                    provider.id
-                )))?;
-            return Ok(());
-        }
-
         // Set the provider via API
         self.api.set_default_provider(provider.id).await?;
 
         self.writeln_title(TitleFormat::action(format!(
             "Switched to provider: {}",
-            CliProvider(provider.clone())
+            CliProvider(ProviderEntry::Available(provider.clone()))
         )))?;
 
         // Check if the current model is available for the new provider
@@ -1824,7 +1825,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let providers = self.api.get_providers().await?;
         if providers
             .iter()
-            .any(|p| p.id == provider_id && p.configured)
+            .any(|p| p.id() == provider_id && p.is_configured())
         {
             Ok(provider_id)
         } else {
@@ -1833,7 +1834,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 provider_str,
                 providers
                     .iter()
-                    .map(|p| p.id.to_string())
+                    .map(|p| p.id().to_string())
                     .collect::<Vec<_>>()
                     .join(", ")
             ))

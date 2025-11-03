@@ -1,4 +1,5 @@
 use forge_domain::{DefaultTransformation, Provider, ProviderId, Transformer};
+use url::Url;
 
 use super::drop_tool_call::DropToolCalls;
 use super::make_cerebras_compat::MakeCerebrasCompat;
@@ -11,11 +12,11 @@ use super::zai_reasoning::SetZaiThinking;
 use crate::dto::openai::{Request, ToolChoice};
 
 /// Pipeline for transforming requests based on the provider type
-pub struct ProviderPipeline<'a>(&'a Provider);
+pub struct ProviderPipeline<'a>(&'a Provider<Url>);
 
 impl<'a> ProviderPipeline<'a> {
     /// Creates a new provider pipeline for the given provider
-    pub fn new(provider: &'a Provider) -> Self {
+    pub fn new(provider: &'a Provider<Url>) -> Self {
         Self(provider)
     }
 }
@@ -52,12 +53,12 @@ impl Transformer for ProviderPipeline<'_> {
 }
 
 /// Checks if provider is a z.ai provider (zai or zai_coding)
-fn is_zai_provider(provider: &Provider) -> bool {
+fn is_zai_provider(provider: &Provider<Url>) -> bool {
     provider.id == ProviderId::Zai || provider.id == ProviderId::ZaiCoding
 }
 
 /// function checks if provider supports open-router parameters.
-fn supports_open_router_params(provider: &Provider) -> bool {
+fn supports_open_router_params(provider: &Provider<Url>) -> bool {
     provider.id == ProviderId::OpenRouter
         || provider.id == ProviderId::Forge
         || provider.id == ProviderId::Zai
@@ -72,135 +73,83 @@ mod tests {
     use crate::domain::{Models, ProviderResponse};
 
     // Test helper functions
-    fn forge(key: &str) -> Provider {
+    fn forge(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::Forge,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://antinomy.ai/api/v1/chat/completions")
-                .unwrap()
-                .into(),
+            url: Url::parse("https://antinomy.ai/api/v1/chat/completions").unwrap(),
             key: Some(key.into()),
-            models: Models::Url(
-                Url::parse("https://antinomy.ai/api/v1/models")
-                    .unwrap()
-                    .into(),
-            ),
-            configured: true,
+            models: Models::Url(Url::parse("https://antinomy.ai/api/v1/models").unwrap()),
         }
     }
 
-    fn zai(key: &str) -> Provider {
+    fn zai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::Zai,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions")
-                .unwrap()
-                .into(),
+            url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
             key: Some(key.into()),
-            models: Models::Url(
-                Url::parse("https://api.z.ai/api/paas/v4/models")
-                    .unwrap()
-                    .into(),
-            ),
-            configured: true,
+            models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
         }
     }
 
-    fn zai_coding(key: &str) -> Provider {
+    fn zai_coding(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::ZaiCoding,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions")
-                .unwrap()
-                .into(),
+            url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
             key: Some(key.into()),
-            models: Models::Url(
-                Url::parse("https://api.z.ai/api/paas/v4/models")
-                    .unwrap()
-                    .into(),
-            ),
-            configured: true,
+            models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
         }
     }
 
-    fn openai(key: &str) -> Provider {
+    fn openai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.openai.com/v1/chat/completions")
-                .unwrap()
-                .into(),
+            url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             key: Some(key.into()),
-            models: Models::Url(
-                Url::parse("https://api.openai.com/v1/models")
-                    .unwrap()
-                    .into(),
-            ),
-            configured: true,
+            models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
         }
     }
 
-    fn xai(key: &str) -> Provider {
+    fn xai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::Xai,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.x.ai/v1/chat/completions")
-                .unwrap()
-                .into(),
+            url: Url::parse("https://api.x.ai/v1/chat/completions").unwrap(),
             key: Some(key.into()),
-            models: Models::Url(Url::parse("https://api.x.ai/v1/models").unwrap().into()),
-            configured: true,
+            models: Models::Url(Url::parse("https://api.x.ai/v1/models").unwrap()),
         }
     }
 
-    fn requesty(key: &str) -> Provider {
+    fn requesty(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::Requesty,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://api.requesty.ai/v1/chat/completions")
-                .unwrap()
-                .into(),
+            url: Url::parse("https://api.requesty.ai/v1/chat/completions").unwrap(),
             key: Some(key.into()),
-            models: Models::Url(
-                Url::parse("https://api.requesty.ai/v1/models")
-                    .unwrap()
-                    .into(),
-            ),
-            configured: true,
+            models: Models::Url(Url::parse("https://api.requesty.ai/v1/models").unwrap()),
         }
     }
 
-    fn open_router(key: &str) -> Provider {
+    fn open_router(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::OpenRouter,
             response: ProviderResponse::OpenAI,
-            url: Url::parse("https://openrouter.ai/api/v1/chat/completions")
-                .unwrap()
-                .into(),
+            url: Url::parse("https://openrouter.ai/api/v1/chat/completions").unwrap(),
             key: Some(key.into()),
-            models: Models::Url(
-                Url::parse("https://openrouter.ai/api/v1/models")
-                    .unwrap()
-                    .into(),
-            ),
-            configured: true,
+            models: Models::Url(Url::parse("https://openrouter.ai/api/v1/models").unwrap()),
         }
     }
 
-    fn anthropic(key: &str) -> Provider {
+    fn anthropic(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::Anthropic,
             response: ProviderResponse::Anthropic,
-            url: Url::parse("https://api.anthropic.com/v1/messages")
-                .unwrap()
-                .into(),
+            url: Url::parse("https://api.anthropic.com/v1/messages").unwrap(),
             key: Some(key.into()),
-            models: Models::Url(
-                Url::parse("https://api.anthropic.com/v1/models")
-                    .unwrap()
-                    .into(),
-            ),
-            configured: true,
+            models: Models::Url(Url::parse("https://api.anthropic.com/v1/models").unwrap()),
         }
     }
 
