@@ -15,9 +15,9 @@ Check if ZSH integration is already configured:
 2. If command succeeds, inform user setup is already complete and move to step 5.
 3. If command fails or function doesn't exist, proceed with setup steps below.
 
-## Step 1: Detect OS and Package Manager
+## Step 1: Detect Package Manager
 
-Detect the OS then detect the package managers installed on the system and use the appropriate one to install dependencies.
+Detect the package managers installed on the system and use the appropriate one to install dependencies.
 
 ## Step 2: Install Dependencies
 
