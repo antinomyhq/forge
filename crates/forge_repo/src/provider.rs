@@ -3,7 +3,10 @@ use std::sync::{Arc, OnceLock};
 use bytes::Bytes;
 use forge_app::domain::{ProviderId, ProviderResponse};
 use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra};
-use forge_domain::{AuthCredential, Error, Provider, ProviderEntry, ProviderRepository};
+use forge_domain::{
+    ApiKey, AuthCredential, AuthDetails, Error, Provider, ProviderEntry, ProviderRepository,
+    URLParam, URLParamValue,
+};
 use handlebars::Handlebars;
 use merge::Merge;
 use serde::Deserialize;
@@ -144,10 +147,12 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
         // Check URL parameter environment variables and build template data
         // URL parameters are optional - only add them if they exist
         let mut template_data = std::collections::HashMap::new();
+        let mut url_params = std::collections::HashMap::new();
 
         for env_var in &config.url_param_vars {
             if let Some(value) = self.infra.get_env_var(env_var) {
-                template_data.insert(env_var, value);
+                template_data.insert(env_var, value.clone());
+                url_params.insert(URLParam::from(env_var.clone()), URLParamValue::from(value));
             } else if env_var == "OPENAI_URL" {
                 template_data.insert(env_var, "https://api.openai.com/v1".to_string());
             } else if env_var == "ANTHROPIC_URL" {
@@ -187,11 +192,22 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
             Models::Hardcoded(model_list) => forge_domain::Models::Hardcoded(model_list.clone()),
         };
 
+        // Create AuthCredential
+        let credential = AuthCredential {
+            id: config.id,
+            auth_details: AuthDetails::ApiKey(ApiKey::from(api_key)),
+            url_params: if url_params.is_empty() {
+                None
+            } else {
+                Some(url_params)
+            },
+        };
+
         Ok(Provider {
             id: config.id,
             response: config.response_type.clone(),
             url: final_url,
-            key: Some(api_key),
+            credential: Some(credential),
             models,
         })
     }
@@ -211,7 +227,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
             id: config.id,
             response: config.response_type.clone(),
             url: forge_domain::Template::new(&config.url),
-            key: None,
+            credential: None,
             models,
         })
     }
@@ -504,7 +520,16 @@ mod env_tests {
 
         // Verify all URLs are correctly rendered
         assert_eq!(provider.id, ProviderId::Azure);
-        assert_eq!(provider.key, Some("test-key-123".to_string()));
+        assert_eq!(
+            provider
+                .credential
+                .as_ref()
+                .and_then(|c| match &c.auth_details {
+                    forge_domain::AuthDetails::ApiKey(key) => Some(key.to_string()),
+                    _ => None,
+                }),
+            Some("test-key-123".to_string())
+        );
 
         // Check chat completion URL (url field now contains the chat completion URL)
         let chat_url = provider.url();

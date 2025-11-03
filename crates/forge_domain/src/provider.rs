@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter, EnumString};
 use url::Url;
 
-use crate::{Model, Template};
+use crate::{ApiKey, AuthCredential, AuthDetails, Model, Template};
 
 /// --- IMPORTANT ---
 /// The order of providers is important because that would be order in which the
@@ -64,13 +64,13 @@ pub struct Provider<T> {
     pub id: ProviderId,
     pub response: ProviderResponse,
     pub url: T,
-    pub key: Option<String>,
+    pub credential: Option<AuthCredential>,
     pub models: Models<T>,
 }
 
 impl<T> Provider<T> {
     pub fn is_configured(&self) -> bool {
-        self.key.is_some()
+        self.credential.is_some()
     }
     pub fn models(&self) -> &Models<T> {
         &self.models
@@ -84,6 +84,15 @@ impl Provider<Url> {
 
     pub fn to_entry(&self) -> ProviderEntry {
         ProviderEntry::Available(self.clone())
+    }
+
+    pub fn key(&self) -> Option<&ApiKey> {
+        self.credential
+            .as_ref()
+            .and_then(|c| match &c.auth_details {
+                AuthDetails::ApiKey(key) => Some(key),
+                _ => None,
+            })
     }
 }
 
@@ -125,13 +134,6 @@ impl ProviderEntry {
         }
     }
 
-    pub fn key(&self) -> Option<&str> {
-        match self {
-            ProviderEntry::Available(p) => p.key.as_deref(),
-            ProviderEntry::Unavailable(p) => p.key.as_deref(),
-        }
-    }
-
     /// Gets the resolved URL if this is a configured provider
     pub fn url(&self) -> Option<&Url> {
         match self {
@@ -144,13 +146,22 @@ impl ProviderEntry {
 #[cfg(test)]
 mod test_helpers {
     use super::*;
+
+    fn make_credential(provider_id: ProviderId, key: &str) -> Option<AuthCredential> {
+        Some(AuthCredential {
+            id: provider_id,
+            auth_details: AuthDetails::ApiKey(ApiKey::from(key.to_string())),
+            url_params: None,
+        })
+    }
+
     /// Test helper for creating a ZAI provider
     pub(super) fn zai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::Zai,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
-            key: Some(key.into()),
+            credential: make_credential(ProviderId::Zai, key),
             models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
         }
     }
@@ -161,7 +172,7 @@ mod test_helpers {
             id: ProviderId::ZaiCoding,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
-            key: Some(key.into()),
+            credential: make_credential(ProviderId::ZaiCoding, key),
             models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
         }
     }
@@ -172,7 +183,7 @@ mod test_helpers {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
-            key: Some(key.into()),
+            credential: make_credential(ProviderId::OpenAI, key),
             models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
         }
     }
@@ -183,7 +194,7 @@ mod test_helpers {
             id: ProviderId::Xai,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.x.ai/v1/chat/completions").unwrap(),
-            key: Some(key.into()),
+            credential: make_credential(ProviderId::Xai, key),
             models: Models::Url(Url::parse("https://api.x.ai/v1/models").unwrap()),
         }
     }
@@ -217,7 +228,7 @@ mod test_helpers {
             id: ProviderId::VertexAi,
             response: ProviderResponse::OpenAI,
             url: Url::parse(&chat_url).unwrap(),
-            key: Some(key.into()),
+            credential: make_credential(ProviderId::VertexAi, key),
             models: Models::Url(Url::parse(&model_url).unwrap()),
         }
     }
@@ -242,7 +253,7 @@ mod test_helpers {
             id: ProviderId::Azure,
             response: ProviderResponse::OpenAI,
             url: Url::parse(&chat_url).unwrap(),
-            key: Some(key.into()),
+            credential: make_credential(ProviderId::Azure, key),
             models: Models::Url(Url::parse(&model_url).unwrap()),
         }
     }
@@ -265,7 +276,11 @@ mod tests {
             id: ProviderId::Xai,
             response: ProviderResponse::OpenAI,
             url: Url::from_str("https://api.x.ai/v1/chat/completions").unwrap(),
-            key: Some(fixture.to_string()),
+            credential: Some(AuthCredential {
+                id: ProviderId::Xai,
+                auth_details: AuthDetails::ApiKey(ApiKey::from(fixture.to_string())),
+                url_params: None,
+            }),
             models: Models::Url(Url::from_str("https://api.x.ai/v1/models").unwrap()),
         };
         assert_eq!(actual, expected);

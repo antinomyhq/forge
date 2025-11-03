@@ -197,8 +197,8 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
 
     async fn user_info(&self) -> Result<Option<User>> {
         let provider = self.get_default_provider().await?;
-        if let Some(ref api_key) = provider.key {
-            let user_info = self.services.user_info(api_key).await?;
+        if let Some(api_key) = provider.key() {
+            let user_info = self.services.user_info(api_key.as_str()).await?;
             return Ok(Some(user_info));
         }
         Ok(None)
@@ -206,7 +206,14 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
 
     async fn user_usage(&self) -> Result<Option<UserUsage>> {
         let provider = self.get_default_provider().await?;
-        if let Some(ref api_key) = provider.key {
+        if let Some(api_key) = provider
+            .credential
+            .as_ref()
+            .and_then(|c| match &c.auth_details {
+                forge_domain::AuthDetails::ApiKey(key) => Some(key.as_str()),
+                _ => None,
+            })
+        {
             let user_usage = self.services.user_usage(api_key).await?;
             return Ok(Some(user_usage));
         }

@@ -830,20 +830,20 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             (Some(default), Some(agent_specific)) if default.id != agent_specific.id => {
                 // Show both providers if they're different
                 info = info.add_key_value("Agent Provider (URL)", &agent_specific.url);
-                if let Some(ref api_key) = agent_specific.key {
-                    info = info.add_key_value("Agent API Key", truncate_key(api_key));
+                if let Some(api_key) = agent_specific.key() {
+                    info = info.add_key_value("Agent API Key", truncate_key(api_key.as_str()));
                 }
 
                 info = info.add_key_value("Default Provider (URL)", &default.url);
-                if let Some(ref api_key) = default.key {
-                    info = info.add_key_value("Default API Key", truncate_key(api_key));
+                if let Some(api_key) = default.key() {
+                    info = info.add_key_value("Default API Key", truncate_key(api_key.as_str()));
                 }
             }
             (Some(provider), _) | (_, Some(provider)) => {
                 // Show single provider (either default or agent-specific)
                 info = info.add_key_value("Provider (URL)", &provider.url);
-                if let Some(ref api_key) = provider.key {
-                    info = info.add_key_value("API Key", truncate_key(api_key));
+                if let Some(api_key) = provider.key() {
+                    info = info.add_key_value("API Key", truncate_key(api_key.as_str()));
                 }
             }
             _ => {

@@ -32,7 +32,15 @@ impl<H: HttpClientService> OpenAIProvider<H> {
     // - `X-Title`: Sets/modifies your app's title
     fn get_headers(&self) -> Vec<(String, String)> {
         let mut headers = Vec::new();
-        if let Some(ref api_key) = self.provider.key {
+        if let Some(api_key) =
+            self.provider
+                .credential
+                .as_ref()
+                .and_then(|c| match &c.auth_details {
+                    forge_domain::AuthDetails::ApiKey(key) => Some(key.as_str()),
+                    _ => None,
+                })
+        {
             headers.push((AUTHORIZATION.to_string(), format!("Bearer {api_key}")));
         }
         headers
@@ -196,12 +204,22 @@ mod tests {
     use crate::provider::mock_server::{MockServer, normalize_ports};
 
     // Test helper functions
+    fn make_credential(provider_id: ProviderId, key: &str) -> Option<forge_domain::AuthCredential> {
+        Some(forge_domain::AuthCredential {
+            id: provider_id,
+            auth_details: forge_domain::AuthDetails::ApiKey(forge_domain::ApiKey::from(
+                key.to_string(),
+            )),
+            url_params: None,
+        })
+    }
+
     fn openai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
-            key: Some(key.into()),
+            credential: make_credential(ProviderId::OpenAI, key),
             models: forge_domain::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
@@ -213,7 +231,7 @@ mod tests {
             id: ProviderId::Zai,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
-            key: Some(key.into()),
+            credential: make_credential(ProviderId::Zai, key),
             models: forge_domain::Models::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             ),
@@ -225,7 +243,7 @@ mod tests {
             id: ProviderId::ZaiCoding,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
-            key: Some(key.into()),
+            credential: make_credential(ProviderId::ZaiCoding, key),
             models: forge_domain::Models::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             ),
@@ -237,7 +255,7 @@ mod tests {
             id: ProviderId::Anthropic,
             response: ProviderResponse::Anthropic,
             url: Url::parse("https://api.anthropic.com/v1/messages").unwrap(),
-            key: Some(key.into()),
+            credential: make_credential(ProviderId::Anthropic, key),
             models: forge_domain::Models::Url(
                 Url::parse("https://api.anthropic.com/v1/models").unwrap(),
             ),
@@ -297,7 +315,7 @@ mod tests {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: reqwest::Url::parse(base_url)?,
-            key: Some("test-api-key".to_string()),
+            credential: make_credential(ProviderId::OpenAI, "test-api-key"),
             models: forge_domain::Models::Url(reqwest::Url::parse(base_url)?.join("models")?),
         };
 
