@@ -139,7 +139,11 @@ pub trait API: Sync + Send {
     async fn get_default_model(&self) -> Option<ModelId>;
 
     /// Sets the operating model
-    async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()>;
+    async fn set_default_model(
+        &self,
+        agent_id: Option<AgentId>,
+        model_id: ModelId,
+    ) -> anyhow::Result<()>;
 
     /// Refresh MCP caches by fetching fresh data
     async fn reload_mcp(&self) -> Result<()>;
