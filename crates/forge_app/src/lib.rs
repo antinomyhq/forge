@@ -11,9 +11,11 @@ mod infra;
 mod init_conversation_metrics;
 mod mcp_executor;
 mod operation;
+
 mod orch;
 #[cfg(test)]
 mod orch_spec;
+mod plan_parser;
 mod retry;
 mod services;
 mod set_conversation_id;

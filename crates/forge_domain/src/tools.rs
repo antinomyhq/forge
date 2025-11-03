@@ -47,6 +47,7 @@ pub enum Tools {
     Fetch(NetFetch),
     Followup(Followup),
     Plan(PlanCreate),
+    PlanExecutionStarted(PlanExecutionStarted),
 }
 
 /// Input structure for agent tool calls. This serves as the generic schema
@@ -371,6 +372,17 @@ pub struct PlanCreate {
     pub content: String,
 }
 
+/// Initiates execution of a plan file by marking it as active. MUST be called
+/// before executing any tasks from a plan file to enable progress tracking and
+/// status updates. The path must be absolute and point to an existing plan
+/// file. Without calling this tool first, plan execution tracking will not
+/// function.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct PlanExecutionStarted {
+    /// The absolute path of plan file which we're trying to execute.
+    pub path: PathBuf,
+}
+
 fn default_raw() -> Option<bool> {
     Some(false)
 }
@@ -473,6 +485,7 @@ impl ToolDescription for Tools {
             Tools::Undo(v) => v.description(),
             Tools::Write(v) => v.description(),
             Tools::Plan(v) => v.description(),
+            Tools::PlanExecutionStarted(v) => v.description(),
         }
     }
 }
@@ -508,6 +521,7 @@ impl Tools {
             Tools::Undo(_) => r#gen.into_root_schema_for::<FSUndo>(),
             Tools::Write(_) => r#gen.into_root_schema_for::<FSWrite>(),
             Tools::Plan(_) => r#gen.into_root_schema_for::<PlanCreate>(),
+            Tools::PlanExecutionStarted(_) => r#gen.into_root_schema_for::<PlanExecutionStarted>(),
         }
     }
 
@@ -602,7 +616,10 @@ impl Tools {
                 message: format!("Fetch content from URL: {}", input.url),
             }),
             // Operations that don't require permission checks
-            Tools::Undo(_) | Tools::Followup(_) | Tools::Plan(_) => None,
+            Tools::Undo(_)
+            | Tools::Followup(_)
+            | Tools::Plan(_)
+            | Tools::PlanExecutionStarted(_) => None,
         }
     }
 }

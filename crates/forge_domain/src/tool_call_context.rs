@@ -1,6 +1,9 @@
+use std::ops::Mul;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use derive_setters::Setters;
+use serde::Serialize;
 
 use crate::{ArcSender, ChatResponse, ChatResponseContent, Metrics, TitleFormat};
 
@@ -9,12 +12,50 @@ use crate::{ArcSender, ChatResponse, ChatResponseContent, Metrics, TitleFormat};
 pub struct ToolCallContext {
     sender: Option<ArcSender>,
     metrics: Arc<Mutex<Metrics>>,
+    active_plan: Arc<Mutex<Option<ActivePlan>>>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ActivePlan {
+    pub path: PathBuf,
+    pub plan_stats: PlanStat,
+}
+
+impl ActivePlan {
+    /// Check if the plan is complete (all tasks are done and no tasks are
+    /// pending or in progress)
+    pub fn is_complete(&self) -> bool {
+        self.plan_stats.todo == 0 && self.plan_stats.in_progress == 0 && self.plan_stats.failed == 0
+    }
+
+    pub fn complete_percentage(&self) -> f32 {
+        self.plan_stats.completed as f32 / self.plan_stats.total() as f32
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PlanStat {
+    pub completed: usize,
+    pub todo: usize,
+    pub failed: usize,
+    pub in_progress: usize,
+}
+
+impl PlanStat {
+    /// Calculate the total number of tasks
+    pub fn total(&self) -> usize {
+        self.completed + self.todo + self.failed + self.in_progress
+    }
 }
 
 impl ToolCallContext {
     /// Creates a new ToolCallContext with default values
     pub fn new(metrics: Metrics) -> Self {
-        Self { sender: None, metrics: Arc::new(Mutex::new(metrics)) }
+        Self {
+            sender: None,
+            metrics: Arc::new(Mutex::new(metrics)),
+            active_plan: Arc::new(Mutex::new(None)),
+        }
     }
 
     /// Send a message through the sender if available
@@ -46,6 +87,25 @@ impl ToolCallContext {
             .lock()
             .map_err(|_| anyhow::anyhow!("Failed to acquire metrics lock"))?;
         Ok(f(&mut metrics))
+    }
+
+    /// Set the active plan path
+    pub fn set_active_plan(&self, plan: ActivePlan) -> anyhow::Result<()> {
+        let mut active_plan = self
+            .active_plan
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire active_plan lock"))?;
+        *active_plan = Some(plan);
+        Ok(())
+    }
+
+    /// Get the active plan path
+    pub fn get_active_plan(&self) -> anyhow::Result<Option<ActivePlan>> {
+        let active_plan = self
+            .active_plan
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire active_plan lock"))?;
+        Ok(active_plan.clone())
     }
 }
 

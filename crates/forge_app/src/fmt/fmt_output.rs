@@ -38,6 +38,8 @@ impl FormatContent for ToolOperation {
                 ));
                 title.into()
             }),
+
+            ToolOperation::PlanExecutionStarted { input: _, output: _ } => None,
         }
     }
 }
