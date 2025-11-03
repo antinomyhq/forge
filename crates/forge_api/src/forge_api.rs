@@ -248,7 +248,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
 
     async fn generate_command(&self, prompt: UserPrompt) -> Result<String> {
         use forge_app::CommandGenerator;
-        let generator = CommandGenerator::new(self.services.clone());
+        let generator = CommandGenerator::new(self.services.clone(), self.infra.clone());
         generator.generate(prompt).await
     }
 }

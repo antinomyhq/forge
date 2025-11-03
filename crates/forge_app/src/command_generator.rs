@@ -4,17 +4,21 @@ use std::sync::Arc;
 use anyhow::Result;
 use forge_domain::*;
 
-use crate::{AppConfigService, EnvironmentInfra, EnvironmentService, ProviderService, Services, TemplateService};
+use crate::{
+    AppConfigService, EnvironmentInfra, EnvironmentService, ProviderService, Services,
+    TemplateService,
+};
 
 /// CommandGenerator handles shell command generation from natural language
-pub struct CommandGenerator<S> {
+pub struct CommandGenerator<S, F> {
     services: Arc<S>,
+    infra: Arc<F>,
 }
 
-impl<S: Services + EnvironmentInfra> CommandGenerator<S> {
+impl<S: Services, F: EnvironmentInfra> CommandGenerator<S, F> {
     /// Creates a new CommandGenerator instance with the provided services.
-    pub fn new(services: Arc<S>) -> Self {
-        Self { services }
+    pub fn new(services: Arc<S>, infra: Arc<F>) -> Self {
+        Self { services, infra }
     }
 
     /// Generates a shell command from a natural language prompt
@@ -75,7 +79,9 @@ impl<S: Services + EnvironmentInfra> CommandGenerator<S> {
         let env = self.services.environment_service().get_environment();
 
         // First try to use HISTFILE environment variable
-        let history_file = self.services.get_env_var("HISTFILE")
+        let history_file = self
+            .infra
+            .get_env_var("HISTFILE")
             .map(PathBuf::from)
             .filter(|path| path.exists())
             .or_else(|| {
@@ -106,7 +112,7 @@ impl<S: Services + EnvironmentInfra> CommandGenerator<S> {
 
                 // Get the limit from environment variable using infra service, default to 10
                 let limit: usize = self
-                    .services
+                    .infra
                     .get_env_var("FORGE_COMMAND_HISTORY_LIMIT")
                     .and_then(|v| v.parse().ok())
                     .unwrap_or(10);
