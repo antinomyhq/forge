@@ -72,7 +72,7 @@ function forge_verify_dependencies() {
         echo "\033[32m✓\033[0m All dependencies verified:"
         echo "  • forge: $($_FORGE_BIN --version 2>/dev/null | head -1)"
         echo "  • zsh-syntax-highlighting: v$ZSH_HIGHLIGHT_VERSION"
-        echo "  • zsh-autosuggestions: v$ZSH_AUTOSUGGEST_VERSION"
+        echo "  • zsh-autosuggestions: installed"
         command -v fzf &>/dev/null && echo "  • fzf: $(fzf --version 2>/dev/null)"
         command -v fd &>/dev/null && echo "  • fd: $(fd --version 2>/dev/null | head -1)"
         command -v fdfind &>/dev/null && echo "  • fd: $(fdfind --version 2>/dev/null | head -1)"
