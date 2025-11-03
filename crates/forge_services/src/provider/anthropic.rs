@@ -91,13 +91,13 @@ impl<T: HttpClientService> Anthropic<T> {
 
                 let response = self
                     .http
-                    .get(&url, Some(create_headers(self.get_headers())))
+                    .get(url, Some(create_headers(self.get_headers())))
                     .await
-                    .with_context(|| format_http_context(None, "GET", &url))
+                    .with_context(|| format_http_context(None, "GET", url))
                     .with_context(|| "Failed to fetch models")?;
 
                 let status = response.status();
-                let ctx_msg = format_http_context(Some(status), "GET", &url);
+                let ctx_msg = format_http_context(Some(status), "GET", url);
                 let text = response
                     .text()
                     .await
