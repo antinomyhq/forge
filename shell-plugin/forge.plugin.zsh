@@ -254,7 +254,7 @@ function _forge_action_conversation() {
             --prompt="$prompt_text" \
             --delimiter="$_FORGE_DELIMITER" \
             --with-nth=2,3 \
-            --preview="$_FORGE_BIN session show {1}" \
+            --preview="$_FORGE_BIN session info {1}; echo; $_FORGE_BIN session show {1}" \
             --preview-window=right:60%:wrap:border-sharp
         )
         
