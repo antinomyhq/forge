@@ -126,7 +126,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
             let provider_entry = if let Ok(provider) = self.create_provider(&config).await {
                 Some(provider.to_entry())
             } else if let Ok(provider) = self.create_unconfigured_provider(&config) {
-                Some(provider.to_view())
+                Some(provider.to_entry())
             } else {
                 None
             };
