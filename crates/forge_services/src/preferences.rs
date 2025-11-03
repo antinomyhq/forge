@@ -174,6 +174,20 @@ mod tests {
                 .cloned()
                 .ok_or_else(|| anyhow::anyhow!("Provider not found"))
         }
+
+        async fn upsert_credential(
+            &self,
+            _credential: forge_domain::AuthCredential,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn get_credential(
+            &self,
+            _id: &ProviderId,
+        ) -> anyhow::Result<Option<forge_domain::AuthCredential>> {
+            Ok(None)
+        }
     }
 
     #[tokio::test]

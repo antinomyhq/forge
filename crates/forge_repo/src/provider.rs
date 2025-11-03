@@ -1,8 +1,9 @@
 use std::sync::{Arc, OnceLock};
 
+use bytes::Bytes;
 use forge_app::domain::{ProviderId, ProviderResponse};
-use forge_app::{EnvironmentInfra, FileReaderInfra};
-use forge_domain::{Error, Provider, ProviderEntry, ProviderRepository};
+use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra};
+use forge_domain::{AuthCredential, Error, Provider, ProviderEntry, ProviderRepository};
 use handlebars::Handlebars;
 use merge::Merge;
 use serde::Deserialize;
@@ -79,7 +80,7 @@ pub struct ForgeProviderRepository<F> {
     providers: OnceCell<Vec<ProviderEntry>>,
 }
 
-impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
+impl<F> ForgeProviderRepository<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self {
             infra,
@@ -87,8 +88,9 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
             providers: OnceCell::new(),
         }
     }
+}
 
-    /// Loads provider configs from the base directory if they exist
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepository<F> {
     async fn get_custom_provider_configs(&self) -> anyhow::Result<Vec<ProviderConfig>> {
         let environment = self.infra.get_environment();
         let provider_json_path = environment.base_path.join("provider.json");
@@ -242,10 +244,35 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
 
         configs.0
     }
+    async fn read_credentials(&self) -> Vec<AuthCredential> {
+        let path = self
+            .infra
+            .get_environment()
+            .base_path
+            .join(".provider_credentials.json");
+
+        match self.infra.read_utf8(&path).await {
+            Ok(content) => serde_json::from_str(&content).unwrap_or_default(),
+            Err(_) => Vec::new(),
+        }
+    }
+
+    /// Writes credentials to the JSON file
+    async fn write_credentials(&self, credentials: &Vec<AuthCredential>) -> anyhow::Result<()> {
+        let path = self
+            .infra
+            .get_environment()
+            .base_path
+            .join(".provider_credentials.json");
+
+        let content = serde_json::to_string_pretty(credentials)?;
+        self.infra.write(&path, Bytes::from(content)).await?;
+        Ok(())
+    }
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + FileReaderInfra + Sync> ProviderRepository
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Sync> ProviderRepository
     for ForgeProviderRepository<F>
 {
     async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>> {
@@ -254,6 +281,25 @@ impl<F: EnvironmentInfra + FileReaderInfra + Sync> ProviderRepository
 
     async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider<Url>> {
         self.provider_from_id(id).await
+    }
+
+    async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()> {
+        let mut credentials = self.read_credentials().await;
+        let id = credential.id;
+        // Update existing credential or add new one
+        if let Some(existing) = credentials.iter_mut().find(|c| c.id == id) {
+            *existing = credential;
+        } else {
+            credentials.push(credential);
+        }
+        self.write_credentials(&credentials).await?;
+
+        Ok(())
+    }
+
+    async fn get_credential(&self, id: &ProviderId) -> anyhow::Result<Option<AuthCredential>> {
+        let credentials = self.read_credentials().await;
+        Ok(credentials.into_iter().find(|c| &c.id == id))
     }
 }
 
@@ -384,6 +430,22 @@ mod env_tests {
     }
 
     #[async_trait::async_trait]
+    impl FileWriterInfra for MockInfra {
+        async fn write(&self, _path: &std::path::Path, _content: Bytes) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn write_temp(
+            &self,
+            _prefix: &str,
+            _ext: &str,
+            _content: &str,
+        ) -> anyhow::Result<PathBuf> {
+            Ok(PathBuf::from("/tmp/test"))
+        }
+    }
+
+    #[async_trait::async_trait]
     impl ProviderRepository for MockInfra {
         async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>> {
             Ok(vec![])
@@ -391,6 +453,20 @@ mod env_tests {
 
         async fn get_provider(&self, _id: ProviderId) -> anyhow::Result<Provider<Url>> {
             Err(anyhow::anyhow!("Provider not found"))
+        }
+
+        async fn upsert_credential(
+            &self,
+            _credential: forge_domain::AuthCredential,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn get_credential(
+            &self,
+            _id: &ProviderId,
+        ) -> anyhow::Result<Option<forge_domain::AuthCredential>> {
+            Ok(None)
         }
     }
 
@@ -555,6 +631,22 @@ mod env_tests {
         }
 
         #[async_trait::async_trait]
+        impl FileWriterInfra for CustomMockInfra {
+            async fn write(&self, _path: &std::path::Path, _content: Bytes) -> anyhow::Result<()> {
+                Ok(())
+            }
+
+            async fn write_temp(
+                &self,
+                _prefix: &str,
+                _ext: &str,
+                _content: &str,
+            ) -> anyhow::Result<PathBuf> {
+                Ok(PathBuf::from("/tmp/test"))
+            }
+        }
+
+        #[async_trait::async_trait]
         impl ProviderRepository for CustomMockInfra {
             async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>> {
                 Ok(vec![])
@@ -562,6 +654,20 @@ mod env_tests {
 
             async fn get_provider(&self, _id: ProviderId) -> anyhow::Result<Provider<Url>> {
                 Err(anyhow::anyhow!("Provider not found"))
+            }
+
+            async fn upsert_credential(
+                &self,
+                _credential: forge_domain::AuthCredential,
+            ) -> anyhow::Result<()> {
+                Ok(())
+            }
+
+            async fn get_credential(
+                &self,
+                _id: &ProviderId,
+            ) -> anyhow::Result<Option<forge_domain::AuthCredential>> {
+                Ok(None)
             }
         }
 

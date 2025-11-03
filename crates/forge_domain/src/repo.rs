@@ -80,19 +80,15 @@ pub trait ConversationRepository: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait ProviderRepository: Send + Sync {
-    async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>>;
-    async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider<Url>>;
-}
-
-#[async_trait::async_trait]
 pub trait AppConfigRepository: Send + Sync {
     async fn get_app_config(&self) -> anyhow::Result<AppConfig>;
     async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
-pub trait AuthRepository: Send + Sync {
+pub trait ProviderRepository: Send + Sync {
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>>;
+    async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider<Url>>;
     async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()>;
     async fn get_credential(&self, id: &ProviderId) -> anyhow::Result<Option<AuthCredential>>;
 }
