@@ -119,7 +119,7 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
                     .map(|p| p.to_entry())
                     .or_else(|_| {
                         self.create_unconfigured_provider(&config)
-                            .map(|p| p.to_view())
+                            .map(|p| p.to_entry())
                     })
                     .ok()
             })
