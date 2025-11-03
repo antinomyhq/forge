@@ -1197,8 +1197,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 // Only return configured providers
                 match provider.0 {
                     ProviderEntry::Available(p) => Ok(Some(p)),
-                    ProviderEntry::Unavailable(_) => {
-                        Err(anyhow::anyhow!("Selected provider is not configured"))
+                    ProviderEntry::Unavailable(p) => {
+                        Err(forge_domain::Error::provider_not_available(p.id).into())
                     }
                 }
             }
@@ -1840,15 +1840,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         {
             Ok(provider_id)
         } else {
-            Err(anyhow::anyhow!(
-                "Provider '{}' is not available. Make sure the API key is set. Available providers: {}",
-                provider_str,
-                providers
-                    .iter()
-                    .map(|p| p.id().to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ))
+            Err(forge_domain::Error::provider_not_available(provider_id).into())
         }
     }
 
