@@ -106,6 +106,7 @@ pub enum TopLevelCommand {
     Config(ConfigCommandGroup),
 
     /// Conversation management commands (dump, retry, resume, list)
+    #[command(alias = "session")]
     Conversation(ConversationCommandGroup),
 
     /// MCP server management commands
@@ -166,6 +167,7 @@ pub enum ListCommand {
     /// List all conversations
     ///
     /// Example: forge list conversation
+    #[command(alias = "session")]
     Conversation,
 }
 
@@ -466,6 +468,18 @@ mod tests {
     }
 
     #[test]
+    fn test_session_alias_list() {
+        let fixture = Cli::parse_from(["forge", "session", "list"]);
+        let is_list = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => {
+                matches!(conversation.command, ConversationCommand::List)
+            }
+            _ => false,
+        };
+        assert_eq!(is_list, true);
+    }
+
+    #[test]
     fn test_agent_id_long_flag() {
         let fixture = Cli::parse_from(["forge", "--agent", "sage"]);
         assert_eq!(fixture.agent, Some(AgentId::new("sage")));
@@ -587,6 +601,16 @@ mod tests {
     #[test]
     fn test_list_conversation_command() {
         let fixture = Cli::parse_from(["forge", "list", "conversation"]);
+        let is_conversation_list = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => matches!(list.command, ListCommand::Conversation),
+            _ => false,
+        };
+        assert_eq!(is_conversation_list, true);
+    }
+
+    #[test]
+    fn test_list_session_alias_command() {
+        let fixture = Cli::parse_from(["forge", "list", "session"]);
         let is_conversation_list = match fixture.subcommands {
             Some(TopLevelCommand::List(list)) => matches!(list.command, ListCommand::Conversation),
             _ => false,
@@ -742,6 +766,33 @@ mod tests {
         };
         assert_eq!(id, "test123");
         assert_eq!(porcelain, true);
+    }
+
+    #[test]
+    fn test_session_alias_dump() {
+        let fixture = Cli::parse_from(["forge", "session", "dump", "abc123"]);
+        let (id, format) = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Dump { id, format } => (id, format),
+                _ => (String::new(), None),
+            },
+            _ => (String::new(), None),
+        };
+        assert_eq!(id, "abc123");
+        assert_eq!(format, None);
+    }
+
+    #[test]
+    fn test_session_alias_retry() {
+        let fixture = Cli::parse_from(["forge", "session", "retry", "xyz789"]);
+        let id = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Retry { id } => id,
+                _ => String::new(),
+            },
+            _ => String::new(),
+        };
+        assert_eq!(id, "xyz789");
     }
 
     #[test]
