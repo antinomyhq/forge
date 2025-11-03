@@ -162,7 +162,9 @@ mod tests {
             [("/test/file.txt".into(), Some(hash))].into(),
         );
 
-        let actual = service.detect_externally_modified_files(conversation.clone()).await;
+        let actual = service
+            .detect_externally_modified_files(conversation.clone())
+            .await;
 
         assert_eq!(actual.context.clone().unwrap_or_default().messages.len(), 0);
         assert_eq!(actual.context, conversation.context);
