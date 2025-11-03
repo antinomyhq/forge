@@ -10,5 +10,5 @@ Task Status:
 - Todo: {{plan.stat.todo}}
 - Failed: {{plan.stat.failed}}
 
-Please continue working on the plan or explicitly mark it as complete.
+You may continue working on the plan, explicitly mark it as complete, or stop execution if you have a strong reason to do so.
 </system-reminder>
