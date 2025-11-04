@@ -4,8 +4,6 @@ use crate::{
     Context, ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolResult, Tools,
 };
 
-
-
 /// A simplified summary of a context, focusing on messages and their tool calls
 pub struct ContextSummary {
     pub messages: Vec<SummaryMessage>,
