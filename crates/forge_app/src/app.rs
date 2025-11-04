@@ -274,7 +274,7 @@ impl<S: Services> ForgeApp<S> {
         self.services.write_workflow(path, workflow).await
     }
 
-    pub async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider> {
+    async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider> {
         let scope = if let Some(agent_id) = agent {
             ConfigScope::Agent(agent_id).or(ConfigScope::Global)
         } else {
@@ -288,9 +288,7 @@ impl<S: Services> ForgeApp<S> {
             .context("No provider configured")
     }
 
-    /// Gets the model for the specified agent, or the default model if no agent
-    /// is provided
-    pub async fn get_model(&self, agent_id: Option<AgentId>) -> anyhow::Result<ModelId> {
+    async fn get_model(&self, agent_id: Option<AgentId>) -> anyhow::Result<ModelId> {
         let scope = if let Some(agent_id) = agent_id {
             ConfigScope::Agent(agent_id).or(ConfigScope::Global)
         } else {
@@ -299,21 +297,5 @@ impl<S: Services> ForgeApp<S> {
 
         let resolver = crate::ModelResolver::new(self.services.clone());
         scope.get(&resolver).await?.context("No model configured")
-    }
-
-    pub async fn set_default_model(
-        &self,
-        agent_id: Option<AgentId>,
-        model: ModelId,
-    ) -> anyhow::Result<()> {
-        let scope = if let Some(agent_id) = agent_id {
-            ConfigScope::Agent(agent_id)
-        } else {
-            ConfigScope::Global
-        };
-
-        let resolver = crate::ModelResolver::new(self.services.clone());
-        scope.set(&resolver, model).await?;
-        Ok(())
     }
 }
