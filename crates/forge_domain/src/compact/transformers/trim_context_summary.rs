@@ -7,9 +7,9 @@ use crate::{CanMerge, Transformer};
 /// each message in the context summary. Adjacent `SummaryMessageBlock`
 /// instances that are mergeable according to the `CanMerge` trait
 /// implementation are consolidated.
-pub struct MergeContextSummary;
+pub struct TrimContextSummary;
 
-impl Transformer for MergeContextSummary {
+impl Transformer for TrimContextSummary {
     type Value = ContextSummary;
 
     fn transform(&mut self, mut summary: Self::Value) -> Self::Value {
@@ -79,7 +79,7 @@ mod tests {
             ],
         };
 
-        let mut transformer = MergeContextSummary;
+        let mut transformer = TrimContextSummary;
         let actual = transformer.transform(fixture);
 
         assert_eq!(actual.messages[0].messages.len(), 1);
@@ -90,7 +90,7 @@ mod tests {
     fn test_handles_empty_summary() {
         let fixture = ContextSummary { messages: vec![] };
 
-        let mut transformer = MergeContextSummary;
+        let mut transformer = TrimContextSummary;
         let actual = transformer.transform(fixture);
 
         assert_eq!(actual.messages.len(), 0);
@@ -109,7 +109,7 @@ mod tests {
             }],
         };
 
-        let mut transformer = MergeContextSummary;
+        let mut transformer = TrimContextSummary;
         let actual = transformer.transform(fixture);
 
         assert_eq!(actual.messages[0].messages.len(), 3);
@@ -125,7 +125,7 @@ mod tests {
             ],
         };
 
-        let mut transformer = MergeContextSummary;
+        let mut transformer = TrimContextSummary;
         let actual = transformer.transform(fixture);
 
         assert_eq!(actual.messages[0].role, Role::System);
@@ -147,7 +147,7 @@ mod tests {
             }],
         };
 
-        let mut transformer = MergeContextSummary;
+        let mut transformer = TrimContextSummary;
         let actual = transformer.transform(fixture);
 
         assert_eq!(actual.messages[0].messages.len(), 3);
@@ -181,7 +181,7 @@ mod tests {
             }],
         };
 
-        let mut transformer = MergeContextSummary;
+        let mut transformer = TrimContextSummary;
         let actual = transformer.transform(fixture);
 
         assert_eq!(actual.messages[0].messages.len(), 1);
@@ -209,7 +209,7 @@ mod tests {
             }],
         };
 
-        let mut transformer = MergeContextSummary;
+        let mut transformer = TrimContextSummary;
         let actual = transformer.transform(fixture);
 
         assert_eq!(actual.messages[0].messages.len(), 2);
@@ -237,7 +237,7 @@ mod tests {
             }],
         };
 
-        let mut transformer = MergeContextSummary;
+        let mut transformer = TrimContextSummary;
         let actual = transformer.transform(fixture);
 
         assert_eq!(actual.messages[0].messages.len(), 2);
@@ -265,7 +265,7 @@ mod tests {
             }],
         };
 
-        let mut transformer = MergeContextSummary;
+        let mut transformer = TrimContextSummary;
         let actual = transformer.transform(fixture);
 
         assert_eq!(actual.messages[0].messages.len(), 2);
@@ -305,7 +305,7 @@ mod tests {
             }],
         };
 
-        let mut transformer = MergeContextSummary;
+        let mut transformer = TrimContextSummary;
         let actual = transformer.transform(fixture);
 
         assert_eq!(actual.messages[0].messages.len(), 2);
