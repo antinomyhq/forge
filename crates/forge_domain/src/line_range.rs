@@ -57,6 +57,7 @@ impl LineRangeExt for str {
 
         // Cap end position at last line
         let end_pos = std::cmp::min(end_pos, total - 1);
+        let capped_end = end_pos.saturating_add(1); // Convert back to 1-based for return value
 
         // Extract requested lines
         let content = if start_pos == 0 && end_pos == total - 1 {
@@ -65,7 +66,7 @@ impl LineRangeExt for str {
             lines[start_pos as usize..=end_pos as usize].join("\n")
         };
 
-        Ok(LineRange { content, start, end, total })
+        Ok(LineRange { content, start, end: capped_end, total })
     }
 }
 
@@ -156,7 +157,7 @@ mod tests {
         let expected = LineRange {
             content: "line 3\nline 4\nline 5".to_string(),
             start: 3,
-            end: 100,
+            end: 5,
             total: 5,
         };
         assert_eq!(actual, expected);
