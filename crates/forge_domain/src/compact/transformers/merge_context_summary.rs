@@ -68,8 +68,12 @@ mod tests {
                 SummaryMessage {
                     role: Role::User,
                     messages: vec![
-                        fixture_message_block(SummaryToolCall::Execute { cmd: "ls".to_string() }),
-                        fixture_message_block(SummaryToolCall::Execute { cmd: "ls".to_string() }),
+                        fixture_message_block(SummaryToolCall::FileUpdate {
+                            path: "file.txt".to_string(),
+                        }),
+                        fixture_message_block(SummaryToolCall::FileUpdate {
+                            path: "file.txt".to_string(),
+                        }),
                     ],
                 },
             ],
@@ -288,13 +292,13 @@ mod tests {
                     SummaryMessageBlock {
                         content: None,
                         tool_call_id: None,
-                        tool_call: SummaryToolCall::Execute { cmd: "ls".to_string() },
+                        tool_call: SummaryToolCall::FileUpdate { path: "file.txt".to_string() },
                         tool_call_success: Some(true),
                     },
                     SummaryMessageBlock {
                         content: None,
                         tool_call_id: None,
-                        tool_call: SummaryToolCall::Execute { cmd: "ls".to_string() },
+                        tool_call: SummaryToolCall::FileUpdate { path: "file.txt".to_string() },
                         tool_call_success: Some(true),
                     },
                 ],

@@ -32,7 +32,6 @@ pub enum SummaryToolCall {
     FileRead { path: String },
     FileUpdate { path: String },
     FileRemove { path: String },
-    Execute { cmd: String },
     Fetch { url: String },
 }
 
@@ -61,9 +60,7 @@ impl From<&Context> for ContextSummary {
                         tool_results.insert(call_id, tool_result);
                     }
                 }
-                ContextMessage::Image(_) => {
-                    // TODO: think about image compaction
-                }
+                ContextMessage::Image(_) => {}
             }
         }
 
@@ -124,9 +121,12 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryToolCall> {
         Tools::Write(input) => Some(SummaryToolCall::FileUpdate { path: input.path }),
         Tools::Patch(input) => Some(SummaryToolCall::FileUpdate { path: input.path }),
         Tools::Remove(input) => Some(SummaryToolCall::FileRemove { path: input.path }),
-        Tools::Shell(input) => Some(SummaryToolCall::Execute { cmd: input.command }),
         Tools::Fetch(input) => Some(SummaryToolCall::Fetch { url: input.url }),
         // Other tools don't have specific summary info
-        Tools::Undo(_) | Tools::Followup(_) | Tools::Plan(_) | Tools::Search(_) => None,
+        Tools::Shell(_)
+        | Tools::Undo(_)
+        | Tools::Followup(_)
+        | Tools::Plan(_)
+        | Tools::Search(_) => None,
     }
 }

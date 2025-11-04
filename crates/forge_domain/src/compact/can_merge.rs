@@ -38,7 +38,6 @@ impl CanMerge for SummaryToolCall {
             (Self::FileRead { path: a }, Self::FileRead { path: b }) if a == b => true,
             (Self::FileUpdate { path: a }, Self::FileUpdate { path: b }) if a == b => true,
             (Self::FileRemove { path: a }, Self::FileRemove { path: b }) if a == b => true,
-            (Self::Execute { cmd: a }, Self::Execute { cmd: b }) if a == b => true,
             (Self::Fetch { url: a }, Self::Fetch { url: b }) if a == b => true,
             _ => false,
         }
