@@ -1,25 +1,15 @@
 use std::convert::identity;
 
-use crate::{RoleMessage, SummaryMessage, SummaryToolCall};
+use crate::{SummaryMessage, SummaryToolCall};
 
 /// Trait for types that can determine if they can be merged with another
 /// instance
 pub trait CanMerge {
     /// Checks if this instance can be merged with another instance
-    ///
-    /// # Arguments
-    ///
-    /// * `other` - The other instance to check for merge compatibility
     fn can_merge(&self, other: &Self) -> bool;
 }
 
-impl CanMerge for RoleMessage {
-    fn can_merge(&self, other: &Self) -> bool {
-        self.role == other.role && self.messages.can_merge(&other.messages)
-    }
-}
-
-impl CanMerge for Vec<SummaryMessage> {
+impl<T: CanMerge> CanMerge for Vec<T> {
     fn can_merge(&self, other: &Self) -> bool {
         self.len() == other.len()
             && self
