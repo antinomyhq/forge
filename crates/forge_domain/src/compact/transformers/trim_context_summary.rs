@@ -114,23 +114,7 @@ mod tests {
     }
 
     #[test]
-    fn test_merges_all_messages_in_summary() {
-        let fixture = summary(vec![
-            message(Role::Assistant, vec![read("/test"), read("/test")]),
-            message(Role::User, vec![update("file.txt"), update("file.txt")]),
-        ]);
-        let actual = TrimContextSummary.transform(fixture);
-
-        let expected = summary(vec![
-            message(Role::Assistant, vec![read("/test")]),
-            message(Role::User, vec![update("file.txt"), update("file.txt")]),
-        ]);
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_handles_empty_summary() {
+    fn test_empty_summary() {
         let fixture = summary(vec![]);
         let actual = TrimContextSummary.transform(fixture);
 
@@ -140,41 +124,7 @@ mod tests {
     }
 
     #[test]
-    fn test_handles_messages_with_no_mergeable_blocks() {
-        let fixture = summary(vec![message(
-            Role::Assistant,
-            vec![read("/test1"), read("/test2"), read("/test3")],
-        )]);
-        let actual = TrimContextSummary.transform(fixture);
-
-        let expected = summary(vec![message(
-            Role::Assistant,
-            vec![read("/test1"), read("/test2"), read("/test3")],
-        )]);
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_preserves_message_roles() {
-        let fixture = summary(vec![
-            message(Role::System, vec![]),
-            message(Role::User, vec![]),
-            message(Role::Assistant, vec![]),
-        ]);
-        let actual = TrimContextSummary.transform(fixture);
-
-        let expected = summary(vec![
-            message(Role::System, vec![]),
-            message(Role::User, vec![]),
-            message(Role::Assistant, vec![]),
-        ]);
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_handles_mixed_mergeable_and_non_mergeable() {
+    fn test_keeps_last_operation_per_path() {
         let fixture = summary(vec![message(
             Role::Assistant,
             vec![
@@ -195,49 +145,7 @@ mod tests {
     }
 
     #[test]
-    fn test_merges_consecutive_identical_blocks() {
-        let fixture = summary(vec![message(
-            Role::Assistant,
-            vec![read("/test"), read("/test"), read("/test")],
-        )]);
-        let actual = TrimContextSummary.transform(fixture);
-
-        let expected = summary(vec![message(Role::Assistant, vec![read("/test")])]);
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_does_not_merge_different_tool_calls() {
-        let fixture = summary(vec![message(
-            Role::Assistant,
-            vec![read("/test1"), read("/test2")],
-        )]);
-        let actual = TrimContextSummary.transform(fixture);
-
-        let expected = summary(vec![message(
-            Role::Assistant,
-            vec![read("/test1"), read("/test2")],
-        )]);
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_filters_out_failed_operations() {
-        let fixture = summary(vec![message(
-            Role::Assistant,
-            vec![read("/test"), read("/test").tool_call_success(false)],
-        )]);
-        let actual = TrimContextSummary.transform(fixture);
-
-        let expected = summary(vec![message(Role::Assistant, vec![read("/test")])]);
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_keeps_last_operation_regardless_of_content() {
+    fn test_keeps_last_operation_with_content() {
         let fixture = summary(vec![message(
             Role::Assistant,
             vec![
@@ -256,7 +164,7 @@ mod tests {
     }
 
     #[test]
-    fn test_merges_different_tool_types_correctly() {
+    fn test_different_operation_types_on_same_path() {
         let fixture = summary(vec![message(
             Role::Assistant,
             vec![
@@ -264,152 +172,23 @@ mod tests {
                 read("/test"),
                 update("file.txt"),
                 update("file.txt"),
+                read("/test"),
+                update("/test"),
+                remove("/test"),
             ],
         )]);
         let actual = TrimContextSummary.transform(fixture);
 
         let expected = summary(vec![message(
             Role::Assistant,
-            vec![read("/test"), update("file.txt")],
+            vec![remove("/test"), update("file.txt")],
         )]);
 
         assert_eq!(actual, expected);
     }
 
     #[test]
-    fn test_does_not_trim_user_role_messages() {
-        let fixture = summary(vec![message(
-            Role::User,
-            vec![read("/test"), read("/test"), read("/test")],
-        )]);
-        let actual = TrimContextSummary.transform(fixture);
-
-        let expected = summary(vec![message(
-            Role::User,
-            vec![read("/test"), read("/test"), read("/test")],
-        )]);
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_does_not_trim_system_role_messages() {
-        let fixture = summary(vec![message(
-            Role::System,
-            vec![update("file.txt"), update("file.txt")],
-        )]);
-        let actual = TrimContextSummary.transform(fixture);
-
-        let expected = summary(vec![message(
-            Role::System,
-            vec![update("file.txt"), update("file.txt")],
-        )]);
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_only_trims_assistant_messages_in_mixed_roles() {
-        let fixture = summary(vec![
-            message(Role::User, vec![read("/test"), read("/test")]),
-            message(
-                Role::Assistant,
-                vec![update("file.txt"), update("file.txt")],
-            ),
-            message(
-                Role::System,
-                vec![remove("remove.txt"), remove("remove.txt")],
-            ),
-        ]);
-        let actual = TrimContextSummary.transform(fixture);
-
-        let expected = summary(vec![
-            message(Role::User, vec![read("/test"), read("/test")]),
-            message(Role::Assistant, vec![update("file.txt")]),
-            message(
-                Role::System,
-                vec![remove("remove.txt"), remove("remove.txt")],
-            ),
-        ]);
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_filters_out_all_failed_operations() {
-        let fixture = summary(vec![message(
-            Role::Assistant,
-            vec![
-                read("/test1").tool_call_success(false),
-                read("/test2").tool_call_success(false),
-                update("file.txt").tool_call_success(false),
-            ],
-        )]);
-        let actual = TrimContextSummary.transform(fixture);
-
-        let expected = summary(vec![message(Role::Assistant, vec![])]);
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_filters_out_operations_with_none_success_status() {
-        let fixture = summary(vec![message(
-            Role::Assistant,
-            vec![
-                SummaryMessageBlock {
-                    content: None,
-                    tool_call_id: None,
-                    tool_call: SummaryToolCall::FileRead { path: "/test".to_string() },
-                    tool_call_success: None,
-                },
-                update("file.txt"),
-            ],
-        )]);
-        let actual = TrimContextSummary.transform(fixture);
-
-        let expected = summary(vec![message(Role::Assistant, vec![update("file.txt")])]);
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_keeps_last_successful_operation_per_path() {
-        let fixture = summary(vec![message(
-            Role::Assistant,
-            vec![
-                read("/test").content("first read".to_string()),
-                read("/test")
-                    .content("failed read".to_string())
-                    .tool_call_success(false),
-                read("/test").content("second read".to_string()),
-            ],
-        )]);
-        let actual = TrimContextSummary.transform(fixture);
-
-        let expected = summary(vec![message(
-            Role::Assistant,
-            vec![read("/test").content("second read".to_string())],
-        )]);
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_preserves_different_operation_types_on_same_path() {
-        let fixture = summary(vec![message(
-            Role::Assistant,
-            vec![read("/test"), update("/test"), remove("/test")],
-        )]);
-        let actual = TrimContextSummary.transform(fixture);
-
-        let expected = summary(vec![message(Role::Assistant, vec![remove("/test")])]);
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_multiple_paths_with_multiple_operations() {
+    fn test_preserves_insertion_order() {
         let fixture = summary(vec![message(
             Role::Assistant,
             vec![
@@ -432,47 +211,91 @@ mod tests {
     }
 
     #[test]
-    fn test_preserves_insertion_order() {
-        let fixture = summary(vec![message(
-            Role::Assistant,
-            vec![read("/aaa"), read("/zzz"), read("/mmm")],
-        )]);
-        let actual = TrimContextSummary.transform(fixture);
-
-        let expected = summary(vec![message(
-            Role::Assistant,
-            vec![read("/aaa"), read("/zzz"), read("/mmm")],
-        )]);
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_mixed_success_and_failure_on_different_paths() {
+    fn test_filters_failed_and_none_operations() {
         let fixture = summary(vec![message(
             Role::Assistant,
             vec![
-                read("/success"),
-                read("/failure").tool_call_success(false),
+                read("/test").content("first read".to_string()),
+                read("/test")
+                    .content("failed read".to_string())
+                    .tool_call_success(false),
+                read("/test").content("second read".to_string()),
                 SummaryMessageBlock {
                     content: None,
                     tool_call_id: None,
                     tool_call: SummaryToolCall::FileRead { path: "/unknown".to_string() },
                     tool_call_success: None,
                 },
+                update("file.txt"),
+                read("/all_failed").tool_call_success(false),
             ],
         )]);
         let actual = TrimContextSummary.transform(fixture);
 
-        let expected = summary(vec![message(Role::Assistant, vec![read("/success")])]);
+        let expected = summary(vec![message(
+            Role::Assistant,
+            vec![
+                read("/test").content("second read".to_string()),
+                update("file.txt"),
+            ],
+        )]);
 
         assert_eq!(actual, expected);
     }
 
     #[test]
-    fn test_multiple_assistant_messages_are_trimmed_independently() {
+    fn test_empty_assistant_message_after_filtering() {
+        let fixture = summary(vec![message(
+            Role::Assistant,
+            vec![
+                read("/test1").tool_call_success(false),
+                read("/test2").tool_call_success(false),
+            ],
+        )]);
+        let actual = TrimContextSummary.transform(fixture);
+
+        let expected = summary(vec![message(Role::Assistant, vec![])]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_only_trims_assistant_messages() {
+        let fixture = summary(vec![
+            message(Role::User, vec![read("/test"), read("/test")]),
+            message(
+                Role::Assistant,
+                vec![update("file.txt"), update("file.txt")],
+            ),
+            message(
+                Role::System,
+                vec![remove("remove.txt"), remove("remove.txt")],
+            ),
+            message(Role::Assistant, vec![read("/test"), read("/test")]),
+        ]);
+        let actual = TrimContextSummary.transform(fixture);
+
+        let expected = summary(vec![
+            message(Role::User, vec![read("/test"), read("/test")]),
+            message(Role::Assistant, vec![update("file.txt")]),
+            message(
+                Role::System,
+                vec![remove("remove.txt"), remove("remove.txt")],
+            ),
+            message(Role::Assistant, vec![read("/test")]),
+        ]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_multiple_assistant_messages_trimmed_independently() {
         let fixture = summary(vec![
             message(Role::Assistant, vec![read("/test"), read("/test")]),
+            message(
+                Role::Assistant,
+                vec![read("/test").tool_call_success(false)],
+            ),
             message(
                 Role::Assistant,
                 vec![read("/test"), read("/test"), read("/test")],
@@ -482,26 +305,8 @@ mod tests {
 
         let expected = summary(vec![
             message(Role::Assistant, vec![read("/test")]),
-            message(Role::Assistant, vec![read("/test")]),
-        ]);
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_empty_assistant_message_after_filtering() {
-        let fixture = summary(vec![
-            message(
-                Role::Assistant,
-                vec![read("/test").tool_call_success(false)],
-            ),
-            message(Role::Assistant, vec![read("/other")]),
-        ]);
-        let actual = TrimContextSummary.transform(fixture);
-
-        let expected = summary(vec![
             message(Role::Assistant, vec![]),
-            message(Role::Assistant, vec![read("/other")]),
+            message(Role::Assistant, vec![read("/test")]),
         ]);
 
         assert_eq!(actual, expected);
