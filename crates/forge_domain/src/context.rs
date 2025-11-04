@@ -286,7 +286,7 @@ impl TextMessage {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Display)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize, Display)]
 pub enum Role {
     System,
     User,

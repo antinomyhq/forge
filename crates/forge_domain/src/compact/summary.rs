@@ -13,7 +13,7 @@ pub struct ContextSummary {
 /// A simplified representation of a message with its key information
 pub struct RoleMessage {
     pub role: Role,
-    pub message: Vec<SummaryMessage>,
+    pub messages: Vec<SummaryMessage>,
 }
 
 impl RoleMessage {
@@ -70,19 +70,22 @@ pub enum SummaryToolCall {
 impl From<&Context> for ContextSummary {
     fn from(value: &Context) -> Self {
         let mut messages = vec![];
+        let mut buffer: Vec<SummaryMessage> = vec![];
         let mut tool_results: HashMap<&ToolCallId, &ToolResult> = Default::default();
-
+        let mut current_role = Role::System;
         for msg in &value.messages {
             match msg {
                 ContextMessage::Text(text_msg) => {
-                    let mut tool_info = Vec::<SummaryMessage>::from(text_msg);
+                    if current_role != text_msg.role {
+                        messages.push(RoleMessage {
+                            role: current_role,
+                            messages: buffer.drain(..).collect(),
+                        });
 
-                    // Set content on each SummaryMessage
-                    for info in &mut tool_info {
-                        info.content = Some(text_msg.content.clone());
+                        current_role = text_msg.role;
                     }
 
-                    messages.push(RoleMessage { role: text_msg.role.clone(), message: tool_info });
+                    buffer.extend(Vec::<SummaryMessage>::from(text_msg));
                 }
                 ContextMessage::Tool(tool_result) => {
                     if let Some(ref call_id) = tool_result.call_id {
@@ -90,14 +93,17 @@ impl From<&Context> for ContextSummary {
                     }
                 }
                 ContextMessage::Image(_) => {
-                    messages.push(RoleMessage { role: Role::User, message: vec![] });
+                    // TODO: think about image compaction
                 }
             }
         }
 
+        // Insert the last chunk
+        messages.push(RoleMessage { role: current_role, messages: buffer.drain(..).collect() });
+
         messages
             .iter_mut()
-            .flat_map(|message| message.message.iter_mut())
+            .flat_map(|message| message.messages.iter_mut())
             .filter_map(|tool_info| {
                 tool_info
                     .tool_call_id
@@ -163,7 +169,7 @@ mod tests {
     use super::*;
 
     fn fixture_summary_message(role: Role, tool_info: Vec<SummaryMessage>) -> RoleMessage {
-        RoleMessage { role, message: tool_info }
+        RoleMessage { role, messages: tool_info }
     }
 
     fn fixture_tool_info(
@@ -218,12 +224,12 @@ mod tests {
 
         assert_eq!(actual.len(), expected_len);
         // Messages should NOT merge because they have different tool calls
-        assert_eq!(actual[0].message.len(), 1);
-        if let SummaryToolCall::FileRead { path } = &actual[0].message[0].tool_call {
+        assert_eq!(actual[0].messages.len(), 1);
+        if let SummaryToolCall::FileRead { path } = &actual[0].messages[0].tool_call {
             assert_eq!(path, "file1.txt");
         }
-        assert_eq!(actual[1].message.len(), 1);
-        if let SummaryToolCall::FileRead { path } = &actual[1].message[0].tool_call {
+        assert_eq!(actual[1].messages.len(), 1);
+        if let SummaryToolCall::FileRead { path } = &actual[1].messages[0].tool_call {
             assert_eq!(path, "file2.txt");
         }
     }
@@ -305,21 +311,21 @@ mod tests {
 
         assert_eq!(actual.len(), expected_len);
         // Group 1: messages with same tool call merge
-        assert_eq!(actual[0].message.len(), 1);
-        if let SummaryToolCall::FileRead { path } = &actual[0].message[0].tool_call {
+        assert_eq!(actual[0].messages.len(), 1);
+        if let SummaryToolCall::FileRead { path } = &actual[0].messages[0].tool_call {
             assert_eq!(path, "file1.txt");
         }
-        assert_eq!(actual[0].message[0].content, Some("A".to_string()));
+        assert_eq!(actual[0].messages[0].content, Some("A".to_string()));
         // Empty message group
-        assert_eq!(actual[1].message.len(), 0);
+        assert_eq!(actual[1].messages.len(), 0);
         // Empty message group
-        assert_eq!(actual[2].message.len(), 0);
+        assert_eq!(actual[2].messages.len(), 0);
         // Group 2: messages with same tool call merge
-        assert_eq!(actual[3].message.len(), 1);
-        if let SummaryToolCall::FileRead { path } = &actual[3].message[0].tool_call {
+        assert_eq!(actual[3].messages.len(), 1);
+        if let SummaryToolCall::FileRead { path } = &actual[3].messages[0].tool_call {
             assert_eq!(path, "file3.txt");
         }
-        assert_eq!(actual[3].message[0].content, Some("C".to_string()));
+        assert_eq!(actual[3].messages[0].content, Some("C".to_string()));
     }
 
     #[test]
@@ -350,10 +356,10 @@ mod tests {
 
         assert_eq!(actual.len(), 1);
         // The last message replaces all previous mergeable messages
-        assert_eq!(actual[0].message.len(), 1);
-        if let SummaryToolCall::FileRead { path } = &actual[0].message[0].tool_call {
+        assert_eq!(actual[0].messages.len(), 1);
+        if let SummaryToolCall::FileRead { path } = &actual[0].messages[0].tool_call {
             assert_eq!(path, "file1.txt");
         }
-        assert_eq!(actual[0].message[0].content, Some("Test".to_string()));
+        assert_eq!(actual[0].messages[0].content, Some("Test".to_string()));
     }
 }

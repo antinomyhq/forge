@@ -15,7 +15,7 @@ pub trait CanMerge {
 
 impl CanMerge for RoleMessage {
     fn can_merge(&self, other: &Self) -> bool {
-        self.role == other.role && self.message.can_merge(&other.message)
+        self.role == other.role && self.messages.can_merge(&other.messages)
     }
 }
 
