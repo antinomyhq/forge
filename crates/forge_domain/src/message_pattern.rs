@@ -105,6 +105,104 @@ impl From<String> for MessagePattern {
     }
 }
 
+/// Parses a pattern string to extract indices where `^` markers appear.
+///
+/// The pattern uses:
+/// - `.` to count positions (increments index)
+/// - `^` to mark positions to capture
+/// - whitespace to ignore (doesn't affect counting)
+///
+/// # Arguments
+///
+/// * `pattern` - A string pattern containing `.` for positions and `^` for
+///   markers
+///
+/// # Returns
+///
+/// A vector of indices where `^` markers were found
+///
+/// # Examples
+///
+/// ```ignore
+/// let indices = index_from_pattern("...^..^");
+/// assert_eq!(indices, vec![3, 6]);
+///
+/// let [first, second] = indices.as_slice();
+/// // first = 3, second = 6
+/// ```
+pub fn index_from_pattern(pattern: impl ToString) -> Vec<usize> {
+    let pattern = pattern.to_string();
+    let mut indices = Vec::new();
+    let mut current_index = 0;
+
+    for ch in pattern.chars() {
+        match ch {
+            '^' => {
+                indices.push(current_index);
+                current_index += 1;
+            }
+            '.' => {
+                current_index += 1;
+            }
+            _ if ch.is_whitespace() => {
+                // Ignore whitespace
+            }
+            _ => {
+                // Ignore other characters
+            }
+        }
+    }
+
+    indices
+}
+
+/// Creates a pattern string with `^` markers at the specified indices.
+///
+/// The generated pattern uses:
+/// - `.` for positions without markers
+/// - `^` for positions that should be marked
+///
+/// # Arguments
+///
+/// * `indices` - A slice of indices where `^` markers should be placed
+/// * `length` - The total length of the pattern (if None, uses the last index +
+///   1)
+///
+/// # Returns
+///
+/// A string pattern with `.` and `^` characters
+///
+/// # Examples
+///
+/// ```ignore
+/// let pattern = pattern_from_indices(&[3, 6], Some(7));
+/// assert_eq!(pattern, "...^..^");
+///
+/// let pattern = pattern_from_indices(&[0, 2], None);
+/// assert_eq!(pattern, "^.^");
+/// ```
+pub fn pattern_from_indices(indices: &[usize], length: Option<usize>) -> String {
+    if indices.is_empty() {
+        return String::new();
+    }
+
+    let max_index = *indices.iter().max().unwrap();
+    let pattern_length = length.unwrap_or(max_index + 1);
+
+    let mut pattern = String::with_capacity(pattern_length);
+    let indices_set: std::collections::HashSet<usize> = indices.iter().copied().collect();
+
+    for i in 0..pattern_length {
+        if indices_set.contains(&i) {
+            pattern.push('^');
+        } else {
+            pattern.push('.');
+        }
+    }
+
+    pattern
+}
+
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
@@ -266,5 +364,125 @@ mod tests {
         assert!(actual.messages[5].has_role(Role::Assistant));
         assert!(actual.messages[6].has_role(Role::User));
         assert!(actual.messages[7].has_role(Role::Assistant));
+    }
+
+    #[test]
+    fn test_index_from_pattern() {
+        // Basic usage with destructuring
+        let indices = index_from_pattern("...^");
+        assert_eq!(indices, vec![3]);
+
+        let [first] = indices.as_slice() else {
+            panic!("Expected exactly one index");
+        };
+        assert_eq!(*first, 3);
+
+        // Multiple markers
+        let indices = index_from_pattern("...^..^");
+        assert_eq!(indices, vec![3, 6]);
+
+        let [first, second] = indices.as_slice() else {
+            panic!("Expected exactly two indices");
+        };
+        assert_eq!(*first, 3);
+        assert_eq!(*second, 6);
+
+        // With whitespace (should be ignored)
+        let indices = index_from_pattern("  ...^..............^...");
+        assert_eq!(indices, vec![3, 18]);
+
+        // Marker at start
+        let indices = index_from_pattern("^...");
+        assert_eq!(indices, vec![0]);
+
+        // Multiple consecutive markers
+        let indices = index_from_pattern(".^^.");
+        assert_eq!(indices, vec![1, 2]);
+
+        // Empty pattern
+        let indices = index_from_pattern("");
+        assert_eq!(indices, Vec::<usize>::new());
+
+        // Only whitespace
+        let indices = index_from_pattern("   ");
+        assert_eq!(indices, Vec::<usize>::new());
+
+        // Only markers
+        let indices = index_from_pattern("^^^");
+        assert_eq!(indices, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn test_pattern_from_indices() {
+        // Basic usage
+        let actual = pattern_from_indices(&[3], Some(4));
+        let expected = "...^";
+        assert_eq!(actual, expected);
+
+        // Multiple indices
+        let actual = pattern_from_indices(&[3, 6], Some(7));
+        let expected = "...^..^";
+        assert_eq!(actual, expected);
+
+        // Marker at start
+        let actual = pattern_from_indices(&[0], Some(4));
+        let expected = "^...";
+        assert_eq!(actual, expected);
+
+        // Multiple consecutive markers
+        let actual = pattern_from_indices(&[1, 2], Some(4));
+        let expected = ".^^.";
+        assert_eq!(actual, expected);
+
+        // Auto-length (no explicit length)
+        let actual = pattern_from_indices(&[3, 6], None);
+        let expected = "...^..^";
+        assert_eq!(actual, expected);
+
+        // Auto-length with single index
+        let actual = pattern_from_indices(&[0], None);
+        let expected = "^";
+        assert_eq!(actual, expected);
+
+        // Empty indices
+        let actual = pattern_from_indices(&[], None);
+        let expected = "";
+        assert_eq!(actual, expected);
+
+        // Longer pattern than needed
+        let actual = pattern_from_indices(&[1, 3], Some(10));
+        let expected = ".^.^......";
+        assert_eq!(actual, expected);
+
+        // Unordered indices (should still work)
+        let actual = pattern_from_indices(&[6, 3], Some(7));
+        let expected = "...^..^";
+        assert_eq!(actual, expected);
+
+        // Duplicate indices (should deduplicate)
+        let actual = pattern_from_indices(&[2, 2, 5], Some(7));
+        let expected = "..^..^.";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_index_and_pattern_roundtrip() {
+        // Test that converting back and forth preserves data
+        let original_pattern = "...^..^";
+        let indices = index_from_pattern(original_pattern);
+        let recreated_pattern = pattern_from_indices(&indices, Some(7));
+        assert_eq!(original_pattern, recreated_pattern);
+
+        // Test with auto-length
+        let original_pattern = "^.^";
+        let indices = index_from_pattern(original_pattern);
+        let recreated_pattern = pattern_from_indices(&indices, None);
+        assert_eq!(original_pattern, recreated_pattern);
+
+        // Test with whitespace (whitespace is ignored, so we compare indices)
+        let pattern_with_whitespace = "  ...^..^";
+        let indices = index_from_pattern(pattern_with_whitespace);
+        let expected_indices = vec![3, 6];
+        assert_eq!(indices, expected_indices);
     }
 }
