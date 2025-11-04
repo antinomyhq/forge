@@ -98,7 +98,7 @@ impl ContextMessage {
     pub fn to_text(&self) -> String {
         match self {
             ContextMessage::Text(message) => {
-                let mut message_element = Element::new("message").attr("role", &message.role);
+                let mut message_element = Element::new("message").attr("role", message.role);
 
                 message_element =
                     message_element.append(Element::new("content").text(&message.content));
