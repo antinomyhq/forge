@@ -70,9 +70,9 @@ impl Display for CliProvider {
             AnyProvider::Url(provider) => {
                 write!(f, "{} {:<width$}", "✓".green(), name, width = name_width)?;
                 if let Some(domain) = provider.url.domain() {
-                    write!(f, " {domain}")?;
+                    write!(f, " [{domain}]")?;
                 } else {
-                    write!(f, " <unavailable>")?;
+                    write!(f, " [unavailable]")?;
                 }
             }
             AnyProvider::Template(_) => {
