@@ -954,31 +954,33 @@ where
 
                 let config = &ctx.request.oauth_config;
 
-                // Dispatch based on auth method
-                if config.token_refresh_url.is_some() {
+                // Dispatch based on auth method and save credential
+                let credential = if config.token_refresh_url.is_some() {
                     // Handle OAuth with API key completion
                     self.handle_oauth_with_apikey_complete(provider_id, token_response, config)
-                        .await?;
+                        .await?
                 } else {
                     self.handle_oauth_device_complete(provider_id, token_response, config)
-                        .await?;
-                }
-                Ok(())
+                        .await?
+                };
+
+                self.infra.upsert_credential(credential).await
             }
             AuthContextResponse::Code(ctx) => {
                 let code = ctx.response.code.clone();
                 let pkce_verifier = ctx.request.pkce_verifier.clone();
 
                 // Handle OAuth code flow completion
-                self.handle_oauth_code_complete(
-                    provider_id,
-                    code,
-                    pkce_verifier,
-                    &ctx.request.oauth_config,
-                )
-                .await?;
+                let credential = self
+                    .handle_oauth_code_complete(
+                        provider_id,
+                        code,
+                        pkce_verifier,
+                        &ctx.request.oauth_config,
+                    )
+                    .await?;
 
-                Ok(())
+                self.infra.upsert_credential(credential).await
             }
         }
     }
