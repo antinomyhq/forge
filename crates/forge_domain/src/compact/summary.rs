@@ -82,11 +82,19 @@ impl From<&Context> for ContextSummary {
         for msg in &value.messages {
             match msg {
                 ContextMessage::Text(text_msg) => {
+                    // Skip system messages
+                    if text_msg.role == Role::System {
+                        continue;
+                    }
+
                     if current_role != text_msg.role {
-                        messages.push(SummaryMessage {
-                            role: current_role,
-                            messages: std::mem::take(&mut buffer),
-                        });
+                        // Only push if buffer is not empty (avoid empty System role at start)
+                        if !buffer.is_empty() {
+                            messages.push(SummaryMessage {
+                                role: current_role,
+                                messages: std::mem::take(&mut buffer),
+                            });
+                        }
 
                         current_role = text_msg.role;
                     }
@@ -102,8 +110,11 @@ impl From<&Context> for ContextSummary {
             }
         }
 
-        // Insert the last chunk
-        messages.push(SummaryMessage { role: current_role, messages: std::mem::take(&mut buffer) });
+        // Insert the last chunk if buffer is not empty
+        if !buffer.is_empty() {
+            messages
+                .push(SummaryMessage { role: current_role, messages: std::mem::take(&mut buffer) });
+        }
 
         messages
             .iter_mut()
