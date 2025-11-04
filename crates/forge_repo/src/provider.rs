@@ -116,11 +116,8 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
                 }
                 // Try to create configured provider, fallback to unconfigured
                 self.create_provider(&config)
-                    .map(|p| p.to_entry())
-                    .or_else(|_| {
-                        self.create_unconfigured_provider(&config)
-                            .map(|p| p.to_entry())
-                    })
+                    .map(|p| p.into())
+                    .or_else(|_| self.create_unconfigured_provider(&config).map(|p| p.into()))
                     .ok()
             })
             .collect();

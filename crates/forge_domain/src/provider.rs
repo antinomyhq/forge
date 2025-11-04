@@ -1,3 +1,4 @@
+use derive_more::From;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter, EnumString};
@@ -78,21 +79,11 @@ impl Provider<Url> {
     pub fn url(&self) -> &Url {
         &self.url
     }
-
-    pub fn to_entry(&self) -> AnyProvider {
-        AnyProvider::Url(self.clone())
-    }
-}
-
-impl Provider<Template<String>> {
-    pub fn to_entry(&self) -> AnyProvider {
-        AnyProvider::Template(self.clone())
-    }
 }
 
 /// Enum for viewing providers in listings where both configured and
 /// unconfigured.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, From)]
 pub enum AnyProvider {
     Url(Provider<Url>),
     Template(Provider<Template<String>>),
