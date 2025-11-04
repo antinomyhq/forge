@@ -16,7 +16,7 @@ use url::Url;
 /// Represents the source of models for a provider
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
-enum Models {
+pub enum Models {
     /// Models are fetched from a URL
     Url(String),
     /// Models are hardcoded in the configuration
@@ -24,19 +24,21 @@ enum Models {
 }
 
 #[derive(Debug, Clone, Deserialize, Merge)]
-struct ProviderConfig {
+pub struct ProviderConfig {
     #[merge(strategy = overwrite)]
-    id: ProviderId,
+    pub id: ProviderId,
     #[merge(strategy = overwrite)]
-    api_key_vars: String,
+    pub api_key_vars: String,
     #[merge(strategy = merge::vec::append)]
-    url_param_vars: Vec<String>,
+    pub url_param_vars: Vec<String>,
     #[merge(strategy = overwrite)]
-    response_type: ProviderResponse,
+    pub response_type: ProviderResponse,
     #[merge(strategy = overwrite)]
-    url: String,
+    pub url: String,
     #[merge(strategy = overwrite)]
-    models: Models,
+    pub models: Models,
+    #[merge(strategy = merge::vec::append)]
+    pub auth_methods: Vec<forge_domain::AuthMethod>,
 }
 
 fn overwrite<T>(base: &mut T, other: T) {
@@ -223,11 +225,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
         Ok(AuthCredential {
             id: config.id,
             auth_details: AuthDetails::ApiKey(ApiKey::from(api_key)),
-            url_params: if url_params.is_empty() {
-                None
-            } else {
-                Some(url_params)
-            },
+            url_params,
         })
     }
 
@@ -243,10 +241,8 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
 
         // Build template data from URL parameters in credential
         let mut template_data = std::collections::HashMap::new();
-        if let Some(ref url_params) = credential.url_params {
-            for (param, value) in url_params {
-                template_data.insert(param.as_str(), value.as_str());
-            }
+        for (param, value) in &credential.url_params {
+            template_data.insert(param.as_str(), value.as_str());
         }
 
         // Render URL using handlebars
@@ -283,6 +279,12 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
             id: config.id,
             response: config.response_type.clone(),
             url: final_url,
+            auth_methods: config.auth_methods.clone(),
+            url_params: config
+                .url_param_vars
+                .iter()
+                .map(|v| URLParam::from(v.clone()))
+                .collect(),
             credential: Some(credential),
             models,
         })
@@ -305,6 +307,12 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
             id: config.id,
             response: config.response_type.clone(),
             url: forge_domain::Template::new(&config.url),
+            auth_methods: config.auth_methods.clone(),
+            url_params: config
+                .url_param_vars
+                .iter()
+                .map(|v| URLParam::from(v.clone()))
+                .collect(),
             credential: None,
             models,
         })
@@ -329,7 +337,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
     }
 
     /// Returns merged provider configs (embedded + custom)
-    async fn get_merged_configs(&self) -> Vec<ProviderConfig> {
+    pub async fn get_merged_configs(&self) -> Vec<ProviderConfig> {
         let mut configs = ProviderConfigs(get_provider_configs().clone());
         // Merge custom configs into embedded configs
         configs.merge(ProviderConfigs(
@@ -684,8 +692,8 @@ mod env_tests {
         }
 
         // Verify OpenAICompatible has URL param
-        assert!(openai_compat_cred.url_params.is_some());
-        let url_params = openai_compat_cred.url_params.as_ref().unwrap();
+        assert!(!openai_compat_cred.url_params.is_empty());
+        let url_params = &openai_compat_cred.url_params;
         assert_eq!(
             url_params
                 .get(&URLParam::from("OPENAI_URL".to_string()))
@@ -758,8 +766,8 @@ mod env_tests {
             .iter()
             .find(|c| c.id == ProviderId::AnthropicCompatible)
             .unwrap();
-        assert!(anthropic_compat_cred.url_params.is_some());
-        let url_params = anthropic_compat_cred.url_params.as_ref().unwrap();
+        assert!(!anthropic_compat_cred.url_params.is_empty());
+        let url_params = &anthropic_compat_cred.url_params;
         assert_eq!(
             url_params
                 .get(&URLParam::from("ANTHROPIC_URL".to_string()))
@@ -892,6 +900,7 @@ mod env_tests {
                 "api_key_vars": "CUSTOM_OPENAI_KEY",
                 "url_param_vars": [],
                 "response_type": "OpenAI",
+                "auth_methods": [],
                 "url": "https://custom.openai.com/v1/chat/completions",
                 "models": "https://custom.openai.com/v1/models"
             }

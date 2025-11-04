@@ -64,6 +64,8 @@ pub struct Provider<T> {
     pub id: ProviderId,
     pub response: ProviderResponse,
     pub url: T,
+    pub auth_methods: Vec<crate::AuthMethod>,
+    pub url_params: Vec<crate::URLParam>,
     pub credential: Option<AuthCredential>,
     pub models: Models<T>,
 }
@@ -145,13 +147,15 @@ impl ProviderEntry {
 
 #[cfg(test)]
 mod test_helpers {
+    use std::collections::HashMap;
+
     use super::*;
 
     fn make_credential(provider_id: ProviderId, key: &str) -> Option<AuthCredential> {
         Some(AuthCredential {
             id: provider_id,
             auth_details: AuthDetails::ApiKey(ApiKey::from(key.to_string())),
-            url_params: None,
+            url_params: HashMap::new(),
         })
     }
 
@@ -161,6 +165,8 @@ mod test_helpers {
             id: ProviderId::Zai,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
+            auth_methods: vec![crate::AuthMethod::ApiKey],
+            url_params: vec![],
             credential: make_credential(ProviderId::Zai, key),
             models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
         }
@@ -172,6 +178,8 @@ mod test_helpers {
             id: ProviderId::ZaiCoding,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
+            auth_methods: vec![crate::AuthMethod::ApiKey],
+            url_params: vec![],
             credential: make_credential(ProviderId::ZaiCoding, key),
             models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
         }
@@ -183,6 +191,8 @@ mod test_helpers {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
+            auth_methods: vec![crate::AuthMethod::ApiKey],
+            url_params: vec![],
             credential: make_credential(ProviderId::OpenAI, key),
             models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
         }
@@ -194,6 +204,8 @@ mod test_helpers {
             id: ProviderId::Xai,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.x.ai/v1/chat/completions").unwrap(),
+            auth_methods: vec![crate::AuthMethod::ApiKey],
+            url_params: vec![],
             credential: make_credential(ProviderId::Xai, key),
             models: Models::Url(Url::parse("https://api.x.ai/v1/models").unwrap()),
         }
@@ -228,6 +240,11 @@ mod test_helpers {
             id: ProviderId::VertexAi,
             response: ProviderResponse::OpenAI,
             url: Url::parse(&chat_url).unwrap(),
+            auth_methods: vec![crate::AuthMethod::ApiKey],
+            url_params: ["project_id", "location"]
+                .iter()
+                .map(|&s| s.to_string().into())
+                .collect(),
             credential: make_credential(ProviderId::VertexAi, key),
             models: Models::Url(Url::parse(&model_url).unwrap()),
         }
@@ -253,6 +270,11 @@ mod test_helpers {
             id: ProviderId::Azure,
             response: ProviderResponse::OpenAI,
             url: Url::parse(&chat_url).unwrap(),
+            auth_methods: vec![crate::AuthMethod::ApiKey],
+            url_params: ["resource_name", "deployment_name", "api_version"]
+                .iter()
+                .map(|&s| s.to_string().into())
+                .collect(),
             credential: make_credential(ProviderId::Azure, key),
             models: Models::Url(Url::parse(&model_url).unwrap()),
         }
@@ -261,6 +283,7 @@ mod test_helpers {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::str::FromStr;
 
     use pretty_assertions::assert_eq;
@@ -279,8 +302,10 @@ mod tests {
             credential: Some(AuthCredential {
                 id: ProviderId::Xai,
                 auth_details: AuthDetails::ApiKey(ApiKey::from(fixture.to_string())),
-                url_params: None,
+                url_params: HashMap::new(),
             }),
+            auth_methods: vec![crate::AuthMethod::ApiKey],
+            url_params: vec![],
             models: Models::Url(Url::from_str("https://api.x.ai/v1/models").unwrap()),
         };
         assert_eq!(actual, expected);

@@ -10,7 +10,35 @@ use crate::{AccessToken, ApiKey, OAuthConfig, ProviderId, RefreshToken, URLParam
 pub struct AuthCredential {
     pub id: ProviderId,
     pub auth_details: AuthDetails,
-    pub url_params: Option<HashMap<URLParam, URLParamValue>>,
+    pub url_params: HashMap<URLParam, URLParamValue>,
+}
+impl AuthCredential {
+    pub fn new_api_key(id: ProviderId, api_key: ApiKey) -> Self {
+        Self {
+            id,
+            auth_details: AuthDetails::ApiKey(api_key),
+            url_params: HashMap::new(),
+        }
+    }
+    pub fn new_oauth(id: ProviderId, tokens: OAuthTokens, config: OAuthConfig) -> Self {
+        Self {
+            id,
+            auth_details: AuthDetails::OAuth { tokens, config },
+            url_params: HashMap::new(),
+        }
+    }
+    pub fn new_oauth_with_api_key(
+        id: ProviderId,
+        tokens: OAuthTokens,
+        api_key: ApiKey,
+        config: OAuthConfig,
+    ) -> Self {
+        Self {
+            id,
+            auth_details: AuthDetails::OAuthWithApiKey { tokens, api_key, config },
+            url_params: HashMap::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -32,4 +60,18 @@ pub struct OAuthTokens {
     pub access_token: AccessToken,
     pub refresh_token: Option<RefreshToken>,
     pub expires_at: DateTime<Utc>,
+}
+
+impl OAuthTokens {
+    pub fn new(
+        access_token: impl ToString,
+        refresh_token: Option<impl ToString>,
+        expires_at: DateTime<Utc>,
+    ) -> Self {
+        Self {
+            access_token: access_token.to_string().into(),
+            refresh_token: refresh_token.map(|a| a.to_string().into()),
+            expires_at,
+        }
+    }
 }

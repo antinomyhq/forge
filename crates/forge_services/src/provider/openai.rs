@@ -192,6 +192,8 @@ impl<T: HttpClientService> OpenAIProvider<T> {
 #[cfg(test)]
 mod tests {
 
+    use std::collections::HashMap;
+
     use anyhow::Context;
     use bytes::Bytes;
     use forge_app::HttpClientService;
@@ -210,7 +212,7 @@ mod tests {
             auth_details: forge_domain::AuthDetails::ApiKey(forge_domain::ApiKey::from(
                 key.to_string(),
             )),
-            url_params: None,
+            url_params: HashMap::new(),
         })
     }
 
@@ -220,6 +222,8 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             credential: make_credential(ProviderId::OpenAI, key),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
             models: forge_domain::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
@@ -232,6 +236,8 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
             credential: make_credential(ProviderId::Zai, key),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
             models: forge_domain::Models::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             ),
@@ -244,6 +250,8 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
             credential: make_credential(ProviderId::ZaiCoding, key),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
             models: forge_domain::Models::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             ),
@@ -256,6 +264,8 @@ mod tests {
             response: ProviderResponse::Anthropic,
             url: Url::parse("https://api.anthropic.com/v1/messages").unwrap(),
             credential: make_credential(ProviderId::Anthropic, key),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
             models: forge_domain::Models::Url(
                 Url::parse("https://api.anthropic.com/v1/models").unwrap(),
             ),
@@ -316,6 +326,8 @@ mod tests {
             response: ProviderResponse::OpenAI,
             url: reqwest::Url::parse(base_url)?,
             credential: make_credential(ProviderId::OpenAI, "test-api-key"),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
             models: forge_domain::Models::Url(reqwest::Url::parse(base_url)?.join("models")?),
         };
 

@@ -119,8 +119,10 @@ mod tests {
                             auth_details: forge_domain::AuthDetails::ApiKey(
                                 forge_domain::ApiKey::from("test-key".to_string()),
                             ),
-                            url_params: None,
+                            url_params: HashMap::new(),
                         }),
+                        auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+                        url_params: vec![],
                         models: Models::Hardcoded(vec![Model {
                             id: "gpt-4".to_string().into(),
                             name: Some("GPT-4".to_string()),
@@ -135,12 +137,14 @@ mod tests {
                         id: ProviderId::Anthropic,
                         response: ProviderResponse::Anthropic,
                         url: Url::parse("https://api.anthropic.com").unwrap(),
+                        auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+                        url_params: vec![],
                         credential: Some(forge_domain::AuthCredential {
                             id: ProviderId::Anthropic,
                             auth_details: forge_domain::AuthDetails::ApiKey(
                                 forge_domain::ApiKey::from("test-key".to_string()),
                             ),
-                            url_params: None,
+                            url_params: HashMap::new(),
                         }),
                         models: Models::Hardcoded(vec![Model {
                             id: "claude-3".to_string().into(),

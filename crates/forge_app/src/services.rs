@@ -1,12 +1,14 @@
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, AgentId, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation,
-    ConversationId, Environment, File, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model,
-    ModelId, PatchOperation, Provider, ProviderEntry, ResultStream, Scope, Template, ToolCallFull,
-    ToolOutput, Workflow,
+    Agent, AgentId, Attachment, AuthContextRequest, AuthContextResponse, AuthCredential,
+    AuthMethod, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
+    Environment, File, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId,
+    PatchOperation, Provider, ProviderEntry, ProviderId, ResultStream, Scope, Template,
+    ToolCallFull, ToolOutput, Workflow,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -418,6 +420,27 @@ pub trait PolicyService: Send + Sync {
     ) -> anyhow::Result<PolicyDecision>;
 }
 
+/// Provider authentication service
+#[async_trait::async_trait]
+pub trait ProviderAuthService: Send + Sync {
+    async fn init_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        method: AuthMethod,
+    ) -> anyhow::Result<AuthContextRequest>;
+    async fn complete_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        context: AuthContextResponse,
+        timeout: Duration,
+    ) -> anyhow::Result<()>;
+    async fn refresh_provider_credential(
+        &self,
+        provider: &Provider<Url>,
+        method: AuthMethod,
+    ) -> anyhow::Result<AuthCredential>;
+}
+
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
@@ -448,6 +471,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type AgentRegistry: AgentRegistry;
     type CommandLoaderService: CommandLoaderService;
     type PolicyService: PolicyService;
+    type ProviderAuthService: ProviderAuthService;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn config_service(&self) -> &Self::AppConfigService;
@@ -475,6 +499,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn agent_registry(&self) -> &Self::AgentRegistry;
     fn command_loader_service(&self) -> &Self::CommandLoaderService;
     fn policy_service(&self) -> &Self::PolicyService;
+    fn provider_auth_service(&self) -> &Self::ProviderAuthService;
 }
 
 #[async_trait::async_trait]
@@ -869,6 +894,38 @@ impl<I: Services> AppConfigService for I {
     ) -> anyhow::Result<()> {
         self.config_service()
             .set_default_model(model, provider_id)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> ProviderAuthService for I {
+    async fn init_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        method: AuthMethod,
+    ) -> anyhow::Result<AuthContextRequest> {
+        self.provider_auth_service()
+            .init_provider_auth(provider_id, method)
+            .await
+    }
+    async fn complete_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        context: AuthContextResponse,
+        timeout: Duration,
+    ) -> anyhow::Result<()> {
+        self.provider_auth_service()
+            .complete_provider_auth(provider_id, context, timeout)
+            .await
+    }
+    async fn refresh_provider_credential(
+        &self,
+        provider: &Provider<Url>,
+        method: AuthMethod,
+    ) -> anyhow::Result<AuthCredential> {
+        self.provider_auth_service()
+            .refresh_provider_credential(provider, method)
             .await
     }
 }

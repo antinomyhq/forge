@@ -971,6 +971,8 @@ mod tests {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
             credential: None,
             models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
         });
@@ -986,6 +988,8 @@ mod tests {
             id: ProviderId::OpenRouter,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://openrouter.ai/api/v1/chat/completions").unwrap(),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
             credential: None,
             models: Models::Url(Url::parse("https://openrouter.ai/api/v1/models").unwrap()),
         });
@@ -1001,6 +1005,8 @@ mod tests {
             id: ProviderId::Forge,
             response: ProviderResponse::OpenAI,
             url: Url::parse("http://localhost:8080/chat/completions").unwrap(),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
             credential: None,
             models: Models::Url(Url::parse("http://localhost:8080/models").unwrap()),
         });
