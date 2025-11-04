@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use derive_more::From;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -86,7 +88,7 @@ impl Provider<Url> {
 #[derive(Debug, Clone, PartialEq, From)]
 pub enum AnyProvider {
     Url(Provider<Url>),
-    Template(Provider<Template<String>>),
+    Template(Provider<Template<HashMap<String, String>>>),
 }
 
 impl AnyProvider {

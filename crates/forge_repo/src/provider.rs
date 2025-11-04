@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use forge_app::domain::{ProviderId, ProviderResponse};
@@ -57,7 +58,7 @@ fn merge_configs(base: &mut Vec<ProviderConfig>, other: Vec<ProviderConfig>) {
     base.extend(map.into_values());
 }
 
-impl From<&ProviderConfig> for Provider<forge_domain::Template<String>> {
+impl From<&ProviderConfig> for Provider<forge_domain::Template<HashMap<String, String>>> {
     fn from(config: &ProviderConfig) -> Self {
         let models = match &config.models {
             Models::Url(model_url_template) => {
@@ -213,7 +214,7 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
     fn create_unconfigured_provider(
         &self,
         config: &ProviderConfig,
-    ) -> anyhow::Result<Provider<forge_domain::Template<String>>> {
+    ) -> anyhow::Result<Provider<forge_domain::Template<HashMap<String, String>>>> {
         Ok(config.into())
     }
 
