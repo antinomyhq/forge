@@ -46,13 +46,17 @@ impl From<ReleaseBuilderJob> for Job {
                     .if_condition(Expression::new("${{ matrix.cross == 'false' }}")),
             )
             // Explicitly add the target to ensure it's available
-            .add_step(Step::new("Add Rust target").run("rustup target add ${{ matrix.target }}"))
+            .add_step(
+                Step::new("Add Rust target")
+                    .run("rustup target add ${{ matrix.target }}")
+                    .if_condition(Expression::new("${{ matrix.cross == 'false' }}")),
+            )
             // Build add link flags
             .add_step(
                 Step::new("Set Rust Flags")
                     .run(r#"echo "RUSTFLAGS=-C target-feature=+crt-static" >> $GITHUB_ENV"#)
                     .if_condition(Expression::new(
-                        "!contains(matrix.target, '-unknown-linux-')",
+                        "!(contains(matrix.target, '-unknown-linux-') || contains(matrix.target, '-android'))",
                     )),
             )
             // Build release binary
@@ -62,7 +66,7 @@ impl From<ReleaseBuilderJob> for Job {
                     .add_with(("command", "build --release"))
                     .add_with(("args", "--target ${{ matrix.target }}"))
                     .add_with(("use-cross", "${{ matrix.cross }}"))
-                    .add_with(("cross-version", "0.2.4"))
+                    .add_with(("cross-version", "0.2.5"))
                     .add_env(("RUSTFLAGS", "${{ env.RUSTFLAGS }}"))
                     .add_env(("POSTHOG_API_SECRET", "${{secrets.POSTHOG_API_SECRET}}"))
                     .add_env(("APP_VERSION", value.version.to_string())),
