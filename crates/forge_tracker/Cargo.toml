@@ -9,7 +9,6 @@ derive_more.workspace = true
 url.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-machineid-rs.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 sysinfo.workspace = true
@@ -25,6 +24,14 @@ tracing-subscriber.workspace = true
 anyhow.workspace = true
 forge_domain.workspace = true
 lazy_static.workspace = true
+dirs.workspace = true
+
+# Platform-specific dependencies
+[target.'cfg(not(target_os = "android"))'.dependencies]
+machineid-rs.workspace = true
+
+[target.'cfg(target_os = "android")'.dependencies]
+uuid.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }

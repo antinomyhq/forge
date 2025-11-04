@@ -1,10 +1,11 @@
+use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use bytes::Bytes;
 use forge_app::domain::{ProviderId, ProviderResponse};
 use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra};
 use forge_domain::{
-    ApiKey, AuthCredential, AuthDetails, Error, Provider, ProviderEntry, ProviderRepository,
+    AnyProvider, ApiKey, AuthCredential, AuthDetails, Error, Provider, ProviderRepository,
     URLParam, URLParamValue,
 };
 use handlebars::Handlebars;
@@ -63,6 +64,30 @@ fn merge_configs(base: &mut Vec<ProviderConfig>, other: Vec<ProviderConfig>) {
     base.extend(map.into_values());
 }
 
+impl From<&ProviderConfig> for Provider<forge_domain::Template<HashMap<String, String>>> {
+    fn from(config: &ProviderConfig) -> Self {
+        let models = match &config.models {
+            Models::Url(model_url_template) => {
+                forge_domain::Models::Url(forge_domain::Template::new(model_url_template))
+            }
+            Models::Hardcoded(model_list) => forge_domain::Models::Hardcoded(model_list.clone()),
+        };
+        Provider {
+            id: config.id,
+            response: config.response_type.clone(),
+            url: forge_domain::Template::new(&config.url),
+            auth_methods: config.auth_methods.clone(),
+            url_params: config
+                .url_param_vars
+                .iter()
+                .map(|v| URLParam::from(v.clone()))
+                .collect(),
+            credential: None,
+            models,
+        }
+    }
+}
+
 static HANDLEBARS: OnceLock<Handlebars<'static>> = OnceLock::new();
 static PROVIDER_CONFIGS: OnceLock<Vec<ProviderConfig>> = OnceLock::new();
 
@@ -82,7 +107,7 @@ fn get_provider_configs() -> &'static Vec<ProviderConfig> {
 pub struct ForgeProviderRepository<F> {
     infra: Arc<F>,
     handlebars: &'static Handlebars<'static>,
-    providers: RwLock<Option<Vec<ProviderEntry>>>,
+    providers: RwLock<Option<Vec<AnyProvider>>>,
 }
 
 impl<F> ForgeProviderRepository<F> {
@@ -105,7 +130,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
         Ok(configs)
     }
 
-    async fn get_providers(&self) -> Vec<ProviderEntry> {
+    async fn get_providers(&self) -> Vec<AnyProvider> {
         // Try to get cached providers
         {
             let read_lock = self.providers.read().await;
@@ -126,13 +151,13 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
         providers
     }
 
-    async fn init_providers(&self) -> Vec<ProviderEntry> {
+    async fn init_providers(&self) -> Vec<AnyProvider> {
         // Run migration if needed (one-time)
         self.migrate_env_to_file().await.ok();
 
         let configs = self.get_merged_configs().await;
 
-        let mut providers: Vec<ProviderEntry> = Vec::new();
+        let mut providers: Vec<AnyProvider> = Vec::new();
         for config in configs {
             // Skip Forge provider as it's handled specially
             if config.id == ProviderId::Forge {
@@ -141,9 +166,9 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
 
             // Try to create configured provider, fallback to unconfigured
             let provider_entry = if let Ok(provider) = self.create_provider(&config).await {
-                Some(provider.to_entry())
+                Some(provider.into())
             } else if let Ok(provider) = self.create_unconfigured_provider(&config) {
-                Some(provider.to_entry())
+                Some(provider.into())
             } else {
                 None
             };
@@ -305,32 +330,12 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
         })
     }
 
-    /// Creates an unconfigured provider when credentials are not available.
-    /// Used to show providers in listings even when they haven't been
-    /// configured.
+    /// Creates an unconfigured provider when environment variables are missing.
     fn create_unconfigured_provider(
         &self,
         config: &ProviderConfig,
-    ) -> anyhow::Result<Provider<forge_domain::Template<String>>> {
-        let models = match &config.models {
-            Models::Url(model_url_template) => {
-                forge_domain::Models::Url(forge_domain::Template::new(model_url_template))
-            }
-            Models::Hardcoded(model_list) => forge_domain::Models::Hardcoded(model_list.clone()),
-        };
-        Ok(Provider {
-            id: config.id,
-            response: config.response_type.clone(),
-            url: forge_domain::Template::new(&config.url),
-            auth_methods: config.auth_methods.clone(),
-            url_params: config
-                .url_param_vars
-                .iter()
-                .map(|v| URLParam::from(v.clone()))
-                .collect(),
-            credential: None,
-            models,
-        })
+    ) -> anyhow::Result<Provider<forge_domain::Template<HashMap<String, String>>>> {
+        Ok(config.into())
     }
 
     async fn provider_from_id(&self, id: ProviderId) -> anyhow::Result<Provider<Url>> {
@@ -341,11 +346,11 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
         }
 
         // Look up provider from cached providers - only return configured ones
-        let providers = self.get_providers().await;
-        providers
+        self.get_providers()
+            .await
             .iter()
             .find_map(|p| match p {
-                ProviderEntry::Available(cp) if cp.id == id => Some(cp.clone()),
+                AnyProvider::Url(cp) if cp.id == id => Some(cp.clone()),
                 _ => None,
             })
             .ok_or_else(|| Error::provider_not_available(id).into())
@@ -393,8 +398,8 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Sync> ProviderRepository
     for ForgeProviderRepository<F>
 {
-    async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>> {
-        Ok(self.get_providers().await)
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
+        Ok(self.get_providers().await.clone())
     }
 
     async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider<Url>> {
@@ -541,6 +546,7 @@ mod env_tests {
     use std::sync::Arc;
 
     use forge_app::domain::Environment;
+    use forge_domain::AnyProvider;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -628,7 +634,7 @@ mod env_tests {
 
     #[async_trait::async_trait]
     impl ProviderRepository for MockInfra {
-        async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>> {
+        async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
             Ok(vec![])
         }
 
@@ -873,14 +879,14 @@ mod env_tests {
         let openai_provider = providers
             .iter()
             .find_map(|p| match p {
-                ProviderEntry::Available(cp) if cp.id == ProviderId::OpenAI => Some(cp),
+                AnyProvider::Url(cp) if cp.id == ProviderId::OpenAI => Some(cp),
                 _ => None,
             })
             .unwrap();
         let anthropic_provider = providers
             .iter()
             .find_map(|p| match p {
-                ProviderEntry::Available(cp) if cp.id == ProviderId::Anthropic => Some(cp),
+                AnyProvider::Url(cp) if cp.id == ProviderId::Anthropic => Some(cp),
                 _ => None,
             })
             .unwrap();
@@ -984,7 +990,7 @@ mod env_tests {
 
         #[async_trait::async_trait]
         impl ProviderRepository for CustomMockInfra {
-            async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>> {
+            async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
                 Ok(vec![])
             }
 

@@ -127,7 +127,7 @@ where
 mod tests {
     use std::collections::HashMap;
 
-    use forge_domain::{OAuthConfig, ProviderEntry};
+    use forge_domain::{AnyProvider, OAuthConfig};
     use url::Url;
 
     use super::*;
@@ -140,12 +140,12 @@ mod tests {
 
     #[async_trait::async_trait]
     impl ProviderRepository for MockRepository {
-        async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>> {
+        async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
             Ok(self
                 .providers
                 .values()
                 .cloned()
-                .map(|p| ProviderEntry::Available(p))
+                .map(AnyProvider::Url)
                 .collect())
         }
 

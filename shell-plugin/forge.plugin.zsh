@@ -72,13 +72,33 @@ function _forge_print_agent_message() {
     echo "\033[33m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] \033[1;37m${agent_name:u}\033[0m \033[90mis the active agent\033[0m"
 }
 
+# Helper function to find the index of a value in a list (1-based)
+# Returns the index if found, 1 otherwise
+function _forge_find_index() {
+    local output="$1"
+    local value_to_find="$2"
+
+    local index=1
+    while IFS= read -r line; do
+        local name="${line%% *}"
+        if [[ "$name" == "$value_to_find" ]]; then
+            echo "$index"
+            return 0
+        fi
+        ((index++))
+    done <<< "$output"
+
+    echo "1"
+    return 0
+}
+
 # Helper function to select and set config values with fzf
 function _forge_select_and_set_config() {
     local show_command="$1"
     local config_flag="$2"
     local prompt_text="$3"
-    local with_nth="${4:-}"  # Optional column selection parameter
-    
+    local default_value="$4"
+    local with_nth="${5:-}"  # Optional column selection parameter
     (
         echo
         local output
@@ -93,13 +113,20 @@ function _forge_select_and_set_config() {
         
         if [[ -n "$output" ]]; then
             local selected
-            # Add --with-nth parameter if provided
+            local fzf_args=(--delimiter="$_FORGE_DELIMITER" --prompt="$prompt_text ❯ ")
+
             if [[ -n "$with_nth" ]]; then
-                selected=$(echo "$output" | _forge_fzf --delimiter="$_FORGE_DELIMITER" --with-nth="$with_nth" --prompt="$prompt_text ❯ ")
-            else
-                selected=$(echo "$output" | _forge_fzf --delimiter="$_FORGE_DELIMITER" --prompt="$prompt_text ❯ ")
+                fzf_args+=(--with-nth="$with_nth")
             fi
-            
+
+            if [[ -n "$default_value" ]]; then
+                local index=$(_forge_find_index "$output" "$default_value")
+                
+                fzf_args+=(--bind="start:pos($index)")
+                
+            fi
+            selected=$(echo "$output" | _forge_fzf "${fzf_args[@]}")
+
             if [[ -n "$selected" ]]; then
                 local name="${selected%% *}"
                 _forge_exec config set "$config_flag" "$name"
@@ -109,8 +136,8 @@ function _forge_select_and_set_config() {
 }
 
 
-# Helper function to handle session commands that require an active conversation
-function _forge_handle_session_command() {
+# Helper function to handle conversation commands that require an active conversation
+function _forge_handle_conversation_command() {
     local subcommand="$1"
     shift  # Remove first argument, remaining args become extra parameters
     
@@ -123,8 +150,8 @@ function _forge_handle_session_command() {
         return 0
     fi
     
-    # Execute the session command with conversation ID and any extra arguments
-    _forge_exec session "$subcommand" "$_FORGE_CONVERSATION_ID" "$@"
+    # Execute the conversation command with conversation ID and any extra arguments
+    _forge_exec conversation "$subcommand" "$_FORGE_CONVERSATION_ID" "$@"
     
     _forge_reset
     return 0
@@ -210,24 +237,31 @@ function _forge_action_info() {
     _forge_reset
 }
 
+# Action handler: Show environment info
+function _forge_action_env() {
+    echo
+    _forge_exec env
+    _forge_reset
+}
+
 # Action handler: Dump conversation
 function _forge_action_dump() {
     local input_text="$1"
     if [[ "$input_text" == "html" ]]; then
-        _forge_handle_session_command "dump" "html"
+        _forge_handle_conversation_command "dump" "html"
     else
-        _forge_handle_session_command "dump"
+        _forge_handle_conversation_command "dump"
     fi
 }
 
 # Action handler: Compact conversation
 function _forge_action_compact() {
-    _forge_handle_session_command "compact"
+    _forge_handle_conversation_command "compact"
 }
 
 # Action handler: Retry last message
 function _forge_action_retry() {
-    _forge_handle_session_command "retry"
+    _forge_handle_conversation_command "retry"
 }
 
 # Action handler: List/switch conversations
@@ -236,7 +270,7 @@ function _forge_action_conversation() {
     
     # Get conversations list
     local conversations_output
-    conversations_output=$($_FORGE_BIN session list --porcelain 2>/dev/null)
+    conversations_output=$($_FORGE_BIN conversation list --porcelain 2>/dev/null)
     
     if [[ -n "$conversations_output" ]]; then
         # Get current conversation ID if set
@@ -244,19 +278,23 @@ function _forge_action_conversation() {
         
         # Create prompt with current conversation
         local prompt_text="Conversation ❯ "
-        if [[ -n "$current_id" ]]; then
-            prompt_text="Conversation [Current: ${current_id}] ❯ "
-        fi
-        
-        local selected_conversation
-        # Use fzf with preview showing the last message from the conversation
-        selected_conversation=$(echo "$conversations_output" | _forge_fzf \
-            --prompt="$prompt_text" \
-            --delimiter="$_FORGE_DELIMITER" \
-            --with-nth=2,3 \
-            --preview="$_FORGE_BIN session show {1}" \
+        local fzf_args=(
+            --prompt="$prompt_text"
+            --delimiter="$_FORGE_DELIMITER"
+            --with-nth="2,3"
+            --preview="CLICOLOR_FORCE=1 $_FORGE_BIN conversation info {1}; echo; CLICOLOR_FORCE=1 $_FORGE_BIN conversation show {1}"
             --preview-window=right:60%:wrap:border-sharp
         )
+
+        # If there's a current conversation, position cursor on it
+        if [[ -n "$current_id" ]]; then
+            local index=$(_forge_find_index "$conversations_output" "$current_id")
+            fzf_args+=(--bind="start:pos($index)")
+        fi
+
+        local selected_conversation
+        # Use fzf with preview showing the last message from the conversation
+        selected_conversation=$(echo "$conversations_output" | _forge_fzf "${fzf_args[@]}")
         
         if [[ -n "$selected_conversation" ]]; then
             # Extract the first field (UUID) - everything before the first multi-space delimiter
@@ -266,10 +304,10 @@ function _forge_action_conversation() {
             _FORGE_CONVERSATION_ID="$conversation_id"
             # Show conversation content
             echo
-            _forge_exec session show "$conversation_id"
+            _forge_exec conversation show "$conversation_id"
             
             # Show conversation info
-            _forge_exec session info "$conversation_id"
+            _forge_exec conversation info "$conversation_id"
             
             # Print log about conversation switching
             echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Switched to conversation \033[1m${conversation_id}\033[0m"
@@ -284,13 +322,13 @@ function _forge_action_conversation() {
 
 # Action handler: Select provider
 function _forge_action_provider() {
-    _forge_select_and_set_config "list providers" "provider" "Provider"
+    _forge_select_and_set_config "list providers" "provider" "Provider" "$($_FORGE_BIN config get provider --porcelain)"
     _forge_reset
 }
 
 # Action handler: Select model
 function _forge_action_model() {
-    _forge_select_and_set_config "list models" "model" "Model" "2,3.."
+    _forge_select_and_set_config "list models" "model" "Model" "$($_FORGE_BIN config get model --porcelain)" "2,3.."
     _forge_reset
 }
 
@@ -336,7 +374,7 @@ function _forge_action_default() {
     
     # Generate conversation ID if needed (in parent shell context)
     if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
-        _FORGE_CONVERSATION_ID=$($_FORGE_BIN session new)
+        _FORGE_CONVERSATION_ID=$($_FORGE_BIN conversation new)
     fi
     
     echo
@@ -396,6 +434,9 @@ function forge-accept-line() {
         ;;
         info|i)
             _forge_action_info
+        ;;
+        env|e)
+            _forge_action_env
         ;;
         dump)
             _forge_action_dump "$input_text"

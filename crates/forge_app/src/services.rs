@@ -4,11 +4,11 @@ use std::time::Duration;
 use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, AgentId, Attachment, AuthContextRequest, AuthContextResponse, AuthCredential,
-    AuthMethod, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
-    Environment, File, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId,
-    PatchOperation, Provider, ProviderEntry, ProviderId, ResultStream, Scope, Template,
-    ToolCallFull, ToolOutput, Workflow,
+    Agent, AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse,
+    AuthCredential, AuthMethod, ChatCompletionMessage, CommandOutput, Context, Conversation,
+    ConversationId, Environment, File, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model,
+    ModelId, PatchOperation, Provider, ProviderId, ResultStream, Scope, Template, ToolCallFull,
+    ToolOutput, Workflow,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -132,7 +132,7 @@ pub trait ProviderService: Send + Sync {
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error>;
     async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>>;
     async fn get_provider(&self, id: forge_domain::ProviderId) -> anyhow::Result<Provider<Url>>;
-    async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>>;
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>>;
     async fn upsert_credential(
         &self,
         credential: forge_domain::AuthCredential,
@@ -556,7 +556,7 @@ impl<I: Services> ProviderService for I {
         self.provider_service().get_provider(id).await
     }
 
-    async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>> {
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
         self.provider_service().get_all_providers().await
     }
 

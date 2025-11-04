@@ -73,7 +73,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         Ok(self.services.get_agents().await?)
     }
 
-    async fn get_providers(&self) -> Result<Vec<ProviderEntry>> {
+    async fn get_providers(&self) -> Result<Vec<AnyProvider>> {
         Ok(self.services.get_all_providers().await?)
     }
 

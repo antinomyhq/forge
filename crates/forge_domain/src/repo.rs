@@ -4,7 +4,7 @@ use anyhow::Result;
 use url::Url;
 
 use crate::{
-    AppConfig, AuthCredential, Conversation, ConversationId, Provider, ProviderEntry, ProviderId,
+    AnyProvider, AppConfig, AuthCredential, Conversation, ConversationId, Provider, ProviderId,
     Snapshot,
 };
 
@@ -87,7 +87,7 @@ pub trait AppConfigRepository: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait ProviderRepository: Send + Sync {
-    async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>>;
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>>;
     async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider<Url>>;
     async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()>;
     async fn get_credential(&self, id: &ProviderId) -> anyhow::Result<Option<AuthCredential>>;

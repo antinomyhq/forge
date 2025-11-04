@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+
+use derive_more::From;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter, EnumString};
@@ -55,6 +58,7 @@ pub enum ProviderResponse {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Models<T> {
+    /// Can be a `Url` or a `Template`
     Url(T),
     Hardcoded(Vec<Model>),
 }
@@ -64,10 +68,10 @@ pub struct Provider<T> {
     pub id: ProviderId,
     pub response: ProviderResponse,
     pub url: T,
+    pub models: Models<T>,
     pub auth_methods: Vec<crate::AuthMethod>,
     pub url_params: Vec<crate::URLParam>,
     pub credential: Option<AuthCredential>,
-    pub models: Models<T>,
 }
 
 impl<T> Provider<T> {
@@ -84,10 +88,6 @@ impl Provider<Url> {
         &self.url
     }
 
-    pub fn to_entry(&self) -> ProviderEntry {
-        ProviderEntry::Available(self.clone())
-    }
-
     pub fn key(&self) -> Option<&ApiKey> {
         self.credential
             .as_ref()
@@ -98,57 +98,49 @@ impl Provider<Url> {
     }
 }
 
-impl Provider<Template<String>> {
-    pub fn to_entry(&self) -> ProviderEntry {
-        ProviderEntry::Unavailable(self.clone())
-    }
-}
-
 /// Enum for viewing providers in listings where both configured and
 /// unconfigured.
-#[derive(Debug, Clone, PartialEq)]
-pub enum ProviderEntry {
-    Available(Provider<Url>),
-    Unavailable(Provider<Template<String>>),
+#[derive(Debug, Clone, PartialEq, From)]
+pub enum AnyProvider {
+    Url(Provider<Url>),
+    Template(Provider<Template<HashMap<String, String>>>),
 }
 
-impl ProviderEntry {
+impl AnyProvider {
     /// Returns whether this provider is configured
     pub fn is_configured(&self) -> bool {
         match self {
-            ProviderEntry::Available(p) => p.is_configured(),
-            ProviderEntry::Unavailable(p) => p.is_configured(),
+            AnyProvider::Url(p) => p.is_configured(),
+            AnyProvider::Template(p) => p.is_configured(),
         }
     }
 
     pub fn id(&self) -> ProviderId {
         match self {
-            ProviderEntry::Available(p) => p.id,
-            ProviderEntry::Unavailable(p) => p.id,
+            AnyProvider::Url(p) => p.id,
+            AnyProvider::Template(p) => p.id,
         }
     }
 
     /// Gets the response type
     pub fn response(&self) -> &ProviderResponse {
         match self {
-            ProviderEntry::Available(p) => &p.response,
-            ProviderEntry::Unavailable(p) => &p.response,
+            AnyProvider::Url(p) => &p.response,
+            AnyProvider::Template(p) => &p.response,
         }
     }
 
     /// Gets the resolved URL if this is a configured provider
     pub fn url(&self) -> Option<&Url> {
         match self {
-            ProviderEntry::Available(p) => Some(p.url()),
-            ProviderEntry::Unavailable(_) => None,
+            AnyProvider::Url(p) => Some(p.url()),
+            AnyProvider::Template(_) => None,
         }
     }
-
-    /// Gets the URL parameters for this provider
     pub fn url_params(&self) -> &[crate::URLParam] {
         match self {
-            ProviderEntry::Available(p) => &p.url_params,
-            ProviderEntry::Unavailable(p) => &p.url_params,
+            AnyProvider::Url(p) => &p.url_params,
+            AnyProvider::Template(p) => &p.url_params,
         }
     }
 }
