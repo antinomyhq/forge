@@ -3,7 +3,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use colored::Colorize;
-use forge_api::{Conversation, Environment, LoginInfo, Metrics, Usage, UserUsage};
+use forge_api::{Conversation, Environment, LoginInfo, Metrics, Role, Usage, UserUsage};
 use forge_app::utils::truncate_key;
 use forge_tracker::VERSION;
 use num_format::{Locale, ToFormattedString};
@@ -215,7 +215,7 @@ impl fmt::Display for Info {
                         }
                     } else {
                         // Show value-only items
-                        writeln!(f, "  {}", value)?;
+                        writeln!(f, "    ⦿ {}", value)?;
                     }
                 }
             }
@@ -408,19 +408,25 @@ impl From<&Conversation> for Info {
         }
 
         // Add task and feedback (if available)
-        let user_sequences = conversation.first_user_messages();
 
-        if let Some(first_msg) = user_sequences.first()
-            && let Some(task) = format_user_message(first_msg)
-        {
-            info = info.add_key_value("Task", task);
-        }
+        let mut user_messages = conversation
+            .context
+            .iter()
+            .flat_map(|ctx| ctx.messages.iter())
+            .filter(|message| message.has_role(Role::User));
 
-        if user_sequences.len() > 1
-            && let Some(last_msg) = user_sequences.last()
-            && let Some(feedback) = format_user_message(last_msg)
+        let task = user_messages.next();
+
+        if let Some(task) = task
+            && let Some(task) = format_user_message(task)
         {
-            info = info.add_key_value("Feedback", feedback);
+            info = info.add_key_value("Tasks", task);
+
+            for feedback in user_messages {
+                if let Some(feedback) = format_user_message(feedback) {
+                    info = info.add_value(feedback);
+                }
+            }
         }
 
         // Insert metrics information
