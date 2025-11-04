@@ -217,7 +217,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         if should_read_stdin {
             use std::time::Duration;
 
-            let result = tokio::time::timeout(Duration::from_millis(500), Self::read_stdin()).await?;
+            let result =
+                tokio::time::timeout(Duration::from_millis(500), Self::read_stdin()).await?;
             match result {
                 Ok(stdin_content) => {
                     let trimmed_content = stdin_content.trim();
@@ -250,7 +251,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let prompt = self.cli.prompt.clone();
         if let Some(prompt) = prompt {
             self.spinner.start(None)?;
-            // For non-interactive mode (piped input), Ctrl+C should end the process immediately
+            // For non-interactive mode (piped input), Ctrl+C should end the process
+            // immediately
             tokio::select! {
                 result = self.on_message(Some(prompt)) => {
                     result?;
