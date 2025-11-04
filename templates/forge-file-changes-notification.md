@@ -1,8 +1,8 @@
 <system-reminder>
-The following files have been modified externally. Re-read any file before operating on it to avoid content mismatches. Note: some files may have been deleted.
+The following files have been modified externally. Re-read any file before editing it to avoid content mismatches. Note: some files may have been deleted.
 
-<file_changes>
+<externally_modified_files>
 {{#each files}} - {{this}}
 {{/each}}
-</file_changes>
+</externally_modified_files>
 </system-reminder>
