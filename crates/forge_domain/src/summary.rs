@@ -1,8 +1,8 @@
 use std::collections::HashMap;
-use std::convert::identity;
 
 use crate::{
-    Context, ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolResult, Tools,
+    CanMerge, Context, ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolResult,
+    Tools,
 };
 
 /// A simplified summary of a context, focusing on messages and their tool calls
@@ -14,16 +14,6 @@ pub struct ContextSummary {
 pub struct RoleMessage {
     pub role: Role,
     pub message: Vec<SummaryMessage>,
-}
-
-trait CanMerge {
-    fn can_merge(&self, other: &Self) -> bool;
-}
-
-impl CanMerge for RoleMessage {
-    fn can_merge(&self, other: &Self) -> bool {
-        self.role == other.role && self.message.can_merge(&other.message)
-    }
 }
 
 impl RoleMessage {
@@ -54,42 +44,6 @@ impl RoleMessage {
         }
 
         result
-    }
-}
-
-impl CanMerge for Vec<SummaryMessage> {
-    fn can_merge(&self, other: &Self) -> bool {
-        self.len() == other.len()
-            && self
-                .iter()
-                .zip(other)
-                .all(|(this, that)| this.can_merge(that))
-    }
-}
-
-impl CanMerge for SummaryMessage {
-    fn can_merge(&self, other: &Self) -> bool {
-        [
-            self.content == other.content,
-            self.tool_call_success == other.tool_call_success,
-            self.tool_call.can_merge(&other.tool_call),
-        ]
-        .into_iter()
-        .all(identity)
-    }
-}
-
-impl CanMerge for SummaryToolCall {
-    fn can_merge(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Mcp { name: a }, Self::Mcp { name: b }) if a == b => true,
-            (Self::FileRead { path: a }, Self::FileRead { path: b }) if a == b => true,
-            (Self::FileUpdate { path: a }, Self::FileUpdate { path: b }) if a == b => true,
-            (Self::FileRemove { path: a }, Self::FileRemove { path: b }) if a == b => true,
-            (Self::Execute { cmd: a }, Self::Execute { cmd: b }) if a == b => true,
-            (Self::Fetch { url: a }, Self::Fetch { url: b }) if a == b => true,
-            _ => false,
-        }
     }
 }
 
