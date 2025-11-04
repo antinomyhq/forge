@@ -237,6 +237,13 @@ function _forge_action_info() {
     _forge_reset
 }
 
+# Action handler: Show environment info
+function _forge_action_env() {
+    echo
+    _forge_exec env
+    _forge_reset
+}
+
 # Action handler: Dump conversation
 function _forge_action_dump() {
     local input_text="$1"
@@ -427,6 +434,9 @@ function forge-accept-line() {
         ;;
         info|i)
             _forge_action_info
+        ;;
+        env|e)
+            _forge_action_env
         ;;
         dump)
             _forge_action_dump "$input_text"
