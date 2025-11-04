@@ -1,10 +1,12 @@
-use derive_setters::Setters;
+use std::collections::HashMap;
+
+use derive_more::From;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter, EnumString};
 use url::Url;
 
-use crate::Model;
+use crate::{Model, Template};
 
 /// --- IMPORTANT ---
 /// The order of providers is important because that would be order in which the
@@ -51,28 +53,89 @@ pub enum ProviderResponse {
 /// Represents the source of models for a provider
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum Models {
-    /// Models are fetched from a URL
-    Url(Url),
-    /// Models are hardcoded in the configuration
+pub enum Models<T> {
+    /// Can be a `Url` or a `Template`
+    Url(T),
     Hardcoded(Vec<Model>),
 }
 
-/// Providers that can be used.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Setters)]
-pub struct Provider {
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Provider<T> {
     pub id: ProviderId,
     pub response: ProviderResponse,
-    pub url: Url,
+    pub url: T,
     pub key: Option<String>,
-    pub models: Models,
+    pub models: Models<T>,
+}
+
+impl<T> Provider<T> {
+    pub fn is_configured(&self) -> bool {
+        self.key.is_some()
+    }
+    pub fn models(&self) -> &Models<T> {
+        &self.models
+    }
+}
+
+impl Provider<Url> {
+    pub fn url(&self) -> &Url {
+        &self.url
+    }
+}
+
+/// Enum for viewing providers in listings where both configured and
+/// unconfigured.
+#[derive(Debug, Clone, PartialEq, From)]
+pub enum AnyProvider {
+    Url(Provider<Url>),
+    Template(Provider<Template<HashMap<String, String>>>),
+}
+
+impl AnyProvider {
+    /// Returns whether this provider is configured
+    pub fn is_configured(&self) -> bool {
+        match self {
+            AnyProvider::Url(p) => p.is_configured(),
+            AnyProvider::Template(p) => p.is_configured(),
+        }
+    }
+
+    pub fn id(&self) -> ProviderId {
+        match self {
+            AnyProvider::Url(p) => p.id,
+            AnyProvider::Template(p) => p.id,
+        }
+    }
+
+    /// Gets the response type
+    pub fn response(&self) -> &ProviderResponse {
+        match self {
+            AnyProvider::Url(p) => &p.response,
+            AnyProvider::Template(p) => &p.response,
+        }
+    }
+
+    pub fn key(&self) -> Option<&str> {
+        match self {
+            AnyProvider::Url(p) => p.key.as_deref(),
+            AnyProvider::Template(p) => p.key.as_deref(),
+        }
+    }
+
+    /// Gets the resolved URL if this is a configured provider
+    pub fn url(&self) -> Option<&Url> {
+        match self {
+            AnyProvider::Url(p) => Some(p.url()),
+            AnyProvider::Template(_) => None,
+        }
+    }
 }
 
 #[cfg(test)]
 mod test_helpers {
     use super::*;
     /// Test helper for creating a ZAI provider
-    pub(super) fn zai(key: &str) -> Provider {
+    pub(super) fn zai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::Zai,
             response: ProviderResponse::OpenAI,
@@ -83,7 +146,7 @@ mod test_helpers {
     }
 
     /// Test helper for creating a ZAI Coding provider
-    pub(super) fn zai_coding(key: &str) -> Provider {
+    pub(super) fn zai_coding(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::ZaiCoding,
             response: ProviderResponse::OpenAI,
@@ -94,7 +157,7 @@ mod test_helpers {
     }
 
     /// Test helper for creating an OpenAI provider
-    pub(super) fn openai(key: &str) -> Provider {
+    pub(super) fn openai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
@@ -105,7 +168,7 @@ mod test_helpers {
     }
 
     /// Test helper for creating an XAI provider
-    pub(super) fn xai(key: &str) -> Provider {
+    pub(super) fn xai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::Xai,
             response: ProviderResponse::OpenAI,
@@ -116,7 +179,7 @@ mod test_helpers {
     }
 
     /// Test helper for creating a Vertex AI provider
-    pub(super) fn vertex_ai(key: &str, project_id: &str, location: &str) -> Provider {
+    pub(super) fn vertex_ai(key: &str, project_id: &str, location: &str) -> Provider<Url> {
         let (chat_url, model_url) = if location == "global" {
             (
                 format!(
@@ -155,7 +218,7 @@ mod test_helpers {
         resource_name: &str,
         deployment_name: &str,
         api_version: &str,
-    ) -> Provider {
+    ) -> Provider<Url> {
         let chat_url = format!(
             "https://{}.openai.azure.com/openai/deployments/{}/chat/completions?api-version={}",
             resource_name, deployment_name, api_version

@@ -14,6 +14,7 @@ use forge_infra::ForgeInfra;
 use forge_repo::ForgeRepo;
 use forge_services::ForgeServices;
 use forge_stream::MpscStream;
+use url::Url;
 
 use crate::API;
 
@@ -71,7 +72,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         Ok(self.services.get_agents().await?)
     }
 
-    async fn get_providers(&self) -> Result<Vec<Provider>> {
+    async fn get_providers(&self) -> Result<Vec<AnyProvider>> {
         Ok(self.services.get_all_providers().await?)
     }
 
@@ -182,11 +183,11 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     async fn logout(&self) -> Result<()> {
         self.app().logout().await
     }
-    async fn get_agent_provider(&self, agent_id: AgentId) -> anyhow::Result<Provider> {
+    async fn get_agent_provider(&self, agent_id: AgentId) -> anyhow::Result<Provider<Url>> {
         self.app().get_provider(Some(agent_id)).await
     }
 
-    async fn get_default_provider(&self) -> anyhow::Result<Provider> {
+    async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>> {
         self.app().get_provider(None).await
     }
 
