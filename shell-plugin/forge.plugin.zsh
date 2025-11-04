@@ -72,8 +72,8 @@ function _forge_print_agent_message() {
     echo "\033[33m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] \033[1;37m${agent_name:u}\033[0m \033[90mis the active agent\033[0m"
 }
 
-# Helper function to find the index of a value in a list (0-based)
-# Returns the index if found, -1 otherwise
+# Helper function to find the index of a value in a list (1-based)
+# Returns the index if found, 1 otherwise
 function _forge_find_index() {
     local output="$1"
     local value_to_find="$2"
@@ -83,13 +83,13 @@ function _forge_find_index() {
         local name="${line%% *}"
         if [[ "$name" == "$value_to_find" ]]; then
             echo "$index"
-            return 1
+            return 0
         fi
         ((index++))
     done <<< "$output"
 
     echo "1"
-    return 1
+    return 0
 }
 
 # Helper function to select and set config values with fzf
@@ -105,7 +105,7 @@ function _forge_select_and_set_config() {
         # Handle multi-word commands properly
         if [[ "$show_command" == *" "* ]]; then
             # Split the command into words and execute with --porcelain
-            local cmd_parts=("${=show_command}")
+            local cmd_parts=(${=show_command})
             output=$($_FORGE_BIN "${cmd_parts[@]}" --porcelain 2>/dev/null)
         else
             output=$($_FORGE_BIN "$show_command" --porcelain 2>/dev/null)
@@ -121,9 +121,9 @@ function _forge_select_and_set_config() {
 
             if [[ -n "$default_value" ]]; then
                 local index=$(_forge_find_index "$output" "$default_value")
-                if [[ $index -ge 0 ]]; then
-                    fzf_args+=(--bind="start:pos($index)")
-                fi
+                
+                fzf_args+=(--bind="start:pos($index)")
+                
             fi
             selected=$(echo "$output" | _forge_fzf "${fzf_args[@]}")
 
@@ -271,14 +271,10 @@ function _forge_action_conversation() {
         
         # Create prompt with current conversation
         local prompt_text="Conversation ❯ "
-        if [[ -n "$current_id" ]]; then
-            prompt_text="Conversation [Current: ${current_id}] ❯ "
-        fi
-        
         local fzf_args=(
             --prompt="$prompt_text"
             --delimiter="$_FORGE_DELIMITER"
-            --with-nth=2 3
+            --with-nth="2,3"
             --preview="CLICOLOR_FORCE=1 $_FORGE_BIN conversation info {1}; echo; CLICOLOR_FORCE=1 $_FORGE_BIN conversation show {1}"
             --preview-window=right:60%:wrap:border-sharp
         )
@@ -286,9 +282,7 @@ function _forge_action_conversation() {
         # If there's a current conversation, position cursor on it
         if [[ -n "$current_id" ]]; then
             local index=$(_forge_find_index "$conversations_output" "$current_id")
-            if [[ $index -ge 0 ]]; then
-                fzf_args+=(--bind="start:pos($index)")
-            fi
+            fzf_args+=(--bind="start:pos($index)")
         fi
 
         local selected_conversation
@@ -321,13 +315,13 @@ function _forge_action_conversation() {
 
 # Action handler: Select provider
 function _forge_action_provider() {
-    _forge_select_and_set_config "list providers" "provider" "Provider" "$($FORGE_BIN config get provider --porcelain)"
+    _forge_select_and_set_config "list providers" "provider" "Provider" "$($_FORGE_BIN config get provider --porcelain)"
     _forge_reset
 }
 
 # Action handler: Select model
 function _forge_action_model() {
-    _forge_select_and_set_config "list models" "model" "Model" "$($FORGE_BIN config get model --porcelain)" "2,3.."
+    _forge_select_and_set_config "list models" "model" "Model" "$($_FORGE_BIN config get model --porcelain)" "2,3.."
     _forge_reset
 }
 
