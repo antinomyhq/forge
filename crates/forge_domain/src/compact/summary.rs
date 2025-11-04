@@ -17,7 +17,8 @@ pub struct SummaryMessage {
 }
 
 /// Wraps tool call information along with its execution status
-#[derive(Clone)]
+#[derive(Clone, derive_setters::Setters)]
+#[setters(strip_option, into)]
 pub struct SummaryMessageBlock {
     pub content: Option<String>,
     pub tool_call_id: Option<ToolCallId>,

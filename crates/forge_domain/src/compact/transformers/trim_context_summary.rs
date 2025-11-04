@@ -73,95 +73,84 @@ mod tests {
     use crate::Role;
     use crate::compact::summary::{SummaryMessage, SummaryMessageBlock, SummaryToolCall};
 
-    fn fixture_message_block(tool_call: SummaryToolCall) -> SummaryMessageBlock {
+    // Helper to create a FileRead block with default success=true
+    fn read(path: &str) -> SummaryMessageBlock {
         SummaryMessageBlock {
-            content: Some("test".to_string()),
+            content: None,
             tool_call_id: None,
-            tool_call,
+            tool_call: SummaryToolCall::FileRead { path: path.to_string() },
             tool_call_success: Some(true),
         }
     }
 
+    // Helper to create a FileUpdate block with default success=true
+    fn update(path: &str) -> SummaryMessageBlock {
+        SummaryMessageBlock {
+            content: None,
+            tool_call_id: None,
+            tool_call: SummaryToolCall::FileUpdate { path: path.to_string() },
+            tool_call_success: Some(true),
+        }
+    }
+
+    // Helper to create a FileRemove block with default success=true
+    fn remove(path: &str) -> SummaryMessageBlock {
+        SummaryMessageBlock {
+            content: None,
+            tool_call_id: None,
+            tool_call: SummaryToolCall::FileRemove { path: path.to_string() },
+            tool_call_success: Some(true),
+        }
+    }
+
+    // Helper to create a summary message with role and blocks
+    fn message(role: Role, blocks: Vec<SummaryMessageBlock>) -> SummaryMessage {
+        SummaryMessage { role, messages: blocks }
+    }
+
+    // Helper to create a context summary
+    fn summary(messages: Vec<SummaryMessage>) -> ContextSummary {
+        ContextSummary { messages }
+    }
+
     #[test]
     fn test_merges_all_messages_in_summary() {
-        let fixture = ContextSummary {
-            messages: vec![
-                SummaryMessage {
-                    role: Role::Assistant,
-                    messages: vec![
-                        fixture_message_block(SummaryToolCall::FileRead {
-                            path: "/test".to_string(),
-                        }),
-                        fixture_message_block(SummaryToolCall::FileRead {
-                            path: "/test".to_string(),
-                        }),
-                    ],
-                },
-                SummaryMessage {
-                    role: Role::User,
-                    messages: vec![
-                        fixture_message_block(SummaryToolCall::FileUpdate {
-                            path: "file.txt".to_string(),
-                        }),
-                        fixture_message_block(SummaryToolCall::FileUpdate {
-                            path: "file.txt".to_string(),
-                        }),
-                    ],
-                },
-            ],
-        };
+        let fixture = summary(vec![
+            message(Role::Assistant, vec![read("/test"), read("/test")]),
+            message(Role::User, vec![update("file.txt"), update("file.txt")]),
+        ]);
 
-        let mut transformer = TrimContextSummary;
-        let actual = transformer.transform(fixture);
+        let actual = TrimContextSummary.transform(fixture);
 
-        // Assistant messages should be trimmed
         assert_eq!(actual.messages[0].messages.len(), 1);
-        // User messages should NOT be trimmed
         assert_eq!(actual.messages[1].messages.len(), 2);
     }
 
     #[test]
     fn test_handles_empty_summary() {
-        let fixture = ContextSummary { messages: vec![] };
-
-        let mut transformer = TrimContextSummary;
-        let actual = transformer.transform(fixture);
-
+        let fixture = summary(vec![]);
+        let actual = TrimContextSummary.transform(fixture);
         assert_eq!(actual.messages.len(), 0);
     }
 
     #[test]
     fn test_handles_messages_with_no_mergeable_blocks() {
-        let fixture = ContextSummary {
-            messages: vec![SummaryMessage {
-                role: Role::Assistant,
-                messages: vec![
-                    fixture_message_block(SummaryToolCall::FileRead { path: "/test1".to_string() }),
-                    fixture_message_block(SummaryToolCall::FileRead { path: "/test2".to_string() }),
-                    fixture_message_block(SummaryToolCall::FileRead { path: "/test3".to_string() }),
-                ],
-            }],
-        };
-
-        let mut transformer = TrimContextSummary;
-        let actual = transformer.transform(fixture);
-
+        let fixture = summary(vec![message(
+            Role::Assistant,
+            vec![read("/test1"), read("/test2"), read("/test3")],
+        )]);
+        let actual = TrimContextSummary.transform(fixture);
         assert_eq!(actual.messages[0].messages.len(), 3);
     }
 
     #[test]
     fn test_preserves_message_roles() {
-        let fixture = ContextSummary {
-            messages: vec![
-                SummaryMessage { role: Role::System, messages: vec![] },
-                SummaryMessage { role: Role::User, messages: vec![] },
-                SummaryMessage { role: Role::Assistant, messages: vec![] },
-            ],
-        };
-
-        let mut transformer = TrimContextSummary;
-        let actual = transformer.transform(fixture);
-
+        let fixture = summary(vec![
+            message(Role::System, vec![]),
+            message(Role::User, vec![]),
+            message(Role::Assistant, vec![]),
+        ]);
+        let actual = TrimContextSummary.transform(fixture);
         assert_eq!(actual.messages[0].role, Role::System);
         assert_eq!(actual.messages[1].role, Role::User);
         assert_eq!(actual.messages[2].role, Role::Assistant);
@@ -169,142 +158,60 @@ mod tests {
 
     #[test]
     fn test_handles_mixed_mergeable_and_non_mergeable() {
-        let fixture = ContextSummary {
-            messages: vec![SummaryMessage {
-                role: Role::Assistant,
-                messages: vec![
-                    fixture_message_block(SummaryToolCall::FileRead { path: "/test1".to_string() }),
-                    fixture_message_block(SummaryToolCall::FileRead { path: "/test2".to_string() }),
-                    fixture_message_block(SummaryToolCall::FileRead { path: "/test2".to_string() }),
-                    fixture_message_block(SummaryToolCall::FileRead { path: "/test3".to_string() }),
-                ],
-            }],
-        };
-
-        let mut transformer = TrimContextSummary;
-        let actual = transformer.transform(fixture);
-
+        let fixture = summary(vec![message(
+            Role::Assistant,
+            vec![
+                read("/test1"),
+                read("/test2"),
+                read("/test2"),
+                read("/test3"),
+            ],
+        )]);
+        let actual = TrimContextSummary.transform(fixture);
         assert_eq!(actual.messages[0].messages.len(), 3);
     }
 
     #[test]
     fn test_merges_consecutive_identical_blocks() {
-        let fixture = ContextSummary {
-            messages: vec![SummaryMessage {
-                role: Role::Assistant,
-                messages: vec![
-                    SummaryMessageBlock {
-                        content: Some("content".to_string()),
-                        tool_call_id: None,
-                        tool_call: SummaryToolCall::FileRead { path: "/test".to_string() },
-                        tool_call_success: Some(true),
-                    },
-                    SummaryMessageBlock {
-                        content: Some("content".to_string()),
-                        tool_call_id: None,
-                        tool_call: SummaryToolCall::FileRead { path: "/test".to_string() },
-                        tool_call_success: Some(true),
-                    },
-                    SummaryMessageBlock {
-                        content: Some("content".to_string()),
-                        tool_call_id: None,
-                        tool_call: SummaryToolCall::FileRead { path: "/test".to_string() },
-                        tool_call_success: Some(true),
-                    },
-                ],
-            }],
-        };
-
-        let mut transformer = TrimContextSummary;
-        let actual = transformer.transform(fixture);
-
+        let fixture = summary(vec![message(
+            Role::Assistant,
+            vec![read("/test"), read("/test"), read("/test")],
+        )]);
+        let actual = TrimContextSummary.transform(fixture);
         assert_eq!(actual.messages[0].messages.len(), 1);
     }
 
     #[test]
     fn test_does_not_merge_different_tool_calls() {
-        let fixture = ContextSummary {
-            messages: vec![SummaryMessage {
-                role: Role::Assistant,
-                messages: vec![
-                    SummaryMessageBlock {
-                        content: Some("content".to_string()),
-                        tool_call_id: None,
-                        tool_call: SummaryToolCall::FileRead { path: "/test1".to_string() },
-                        tool_call_success: Some(true),
-                    },
-                    SummaryMessageBlock {
-                        content: Some("content".to_string()),
-                        tool_call_id: None,
-                        tool_call: SummaryToolCall::FileRead { path: "/test2".to_string() },
-                        tool_call_success: Some(true),
-                    },
-                ],
-            }],
-        };
-
-        let mut transformer = TrimContextSummary;
-        let actual = transformer.transform(fixture);
-
+        let fixture = summary(vec![message(
+            Role::Assistant,
+            vec![read("/test1"), read("/test2")],
+        )]);
+        let actual = TrimContextSummary.transform(fixture);
         assert_eq!(actual.messages[0].messages.len(), 2);
     }
 
     #[test]
     fn test_filters_out_failed_operations() {
-        let fixture = ContextSummary {
-            messages: vec![SummaryMessage {
-                role: Role::Assistant,
-                messages: vec![
-                    SummaryMessageBlock {
-                        content: Some("content".to_string()),
-                        tool_call_id: None,
-                        tool_call: SummaryToolCall::FileRead { path: "/test".to_string() },
-                        tool_call_success: Some(true),
-                    },
-                    SummaryMessageBlock {
-                        content: Some("content".to_string()),
-                        tool_call_id: None,
-                        tool_call: SummaryToolCall::FileRead { path: "/test".to_string() },
-                        tool_call_success: Some(false),
-                    },
-                ],
-            }],
-        };
-
-        let mut transformer = TrimContextSummary;
-        let actual = transformer.transform(fixture);
-
-        // Only the successful operation should remain
+        let fixture = summary(vec![message(
+            Role::Assistant,
+            vec![read("/test"), read("/test").tool_call_success(false)],
+        )]);
+        let actual = TrimContextSummary.transform(fixture);
         assert_eq!(actual.messages[0].messages.len(), 1);
         assert_eq!(actual.messages[0].messages[0].tool_call_success, Some(true));
     }
 
     #[test]
     fn test_keeps_last_operation_regardless_of_content() {
-        let fixture = ContextSummary {
-            messages: vec![SummaryMessage {
-                role: Role::Assistant,
-                messages: vec![
-                    SummaryMessageBlock {
-                        content: Some("content1".to_string()),
-                        tool_call_id: None,
-                        tool_call: SummaryToolCall::FileRead { path: "/test".to_string() },
-                        tool_call_success: Some(true),
-                    },
-                    SummaryMessageBlock {
-                        content: Some("content2".to_string()),
-                        tool_call_id: None,
-                        tool_call: SummaryToolCall::FileRead { path: "/test".to_string() },
-                        tool_call_success: Some(true),
-                    },
-                ],
-            }],
-        };
-
-        let mut transformer = TrimContextSummary;
-        let actual = transformer.transform(fixture);
-
-        // Only the last operation for the path should remain
+        let fixture = summary(vec![message(
+            Role::Assistant,
+            vec![
+                read("/test").content("content1"),
+                read("/test").content("content2"),
+            ],
+        )]);
+        let actual = TrimContextSummary.transform(fixture);
         assert_eq!(actual.messages[0].messages.len(), 1);
         assert_eq!(
             actual.messages[0].messages[0].content,
@@ -314,135 +221,245 @@ mod tests {
 
     #[test]
     fn test_merges_different_tool_types_correctly() {
-        let fixture = ContextSummary {
-            messages: vec![SummaryMessage {
-                role: Role::Assistant,
-                messages: vec![
-                    SummaryMessageBlock {
-                        content: None,
-                        tool_call_id: None,
-                        tool_call: SummaryToolCall::FileRead { path: "/test".to_string() },
-                        tool_call_success: Some(true),
-                    },
-                    SummaryMessageBlock {
-                        content: None,
-                        tool_call_id: None,
-                        tool_call: SummaryToolCall::FileRead { path: "/test".to_string() },
-                        tool_call_success: Some(true),
-                    },
-                    SummaryMessageBlock {
-                        content: None,
-                        tool_call_id: None,
-                        tool_call: SummaryToolCall::FileUpdate { path: "file.txt".to_string() },
-                        tool_call_success: Some(true),
-                    },
-                    SummaryMessageBlock {
-                        content: None,
-                        tool_call_id: None,
-                        tool_call: SummaryToolCall::FileUpdate { path: "file.txt".to_string() },
-                        tool_call_success: Some(true),
-                    },
-                ],
-            }],
-        };
-
-        let mut transformer = TrimContextSummary;
-        let actual = transformer.transform(fixture);
-
+        let fixture = summary(vec![message(
+            Role::Assistant,
+            vec![
+                read("/test"),
+                read("/test"),
+                update("file.txt"),
+                update("file.txt"),
+            ],
+        )]);
+        let actual = TrimContextSummary.transform(fixture);
         assert_eq!(actual.messages[0].messages.len(), 2);
     }
 
     #[test]
     fn test_does_not_trim_user_role_messages() {
-        let fixture = ContextSummary {
-            messages: vec![SummaryMessage {
-                role: Role::User,
-                messages: vec![
-                    fixture_message_block(SummaryToolCall::FileRead { path: "/test".to_string() }),
-                    fixture_message_block(SummaryToolCall::FileRead { path: "/test".to_string() }),
-                    fixture_message_block(SummaryToolCall::FileRead { path: "/test".to_string() }),
-                ],
-            }],
-        };
-
-        let mut transformer = TrimContextSummary;
-        let actual = transformer.transform(fixture);
-
-        // User messages should not be trimmed, all 3 blocks should remain
+        let fixture = summary(vec![message(
+            Role::User,
+            vec![read("/test"), read("/test"), read("/test")],
+        )]);
+        let actual = TrimContextSummary.transform(fixture);
         assert_eq!(actual.messages[0].messages.len(), 3);
     }
 
     #[test]
     fn test_does_not_trim_system_role_messages() {
-        let fixture = ContextSummary {
-            messages: vec![SummaryMessage {
-                role: Role::System,
-                messages: vec![
-                    fixture_message_block(SummaryToolCall::FileUpdate {
-                        path: "file.txt".to_string(),
-                    }),
-                    fixture_message_block(SummaryToolCall::FileUpdate {
-                        path: "file.txt".to_string(),
-                    }),
-                ],
-            }],
-        };
-
-        let mut transformer = TrimContextSummary;
-        let actual = transformer.transform(fixture);
-
-        // System messages should not be trimmed, both blocks should remain
+        let fixture = summary(vec![message(
+            Role::System,
+            vec![update("file.txt"), update("file.txt")],
+        )]);
+        let actual = TrimContextSummary.transform(fixture);
         assert_eq!(actual.messages[0].messages.len(), 2);
     }
 
     #[test]
     fn test_only_trims_assistant_messages_in_mixed_roles() {
-        let fixture = ContextSummary {
-            messages: vec![
-                SummaryMessage {
-                    role: Role::User,
-                    messages: vec![
-                        fixture_message_block(SummaryToolCall::FileRead {
-                            path: "/test".to_string(),
-                        }),
-                        fixture_message_block(SummaryToolCall::FileRead {
-                            path: "/test".to_string(),
-                        }),
-                    ],
+        let fixture = summary(vec![
+            message(Role::User, vec![read("/test"), read("/test")]),
+            message(
+                Role::Assistant,
+                vec![update("file.txt"), update("file.txt")],
+            ),
+            message(
+                Role::System,
+                vec![remove("remove.txt"), remove("remove.txt")],
+            ),
+        ]);
+        let actual = TrimContextSummary.transform(fixture);
+        assert_eq!(actual.messages[0].messages.len(), 2);
+        assert_eq!(actual.messages[1].messages.len(), 1);
+        assert_eq!(actual.messages[2].messages.len(), 2);
+    }
+
+    #[test]
+    fn test_filters_out_all_failed_operations() {
+        let fixture = summary(vec![message(
+            Role::Assistant,
+            vec![
+                read("/test1").tool_call_success(false),
+                read("/test2").tool_call_success(false),
+                update("file.txt").tool_call_success(false),
+            ],
+        )]);
+        let actual = TrimContextSummary.transform(fixture);
+        assert_eq!(actual.messages[0].messages.len(), 0);
+    }
+
+    #[test]
+    fn test_filters_out_operations_with_none_success_status() {
+        let fixture = summary(vec![message(
+            Role::Assistant,
+            vec![
+                SummaryMessageBlock {
+                    content: None,
+                    tool_call_id: None,
+                    tool_call: SummaryToolCall::FileRead { path: "/test".to_string() },
+                    tool_call_success: None,
                 },
-                SummaryMessage {
-                    role: Role::Assistant,
-                    messages: vec![
-                        fixture_message_block(SummaryToolCall::FileUpdate {
-                            path: "file.txt".to_string(),
-                        }),
-                        fixture_message_block(SummaryToolCall::FileUpdate {
-                            path: "file.txt".to_string(),
-                        }),
-                    ],
-                },
-                SummaryMessage {
-                    role: Role::System,
-                    messages: vec![
-                        fixture_message_block(SummaryToolCall::FileRemove {
-                            path: "remove.txt".to_string(),
-                        }),
-                        fixture_message_block(SummaryToolCall::FileRemove {
-                            path: "remove.txt".to_string(),
-                        }),
-                    ],
+                update("file.txt"),
+            ],
+        )]);
+        let actual = TrimContextSummary.transform(fixture);
+        assert_eq!(actual.messages[0].messages.len(), 1);
+        assert_eq!(
+            actual.messages[0].messages[0].tool_call,
+            SummaryToolCall::FileUpdate { path: "file.txt".to_string() }
+        );
+    }
+
+    #[test]
+    fn test_keeps_last_successful_operation_per_path() {
+        let fixture = summary(vec![message(
+            Role::Assistant,
+            vec![
+                read("/test").content("first read".to_string()),
+                read("/test")
+                    .content("failed read".to_string())
+                    .tool_call_success(false),
+                read("/test").content("second read".to_string()),
+            ],
+        )]);
+        let actual = TrimContextSummary.transform(fixture);
+        assert_eq!(actual.messages[0].messages.len(), 1);
+        assert_eq!(
+            actual.messages[0].messages[0].content,
+            Some("second read".to_string())
+        );
+    }
+
+    #[test]
+    fn test_preserves_different_operation_types_on_same_path() {
+        let fixture = summary(vec![message(
+            Role::Assistant,
+            vec![read("/test"), update("/test"), remove("/test")],
+        )]);
+        let actual = TrimContextSummary.transform(fixture);
+        assert_eq!(actual.messages[0].messages.len(), 1);
+        assert_eq!(
+            actual.messages[0].messages[0].tool_call,
+            SummaryToolCall::FileRemove { path: "/test".to_string() }
+        );
+    }
+
+    #[test]
+    fn test_multiple_paths_with_multiple_operations() {
+        let fixture = summary(vec![message(
+            Role::Assistant,
+            vec![
+                read("/path1"),
+                read("/path2"),
+                read("/path1"),
+                update("/path3"),
+                read("/path2"),
+                remove("/path1"),
+            ],
+        )]);
+        let actual = TrimContextSummary.transform(fixture);
+        assert_eq!(actual.messages[0].messages.len(), 3);
+
+        let path1_op = actual.messages[0]
+            .messages
+            .iter()
+            .find(|b| TrimContextSummary::extract_path(&b.tool_call) == Some("/path1"))
+            .unwrap();
+        assert!(matches!(
+            path1_op.tool_call,
+            SummaryToolCall::FileRemove { .. }
+        ));
+
+        let path2_op = actual.messages[0]
+            .messages
+            .iter()
+            .find(|b| TrimContextSummary::extract_path(&b.tool_call) == Some("/path2"))
+            .unwrap();
+        assert!(matches!(
+            path2_op.tool_call,
+            SummaryToolCall::FileRead { .. }
+        ));
+
+        let path3_op = actual.messages[0]
+            .messages
+            .iter()
+            .find(|b| TrimContextSummary::extract_path(&b.tool_call) == Some("/path3"))
+            .unwrap();
+        assert!(matches!(
+            path3_op.tool_call,
+            SummaryToolCall::FileUpdate { .. }
+        ));
+    }
+
+    #[test]
+    fn test_preserves_insertion_order() {
+        let fixture = summary(vec![message(
+            Role::Assistant,
+            vec![read("/aaa"), read("/zzz"), read("/mmm")],
+        )]);
+        let actual = TrimContextSummary.transform(fixture);
+        assert_eq!(actual.messages[0].messages.len(), 3);
+        assert_eq!(
+            TrimContextSummary::extract_path(&actual.messages[0].messages[0].tool_call),
+            Some("/aaa")
+        );
+        assert_eq!(
+            TrimContextSummary::extract_path(&actual.messages[0].messages[1].tool_call),
+            Some("/zzz")
+        );
+        assert_eq!(
+            TrimContextSummary::extract_path(&actual.messages[0].messages[2].tool_call),
+            Some("/mmm")
+        );
+    }
+
+    #[test]
+    fn test_mixed_success_and_failure_on_different_paths() {
+        let fixture = summary(vec![message(
+            Role::Assistant,
+            vec![
+                read("/success"),
+                read("/failure").tool_call_success(false),
+                SummaryMessageBlock {
+                    content: None,
+                    tool_call_id: None,
+                    tool_call: SummaryToolCall::FileRead { path: "/unknown".to_string() },
+                    tool_call_success: None,
                 },
             ],
-        };
+        )]);
+        let actual = TrimContextSummary.transform(fixture);
+        assert_eq!(actual.messages[0].messages.len(), 1);
+        assert_eq!(
+            TrimContextSummary::extract_path(&actual.messages[0].messages[0].tool_call),
+            Some("/success")
+        );
+    }
 
-        let mut transformer = TrimContextSummary;
-        let actual = transformer.transform(fixture);
-
-        // User messages should not be trimmed
-        assert_eq!(actual.messages[0].messages.len(), 2);
-        // Assistant messages should be trimmed
+    #[test]
+    fn test_multiple_assistant_messages_are_trimmed_independently() {
+        let fixture = summary(vec![
+            message(Role::Assistant, vec![read("/test"), read("/test")]),
+            message(
+                Role::Assistant,
+                vec![read("/test"), read("/test"), read("/test")],
+            ),
+        ]);
+        let actual = TrimContextSummary.transform(fixture);
+        assert_eq!(actual.messages[0].messages.len(), 1);
         assert_eq!(actual.messages[1].messages.len(), 1);
-        // System messages should not be trimmed
-        assert_eq!(actual.messages[2].messages.len(), 2);
+    }
+
+    #[test]
+    fn test_empty_assistant_message_after_filtering() {
+        let fixture = summary(vec![
+            message(
+                Role::Assistant,
+                vec![read("/test").tool_call_success(false)],
+            ),
+            message(Role::Assistant, vec![read("/other")]),
+        ]);
+        let actual = TrimContextSummary.transform(fixture);
+        assert_eq!(actual.messages[0].messages.len(), 0);
+        assert_eq!(actual.messages[1].messages.len(), 1);
     }
 }
