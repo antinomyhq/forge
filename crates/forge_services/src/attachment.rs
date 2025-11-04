@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use forge_app::domain::{Attachment, AttachmentContent, FileTag, Image, LineNumbers};
 use forge_app::{AttachmentService, EnvironmentInfra, FileReaderInfra};
+use forge_domain::LineRangeExt;
 
 use crate::range::resolve_range;
 
@@ -50,16 +51,17 @@ impl<F: FileReaderInfra + EnvironmentInfra> ForgeChatRequest<F> {
                 let end = tag.loc.as_ref().and_then(|loc| loc.end);
                 let (start_line, end_line) = resolve_range(start, end, env.max_read_size);
 
-                let (file_content, file_info) = self
+                let output = self
                     .infra
-                    .range_read_utf8(&path, start_line, end_line)
-                    .await?;
+                    .read_utf8(&path)
+                    .await?
+                    .extract(start_line, end_line)?;
 
                 AttachmentContent::FileContent {
-                    content: file_content.numbered_from(file_info.start_line as usize),
-                    start_line: file_info.start_line,
-                    end_line: file_info.end_line,
-                    total_lines: file_info.total_lines,
+                    content: output.content.numbered_from(output.start as usize),
+                    start_line: output.start,
+                    end_line: output.end,
+                    total_lines: output.total,
                 }
             }
         };

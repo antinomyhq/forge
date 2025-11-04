@@ -1,8 +1,7 @@
-use std::cmp;
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use forge_domain::FileInfo;
+use forge_domain::{FileInfo, LineRangeExt};
 
 use crate::error::Error;
 
@@ -48,38 +47,12 @@ impl crate::ForgeFS {
         let content = tokio::fs::read_to_string(path_ref)
             .await
             .with_context(|| format!("Failed to read file content from {}", path_ref.display()))?;
-        if start_line < 2 && content.is_empty() {
-            // If the file is empty, return empty content
-            return Ok((String::new(), FileInfo::new(start_line, end_line, 0)));
-        }
-        // Split into lines
-        let lines: Vec<&str> = content.lines().collect();
-        let total_lines = lines.len() as u64;
 
-        // Convert to 0-based indexing
-        let start_pos = start_line.saturating_sub(1);
-        let mut end_pos = end_line.saturating_sub(1);
+        // Extract the requested line range using the trait
+        let range = content.extract(start_line, end_line)?;
+        let info = FileInfo::new(start_line, end_line, range.total);
 
-        // Validate start position
-        if start_pos >= total_lines {
-            return Err(
-                Error::StartBeyondFileSize { start: start_line, total: total_lines }.into(),
-            );
-        }
-
-        // Cap end position at last line
-        end_pos = cmp::min(end_pos, total_lines - 1);
-
-        let info = FileInfo::new(start_line, end_line, total_lines);
-
-        // Extract requested lines
-        let result_content = if start_pos == 0 && end_pos == total_lines - 1 {
-            content // Return full content if requesting entire file
-        } else {
-            lines[start_pos as usize..=end_pos as usize].join("\n")
-        };
-
-        Ok((result_content, info))
+        Ok((range.content, info))
     }
 }
 

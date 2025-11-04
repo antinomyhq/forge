@@ -6,6 +6,7 @@ use forge_app::{
     Content, EnvironmentInfra, FileInfoInfra, FileReaderInfra as InfraFsReadService, FsReadService,
     ReadOutput,
 };
+use forge_domain::LineRangeExt;
 
 use crate::range::resolve_range;
 use crate::utils::assert_absolute_path;
@@ -76,9 +77,9 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
 
         let (start_line, end_line) = resolve_range(start_line, end_line, env.max_read_size);
 
-        let (content, file_info) = self
+        let output = self
             .0
-            .range_read_utf8(path, start_line, end_line)
+            .read_utf8(path)
             .await
             .map_err(|e| {
                 tracing::error!(
@@ -90,13 +91,14 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
                 );
                 e
             })
-            .with_context(|| format!("Failed to read file content from {}", path.display()))?;
+            .with_context(|| format!("Failed to read file content from {}", path.display()))?
+            .extract(start_line, end_line)?;
 
         Ok(ReadOutput {
-            content: Content::File(content),
-            start_line: file_info.start_line,
-            end_line: file_info.end_line,
-            total_lines: file_info.total_lines,
+            content: Content::File(output.content),
+            start_line: output.start,
+            end_line: output.end,
+            total_lines: output.total,
         })
     }
 }
