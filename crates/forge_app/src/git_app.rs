@@ -207,7 +207,13 @@ impl<S: Services> GitApp<S> {
             .await?;
         let message = stream.into_full(false).await?;
 
-        Ok(CommitMessageDetails { message: message.content, has_staged_files })
+        Ok(CommitMessageDetails { message: Self::extract_commit_message(&message.content), has_staged_files })
+    }
+
+    /// Extracts the commit message from the AI response
+    fn extract_commit_message(s: &str) -> String {
+        let re = regex::Regex::new(r"^```[^\n]*\n?|```$").unwrap();
+        re.replace_all(s.trim(), "").trim().to_string()
     }
 
     pub async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider> {
