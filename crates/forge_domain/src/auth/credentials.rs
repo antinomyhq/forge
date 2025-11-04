@@ -10,6 +10,7 @@ use crate::{AccessToken, ApiKey, OAuthConfig, ProviderId, RefreshToken, URLParam
 pub struct AuthCredential {
     pub id: ProviderId,
     pub auth_details: AuthDetails,
+    #[serde(skip_serializing_if = "HashMap::is_empty", default)]
     pub url_params: HashMap<URLParam, URLParamValue>,
 }
 impl AuthCredential {

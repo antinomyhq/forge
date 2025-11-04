@@ -7,8 +7,8 @@ use forge_app::dto::ToolsOverview;
 use forge_app::{
     AgentRegistry, AppConfigService, AuthService, CommandInfra, CommandLoaderService,
     ConversationService, EnvironmentInfra, EnvironmentService, FileDiscoveryService, ForgeApp,
-    McpConfigManager, McpService, ProviderService, Services, User, UserUsage, Walker,
-    WorkflowService,
+    McpConfigManager, McpService, ProviderAuthService, ProviderService, Services, User, UserUsage,
+    Walker, WorkflowService,
 };
 use forge_domain::{InitAuth, LoginInfo, *};
 use forge_infra::ForgeInfra;
@@ -260,7 +260,10 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         provider_id: ProviderId,
         method: AuthMethod,
     ) -> Result<AuthContextRequest> {
-        Ok(self.services.init_provider_auth(provider_id, method).await?)
+        Ok(self
+            .services
+            .init_provider_auth(provider_id, method)
+            .await?)
     }
 
     async fn complete_provider_auth(
@@ -269,7 +272,8 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         context: AuthContextResponse,
         timeout: Duration,
     ) -> Result<()> {
-        Ok(self.services
+        Ok(self
+            .services
             .complete_provider_auth(provider_id, context, timeout)
             .await?)
     }
