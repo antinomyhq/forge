@@ -33,7 +33,7 @@ where
     }
 
     async fn get_provider_level(&self, id: &ProviderId) -> Result<Option<Self::Config>> {
-        let provider = self.services.get_provider(id.clone()).await?;
+        let provider = self.services.get_provider(*id).await?;
 
         Ok(Some(provider))
     }

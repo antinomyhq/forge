@@ -1,6 +1,7 @@
-use crate::{AgentId, ProviderId};
 use merge::Merge;
 use serde::{Deserialize, Serialize};
+
+use crate::{AgentId, ProviderId};
 
 /// Represents the scope at which a configuration value should be resolved or
 /// set.
