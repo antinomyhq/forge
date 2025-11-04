@@ -57,6 +57,24 @@ fn merge_configs(base: &mut Vec<ProviderConfig>, other: Vec<ProviderConfig>) {
     base.extend(map.into_values());
 }
 
+impl From<&ProviderConfig> for Provider<forge_domain::Template<String>> {
+    fn from(config: &ProviderConfig) -> Self {
+        let models = match &config.models {
+            Models::Url(model_url_template) => {
+                forge_domain::Models::Url(forge_domain::Template::new(model_url_template))
+            }
+            Models::Hardcoded(model_list) => forge_domain::Models::Hardcoded(model_list.clone()),
+        };
+        Provider {
+            id: config.id,
+            response: config.response_type.clone(),
+            url: forge_domain::Template::new(&config.url),
+            key: None,
+            models,
+        }
+    }
+}
+
 static HANDLEBARS: OnceLock<Handlebars<'static>> = OnceLock::new();
 static PROVIDER_CONFIGS: OnceLock<Vec<ProviderConfig>> = OnceLock::new();
 
@@ -196,19 +214,7 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
         &self,
         config: &ProviderConfig,
     ) -> anyhow::Result<Provider<forge_domain::Template<String>>> {
-        let models = match &config.models {
-            Models::Url(model_url_template) => {
-                forge_domain::Models::Url(forge_domain::Template::new(model_url_template))
-            }
-            Models::Hardcoded(model_list) => forge_domain::Models::Hardcoded(model_list.clone()),
-        };
-        Ok(Provider {
-            id: config.id,
-            response: config.response_type.clone(),
-            url: forge_domain::Template::new(&config.url),
-            key: None,
-            models,
-        })
+        Ok(config.into())
     }
 
     async fn provider_from_id(&self, id: ProviderId) -> anyhow::Result<Provider<Url>> {
