@@ -1,6 +1,6 @@
 use std::convert::identity;
 
-use crate::{SummaryMessage, SummaryToolCall};
+use crate::{SummaryMessageBlock, SummaryToolCall};
 
 /// Trait for types that can determine if they can be merged with another
 /// instance
@@ -19,7 +19,7 @@ impl<T: CanMerge> CanMerge for Vec<T> {
     }
 }
 
-impl CanMerge for SummaryMessage {
+impl CanMerge for SummaryMessageBlock {
     fn can_merge(&self, other: &Self) -> bool {
         [
             self.content == other.content,

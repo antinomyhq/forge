@@ -1,23 +1,24 @@
 use std::collections::HashMap;
 
 use crate::{
-    Context, ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolResult, Tools,
+    CanMerge, Context, ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolResult,
+    Tools, Transformer,
 };
 
 /// A simplified summary of a context, focusing on messages and their tool calls
 pub struct ContextSummary {
-    pub messages: Vec<RoleMessage>,
+    pub messages: Vec<SummaryMessage>,
 }
 
 /// A simplified representation of a message with its key information
-pub struct RoleMessage {
+pub struct SummaryMessage {
     pub role: Role,
-    pub messages: Vec<SummaryMessage>,
+    pub messages: Vec<SummaryMessageBlock>,
 }
 
 /// Wraps tool call information along with its execution status
 #[derive(Clone)]
-pub struct SummaryMessage {
+pub struct SummaryMessageBlock {
     pub content: Option<String>,
     pub tool_call_id: Option<ToolCallId>,
     pub tool_call: SummaryToolCall,
@@ -38,14 +39,14 @@ pub enum SummaryToolCall {
 impl From<&Context> for ContextSummary {
     fn from(value: &Context) -> Self {
         let mut messages = vec![];
-        let mut buffer: Vec<SummaryMessage> = vec![];
+        let mut buffer: Vec<SummaryMessageBlock> = vec![];
         let mut tool_results: HashMap<&ToolCallId, &ToolResult> = Default::default();
         let mut current_role = Role::System;
         for msg in &value.messages {
             match msg {
                 ContextMessage::Text(text_msg) => {
                     if current_role != text_msg.role {
-                        messages.push(RoleMessage {
+                        messages.push(SummaryMessage {
                             role: current_role,
                             messages: buffer.drain(..).collect(),
                         });
@@ -53,7 +54,7 @@ impl From<&Context> for ContextSummary {
                         current_role = text_msg.role;
                     }
 
-                    buffer.extend(Vec::<SummaryMessage>::from(text_msg));
+                    buffer.extend(Vec::<SummaryMessageBlock>::from(text_msg));
                 }
                 ContextMessage::Tool(tool_result) => {
                     if let Some(ref call_id) = tool_result.call_id {
@@ -67,7 +68,7 @@ impl From<&Context> for ContextSummary {
         }
 
         // Insert the last chunk
-        messages.push(RoleMessage { role: current_role, messages: buffer.drain(..).collect() });
+        messages.push(SummaryMessage { role: current_role, messages: buffer.drain(..).collect() });
 
         messages
             .iter_mut()
@@ -85,7 +86,7 @@ impl From<&Context> for ContextSummary {
     }
 }
 
-impl From<&TextMessage> for Vec<SummaryMessage> {
+impl From<&TextMessage> for Vec<SummaryMessageBlock> {
     fn from(text_msg: &TextMessage) -> Self {
         text_msg
             .tool_calls
@@ -94,7 +95,7 @@ impl From<&TextMessage> for Vec<SummaryMessage> {
                 calls
                     .iter()
                     .filter_map(|tool_call| {
-                        extract_tool_info(tool_call).map(|call| SummaryMessage {
+                        extract_tool_info(tool_call).map(|call| SummaryMessageBlock {
                             content: None,
                             tool_call_id: tool_call.call_id.clone(),
                             tool_call: call,
@@ -127,5 +128,64 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryToolCall> {
         Tools::Fetch(input) => Some(SummaryToolCall::Fetch { url: input.url }),
         // Other tools don't have specific summary info
         Tools::Undo(_) | Tools::Followup(_) | Tools::Plan(_) | Tools::Search(_) => None,
+    }
+}
+
+pub struct MergeSummaryMessage;
+impl Transformer for MergeSummaryMessage {
+    type Value = SummaryMessage;
+
+    fn transform(&mut self, summary: Self::Value) -> Self::Value {
+        let mut messages: Vec<SummaryMessageBlock> = Vec::new();
+
+        for message in summary.messages {
+            if let Some(last) = messages.last_mut()
+                && last.can_merge(&message)
+            {
+                *last = message;
+            } else {
+                messages.push(message);
+            }
+        }
+
+        SummaryMessage { role: summary.role, messages }
+    }
+}
+
+pub struct MergeContextSummary;
+impl Transformer for MergeContextSummary {
+    type Value = ContextSummary;
+
+    fn transform(&mut self, mut summary: Self::Value) -> Self::Value {
+        for message in summary.messages.iter_mut() {
+            *message = MergeSummaryMessage.transform(message);
+        }
+
+        summary
+    }
+}
+
+pub struct KeepFirstUserMessage;
+
+impl Transformer for KeepFirstUserMessage {
+    type Value = ContextSummary;
+
+    fn transform(&mut self, summary: Self::Value) -> Self::Value {
+        let mut messages: Vec<SummaryMessage> = Vec::new();
+        let mut last_role = Role::System;
+        for message in summary.messages {
+            let role = message.role;
+            if role == Role::User {
+                if last_role != Role::User {
+                    messages.push(message)
+                }
+            } else {
+                messages.push(message)
+            }
+
+            last_role = role;
+        }
+
+        ContextSummary { messages }
     }
 }
