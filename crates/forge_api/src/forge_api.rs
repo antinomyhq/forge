@@ -182,12 +182,13 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
 
     async fn get_provider(&self, scope: &ConfigScope) -> anyhow::Result<Option<Provider>> {
         let resolver = forge_app::ProviderResolver::new(self.services.clone());
-        resolver.get(scope).await
+        scope.get(&resolver).await
     }
 
     async fn set_provider(&self, scope: &ConfigScope, provider: Provider) -> anyhow::Result<()> {
         let resolver = forge_app::ProviderResolver::new(self.services.clone());
-        resolver.set(scope, provider).await
+        scope.set(&resolver, provider).await?;
+        Ok(())
     }
 
     async fn user_info(&self) -> Result<Option<User>> {
@@ -224,12 +225,13 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
 
     async fn get_model(&self, scope: &ConfigScope) -> anyhow::Result<Option<ModelId>> {
         let resolver = forge_app::ModelResolver::new(self.services.clone());
-        resolver.get(scope).await
+        scope.get(&resolver).await
     }
 
     async fn set_model(&self, scope: &ConfigScope, model: ModelId) -> anyhow::Result<()> {
         let resolver = forge_app::ModelResolver::new(self.services.clone());
-        resolver.set(scope, model).await
+        scope.set(&resolver, model).await?;
+        Ok(())
     }
 
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {

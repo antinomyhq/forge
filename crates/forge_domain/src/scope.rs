@@ -29,10 +29,22 @@ pub trait ScopeResolution {
     async fn get_provider_level(&self, id: &ProviderId) -> anyhow::Result<Option<Self::Config>>;
     async fn get_agent_level(&self, id: &AgentId) -> anyhow::Result<Option<Self::Config>>;
 
-    // TODO: Add setters
+    async fn set_global_level(&self, config: Self::Config) -> anyhow::Result<Option<()>>;
+    async fn set_project_level(&self, config: Self::Config) -> anyhow::Result<Option<()>>;
+    async fn set_provider_level(
+        &self,
+        id: &ProviderId,
+        config: Self::Config,
+    ) -> anyhow::Result<Option<()>>;
+    async fn set_agent_level(
+        &self,
+        id: &AgentId,
+        config: Self::Config,
+    ) -> anyhow::Result<Option<()>>;
 }
 
 impl ConfigScope {
+    #[async_recursion::async_recursion]
     pub async fn get<T: ScopeResolution + Send + Sync>(
         &self,
         resolver: &T,
@@ -48,6 +60,28 @@ impl ConfigScope {
             ConfigScope::Or(a, b) => match a.get(resolver).await? {
                 Some(value) => Ok(Some(value)),
                 None => b.get(resolver).await,
+            },
+        }
+    }
+
+    #[async_recursion::async_recursion]
+    pub async fn set<T: ScopeResolution + Send + Sync>(
+        &self,
+        resolver: &T,
+        config: T::Config,
+    ) -> anyhow::Result<Option<()>>
+    where
+        T::Config: Send + Sync + Clone,
+    {
+        match self {
+            ConfigScope::Global => resolver.set_global_level(config).await,
+            ConfigScope::Project => resolver.set_project_level(config).await,
+            ConfigScope::Provider(id) => resolver.set_provider_level(id, config).await,
+            ConfigScope::Agent(id) => resolver.set_agent_level(id, config).await,
+            ConfigScope::Or(a, b) => match a.set(resolver, config.clone()).await {
+                Ok(Some(_)) => Ok(Some(())),
+                Ok(None) => b.set(resolver, config).await,
+                Err(e) => Err(e),
             },
         }
     }

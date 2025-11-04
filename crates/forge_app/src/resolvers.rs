@@ -52,6 +52,26 @@ where
             Ok(None)
         }
     }
+
+    async fn set_global_level(&self, config: Self::Config) -> Result<Option<()>> {
+        Ok(Some(self.services.set_default_provider(config.id).await?))
+    }
+
+    async fn set_project_level(&self, _config: Self::Config) -> Result<Option<()>> {
+        Ok(None)
+    }
+
+    async fn set_provider_level(
+        &self,
+        _id: &ProviderId,
+        _config: Self::Config,
+    ) -> Result<Option<()>> {
+        Ok(None)
+    }
+
+    async fn set_agent_level(&self, _id: &AgentId, _config: Self::Config) -> Result<Option<()>> {
+        Ok(None)
+    }
 }
 
 /// Resolves model configuration based on scope
@@ -94,5 +114,28 @@ where
             .await?
             .context("Agent not found")?;
         Ok(agent.model)
+    }
+
+    async fn set_global_level(&self, config: Self::Config) -> Result<Option<()>> {
+        let provider = self.services.get_default_provider().await?;
+        Ok(Some(
+            self.services.set_default_model(config, provider.id).await?,
+        ))
+    }
+
+    async fn set_project_level(&self, _config: Self::Config) -> Result<Option<()>> {
+        Ok(None)
+    }
+
+    async fn set_provider_level(
+        &self,
+        _id: &ProviderId,
+        _config: Self::Config,
+    ) -> Result<Option<()>> {
+        Ok(None)
+    }
+
+    async fn set_agent_level(&self, _id: &AgentId, _config: Self::Config) -> Result<Option<()>> {
+        Ok(None)
     }
 }

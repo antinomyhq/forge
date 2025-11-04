@@ -313,8 +313,7 @@ impl<S: Services> ForgeApp<S> {
         };
 
         let resolver = crate::ModelResolver::new(self.services.clone());
-        // resolver.set(&scope, model).await
-
-        todo!()
+        scope.set(&resolver, model).await?;
+        Ok(())
     }
 }
