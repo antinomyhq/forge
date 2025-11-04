@@ -1,4 +1,3 @@
-use std::io::Read;
 use std::panic;
 use std::path::PathBuf;
 
@@ -26,17 +25,7 @@ async fn main() -> Result<()> {
     }));
 
     // Initialize and run the UI
-    let mut cli = Cli::parse();
-
-    // Check if there's piped input and no explicit prompt was provided
-    if cli.prompt.is_none() && !atty::is(atty::Stream::Stdin) {
-        let mut stdin_content = String::new();
-        std::io::stdin().read_to_string(&mut stdin_content)?;
-        let trimmed_content = stdin_content.trim();
-        if !trimmed_content.is_empty() {
-            cli.prompt = Some(trimmed_content.to_string());
-        }
-    }
+    let cli = Cli::parse();
 
     // Handle worktree creation if specified
     let cwd: PathBuf = match (&cli.sandbox, &cli.directory) {
@@ -55,7 +44,9 @@ async fn main() -> Result<()> {
 
     // Initialize the ForgeAPI with the restricted mode if specified
     let restricted = cli.restricted;
-    let mut ui = UI::init(cli, move || ForgeAPI::init(restricted, cwd.clone()))?;
+    let mut ui = UI::init(cli, move || {
+        ForgeAPI::init(restricted, cwd.clone())
+    })?;
     ui.run().await;
 
     Ok(())

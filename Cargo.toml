@@ -80,6 +80,7 @@ tokio = { version = "1.47.1", features = [
     "process",
     "signal",
     "io-util",
+    "io-std",
 ] }
 tokio-stream = "0.1.17"
 tokio-util = "0.7"

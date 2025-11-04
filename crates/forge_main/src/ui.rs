@@ -185,6 +185,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.console.prompt(forge_prompt).await
     }
 
+    /// Read stdin in a way that respects async cancellation
+    async fn read_stdin() -> Result<String> {
+        use tokio::io::AsyncReadExt;
+
+        let mut stdin = tokio::io::stdin();
+        let mut buffer = Vec::new();
+        stdin.read_to_end(&mut buffer).await?;
+        Ok(String::from_utf8_lossy(&buffer).to_string())
+    }
+
     pub async fn run(&mut self) {
         match self.run_inner().await {
             Ok(_) => {}
@@ -200,6 +210,29 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return self.handle_subcommands(mcp).await;
         }
 
+        // Detect if we should read from stdin (piped input without explicit prompt)
+        let should_read_stdin = self.cli.prompt.is_none() && !atty::is(atty::Stream::Stdin);
+
+        // Read from stdin if piped input was detected
+        if should_read_stdin {
+            use std::time::Duration;
+
+            let result = tokio::time::timeout(Duration::from_millis(500), Self::read_stdin()).await?;
+            match result {
+                Ok(stdin_content) => {
+                    let trimmed_content = stdin_content.trim();
+                    if !trimmed_content.is_empty() {
+                        self.cli.prompt = Some(trimmed_content.to_string());
+                    } else {
+                        return Ok(());
+                    }
+                }
+                Err(_) => {
+                    return Ok(());
+                }
+            }
+        }
+
         // Display the banner in dimmed colors since we're in interactive mode
         self.display_banner()?;
         self.init_state(true).await?;
@@ -213,11 +246,20 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return self.handle_dispatch(dispatch_json).await;
         }
 
-        // Handle direct prompt if provided
+        // Handle direct prompt if provided (from piped input or --prompt flag)
         let prompt = self.cli.prompt.clone();
         if let Some(prompt) = prompt {
             self.spinner.start(None)?;
-            self.on_message(Some(prompt)).await?;
+            // For non-interactive mode (piped input), Ctrl+C should end the process immediately
+            tokio::select! {
+                result = self.on_message(Some(prompt)) => {
+                    result?;
+                }
+                _ = tokio::signal::ctrl_c() => {
+                    tracing::info!("User interrupted with Ctrl+C");
+                    return Ok(());
+                }
+            }
             return Ok(());
         }
 
