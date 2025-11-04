@@ -6,7 +6,7 @@ use merge::Merge;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::compact::Compact;
+use crate::compaction::Compact;
 use crate::merge::Key;
 use crate::temperature::Temperature;
 use crate::template::Template;
