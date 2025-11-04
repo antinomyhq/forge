@@ -133,6 +133,10 @@ pub trait ProviderService: Send + Sync {
     async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>>;
     async fn get_provider(&self, id: forge_domain::ProviderId) -> anyhow::Result<Provider<Url>>;
     async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>>;
+    async fn upsert_credential(
+        &self,
+        credential: forge_domain::AuthCredential,
+    ) -> anyhow::Result<()>;
 }
 
 /// Manages user preferences for default providers and models.
@@ -554,6 +558,13 @@ impl<I: Services> ProviderService for I {
 
     async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>> {
         self.provider_service().get_all_providers().await
+    }
+
+    async fn upsert_credential(
+        &self,
+        credential: forge_domain::AuthCredential,
+    ) -> anyhow::Result<()> {
+        self.provider_service().upsert_credential(credential).await
     }
 }
 

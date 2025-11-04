@@ -874,33 +874,41 @@ impl<I> ForgeProviderAuthService<I> {
             Error::RefreshFailed("Missing OAuth tokens in credential".to_string())
         })?;
 
-        if let Some(refresh_token) = &oauth_tokens.refresh_token {
+        // Determine which OAuth access token to use
+        let (oauth_access_token, oauth_refresh_token) = if let Some(refresh_token) =
+            &oauth_tokens.refresh_token
+        {
+            // If we have a refresh token, refresh the OAuth access token first
+            tracing::debug!("Refreshing OAuth access token using refresh token");
             let token_response = Self::refresh_access_token(config, refresh_token.as_str()).await?;
-
-            // Use the refreshed access token to fetch fresh API key
-            let (new_api_key, expires_at) = self
-                .exchange_oauth_for_api_key(&token_response.access_token, config)
-                .await?;
-
-            // Create updated OAuth tokens with refreshed access token and new expiry
-            let updated_tokens = OAuthTokens::new(
-                token_response.access_token,
+            (
+                token_response.access_token.clone(),
                 token_response.refresh_token,
-                expires_at,
-            );
-
-            Ok(AuthCredential::new_oauth_with_api_key(
-                credential.id,
-                updated_tokens,
-                new_api_key,
-                config.clone(),
-            ))
-        } else {
-            Err(Error::RefreshFailed(
-                "No refresh token available for OAuth token refresh".to_string(),
             )
-            .into())
-        }
+        } else {
+            // No refresh token - use the existing long-lived OAuth access token
+            // This is typical for GitHub Copilot where the OAuth token is long-lived
+            tracing::debug!("No refresh token available, using existing OAuth access token");
+            (
+                oauth_tokens.access_token.to_string(),
+                oauth_tokens.refresh_token.clone().map(|t| t.to_string()),
+            )
+        };
+
+        // Use the OAuth access token to fetch fresh API key
+        let (new_api_key, expires_at) = self
+            .exchange_oauth_for_api_key(&oauth_access_token, config)
+            .await?;
+
+        // Create updated OAuth tokens with new API key expiry
+        let updated_tokens = OAuthTokens::new(oauth_access_token, oauth_refresh_token, expires_at);
+
+        Ok(AuthCredential::new_oauth_with_api_key(
+            credential.id,
+            updated_tokens,
+            new_api_key,
+            config.clone(),
+        ))
     }
 }
 #[async_trait::async_trait]
@@ -990,7 +998,7 @@ where
         provider: &forge_domain::Provider<url::Url>,
         auth_method: forge_domain::AuthMethod,
     ) -> anyhow::Result<forge_domain::AuthCredential> {
-        match auth_method {
+        let refreshed_credential = match auth_method {
             forge_domain::AuthMethod::ApiKey => self
                 .infra
                 .get_credential(&provider.id)
@@ -1019,6 +1027,11 @@ where
                 // OAuth refresh logic would go here
                 todo!("OAuth refresh not implemented yet")
             }
-        }
+        }?;
+        self.infra
+            .upsert_credential(refreshed_credential.clone())
+            .await?;
+
+        Ok(refreshed_credential)
     }
 }

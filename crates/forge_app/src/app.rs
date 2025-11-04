@@ -11,7 +11,9 @@ use crate::authenticator::Authenticator;
 use crate::dto::ToolsOverview;
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
-use crate::services::{AppConfigService, CustomInstructionsService, TemplateService};
+use crate::services::{
+    AppConfigService, CustomInstructionsService, ProviderAuthService, TemplateService,
+};
 use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::tool_registry::ToolRegistry;
@@ -275,16 +277,47 @@ impl<S: Services> ForgeApp<S> {
     }
 
     pub async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider<url::Url>> {
-        if let Some(agent) = agent
+        let provider = if let Some(agent) = agent
             && let Some(agent) = self.services.get_agent(&agent).await?
             && let Some(provider_id) = agent.provider
         {
-            return self.services.get_provider(provider_id).await;
+            self.services.get_provider(provider_id).await?
+        } else {
+            self.services.get_default_provider().await?
+        };
+
+        // Check if credential needs refresh (5 minute buffer before expiry)
+        if let Some(credential) = &provider.credential {
+            let buffer = chrono::Duration::minutes(5);
+
+            if credential.needs_refresh(buffer) {
+                for auth_method in &provider.auth_methods {
+                    match auth_method {
+                        forge_domain::AuthMethod::OAuthDevice(_)
+                        | forge_domain::AuthMethod::OAuthCode(_) => {
+                            match self
+                                .services
+                                .provider_auth_service()
+                                .refresh_provider_credential(&provider, auth_method.clone())
+                                .await
+                            {
+                                Ok(refreshed_credential) => {
+                                    let mut updated_provider = provider.clone();
+                                    updated_provider.credential = Some(refreshed_credential);
+                                    return Ok(updated_provider);
+                                }
+                                Err(_) => {
+                                    return Ok(provider);
+                                }
+                            }
+                        }
+                        forge_domain::AuthMethod::ApiKey => {}
+                    }
+                }
+            }
         }
 
-        // Fall back to original logic if there is no agent
-        // set yet.
-        self.services.get_default_provider().await
+        Ok(provider)
     }
 
     /// Gets the model for the specified agent, or the default model if no agent

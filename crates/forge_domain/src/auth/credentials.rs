@@ -40,6 +40,26 @@ impl AuthCredential {
             url_params: HashMap::new(),
         }
     }
+
+    /// Checks if the credential needs to be refreshed.
+    pub fn needs_refresh(&self, buffer: chrono::Duration) -> bool {
+        match &self.auth_details {
+            AuthDetails::ApiKey(_) => false,
+            AuthDetails::OAuth { tokens, .. } | AuthDetails::OAuthWithApiKey { tokens, .. } => {
+                tokens.needs_refresh(buffer)
+            }
+        }
+    }
+
+    /// Gets the OAuth config if this credential is OAuth-based
+    pub fn oauth_config(&self) -> Option<&OAuthConfig> {
+        match &self.auth_details {
+            AuthDetails::OAuth { config, .. } | AuthDetails::OAuthWithApiKey { config, .. } => {
+                Some(config)
+            }
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -74,5 +94,17 @@ impl OAuthTokens {
             refresh_token: refresh_token.map(|a| a.to_string().into()),
             expires_at,
         }
+    }
+
+    /// Checks if the token is expired or will expire within the given buffer
+    /// duration
+    pub fn needs_refresh(&self, buffer: chrono::Duration) -> bool {
+        let now = Utc::now();
+        now + buffer >= self.expires_at
+    }
+
+    /// Checks if the token is currently expired
+    pub fn is_expired(&self) -> bool {
+        Utc::now() >= self.expires_at
     }
 }
