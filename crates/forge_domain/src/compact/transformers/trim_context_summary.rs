@@ -119,18 +119,24 @@ mod tests {
             message(Role::Assistant, vec![read("/test"), read("/test")]),
             message(Role::User, vec![update("file.txt"), update("file.txt")]),
         ]);
-
         let actual = TrimContextSummary.transform(fixture);
 
-        assert_eq!(actual.messages[0].messages.len(), 1);
-        assert_eq!(actual.messages[1].messages.len(), 2);
+        let expected = summary(vec![
+            message(Role::Assistant, vec![read("/test")]),
+            message(Role::User, vec![update("file.txt"), update("file.txt")]),
+        ]);
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_handles_empty_summary() {
         let fixture = summary(vec![]);
         let actual = TrimContextSummary.transform(fixture);
-        assert_eq!(actual.messages.len(), 0);
+
+        let expected = summary(vec![]);
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -140,7 +146,13 @@ mod tests {
             vec![read("/test1"), read("/test2"), read("/test3")],
         )]);
         let actual = TrimContextSummary.transform(fixture);
-        assert_eq!(actual.messages[0].messages.len(), 3);
+
+        let expected = summary(vec![message(
+            Role::Assistant,
+            vec![read("/test1"), read("/test2"), read("/test3")],
+        )]);
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -151,9 +163,14 @@ mod tests {
             message(Role::Assistant, vec![]),
         ]);
         let actual = TrimContextSummary.transform(fixture);
-        assert_eq!(actual.messages[0].role, Role::System);
-        assert_eq!(actual.messages[1].role, Role::User);
-        assert_eq!(actual.messages[2].role, Role::Assistant);
+
+        let expected = summary(vec![
+            message(Role::System, vec![]),
+            message(Role::User, vec![]),
+            message(Role::Assistant, vec![]),
+        ]);
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -168,7 +185,13 @@ mod tests {
             ],
         )]);
         let actual = TrimContextSummary.transform(fixture);
-        assert_eq!(actual.messages[0].messages.len(), 3);
+
+        let expected = summary(vec![message(
+            Role::Assistant,
+            vec![read("/test1"), read("/test2"), read("/test3")],
+        )]);
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -178,7 +201,10 @@ mod tests {
             vec![read("/test"), read("/test"), read("/test")],
         )]);
         let actual = TrimContextSummary.transform(fixture);
-        assert_eq!(actual.messages[0].messages.len(), 1);
+
+        let expected = summary(vec![message(Role::Assistant, vec![read("/test")])]);
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -188,7 +214,13 @@ mod tests {
             vec![read("/test1"), read("/test2")],
         )]);
         let actual = TrimContextSummary.transform(fixture);
-        assert_eq!(actual.messages[0].messages.len(), 2);
+
+        let expected = summary(vec![message(
+            Role::Assistant,
+            vec![read("/test1"), read("/test2")],
+        )]);
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -198,8 +230,10 @@ mod tests {
             vec![read("/test"), read("/test").tool_call_success(false)],
         )]);
         let actual = TrimContextSummary.transform(fixture);
-        assert_eq!(actual.messages[0].messages.len(), 1);
-        assert_eq!(actual.messages[0].messages[0].tool_call_success, Some(true));
+
+        let expected = summary(vec![message(Role::Assistant, vec![read("/test")])]);
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -207,16 +241,18 @@ mod tests {
         let fixture = summary(vec![message(
             Role::Assistant,
             vec![
-                read("/test").content("content1"),
-                read("/test").content("content2"),
+                read("/test").content("content1".to_string()),
+                read("/test").content("content2".to_string()),
             ],
         )]);
         let actual = TrimContextSummary.transform(fixture);
-        assert_eq!(actual.messages[0].messages.len(), 1);
-        assert_eq!(
-            actual.messages[0].messages[0].content,
-            Some("content2".to_string())
-        );
+
+        let expected = summary(vec![message(
+            Role::Assistant,
+            vec![read("/test").content("content2".to_string())],
+        )]);
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -231,7 +267,13 @@ mod tests {
             ],
         )]);
         let actual = TrimContextSummary.transform(fixture);
-        assert_eq!(actual.messages[0].messages.len(), 2);
+
+        let expected = summary(vec![message(
+            Role::Assistant,
+            vec![read("/test"), update("file.txt")],
+        )]);
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -241,7 +283,13 @@ mod tests {
             vec![read("/test"), read("/test"), read("/test")],
         )]);
         let actual = TrimContextSummary.transform(fixture);
-        assert_eq!(actual.messages[0].messages.len(), 3);
+
+        let expected = summary(vec![message(
+            Role::User,
+            vec![read("/test"), read("/test"), read("/test")],
+        )]);
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -251,7 +299,13 @@ mod tests {
             vec![update("file.txt"), update("file.txt")],
         )]);
         let actual = TrimContextSummary.transform(fixture);
-        assert_eq!(actual.messages[0].messages.len(), 2);
+
+        let expected = summary(vec![message(
+            Role::System,
+            vec![update("file.txt"), update("file.txt")],
+        )]);
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -268,9 +322,17 @@ mod tests {
             ),
         ]);
         let actual = TrimContextSummary.transform(fixture);
-        assert_eq!(actual.messages[0].messages.len(), 2);
-        assert_eq!(actual.messages[1].messages.len(), 1);
-        assert_eq!(actual.messages[2].messages.len(), 2);
+
+        let expected = summary(vec![
+            message(Role::User, vec![read("/test"), read("/test")]),
+            message(Role::Assistant, vec![update("file.txt")]),
+            message(
+                Role::System,
+                vec![remove("remove.txt"), remove("remove.txt")],
+            ),
+        ]);
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -284,7 +346,10 @@ mod tests {
             ],
         )]);
         let actual = TrimContextSummary.transform(fixture);
-        assert_eq!(actual.messages[0].messages.len(), 0);
+
+        let expected = summary(vec![message(Role::Assistant, vec![])]);
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -302,11 +367,10 @@ mod tests {
             ],
         )]);
         let actual = TrimContextSummary.transform(fixture);
-        assert_eq!(actual.messages[0].messages.len(), 1);
-        assert_eq!(
-            actual.messages[0].messages[0].tool_call,
-            SummaryToolCall::FileUpdate { path: "file.txt".to_string() }
-        );
+
+        let expected = summary(vec![message(Role::Assistant, vec![update("file.txt")])]);
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -322,11 +386,13 @@ mod tests {
             ],
         )]);
         let actual = TrimContextSummary.transform(fixture);
-        assert_eq!(actual.messages[0].messages.len(), 1);
-        assert_eq!(
-            actual.messages[0].messages[0].content,
-            Some("second read".to_string())
-        );
+
+        let expected = summary(vec![message(
+            Role::Assistant,
+            vec![read("/test").content("second read".to_string())],
+        )]);
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -336,11 +402,10 @@ mod tests {
             vec![read("/test"), update("/test"), remove("/test")],
         )]);
         let actual = TrimContextSummary.transform(fixture);
-        assert_eq!(actual.messages[0].messages.len(), 1);
-        assert_eq!(
-            actual.messages[0].messages[0].tool_call,
-            SummaryToolCall::FileRemove { path: "/test".to_string() }
-        );
+
+        let expected = summary(vec![message(Role::Assistant, vec![remove("/test")])]);
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -357,37 +422,13 @@ mod tests {
             ],
         )]);
         let actual = TrimContextSummary.transform(fixture);
-        assert_eq!(actual.messages[0].messages.len(), 3);
 
-        let path1_op = actual.messages[0]
-            .messages
-            .iter()
-            .find(|b| TrimContextSummary::extract_path(&b.tool_call) == Some("/path1"))
-            .unwrap();
-        assert!(matches!(
-            path1_op.tool_call,
-            SummaryToolCall::FileRemove { .. }
-        ));
+        let expected = summary(vec![message(
+            Role::Assistant,
+            vec![remove("/path1"), read("/path2"), update("/path3")],
+        )]);
 
-        let path2_op = actual.messages[0]
-            .messages
-            .iter()
-            .find(|b| TrimContextSummary::extract_path(&b.tool_call) == Some("/path2"))
-            .unwrap();
-        assert!(matches!(
-            path2_op.tool_call,
-            SummaryToolCall::FileRead { .. }
-        ));
-
-        let path3_op = actual.messages[0]
-            .messages
-            .iter()
-            .find(|b| TrimContextSummary::extract_path(&b.tool_call) == Some("/path3"))
-            .unwrap();
-        assert!(matches!(
-            path3_op.tool_call,
-            SummaryToolCall::FileUpdate { .. }
-        ));
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -397,19 +438,13 @@ mod tests {
             vec![read("/aaa"), read("/zzz"), read("/mmm")],
         )]);
         let actual = TrimContextSummary.transform(fixture);
-        assert_eq!(actual.messages[0].messages.len(), 3);
-        assert_eq!(
-            TrimContextSummary::extract_path(&actual.messages[0].messages[0].tool_call),
-            Some("/aaa")
-        );
-        assert_eq!(
-            TrimContextSummary::extract_path(&actual.messages[0].messages[1].tool_call),
-            Some("/zzz")
-        );
-        assert_eq!(
-            TrimContextSummary::extract_path(&actual.messages[0].messages[2].tool_call),
-            Some("/mmm")
-        );
+
+        let expected = summary(vec![message(
+            Role::Assistant,
+            vec![read("/aaa"), read("/zzz"), read("/mmm")],
+        )]);
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -428,11 +463,10 @@ mod tests {
             ],
         )]);
         let actual = TrimContextSummary.transform(fixture);
-        assert_eq!(actual.messages[0].messages.len(), 1);
-        assert_eq!(
-            TrimContextSummary::extract_path(&actual.messages[0].messages[0].tool_call),
-            Some("/success")
-        );
+
+        let expected = summary(vec![message(Role::Assistant, vec![read("/success")])]);
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -445,8 +479,13 @@ mod tests {
             ),
         ]);
         let actual = TrimContextSummary.transform(fixture);
-        assert_eq!(actual.messages[0].messages.len(), 1);
-        assert_eq!(actual.messages[1].messages.len(), 1);
+
+        let expected = summary(vec![
+            message(Role::Assistant, vec![read("/test")]),
+            message(Role::Assistant, vec![read("/test")]),
+        ]);
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -459,7 +498,12 @@ mod tests {
             message(Role::Assistant, vec![read("/other")]),
         ]);
         let actual = TrimContextSummary.transform(fixture);
-        assert_eq!(actual.messages[0].messages.len(), 0);
-        assert_eq!(actual.messages[1].messages.len(), 1);
+
+        let expected = summary(vec![
+            message(Role::Assistant, vec![]),
+            message(Role::Assistant, vec![read("/other")]),
+        ]);
+
+        assert_eq!(actual, expected);
     }
 }

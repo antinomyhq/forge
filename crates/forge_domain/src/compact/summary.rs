@@ -5,19 +5,20 @@ use crate::{
 };
 
 /// A simplified summary of a context, focusing on messages and their tool calls
+#[derive(PartialEq, Debug)]
 pub struct ContextSummary {
     pub messages: Vec<SummaryMessage>,
 }
 
 /// A simplified representation of a message with its key information
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct SummaryMessage {
     pub role: Role,
     pub messages: Vec<SummaryMessageBlock>,
 }
 
 /// Wraps tool call information along with its execution status
-#[derive(Clone, derive_setters::Setters)]
+#[derive(Clone, PartialEq, Debug, derive_setters::Setters)]
 #[setters(strip_option, into)]
 pub struct SummaryMessageBlock {
     pub content: Option<String>,
