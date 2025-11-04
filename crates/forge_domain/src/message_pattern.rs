@@ -1,9 +1,6 @@
 use serde_json::json;
 
-use crate::{
-    Context, ContextMessage, ModelId, ToolCallFull, ToolCallId, ToolName,
-    ToolResult,
-};
+use crate::{Context, ContextMessage, ModelId, ToolCallFull, ToolCallId, ToolName, ToolResult};
 
 /// Converts a condensed string pattern into a Context with messages.
 ///
