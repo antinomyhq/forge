@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use forge_app::dto::ToolsOverview;
@@ -252,5 +253,24 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     }
     async fn get_commands(&self) -> Result<Vec<Command>> {
         self.services.get_commands().await
+    }
+
+    async fn init_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        method: AuthMethod,
+    ) -> Result<AuthContextRequest> {
+        Ok(self.services.init_provider_auth(provider_id, method).await?)
+    }
+
+    async fn complete_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        context: AuthContextResponse,
+        timeout: Duration,
+    ) -> Result<()> {
+        Ok(self.services
+            .complete_provider_auth(provider_id, context, timeout)
+            .await?)
     }
 }
