@@ -300,7 +300,10 @@ function _forge_action_commit() {
     local commit_message
     # Generate AI commit message
     echo
-    commit_message=$($_FORGE_BIN commit --preview --max-diff "$_FORGE_MAX_COMMIT_DIFF")
+    # Force color output even when not connected to TTY
+    # FORCE_COLOR: for indicatif spinner colors
+    # CLICOLOR_FORCE: for colored crate text colors
+    commit_message=$(FORCE_COLOR=true CLICOLOR_FORCE=1 $_FORGE_BIN commit --preview --max-diff "$_FORGE_MAX_COMMIT_DIFF")
     
     # Proceed only if command succeeded
     if [[ -n "$commit_message" ]]; then
