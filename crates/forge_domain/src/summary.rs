@@ -7,21 +7,21 @@ use crate::{
 
 /// A simplified summary of a context, focusing on messages and their tool calls
 pub struct ContextSummary {
-    pub messages: Vec<SummaryMessage>,
+    pub messages: Vec<RoleMessage>,
 }
 
 /// A simplified representation of a message with its key information
-pub struct SummaryMessage {
+pub struct RoleMessage {
     pub role: Role,
     pub content: Option<String>,
-    pub tool_info: Vec<SummaryToolInfo>,
+    pub message: Vec<SummaryMessage>,
 }
 
 trait CanMerge {
     fn can_merge(&self, other: &Self) -> bool;
 }
 
-impl CanMerge for SummaryMessage {
+impl CanMerge for RoleMessage {
     fn can_merge(&self, other: &Self) -> bool {
         [
             //
@@ -33,7 +33,7 @@ impl CanMerge for SummaryMessage {
     }
 }
 
-impl SummaryMessage {
+impl RoleMessage {
     /// Merges consecutive messages that can be merged together.
     ///
     /// When the nth message can be merged with the (n-1)th message,
@@ -64,12 +64,12 @@ impl SummaryMessage {
     }
 }
 
-impl CanMerge for Vec<SummaryToolInfo> {
+impl CanMerge for Vec<SummaryMessage> {
     fn can_merge(&self, other: &Self) -> bool {
         self.iter().zip(other).all(|(this, that)| {
             [
-                this.success == that.success,
-                this.call.can_merge(&that.call),
+                this.tool_call_success == that.tool_call_success,
+                this.tool_call.can_merge(&that.tool_call),
             ]
             .into_iter()
             .all(identity)
@@ -77,9 +77,9 @@ impl CanMerge for Vec<SummaryToolInfo> {
     }
 }
 
-impl CanMerge for SummaryToolInfo {
+impl CanMerge for SummaryMessage {
     fn can_merge(&self, other: &Self) -> bool {
-        self.success == other.success && self.call.can_merge(&other.call)
+        self.tool_call_success == other.tool_call_success && self.tool_call.can_merge(&other.tool_call)
     }
 }
 
@@ -98,10 +98,10 @@ impl CanMerge for SummaryToolCall {
 }
 
 /// Wraps tool call information along with its execution status
-pub struct SummaryToolInfo {
-    pub call_id: Option<ToolCallId>,
-    pub call: SummaryToolCall,
-    pub success: Option<bool>,
+pub struct SummaryMessage {
+    pub tool_call_id: Option<ToolCallId>,
+    pub tool_call: SummaryToolCall,
+    pub tool_call_success: Option<bool>,
 }
 
 /// Categorized tool call information for summary purposes
@@ -122,12 +122,12 @@ impl From<&Context> for ContextSummary {
         for msg in &value.messages {
             match msg {
                 ContextMessage::Text(text_msg) => {
-                    let tool_info = Vec::<SummaryToolInfo>::from(text_msg);
+                    let tool_info = Vec::<SummaryMessage>::from(text_msg);
 
-                    messages.push(SummaryMessage {
+                    messages.push(RoleMessage {
                         role: text_msg.role.clone(),
                         content: Some(text_msg.content.clone()),
-                        tool_info,
+                        message: tool_info,
                     });
                 }
                 ContextMessage::Tool(tool_result) => {
@@ -136,10 +136,10 @@ impl From<&Context> for ContextSummary {
                     }
                 }
                 ContextMessage::Image(_) => {
-                    messages.push(SummaryMessage {
+                    messages.push(RoleMessage {
                         role: Role::User,
                         content: None,
-                        tool_info: vec![],
+                        message: vec![],
                     });
                 }
             }
@@ -147,21 +147,21 @@ impl From<&Context> for ContextSummary {
 
         messages
             .iter_mut()
-            .flat_map(|message| message.tool_info.iter_mut())
+            .flat_map(|message| message.message.iter_mut())
             .filter_map(|tool_info| {
                 tool_info
-                    .call_id
+                    .tool_call_id
                     .as_ref()
                     .and_then(|id| tool_results.get(id))
                     .map(|result| (result, tool_info))
             })
-            .for_each(|(result, tool_info)| tool_info.success = Some(!result.is_error()));
+            .for_each(|(result, tool_info)| tool_info.tool_call_success = Some(!result.is_error()));
 
         ContextSummary { messages }
     }
 }
 
-impl From<&TextMessage> for Vec<SummaryToolInfo> {
+impl From<&TextMessage> for Vec<SummaryMessage> {
     fn from(text_msg: &TextMessage) -> Self {
         text_msg
             .tool_calls
@@ -170,10 +170,10 @@ impl From<&TextMessage> for Vec<SummaryToolInfo> {
                 calls
                     .iter()
                     .filter_map(|tool_call| {
-                        extract_tool_info(tool_call).map(|call| SummaryToolInfo {
-                            call_id: tool_call.call_id.clone(),
-                            call,
-                            success: None,
+                        extract_tool_info(tool_call).map(|call| SummaryMessage {
+                            tool_call_id: tool_call.call_id.clone(),
+                            tool_call: call,
+                            tool_call_success: None,
                         })
                     })
                     .collect()
@@ -214,20 +214,20 @@ mod tests {
     fn fixture_summary_message(
         role: Role,
         content: Option<String>,
-        tool_info: Vec<SummaryToolInfo>,
-    ) -> SummaryMessage {
-        SummaryMessage { role, content, tool_info }
+        tool_info: Vec<SummaryMessage>,
+    ) -> RoleMessage {
+        RoleMessage { role, content, message: tool_info }
     }
 
-    fn fixture_tool_info(call: SummaryToolCall, success: Option<bool>) -> SummaryToolInfo {
-        SummaryToolInfo { call_id: None, call, success }
+    fn fixture_tool_info(call: SummaryToolCall, success: Option<bool>) -> SummaryMessage {
+        SummaryMessage { tool_call_id: None, tool_call: call, tool_call_success: success }
     }
 
     #[test]
     fn test_merge_consecutive_empty_list() {
-        let fixture: Vec<SummaryMessage> = vec![];
-        let actual = SummaryMessage::merge_consecutive(fixture);
-        let expected: Vec<SummaryMessage> = vec![];
+        let fixture: Vec<RoleMessage> = vec![];
+        let actual = RoleMessage::merge_consecutive(fixture);
+        let expected: Vec<RoleMessage> = vec![];
         assert_eq!(actual.len(), expected.len());
     }
 
@@ -238,7 +238,7 @@ mod tests {
             Some("Hello".to_string()),
             vec![],
         )];
-        let actual = SummaryMessage::merge_consecutive(fixture);
+        let actual = RoleMessage::merge_consecutive(fixture);
         assert_eq!(actual.len(), 1);
         assert_eq!(actual[0].role, Role::Assistant);
         assert_eq!(actual[0].content, Some("Hello".to_string()));
@@ -260,13 +260,13 @@ mod tests {
             fixture_summary_message(Role::Assistant, Some("Test".to_string()), vec![tool2]),
         ];
 
-        let actual = SummaryMessage::merge_consecutive(fixture);
+        let actual = RoleMessage::merge_consecutive(fixture);
         let expected_len = 1;
 
         assert_eq!(actual.len(), expected_len);
         // The last message replaces the first, so we should have tool2
-        assert_eq!(actual[0].tool_info.len(), 1);
-        if let SummaryToolCall::FileRead { path } = &actual[0].tool_info[0].call {
+        assert_eq!(actual[0].message.len(), 1);
+        if let SummaryToolCall::FileRead { path } = &actual[0].message[0].tool_call {
             assert_eq!(path, "file2.txt");
         }
     }
@@ -278,7 +278,7 @@ mod tests {
             fixture_summary_message(Role::User, Some("Test".to_string()), vec![]),
         ];
 
-        let actual = SummaryMessage::merge_consecutive(fixture);
+        let actual = RoleMessage::merge_consecutive(fixture);
         let expected_len = 2;
 
         assert_eq!(actual.len(), expected_len);
@@ -291,7 +291,7 @@ mod tests {
             fixture_summary_message(Role::Assistant, Some("World".to_string()), vec![]),
         ];
 
-        let actual = SummaryMessage::merge_consecutive(fixture);
+        let actual = RoleMessage::merge_consecutive(fixture);
         let expected_len = 2;
 
         assert_eq!(actual.len(), expected_len);
@@ -323,20 +323,20 @@ mod tests {
             fixture_summary_message(Role::User, Some("C".to_string()), vec![tool3]),
         ];
 
-        let actual = SummaryMessage::merge_consecutive(fixture);
+        let actual = RoleMessage::merge_consecutive(fixture);
         let expected_len = 3;
 
         assert_eq!(actual.len(), expected_len);
         // Group 1: second message replaces first, so we have tool2
-        assert_eq!(actual[0].tool_info.len(), 1);
-        if let SummaryToolCall::FileRead { path } = &actual[0].tool_info[0].call {
+        assert_eq!(actual[0].message.len(), 1);
+        if let SummaryToolCall::FileRead { path } = &actual[0].message[0].tool_call {
             assert_eq!(path, "file2.txt");
         }
         assert_eq!(actual[0].content, Some("A".to_string()));
         assert_eq!(actual[1].content, Some("B".to_string()));
         // Group 2: second message replaces first, so we have tool3
-        assert_eq!(actual[2].tool_info.len(), 1);
-        if let SummaryToolCall::FileRead { path } = &actual[2].tool_info[0].call {
+        assert_eq!(actual[2].message.len(), 1);
+        if let SummaryToolCall::FileRead { path } = &actual[2].message[0].tool_call {
             assert_eq!(path, "file3.txt");
         }
     }
@@ -362,12 +362,12 @@ mod tests {
             fixture_summary_message(Role::Assistant, Some("Test".to_string()), vec![tool3]),
         ];
 
-        let actual = SummaryMessage::merge_consecutive(fixture);
+        let actual = RoleMessage::merge_consecutive(fixture);
 
         assert_eq!(actual.len(), 1);
         // The last message replaces all previous mergeable messages
-        assert_eq!(actual[0].tool_info.len(), 1);
-        if let SummaryToolCall::FileRead { path } = &actual[0].tool_info[0].call {
+        assert_eq!(actual[0].message.len(), 1);
+        if let SummaryToolCall::FileRead { path } = &actual[0].message[0].tool_call {
             assert_eq!(path, "file3.txt");
         }
     }
