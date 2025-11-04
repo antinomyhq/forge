@@ -32,6 +32,39 @@ pub struct SummaryMessageBlock {
     pub tool_call_success: Option<bool>,
 }
 
+
+impl SummaryMessageBlock {
+    /// Creates a FileRead tool call block with success=true by default
+    pub fn read(path: impl Into<String>) -> Self {
+        Self {
+            content: None,
+            tool_call_id: None,
+            tool_call: SummaryToolCall::FileRead { path: path.into() },
+            tool_call_success: Some(true),
+        }
+    }
+
+    /// Creates a FileUpdate tool call block with success=true by default
+    pub fn update(path: impl Into<String>) -> Self {
+        Self {
+            content: None,
+            tool_call_id: None,
+            tool_call: SummaryToolCall::FileUpdate { path: path.into() },
+            tool_call_success: Some(true),
+        }
+    }
+
+    /// Creates a FileRemove tool call block with success=true by default
+    pub fn remove(path: impl Into<String>) -> Self {
+        Self {
+            content: None,
+            tool_call_id: None,
+            tool_call: SummaryToolCall::FileRemove { path: path.into() },
+            tool_call_success: Some(true),
+        }
+    }
+}
+
 /// Categorized tool call information for summary purposes
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

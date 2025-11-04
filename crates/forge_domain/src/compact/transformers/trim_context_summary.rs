@@ -67,41 +67,13 @@ impl Transformer for TrimContextSummary {
 
 #[cfg(test)]
 mod tests {
+    // Alias for convenience in tests
+    use SummaryMessageBlock as Block;
     use pretty_assertions::assert_eq;
 
     use super::*;
     use crate::Role;
     use crate::compact::summary::{SummaryMessage, SummaryMessageBlock, SummaryToolCall};
-
-    // Helper to create a FileRead block with default success=true
-    fn read(path: &str) -> SummaryMessageBlock {
-        SummaryMessageBlock {
-            content: None,
-            tool_call_id: None,
-            tool_call: SummaryToolCall::FileRead { path: path.to_string() },
-            tool_call_success: Some(true),
-        }
-    }
-
-    // Helper to create a FileUpdate block with default success=true
-    fn update(path: &str) -> SummaryMessageBlock {
-        SummaryMessageBlock {
-            content: None,
-            tool_call_id: None,
-            tool_call: SummaryToolCall::FileUpdate { path: path.to_string() },
-            tool_call_success: Some(true),
-        }
-    }
-
-    // Helper to create a FileRemove block with default success=true
-    fn remove(path: &str) -> SummaryMessageBlock {
-        SummaryMessageBlock {
-            content: None,
-            tool_call_id: None,
-            tool_call: SummaryToolCall::FileRemove { path: path.to_string() },
-            tool_call_success: Some(true),
-        }
-    }
 
     // Helper to create a summary message with role and blocks
     fn message(role: Role, blocks: Vec<SummaryMessageBlock>) -> SummaryMessage {
@@ -128,17 +100,21 @@ mod tests {
         let fixture = summary(vec![message(
             Role::Assistant,
             vec![
-                read("/test1"),
-                read("/test2"),
-                read("/test2"),
-                read("/test3"),
+                Block::read("/test1"),
+                Block::read("/test2"),
+                Block::read("/test2"),
+                Block::read("/test3"),
             ],
         )]);
         let actual = TrimContextSummary.transform(fixture);
 
         let expected = summary(vec![message(
             Role::Assistant,
-            vec![read("/test1"), read("/test2"), read("/test3")],
+            vec![
+                Block::read("/test1"),
+                Block::read("/test2"),
+                Block::read("/test3"),
+            ],
         )]);
 
         assert_eq!(actual, expected);
@@ -149,15 +125,15 @@ mod tests {
         let fixture = summary(vec![message(
             Role::Assistant,
             vec![
-                read("/test").content("content1".to_string()),
-                read("/test").content("content2".to_string()),
+                Block::read("/test").content("content1".to_string()),
+                Block::read("/test").content("content2".to_string()),
             ],
         )]);
         let actual = TrimContextSummary.transform(fixture);
 
         let expected = summary(vec![message(
             Role::Assistant,
-            vec![read("/test").content("content2".to_string())],
+            vec![Block::read("/test").content("content2".to_string())],
         )]);
 
         assert_eq!(actual, expected);
@@ -168,20 +144,20 @@ mod tests {
         let fixture = summary(vec![message(
             Role::Assistant,
             vec![
-                read("/test"),
-                read("/test"),
-                update("file.txt"),
-                update("file.txt"),
-                read("/test"),
-                update("/test"),
-                remove("/test"),
+                Block::read("/test"),
+                Block::read("/test"),
+                Block::update("file.txt"),
+                Block::update("file.txt"),
+                Block::read("/test"),
+                Block::update("/test"),
+                Block::remove("/test"),
             ],
         )]);
         let actual = TrimContextSummary.transform(fixture);
 
         let expected = summary(vec![message(
             Role::Assistant,
-            vec![remove("/test"), update("file.txt")],
+            vec![Block::remove("/test"), Block::update("file.txt")],
         )]);
 
         assert_eq!(actual, expected);
@@ -192,19 +168,23 @@ mod tests {
         let fixture = summary(vec![message(
             Role::Assistant,
             vec![
-                read("/path1"),
-                read("/path2"),
-                read("/path1"),
-                update("/path3"),
-                read("/path2"),
-                remove("/path1"),
+                Block::read("/path1"),
+                Block::read("/path2"),
+                Block::read("/path1"),
+                Block::update("/path3"),
+                Block::read("/path2"),
+                Block::remove("/path1"),
             ],
         )]);
         let actual = TrimContextSummary.transform(fixture);
 
         let expected = summary(vec![message(
             Role::Assistant,
-            vec![remove("/path1"), read("/path2"), update("/path3")],
+            vec![
+                Block::remove("/path1"),
+                Block::read("/path2"),
+                Block::update("/path3"),
+            ],
         )]);
 
         assert_eq!(actual, expected);
@@ -215,19 +195,19 @@ mod tests {
         let fixture = summary(vec![message(
             Role::Assistant,
             vec![
-                read("/test").content("first read".to_string()),
-                read("/test")
+                Block::read("/test").content("first read".to_string()),
+                Block::read("/test")
                     .content("failed read".to_string())
                     .tool_call_success(false),
-                read("/test").content("second read".to_string()),
+                Block::read("/test").content("second read".to_string()),
                 SummaryMessageBlock {
                     content: None,
                     tool_call_id: None,
                     tool_call: SummaryToolCall::FileRead { path: "/unknown".to_string() },
                     tool_call_success: None,
                 },
-                update("file.txt"),
-                read("/all_failed").tool_call_success(false),
+                Block::update("file.txt"),
+                Block::read("/all_failed").tool_call_success(false),
             ],
         )]);
         let actual = TrimContextSummary.transform(fixture);
@@ -235,8 +215,8 @@ mod tests {
         let expected = summary(vec![message(
             Role::Assistant,
             vec![
-                read("/test").content("second read".to_string()),
-                update("file.txt"),
+                Block::read("/test").content("second read".to_string()),
+                Block::update("file.txt"),
             ],
         )]);
 
@@ -248,8 +228,8 @@ mod tests {
         let fixture = summary(vec![message(
             Role::Assistant,
             vec![
-                read("/test1").tool_call_success(false),
-                read("/test2").tool_call_success(false),
+                Block::read("/test1").tool_call_success(false),
+                Block::read("/test2").tool_call_success(false),
             ],
         )]);
         let actual = TrimContextSummary.transform(fixture);
@@ -262,27 +242,30 @@ mod tests {
     #[test]
     fn test_only_trims_assistant_messages() {
         let fixture = summary(vec![
-            message(Role::User, vec![read("/test"), read("/test")]),
+            message(Role::User, vec![Block::read("/test"), Block::read("/test")]),
             message(
                 Role::Assistant,
-                vec![update("file.txt"), update("file.txt")],
+                vec![Block::update("file.txt"), Block::update("file.txt")],
             ),
             message(
                 Role::System,
-                vec![remove("remove.txt"), remove("remove.txt")],
+                vec![Block::remove("remove.txt"), Block::remove("remove.txt")],
             ),
-            message(Role::Assistant, vec![read("/test"), read("/test")]),
+            message(
+                Role::Assistant,
+                vec![Block::read("/test"), Block::read("/test")],
+            ),
         ]);
         let actual = TrimContextSummary.transform(fixture);
 
         let expected = summary(vec![
-            message(Role::User, vec![read("/test"), read("/test")]),
-            message(Role::Assistant, vec![update("file.txt")]),
+            message(Role::User, vec![Block::read("/test"), Block::read("/test")]),
+            message(Role::Assistant, vec![Block::update("file.txt")]),
             message(
                 Role::System,
-                vec![remove("remove.txt"), remove("remove.txt")],
+                vec![Block::remove("remove.txt"), Block::remove("remove.txt")],
             ),
-            message(Role::Assistant, vec![read("/test")]),
+            message(Role::Assistant, vec![Block::read("/test")]),
         ]);
 
         assert_eq!(actual, expected);
@@ -291,22 +274,29 @@ mod tests {
     #[test]
     fn test_multiple_assistant_messages_trimmed_independently() {
         let fixture = summary(vec![
-            message(Role::Assistant, vec![read("/test"), read("/test")]),
             message(
                 Role::Assistant,
-                vec![read("/test").tool_call_success(false)],
+                vec![Block::read("/test"), Block::read("/test")],
             ),
             message(
                 Role::Assistant,
-                vec![read("/test"), read("/test"), read("/test")],
+                vec![Block::read("/test").tool_call_success(false)],
+            ),
+            message(
+                Role::Assistant,
+                vec![
+                    Block::read("/test"),
+                    Block::read("/test"),
+                    Block::read("/test"),
+                ],
             ),
         ]);
         let actual = TrimContextSummary.transform(fixture);
 
         let expected = summary(vec![
-            message(Role::Assistant, vec![read("/test")]),
+            message(Role::Assistant, vec![Block::read("/test")]),
             message(Role::Assistant, vec![]),
-            message(Role::Assistant, vec![read("/test")]),
+            message(Role::Assistant, vec![Block::read("/test")]),
         ]);
 
         assert_eq!(actual, expected);
