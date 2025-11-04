@@ -9,7 +9,7 @@ use crate::xml::extract_tag_content;
 use crate::{Error, Result, ToolCallArguments, ToolName, ToolResult};
 
 /// Unique identifier for a using a tool
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Serialize)]
 #[serde(transparent)]
 pub struct ToolCallId(pub(crate) String);
 
