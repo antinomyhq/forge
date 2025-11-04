@@ -192,7 +192,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::{ContextMessage, TextMessage};
+    use crate::MessagePattern;
 
     /// Creates a Context from a condensed string pattern where:
     /// - 'u' = User message
@@ -200,41 +200,7 @@ mod tests {
     /// - 's' = System message Example: ctx("uau") creates User -> Assistant ->
     ///   User messages
     fn ctx(pattern: &str) -> Context {
-        let messages: Vec<ContextMessage> = pattern
-            .chars()
-            .enumerate()
-            .map(|(i, c)| {
-                let content = format!("Message {}", i + 1);
-                match c {
-                    'u' => ContextMessage::Text(TextMessage {
-                        role: Role::User,
-                        content,
-                        raw_content: None,
-                        tool_calls: None,
-                        model: None,
-                        reasoning_details: None,
-                    }),
-                    'a' => ContextMessage::Text(TextMessage {
-                        role: Role::Assistant,
-                        content,
-                        raw_content: None,
-                        tool_calls: None,
-                        model: None,
-                        reasoning_details: None,
-                    }),
-                    's' => ContextMessage::Text(TextMessage {
-                        role: Role::System,
-                        content,
-                        raw_content: None,
-                        tool_calls: None,
-                        model: None,
-                        reasoning_details: None,
-                    }),
-                    _ => panic!("Invalid character '{c}' in pattern. Use 'u', 'a', or 's'"),
-                }
-            })
-            .collect();
-        Context::default().messages(messages)
+        MessagePattern::new(pattern).build()
     }
 
     #[test]
