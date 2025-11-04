@@ -6,8 +6,8 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
-    InterruptionReason, Model, ModelId, Provider, AnyProvider, ProviderId, TextMessage, Workflow,
+    API, AgentId, AnyProvider, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
+    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, Workflow,
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;

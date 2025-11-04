@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
 use colored::Colorize;
-use forge_api::{Model, AnyProvider, Template};
+use forge_api::{AnyProvider, Model, Template};
 use forge_domain::{Agent, UserCommand};
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumProperty};
@@ -519,7 +519,7 @@ impl SlashCommand {
 mod tests {
     use console::strip_ansi_codes;
     use forge_api::{ModelId, Models, ProviderId, ProviderResponse};
-    use forge_domain::{Provider, AnyProvider};
+    use forge_domain::{AnyProvider, Provider};
     use pretty_assertions::assert_eq;
     use url::Url;
 

@@ -92,7 +92,7 @@ mod tests {
     use std::sync::Mutex;
 
     use forge_domain::{
-        AppConfig, Model, Models, Provider, AnyProvider, ProviderId, ProviderResponse,
+        AnyProvider, AppConfig, Model, Models, Provider, ProviderId, ProviderResponse,
     };
     use pretty_assertions::assert_eq;
     use url::Url;

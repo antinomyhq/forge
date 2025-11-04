@@ -3,9 +3,7 @@ use std::path::Path;
 use anyhow::Result;
 use url::Url;
 
-use crate::{
-    AppConfig, Conversation, ConversationId, Provider, AnyProvider, ProviderId, Snapshot,
-};
+use crate::{AnyProvider, AppConfig, Conversation, ConversationId, Provider, ProviderId, Snapshot};
 
 /// Repository for managing file snapshots
 ///

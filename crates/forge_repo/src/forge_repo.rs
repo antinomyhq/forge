@@ -8,9 +8,9 @@ use forge_app::{
     UserInfra, WalkedFile, Walker, WalkerInfra,
 };
 use forge_domain::{
-    AppConfig, AppConfigRepository, CommandOutput, Conversation, ConversationId,
-    ConversationRepository, Environment, FileInfo, McpServerConfig, Provider, AnyProvider,
-    ProviderId, ProviderRepository, Snapshot, SnapshotRepository,
+    AnyProvider, AppConfig, AppConfigRepository, CommandOutput, Conversation, ConversationId,
+    ConversationRepository, Environment, FileInfo, McpServerConfig, Provider, ProviderId,
+    ProviderRepository, Snapshot, SnapshotRepository,
 };
 use forge_infra::CacacheStorage;
 use reqwest::header::HeaderMap;

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::domain::{
-    ChatCompletionMessage, Context as ChatContext, HttpConfig, Model, ModelId, AnyProvider,
+    AnyProvider, ChatCompletionMessage, Context as ChatContext, HttpConfig, Model, ModelId,
     ProviderId, ResultStream, RetryConfig,
 };
 use forge_app::{EnvironmentInfra, HttpInfra, ProviderService};

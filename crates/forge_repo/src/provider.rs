@@ -2,7 +2,7 @@ use std::sync::{Arc, OnceLock};
 
 use forge_app::domain::{ProviderId, ProviderResponse};
 use forge_app::{EnvironmentInfra, FileReaderInfra};
-use forge_domain::{Error, Provider, AnyProvider, ProviderRepository};
+use forge_domain::{AnyProvider, Error, Provider, ProviderRepository};
 use handlebars::Handlebars;
 use merge::Merge;
 use serde::Deserialize;
