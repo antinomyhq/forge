@@ -3,12 +3,13 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::domain::{
-    ChatCompletionMessage, Context as ChatContext, HttpConfig, Model, ModelId, Provider,
+    AnyProvider, ChatCompletionMessage, Context as ChatContext, HttpConfig, Model, ModelId,
     ProviderId, ResultStream, RetryConfig,
 };
 use forge_app::{EnvironmentInfra, HttpInfra, ProviderService};
-use forge_domain::ProviderRepository;
+use forge_domain::{Provider, ProviderRepository};
 use tokio::sync::Mutex;
+use url::Url;
 
 use crate::http::HttpClient;
 use crate::provider::client::{Client, ClientBuilder};
@@ -37,7 +38,7 @@ impl<I: EnvironmentInfra + HttpInfra> ForgeProviderService<I> {
         }
     }
 
-    async fn client(&self, provider: Provider) -> Result<Client<HttpClient<I>>> {
+    async fn client(&self, provider: Provider<Url>) -> Result<Client<HttpClient<I>>> {
         let provider_id = provider.id;
 
         // Check cache first
@@ -74,7 +75,7 @@ impl<I: EnvironmentInfra + HttpInfra + ProviderRepository> ProviderService
         &self,
         model: &ModelId,
         request: ChatContext,
-        provider: Provider,
+        provider: Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         let client = self.client(provider).await?;
 
@@ -84,7 +85,7 @@ impl<I: EnvironmentInfra + HttpInfra + ProviderRepository> ProviderService
             .with_context(|| format!("Failed to chat with model: {model}"))
     }
 
-    async fn models(&self, provider: Provider) -> Result<Vec<Model>> {
+    async fn models(&self, provider: Provider<Url>) -> Result<Vec<Model>> {
         let provider_id = provider.id;
 
         // Check cache first
@@ -108,11 +109,11 @@ impl<I: EnvironmentInfra + HttpInfra + ProviderRepository> ProviderService
         Ok(models)
     }
 
-    async fn get_provider(&self, id: ProviderId) -> Result<Provider> {
+    async fn get_provider(&self, id: ProviderId) -> Result<Provider<Url>> {
         self.http_infra.get_provider(id).await
     }
 
-    async fn get_all_providers(&self) -> Result<Vec<Provider>> {
+    async fn get_all_providers(&self) -> Result<Vec<AnyProvider>> {
         self.http_infra.get_all_providers().await
     }
 }

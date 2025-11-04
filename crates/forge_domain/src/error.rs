@@ -4,7 +4,7 @@ use derive_more::From;
 use forge_json_repair::JsonRepairError;
 use thiserror::Error;
 
-use crate::{AgentId, ConversationId};
+use crate::{AgentId, ConversationId, ProviderId};
 
 // NOTE: Deriving From for error is a really bad idea. This is because you end
 // up converting errors incorrectly without much context. For eg: You don't want
@@ -19,6 +19,7 @@ pub enum Error {
     ToolCallMissingId,
 
     #[error("Unsupported role: {0}")]
+    #[from(skip)]
     UnsupportedRole(String),
 
     #[error("{0}")]
@@ -75,6 +76,18 @@ pub enum Error {
 
     #[error(transparent)]
     Retryable(anyhow::Error),
+
+    #[error("Environment variable {env_var} not found for provider {provider}")]
+    EnvironmentVariableNotFound {
+        provider: ProviderId,
+        env_var: String,
+    },
+
+    #[error("Provider {provider} is not available via environment configuration")]
+    ProviderNotAvailable { provider: ProviderId },
+
+    #[error("Failed to create VertexAI provider: {message}")]
+    VertexAiConfiguration { message: String },
 }
 
 pub type Result<A> = std::result::Result<A, Error>;
@@ -102,6 +115,18 @@ impl Error {
     pub fn into_retryable(self) -> Self {
         use anyhow::anyhow;
         Self::Retryable(anyhow!(self))
+    }
+
+    pub fn env_var_not_found(provider: ProviderId, env_var: &str) -> Self {
+        Self::EnvironmentVariableNotFound { provider, env_var: env_var.to_string() }
+    }
+
+    pub fn provider_not_available(provider: ProviderId) -> Self {
+        Self::ProviderNotAvailable { provider }
+    }
+
+    pub fn vertex_ai_config(message: impl Into<String>) -> Self {
+        Self::VertexAiConfiguration { message: message.into() }
     }
 }
 
