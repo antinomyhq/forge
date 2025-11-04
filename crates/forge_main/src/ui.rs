@@ -793,7 +793,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         porcelain: bool,
         conversation_id: Option<ConversationId>,
     ) -> anyhow::Result<()> {
-        let mut info = Info::from(&self.api.environment());
+        let mut info = Info::new();
 
         // Fetch conversation
         let conversation = match conversation_id {
