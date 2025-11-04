@@ -566,20 +566,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             let id = provider.id().to_string();
             let (domain, configured) = match provider {
                 AnyProvider::Url(p) => (
-                    p.url
-                        .domain()
-                        .map(|d| format!("[{}]", d))
-                        .unwrap_or_default(),
+                    p.url.domain().map(|d| d.to_string()).unwrap_or_default(),
                     true,
                 ),
-                AnyProvider::Template(_) => ("[not configured]".to_string(), false),
+                AnyProvider::Template(_) => ("<unset>".to_string(), false),
             };
             info = info
                 .add_title(id.to_case(Case::UpperSnake))
                 .add_key_value("id", id)
                 .add_key_value("host", domain);
             if configured {
-                info = info.add_key_value("status", "Configured");
+                info = info.add_key_value("status", "available");
             };
         }
 

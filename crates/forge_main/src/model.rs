@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
 use colored::Colorize;
-use forge_api::{AnyProvider, Model, Template};
+use forge_api::{AnyProvider, Model, ProviderId, Template};
 use forge_domain::{Agent, UserCommand};
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumProperty};
@@ -58,18 +58,25 @@ pub struct CliProvider(pub AnyProvider);
 
 impl Display for CliProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Dynamically calculate the maximum provider name width
+        let name_width = ProviderId::iter()
+            .map(|id| id.to_string().len())
+            .max()
+            .unwrap_or(10);
+
         let name = self.0.id().to_string();
-        write!(f, "{name}")?;
 
         match &self.0 {
             AnyProvider::Url(provider) => {
+                write!(f, "{} {:<width$}", "✓".green(), name, width = name_width)?;
                 if let Some(domain) = provider.url.domain() {
-                    write!(f, " [{domain}]")?;
+                    write!(f, " {domain}")?;
+                } else {
+                    write!(f, " <unavailable>")?;
                 }
-                write!(f, " {}", "✓".green())?;
             }
             AnyProvider::Template(_) => {
-                // No domain or checkmark for unconfigured providers
+                write!(f, "  {:<width$} [unavailable]", name, width = name_width)?;
             }
         }
         Ok(())
@@ -976,7 +983,7 @@ mod tests {
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "OpenAI [api.openai.com] ✓";
+        let expected = "✓ OpenAI     [api.openai.com]";
         assert_eq!(actual, expected);
     }
 
@@ -991,7 +998,7 @@ mod tests {
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "OpenRouter [openrouter.ai] ✓";
+        let expected = "✓ OpenRouter [openrouter.ai]";
         assert_eq!(actual, expected);
     }
 
@@ -1006,7 +1013,37 @@ mod tests {
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "Forge [localhost] ✓";
+        let expected = "✓ Forge      [localhost]";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_provider_display_template() {
+        let fixture = AnyProvider::Template(Provider {
+            id: ProviderId::Anthropic,
+            response: ProviderResponse::Anthropic,
+            url: Template::new("https://api.anthropic.com/v1/messages"),
+            key: None,
+            models: Models::Url(Template::new("https://api.anthropic.com/v1/models")),
+        });
+        let formatted = format!("{}", CliProvider(fixture));
+        let actual = strip_ansi_codes(&formatted);
+        let expected = "  Anthropic  [unavailable]";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cli_provider_display_ip_address() {
+        let fixture = AnyProvider::Url(Provider {
+            id: ProviderId::Forge,
+            response: ProviderResponse::OpenAI,
+            url: Url::parse("http://192.168.1.1:8080/chat/completions").unwrap(),
+            key: None,
+            models: Models::Url(Url::parse("http://192.168.1.1:8080/models").unwrap()),
+        });
+        let formatted = format!("{}", CliProvider(fixture));
+        let actual = strip_ansi_codes(&formatted);
+        let expected = "✓ Forge      [unavailable]";
         assert_eq!(actual, expected);
     }
 
