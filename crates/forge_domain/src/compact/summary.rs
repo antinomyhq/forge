@@ -8,12 +8,14 @@ use crate::{
 
 /// A simplified summary of a context, focusing on messages and their tool calls
 #[derive(PartialEq, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct ContextSummary {
     pub messages: Vec<SummaryMessage>,
 }
 
 /// A simplified representation of a message with its key information
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct SummaryMessage {
     pub role: Role,
     pub messages: Vec<SummaryMessageBlock>,
@@ -22,6 +24,7 @@ pub struct SummaryMessage {
 /// Wraps tool call information along with its execution status
 #[derive(Clone, PartialEq, Debug, derive_setters::Setters, Serialize, Deserialize)]
 #[setters(strip_option, into)]
+#[serde(rename_all = "snake_case")]
 pub struct SummaryMessageBlock {
     pub content: Option<String>,
     pub tool_call_id: Option<ToolCallId>,
@@ -31,6 +34,7 @@ pub struct SummaryMessageBlock {
 
 /// Categorized tool call information for summary purposes
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum SummaryToolCall {
     FileRead { path: String },
     FileUpdate { path: String },
