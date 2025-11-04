@@ -4,7 +4,7 @@ use crate::{
     Context, ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolResult, Tools,
 };
 
-pub mod transformers;
+
 
 /// A simplified summary of a context, focusing on messages and their tool calls
 pub struct ContextSummary {
