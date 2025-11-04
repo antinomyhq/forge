@@ -5,6 +5,7 @@ use forge_app::dto::ToolsOverview;
 use forge_app::{User, UserUsage};
 use forge_domain::{AgentId, ConfigScope, InitAuth, ModelId};
 use forge_stream::MpscStream;
+use url::Url;
 
 use crate::*;
 
@@ -23,7 +24,7 @@ pub trait API: Sync + Send {
     /// Provides a list of agents available in the current environment
     async fn get_agents(&self) -> Result<Vec<Agent>>;
     /// Provides a list of providers available in the current environment
-    async fn get_providers(&self) -> Result<Vec<Provider>>;
+    async fn get_providers(&self) -> Result<Vec<AnyProvider>>;
 
     /// Executes a chat request and returns a stream of responses
     async fn chat(&self, chat: ChatRequest) -> Result<MpscStream<Result<ChatResponse>>>;
@@ -112,7 +113,7 @@ pub trait API: Sync + Send {
     async fn logout(&self) -> anyhow::Result<()>;
 
     /// Gets the provider for a given configuration scope
-    async fn get_provider(&self, scope: &ConfigScope) -> anyhow::Result<Option<Provider>>;
+    async fn get_provider(&self, scope: &ConfigScope) -> anyhow::Result<Option<Provider<Url>>>;
 
     /// Sets the provider for a given configuration scope
     async fn set_provider(&self, scope: &ConfigScope, provider: Provider) -> anyhow::Result<()>;

@@ -3,10 +3,10 @@ use std::path::{Path, PathBuf};
 use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, AgentId, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation,
-    ConversationId, Environment, File, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model,
-    ModelId, PatchOperation, Provider, ResultStream, Scope, Template, ToolCallFull, ToolOutput,
-    Workflow,
+    Agent, AgentId, AnyProvider, Attachment, ChatCompletionMessage, CommandOutput, Context,
+    Conversation, ConversationId, Environment, File, Image, InitAuth, LoginInfo, McpConfig,
+    McpServers, Model, ModelId, PatchOperation, Provider, ResultStream, Scope, Template,
+    ToolCallFull, ToolOutput, Workflow,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -126,11 +126,11 @@ pub trait ProviderService: Send + Sync {
         &self,
         id: &ModelId,
         context: Context,
-        provider: Provider,
+        provider: Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error>;
-    async fn models(&self, provider: Provider) -> anyhow::Result<Vec<Model>>;
-    async fn get_provider(&self, id: forge_domain::ProviderId) -> anyhow::Result<Provider>;
-    async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>>;
+    async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>>;
+    async fn get_provider(&self, id: forge_domain::ProviderId) -> anyhow::Result<Provider<Url>>;
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>>;
 }
 
 /// Manages user preferences for default providers and models.
@@ -138,7 +138,7 @@ pub trait ProviderService: Send + Sync {
 pub trait AppConfigService: Send + Sync {
     /// Gets the user's default provider, or falls back to the first available
     /// provider.
-    async fn get_default_provider(&self) -> anyhow::Result<Provider>;
+    async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>>;
 
     /// Sets the user's default provider preference.
     async fn set_default_provider(
@@ -514,20 +514,20 @@ impl<I: Services> ProviderService for I {
         &self,
         id: &ModelId,
         context: Context,
-        provider: Provider,
+        provider: Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         self.provider_service().chat(id, context, provider).await
     }
 
-    async fn models(&self, provider: Provider) -> anyhow::Result<Vec<Model>> {
+    async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
         self.provider_service().models(provider).await
     }
 
-    async fn get_provider(&self, id: forge_domain::ProviderId) -> anyhow::Result<Provider> {
+    async fn get_provider(&self, id: forge_domain::ProviderId) -> anyhow::Result<Provider<Url>> {
         self.provider_service().get_provider(id).await
     }
 
-    async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
         self.provider_service().get_all_providers().await
     }
 }
@@ -842,7 +842,7 @@ impl<I: Services> PolicyService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> AppConfigService for I {
-    async fn get_default_provider(&self) -> anyhow::Result<Provider> {
+    async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>> {
         self.config_service().get_default_provider().await
     }
 

@@ -13,6 +13,7 @@ use forge_infra::ForgeInfra;
 use forge_repo::ForgeRepo;
 use forge_services::ForgeServices;
 use forge_stream::MpscStream;
+use url::Url;
 
 use crate::API;
 
@@ -68,7 +69,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         Ok(self.services.get_agents().await?)
     }
 
-    async fn get_providers(&self) -> Result<Vec<Provider>> {
+    async fn get_providers(&self) -> Result<Vec<AnyProvider>> {
         Ok(self.services.get_all_providers().await?)
     }
 
@@ -180,7 +181,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         self.app().logout().await
     }
 
-    async fn get_provider(&self, scope: &ConfigScope) -> anyhow::Result<Option<Provider>> {
+    async fn get_provider(&self, scope: &ConfigScope) -> anyhow::Result<Option<Provider<Url>>> {
         let resolver = forge_app::ProviderResolver::new(self.services.clone());
         scope.get(&resolver).await
     }

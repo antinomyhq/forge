@@ -3,13 +3,14 @@ use std::sync::Arc;
 use anyhow::{Context as _, Result};
 use forge_app::HttpClientService;
 use forge_app::domain::{
-    ChatCompletionMessage, Context as ChatContext, ModelId, Provider, ProviderId, ResultStream,
-    Transformer,
+    ChatCompletionMessage, Context as ChatContext, ModelId, ProviderId, ResultStream, Transformer,
 };
 use forge_app::dto::openai::{ListModelResponse, ProviderPipeline, Request, Response};
+use forge_domain::Provider;
 use lazy_static::lazy_static;
 use reqwest::header::AUTHORIZATION;
 use tracing::{debug, info};
+use url::Url;
 
 use crate::provider::client::{create_headers, join_url};
 use crate::provider::event::into_chat_completion_message;
@@ -17,12 +18,12 @@ use crate::provider::utils::{format_http_context, sanitize_headers};
 
 #[derive(Clone)]
 pub struct OpenAIProvider<H> {
-    provider: Provider,
+    provider: Provider<Url>,
     http: Arc<H>,
 }
 
 impl<H: HttpClientService> OpenAIProvider<H> {
-    pub fn new(provider: Provider, http: Arc<H>) -> Self {
+    pub fn new(provider: Provider<Url>, http: Arc<H>) -> Self {
         Self { provider, http }
     }
 
@@ -195,7 +196,7 @@ mod tests {
     use crate::provider::mock_server::{MockServer, normalize_ports};
 
     // Test helper functions
-    fn openai(key: &str) -> Provider {
+    fn openai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
@@ -207,7 +208,7 @@ mod tests {
         }
     }
 
-    fn zai(key: &str) -> Provider {
+    fn zai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::Zai,
             response: ProviderResponse::OpenAI,
@@ -219,7 +220,7 @@ mod tests {
         }
     }
 
-    fn zai_coding(key: &str) -> Provider {
+    fn zai_coding(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::ZaiCoding,
             response: ProviderResponse::OpenAI,
@@ -231,7 +232,7 @@ mod tests {
         }
     }
 
-    fn anthropic(key: &str) -> Provider {
+    fn anthropic(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::Anthropic,
             response: ProviderResponse::Anthropic,

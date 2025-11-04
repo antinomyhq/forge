@@ -20,7 +20,7 @@ pub struct Anthropic<T> {
     http: Arc<T>,
     api_key: String,
     chat_url: Url,
-    models: forge_domain::Models,
+    models: forge_domain::Models<Url>,
     anthropic_version: String,
 }
 
@@ -29,7 +29,7 @@ impl<H: HttpClientService> Anthropic<H> {
         http: Arc<H>,
         api_key: String,
         chat_url: Url,
-        models: forge_domain::Models,
+        models: forge_domain::Models<Url>,
         version: String,
     ) -> Self {
         Self { http, api_key, chat_url, models, anthropic_version: version }

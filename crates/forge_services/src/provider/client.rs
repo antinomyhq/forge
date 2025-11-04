@@ -7,9 +7,10 @@ use anyhow::{Context as _, Result};
 use derive_setters::Setters;
 use forge_app::HttpClientService;
 use forge_app::domain::{
-    ChatCompletionMessage, Context, HttpConfig, Model, ModelId, Provider, ProviderResponse,
-    ResultStream, RetryConfig,
+    ChatCompletionMessage, Context, HttpConfig, Model, ModelId, ProviderResponse, ResultStream,
+    RetryConfig,
 };
+use forge_domain::Provider;
 use reqwest::Url;
 use reqwest::header::HeaderMap;
 use tokio::sync::RwLock;
@@ -25,7 +26,7 @@ pub struct ClientBuilder {
     pub retry_config: Arc<RetryConfig>,
     pub timeout_config: HttpConfig,
     pub use_hickory: bool,
-    pub provider: Provider,
+    pub provider: Provider<Url>,
     #[allow(dead_code)]
     pub version: String,
 }
@@ -33,7 +34,7 @@ pub struct ClientBuilder {
 impl ClientBuilder {
     /// Create a new ClientBuilder with required provider and version
     /// parameters.
-    pub fn new(provider: Provider, version: impl Into<String>) -> Self {
+    pub fn new(provider: Provider<Url>, version: impl Into<String>) -> Self {
         Self {
             retry_config: Arc::new(RetryConfig::default()),
             timeout_config: HttpConfig::default(),
@@ -54,13 +55,16 @@ impl ClientBuilder {
                 http.clone(),
             ))),
 
-            ProviderResponse::Anthropic => InnerClient::Anthropic(Box::new(Anthropic::new(
-                http.clone(),
-                provider.key.clone().unwrap_or_default(),
-                provider.url,
-                provider.models,
-                "2023-06-01".to_string(),
-            ))),
+            ProviderResponse::Anthropic => {
+                let url = provider.url.clone();
+                InnerClient::Anthropic(Box::new(Anthropic::new(
+                    http.clone(),
+                    provider.key.clone().unwrap_or_default(),
+                    url,
+                    provider.models,
+                    "2023-06-01".to_string(),
+                )))
+            }
         };
 
         Ok(Client {
@@ -228,7 +232,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_initialization() {
-        let provider = Provider {
+        let provider = forge_domain::Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
@@ -248,7 +252,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_refresh_models_method_exists() {
-        let provider = Provider {
+        let provider = forge_domain::Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
@@ -270,7 +274,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_builder_pattern_api() {
-        let provider = Provider {
+        let provider = forge_domain::Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
@@ -295,7 +299,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_builder_with_defaults() {
-        let provider = Provider {
+        let provider = forge_domain::Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),

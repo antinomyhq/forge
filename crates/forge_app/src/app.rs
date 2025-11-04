@@ -274,7 +274,7 @@ impl<S: Services> ForgeApp<S> {
         self.services.write_workflow(path, workflow).await
     }
 
-    async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider> {
+    async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider<url::Url>> {
         let scope = if let Some(agent_id) = agent {
             ConfigScope::Agent(agent_id).or(ConfigScope::Global)
         } else {
