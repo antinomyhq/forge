@@ -413,6 +413,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 return Ok(());
             }
 
+            TopLevelCommand::Provider(provider_group) => {
+                self.handle_provider_command(provider_group).await?;
+                return Ok(());
+            }
+
             TopLevelCommand::Session(session_group) => {
                 self.handle_session_command(session_group).await?;
                 return Ok(());
@@ -518,6 +523,66 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 "Conversation '{}' not found. Use 'forge session list' to see available conversations.",
                 conversation_id
             );
+        }
+
+        Ok(())
+    }
+
+    async fn handle_provider_command(
+        &mut self,
+        provider_group: crate::cli::ProviderCommandGroup,
+    ) -> anyhow::Result<()> {
+        use crate::cli::ProviderCommand;
+
+        match provider_group.command {
+            ProviderCommand::Add => {
+                self.handle_provider_add().await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn handle_provider_add(&mut self) -> anyhow::Result<()> {
+        use crate::model::CliProvider;
+
+        // Fetch all providers (configured and unconfigured)
+        let providers = self
+            .api
+            .get_providers()
+            .await?
+            .into_iter()
+            .map(CliProvider)
+            .collect::<Vec<_>>();
+
+        // Sort the providers by their display names
+        let mut sorted_providers = providers;
+        sorted_providers.sort_by_key(|a| a.to_string());
+
+        // Use the centralized select module
+        match ForgeSelect::select("Select a provider to add:", sorted_providers)
+            .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
+            .prompt()?
+        {
+            Some(provider) => {
+                // Handle only unconfigured providers
+                match provider.0 {
+                    ProviderEntry::Unavailable(p) => {
+                        let provider_id = p.id;
+                        let auth_methods = p.auth_methods;
+
+                        // Configure the provider
+                        self.configure_provider(provider_id, auth_methods).await?;
+                    }
+                    ProviderEntry::Available(provider) => {
+                        self.configure_provider(provider.id, provider.auth_methods)
+                            .await?;
+                    }
+                }
+            }
+            None => {
+                self.writeln_title(TitleFormat::info("Cancelled"))?;
+            }
         }
 
         Ok(())
@@ -1280,10 +1345,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         if should_set_active {
             self.api.set_default_provider(provider_id).await?;
-            self.writeln_title(TitleFormat::action(format!(
-                "Provider set: {}",
-                provider_id
-            )))?;
         }
         Ok(())
     }
@@ -2110,7 +2171,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     /// Validate provider exists and has API key
-    async fn validate_provider(&self, provider_str: &str) -> Result<ProviderId> {
+    async fn validate_provider(&mut self, provider_str: &str) -> Result<ProviderId> {
         // Parse provider ID from string
         let provider_id = ProviderId::from_str(provider_str).with_context(|| {
             format!(
@@ -2120,15 +2181,39 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             )
         })?;
 
-        // Check if provider has valid API key
+        // Check if provider is configured
         let providers = self.api.get_providers().await?;
-        if providers
+        let provider_entry = providers
             .iter()
-            .any(|p| p.id() == provider_id && p.is_configured())
-        {
-            Ok(provider_id)
-        } else {
-            Err(forge_domain::Error::provider_not_available(provider_id).into())
+            .find(|p| p.id() == provider_id)
+            .ok_or_else(|| forge_domain::Error::provider_not_available(provider_id))?;
+
+        if provider_entry.is_configured() {
+            return Ok(provider_id);
+        }
+
+        match provider_entry {
+            ProviderEntry::Unavailable(p) => {
+                let auth_methods = p.auth_methods.clone();
+
+                // Configure the provider
+                self.configure_provider(provider_id, auth_methods).await?;
+
+                // Verify configuration succeeded
+                let providers = self.api.get_providers().await?;
+                if providers
+                    .iter()
+                    .any(|p| p.id() == provider_id && p.is_configured())
+                {
+                    Ok(provider_id)
+                } else {
+                    Err(anyhow::anyhow!(
+                        "Failed to configure provider {}",
+                        provider_id
+                    ))
+                }
+            }
+            ProviderEntry::Available(_) => Ok(provider_id),
         }
     }
 

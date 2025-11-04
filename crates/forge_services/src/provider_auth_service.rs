@@ -35,11 +35,14 @@ where
     ) -> anyhow::Result<AuthContextRequest> {
         // Get required URL parameters for API key flow
         let required_params = if matches!(auth_method, AuthMethod::ApiKey) {
-            self.infra
-                .get_provider(provider_id)
-                .await?
-                .url_params
-                .clone()
+            // Get URL params from provider entry (works for both configured and
+            // unconfigured)
+            let providers = self.infra.get_all_providers().await?;
+            let provider = providers
+                .iter()
+                .find(|p| p.id() == provider_id)
+                .ok_or_else(|| forge_domain::Error::provider_not_available(provider_id))?;
+            provider.url_params().to_vec()
         } else {
             vec![]
         };
@@ -69,11 +72,14 @@ where
 
         // Get required params for API key flow
         let required_params = if matches!(auth_method, AuthMethod::ApiKey) {
-            self.infra
-                .get_provider(provider_id)
-                .await?
-                .url_params
-                .clone()
+            // Get URL params from provider entry (works for both configured and
+            // unconfigured)
+            let providers = self.infra.get_all_providers().await?;
+            let provider = providers
+                .iter()
+                .find(|p| p.id() == provider_id)
+                .ok_or_else(|| forge_domain::Error::provider_not_available(provider_id))?;
+            provider.url_params().to_vec()
         } else {
             vec![]
         };

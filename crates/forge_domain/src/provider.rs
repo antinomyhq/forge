@@ -143,6 +143,14 @@ impl ProviderEntry {
             ProviderEntry::Unavailable(_) => None,
         }
     }
+
+    /// Gets the URL parameters for this provider
+    pub fn url_params(&self) -> &[crate::URLParam] {
+        match self {
+            ProviderEntry::Available(p) => &p.url_params,
+            ProviderEntry::Unavailable(p) => &p.url_params,
+        }
+    }
 }
 
 #[cfg(test)]
