@@ -34,11 +34,9 @@ impl CanMerge for SummaryMessageBlock {
 impl CanMerge for SummaryToolCall {
     fn can_merge(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::Mcp { name: a }, Self::Mcp { name: b }) if a == b => true,
             (Self::FileRead { path: a }, Self::FileRead { path: b }) if a == b => true,
             (Self::FileUpdate { path: a }, Self::FileUpdate { path: b }) if a == b => true,
             (Self::FileRemove { path: a }, Self::FileRemove { path: b }) if a == b => true,
-            (Self::Fetch { url: a }, Self::Fetch { url: b }) if a == b => true,
             _ => false,
         }
     }

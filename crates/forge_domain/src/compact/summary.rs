@@ -28,11 +28,9 @@ pub struct SummaryMessageBlock {
 /// Categorized tool call information for summary purposes
 #[derive(Clone)]
 pub enum SummaryToolCall {
-    Mcp { name: String },
     FileRead { path: String },
     FileUpdate { path: String },
     FileRemove { path: String },
-    Fetch { url: String },
 }
 
 impl From<&Context> for ContextSummary {
@@ -107,11 +105,6 @@ impl From<&TextMessage> for Vec<SummaryMessageBlock> {
 
 /// Extracts tool information from a tool call
 fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryToolCall> {
-    // Handle MCP tools (tools starting with "mcp_")
-    if call.name.as_str().starts_with("mcp_") {
-        return Some(SummaryToolCall::Mcp { name: call.name.to_string() });
-    }
-
     // Try to parse as a Tools enum variant
     let tool = Tools::try_from(call.clone()).ok()?;
 
@@ -121,12 +114,7 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryToolCall> {
         Tools::Write(input) => Some(SummaryToolCall::FileUpdate { path: input.path }),
         Tools::Patch(input) => Some(SummaryToolCall::FileUpdate { path: input.path }),
         Tools::Remove(input) => Some(SummaryToolCall::FileRemove { path: input.path }),
-        Tools::Fetch(input) => Some(SummaryToolCall::Fetch { url: input.url }),
         // Other tools don't have specific summary info
-        Tools::Shell(_)
-        | Tools::Undo(_)
-        | Tools::Followup(_)
-        | Tools::Plan(_)
-        | Tools::Search(_) => None,
+        _ => None,
     }
 }
