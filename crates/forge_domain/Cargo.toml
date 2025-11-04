@@ -10,6 +10,7 @@ chrono.workspace = true
 derive_more = { workspace = true, features = ["deref"] }
 derive_setters.workspace = true
 fnv_rs.workspace = true
+indexmap.workspace = true
 nom.workspace = true
 schemars.workspace = true
 serde.workspace = true

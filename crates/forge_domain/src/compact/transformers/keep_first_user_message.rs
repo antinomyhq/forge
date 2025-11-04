@@ -43,7 +43,7 @@ mod tests {
         SummaryMessageBlock {
             content: Some("test content".to_string()),
             tool_call_id: None,
-            tool_call: SummaryToolCall::FileRead { path: "test".to_string() },
+            tool_call: Some(SummaryToolCall::FileRead { path: "test".to_string() }),
             tool_call_success: None,
         }
     }

@@ -22,16 +22,15 @@ pub struct SummaryMessage {
 }
 
 /// Wraps tool call information along with its execution status
-#[derive(Clone, PartialEq, Debug, derive_setters::Setters, Serialize, Deserialize)]
+#[derive(Default, Clone, PartialEq, Debug, derive_setters::Setters, Serialize, Deserialize)]
 #[setters(strip_option, into)]
 #[serde(rename_all = "snake_case")]
 pub struct SummaryMessageBlock {
     pub content: Option<String>,
     pub tool_call_id: Option<ToolCallId>,
-    pub tool_call: SummaryToolCall,
+    pub tool_call: Option<SummaryToolCall>,
     pub tool_call_success: Option<bool>,
 }
-
 
 impl SummaryMessageBlock {
     /// Creates a FileRead tool call block with success=true by default
@@ -39,7 +38,7 @@ impl SummaryMessageBlock {
         Self {
             content: None,
             tool_call_id: None,
-            tool_call: SummaryToolCall::FileRead { path: path.into() },
+            tool_call: Some(SummaryToolCall::FileRead { path: path.into() }),
             tool_call_success: Some(true),
         }
     }
@@ -49,7 +48,7 @@ impl SummaryMessageBlock {
         Self {
             content: None,
             tool_call_id: None,
-            tool_call: SummaryToolCall::FileUpdate { path: path.into() },
+            tool_call: Some(SummaryToolCall::FileUpdate { path: path.into() }),
             tool_call_success: Some(true),
         }
     }
@@ -59,7 +58,7 @@ impl SummaryMessageBlock {
         Self {
             content: None,
             tool_call_id: None,
-            tool_call: SummaryToolCall::FileRemove { path: path.into() },
+            tool_call: Some(SummaryToolCall::FileRemove { path: path.into() }),
             tool_call_success: Some(true),
         }
     }
@@ -134,7 +133,7 @@ impl From<&TextMessage> for Vec<SummaryMessageBlock> {
                         extract_tool_info(tool_call).map(|call| SummaryMessageBlock {
                             content: None,
                             tool_call_id: tool_call.call_id.clone(),
-                            tool_call: call,
+                            tool_call: Some(call),
                             tool_call_success: None,
                         })
                     })

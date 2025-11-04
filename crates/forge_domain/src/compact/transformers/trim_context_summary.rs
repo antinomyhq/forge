@@ -1,4 +1,5 @@
-use std::collections::HashMap;
+use derive_setters::Setters;
+use indexmap::IndexMap;
 
 use crate::compact::summary::{ContextSummary, SummaryMessageBlock, SummaryToolCall};
 use crate::{Role, Transformer};
@@ -11,15 +12,24 @@ use crate::{Role, Transformer};
 /// size while preserving the final state of file operations.
 pub struct TrimContextSummary;
 
-impl TrimContextSummary {
-    /// Extracts the path from a tool call, if available
-    fn extract_path(tool_call: &SummaryToolCall) -> Option<&str> {
-        match tool_call {
-            SummaryToolCall::FileRead { path } => Some(path.as_str()),
-            SummaryToolCall::FileUpdate { path } => Some(path.as_str()),
-            SummaryToolCall::FileRemove { path } => Some(path.as_str()),
-        }
+#[derive(Default, Hash, PartialEq, Eq, Setters)]
+struct BlockKey {
+    path: Option<String>,
+    content: Option<String>,
+}
+
+impl From<&SummaryMessageBlock> for BlockKey {
+    fn from(value: &SummaryMessageBlock) -> Self {
+        Self { path: extract_path(value), content: value.content.clone() }
     }
+}
+
+fn extract_path(value: &SummaryMessageBlock) -> Option<String> {
+    value.tool_call.as_ref().map(|tool_call| match tool_call {
+        SummaryToolCall::FileRead { path } => path.to_owned(),
+        SummaryToolCall::FileUpdate { path } => path.to_owned(),
+        SummaryToolCall::FileRemove { path } => path.to_owned(),
+    })
 }
 
 impl Transformer for TrimContextSummary {
@@ -32,33 +42,27 @@ impl Transformer for TrimContextSummary {
                 continue;
             }
 
-            // Map to track the last successful operation for each file path
-            let mut last_operations: HashMap<String, SummaryMessageBlock> = HashMap::new();
-            let mut insertion_order: Vec<String> = Vec::new();
+            let mut block_map: IndexMap<BlockKey, SummaryMessageBlock> = IndexMap::new();
 
             for block in message.messages.drain(..) {
-                // Only keep successful operations
+                // For tool calls, only keep successful operations
                 if block.tool_call_success != Some(true) {
                     continue;
                 }
 
-                if let Some(path) = Self::extract_path(&block.tool_call) {
-                    let key = path.to_string();
+                let path = extract_path(&block);
 
-                    // Track insertion order only for new keys
-                    if !last_operations.contains_key(&key) {
-                        insertion_order.push(key.clone());
-                    }
-                    // Store or update the last operation for this path
-                    last_operations.insert(key, block);
+                let key = BlockKey::default().path(path);
+
+                if let Some(value) = block_map.get(&key)
+                    && value.content.is_none()
+                {
+                    block_map.shift_remove(&key);
                 }
+                block_map.insert(BlockKey::from(&block), block);
             }
 
-            // Reconstruct messages in original insertion order
-            message.messages = insertion_order
-                .into_iter()
-                .filter_map(|key| last_operations.remove(&key))
-                .collect();
+            message.messages = block_map.into_values().collect();
         }
 
         summary
@@ -133,7 +137,10 @@ mod tests {
 
         let expected = summary(vec![message(
             Role::Assistant,
-            vec![Block::read("/test").content("content2".to_string())],
+            vec![
+                Block::read("/test").content("content1".to_string()),
+                Block::read("/test").content("content2".to_string()),
+            ],
         )]);
 
         assert_eq!(actual, expected);
@@ -157,7 +164,7 @@ mod tests {
 
         let expected = summary(vec![message(
             Role::Assistant,
-            vec![Block::remove("/test"), Block::update("file.txt")],
+            vec![Block::update("file.txt"), Block::remove("/test")],
         )]);
 
         assert_eq!(actual, expected);
@@ -181,9 +188,9 @@ mod tests {
         let expected = summary(vec![message(
             Role::Assistant,
             vec![
-                Block::remove("/path1"),
-                Block::read("/path2"),
                 Block::update("/path3"),
+                Block::read("/path2"),
+                Block::remove("/path1"),
             ],
         )]);
 
@@ -200,11 +207,12 @@ mod tests {
                     .content("failed read".to_string())
                     .tool_call_success(false),
                 Block::read("/test").content("second read".to_string()),
+                Block::read("/unknown"),
                 SummaryMessageBlock {
                     content: None,
                     tool_call_id: None,
-                    tool_call: SummaryToolCall::FileRead { path: "/unknown".to_string() },
-                    tool_call_success: None,
+                    tool_call: Some(SummaryToolCall::FileRead { path: "/unknown".to_string() }),
+                    tool_call_success: None, // Should be ignored since success info is unavailable
                 },
                 Block::update("file.txt"),
                 Block::read("/all_failed").tool_call_success(false),
@@ -215,7 +223,9 @@ mod tests {
         let expected = summary(vec![message(
             Role::Assistant,
             vec![
+                Block::read("/test").content("first read".to_string()),
                 Block::read("/test").content("second read".to_string()),
+                Block::read("/unknown"),
                 Block::update("file.txt"),
             ],
         )]);
@@ -298,6 +308,34 @@ mod tests {
             message(Role::Assistant, vec![]),
             message(Role::Assistant, vec![Block::read("/test")]),
         ]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_assistant_message_with_content() {
+        let fixture = summary(vec![message(
+            Role::Assistant,
+            vec![
+                Block::read("/test1"),
+                Block::update("/test2"),
+                Block::default().content("foo").tool_call_success(true),
+                Block::read("/test1"),
+                Block::read("/test2").content("bar"),
+                Block::default().content("baz").tool_call_success(true),
+            ],
+        )]);
+        let actual = TrimContextSummary.transform(fixture);
+
+        let expected = summary(vec![message(
+            Role::Assistant,
+            vec![
+                Block::default().content("foo").tool_call_success(true),
+                Block::read("/test1"),
+                Block::read("/test2").content("bar"),
+                Block::default().content("baz").tool_call_success(true),
+            ],
+        )]);
 
         assert_eq!(actual, expected);
     }
