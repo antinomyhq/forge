@@ -1253,6 +1253,7 @@ dependencies = [
  "forge_template",
  "forge_tool_macros",
  "glob",
+ "indexmap",
  "insta",
  "is_ci",
  "lazy_static",

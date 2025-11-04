@@ -1,0 +1,46 @@
+---
+source: crates/forge_app/src/compact.rs
+expression: actual
+---
+Use the following summary as the authoritative reference for all coding suggestions and decisions. Do not re-explain or revisit it unless I ask.
+
+---
+## Summary
+###0 - User
+- *FEEDBACK:* _"Analyze authentication system"_
+
+
+###1 - Assistant
+- Read: `/src/auth.rs`
+- Read: `/src/config.rs`
+
+###2 - User
+- *FEEDBACK:* _"Refactor the authentication logic"_
+
+
+###3 - Assistant
+- *FEEDBACK:* _"Refactored authentication logic"_
+- Updated: `/src/auth.rs`
+- *FEEDBACK:* _"Updated configuration"_
+- Updated: `/src/config.rs`
+
+###4 - User
+- *FEEDBACK:* _"Add tests for authentication"_
+
+
+###5 - Assistant
+- Read: `/tests/auth_test.rs`
+- *FEEDBACK:* _"Created new test file"_
+- Updated: `/tests/auth_test.rs`
+
+###6 - User
+- *FEEDBACK:* _"Remove deprecated authentication files"_
+
+
+###7 - Assistant
+- Deleted: `/src/old_auth.rs`
+- Deleted: `/src/deprecated.rs`
+
+---
+
+Proceed with implementation based on this context.

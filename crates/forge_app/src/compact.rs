@@ -1,10 +1,9 @@
 use std::sync::Arc;
 
 use forge_domain::{
-    ChatCompletionMessage, ChatCompletionMessageFull, Compact, CompactionStrategy, Context,
-    ContextMessage, ResultStreamExt, Template, TokenCount, Usage, extract_tag_content,
+    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, KeepFirstUserMessage,
+    Template, Transformer, TrimContextSummary,
 };
-use futures::Stream;
 use tracing::info;
 
 use crate::agent::AgentService;
@@ -49,25 +48,18 @@ impl<S: AgentService> Compactor<S> {
         // The sequence from the original message that needs to be compacted
         let compaction_sequence = &context.messages[start..=end].to_vec();
 
-        // Extract user messages from the sequence to pass as feedback
-        let feedback: Vec<String> = context
-            .first_user_messages()
-            .iter()
-            .filter_map(|msg| msg.content().map(|content| content.to_string()))
-            .collect();
+        // Create a temporary context for the sequence to generate summary
+        let sequence_context = Context::default().messages(compaction_sequence.clone());
 
-        // Generate summary for the compaction sequence
-        let summary = self
-            .generate_summary_for_sequence(compaction_sequence)
-            .await?;
+        // Generate context summary with tool call information
+        let mut context_summary = ContextSummary::from(&sequence_context);
 
-        // Accumulate the usage from the summarization call into the context
-        context.usage = create_usage(context.usage, Some(summary.usage));
-
-        let summary = summary.content;
+        // Apply trimming to reduce redundant operations
+        context_summary = TrimContextSummary
+            .pipe(KeepFirstUserMessage)
+            .transform(context_summary);
 
         info!(
-            summary = %summary,
             sequence_start = sequence.0,
             sequence_end = sequence.1,
             sequence_length = compaction_sequence.len(),
@@ -78,7 +70,9 @@ impl<S: AgentService> Compactor<S> {
             .services
             .render(
                 Template::new("{{> forge-partial-summary-frame.md}}"),
-                &serde_json::json!({"summary": summary, "feedback": feedback}),
+                &serde_json::json!({
+                    "messages": context_summary.messages
+                }),
             )
             .await?;
 
@@ -130,163 +124,26 @@ impl<S: AgentService> Compactor<S> {
         }
         Ok(context)
     }
-
-    /// Generate a summary for a specific sequence of assistant messages.
-    /// Returns ChatCompletionMessageFull with extracted summary content
-    async fn generate_summary_for_sequence(
-        &self,
-        messages: &[ContextMessage],
-    ) -> anyhow::Result<ChatCompletionMessageFull> {
-        // Start with the original sequence context to preserve message structure
-        let mut context = messages
-            .iter()
-            .fold(Context::default(), |ctx, msg| ctx.add_message(msg.clone()));
-
-        let summary_tag = self
-            .compact
-            .summary_tag
-            .as_ref()
-            .cloned()
-            .unwrap_or_default();
-        let ctx = serde_json::json!({
-            "summary_tag": summary_tag
-        });
-
-        // Render the summarization request as a user message instead of system prompt
-        let prompt = self
-            .services
-            .render(
-                Template::new(
-                    self.compact
-                        .prompt
-                        .as_deref()
-                        .unwrap_or("{{> forge-system-prompt-context-summarizer.md}}"),
-                ),
-                &ctx,
-            )
-            .await?;
-
-        // Use compact.model if specified, otherwise fall back to the agent's model
-        let model = self
-            .compact
-            .model
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("No model specified for compaction"))?;
-
-        // Add the summarization request as a user message to the existing context
-        context = context.add_message(ContextMessage::user(prompt, Some(model.clone())));
-
-        if let Some(max_token) = self.compact.max_tokens {
-            context = context.max_tokens(max_token);
-        }
-
-        let response = self.services.chat_agent(model, context, None).await?;
-
-        self.collect_completion_stream_content(response).await
-    }
-
-    /// Collects the content from a streaming ChatCompletionMessage response and
-    /// extracts summary content from the specified tag
-    async fn collect_completion_stream_content(
-        &self,
-        stream: impl Stream<Item = anyhow::Result<ChatCompletionMessage>>
-        + std::marker::Unpin
-        + ResultStreamExt<anyhow::Error>,
-    ) -> anyhow::Result<ChatCompletionMessageFull> {
-        let mut response = stream.into_full(false).await?;
-
-        // Extract content from summary tag if present
-        if let Some(extracted) = extract_tag_content(
-            &response.content,
-            self.compact
-                .summary_tag
-                .as_ref()
-                .cloned()
-                .unwrap_or_default()
-                .as_str(),
-        ) {
-            response.content = extracted.to_string();
-        }
-
-        Ok(response)
-    }
-}
-
-fn create_usage(before: Option<Usage>, summary: Option<Usage>) -> Option<Usage> {
-    let (Some(before), Some(summary)) = (before, summary) else {
-        return None;
-    };
-
-    // After
-    let prompt_tokens = TokenCount::Approx(
-        *summary.completion_tokens + *before.prompt_tokens - *summary.prompt_tokens,
-    );
-    let completion_tokens = before.completion_tokens;
-    Some(Usage {
-        total_tokens: prompt_tokens + completion_tokens,
-        cached_tokens: TokenCount::default(),
-        cost: zip_with(before.cost, summary.cost, |a, b| a + b),
-        prompt_tokens,
-        completion_tokens,
-    })
-}
-
-fn zip_with<A, F: FnOnce(A, A) -> A>(a: Option<A>, b: Option<A>, f: F) -> Option<A> {
-    match (a, b) {
-        (None, None) => None,
-        (None, b) => b,
-        (a, None) => a,
-        (Some(a), Some(b)) => Some(f(a, b)),
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{
-        ChatCompletionMessage, Content, FinishReason, ModelId, ProviderId, TokenCount, Usage,
-    };
     use pretty_assertions::assert_eq;
 
     use super::*;
 
-    struct MockService {
-        response: ChatCompletionMessageFull,
-    }
-
-    impl MockService {
-        fn with_usage(cost: f64) -> Self {
-            Self {
-                response: ChatCompletionMessageFull {
-                    content: "Summary".to_string(),
-                    usage: Usage {
-                        prompt_tokens: TokenCount::Actual(100),
-                        completion_tokens: TokenCount::Actual(50),
-                        total_tokens: TokenCount::Actual(150),
-                        cached_tokens: TokenCount::Actual(0),
-                        cost: Some(cost),
-                    },
-                    tool_calls: vec![],
-                    reasoning: None,
-                    reasoning_details: None,
-                    finish_reason: Some(FinishReason::Stop),
-                },
-            }
-        }
-    }
+    struct MockService;
 
     #[async_trait::async_trait]
     impl AgentService for MockService {
         async fn chat_agent(
             &self,
-            _: &ModelId,
+            _: &forge_domain::ModelId,
             _: Context,
-            _: Option<ProviderId>,
-        ) -> forge_domain::ResultStream<ChatCompletionMessage, anyhow::Error> {
-            let msg = ChatCompletionMessage::default()
-                .content(Content::full(self.response.content.clone()))
-                .usage(self.response.usage.clone())
-                .finish_reason(FinishReason::Stop);
-            Ok(Box::pin(tokio_stream::iter(std::iter::once(Ok(msg)))))
+            _: Option<forge_domain::ProviderId>,
+        ) -> forge_domain::ResultStream<forge_domain::ChatCompletionMessage, anyhow::Error>
+        {
+            unimplemented!()
         }
 
         async fn call(
@@ -311,43 +168,11 @@ mod tests {
         }
     }
 
-    fn usage(cost: f64) -> Usage {
-        Usage {
-            prompt_tokens: TokenCount::Actual(200),
-            completion_tokens: TokenCount::Actual(100),
-            total_tokens: TokenCount::Actual(300),
-            cached_tokens: TokenCount::Actual(0),
-            cost: Some(cost),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_compress_single_sequence_accumulates_usage() {
-        let compactor = Compactor::new(
-            Arc::new(MockService::with_usage(0.005)),
-            Compact::new().model(ModelId::new("m")),
-        );
-        let context = Context::default()
-            .add_message(ContextMessage::user("M1", None))
-            .add_message(ContextMessage::assistant("R1", None, None))
-            .usage(usage(0.010));
-
-        let actual = compactor
-            .compress_single_sequence(context, (0, 1))
-            .await
-            .unwrap();
-
-        assert_eq!(actual.usage.unwrap().cost, Some(0.015));
-    }
-
     #[tokio::test]
     async fn test_compress_single_sequence_preserves_only_last_reasoning() {
         use forge_domain::ReasoningFull;
 
-        let compactor = Compactor::new(
-            Arc::new(MockService::with_usage(0.005)),
-            Compact::new().model(ModelId::new("m")),
-        );
+        let compactor = Compactor::new(Arc::new(MockService), Compact::new());
 
         let first_reasoning = vec![ReasoningFull {
             text: Some("First thought".to_string()),
@@ -402,10 +227,7 @@ mod tests {
     async fn test_compress_single_sequence_no_reasoning_accumulation() {
         use forge_domain::ReasoningFull;
 
-        let compactor = Compactor::new(
-            Arc::new(MockService::with_usage(0.005)),
-            Compact::new().model(ModelId::new("m")),
-        );
+        let compactor = Compactor::new(Arc::new(MockService), Compact::new());
 
         let reasoning = vec![ReasoningFull {
             text: Some("Original thought".to_string()),
@@ -469,10 +291,7 @@ mod tests {
     async fn test_compress_single_sequence_filters_empty_reasoning() {
         use forge_domain::ReasoningFull;
 
-        let compactor = Compactor::new(
-            Arc::new(MockService::with_usage(0.005)),
-            Compact::new().model(ModelId::new("m")),
-        );
+        let compactor = Compactor::new(Arc::new(MockService), Compact::new());
 
         let non_empty_reasoning = vec![ReasoningFull {
             text: Some("Valid thought".to_string()),
@@ -516,268 +335,79 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_create_usage_none_inputs() {
-        // Test when both inputs are None
-        let actual = create_usage(None, None);
-        assert_eq!(actual, None);
-
-        // Test when only before is None
-        let summary = usage(0.005);
-        let actual = create_usage(None, Some(summary));
-        assert_eq!(actual, None);
-
-        // Test when only summary is None
-        let before = usage(0.010);
-        let actual = create_usage(Some(before), None);
-        assert_eq!(actual, None);
+    fn user_msg(content: &str) -> forge_domain::SummaryMessage {
+        forge_domain::SummaryMessage {
+            role: forge_domain::Role::User,
+            messages: vec![forge_domain::SummaryMessageBlock {
+                content: Some(content.to_string()),
+                tool_call_id: None,
+                tool_call: None,
+                tool_call_success: None,
+            }],
+        }
     }
 
-    #[test]
-    fn test_create_usage_basic_calculation() {
-        let before = Usage {
-            prompt_tokens: TokenCount::Actual(200),
-            completion_tokens: TokenCount::Actual(100),
-            total_tokens: TokenCount::Actual(300),
-            cached_tokens: TokenCount::Actual(10),
-            cost: Some(0.010),
-        };
-
-        let summary = Usage {
-            prompt_tokens: TokenCount::Actual(50),
-            completion_tokens: TokenCount::Actual(25),
-            total_tokens: TokenCount::Actual(75),
-            cached_tokens: TokenCount::Actual(5),
-            cost: Some(0.005),
-        };
-
-        let actual = create_usage(Some(before), Some(summary)).unwrap();
-
-        let expected = Usage {
-            prompt_tokens: TokenCount::Approx(175), // 25 + 200 - 50 = 175
-            completion_tokens: TokenCount::Actual(100), // Preserved from before
-            total_tokens: TokenCount::Approx(275),  // 175 + 100 = 275
-            cached_tokens: TokenCount::default(),   // Reset to 0
-            cost: Some(0.015),                      // 0.010 + 0.005 = 0.015
-        };
-
-        assert_eq!(actual, expected);
+    fn assistant_msg(
+        blocks: Vec<forge_domain::SummaryMessageBlock>,
+    ) -> forge_domain::SummaryMessage {
+        forge_domain::SummaryMessage { role: forge_domain::Role::Assistant, messages: blocks }
     }
 
-    #[test]
-    fn test_create_usage_with_actual_token_counts() {
-        let before = Usage {
-            prompt_tokens: TokenCount::Actual(1000),
-            completion_tokens: TokenCount::Actual(500),
-            total_tokens: TokenCount::Actual(1500),
-            cached_tokens: TokenCount::Actual(0),
-            cost: Some(0.020),
-        };
+    async fn render_template(data: &serde_json::Value) -> String {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let template_path = std::path::Path::new(manifest_dir)
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("templates/forge-partial-summary-frame.md");
 
-        let summary = Usage {
-            prompt_tokens: TokenCount::Actual(300),
-            completion_tokens: TokenCount::Actual(150),
-            total_tokens: TokenCount::Actual(450),
-            cached_tokens: TokenCount::Actual(0),
-            cost: Some(0.008),
-        };
+        let template_content = tokio::fs::read_to_string(template_path)
+            .await
+            .expect("Failed to read template");
 
-        let actual = create_usage(Some(before), Some(summary)).unwrap();
+        let mut handlebars = handlebars::Handlebars::new();
+        handlebars
+            .register_template_string("summary_frame", template_content)
+            .unwrap();
 
-        let expected = Usage {
-            prompt_tokens: TokenCount::Approx(850), // 150 + 1000 - 300 = 850
-            completion_tokens: TokenCount::Actual(500), // Preserved from before
-            total_tokens: TokenCount::Approx(1350), // 850 + 500 = 1350
-            cached_tokens: TokenCount::default(),   // Reset to 0
-            cost: Some(0.028),                      // 0.020 + 0.008 = 0.028
-        };
-
-        assert_eq!(actual, expected);
+        handlebars.render("summary_frame", data).unwrap()
     }
 
-    #[test]
-    fn test_create_usage_with_approx_token_counts() {
-        let before = Usage {
-            prompt_tokens: TokenCount::Approx(800),
-            completion_tokens: TokenCount::Approx(400),
-            total_tokens: TokenCount::Approx(1200),
-            cached_tokens: TokenCount::Actual(0),
-            cost: Some(0.015),
-        };
+    #[tokio::test]
+    async fn test_render_summary_frame_snapshot() {
+        use forge_domain::SummaryMessageBlock;
 
-        let summary = Usage {
-            prompt_tokens: TokenCount::Approx(200),
-            completion_tokens: TokenCount::Approx(100),
-            total_tokens: TokenCount::Approx(300),
-            cached_tokens: TokenCount::Actual(0),
-            cost: Some(0.007),
-        };
+        let messages = vec![
+            user_msg("Analyze authentication system"),
+            assistant_msg(vec![
+                SummaryMessageBlock::read("/src/auth.rs"),
+                SummaryMessageBlock::read("/src/config.rs"),
+            ]),
+            user_msg("Refactor the authentication logic"),
+            assistant_msg(vec![
+                SummaryMessageBlock::update("/src/auth.rs")
+                    .content("Refactored authentication logic"),
+                SummaryMessageBlock::update("/src/config.rs").content("Updated configuration"),
+            ]),
+            user_msg("Add tests for authentication"),
+            assistant_msg(vec![
+                SummaryMessageBlock::read("/tests/auth_test.rs").tool_call_success(false),
+                SummaryMessageBlock::update("/tests/auth_test.rs").content("Created new test file"),
+            ]),
+            user_msg("Remove deprecated authentication files"),
+            assistant_msg(vec![
+                SummaryMessageBlock::remove("/src/old_auth.rs"),
+                SummaryMessageBlock::remove("/src/deprecated.rs"),
+            ]),
+        ];
 
-        let actual = create_usage(Some(before), Some(summary)).unwrap();
+        let data = serde_json::json!({
+            "messages": messages
+        });
 
-        let expected = Usage {
-            prompt_tokens: TokenCount::Approx(700), // 100 + 800 - 200 = 700
-            completion_tokens: TokenCount::Approx(400), // Preserved from before
-            total_tokens: TokenCount::Approx(1100), // 700 + 400 = 1100
-            cached_tokens: TokenCount::default(),   // Reset to 0
-            cost: Some(0.022),                      // 0.015 + 0.007 = 0.022
-        };
+        let actual = render_template(&data).await;
 
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_create_usage_with_mixed_token_counts() {
-        let before = Usage {
-            prompt_tokens: TokenCount::Actual(600),
-            completion_tokens: TokenCount::Approx(300),
-            total_tokens: TokenCount::Actual(900),
-            cached_tokens: TokenCount::Actual(20),
-            cost: Some(0.012),
-        };
-
-        let summary = Usage {
-            prompt_tokens: TokenCount::Approx(150),
-            completion_tokens: TokenCount::Actual(75),
-            total_tokens: TokenCount::Approx(225),
-            cached_tokens: TokenCount::Actual(10),
-            cost: Some(0.006),
-        };
-
-        let actual = create_usage(Some(before), Some(summary)).unwrap();
-
-        let expected = Usage {
-            prompt_tokens: TokenCount::Approx(525), // 75 + 600 - 150 = 525
-            completion_tokens: TokenCount::Approx(300), // Preserved from before
-            total_tokens: TokenCount::Approx(825),  // 525 + 300 = 825
-            cached_tokens: TokenCount::default(),   // Reset to 0
-            cost: Some(0.018000000000000002),       // Float precision: 0.012 + 0.006
-        };
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_create_usage_without_costs() {
-        let before = Usage {
-            prompt_tokens: TokenCount::Actual(400),
-            completion_tokens: TokenCount::Actual(200),
-            total_tokens: TokenCount::Actual(600),
-            cached_tokens: TokenCount::Actual(0),
-            cost: None,
-        };
-
-        let summary = Usage {
-            prompt_tokens: TokenCount::Actual(100),
-            completion_tokens: TokenCount::Actual(50),
-            total_tokens: TokenCount::Actual(150),
-            cached_tokens: TokenCount::Actual(0),
-            cost: None,
-        };
-
-        let actual = create_usage(Some(before), Some(summary)).unwrap();
-
-        let expected = Usage {
-            prompt_tokens: TokenCount::Approx(350), // 50 + 400 - 100 = 350
-            completion_tokens: TokenCount::Actual(200), // Preserved from before
-            total_tokens: TokenCount::Approx(550),  // 350 + 200 = 550
-            cached_tokens: TokenCount::default(),   // Reset to 0
-            cost: None,                             // No costs in either input
-        };
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_create_usage_with_partial_costs() {
-        let before = Usage {
-            prompt_tokens: TokenCount::Actual(300),
-            completion_tokens: TokenCount::Actual(150),
-            total_tokens: TokenCount::Actual(450),
-            cached_tokens: TokenCount::Actual(0),
-            cost: Some(0.008),
-        };
-
-        let summary = Usage {
-            prompt_tokens: TokenCount::Actual(80),
-            completion_tokens: TokenCount::Actual(40),
-            total_tokens: TokenCount::Actual(120),
-            cached_tokens: TokenCount::Actual(0),
-            cost: None,
-        };
-
-        let actual = create_usage(Some(before), Some(summary)).unwrap();
-
-        let expected = Usage {
-            prompt_tokens: TokenCount::Approx(260), // 40 + 300 - 80 = 260
-            completion_tokens: TokenCount::Actual(150), // Preserved from before
-            total_tokens: TokenCount::Approx(410),  // 260 + 150 = 410
-            cached_tokens: TokenCount::default(),   // Reset to 0
-            cost: Some(0.008),                      // Only before cost preserved
-        };
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_create_usage_zero_values() {
-        let before = Usage {
-            prompt_tokens: TokenCount::Actual(0),
-            completion_tokens: TokenCount::Actual(0),
-            total_tokens: TokenCount::Actual(0),
-            cached_tokens: TokenCount::Actual(0),
-            cost: Some(0.0),
-        };
-
-        let summary = Usage {
-            prompt_tokens: TokenCount::Actual(0),
-            completion_tokens: TokenCount::Actual(0),
-            total_tokens: TokenCount::Actual(0),
-            cached_tokens: TokenCount::Actual(0),
-            cost: Some(0.0),
-        };
-
-        let actual = create_usage(Some(before), Some(summary)).unwrap();
-
-        let expected = Usage {
-            prompt_tokens: TokenCount::Approx(0),     // 0 + 0 - 0 = 0
-            completion_tokens: TokenCount::Actual(0), // Preserved from before
-            total_tokens: TokenCount::Approx(0),      // 0 + 0 = 0
-            cached_tokens: TokenCount::default(),     // Reset to 0
-            cost: Some(0.0),                          // 0.0 + 0.0 = 0.0
-        };
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_create_usage_large_numbers() {
-        let before = Usage {
-            prompt_tokens: TokenCount::Actual(1000000),
-            completion_tokens: TokenCount::Actual(500000),
-            total_tokens: TokenCount::Actual(1500000),
-            cached_tokens: TokenCount::Actual(100000),
-            cost: Some(10.50),
-        };
-
-        let summary = Usage {
-            prompt_tokens: TokenCount::Actual(200000),
-            completion_tokens: TokenCount::Actual(100000),
-            total_tokens: TokenCount::Actual(300000),
-            cached_tokens: TokenCount::Actual(20000),
-            cost: Some(2.25),
-        };
-
-        let actual = create_usage(Some(before), Some(summary)).unwrap();
-
-        let expected = Usage {
-            prompt_tokens: TokenCount::Approx(900000), // 100000 + 1000000 - 200000 = 900000
-            completion_tokens: TokenCount::Actual(500000), // Preserved from before
-            total_tokens: TokenCount::Approx(1400000), // 900000 + 500000 = 1400000
-            cached_tokens: TokenCount::default(),      // Reset to 0
-            cost: Some(12.75),                         // 10.50 + 2.25 = 12.75
-        };
-
-        assert_eq!(actual, expected);
+        insta::assert_snapshot!(actual);
     }
 }
