@@ -50,7 +50,7 @@ impl crate::ForgeFS {
 
         // Extract the requested line range using the trait
         let range = content.extract(start_line, end_line)?;
-        let info = FileInfo::new(start_line, end_line, range.total);
+        let info = FileInfo::new(range.start, range.end, range.total);
 
         Ok((range.content, info))
     }
