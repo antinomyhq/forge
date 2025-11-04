@@ -126,8 +126,7 @@ impl<
         let agent_loader_service = Arc::new(ForgeAgentLoaderService::new(infra.clone()));
         let command_loader_service = Arc::new(ForgeCommandLoaderService::new(infra.clone()));
         let policy_service = ForgePolicyService::new(infra.clone());
-        let provider_auth_service =
-            crate::provider_auth_service::ForgeProviderAuthService::new(infra.clone());
+        let provider_auth_service = ForgeProviderAuthService::new(infra.clone());
 
         Self {
             conversation_service,
