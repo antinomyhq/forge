@@ -7,11 +7,8 @@ edition = "2024"
 name = "forge"
 path = "src/main.rs"
 
-
 [dependencies]
-thiserror = { workspace = true }
 clap.workspace = true
-console.workspace = true
 forge_app.workspace = true
 forge_api.workspace = true
 forge_domain.workspace = true
@@ -37,7 +34,6 @@ nucleo.workspace = true
 tracing.workspace = true
 chrono.workspace = true
 serde_json.workspace = true
-serde.workspace = true
 strum.workspace = true
 strum_macros.workspace = true
 
@@ -51,7 +47,6 @@ open.workspace = true
 humantime.workspace = true
 num-format.workspace = true
 atty = "0.2"
-url.workspace = true
 indexmap.workspace = true
 
 [dev-dependencies]
@@ -59,7 +54,8 @@ tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
 insta.workspace = true
 pretty_assertions.workspace = true
 tempfile.workspace = true
-serial_test = "3.2"
 fake = { version = "4.4.0", features = ["derive"] }
 forge_domain = { path = "../forge_domain" }
 strip-ansi-escapes = "0.2"
+console.workspace = true
+url.workspace = true

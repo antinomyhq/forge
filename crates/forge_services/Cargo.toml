@@ -12,20 +12,17 @@ tracing.workspace = true
 async-trait.workspace = true
 async-recursion.workspace = true
 
-forge_snaps.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 derive_setters.workspace = true
 tokio-stream.workspace = true
 handlebars.workspace = true
-forge_fs.workspace = true
 
 
 anyhow.workspace = true
 futures.workspace = true
 reqwest.workspace = true
 regex.workspace = true
-humantime.workspace = true
 thiserror.workspace = true
 tree-sitter.workspace = true
 html2md.workspace = true

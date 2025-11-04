@@ -23,7 +23,6 @@ convert_case = "0.8.0"
 derive_more = { version = "2.0.1", features = ["from", "display", "debug"] }
 derive_setters = "0.1.6"
 dirs = "6.0.0"
-dissimilar = "1.0.9"
 dotenvy = "0.15.7"
 futures = "0.3.31"
 gh-workflow = "0.8.0"
@@ -43,7 +42,6 @@ machineid-rs = "1.2.4"
 mockito = "1.6.1"
 nom = "8.0.0"
 nu-ansi-term = "0.50.1"
-posthog-rs = { git = "https://github.com/PostHog/posthog-rs.git", rev = "a006a81419031e4889d9c3882d7458d2efa588a8" }
 pretty_assertions = "1.4.1"
 proc-macro2 = "1.0"
 quote = "1.0"
@@ -61,7 +59,6 @@ schemars = "0.8.21"
 serde = { version = "1.0.217", features = ["derive"] }
 serde_json = "1.0.143"
 serde_yml = "0.0.12"
-sha2 = "0.10"
 similar = { version = "2.4", features = ["inline"] }
 strip-ansi-escapes = "0.2.1"
 strum = "0.27.1"
@@ -82,7 +79,6 @@ tokio = { version = "1.47.1", features = [
     "io-util",
 ] }
 tokio-stream = "0.1.17"
-tokio-util = "0.7"
 tracing = "0.1.41"
 tracing-appender = "0.2.3"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "json"] }
@@ -98,7 +94,6 @@ tree-sitter-cpp = "0.23"
 tree-sitter-ruby = "0.23"
 url = { version = "2.5.4", features = ["serde"] }
 backon = "1.5.2"
-eserde = "0.1.7"
 uuid = { version = "1.18.0", features = [
     "v4",
     "fast-rng",
@@ -112,8 +107,8 @@ rmcp = { version = "0.8.1", features = [
     "transport-sse-client-reqwest",
     "transport-child-process",
 ] }
-open = "5.3.2"
 nucleo = "0.5.0"
+open = "5.3.2"
 gray_matter = "0.3.2"
 num-format = "0.4"
 humantime = "2.1.0"
@@ -122,14 +117,11 @@ humantime = "2.1.0"
 # Internal crates
 forge_api = { path = "crates/forge_api" }
 forge_app = { path = "crates/forge_app" }
-forge_ci = { path = "crates/forge_ci" }
 forge_display = { path = "crates/forge_display" }
 forge_domain = { path = "crates/forge_domain" }
 forge_fs = { path = "crates/forge_fs" }
 forge_infra = { path = "crates/forge_infra" }
 forge_repo = { path = "crates/forge_repo" }
-forge_inte = { path = "crates/forge_inte" }
-forge_main = { path = "crates/forge_main" }
 forge_services = { path = "crates/forge_services" }
 forge_snaps = { path = "crates/forge_snaps" }
 forge_spinner = { path = "crates/forge_spinner" }

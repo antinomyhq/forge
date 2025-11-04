@@ -4,20 +4,17 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-forge_snaps.workspace = true
 forge_fs.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 dirs.workspace = true
 dotenvy.workspace = true
 forge_domain.workspace = true
-forge_services.workspace = true
 tokio.workspace = true
 serde_json.workspace = true
 reqwest.workspace = true
 
 bytes.workspace = true
-pretty_assertions.workspace = true
 forge_select.workspace = true
 tempfile.workspace = true
 rmcp.workspace = true
@@ -32,10 +29,6 @@ forge_walker.workspace = true
 reqwest-eventsource.workspace = true
 globset.workspace = true
 futures.workspace = true
-diesel = { version= "2.2.12", features = ["sqlite", "r2d2", "chrono"] }
-libsqlite3-sys = { version = "0.35.0", features = ["bundled"] }
-diesel_migrations = "2.2.0"
-chrono = { version = "0.4", features = ["serde"] }
 cacache = { version = "13.1.0", features = ["tokio-runtime"], default-features = false }
 serde.workspace = true
 
