@@ -26,7 +26,7 @@ pub struct SummaryMessageBlock {
 }
 
 /// Categorized tool call information for summary purposes
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum SummaryToolCall {
     FileRead { path: String },
     FileUpdate { path: String },

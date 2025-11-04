@@ -1,32 +1,64 @@
-use crate::compact::summary::{ContextSummary, SummaryMessageBlock};
-use crate::{CanMerge, Transformer};
+use std::collections::HashMap;
 
-/// Merges all messages within a context summary.
+use crate::compact::summary::{ContextSummary, SummaryMessageBlock, SummaryToolCall};
+use crate::{Role, Transformer};
+
+/// Trims context summary by keeping only the last operation for each path.
 ///
-/// This transformer consolidates consecutive mergeable message blocks within
-/// each message in the context summary. Adjacent `SummaryMessageBlock`
-/// instances that are mergeable according to the `CanMerge` trait
-/// implementation are consolidated.
+/// This transformer deduplicates file operations within assistant messages by
+/// retaining only the most recent operation for each file path. Only applies
+/// to messages with the Assistant role. This is useful for reducing context
+/// size while preserving the final state of file operations.
 pub struct TrimContextSummary;
+
+impl TrimContextSummary {
+    /// Extracts the path from a tool call, if available
+    fn extract_path(tool_call: &SummaryToolCall) -> Option<&str> {
+        match tool_call {
+            SummaryToolCall::FileRead { path } => Some(path.as_str()),
+            SummaryToolCall::FileUpdate { path } => Some(path.as_str()),
+            SummaryToolCall::FileRemove { path } => Some(path.as_str()),
+        }
+    }
+}
 
 impl Transformer for TrimContextSummary {
     type Value = ContextSummary;
 
     fn transform(&mut self, mut summary: Self::Value) -> Self::Value {
         for message in summary.messages.iter_mut() {
-            let mut merged_blocks: Vec<SummaryMessageBlock> = Vec::new();
+            // Only apply trimming to Assistant role messages
+            if message.role != Role::Assistant {
+                continue;
+            }
+
+            // Map to track the last successful operation for each file path
+            let mut last_operations: HashMap<String, SummaryMessageBlock> = HashMap::new();
+            let mut insertion_order: Vec<String> = Vec::new();
 
             for block in message.messages.drain(..) {
-                if let Some(last) = merged_blocks.last_mut()
-                    && last.can_merge(&block)
-                {
-                    *last = block;
-                } else {
-                    merged_blocks.push(block);
+                // Only keep successful operations
+                if block.tool_call_success != Some(true) {
+                    continue;
+                }
+
+                if let Some(path) = Self::extract_path(&block.tool_call) {
+                    let key = path.to_string();
+
+                    // Track insertion order only for new keys
+                    if !last_operations.contains_key(&key) {
+                        insertion_order.push(key.clone());
+                    }
+                    // Store or update the last operation for this path
+                    last_operations.insert(key, block);
                 }
             }
 
-            message.messages = merged_blocks;
+            // Reconstruct messages in original insertion order
+            message.messages = insertion_order
+                .into_iter()
+                .filter_map(|key| last_operations.remove(&key))
+                .collect();
         }
 
         summary
@@ -82,8 +114,10 @@ mod tests {
         let mut transformer = TrimContextSummary;
         let actual = transformer.transform(fixture);
 
+        // Assistant messages should be trimmed
         assert_eq!(actual.messages[0].messages.len(), 1);
-        assert_eq!(actual.messages[1].messages.len(), 1);
+        // User messages should NOT be trimmed
+        assert_eq!(actual.messages[1].messages.len(), 2);
     }
 
     #[test]
@@ -216,7 +250,7 @@ mod tests {
     }
 
     #[test]
-    fn test_does_not_merge_different_success_status() {
+    fn test_filters_out_failed_operations() {
         let fixture = ContextSummary {
             messages: vec![SummaryMessage {
                 role: Role::Assistant,
@@ -240,11 +274,13 @@ mod tests {
         let mut transformer = TrimContextSummary;
         let actual = transformer.transform(fixture);
 
-        assert_eq!(actual.messages[0].messages.len(), 2);
+        // Only the successful operation should remain
+        assert_eq!(actual.messages[0].messages.len(), 1);
+        assert_eq!(actual.messages[0].messages[0].tool_call_success, Some(true));
     }
 
     #[test]
-    fn test_does_not_merge_different_content() {
+    fn test_keeps_last_operation_regardless_of_content() {
         let fixture = ContextSummary {
             messages: vec![SummaryMessage {
                 role: Role::Assistant,
@@ -268,7 +304,12 @@ mod tests {
         let mut transformer = TrimContextSummary;
         let actual = transformer.transform(fixture);
 
-        assert_eq!(actual.messages[0].messages.len(), 2);
+        // Only the last operation for the path should remain
+        assert_eq!(actual.messages[0].messages.len(), 1);
+        assert_eq!(
+            actual.messages[0].messages[0].content,
+            Some("content2".to_string())
+        );
     }
 
     #[test]
@@ -309,5 +350,99 @@ mod tests {
         let actual = transformer.transform(fixture);
 
         assert_eq!(actual.messages[0].messages.len(), 2);
+    }
+
+    #[test]
+    fn test_does_not_trim_user_role_messages() {
+        let fixture = ContextSummary {
+            messages: vec![SummaryMessage {
+                role: Role::User,
+                messages: vec![
+                    fixture_message_block(SummaryToolCall::FileRead { path: "/test".to_string() }),
+                    fixture_message_block(SummaryToolCall::FileRead { path: "/test".to_string() }),
+                    fixture_message_block(SummaryToolCall::FileRead { path: "/test".to_string() }),
+                ],
+            }],
+        };
+
+        let mut transformer = TrimContextSummary;
+        let actual = transformer.transform(fixture);
+
+        // User messages should not be trimmed, all 3 blocks should remain
+        assert_eq!(actual.messages[0].messages.len(), 3);
+    }
+
+    #[test]
+    fn test_does_not_trim_system_role_messages() {
+        let fixture = ContextSummary {
+            messages: vec![SummaryMessage {
+                role: Role::System,
+                messages: vec![
+                    fixture_message_block(SummaryToolCall::FileUpdate {
+                        path: "file.txt".to_string(),
+                    }),
+                    fixture_message_block(SummaryToolCall::FileUpdate {
+                        path: "file.txt".to_string(),
+                    }),
+                ],
+            }],
+        };
+
+        let mut transformer = TrimContextSummary;
+        let actual = transformer.transform(fixture);
+
+        // System messages should not be trimmed, both blocks should remain
+        assert_eq!(actual.messages[0].messages.len(), 2);
+    }
+
+    #[test]
+    fn test_only_trims_assistant_messages_in_mixed_roles() {
+        let fixture = ContextSummary {
+            messages: vec![
+                SummaryMessage {
+                    role: Role::User,
+                    messages: vec![
+                        fixture_message_block(SummaryToolCall::FileRead {
+                            path: "/test".to_string(),
+                        }),
+                        fixture_message_block(SummaryToolCall::FileRead {
+                            path: "/test".to_string(),
+                        }),
+                    ],
+                },
+                SummaryMessage {
+                    role: Role::Assistant,
+                    messages: vec![
+                        fixture_message_block(SummaryToolCall::FileUpdate {
+                            path: "file.txt".to_string(),
+                        }),
+                        fixture_message_block(SummaryToolCall::FileUpdate {
+                            path: "file.txt".to_string(),
+                        }),
+                    ],
+                },
+                SummaryMessage {
+                    role: Role::System,
+                    messages: vec![
+                        fixture_message_block(SummaryToolCall::FileRemove {
+                            path: "remove.txt".to_string(),
+                        }),
+                        fixture_message_block(SummaryToolCall::FileRemove {
+                            path: "remove.txt".to_string(),
+                        }),
+                    ],
+                },
+            ],
+        };
+
+        let mut transformer = TrimContextSummary;
+        let actual = transformer.transform(fixture);
+
+        // User messages should not be trimmed
+        assert_eq!(actual.messages[0].messages.len(), 2);
+        // Assistant messages should be trimmed
+        assert_eq!(actual.messages[1].messages.len(), 1);
+        // System messages should not be trimmed
+        assert_eq!(actual.messages[2].messages.len(), 2);
     }
 }
