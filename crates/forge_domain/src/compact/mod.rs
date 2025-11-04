@@ -1,7 +1,7 @@
-mod config;
+mod compact;
 mod result;
 mod strategy;
 
-pub use config::*;
+pub use compact::*;
 pub use result::*;
 pub use strategy::*;
