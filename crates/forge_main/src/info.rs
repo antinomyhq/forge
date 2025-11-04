@@ -215,7 +215,7 @@ impl fmt::Display for Info {
                         }
                     } else {
                         // Show value-only items
-                        writeln!(f, "    ⦿ {}", value)?;
+                        writeln!(f, "    {} {}", "⦿".cyan(), value)?;
                     }
                 }
             }
