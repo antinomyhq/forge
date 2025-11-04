@@ -400,6 +400,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_info(porcelain, conversation_id).await?;
                 return Ok(());
             }
+            TopLevelCommand::Env => {
+                self.on_env().await?;
+                return Ok(());
+            }
             TopLevelCommand::Banner => {
                 banner::display(true)?;
                 return Ok(());
@@ -663,6 +667,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Define base commands with their descriptions
         info = info
             .add_key_value("info", "Print session information")
+            .add_key_value("env", "Display environment information")
             .add_key_value("provider", "Switch the providers")
             .add_key_value("model", "Switch the models")
             .add_key_value("new", "Start new conversation")
@@ -793,7 +798,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         porcelain: bool,
         conversation_id: Option<ConversationId>,
     ) -> anyhow::Result<()> {
-        let mut info = Info::from(&self.api.environment());
+        let mut info = Info::new();
 
         // Fetch conversation
         let conversation = match conversation_id {
@@ -873,6 +878,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             self.writeln(info)?;
         }
 
+        Ok(())
+    }
+
+    async fn on_env(&mut self) -> anyhow::Result<()> {
+        let env = self.api.environment();
+        let info = Info::from(&env);
+        self.writeln(info)?;
         Ok(())
     }
 
@@ -980,6 +992,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
             SlashCommand::Info => {
                 self.on_info(false, None).await?;
+            }
+            SlashCommand::Env => {
+                self.on_env().await?;
             }
             SlashCommand::Usage => {
                 self.on_usage().await?;

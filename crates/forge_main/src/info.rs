@@ -75,7 +75,13 @@ impl From<&Environment> for Info {
             None => "(not in a git repository)".to_string(),
         };
 
-        let mut info = Info::new().add_title("PATHS");
+        let mut info = Info::new()
+            .add_title("ENVIRONMENT")
+            .add_key_value("Version", VERSION)
+            .add_key_value("Working Directory", format_path_for_display(env, &env.cwd))
+            .add_key_value("Shell", &env.shell)
+            .add_key_value("Git Branch", branch_info)
+            .add_title("PATHS");
 
         // Only show logs path if the directory exists
         let log_path = env.log_path();
@@ -84,9 +90,8 @@ impl From<&Environment> for Info {
         }
 
         let agent_path = env.agent_path();
-        info = info.add_key_value("Agents", format_path_for_display(env, &agent_path));
-
         info = info
+            .add_key_value("Agents", format_path_for_display(env, &agent_path))
             .add_key_value("History", format_path_for_display(env, &env.history_path()))
             .add_key_value(
                 "Checkpoints",
@@ -95,12 +100,7 @@ impl From<&Environment> for Info {
             .add_key_value(
                 "Policies",
                 format_path_for_display(env, &env.permissions_path()),
-            )
-            .add_title("ENVIRONMENT")
-            .add_key_value("Version", VERSION)
-            .add_key_value("Working Directory", format_path_for_display(env, &env.cwd))
-            .add_key_value("Shell", &env.shell)
-            .add_key_value("Git Branch", branch_info);
+            );
 
         info
     }
@@ -215,7 +215,7 @@ impl fmt::Display for Info {
                         }
                     } else {
                         // Show value-only items
-                        writeln!(f, "    ⦿ {}", value)?;
+                        writeln!(f, "    {} {}", "⦿".cyan(), value)?;
                     }
                 }
             }

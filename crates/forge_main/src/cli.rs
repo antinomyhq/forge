@@ -102,6 +102,11 @@ pub enum TopLevelCommand {
         porcelain: bool,
     },
 
+    /// Display environment information
+    ///
+    /// Example: forge env
+    Env,
+
     /// Configuration management commands
     Config(ConfigCommandGroup),
 
