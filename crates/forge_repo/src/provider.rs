@@ -10,7 +10,7 @@ use forge_domain::{
 use handlebars::Handlebars;
 use merge::Merge;
 use serde::Deserialize;
-use tokio::sync::OnceCell;
+use tokio::sync::RwLock;
 use url::Url;
 
 /// Represents the source of models for a provider
@@ -82,7 +82,7 @@ fn get_provider_configs() -> &'static Vec<ProviderConfig> {
 pub struct ForgeProviderRepository<F> {
     infra: Arc<F>,
     handlebars: &'static Handlebars<'static>,
-    providers: OnceCell<Vec<ProviderEntry>>,
+    providers: RwLock<Option<Vec<ProviderEntry>>>,
 }
 
 impl<F> ForgeProviderRepository<F> {
@@ -90,7 +90,7 @@ impl<F> ForgeProviderRepository<F> {
         Self {
             infra,
             handlebars: get_handlebars(),
-            providers: OnceCell::new(),
+            providers: RwLock::new(None),
         }
     }
 }
@@ -105,10 +105,25 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
         Ok(configs)
     }
 
-    async fn get_providers(&self) -> &Vec<ProviderEntry> {
-        self.providers
-            .get_or_init(|| async { self.init_providers().await })
-            .await
+    async fn get_providers(&self) -> Vec<ProviderEntry> {
+        // Try to get cached providers
+        {
+            let read_lock = self.providers.read().await;
+            if let Some(providers) = read_lock.as_ref() {
+                return providers.clone();
+            }
+        }
+
+        // Initialize providers if not cached
+        let providers = self.init_providers().await;
+
+        // Cache the providers
+        {
+            let mut write_lock = self.providers.write().await;
+            *write_lock = Some(providers.clone());
+        }
+
+        providers
     }
 
     async fn init_providers(&self) -> Vec<ProviderEntry> {
@@ -326,8 +341,8 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
         }
 
         // Look up provider from cached providers - only return configured ones
-        self.get_providers()
-            .await
+        let providers = self.get_providers().await;
+        providers
             .iter()
             .find_map(|p| match p {
                 ProviderEntry::Available(cp) if cp.id == id => Some(cp.clone()),
@@ -379,7 +394,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Sync> ProviderRep
     for ForgeProviderRepository<F>
 {
     async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>> {
-        Ok(self.get_providers().await.clone())
+        Ok(self.get_providers().await)
     }
 
     async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider<Url>> {
@@ -398,9 +413,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Sync> ProviderRep
         self.write_credentials(&credentials).await?;
 
         // Clear cached providers to force reload with new credentials
-        // Note: We can't actually clear OnceCell, so the providers will only be
-        // updated on next app restart. This is acceptable as credential changes
-        // are rare.
+        {
+            let mut write_lock = self.providers.write().await;
+            *write_lock = None;
+        }
 
         Ok(())
     }

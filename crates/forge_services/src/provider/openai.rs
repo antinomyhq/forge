@@ -38,11 +38,32 @@ impl<H: HttpClientService> OpenAIProvider<H> {
                 .as_ref()
                 .and_then(|c| match &c.auth_details {
                     forge_domain::AuthDetails::ApiKey(key) => Some(key.as_str()),
-                    _ => None,
+                    forge_domain::AuthDetails::OAuthWithApiKey{api_key, ..} => Some(api_key.as_str()),
+                    forge_domain::AuthDetails::OAuth{tokens,..} => Some(tokens.access_token.as_str()),
                 })
         {
             headers.push((AUTHORIZATION.to_string(), format!("Bearer {api_key}")));
         }
+        self.provider
+            .auth_methods
+            .iter()
+            .for_each(|method| match method {
+                forge_domain::AuthMethod::ApiKey => {}
+                forge_domain::AuthMethod::OAuthDevice(oauth_config) => {
+                    if let Some(custom_headers) = &oauth_config.custom_headers {
+                        custom_headers.iter().for_each(|(k, v)| {
+                            headers.push((k.clone(), v.clone()));
+                        });
+                    }
+                }
+                forge_domain::AuthMethod::OAuthCode(oauth_config) => {
+                    if let Some(custom_headers) = &oauth_config.custom_headers {
+                        custom_headers.iter().for_each(|(k, v)| {
+                            headers.push((k.clone(), v.clone()));
+                        });
+                    }
+                }
+            });
         headers
     }
 
