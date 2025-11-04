@@ -57,17 +57,12 @@ impl ClientBuilder {
 
             ProviderResponse::Anthropic => {
                 let url = provider.url.clone();
-                let api_key = provider
-                    .credential
-                    .as_ref()
-                    .and_then(|c| match &c.auth_details {
-                        forge_domain::AuthDetails::ApiKey(key) => Some(key.to_string()),
-                        _ => None,
-                    })
-                    .unwrap_or_default();
                 InnerClient::Anthropic(Box::new(Anthropic::new(
                     http.clone(),
-                    api_key,
+                    provider
+                        .key()
+                        .map(|x| x.as_str().to_string())
+                        .unwrap_or_default(),
                     url,
                     provider.models,
                     "2023-06-01".to_string(),

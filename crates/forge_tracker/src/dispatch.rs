@@ -6,7 +6,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use chrono::{DateTime, Utc};
 use forge_domain::Conversation;
 use lazy_static::lazy_static;
-use machineid_rs::{Encryption, HWIDComponent, IdBuilder};
 use sysinfo::System;
 use tokio::process::Command;
 use tokio::sync::Mutex;
@@ -15,7 +14,7 @@ use super::Result;
 use crate::can_track::can_track;
 use crate::collect::{Collect, posthog};
 use crate::event::Identity;
-use crate::{Event, EventKind};
+use crate::{Event, EventKind, client_id};
 
 const POSTHOG_API_SECRET: &str = match option_env!("POSTHOG_API_SECRET") {
     Some(val) => val,
@@ -27,22 +26,11 @@ const VERSION: &str = match option_env!("APP_VERSION") {
     None => env!("CARGO_PKG_VERSION"),
 };
 
-const PARAPHRASE: &str = "forge_key";
-
-const DEFAULT_CLIENT_ID: &str = "<anonymous>";
-
 // Cached system information that doesn't change during application lifetime
 lazy_static! {
     static ref CACHED_CORES: usize = System::physical_core_count().unwrap_or(0);
-    static ref CACHED_CLIENT_ID: String = {
-        let mut builder = IdBuilder::new(Encryption::SHA256);
-        builder
-            .add_component(HWIDComponent::SystemID)
-            .add_component(HWIDComponent::CPUCores);
-        builder
-            .build(PARAPHRASE)
-            .unwrap_or(DEFAULT_CLIENT_ID.to_string())
-    };
+    static ref CACHED_CLIENT_ID: String = client_id::get_or_create_client_id()
+        .unwrap_or_else(|_| client_id::DEFAULT_CLIENT_ID.to_string());
     static ref CACHED_OS_NAME: String = System::long_os_version().unwrap_or("Unknown".to_string());
     static ref CACHED_USER: String = whoami::username();
     static ref CACHED_CWD: Option<String> = std::env::current_dir()

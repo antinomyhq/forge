@@ -37,8 +37,8 @@ impl<F: ProviderRepository + AppConfigRepository> ForgeAppConfigService<F> {
             .await?
             .into_iter()
             .find_map(|p| match p {
-                forge_domain::ProviderEntry::Available(provider) => Some(provider),
-                forge_domain::ProviderEntry::Unavailable(_) => None,
+                forge_domain::AnyProvider::Url(provider) => Some(provider),
+                forge_domain::AnyProvider::Template(_) => None,
             })
             .ok_or_else(|| forge_app::Error::NoActiveProvider.into())
     }
@@ -92,7 +92,7 @@ mod tests {
     use std::sync::Mutex;
 
     use forge_domain::{
-        AppConfig, Model, Models, Provider, ProviderEntry, ProviderId, ProviderResponse,
+        AnyProvider, AppConfig, Model, Models, Provider, ProviderId, ProviderResponse,
     };
     use pretty_assertions::assert_eq;
     use url::Url;
@@ -175,11 +175,11 @@ mod tests {
 
     #[async_trait::async_trait]
     impl ProviderRepository for MockInfra {
-        async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>> {
+        async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
             Ok(self
                 .providers
                 .iter()
-                .map(|p| ProviderEntry::Available(p.clone()))
+                .map(|p| AnyProvider::Url(p.clone()))
                 .collect())
         }
 

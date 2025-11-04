@@ -8,8 +8,8 @@ use forge_app::{
     UserInfra, WalkedFile, Walker, WalkerInfra,
 };
 use forge_domain::{
-    AppConfig, AppConfigRepository, AuthCredential, CommandOutput, Conversation, ConversationId,
-    ConversationRepository, Environment, FileInfo, McpServerConfig, Provider, ProviderEntry,
+    AnyProvider, AppConfig, AppConfigRepository, AuthCredential, CommandOutput, Conversation,
+    ConversationId, ConversationRepository, Environment, FileInfo, McpServerConfig, Provider,
     ProviderId, ProviderRepository, Snapshot, SnapshotRepository,
 };
 use forge_infra::CacacheStorage;
@@ -111,7 +111,7 @@ impl<F: Send + Sync> ConversationRepository for ForgeRepo<F> {
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> ProviderRepository
     for ForgeRepo<F>
 {
-    async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>> {
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
         self.provider_repository.get_all_providers().await
     }
 
