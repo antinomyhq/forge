@@ -826,6 +826,45 @@ impl<I> ForgeProviderAuthService<I> {
 
         Ok(token_result.into())
     }
+    async fn handle_oauth_code_refresh(
+        &self,
+        credential: &AuthCredential,
+        config: &OAuthConfig,
+    ) -> anyhow::Result<AuthCredential> {
+        // Get stored OAuth tokens
+        let oauth_tokens = match &credential.auth_details {
+            forge_domain::AuthDetails::OAuth { tokens, .. } => Some(tokens),
+            _ => None,
+        };
+        if let Some(refresh_token) = oauth_tokens.and_then(|x| x.refresh_token.clone()) {
+            // Use refresh token to get new access token
+            let token_response = Self::refresh_access_token(config, refresh_token.as_str())
+                .await
+                .map_err(|e| {
+                    Error::RefreshFailed(format!("Failed to refresh access token: {}", e))
+                })?;
+
+            // Use helpers for consistent handling
+            let expires_at =
+                calculate_token_expiry(token_response.expires_in, chrono::Duration::hours(1));
+
+            // Create updated OAuth tokens
+            let updated_tokens = OAuthTokens::new(
+                token_response.access_token,
+                token_response.refresh_token,
+                expires_at,
+            );
+
+            let refreshed =
+                AuthCredential::new_oauth(credential.id, updated_tokens, config.clone());
+            Ok(refreshed)
+        } else {
+            Err(Error::RefreshFailed(
+                "No refresh token available for OAuth token refresh".to_string(),
+            )
+            .into())
+        }
+    }
     async fn handle_oauth_device_refresh(
         &self,
         credential: &AuthCredential,
@@ -998,22 +1037,17 @@ where
         provider: &forge_domain::Provider<url::Url>,
         auth_method: forge_domain::AuthMethod,
     ) -> anyhow::Result<forge_domain::AuthCredential> {
+        let credential = self
+            .infra
+            .get_credential(&provider.id)
+            .await?
+            .ok_or_else(|| {
+                forge_domain::Error::ProviderNotAvailable { provider: provider.id }
+            })?;
+
         let refreshed_credential = match auth_method {
-            forge_domain::AuthMethod::ApiKey => self
-                .infra
-                .get_credential(&provider.id)
-                .await?
-                .ok_or_else(|| {
-                    forge_domain::Error::ProviderNotAvailable { provider: provider.id }.into()
-                }),
+            forge_domain::AuthMethod::ApiKey => Ok(credential),
             forge_domain::AuthMethod::OAuthDevice(config) => {
-                let credential =
-                    self.infra
-                        .get_credential(&provider.id)
-                        .await?
-                        .ok_or_else(|| forge_domain::Error::ProviderNotAvailable {
-                            provider: provider.id,
-                        })?;
                 if config.token_refresh_url.is_some() {
                     // OAuth with API key refresh
                     self.handle_oauth_with_apikey_refresh(&credential, &config)
@@ -1023,9 +1057,9 @@ where
                     self.handle_oauth_device_refresh(&credential, &config).await
                 }
             }
-            forge_domain::AuthMethod::OAuthCode(_) => {
+            forge_domain::AuthMethod::OAuthCode(config) => {
                 // OAuth refresh logic would go here
-                todo!("OAuth refresh not implemented yet")
+                self.handle_oauth_code_refresh(&credential, &config).await
             }
         }?;
         self.infra
