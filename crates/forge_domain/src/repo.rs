@@ -4,7 +4,7 @@ use anyhow::Result;
 use url::Url;
 
 use crate::{
-    AppConfig, Conversation, ConversationId, Provider, ProviderEntry, ProviderId, Snapshot,
+    AppConfig, Conversation, ConversationId, Provider, AnyProvider, ProviderId, Snapshot,
 };
 
 /// Repository for managing file snapshots
@@ -80,7 +80,7 @@ pub trait ConversationRepository: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait ProviderRepository: Send + Sync {
-    async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>>;
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>>;
     async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider<Url>>;
 }
 

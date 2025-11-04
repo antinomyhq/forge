@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::domain::{
-    ChatCompletionMessage, Context as ChatContext, HttpConfig, Model, ModelId, ProviderEntry,
+    ChatCompletionMessage, Context as ChatContext, HttpConfig, Model, ModelId, AnyProvider,
     ProviderId, ResultStream, RetryConfig,
 };
 use forge_app::{EnvironmentInfra, HttpInfra, ProviderService};
@@ -113,7 +113,7 @@ impl<I: EnvironmentInfra + HttpInfra + ProviderRepository> ProviderService
         self.http_infra.get_provider(id).await
     }
 
-    async fn get_all_providers(&self) -> Result<Vec<ProviderEntry>> {
+    async fn get_all_providers(&self) -> Result<Vec<AnyProvider>> {
         self.http_infra.get_all_providers().await
     }
 }

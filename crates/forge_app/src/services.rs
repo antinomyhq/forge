@@ -5,7 +5,7 @@ use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation,
     ConversationId, Environment, File, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model,
-    ModelId, PatchOperation, Provider, ProviderEntry, ResultStream, Scope, Template, ToolCallFull,
+    ModelId, PatchOperation, Provider, AnyProvider, ResultStream, Scope, Template, ToolCallFull,
     ToolOutput, Workflow,
 };
 use merge::Merge;
@@ -130,7 +130,7 @@ pub trait ProviderService: Send + Sync {
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error>;
     async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>>;
     async fn get_provider(&self, id: forge_domain::ProviderId) -> anyhow::Result<Provider<Url>>;
-    async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>>;
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>>;
 }
 
 /// Manages user preferences for default providers and models.
@@ -527,7 +527,7 @@ impl<I: Services> ProviderService for I {
         self.provider_service().get_provider(id).await
     }
 
-    async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>> {
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
         self.provider_service().get_all_providers().await
     }
 }

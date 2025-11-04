@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
 use colored::Colorize;
-use forge_api::{Model, ProviderEntry, Template};
+use forge_api::{Model, AnyProvider, Template};
 use forge_domain::{Agent, UserCommand};
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumProperty};
@@ -54,7 +54,7 @@ impl Display for CliModel {
 /// This component provides consistent formatting for provider selection across
 /// the application, showing provider ID with domain information.
 #[derive(Clone)]
-pub struct CliProvider(pub ProviderEntry);
+pub struct CliProvider(pub AnyProvider);
 
 impl Display for CliProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -62,13 +62,13 @@ impl Display for CliProvider {
         write!(f, "{name}")?;
 
         match &self.0 {
-            ProviderEntry::Available(provider) => {
+            AnyProvider::Url(provider) => {
                 if let Some(domain) = provider.url.domain() {
                     write!(f, " [{domain}]")?;
                 }
                 write!(f, " {}", "✓".green())?;
             }
-            ProviderEntry::Unavailable(_) => {
+            AnyProvider::Template(_) => {
                 // No domain or checkmark for unconfigured providers
             }
         }
@@ -519,7 +519,7 @@ impl SlashCommand {
 mod tests {
     use console::strip_ansi_codes;
     use forge_api::{ModelId, Models, ProviderId, ProviderResponse};
-    use forge_domain::{Provider, ProviderEntry};
+    use forge_domain::{Provider, AnyProvider};
     use pretty_assertions::assert_eq;
     use url::Url;
 
@@ -967,7 +967,7 @@ mod tests {
 
     #[test]
     fn test_cli_provider_display_minimal() {
-        let fixture = ProviderEntry::Available(Provider {
+        let fixture = AnyProvider::Url(Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
@@ -982,7 +982,7 @@ mod tests {
 
     #[test]
     fn test_cli_provider_display_with_subdomain() {
-        let fixture = ProviderEntry::Available(Provider {
+        let fixture = AnyProvider::Url(Provider {
             id: ProviderId::OpenRouter,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://openrouter.ai/api/v1/chat/completions").unwrap(),
@@ -997,7 +997,7 @@ mod tests {
 
     #[test]
     fn test_cli_provider_display_no_domain() {
-        let fixture = ProviderEntry::Available(Provider {
+        let fixture = AnyProvider::Url(Provider {
             id: ProviderId::Forge,
             response: ProviderResponse::OpenAI,
             url: Url::parse("http://localhost:8080/chat/completions").unwrap(),

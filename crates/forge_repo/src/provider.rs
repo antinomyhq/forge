@@ -2,7 +2,7 @@ use std::sync::{Arc, OnceLock};
 
 use forge_app::domain::{ProviderId, ProviderResponse};
 use forge_app::{EnvironmentInfra, FileReaderInfra};
-use forge_domain::{Error, Provider, ProviderEntry, ProviderRepository};
+use forge_domain::{Error, Provider, AnyProvider, ProviderRepository};
 use handlebars::Handlebars;
 use merge::Merge;
 use serde::Deserialize;
@@ -76,7 +76,7 @@ fn get_provider_configs() -> &'static Vec<ProviderConfig> {
 pub struct ForgeProviderRepository<F> {
     infra: Arc<F>,
     handlebars: &'static Handlebars<'static>,
-    providers: OnceCell<Vec<ProviderEntry>>,
+    providers: OnceCell<Vec<AnyProvider>>,
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
@@ -98,16 +98,16 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
         Ok(configs)
     }
 
-    async fn get_providers(&self) -> &Vec<ProviderEntry> {
+    async fn get_providers(&self) -> &Vec<AnyProvider> {
         self.providers
             .get_or_init(|| async { self.init_providers().await })
             .await
     }
 
-    async fn init_providers(&self) -> Vec<ProviderEntry> {
+    async fn init_providers(&self) -> Vec<AnyProvider> {
         let configs = self.get_merged_configs().await;
 
-        let mut providers: Vec<ProviderEntry> = configs
+        let mut providers: Vec<AnyProvider> = configs
             .into_iter()
             .filter_map(|config| {
                 // Skip Forge provider as it's handled specially
@@ -226,7 +226,7 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
             .await
             .iter()
             .find_map(|p| match p {
-                ProviderEntry::Available(cp) if cp.id == id => Some(cp.clone()),
+                AnyProvider::Url(cp) if cp.id == id => Some(cp.clone()),
                 _ => None,
             })
             .ok_or_else(|| Error::provider_not_available(id).into())
@@ -248,7 +248,7 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeProviderRepository<F> {
 impl<F: EnvironmentInfra + FileReaderInfra + Sync> ProviderRepository
     for ForgeProviderRepository<F>
 {
-    async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>> {
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
         Ok(self.get_providers().await.clone())
     }
 
@@ -385,7 +385,7 @@ mod env_tests {
 
     #[async_trait::async_trait]
     impl ProviderRepository for MockInfra {
-        async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>> {
+        async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
             Ok(vec![])
         }
 
@@ -462,14 +462,14 @@ mod env_tests {
         let openai_provider = providers
             .iter()
             .find_map(|p| match p {
-                ProviderEntry::Available(cp) if cp.id == ProviderId::OpenAI => Some(cp),
+                AnyProvider::Url(cp) if cp.id == ProviderId::OpenAI => Some(cp),
                 _ => None,
             })
             .unwrap();
         let anthropic_provider = providers
             .iter()
             .find_map(|p| match p {
-                ProviderEntry::Available(cp) if cp.id == ProviderId::Anthropic => Some(cp),
+                AnyProvider::Url(cp) if cp.id == ProviderId::Anthropic => Some(cp),
                 _ => None,
             })
             .unwrap();
@@ -556,7 +556,7 @@ mod env_tests {
 
         #[async_trait::async_trait]
         impl ProviderRepository for CustomMockInfra {
-            async fn get_all_providers(&self) -> anyhow::Result<Vec<ProviderEntry>> {
+            async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
                 Ok(vec![])
             }
 

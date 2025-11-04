@@ -51,6 +51,7 @@ pub enum ProviderResponse {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Models<T> {
+    /// Can be a `Url` or a `Template`
     Url(T),
     Hardcoded(Vec<Model>),
 }
@@ -78,61 +79,61 @@ impl Provider<Url> {
         &self.url
     }
 
-    pub fn to_entry(&self) -> ProviderEntry {
-        ProviderEntry::Available(self.clone())
+    pub fn to_entry(&self) -> AnyProvider {
+        AnyProvider::Url(self.clone())
     }
 }
 
 impl Provider<Template<String>> {
-    pub fn to_entry(&self) -> ProviderEntry {
-        ProviderEntry::Unavailable(self.clone())
+    pub fn to_entry(&self) -> AnyProvider {
+        AnyProvider::Template(self.clone())
     }
 }
 
 /// Enum for viewing providers in listings where both configured and
 /// unconfigured.
 #[derive(Debug, Clone, PartialEq)]
-pub enum ProviderEntry {
-    Available(Provider<Url>),
-    Unavailable(Provider<Template<String>>),
+pub enum AnyProvider {
+    Url(Provider<Url>),
+    Template(Provider<Template<String>>),
 }
 
-impl ProviderEntry {
+impl AnyProvider {
     /// Returns whether this provider is configured
     pub fn is_configured(&self) -> bool {
         match self {
-            ProviderEntry::Available(p) => p.is_configured(),
-            ProviderEntry::Unavailable(p) => p.is_configured(),
+            AnyProvider::Url(p) => p.is_configured(),
+            AnyProvider::Template(p) => p.is_configured(),
         }
     }
 
     pub fn id(&self) -> ProviderId {
         match self {
-            ProviderEntry::Available(p) => p.id,
-            ProviderEntry::Unavailable(p) => p.id,
+            AnyProvider::Url(p) => p.id,
+            AnyProvider::Template(p) => p.id,
         }
     }
 
     /// Gets the response type
     pub fn response(&self) -> &ProviderResponse {
         match self {
-            ProviderEntry::Available(p) => &p.response,
-            ProviderEntry::Unavailable(p) => &p.response,
+            AnyProvider::Url(p) => &p.response,
+            AnyProvider::Template(p) => &p.response,
         }
     }
 
     pub fn key(&self) -> Option<&str> {
         match self {
-            ProviderEntry::Available(p) => p.key.as_deref(),
-            ProviderEntry::Unavailable(p) => p.key.as_deref(),
+            AnyProvider::Url(p) => p.key.as_deref(),
+            AnyProvider::Template(p) => p.key.as_deref(),
         }
     }
 
     /// Gets the resolved URL if this is a configured provider
     pub fn url(&self) -> Option<&Url> {
         match self {
-            ProviderEntry::Available(p) => Some(p.url()),
-            ProviderEntry::Unavailable(_) => None,
+            AnyProvider::Url(p) => Some(p.url()),
+            AnyProvider::Template(_) => None,
         }
     }
 }

@@ -7,7 +7,7 @@ use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
-    InterruptionReason, Model, ModelId, Provider, ProviderEntry, ProviderId, TextMessage, Workflow,
+    InterruptionReason, Model, ModelId, Provider, AnyProvider, ProviderId, TextMessage, Workflow,
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
@@ -565,14 +565,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         for provider in providers.iter() {
             let id = provider.id().to_string();
             let (domain, configured) = match provider {
-                ProviderEntry::Available(p) => (
+                AnyProvider::Url(p) => (
                     p.url
                         .domain()
                         .map(|d| format!("[{}]", d))
                         .unwrap_or_default(),
                     true,
                 ),
-                ProviderEntry::Unavailable(_) => ("[not configured]".to_string(), false),
+                AnyProvider::Template(_) => ("[not configured]".to_string(), false),
             };
             info = info
                 .add_title(id.to_case(Case::UpperSnake))
@@ -1196,8 +1196,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Some(provider) => {
                 // Only return configured providers
                 match provider.0 {
-                    ProviderEntry::Available(p) => Ok(Some(p)),
-                    ProviderEntry::Unavailable(p) => {
+                    AnyProvider::Url(p) => Ok(Some(p)),
+                    AnyProvider::Template(p) => {
                         Err(forge_domain::Error::provider_not_available(p.id).into())
                     }
                 }
@@ -1247,7 +1247,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         self.writeln_title(TitleFormat::action(format!(
             "Switched to provider: {}",
-            CliProvider(ProviderEntry::Available(provider.clone()))
+            CliProvider(AnyProvider::Url(provider.clone()))
         )))?;
 
         // Check if the current model is available for the new provider
