@@ -4,7 +4,7 @@ Use the following summary as the authoritative reference for all coding suggesti
 {{#if messages}}
 ## Summary
 {{#each messages}}
-### {{@index}}. {{role}}
+### {{inc @index}}. {{role}}
 {{#if messages}}{{#each messages}}{{#if content}}- _"{{content}}"_
 {{/if}}{{#if tool_call.file_read}}- Read: `{{tool_call.file_read.path}}`{{/if}}{{#if tool_call.file_update}}- Updated: `{{tool_call.file_update.path}}`{{/if}}{{#if tool_call.file_remove}}- Deleted: `{{tool_call.file_remove.path}}`{{/if}}
 {{/each}}{{/if}}

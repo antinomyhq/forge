@@ -354,24 +354,10 @@ mod tests {
     }
 
     async fn render_template(data: &serde_json::Value) -> String {
-        let manifest_dir = env!("CARGO_MANIFEST_DIR");
-        let template_path = std::path::Path::new(manifest_dir)
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .join("templates/forge-partial-summary-frame.md");
-
-        let template_content = tokio::fs::read_to_string(template_path)
-            .await
-            .expect("Failed to read template");
-
-        let mut handlebars = handlebars::Handlebars::new();
+        let handlebars = crate::create_handlebars();
         handlebars
-            .register_template_string("summary_frame", template_content)
-            .unwrap();
-
-        handlebars.render("summary_frame", data).unwrap()
+            .render("forge-partial-summary-frame.md", data)
+            .unwrap()
     }
 
     #[tokio::test]
