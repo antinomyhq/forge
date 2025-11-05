@@ -60,4 +60,10 @@ impl<S: ConversationRepository> ConversationService for ForgeConversationService
     async fn last_conversation(&self) -> Result<Option<Conversation>> {
         self.conversation_repository.get_last_conversation().await
     }
+
+    async fn get_last_conversation_id(&self) -> Result<Option<ConversationId>> {
+        self.conversation_repository
+            .get_last_conversation_id()
+            .await
+    }
 }

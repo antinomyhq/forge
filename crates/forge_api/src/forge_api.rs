@@ -246,4 +246,8 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     async fn get_commands(&self) -> Result<Vec<Command>> {
         self.services.get_commands().await
     }
+
+    async fn get_last_conversation_id(&self) -> Result<Option<ConversationId>> {
+        self.services.get_last_conversation_id().await
+    }
 }

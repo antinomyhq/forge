@@ -151,4 +151,7 @@ pub trait API: Sync + Send {
 
     /// List of commands defined in .md file(s)
     async fn get_commands(&self) -> Result<Vec<Command>>;
+
+    /// Gets the last conversation ID used in this workspace
+    async fn get_last_conversation_id(&self) -> Result<Option<ConversationId>>;
 }

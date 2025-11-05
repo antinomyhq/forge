@@ -227,6 +227,24 @@ impl ConversationRepository for ConversationRepositoryImpl {
         };
         Ok(conversation)
     }
+
+    async fn get_last_conversation_id(&self) -> anyhow::Result<Option<ConversationId>> {
+        let mut connection = self.pool.get_connection()?;
+        let workspace_id = self.wid.id() as i64;
+
+        let record: Option<String> = conversations::table
+            .filter(conversations::workspace_id.eq(&workspace_id))
+            .filter(conversations::context.is_not_null())
+            .order(conversations::updated_at.desc())
+            .select(conversations::conversation_id)
+            .first(&mut connection)
+            .optional()?;
+
+        match record {
+            Some(id_str) => Ok(Some(ConversationId::parse(id_str)?)),
+            None => Ok(None),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -519,5 +537,62 @@ mod tests {
         let expected_file = fixture.files_changed.get("test.rs").unwrap();
         assert_eq!(actual_file.lines_added, expected_file.lines_added);
         assert_eq!(actual_file.lines_removed, expected_file.lines_removed);
+    }
+
+    #[tokio::test]
+    async fn test_get_last_conversation_id_returns_most_recent() -> anyhow::Result<()> {
+        let repo = repository()?;
+
+        let conversation1 = Conversation::generate().context(Some(
+            Context::default().add_message(ContextMessage::user("First message", None)),
+        ));
+        let conversation2 = Conversation::generate().context(Some(
+            Context::default().add_message(ContextMessage::user("Second message", None)),
+        ));
+
+        repo.upsert_conversation(conversation1.clone()).await?;
+        // Small delay to ensure different timestamps
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        repo.upsert_conversation(conversation2.clone()).await?;
+
+        let actual = repo.get_last_conversation_id().await?;
+        let expected = Some(conversation2.id);
+
+        assert_eq!(actual, expected);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_last_conversation_id_returns_none_when_no_conversations() -> anyhow::Result<()>
+    {
+        let repo = repository()?;
+
+        let actual = repo.get_last_conversation_id().await?;
+
+        assert_eq!(actual, None);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_last_conversation_id_ignores_conversations_without_context(
+    ) -> anyhow::Result<()> {
+        let repo = repository()?;
+
+        let conversation_without_context = Conversation::generate();
+        let conversation_with_context = Conversation::generate().context(Some(
+            Context::default().add_message(ContextMessage::user("Message", None)),
+        ));
+
+        repo.upsert_conversation(conversation_without_context.clone())
+            .await?;
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        repo.upsert_conversation(conversation_with_context.clone())
+            .await?;
+
+        let actual = repo.get_last_conversation_id().await?;
+        let expected = Some(conversation_with_context.id);
+
+        assert_eq!(actual, expected);
+        Ok(())
     }
 }

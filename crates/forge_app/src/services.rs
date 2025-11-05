@@ -199,6 +199,9 @@ pub trait ConversationService: Send + Sync {
 
     /// Find the last active conversation
     async fn last_conversation(&self) -> anyhow::Result<Option<Conversation>>;
+
+    /// Gets the last conversation ID used in this workspace
+    async fn get_last_conversation_id(&self) -> anyhow::Result<Option<ConversationId>>;
 }
 
 #[async_trait::async_trait]
@@ -506,6 +509,10 @@ impl<I: Services> ConversationService for I {
 
     async fn last_conversation(&self) -> anyhow::Result<Option<Conversation>> {
         self.conversation_service().last_conversation().await
+    }
+
+    async fn get_last_conversation_id(&self) -> anyhow::Result<Option<ConversationId>> {
+        self.conversation_service().get_last_conversation_id().await
     }
 }
 #[async_trait::async_trait]

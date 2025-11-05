@@ -74,6 +74,9 @@ pub trait ConversationRepository: Send + Sync {
     /// # Errors
     /// Returns an error if the operation fails
     async fn get_last_conversation(&self) -> Result<Option<Conversation>>;
+
+    /// Gets the last conversation ID used in this workspace
+    async fn get_last_conversation_id(&self) -> Result<Option<ConversationId>>;
 }
 
 #[async_trait::async_trait]

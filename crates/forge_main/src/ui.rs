@@ -1330,6 +1330,18 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             let id = conversation.id;
             self.api.upsert_conversation(conversation).await?;
             id
+        } else if let Some(last_id) = self.api.get_last_conversation_id().await? {
+            // Check if last conversation still exists
+            if self.api.conversation(&last_id).await?.is_some() {
+                last_id
+            } else {
+                // Last conversation was deleted, create new
+                let conversation = Conversation::generate();
+                let id = conversation.id;
+                is_new = true;
+                self.api.upsert_conversation(conversation).await?;
+                id
+            }
         } else {
             let conversation = Conversation::generate();
             let id = conversation.id;
