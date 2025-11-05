@@ -1287,26 +1287,37 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     fn display_oauth_device_info_new(
+        &mut self,
         user_code: &str,
         verification_uri: &str,
         verification_uri_complete: Option<&str>,
-    ) {
+    ) -> anyhow::Result<()> {
         use colored::Colorize;
 
         let display_uri = verification_uri_complete.unwrap_or(verification_uri);
 
-        println!(
+        self.writeln("")?;
+        self.writeln(format!(
             "{} Please visit: {}",
             "→".blue(),
             display_uri.blue().underline()
-        );
-        println!("{} Enter code: {}", "→".blue(), user_code.bold().yellow());
-        println!();
+        ))?;
+        self.writeln(format!(
+            "{} Enter code: {}",
+            "→".blue(),
+            user_code.bold().yellow()
+        ))?;
+        self.writeln("")?;
 
         // Try to open browser automatically
         if let Err(e) = open::that(display_uri) {
-            eprintln!("Failed to open browser automatically: {}", e);
+            self.writeln_title(TitleFormat::error(format!(
+                "Failed to open browser automatically: {}",
+                e
+            )))?;
         }
+
+        Ok(())
     }
 
     async fn handle_device_flow(
@@ -1322,11 +1333,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         self.spinner.stop(None)?;
         // Display OAuth device information
-        Self::display_oauth_device_info_new(
+        self.display_oauth_device_info_new(
             user_code.as_ref(),
             verification_uri.as_ref(),
             verification_uri_complete.as_ref().map(|v| v.as_ref()),
-        );
+        )?;
 
         // Step 2: Complete authentication (polls if needed for OAuth flows)
         self.spinner.start(Some("Completing authentication..."))?;
@@ -1344,10 +1355,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn display_credential_success(&mut self, provider_id: ProviderId) -> anyhow::Result<()> {
-        use colored::Colorize;
-        println!();
-        println!("{} {} configured successfully!", "✓".green(), provider_id);
-        println!();
+        self.writeln_title(TitleFormat::info(format!(
+            "{} configured successfully!",
+            provider_id
+        )))?;
 
         // Prompt user to set as active provider
         let should_set_active = ForgeSelect::confirm(format!(
@@ -1355,10 +1366,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             provider_id
         ))
         .with_default(true)
-        .prompt()?
-        .unwrap_or(false);
+        .prompt()?;
 
-        if should_set_active {
+        if should_set_active.unwrap_or(false) {
+            self.spinner.start(None)?;
             self.api.set_default_provider(provider_id).await?;
         }
         Ok(())
@@ -1373,21 +1384,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         self.spinner.stop(None)?;
 
-        println!();
-        println!("{} OAuth Authentication", provider_id);
-        println!(
+        self.writeln(format!(
             "{}",
             format!("Authenticate using your {} account", provider_id).dimmed()
-        );
-        println!();
+        ))?;
 
         // Display authorization URL
-        println!(
+        self.writeln(format!(
             "{} Please visit: {}",
             "→".blue(),
             request.authorization_url.as_str().blue().underline()
-        );
-        println!();
+        ))?;
 
         // Prompt user to paste authorization code
         let code = ForgeSelect::input("Paste the authorization code:")
@@ -1441,10 +1448,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Multiple auth methods - ask user to choose
         self.spinner.stop(None)?;
 
-        println!();
-        println!("{} {}", "Configure".bold(), provider_id);
-        println!("{}", "Multiple authentication methods available".dimmed());
-        println!();
+        self.writeln_title(TitleFormat::action(format!("Configure {}", provider_id)))?;
+        self.writeln("Multiple authentication methods available".dimmed())?;
 
         let method_names: Vec<String> = auth_methods
             .iter()
