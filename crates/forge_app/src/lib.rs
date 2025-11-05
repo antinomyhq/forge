@@ -10,6 +10,7 @@ mod fmt;
 mod infra;
 mod init_conversation_metrics;
 mod mcp_executor;
+mod nudger;
 mod operation;
 mod orch;
 #[cfg(test)]

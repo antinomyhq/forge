@@ -34,6 +34,7 @@ pub struct TestContext {
     pub current_time: DateTime<Local>,
     pub title: Option<String>,
     pub model: ModelId,
+    pub plan_nudge: Option<String>,
     pub attachments: Vec<Attachment>,
 
     // Final output of the test is store in the context
@@ -53,6 +54,7 @@ impl Default for TestContext {
             workflow: Workflow::new().tool_supported(true),
             templates: Default::default(),
             files: Default::default(),
+            plan_nudge: Default::default(),
             attachments: Default::default(),
             env: Environment {
                 os: "MacOS".to_string(),

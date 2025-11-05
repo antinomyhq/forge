@@ -116,7 +116,8 @@ impl Runner {
         )
         .error_tracker(ToolErrorTracker::new(3))
         .tool_definitions(system_tools)
-        .sender(tx);
+        .sender(tx)
+        .plan_nudge(setup.plan_nudge.clone());
 
         let (mut orch, runner) = (orch, services);
 

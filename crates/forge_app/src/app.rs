@@ -138,6 +138,7 @@ impl<S: Services> ForgeApp<S> {
         let conversation = ApplyTunableParameters::new(agent.clone(), tool_definitions.clone())
             .apply(conversation);
         let conversation = SetConversationId.apply(conversation);
+        let plan_nudge = self.plan_nudge(&conversation).await?;
 
         // Create the orchestrator with all necessary dependencies
         let orch = Orchestrator::new(
@@ -149,7 +150,8 @@ impl<S: Services> ForgeApp<S> {
         )
         .error_tracker(ToolErrorTracker::new(max_tool_failure_per_turn))
         .tool_definitions(tool_definitions)
-        .models(models);
+        .models(models)
+        .plan_nudge(plan_nudge);
 
         // Create and return the stream
         let stream = MpscStream::spawn(
@@ -301,5 +303,40 @@ impl<S: Services> ForgeApp<S> {
     ) -> anyhow::Result<()> {
         let provider_id = self.get_provider(agent_id).await?.id;
         self.services.set_default_model(model, provider_id).await
+    }
+
+    /// Detects plan file references and renders a plan nudge if needed.
+    /// Checks conversation context, current user input, and attachments.
+    async fn plan_nudge(&self, conversation: &Conversation) -> Result<Option<String>> {
+        // Extract plan paths from conversation context and current event
+        let paths = conversation
+            .context
+            .iter()
+            .flat_map(|ctx| ctx.detect_plans())
+            .collect::<Vec<_>>();
+
+        if paths.is_empty() {
+            return Ok(None);
+        }
+
+        tracing::info!(
+            conversation_id = %conversation.id,
+            plan_paths = ?paths,
+            "Plan execution detected - preparing nudge reminder"
+        );
+
+        // Render the plan nudge notification message.
+        let rendered = self
+            .services
+            .template_service()
+            .render_template(
+                Template::new("{{> forge-plan-nudge.md }}"),
+                &serde_json::json!({
+                    "paths": paths,
+                }),
+            )
+            .await?;
+
+        Ok(Some(rendered))
     }
 }
