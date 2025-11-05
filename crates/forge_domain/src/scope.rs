@@ -161,22 +161,27 @@ impl<T: ScopeGetter> ScopeGetterExt for T {}
 /// Extension methods for types implementing ScopeSetter
 #[async_trait::async_trait]
 pub trait ScopeSetterExt: ScopeSetter {
-    /// Sets a configuration value at the specified scope
-    async fn set_at_scope(&self, scope: &ConfigScope, config: Self::Config) -> anyhow::Result<bool>
+    /// Sets a configuration value at the specified scope with tracing
+    async fn set_at_scope(
+        &self,
+        scope: &ConfigScope,
+        config: Trace<Self::Config>,
+    ) -> anyhow::Result<bool>
     where
         Self: Send + Sync,
         Self::Config: Send + Sync + Clone,
     {
         match scope {
-            ConfigScope::Global => self.set_global_level(config).await,
-            ConfigScope::Project => self.set_project_level(config).await,
-            ConfigScope::Provider(id) => self.set_provider_level(id, config).await,
-            ConfigScope::Agent(id) => self.set_agent_level(id, config).await,
+            ConfigScope::Global => self.set_global_level(config.into_inner()).await,
+            ConfigScope::Project => self.set_project_level(config.into_inner()).await,
+            ConfigScope::Provider(id) => self.set_provider_level(id, config.into_inner()).await,
+            ConfigScope::Agent(id) => self.set_agent_level(id, config.into_inner()).await,
             ConfigScope::Or(a, b) => {
-                if Box::pin(self.set_at_scope(a, config.clone())).await? {
+                let inner = config.into_inner();
+                if Box::pin(self.set_at_scope(a, Trace::new(inner.clone()))).await? {
                     Ok(true)
                 } else {
-                    Box::pin(self.set_at_scope(b, config)).await
+                    Box::pin(self.set_at_scope(b, Trace::new(inner))).await
                 }
             }
         }
@@ -200,7 +205,7 @@ impl ConfigScope {
         T: ScopeSetter + Send + Sync,
         T::Config: Send + Sync + Clone,
     {
-        resolver.set_at_scope(self, config).await
+        resolver.set_at_scope(self, Trace::new(config)).await
     }
 
     pub async fn merged<T>(&self, resolver: &T) -> anyhow::Result<Option<T::Config>>
