@@ -5,7 +5,7 @@ use bytes::Bytes;
 use forge_app::{
     CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
     FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, KVStore, McpServerInfra,
-    UserInfra, WalkedFile, Walker, WalkerInfra,
+    StrategyFactory, UserInfra, WalkedFile, Walker, WalkerInfra,
 };
 use forge_domain::{
     AnyProvider, AppConfig, AppConfigRepository, AuthCredential, CommandOutput, Conversation,
@@ -368,5 +368,19 @@ where
         self.infra
             .execute_command_raw(command, working_dir, env_vars)
             .await
+    }
+}
+
+impl<F: StrategyFactory> StrategyFactory for ForgeRepo<F> {
+    type Strategy = F::Strategy;
+
+    fn create_auth_strategy(
+        &self,
+        provider_id: ProviderId,
+        auth_method: forge_domain::AuthMethod,
+        required_params: Vec<forge_domain::URLParam>,
+    ) -> anyhow::Result<Self::Strategy> {
+        self.infra
+            .create_auth_strategy(provider_id, auth_method, required_params)
     }
 }

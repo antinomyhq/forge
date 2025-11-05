@@ -46,7 +46,7 @@ function _forge_get_commands() {
 
 # Private fzf function with common options for consistent UX
 function _forge_fzf() {
-    fzf --cycle --select-1 --height 100% --reverse --no-scrollbar "$@"
+    fzf --exact --cycle --select-1 --height 100% --reverse --no-scrollbar "$@"
 }
 
 # Helper function to execute forge commands consistently
@@ -165,10 +165,15 @@ function forge-completion() {
     if [[ "$current_word" =~ ^@.*$ ]]; then
         local filter_text="${current_word#@}"
         local selected
+        local fzf_args=(
+            --preview="bat --color=always --style=numbers,changes --line-range=:500 {} 2>/dev/null || cat {}"
+            --preview-window=right:60%:wrap:border-sharp
+        )
+        
         if [[ -n "$filter_text" ]]; then
-            selected=$($_FORGE_FD_CMD --type f --hidden --exclude .git | _forge_fzf --query "$filter_text")
+            selected=$($_FORGE_FD_CMD --type f --hidden --exclude .git | _forge_fzf --query "$filter_text" "${fzf_args[@]}")
         else
-            selected=$($_FORGE_FD_CMD --type f --hidden --exclude .git | _forge_fzf)
+            selected=$($_FORGE_FD_CMD --type f --hidden --exclude .git | _forge_fzf "${fzf_args[@]}")
         fi
         
         if [[ -n "$selected" ]]; then
