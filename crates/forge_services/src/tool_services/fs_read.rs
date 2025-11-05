@@ -146,7 +146,7 @@ mod tests {
         let infra = MockFileService::new();
         // Add the file to the mock infrastructure
         infra.add_file(fixture.path().to_path_buf(), "x".repeat(13));
-        let actual = assert_file_size(&infra, fixture.path(), 20u64).await;
+        let actual = assert_file_size(&infra, fixture.path(), 20u64, None).await;
         assert!(actual.is_ok());
     }
 
@@ -155,7 +155,7 @@ mod tests {
         let fixture = create_test_file_with_size(6).await.unwrap();
         let infra = MockFileService::new();
         infra.add_file(fixture.path().to_path_buf(), "x".repeat(6));
-        let actual = assert_file_size(&infra, fixture.path(), 6u64).await;
+        let actual = assert_file_size(&infra, fixture.path(), 6u64, None).await;
         assert!(actual.is_ok());
     }
 
@@ -164,7 +164,7 @@ mod tests {
         let fixture = create_test_file_with_size(45).await.unwrap();
         let infra = MockFileService::new();
         infra.add_file(fixture.path().to_path_buf(), "x".repeat(45));
-        let actual = assert_file_size(&infra, fixture.path(), 10u64).await;
+        let actual = assert_file_size(&infra, fixture.path(), 10u64, None).await;
         assert!(actual.is_err());
     }
 
@@ -173,7 +173,7 @@ mod tests {
         let fixture = create_test_file_with_size(0).await.unwrap();
         let infra = MockFileService::new();
         infra.add_file(fixture.path().to_path_buf(), "".to_string());
-        let actual = assert_file_size(&infra, fixture.path(), 100u64).await;
+        let actual = assert_file_size(&infra, fixture.path(), 100u64, None).await;
         assert!(actual.is_ok());
     }
 
@@ -182,7 +182,7 @@ mod tests {
         let fixture = create_test_file_with_size(1).await.unwrap();
         let infra = MockFileService::new();
         infra.add_file(fixture.path().to_path_buf(), "x".to_string());
-        let actual = assert_file_size(&infra, fixture.path(), 0u64).await;
+        let actual = assert_file_size(&infra, fixture.path(), 0u64, None).await;
         assert!(actual.is_err());
     }
 
@@ -191,7 +191,7 @@ mod tests {
         let fixture = create_test_file_with_size(1000).await.unwrap();
         let infra = MockFileService::new();
         infra.add_file(fixture.path().to_path_buf(), "x".repeat(1000));
-        let actual = assert_file_size(&infra, fixture.path(), 999u64).await;
+        let actual = assert_file_size(&infra, fixture.path(), 999u64, None).await;
         assert!(actual.is_err());
     }
 
@@ -200,7 +200,7 @@ mod tests {
         let fixture = create_test_file_with_size(1000).await.unwrap();
         let infra = MockFileService::new();
         infra.add_file(fixture.path().to_path_buf(), "x".repeat(1000));
-        let actual = assert_file_size(&infra, fixture.path(), 1000u64).await;
+        let actual = assert_file_size(&infra, fixture.path(), 1000u64, None).await;
         assert!(actual.is_ok());
     }
 
@@ -210,7 +210,7 @@ mod tests {
         fs::write(file.path(), "🚀🚀🚀").await.unwrap(); // Each emoji is 4 bytes in UTF-8 = 12 bytes total
         let infra = MockFileService::new();
         infra.add_file(file.path().to_path_buf(), "🚀🚀🚀".to_string());
-        let actual = assert_file_size(&infra, file.path(), 12u64).await;
+        let actual = assert_file_size(&infra, file.path(), 12u64, None).await;
         assert!(actual.is_ok());
     }
 
@@ -220,7 +220,7 @@ mod tests {
         fs::write(file.path(), "🚀🚀🚀🚀").await.unwrap(); // 4 emojis = 16 bytes, exceeds 12 byte limit
         let infra = MockFileService::new();
         infra.add_file(file.path().to_path_buf(), "🚀🚀🚀🚀".to_string());
-        let actual = assert_file_size(&infra, file.path(), 12u64).await;
+        let actual = assert_file_size(&infra, file.path(), 12u64, None).await;
         assert!(actual.is_err());
     }
 
@@ -230,7 +230,7 @@ mod tests {
         fs::write(file.path(), "too long content").await.unwrap(); // 16 bytes
         let infra = MockFileService::new();
         infra.add_file(file.path().to_path_buf(), "too long content".to_string());
-        let actual = assert_file_size(&infra, file.path(), 5u64).await;
+        let actual = assert_file_size(&infra, file.path(), 5u64, None).await;
         let expected = "File size (16 bytes) exceeds the maximum allowed size of 5 bytes";
         assert!(actual.is_err());
         assert_eq!(actual.unwrap_err().to_string(), expected);
