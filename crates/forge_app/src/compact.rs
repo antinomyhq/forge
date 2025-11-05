@@ -14,11 +14,30 @@ pub struct Compactor<S> {
     compact: Compact,
 }
 
-impl<S: AgentService> Compactor<S> {
+impl<S> Compactor<S> {
     pub fn new(services: Arc<S>, compact: Compact) -> Self {
         Self { services, compact }
     }
 
+    /// Applies the standard transformer pipeline to a context summary.
+    ///
+    /// This pipeline:
+    /// 1. Drops system role messages
+    /// 2. Trims context summary content
+    /// 3. Deduplicates consecutive user messages
+    ///
+    /// # Arguments
+    ///
+    /// * `context_summary` - The context summary to transform
+    fn transform(&self, context_summary: ContextSummary) -> ContextSummary {
+        DropRole::new(Role::System)
+            .pipe(DedupeRole::new(Role::User))
+            .pipe(TrimContextSummary)
+            .transform(context_summary)
+    }
+}
+
+impl<S: AgentService> Compactor<S> {
     /// Apply compaction to the context if requested.
     pub async fn compact(&self, context: Context, max: bool) -> anyhow::Result<Context> {
         let eviction = CompactionStrategy::evict(self.compact.eviction_window);
@@ -52,13 +71,10 @@ impl<S: AgentService> Compactor<S> {
         let sequence_context = Context::default().messages(compaction_sequence.clone());
 
         // Generate context summary with tool call information
-        let mut context_summary = ContextSummary::from(&sequence_context);
+        let context_summary = ContextSummary::from(&sequence_context);
 
         // Apply transformers to reduce redundant operations and clean up
-        context_summary = DropRole::new(Role::System)
-            .pipe(TrimContextSummary)
-            .pipe(DedupeRole::new(Role::User))
-            .transform(context_summary);
+        let context_summary = self.transform(context_summary);
 
         info!(
             sequence_start = sequence.0,
@@ -355,14 +371,14 @@ mod tests {
             .context
             .expect("Conversation should have context");
 
+        // Create compactor instance for transformer access
+        let compactor = Compactor::new(Arc::new(MockService), Compact::new());
+
         // Create context summary with tool call information
-        let mut context_summary = ContextSummary::from(&context);
+        let context_summary = ContextSummary::from(&context);
 
         // Apply transformers to reduce redundant operations and clean up
-        context_summary = DropRole::new(Role::System)
-            .pipe(TrimContextSummary)
-            .pipe(DedupeRole::new(Role::User))
-            .transform(context_summary);
+        let context_summary = compactor.transform(context_summary);
 
         let data = serde_json::json!({
             "messages": context_summary.messages
