@@ -113,7 +113,10 @@ pub trait API: Sync + Send {
     async fn logout(&self) -> anyhow::Result<()>;
 
     /// Gets the provider for a given configuration scope
-    async fn get_provider(&self, scope: &ConfigScope) -> anyhow::Result<Option<Trace<Provider<Url>>>>;
+    async fn get_provider(
+        &self,
+        scope: &ConfigScope,
+    ) -> anyhow::Result<Option<Trace<Provider<Url>>>>;
 
     /// Sets the provider for a given configuration scope
     async fn set_provider(

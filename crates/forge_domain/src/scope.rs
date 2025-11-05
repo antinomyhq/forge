@@ -1,8 +1,9 @@
-use crate::{AgentId, ProviderId};
 use merge::Merge;
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::{EnumDiscriminants, EnumIter};
+
+use crate::{AgentId, ProviderId};
 
 #[derive(Clone)]
 pub struct Trace<Config> {
