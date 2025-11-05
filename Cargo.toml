@@ -107,6 +107,7 @@ uuid = { version = "1.18.0", features = [
 whoami = "1.6.1"
 fnv_rs = "0.4.3"
 merge = { version = "0.2", features = ["derive"] }
+pulldown-cmark = "0.13"
 rmcp = { version = "0.8.1", features = [
     "client",
     "transport-sse-client-reqwest",

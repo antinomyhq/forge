@@ -1,3 +1,4 @@
+mod active_plan;
 mod agent;
 mod app_config;
 mod attachment;
@@ -52,6 +53,7 @@ mod update;
 mod workflow;
 mod xml;
 
+pub use active_plan::*;
 pub use agent::*;
 pub use attachment::*;
 pub use chat_request::*;

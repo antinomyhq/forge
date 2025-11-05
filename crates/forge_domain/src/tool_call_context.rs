@@ -1,10 +1,8 @@
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use derive_setters::Setters;
-use serde::Serialize;
 
-use crate::{ArcSender, ChatResponse, ChatResponseContent, Metrics, TitleFormat};
+use crate::{ActivePlan, ArcSender, ChatResponse, ChatResponseContent, Metrics, TitleFormat};
 
 /// Provides additional context for tool calls.
 #[derive(Debug, Clone, Setters)]
@@ -12,39 +10,6 @@ pub struct ToolCallContext {
     sender: Option<ArcSender>,
     metrics: Arc<Mutex<Metrics>>,
     active_plan: Arc<Mutex<Option<ActivePlan>>>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ActivePlan {
-    pub path: PathBuf,
-    pub stat: PlanStat,
-}
-
-impl ActivePlan {
-    /// Check if the plan is complete (all tasks are done and no tasks are
-    /// pending or in progress)
-    pub fn is_complete(&self) -> bool {
-        self.stat.todo == 0 && self.stat.in_progress == 0 && self.stat.failed == 0
-    }
-
-    pub fn complete_percentage(&self) -> f32 {
-        self.stat.completed as f32 / self.stat.total() as f32
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct PlanStat {
-    pub completed: usize,
-    pub todo: usize,
-    pub failed: usize,
-    pub in_progress: usize,
-}
-
-impl PlanStat {
-    /// Calculate the total number of tasks
-    pub fn total(&self) -> usize {
-        self.completed + self.todo + self.failed + self.in_progress
-    }
 }
 
 impl ToolCallContext {
