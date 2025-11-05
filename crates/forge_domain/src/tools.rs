@@ -615,10 +615,7 @@ impl Tools {
                 message: format!("Fetch content from URL: {}", input.url),
             }),
             // Operations that don't require permission checks
-            Tools::Undo(_)
-            | Tools::Followup(_)
-            | Tools::Plan(_)
-            | Tools::PlanStart(_) => None,
+            Tools::Undo(_) | Tools::Followup(_) | Tools::Plan(_) | Tools::PlanStart(_) => None,
         }
     }
 }
