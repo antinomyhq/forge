@@ -66,7 +66,9 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
         let is_range_given = start_line.is_some() || end_line.is_some();
 
         // Validate file size before reading content only when range is not given.
-        if !is_range_given && let Err(e) = assert_file_size(&*self.0, path, env.max_read_chunk_size).await {
+        if !is_range_given
+            && let Err(e) = assert_file_size(&*self.0, path, env.max_read_chunk_size).await
+        {
             tracing::error!(
                 path = %path.display(),
                 max_file_size = env.max_read_chunk_size,
@@ -93,7 +95,6 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
                 e
             })
             .with_context(|| format!("Failed to read file content from {}", path.display()))?;
-
 
         if is_range_given {
             // Validate the actual content size against max_file_size
