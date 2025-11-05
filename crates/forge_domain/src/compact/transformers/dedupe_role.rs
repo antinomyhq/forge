@@ -28,10 +28,11 @@ impl Transformer for DedupeRole {
     fn transform(&mut self, summary: Self::Value) -> Self::Value {
         let mut messages: Vec<SummaryMessage> = Vec::new();
         let mut last_role = Role::System;
-        for message in summary.messages {
+        for mut message in summary.messages {
             let role = message.role;
             if role == self.role {
                 if last_role != self.role {
+                    message.blocks.drain(1..);
                     messages.push(message)
                 }
             } else {
@@ -199,5 +200,54 @@ mod tests {
         };
 
         assert_eq!(actual.messages.len(), expected.messages.len());
+    }
+
+    #[test]
+    fn test_drains_all_blocks_except_first_in_deduplicated_messages() {
+        let fixture = ContextSummary {
+            messages: vec![
+                SummaryMessage {
+                    role: Role::User,
+                    blocks: vec![
+                        fixture_message_block(),
+                        fixture_message_block(),
+                        fixture_message_block(),
+                    ],
+                },
+                SummaryMessage {
+                    role: Role::User,
+                    blocks: vec![fixture_message_block(), fixture_message_block()],
+                },
+                SummaryMessage {
+                    role: Role::Assistant,
+                    blocks: vec![fixture_message_block(), fixture_message_block()],
+                },
+                SummaryMessage {
+                    role: Role::User,
+                    blocks: vec![
+                        fixture_message_block(),
+                        fixture_message_block(),
+                        fixture_message_block(),
+                        fixture_message_block(),
+                    ],
+                },
+            ],
+        };
+
+        let mut transformer = DedupeRole::new(Role::User);
+        let actual = transformer.transform(fixture);
+
+        let expected = ContextSummary {
+            messages: vec![
+                SummaryMessage { role: Role::User, blocks: vec![fixture_message_block()] },
+                SummaryMessage {
+                    role: Role::Assistant,
+                    blocks: vec![fixture_message_block(), fixture_message_block()],
+                },
+                SummaryMessage { role: Role::User, blocks: vec![fixture_message_block()] },
+            ],
+        };
+
+        assert_eq!(actual, expected);
     }
 }
