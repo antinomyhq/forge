@@ -5,10 +5,6 @@ use forge_domain::*;
 use crate::agent::AgentService;
 
 /// Manages plan execution lifecycle within the orchestration loop.
-///
-/// Tracks plan completion state and coordinates context updates based on
-/// active plan progress. Designed to be owned by the orchestrator and called
-/// during each iteration.
 pub struct PlanExecutionWatcher<'a, S> {
     services: Arc<S>,
     agent: &'a Agent,
@@ -97,5 +93,175 @@ impl<'a, S: AgentService> PlanExecutionWatcher<'a, S> {
                 &serde_json::json!({ "plan": plan_view }),
             )
             .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    struct MockService;
+
+    #[async_trait::async_trait]
+    impl AgentService for MockService {
+        async fn chat_agent(
+            &self,
+            _id: &ModelId,
+            _context: Context,
+            _provider_id: Option<ProviderId>,
+        ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+            unimplemented!()
+        }
+
+        async fn call(
+            &self,
+            _agent: &Agent,
+            _context: &ToolCallContext,
+            _call: ToolCallFull,
+        ) -> ToolResult {
+            unimplemented!()
+        }
+
+        async fn render<V: serde::Serialize + Send + Sync>(
+            &self,
+            _template: Template<V>,
+            _data: &V,
+        ) -> anyhow::Result<String> {
+            Ok("rendered_content".to_string())
+        }
+
+        async fn update(&self, _conversation: Conversation) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
+
+    struct TestFixture {
+        services: Arc<MockService>,
+        agent: Agent,
+        tool_context: ToolCallContext,
+        context: Context,
+    }
+
+    impl TestFixture {
+        fn new(with_tool: bool) -> Self {
+            let services = Arc::new(MockService);
+            let agent = if with_tool {
+                Agent::new("test").tools(vec![ToolsDiscriminants::PlanStart.name()])
+            } else {
+                Agent::new("test")
+            };
+            let tool_context = ToolCallContext::new(Metrics::default());
+            let context = Context::default();
+            Self { services, agent, tool_context, context }
+        }
+
+        fn watcher(&self) -> PlanExecutionWatcher<MockService> {
+            PlanExecutionWatcher::new(self.services.clone(), &self.agent, &self.tool_context)
+        }
+    }
+
+    fn plan(tasks: Vec<(&str, TaskStatus)>) -> ActivePlan {
+        ActivePlan::new(
+            PathBuf::from("/test/plan.md"),
+            tasks
+                .into_iter()
+                .enumerate()
+                .map(|(i, (desc, status))| Task::new(desc.to_string(), status, i + 1))
+                .collect(),
+        )
+    }
+
+    #[tokio::test]
+    async fn test_init_context_adds_reminder_when_tool_available() {
+        let fixture = TestFixture::new(true);
+        let watcher = fixture.watcher();
+        let actual = watcher.init_context(fixture.context.clone()).await.unwrap();
+
+        assert_eq!(actual.messages.len(), fixture.context.messages.len() + 1);
+        assert_eq!(
+            actual.messages.last().unwrap().content(),
+            Some("rendered_content")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_update_context_allows_yield_when_plan_complete_no_failures() {
+        let fixture = TestFixture::new(true);
+        let mut watcher = fixture.watcher();
+        fixture
+            .tool_context
+            .set_active_plan(plan(vec![
+                ("task 1", TaskStatus::Done),
+                ("task 2", TaskStatus::Done),
+            ]))
+            .unwrap();
+
+        let (actual_context, actual_yield) = watcher
+            .update_context(fixture.context.clone(), true)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            actual_context.messages.len(),
+            fixture.context.messages.len()
+        );
+        assert_eq!(actual_yield, true);
+    }
+
+    #[tokio::test]
+    async fn test_update_context_notifies_when_plan_complete_with_failures() {
+        let fixture = TestFixture::new(true);
+        let mut watcher = fixture.watcher();
+        fixture
+            .tool_context
+            .set_active_plan(plan(vec![
+                ("task 1", TaskStatus::Done),
+                ("task 2", TaskStatus::Failed),
+            ]))
+            .unwrap();
+
+        let (actual_context, actual_yield) = watcher
+            .update_context(fixture.context.clone(), true)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            actual_context.messages.len(),
+            fixture.context.messages.len() + 1
+        );
+        assert_eq!(actual_yield, false);
+        assert_eq!(watcher.completion_notified, true);
+    }
+
+    #[tokio::test]
+    async fn test_update_context_adds_notification_for_incomplete_plan() {
+        let fixture = TestFixture::new(true);
+        let mut watcher = fixture.watcher();
+        fixture
+            .tool_context
+            .set_active_plan(plan(vec![
+                ("task 1", TaskStatus::Done),
+                ("task 2", TaskStatus::Pending),
+            ]))
+            .unwrap();
+
+        let (actual_context, actual_yield) = watcher
+            .update_context(fixture.context.clone(), true)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            actual_context.messages.len(),
+            fixture.context.messages.len() + 1
+        );
+        assert_eq!(
+            actual_context.messages.last().unwrap().content(),
+            Some("rendered_content")
+        );
+        assert_eq!(actual_yield, false);
     }
 }
