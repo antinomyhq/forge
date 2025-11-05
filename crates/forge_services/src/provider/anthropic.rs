@@ -271,7 +271,7 @@ mod tests {
             chat_url,
             forge_domain::Models::Url(model_url.clone()),
             "v1".to_string(),
-            false
+            false,
         );
         match &anthropic.models {
             forge_domain::Models::Url(url) => {
