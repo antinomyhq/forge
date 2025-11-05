@@ -60,7 +60,7 @@ impl ClientBuilder {
                 InnerClient::Anthropic(Box::new(Anthropic::new(
                     http.clone(),
                     provider
-                        .key()
+                        .api_key()
                         .map(|x| x.as_str().to_string())
                         .unwrap_or_default(),
                     url,

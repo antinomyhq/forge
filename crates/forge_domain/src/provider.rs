@@ -88,7 +88,7 @@ impl Provider<Url> {
         &self.url
     }
 
-    pub fn key(&self) -> Option<&ApiKey> {
+    pub fn api_key(&self) -> Option<&ApiKey> {
         self.credential
             .as_ref()
             .and_then(|c| match &c.auth_details {
@@ -103,7 +103,7 @@ impl Provider<Url> {
 #[derive(Debug, Clone, PartialEq, From)]
 pub enum AnyProvider {
     Url(Provider<Url>),
-    Template(Provider<Template<HashMap<String, String>>>),
+    Template(Provider<Template<HashMap<crate::URLParam, crate::URLParamValue>>>),
 }
 
 impl AnyProvider {

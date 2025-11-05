@@ -198,7 +198,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
 
     async fn user_info(&self) -> Result<Option<User>> {
         let provider = self.get_default_provider().await?;
-        if let Some(api_key) = provider.key() {
+        if let Some(api_key) = provider.api_key() {
             let user_info = self.services.user_info(api_key.as_str()).await?;
             return Ok(Some(user_info));
         }

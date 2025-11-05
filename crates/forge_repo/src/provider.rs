@@ -64,7 +64,11 @@ fn merge_configs(base: &mut Vec<ProviderConfig>, other: Vec<ProviderConfig>) {
     base.extend(map.into_values());
 }
 
-impl From<&ProviderConfig> for Provider<forge_domain::Template<HashMap<String, String>>> {
+impl From<&ProviderConfig>
+    for Provider<
+        forge_domain::Template<HashMap<forge_domain::URLParam, forge_domain::URLParamValue>>,
+    >
+{
     fn from(config: &ProviderConfig) -> Self {
         let models = match &config.models {
             Models::Url(model_url_template) => {
@@ -334,7 +338,11 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
     fn create_unconfigured_provider(
         &self,
         config: &ProviderConfig,
-    ) -> anyhow::Result<Provider<forge_domain::Template<HashMap<String, String>>>> {
+    ) -> anyhow::Result<
+        Provider<
+            forge_domain::Template<HashMap<forge_domain::URLParam, forge_domain::URLParamValue>>,
+        >,
+    > {
         Ok(config.into())
     }
 
