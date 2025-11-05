@@ -16,6 +16,7 @@ mod plan_parser;
 mod orch;
 #[cfg(test)]
 mod orch_spec;
+mod plan_execution_watcher;
 
 mod retry;
 mod services;

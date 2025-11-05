@@ -290,7 +290,7 @@ expression: tools
 }
 {
   "title": "PlanStart",
-  "description": "This tool Must be called immediately when starting to execute a plan file. This is MANDATORY and NON-NEGOTIABLE. Call this tool first before executing any tasks from the plan. The path must be absolute and point to the plan file being executed.",
+  "description": "This tool Must be called immediately when starting to execute a plan. This is MANDATORY and NON-NEGOTIABLE. Call this tool first before executing any tasks from the plan. The path must be absolute and point to the plan file being executed.",
   "type": "object",
   "required": [
     "path"

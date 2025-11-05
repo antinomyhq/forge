@@ -12,6 +12,7 @@ use tracing::{debug, info, warn};
 
 use crate::agent::AgentService;
 use crate::compact::Compactor;
+use crate::plan_execution_watcher::PlanExecutionWatcher;
 use crate::title_generator::TitleGenerator;
 
 #[derive(Clone, Setters)]
@@ -230,20 +231,11 @@ impl<S: AgentService> Orchestrator<S> {
         // Asynchronously generate a title for the provided task
         // FIXME: Move into app.rs
         let title = self.generate_title(model_id.clone());
-        let mut plan_completion_notified = false;
 
-        // Attach system-reminder for agent so that it can make appropriate tool calls.
-        if self
-            .agent
-            .tools
-            .as_ref()
-            .is_some_and(|t| t.contains(&ToolName::new("plan_start")))
-        {
-            context = context.add_message(ContextMessage::user(
-                    "<system-reminder>\nWhen executing a plan, call the `plan_start` tool to indicate plan execution has begun. Do not reference this reminder in your response to the user.\n</system-reminder>",
-                    self.agent.model.clone(),
-                ));
-        }
+        // Initialize plan execution watcher
+        let mut plan_watcher =
+            PlanExecutionWatcher::new(self.services.clone(), &self.agent, &tool_context);
+        context = plan_watcher.init_context(context).await?;
 
         while !should_yield {
             // Set context for the current loop iteration
@@ -404,52 +396,7 @@ impl<S: AgentService> Orchestrator<S> {
                 }
             }
 
-            if should_yield && let Ok(Some(active_plan)) = tool_context.get_active_plan() {
-                if active_plan.is_complete()
-                    && (plan_completion_notified || active_plan.failed() == 0)
-                {
-                    // Plan is complete and either we've no failed tasks within plan or we've
-                    // notified agent already about the plan being complete and
-                    // failed tasks in plan so it's okay if we yield now.
-                    continue;
-                }
-
-                if active_plan.is_complete() && active_plan.failed() > 0 {
-                    // Plan is complete but has some failed tasks, so let's spent one more attempt
-                    // to see if agent can fix them.
-                    plan_completion_notified = true;
-                }
-
-                // Build view model for template rendering
-                let plan_view = serde_json::json!({
-                    "path": active_plan.path,
-                    "is_complete": active_plan.is_complete(),
-                    "next_pending_task": active_plan.next_pending_task(),
-                    "tasks_in_progress": active_plan.tasks_with_status(forge_domain::TaskStatus::InProgress),
-                    "tasks_failed": active_plan.tasks_with_status(forge_domain::TaskStatus::Failed),
-                });
-
-                let Ok(rendered_prompt) = self
-                    .services
-                    .render(
-                        Template::new("{{> forge-plan-notification.md}}"),
-                        &serde_json::json!({
-                            "plan": plan_view
-                        }),
-                    )
-                    .await
-                else {
-                    continue;
-                };
-
-                context = context.add_message(ContextMessage::user(
-                    rendered_prompt,
-                    self.agent.model.clone(),
-                ));
-                should_yield = false;
-            } else {
-                plan_completion_notified = false;
-            }
+            (context, should_yield) = plan_watcher.update_context(context, should_yield).await?;
         }
 
         // Update metrics in conversation
