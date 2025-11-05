@@ -14,8 +14,8 @@ mod operation;
 mod orch;
 #[cfg(test)]
 mod orch_spec;
-mod scope;
 mod retry;
+mod scope;
 mod services;
 mod set_conversation_id;
 pub mod system_prompt;

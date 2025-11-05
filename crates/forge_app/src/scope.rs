@@ -107,7 +107,7 @@ where
     }
 
     async fn get_provider_level(&self, id: &ProviderId) -> Result<Option<Self::Config>> {
-        let model = self.services.get_default_model(&id).await?;
+        let model = self.services.get_default_model(id).await?;
         Ok(Some(model))
     }
 
