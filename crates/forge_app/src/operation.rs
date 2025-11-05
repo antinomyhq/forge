@@ -6,7 +6,7 @@ use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
     Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite, Metrics, NetFetch,
-    PlanCreate, PlanExecutionStarted, ToolName,
+    PlanCreate, PlanStart, ToolName,
 };
 use forge_template::Element;
 
@@ -105,8 +105,8 @@ pub enum ToolOperation {
         input: PlanCreate,
         output: PlanCreateOutput,
     },
-    PlanExecutionStarted {
-        input: PlanExecutionStarted,
+    PlanStart {
+        input: PlanStart,
         output: forge_domain::ToolOutput,
     },
 }
@@ -517,8 +517,8 @@ impl ToolOperation {
                 forge_domain::ToolOutput::text(elm)
             }
 
-            ToolOperation::PlanExecutionStarted { input, output } => {
-                let elm = Element::new("plan_execution_started")
+            ToolOperation::PlanStart { input, output } => {
+                let elm = Element::new("plan_start")
                     .attr("path", input.path.display().to_string())
                     .cdata(output.as_str().unwrap_or(""));
 

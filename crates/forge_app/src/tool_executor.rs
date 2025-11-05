@@ -271,7 +271,7 @@ impl<
                 (input, output).into()
             }
 
-            Tools::PlanExecutionStarted(input) => {
+            Tools::PlanStart(input) => {
                 let path = &input.path;
                 let normalized_path = self.normalize_path(path.display().to_string());
 
@@ -300,7 +300,7 @@ impl<
                     active_plan.failed()
                 );
 
-                ToolOperation::PlanExecutionStarted {
+                ToolOperation::PlanStart {
                     input: input.clone(),
                     output: forge_domain::ToolOutput::text(output),
                 }

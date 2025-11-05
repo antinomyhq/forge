@@ -16,7 +16,7 @@ tools:
   - sage
   - mcp_*
   - read_image
-  - plan_execution_started
+  - plan_start
 user_prompt: |-
   {{#if (eq event.name 'forge/user_task_update')}}
   <feedback>{{event.value}}</feedback>

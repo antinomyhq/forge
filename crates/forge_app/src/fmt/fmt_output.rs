@@ -39,7 +39,7 @@ impl FormatContent for ToolOperation {
                 title.into()
             }),
 
-            ToolOperation::PlanExecutionStarted { input: _, output: _ } => None,
+            ToolOperation::PlanStart { input: _, output: _ } => None,
         }
     }
 }

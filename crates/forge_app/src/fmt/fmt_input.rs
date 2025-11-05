@@ -88,7 +88,7 @@ impl FormatContent for Tools {
                     .into(),
             ),
             Tools::Plan(_) => None,
-            Tools::PlanExecutionStarted(input) => {
+            Tools::PlanStart(input) => {
                 let display_path = display_path_for(&input.path.display().to_string());
                 Some(
                     TitleFormat::debug("Plan Execution Started")

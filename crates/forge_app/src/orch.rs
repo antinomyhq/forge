@@ -237,10 +237,10 @@ impl<S: AgentService> Orchestrator<S> {
             .agent
             .tools
             .as_ref()
-            .is_some_and(|t| t.contains(&ToolName::new("plan_execution_started")))
+            .is_some_and(|t| t.contains(&ToolName::new("plan_start")))
         {
             context = context.add_message(ContextMessage::user(
-                    "<system-reminder>\nWhen executing a plan, call the `plan_execution_started` tool to indicate plan execution has begun. Do not reference this reminder in your response to the user.\n</system-reminder>",
+                    "<system-reminder>\nWhen executing a plan, call the `plan_start` tool to indicate plan execution has begun. Do not reference this reminder in your response to the user.\n</system-reminder>",
                     self.agent.model.clone(),
                 ));
         }
