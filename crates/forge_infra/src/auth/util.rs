@@ -7,7 +7,7 @@ use forge_domain::{
 use oauth2::basic::BasicClient;
 use oauth2::{ClientId, RefreshToken, TokenUrl};
 
-use crate::{Error, IntoDomain};
+use crate::auth::error::Error;
 
 /// Calculate token expiry with fallback duration
 pub(crate) fn calculate_token_expiry(
@@ -21,29 +21,23 @@ pub(crate) fn calculate_token_expiry(
     }
 }
 
-impl<T: oauth2::TokenResponse> IntoDomain for T {
-    type Domain = OAuthTokenResponse;
-    fn into_domain(self) -> Self::Domain {
-        Self::Domain {
-            access_token: self.access_token().secret().to_string(),
-            refresh_token: self.refresh_token().map(|t| t.secret().to_string()),
-            expires_in: self.expires_in().map(|d| d.as_secs()),
-            expires_at: None,
-            token_type: "Bearer".to_string(),
-            scope: self.scopes().map(|scopes| {
-                scopes
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            }),
-        }
+/// Convert oauth2 TokenResponse into domain OAuthTokenResponse
+pub(crate) fn into_domain<T: oauth2::TokenResponse>(token: T) -> OAuthTokenResponse {
+    OAuthTokenResponse {
+        access_token: token.access_token().secret().to_string(),
+        refresh_token: token.refresh_token().map(|t| t.secret().to_string()),
+        expires_in: token.expires_in().map(|d| d.as_secs()),
+        expires_at: None,
+        token_type: "Bearer".to_string(),
+        scope: token.scopes().map(|scopes| {
+            scopes
+                .iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>()
+                .join(" ")
+        }),
     }
 }
-
-// Note: OAuth2 client building is done inline in provider adapters and
-// strategies due to the OAuth2 crate's type-state pattern which makes
-// abstraction difficult
 
 /// Build HTTP client with custom headers
 pub(crate) fn build_http_client(
@@ -140,7 +134,7 @@ pub(crate) async fn refresh_access_token(
         .request_async(&http_fn)
         .await?;
 
-    Ok(token_result.into_domain())
+    Ok(into_domain(token_result))
 }
 
 /// GitHub-compliant HTTP request handler that fixes status codes for error

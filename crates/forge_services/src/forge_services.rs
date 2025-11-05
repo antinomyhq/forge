@@ -3,7 +3,7 @@ use std::sync::Arc;
 use forge_app::{
     CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
     FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, KVStore, McpServerInfra,
-    Services, UserInfra, WalkerInfra,
+    Services, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
     AppConfigRepository, ConversationRepository, ProviderRepository, SnapshotRepository,
@@ -179,6 +179,7 @@ impl<
         + AppConfigRepository
         + KVStore
         + ProviderRepository
+        + StrategyFactory
         + Clone
         + 'static,
 > Services for ForgeServices<F>
@@ -187,7 +188,6 @@ impl<
     type AppConfigService = ForgeAppConfigService<F>;
     type ConversationService = ForgeConversationService<F>;
     type TemplateService = ForgeTemplateService<F>;
-
     type ProviderAuthService = ForgeProviderAuthService<F>;
 
     fn provider_auth_service(&self) -> &Self::ProviderAuthService {
