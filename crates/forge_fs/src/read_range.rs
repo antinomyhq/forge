@@ -45,9 +45,10 @@ impl crate::ForgeFS {
         }
 
         // Read file content
-        let content = tokio::fs::read_to_string(path_ref)
+        let content = tokio::fs::read(path_ref)
             .await
             .with_context(|| format!("Failed to read file content from {}", path_ref.display()))?;
+        let content = String::from_utf8_lossy(&content);
         if start_line < 2 && content.is_empty() {
             // If the file is empty, return empty content
             return Ok((String::new(), FileInfo::new(start_line, end_line, 0)));
@@ -74,7 +75,7 @@ impl crate::ForgeFS {
 
         // Extract requested lines
         let result_content = if start_pos == 0 && end_pos == total_lines - 1 {
-            content // Return full content if requesting entire file
+            content.to_string() // Return full content if requesting entire file
         } else {
             lines[start_pos as usize..=end_pos as usize].join("\n")
         };
