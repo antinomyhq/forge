@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use forge_domain::{
-    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, DropRole,
-    KeepFirstUserMessage, Role, Template, Transformer, TrimContextSummary,
+    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, DedupeRole,
+    DropRole, Role, Template, Transformer, TrimContextSummary,
 };
 use tracing::info;
 
@@ -57,7 +57,7 @@ impl<S: AgentService> Compactor<S> {
         // Apply transformers to reduce redundant operations and clean up
         context_summary = DropRole::new(Role::System)
             .pipe(TrimContextSummary)
-            .pipe(KeepFirstUserMessage)
+            .pipe(DedupeRole::new(Role::User))
             .transform(context_summary);
 
         info!(
@@ -336,24 +336,6 @@ mod tests {
         }
     }
 
-    fn user_msg(content: &str) -> forge_domain::SummaryMessage {
-        forge_domain::SummaryMessage {
-            role: forge_domain::Role::User,
-            messages: vec![forge_domain::SummaryMessageBlock {
-                content: Some(content.to_string()),
-                tool_call_id: None,
-                tool_call: None,
-                tool_call_success: None,
-            }],
-        }
-    }
-
-    fn assistant_msg(
-        blocks: Vec<forge_domain::SummaryMessageBlock>,
-    ) -> forge_domain::SummaryMessage {
-        forge_domain::SummaryMessage { role: forge_domain::Role::Assistant, messages: blocks }
-    }
-
     async fn render_template(data: &serde_json::Value) -> String {
         let handlebars = crate::create_handlebars();
         handlebars
@@ -363,34 +345,27 @@ mod tests {
 
     #[tokio::test]
     async fn test_render_summary_frame_snapshot() {
-        use forge_domain::SummaryMessageBlock;
+        // Load the conversation fixture
+        let fixture_json = include_str!("fixtures/conversation.json");
+        let conversation: forge_domain::Conversation =
+            serde_json::from_str(fixture_json).expect("Failed to parse conversation fixture");
 
-        let messages = vec![
-            user_msg("Analyze authentication system"),
-            assistant_msg(vec![
-                SummaryMessageBlock::read("/src/auth.rs"),
-                SummaryMessageBlock::read("/src/config.rs"),
-            ]),
-            user_msg("Refactor the authentication logic"),
-            assistant_msg(vec![
-                SummaryMessageBlock::update("/src/auth.rs")
-                    .content("Refactored authentication logic"),
-                SummaryMessageBlock::update("/src/config.rs").content("Updated configuration"),
-            ]),
-            user_msg("Add tests for authentication"),
-            assistant_msg(vec![
-                SummaryMessageBlock::read("/tests/auth_test.rs").tool_call_success(false),
-                SummaryMessageBlock::update("/tests/auth_test.rs").content("Created new test file"),
-            ]),
-            user_msg("Remove deprecated authentication files"),
-            assistant_msg(vec![
-                SummaryMessageBlock::remove("/src/old_auth.rs"),
-                SummaryMessageBlock::remove("/src/deprecated.rs"),
-            ]),
-        ];
+        // Extract context from conversation
+        let context = conversation
+            .context
+            .expect("Conversation should have context");
+
+        // Create context summary with tool call information
+        let mut context_summary = ContextSummary::from(&context);
+
+        // Apply transformers to reduce redundant operations and clean up
+        context_summary = DropRole::new(Role::System)
+            .pipe(TrimContextSummary)
+            .pipe(DedupeRole::new(Role::User))
+            .transform(context_summary);
 
         let data = serde_json::json!({
-            "messages": messages
+            "messages": context_summary.messages
         });
 
         let actual = render_template(&data).await;
