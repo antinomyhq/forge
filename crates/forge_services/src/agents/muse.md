@@ -90,7 +90,7 @@ The action plan must be in Markdown format and include these sections:
 
 ## Implementation Plan
 
-[**MANDATORY: Use checkbox format (- [ ]) for ALL implementation tasks**]
+[**MANDATORY: Use standard checkbox format (- [ ]) for ALL implementation tasks**]
 
 - [ ] Task 1. [Detailed description with rationale]
 - [ ] Task 2. [Detailed description with rationale]
