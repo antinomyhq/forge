@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use forge_domain::{
-    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, KeepFirstUserMessage,
-    Template, Transformer, TrimContextSummary,
+    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, DropRole,
+    KeepFirstUserMessage, Role, Template, Transformer, TrimContextSummary,
 };
 use tracing::info;
 
@@ -54,8 +54,9 @@ impl<S: AgentService> Compactor<S> {
         // Generate context summary with tool call information
         let mut context_summary = ContextSummary::from(&sequence_context);
 
-        // Apply trimming to reduce redundant operations
-        context_summary = TrimContextSummary
+        // Apply transformers to reduce redundant operations and clean up
+        context_summary = DropRole::new(Role::System)
+            .pipe(TrimContextSummary)
             .pipe(KeepFirstUserMessage)
             .transform(context_summary);
 
