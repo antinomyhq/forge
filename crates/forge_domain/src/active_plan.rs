@@ -96,7 +96,8 @@ impl ActivePlan {
         Self { path, tasks }
     }
 
-    /// Check if the plan is complete (no pending tasks remaining or in-progress tasks)
+    /// Check if the plan is complete (no pending tasks remaining or in-progress
+    /// tasks)
     pub fn is_complete(&self) -> bool {
         !self.tasks.is_empty()
             && !self
