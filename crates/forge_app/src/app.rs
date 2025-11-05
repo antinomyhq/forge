@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono::Local;
 use forge_domain::{InitAuth, *};
 use forge_stream::MpscStream;
@@ -11,7 +11,7 @@ use crate::authenticator::Authenticator;
 use crate::dto::ToolsOverview;
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
-use crate::services::{AppConfigService, CustomInstructionsService, TemplateService};
+use crate::services::{CustomInstructionsService, TemplateService};
 use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::tool_registry::ToolRegistry;
@@ -89,7 +89,8 @@ impl<S: Services> ForgeApp<S> {
         let custom_instructions = services.get_custom_instructions().await;
 
         // Prepare agents with user configuration
-        let active_model = self.get_model(Some(agent_id.clone())).await?;
+        let active_model_trace = self.get_model(Some(agent_id.clone())).await?;
+        let active_model = active_model_trace.into_inner();
         let agent = services
             .get_agents()
             .await?
@@ -102,7 +103,8 @@ impl<S: Services> ForgeApp<S> {
             .find(|agent| agent.id == agent_id)
             .ok_or(crate::Error::AgentNotFound(agent_id))?;
 
-        let agent_provider = self.get_provider(Some(agent.id.clone())).await?;
+        let agent_provider_trace = self.get_provider(Some(agent.id.clone())).await?;
+        let agent_provider = agent_provider_trace.into_inner();
         let models = services.models(agent_provider).await?;
 
         // Get system and mcp tool definitions and resolve them for the agent
@@ -206,7 +208,8 @@ impl<S: Services> ForgeApp<S> {
         let original_messages = context.messages.len();
         let original_token_count = *context.token_count();
         let active_agent_id = self.services.get_active_agent_id().await?;
-        let model = self.get_model(active_agent_id.clone()).await?;
+        let model_trace = self.get_model(active_agent_id.clone()).await?;
+        let model = model_trace.into_inner();
         let workflow = self.services.read_merged(None).await.unwrap_or_default();
         let Some(compact) = self
             .services
@@ -274,32 +277,32 @@ impl<S: Services> ForgeApp<S> {
         self.services.write_workflow(path, workflow).await
     }
 
-    pub async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider<url::Url>> {
-        if let Some(agent) = agent
-            && let Some(agent) = self.services.get_agent(&agent).await?
-            && let Some(provider_id) = agent.provider
-        {
-            return self.services.get_provider(provider_id).await;
-        }
-
-        // Fall back to original logic if there is no agent
-        // set yet.
-        self.services.get_default_provider().await
-    }
-
-    /// Gets the model for the specified agent, or the default model if no agent
-    /// is provided
-    pub async fn get_model(&self, agent_id: Option<AgentId>) -> anyhow::Result<ModelId> {
-        let provider_id = self.get_provider(agent_id).await?.id;
-        self.services.get_default_model(&provider_id).await
-    }
-
-    pub async fn set_default_model(
+    async fn get_provider(
         &self,
-        agent_id: Option<AgentId>,
-        model: ModelId,
-    ) -> anyhow::Result<()> {
-        let provider_id = self.get_provider(agent_id).await?.id;
-        self.services.set_default_model(model, provider_id).await
+        agent: Option<AgentId>,
+    ) -> anyhow::Result<Trace<Provider<url::Url>>> {
+        let scope = if let Some(agent_id) = agent {
+            ConfigScope::Agent(agent_id).or(ConfigScope::Global)
+        } else {
+            ConfigScope::Global
+        };
+
+        crate::ProviderScope::new(self.services.clone())
+            .get_at_scope(&scope)
+            .await?
+            .context("No provider configured")
+    }
+
+    async fn get_model(&self, agent_id: Option<AgentId>) -> anyhow::Result<Trace<ModelId>> {
+        let scope = if let Some(agent_id) = agent_id {
+            ConfigScope::Agent(agent_id).or(ConfigScope::Global)
+        } else {
+            ConfigScope::Global
+        };
+
+        crate::ModelScope::new(self.services.clone())
+            .get_at_scope(&scope)
+            .await?
+            .context("No model configured")
     }
 }

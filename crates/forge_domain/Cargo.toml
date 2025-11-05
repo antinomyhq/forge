@@ -35,6 +35,8 @@ convert_case.workspace = true
 forge_json_repair.workspace = true
 glob.workspace = true
 fake = { version = "4.4.0", features = ["derive"] }
+async-recursion.workspace = true
+futures.workspace = true
 
 [dev-dependencies]
 insta = { workspace = true, features = ["yaml"] }

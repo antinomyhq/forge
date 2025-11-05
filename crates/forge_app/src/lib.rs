@@ -15,6 +15,7 @@ mod orch;
 #[cfg(test)]
 mod orch_spec;
 mod retry;
+mod scope;
 mod services;
 mod set_conversation_id;
 pub mod system_prompt;
@@ -32,6 +33,7 @@ pub use agent::*;
 pub use app::*;
 pub use error::*;
 pub use infra::*;
+pub use scope::*;
 pub use services::*;
 pub use tool_resolver::*;
 pub use user::*;

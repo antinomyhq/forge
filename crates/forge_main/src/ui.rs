@@ -6,13 +6,14 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, AnyProvider, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
-    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, Workflow,
+    API, AgentId, AnyProvider, ChatRequest, ChatResponse, ConfigScope, Conversation,
+    ConversationId, Event, InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage,
+    Workflow,
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
 use forge_display::MarkdownFormat;
-use forge_domain::{ChatResponseContent, ContextMessage, Role, TitleFormat, UserCommand};
+use forge_domain::{ChatResponseContent, ContextMessage, Role, TitleFormat, Trace, UserCommand};
 use forge_fs::ForgeFS;
 use forge_select::ForgeSelect;
 use forge_spinner::SpinnerManager;
@@ -75,19 +76,49 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Helper to get provider for an optional agent, defaulting to the current
     /// active agent's provider
     async fn get_provider(&self, agent_id: Option<AgentId>) -> Result<Provider<Url>> {
-        match agent_id {
-            Some(id) => self.api.get_agent_provider(id).await,
-            None => self.api.get_default_provider().await,
-        }
+        let scope = match agent_id {
+            Some(id) => ConfigScope::Agent(id).or(ConfigScope::Global),
+            None => ConfigScope::Global,
+        };
+        Ok(self
+            .api
+            .get_provider(&scope)
+            .await?
+            .context("No provider configured")?
+            .into_inner())
     }
 
     /// Helper to get model for an optional agent, defaulting to the current
     /// active agent's model
     async fn get_agent_model(&self, agent_id: Option<AgentId>) -> Option<ModelId> {
-        match agent_id {
-            Some(id) => self.api.get_agent_model(id).await,
-            None => self.api.get_default_model().await,
-        }
+        let mut scope = ConfigScope::Global;
+
+        let scope = match agent_id {
+            Some(id) => {
+                let provider_id = self
+                    .api
+                    .get_agents()
+                    .await
+                    .ok()?
+                    .iter()
+                    .find(|agent| agent.id == id)
+                    .and_then(|agent| agent.provider);
+
+                scope = match provider_id {
+                    Some(provider_id) => ConfigScope::Provider(provider_id).or(scope),
+                    None => scope,
+                };
+
+                ConfigScope::Agent(id).or(scope)
+            }
+            None => scope,
+        };
+        self.api
+            .get_model(&scope)
+            .await
+            .ok()
+            .flatten()
+            .map(Trace::into_inner)
     }
 
     /// Displays banner only if user is in interactive mode.
@@ -817,7 +848,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let agent_provider = self.get_provider(agent.clone()).await.ok();
 
         // Fetch default provider (could be different from the set provider)
-        let default_provider = self.api.get_default_provider().await.ok();
+        let default_provider = self
+            .api
+            .get_provider(&ConfigScope::Global)
+            .await
+            .ok()
+            .flatten()
+            .map(Trace::into_inner);
 
         // Add agent information
         info = info.add_title("AGENT");
@@ -1231,10 +1268,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         let active_agent = self.api.get_active_agent().await;
 
+        let scope = match active_agent {
+            Some(id) => ConfigScope::Agent(id),
+            None => ConfigScope::Global,
+        };
+
         // Update the operating model via API
-        self.api
-            .set_default_model(active_agent, model.clone())
-            .await?;
+        self.api.set_model(&scope, model.clone()).await?;
 
         // Update the UI state with the new model
         self.update_model(Some(model.clone()));
@@ -1255,7 +1295,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         };
 
         // Set the provider via API
-        self.api.set_default_provider(provider.id).await?;
+        self.api
+            .set_provider(&ConfigScope::Global, provider.clone())
+            .await?;
 
         self.writeln_title(TitleFormat::action(format!(
             "Switched to provider: {}",
@@ -1398,7 +1440,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .select_model()
                 .await?
                 .ok_or(anyhow::anyhow!("Model selection is required to continue"))?;
-            self.api.set_default_model(active_agent, model).await?;
+
+            let scope = match active_agent {
+                Some(id) => ConfigScope::Agent(id),
+                None => ConfigScope::Global,
+            };
+            self.api.set_model(&scope, model).await?;
         }
 
         // Create base workflow and trigger updates if this is the first initialization
@@ -1757,15 +1804,40 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         match args.field {
             ConfigField::Provider => {
                 let provider_id = self.validate_provider(&args.value).await?;
-                self.api.set_default_provider(provider_id).await?;
-                self.writeln_title(TitleFormat::action("Provider set").sub_title(&args.value))?;
+                let provider = self
+                    .api
+                    .get_providers()
+                    .await?
+                    .into_iter()
+                    .find(|p| p.id() == provider_id)
+                    .ok_or(anyhow::anyhow!("Provider not found"))?;
+                match provider {
+                    AnyProvider::Url(provider) => {
+                        self.api
+                            .set_provider(&ConfigScope::Global, provider)
+                            .await?;
+                        self.writeln_title(
+                            TitleFormat::action("Provider set").sub_title(&args.value),
+                        )?;
+                    }
+                    AnyProvider::Template(provider) => {
+                        self.writeln_title(TitleFormat::error(format!(
+                            "The provider {} is not fully configured.",
+                            provider.id
+                        )))?;
+                    }
+                }
             }
             ConfigField::Model => {
                 let model_id = self.validate_model(&args.value).await?;
                 let active_agent = self.api.get_active_agent().await;
-                self.api
-                    .set_default_model(active_agent, model_id.clone())
-                    .await?;
+
+                let scope = match active_agent {
+                    Some(id) => ConfigScope::Agent(id),
+                    None => ConfigScope::Global,
+                };
+
+                self.api.set_model(&scope, model_id.clone()).await?;
                 self.writeln_title(
                     TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
                 )?;
@@ -1784,9 +1856,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ConfigField::Model => {
                 let model = self
                     .api
-                    .get_default_model()
+                    .get_model(&ConfigScope::Global)
                     .await
-                    .map(|m| m.as_str().to_string());
+                    .ok()
+                    .flatten()
+                    .map(|m| m.into_inner().as_str().to_string());
                 match model {
                     Some(v) => self.writeln(v.to_string())?,
                     None => self.writeln("Model: Not set")?,
@@ -1795,10 +1869,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ConfigField::Provider => {
                 let provider = self
                     .api
-                    .get_default_provider()
+                    .get_provider(&ConfigScope::Global)
                     .await
                     .ok()
-                    .map(|p| p.id.to_string());
+                    .flatten()
+                    .map(|p| p.into_inner().id.to_string());
                 match provider {
                     Some(v) => self.writeln(v.to_string())?,
                     None => self.writeln("Provider: Not set")?,
