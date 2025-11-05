@@ -182,7 +182,7 @@ mod test {
         fs::write(file.path(), content).await?;
 
 
-        // Attempt to read the file - should fail with invalid UTF-8 error
+        // Attempt to read the file shouldn't fail with invalid UTF-8 error
         let result = crate::ForgeFS::read_range_utf8(&file.path(), 1, 4).await;
         assert!(result.is_ok());
         Ok(())
