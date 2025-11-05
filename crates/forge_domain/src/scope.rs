@@ -1,47 +1,39 @@
 use merge::Merge;
 use serde::{Deserialize, Serialize};
-use strum::IntoEnumIterator;
-use strum_macros::{EnumDiscriminants, EnumIter};
 
 use crate::{AgentId, ProviderId};
 
 #[derive(Clone)]
-pub struct Trace<Config> {
-    trace: Vec<(String, bool)>,
-    value: Config,
+pub struct Trace<T> {
+    path: Vec<String>,
+    value: T,
 }
 
-impl<Config> Trace<Config> {
-    /// Creates a new trace with a single entry
-    pub fn new(scope: impl Into<SimpleConfigScope>, config: Config) -> Self {
-        let scope: SimpleConfigScope = scope.into();
-        let trace = SimpleConfigScope::iter()
-            .map(|a| {
-                if a == scope {
-                    (a.to_string(), true)
-                } else {
-                    (a.to_string(), false)
-                }
-            })
-            .collect::<Vec<_>>();
-        Self { trace, value: config }
+impl<T> Trace<T> {
+    /// Creates a new trace with empty path
+    pub fn new(value: T) -> Self {
+        Self { path: Vec::new(), value }
     }
 
-    pub fn into_value(self) -> Config {
+    /// Appends a scope to the trace path
+    pub fn add_trace(mut self, scope: impl ToString) -> Self {
+        self.path.push(scope.to_string());
+        self
+    }
+
+    pub fn into_inner(self) -> T {
         self.value
     }
 
-    pub fn trace(&self) -> &[(String, bool)] {
-        &self.trace
+    pub fn trace(&self) -> &[String] {
+        &self.path
     }
 }
 
 /// Represents the scope at which a
 /// configuration value should be resolved or
 /// set.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, EnumDiscriminants)]
-#[strum_discriminants(derive(EnumIter, strum_macros::Display))]
-#[strum_discriminants(name(SimpleConfigScope))]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ConfigScope {
     Global,
     Project,
@@ -127,14 +119,14 @@ impl ConfigScope {
         T::Config: Merge,
     {
         match self {
-            ConfigScope::Global => Ok(resolver.get_global_level().await?.map(Trace::into_value)),
-            ConfigScope::Project => Ok(resolver.get_project_level().await?.map(Trace::into_value)),
+            ConfigScope::Global => Ok(resolver.get_global_level().await?.map(Trace::into_inner)),
+            ConfigScope::Project => Ok(resolver.get_project_level().await?.map(Trace::into_inner)),
             ConfigScope::Provider(id) => Ok(resolver
                 .get_provider_level(id)
                 .await?
-                .map(Trace::into_value)),
+                .map(Trace::into_inner)),
             ConfigScope::Agent(id) => {
-                Ok(resolver.get_agent_level(id).await?.map(Trace::into_value))
+                Ok(resolver.get_agent_level(id).await?.map(Trace::into_inner))
             }
             ConfigScope::Or(a, b) => {
                 let a = a.merged(resolver).await?;
@@ -162,25 +154,25 @@ impl ConfigScope {
             ConfigScope::Global => Ok(resolver
                 .get_global_level()
                 .await?
-                .map(Trace::into_value)
+                .map(Trace::into_inner)
                 .into_iter()
                 .collect()),
             ConfigScope::Project => Ok(resolver
                 .get_project_level()
                 .await?
-                .map(Trace::into_value)
+                .map(Trace::into_inner)
                 .into_iter()
                 .collect()),
             ConfigScope::Provider(id) => Ok(resolver
                 .get_provider_level(id)
                 .await?
-                .map(Trace::into_value)
+                .map(Trace::into_inner)
                 .into_iter()
                 .collect()),
             ConfigScope::Agent(id) => Ok(resolver
                 .get_agent_level(id)
                 .await?
-                .map(Trace::into_value)
+                .map(Trace::into_inner)
                 .into_iter()
                 .collect()),
             ConfigScope::Or(a, b) => {
@@ -198,8 +190,8 @@ mod tests {
 
     #[test]
     fn test_new_creates_trace_with_single_entry() {
-        let fixture = Trace::new(ConfigScope::Global, 42);
-        let actual = fixture.into_value();
+        let fixture = Trace::new(42);
+        let actual = fixture.into_inner();
         let expected = 42;
         assert_eq!(actual, expected);
     }

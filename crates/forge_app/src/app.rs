@@ -90,7 +90,7 @@ impl<S: Services> ForgeApp<S> {
 
         // Prepare agents with user configuration
         let active_model_trace = self.get_model(Some(agent_id.clone())).await?;
-        let active_model = active_model_trace.into_value();
+        let active_model = active_model_trace.into_inner();
         let agent = services
             .get_agents()
             .await?
@@ -104,7 +104,7 @@ impl<S: Services> ForgeApp<S> {
             .ok_or(crate::Error::AgentNotFound(agent_id))?;
 
         let agent_provider_trace = self.get_provider(Some(agent.id.clone())).await?;
-        let agent_provider = agent_provider_trace.into_value();
+        let agent_provider = agent_provider_trace.into_inner();
         let models = services.models(agent_provider).await?;
 
         // Get system and mcp tool definitions and resolve them for the agent
@@ -209,7 +209,7 @@ impl<S: Services> ForgeApp<S> {
         let original_token_count = *context.token_count();
         let active_agent_id = self.services.get_active_agent_id().await?;
         let model_trace = self.get_model(active_agent_id.clone()).await?;
-        let model = model_trace.into_value();
+        let model = model_trace.into_inner();
         let workflow = self.services.read_merged(None).await.unwrap_or_default();
         let Some(compact) = self
             .services

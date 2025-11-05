@@ -63,7 +63,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
             .await
             .context("Failed to fetch models")?
             .context("No provider configured")?
-            .into_value();
+            .into_inner();
         Ok(self.services.models(provider).await?)
     }
     async fn get_agents(&self) -> Result<Vec<Agent>> {
@@ -205,7 +205,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
             .get_provider(&ConfigScope::Global)
             .await?
             .context("No provider configured")?
-            .into_value();
+            .into_inner();
         if let Some(ref api_key) = provider.key {
             let user_info = self.services.user_info(api_key).await?;
             return Ok(Some(user_info));
@@ -218,7 +218,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
             .get_provider(&ConfigScope::Global)
             .await?
             .context("No provider configured")?
-            .into_value();
+            .into_inner();
         if let Some(ref api_key) = provider.key {
             let user_usage = self.services.user_usage(api_key).await?;
             return Ok(Some(user_usage));

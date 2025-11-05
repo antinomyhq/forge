@@ -26,7 +26,7 @@ where
 
     async fn get_global_level(&self) -> Result<Option<Trace<Self::Config>>> {
         let provider = self.services.get_default_provider().await?;
-        Ok(Some(Trace::new(ConfigScope::Global, provider)))
+        Ok(Some(Trace::new(provider).add_trace("global")))
     }
 
     async fn get_project_level(&self) -> Result<Option<Trace<Self::Config>>> {
@@ -35,7 +35,7 @@ where
 
     async fn get_provider_level(&self, id: &ProviderId) -> Result<Option<Trace<Self::Config>>> {
         let provider = self.services.get_provider(*id).await?;
-        Ok(Some(Trace::new(ConfigScope::Provider(*id), provider)))
+        Ok(Some(Trace::new(provider).add_trace("provider")))
     }
 
     async fn get_agent_level(&self, id: &AgentId) -> Result<Option<Trace<Self::Config>>> {
@@ -47,7 +47,7 @@ where
 
         if let Some(provider_id) = agent.provider {
             let provider = self.services.get_provider(provider_id).await?;
-            Ok(Some(Trace::new(ConfigScope::Agent(id.clone()), provider)))
+            Ok(Some(Trace::new(provider).add_trace("agent")))
         } else {
             Ok(None)
         }
@@ -94,7 +94,7 @@ where
     async fn get_global_level(&self) -> Result<Option<Trace<Self::Config>>> {
         let provider = self.services.get_default_provider().await?;
         let model = self.services.get_default_model(&provider.id).await?;
-        Ok(Some(Trace::new(ConfigScope::Global, model)))
+        Ok(Some(Trace::new(model).add_trace("global")))
     }
 
     async fn get_project_level(&self) -> Result<Option<Trace<Self::Config>>> {
@@ -113,7 +113,7 @@ where
             .context("Agent not found")?;
 
         if let Some(model) = agent.model {
-            Ok(Some(Trace::new(ConfigScope::Agent(id.clone()), model)))
+            Ok(Some(Trace::new(model).add_trace("agent")))
         } else {
             Ok(None)
         }

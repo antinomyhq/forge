@@ -85,7 +85,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .get_provider(&scope)
             .await?
             .context("No provider configured")?
-            .into_value())
+            .into_inner())
     }
 
     /// Helper to get model for an optional agent, defaulting to the current
@@ -100,7 +100,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .await
             .ok()
             .flatten()
-            .map(Trace::into_value)
+            .map(Trace::into_inner)
     }
 
     /// Displays banner only if user is in interactive mode.
@@ -836,7 +836,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .await
             .ok()
             .flatten()
-            .map(Trace::into_value);
+            .map(Trace::into_inner);
 
         // Add agent information
         info = info.add_title("AGENT");
@@ -1842,7 +1842,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .await
                     .ok()
                     .flatten()
-                    .map(|m| m.into_value().as_str().to_string());
+                    .map(|m| m.into_inner().as_str().to_string());
                 match model {
                     Some(v) => self.writeln(v.to_string())?,
                     None => self.writeln("Model: Not set")?,
@@ -1855,7 +1855,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .await
                     .ok()
                     .flatten()
-                    .map(|p| p.into_value().id.to_string());
+                    .map(|p| p.into_inner().id.to_string());
                 match provider {
                     Some(v) => self.writeln(v.to_string())?,
                     None => self.writeln("Provider: Not set")?,
