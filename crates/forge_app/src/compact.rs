@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use forge_domain::{
-    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, DedupeRole,
-    DropRole, Role, Template, Transformer, TrimContextSummary,
+    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, DedupeRole, DropRole,
+    Role, Template, Transformer, TrimContextSummary,
 };
 use tracing::info;
 
