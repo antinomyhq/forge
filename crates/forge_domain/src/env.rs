@@ -52,7 +52,7 @@ pub struct Environment {
     /// Http configuration
     pub http: HttpConfig,
     /// Maximum file size in bytes for operations
-    pub max_file_size: u64,
+    pub max_read_chunk_size: u64,
     /// Maximum image file size in bytes for binary read operations
     pub max_image_size: u64,
     /// Maximum execution time in seconds for a single tool call.
@@ -208,7 +208,7 @@ fn test_command_path() {
         stdout_max_line_length: 500,
         max_read_size: 2000,
         http: HttpConfig::default(),
-        max_file_size: 104857600,
+        max_read_chunk_size: 104857600,
         tool_timeout: 300,
         auto_open_dump: false,
         custom_history_path: None,
@@ -241,7 +241,7 @@ fn test_command_cwd_path() {
         stdout_max_line_length: 500,
         max_read_size: 2000,
         http: HttpConfig::default(),
-        max_file_size: 104857600,
+        max_read_chunk_size: 104857600,
         tool_timeout: 300,
         auto_open_dump: false,
         custom_history_path: None,
@@ -274,7 +274,7 @@ fn test_command_cwd_path_independent_from_command_path() {
         stdout_max_line_length: 500,
         max_read_size: 2000,
         http: HttpConfig::default(),
-        max_file_size: 104857600,
+        max_read_chunk_size: 104857600,
         tool_timeout: 300,
         auto_open_dump: false,
         custom_history_path: None,

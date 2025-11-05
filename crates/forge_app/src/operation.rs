@@ -537,7 +537,7 @@ mod tests {
             .max_read_size(10)
             .stdout_max_prefix_length(10)
             .stdout_max_suffix_length(10)
-            .max_file_size(256 << 10) // 256 KiB
+            .max_read_chunk_size(256 << 10) // 256 KiB
     }
 
     fn to_value(output: forge_domain::ToolOutput) -> String {

@@ -75,7 +75,7 @@ impl ForgeEnvironmentInfra {
             stdout_max_line_length: parse_env::<usize>("FORGE_STDOUT_MAX_LINE_LENGTH")
                 .unwrap_or(2000),
             http: resolve_http_config(),
-            max_file_size: 256 << 10, // 256 KiB
+            max_read_chunk_size: 256 << 10, // 256 KiB
             max_image_size: parse_env::<u64>("FORGE_MAX_IMAGE_SIZE").unwrap_or(256 << 10), /* 256 KiB */
             forge_api_url,
             custom_history_path,

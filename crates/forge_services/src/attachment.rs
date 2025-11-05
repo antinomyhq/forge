@@ -109,7 +109,7 @@ pub mod tests {
                 .max_search_lines(25)
                 .max_search_result_bytes(max_bytes.ceil() as usize)
                 .max_read_size(2000)
-                .max_file_size(256 << 10)
+                .max_read_chunk_size(256 << 10)
         }
 
         fn get_env_var(&self, _key: &str) -> Option<String> {
