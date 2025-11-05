@@ -9,9 +9,10 @@ use oauth2::{ClientId, DeviceAuthorizationUrl, Scope, TokenUrl};
 use reqwest::header::{HeaderMap, HeaderValue};
 use url::Url;
 
-use super::provider_auth_adapter::{ProviderAdapter, create_provider_adapter};
+use super::provider_auth_adapter::ProviderAdapter;
 use super::provider_auth_utils::*;
 use crate::Error;
+use crate::provider_auth_adapter::GitHubProvider;
 
 /// Core authentication strategy - one implementation per flow type
 #[async_trait::async_trait]
@@ -69,21 +70,20 @@ impl AuthStrategy for ApiKeyStrategy {
 }
 
 /// OAuth Code Strategy - Browser redirect flow
-pub(crate) struct OAuthCodeStrategy {
+pub(crate) struct OAuthCodeStrategy<T> {
     provider_id: ProviderId,
     config: OAuthConfig,
-    adapter: Box<dyn ProviderAdapter>,
+    adapter: T,
 }
 
-impl OAuthCodeStrategy {
-    pub fn new(provider_id: ProviderId, config: OAuthConfig) -> Self {
-        let adapter = create_provider_adapter(&provider_id);
-        Self { provider_id, config, adapter }
+impl<T> OAuthCodeStrategy<T> {
+    pub fn new(adapter: T, provider_id: ProviderId, config: OAuthConfig) -> Self {
+        Self { config, provider_id, adapter }
     }
 }
 
 #[async_trait::async_trait]
-impl AuthStrategy for OAuthCodeStrategy {
+impl<T: ProviderAdapter> AuthStrategy for OAuthCodeStrategy<T> {
     async fn init(&self) -> anyhow::Result<AuthContextRequest> {
         let auth_params = self
             .adapter
@@ -593,7 +593,7 @@ async fn exchange_oauth_for_api_key(
 /// Eliminates heap allocation and dynamic dispatch
 pub(crate) enum AuthStrategyImpl {
     ApiKey(ApiKeyStrategy),
-    OAuthCode(OAuthCodeStrategy),
+    OAuthCode(OAuthCodeStrategy<GitHubProvider>),
     OAuthDevice(OAuthDeviceStrategy),
     OAuthWithApiKey(OAuthWithApiKeyStrategy),
 }
@@ -643,7 +643,7 @@ pub(crate) fn create_auth_strategy(
             required_params,
         ))),
         forge_domain::AuthMethod::OAuthCode(config) => Ok(AuthStrategyImpl::OAuthCode(
-            OAuthCodeStrategy::new(provider_id, config),
+            OAuthCodeStrategy::new(GitHubProvider, provider_id, config),
         )),
         forge_domain::AuthMethod::OAuthDevice(config) => {
             // Check if this is OAuth-with-API-Key flow (GitHub Copilot pattern)

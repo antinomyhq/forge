@@ -1,4 +1,4 @@
-use forge_domain::{OAuthConfig, ProviderId};
+use forge_domain::OAuthConfig;
 use oauth2::{
     AuthorizationCode as OAuth2AuthCode, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, Scope,
 };
@@ -112,8 +112,10 @@ impl ProviderAdapter for StandardProvider {
 
 /// Anthropic Provider - Non-standard PKCE implementation
 /// Quirk: state parameter equals PKCE verifier
+#[allow(unused)]
 pub(crate) struct AnthropicProvider;
 
+#[allow(unused)]
 #[derive(Debug, Serialize)]
 struct AnthropicTokenRequest {
     /// Authorization code from callback
@@ -237,15 +239,6 @@ impl ProviderAdapter for GitHubProvider {
         // GitHub quirk: HTTP 200 responses may contain errors
         // This is handled by the github_compliant_http_request function
         build_http_client(config.custom_headers.as_ref())
-    }
-}
-
-/// Factory for creating provider adapters based on provider ID
-pub(crate) fn create_provider_adapter(provider_id: &ProviderId) -> Box<dyn ProviderAdapter> {
-    match provider_id {
-        ProviderId::Anthropic | ProviderId::AnthropicCompatible => Box::new(AnthropicProvider),
-        ProviderId::GithubCopilot => Box::new(GitHubProvider),
-        _ => Box::new(StandardProvider),
     }
 }
 

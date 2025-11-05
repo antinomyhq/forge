@@ -365,7 +365,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
     }
 
     /// Returns merged provider configs (embedded + custom)
-    pub async fn get_merged_configs(&self) -> Vec<ProviderConfig> {
+    async fn get_merged_configs(&self) -> Vec<ProviderConfig> {
         let mut configs = ProviderConfigs(get_provider_configs().clone());
         // Merge custom configs into embedded configs
         configs.merge(ProviderConfigs(
