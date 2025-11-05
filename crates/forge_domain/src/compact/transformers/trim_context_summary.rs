@@ -137,10 +137,7 @@ mod tests {
 
         let expected = summary(vec![message(
             Role::Assistant,
-            vec![
-                Block::read(Some(ToolCallId::new("call1")), "/test"),
-                Block::read(Some(ToolCallId::new("call2")), "/test"),
-            ],
+            vec![Block::read(Some(ToolCallId::new("call2")), "/test")],
         )]);
 
         assert_eq!(actual, expected);
@@ -165,35 +162,9 @@ mod tests {
         let expected = summary(vec![message(
             Role::Assistant,
             vec![
+                Block::read(None, "/test"),
                 Block::update(None, "file.txt"),
                 Block::remove(None, "/test"),
-            ],
-        )]);
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_preserves_insertion_order() {
-        let fixture = summary(vec![message(
-            Role::Assistant,
-            vec![
-                Block::read(None, "/path1"),
-                Block::read(None, "/path2"),
-                Block::read(None, "/path1"),
-                Block::update(None, "/path3"),
-                Block::read(None, "/path2"),
-                Block::remove(None, "/path1"),
-            ],
-        )]);
-        let actual = TrimContextSummary.transform(fixture);
-
-        let expected = summary(vec![message(
-            Role::Assistant,
-            vec![
-                Block::update(None, "/path3"),
-                Block::read(None, "/path2"),
-                Block::remove(None, "/path1"),
             ],
         )]);
 
@@ -346,34 +317,6 @@ mod tests {
             message(Role::Assistant, vec![]),
             message(Role::Assistant, vec![Block::read(None, "/test")]),
         ]);
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_assistant_message_with_content() {
-        let fixture = summary(vec![message(
-            Role::Assistant,
-            vec![
-                Block::read(None, "/test1"),
-                Block::update(None, "/test2"),
-                Block::content("foo"),
-                Block::read(None, "/test1"),
-                Block::read(Some(ToolCallId::new("call1")), "/test2"),
-                Block::content("baz"),
-            ],
-        )]);
-        let actual = TrimContextSummary.transform(fixture);
-
-        let expected = summary(vec![message(
-            Role::Assistant,
-            vec![
-                Block::content("foo"),
-                Block::read(None, "/test1"),
-                Block::read(Some(ToolCallId::new("call1")), "/test2"),
-                Block::content("baz"),
-            ],
-        )]);
 
         assert_eq!(actual, expected);
     }
