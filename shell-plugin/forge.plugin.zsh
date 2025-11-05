@@ -60,7 +60,7 @@ function forge_verify_dependencies() {
     fi
     
     # Check zsh-autocomplete
-    if [[ -z "$ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE" ]]; then
+    if [[ "$ZSH_AUTOSUGGEST_USE_ASYNC" != "yes" ]]; then
         missing_deps+=("zsh-autocomplete")
     fi
     
