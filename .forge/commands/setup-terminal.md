@@ -23,7 +23,7 @@ Detect the package managers installed on the system and use the appropriate one 
 
 Use detected package manager to install dependency if it's not installed already.
 - zsh-syntax-highlighting
-- zsh-autosuggestions
+- zsh-autocomplete
 - fd (note: use `fd-find` on Ubuntu/Debian)
 - fzf
 
