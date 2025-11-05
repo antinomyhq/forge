@@ -16,7 +16,13 @@ impl<Config> Trace<Config> {
     pub fn new(scope: impl Into<SimpleConfigScope>, config: Config) -> Self {
         let scope: SimpleConfigScope = scope.into();
         let trace = SimpleConfigScope::iter()
-            .map(|a| if a == scope { (a.to_string(), true) } else { (a.to_string(), false) })
+            .map(|a| {
+                if a == scope {
+                    (a.to_string(), true)
+                } else {
+                    (a.to_string(), false)
+                }
+            })
             .collect::<Vec<_>>();
         Self { trace, value: config }
     }
