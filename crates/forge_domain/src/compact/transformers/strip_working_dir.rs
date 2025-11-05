@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use crate::Transformer;
-use crate::compact::summary::{ContextSummary, SummaryToolCall};
+use crate::compact::summary::{ContextSummary, SummaryMessageBlock, SummaryToolCall};
 
 /// Strips the working directory prefix from all file paths in tool calls.
 ///
@@ -43,9 +43,9 @@ impl Transformer for StripWorkingDir {
 
     fn transform(&mut self, mut summary: Self::Value) -> Self::Value {
         for message in summary.messages.iter_mut() {
-            for block in message.messages.iter_mut() {
-                if let Some(ref mut tool_call) = block.tool_call {
-                    match tool_call {
+            for block in message.blocks.iter_mut() {
+                if let SummaryMessageBlock::ToolCall(tool_data) = block {
+                    match &mut tool_data.tool_call {
                         SummaryToolCall::FileRead { path } => {
                             *path = self.strip_prefix(path);
                         }
@@ -74,7 +74,7 @@ mod tests {
 
     // Helper to create a summary message with role and blocks
     fn message(role: Role, blocks: Vec<Block>) -> SummaryMessage {
-        SummaryMessage { role, messages: blocks }
+        SummaryMessage { role, blocks }
     }
 
     // Helper to create a context summary
@@ -97,15 +97,18 @@ mod tests {
         let fixture = summary(vec![message(
             Role::Assistant,
             vec![
-                Block::read("/home/user/project/src/main.rs"),
-                Block::read("/home/user/project/tests/test.rs"),
+                Block::read(None, "/home/user/project/src/main.rs"),
+                Block::read(None, "/home/user/project/tests/test.rs"),
             ],
         )]);
         let actual = StripWorkingDir::new("/home/user/project").transform(fixture);
 
         let expected = summary(vec![message(
             Role::Assistant,
-            vec![Block::read("src/main.rs"), Block::read("tests/test.rs")],
+            vec![
+                Block::read(None, "src/main.rs"),
+                Block::read(None, "tests/test.rs"),
+            ],
         )]);
 
         assert_eq!(actual, expected);
@@ -116,15 +119,18 @@ mod tests {
         let fixture = summary(vec![message(
             Role::Assistant,
             vec![
-                Block::update("/home/user/project/src/lib.rs"),
-                Block::update("/home/user/project/README.md"),
+                Block::update(None, "/home/user/project/src/lib.rs"),
+                Block::update(None, "/home/user/project/README.md"),
             ],
         )]);
         let actual = StripWorkingDir::new("/home/user/project").transform(fixture);
 
         let expected = summary(vec![message(
             Role::Assistant,
-            vec![Block::update("src/lib.rs"), Block::update("README.md")],
+            vec![
+                Block::update(None, "src/lib.rs"),
+                Block::update(None, "README.md"),
+            ],
         )]);
 
         assert_eq!(actual, expected);
@@ -135,15 +141,18 @@ mod tests {
         let fixture = summary(vec![message(
             Role::Assistant,
             vec![
-                Block::remove("/home/user/project/old.rs"),
-                Block::remove("/home/user/project/deprecated/mod.rs"),
+                Block::remove(None, "/home/user/project/old.rs"),
+                Block::remove(None, "/home/user/project/deprecated/mod.rs"),
             ],
         )]);
         let actual = StripWorkingDir::new("/home/user/project").transform(fixture);
 
         let expected = summary(vec![message(
             Role::Assistant,
-            vec![Block::remove("old.rs"), Block::remove("deprecated/mod.rs")],
+            vec![
+                Block::remove(None, "old.rs"),
+                Block::remove(None, "deprecated/mod.rs"),
+            ],
         )]);
 
         assert_eq!(actual, expected);
@@ -154,9 +163,9 @@ mod tests {
         let fixture = summary(vec![message(
             Role::Assistant,
             vec![
-                Block::read("/home/user/project/src/main.rs"),
-                Block::read("/etc/config.toml"),
-                Block::update("/tmp/cache.json"),
+                Block::read(None, "/home/user/project/src/main.rs"),
+                Block::read(None, "/etc/config.toml"),
+                Block::update(None, "/tmp/cache.json"),
             ],
         )]);
         let actual = StripWorkingDir::new("/home/user/project").transform(fixture);
@@ -164,9 +173,9 @@ mod tests {
         let expected = summary(vec![message(
             Role::Assistant,
             vec![
-                Block::read("src/main.rs"),
-                Block::read("/etc/config.toml"),
-                Block::update("/tmp/cache.json"),
+                Block::read(None, "src/main.rs"),
+                Block::read(None, "/etc/config.toml"),
+                Block::update(None, "/tmp/cache.json"),
             ],
         )]);
 
@@ -178,10 +187,10 @@ mod tests {
         let fixture = summary(vec![message(
             Role::Assistant,
             vec![
-                Block::read("/home/user/project/src/main.rs"),
-                Block::update("/home/user/project/src/lib.rs"),
-                Block::remove("/home/user/project/old.rs"),
-                Block::read("/other/path/file.rs"),
+                Block::read(None, "/home/user/project/src/main.rs"),
+                Block::update(None, "/home/user/project/src/lib.rs"),
+                Block::remove(None, "/home/user/project/old.rs"),
+                Block::read(None, "/other/path/file.rs"),
             ],
         )]);
         let actual = StripWorkingDir::new("/home/user/project").transform(fixture);
@@ -189,10 +198,10 @@ mod tests {
         let expected = summary(vec![message(
             Role::Assistant,
             vec![
-                Block::read("src/main.rs"),
-                Block::update("src/lib.rs"),
-                Block::remove("old.rs"),
-                Block::read("/other/path/file.rs"),
+                Block::read(None, "src/main.rs"),
+                Block::update(None, "src/lib.rs"),
+                Block::remove(None, "old.rs"),
+                Block::read(None, "/other/path/file.rs"),
             ],
         )]);
 
@@ -204,26 +213,32 @@ mod tests {
         let fixture = summary(vec![
             message(
                 Role::User,
-                vec![Block::read("/home/user/project/src/main.rs")],
+                vec![Block::read(None, "/home/user/project/src/main.rs")],
             ),
             message(
                 Role::Assistant,
                 vec![
-                    Block::read("/home/user/project/src/lib.rs"),
-                    Block::update("/home/user/project/README.md"),
+                    Block::read(None, "/home/user/project/src/lib.rs"),
+                    Block::update(None, "/home/user/project/README.md"),
                 ],
             ),
-            message(Role::User, vec![Block::remove("/home/user/project/old.rs")]),
+            message(
+                Role::User,
+                vec![Block::remove(None, "/home/user/project/old.rs")],
+            ),
         ]);
         let actual = StripWorkingDir::new("/home/user/project").transform(fixture);
 
         let expected = summary(vec![
-            message(Role::User, vec![Block::read("src/main.rs")]),
+            message(Role::User, vec![Block::read(None, "src/main.rs")]),
             message(
                 Role::Assistant,
-                vec![Block::read("src/lib.rs"), Block::update("README.md")],
+                vec![
+                    Block::read(None, "src/lib.rs"),
+                    Block::update(None, "README.md"),
+                ],
             ),
-            message(Role::User, vec![Block::remove("old.rs")]),
+            message(Role::User, vec![Block::remove(None, "old.rs")]),
         ]);
 
         assert_eq!(actual, expected);
@@ -234,13 +249,9 @@ mod tests {
         let fixture = summary(vec![message(
             Role::Assistant,
             vec![
-                Block::default()
-                    .content("Some text content")
-                    .tool_call_success(true),
-                Block::read("/home/user/project/src/main.rs"),
-                Block::default()
-                    .content("More content")
-                    .tool_call_success(false),
+                Block::content("Some text content"),
+                Block::read(None, "/home/user/project/src/main.rs"),
+                Block::content("More content"),
             ],
         )]);
         let actual = StripWorkingDir::new("/home/user/project").transform(fixture);
@@ -248,13 +259,9 @@ mod tests {
         let expected = summary(vec![message(
             Role::Assistant,
             vec![
-                Block::default()
-                    .content("Some text content")
-                    .tool_call_success(true),
-                Block::read("src/main.rs"),
-                Block::default()
-                    .content("More content")
-                    .tool_call_success(false),
+                Block::content("Some text content"),
+                Block::read(None, "src/main.rs"),
+                Block::content("More content"),
             ],
         )]);
 
@@ -265,13 +272,13 @@ mod tests {
     fn test_handles_trailing_slash_in_working_dir() {
         let fixture = summary(vec![message(
             Role::Assistant,
-            vec![Block::read("/home/user/project/src/main.rs")],
+            vec![Block::read(None, "/home/user/project/src/main.rs")],
         )]);
         let actual = StripWorkingDir::new("/home/user/project/").transform(fixture);
 
         let expected = summary(vec![message(
             Role::Assistant,
-            vec![Block::read("src/main.rs")],
+            vec![Block::read(None, "src/main.rs")],
         )]);
 
         assert_eq!(actual, expected);
@@ -282,9 +289,9 @@ mod tests {
         let fixture = summary(vec![message(
             Role::Assistant,
             vec![
-                Block::read("src/main.rs"),
-                Block::update("./tests/test.rs"),
-                Block::remove("../other/file.rs"),
+                Block::read(None, "src/main.rs"),
+                Block::update(None, "./tests/test.rs"),
+                Block::remove(None, "../other/file.rs"),
             ],
         )]);
         let actual = StripWorkingDir::new("/home/user/project").transform(fixture);
@@ -292,9 +299,9 @@ mod tests {
         let expected = summary(vec![message(
             Role::Assistant,
             vec![
-                Block::read("src/main.rs"),
-                Block::update("./tests/test.rs"),
-                Block::remove("../other/file.rs"),
+                Block::read(None, "src/main.rs"),
+                Block::update(None, "./tests/test.rs"),
+                Block::remove(None, "../other/file.rs"),
             ],
         )]);
 
