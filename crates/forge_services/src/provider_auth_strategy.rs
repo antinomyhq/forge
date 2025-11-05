@@ -592,7 +592,7 @@ async fn exchange_oauth_for_api_key(
 
 /// Enum wrapper for all strategy implementations
 /// Eliminates heap allocation and dynamic dispatch
-pub(crate) enum AuthStrategyImpl {
+pub(crate) enum AnyAuthStrategy {
     ApiKey(ApiKeyStrategy),
     OAuthCodeStandard(OAuthCodeStrategy<StandardHttpProvider>),
     OAuthCodeAnthropic(OAuthCodeStrategy<AnthropicHttpProvider>),
@@ -602,7 +602,7 @@ pub(crate) enum AuthStrategyImpl {
 }
 
 #[async_trait::async_trait]
-impl AuthStrategy for AuthStrategyImpl {
+impl AuthStrategy for AnyAuthStrategy {
     async fn init(&self) -> anyhow::Result<AuthContextRequest> {
         match self {
             Self::ApiKey(s) => s.init().await,
@@ -645,28 +645,30 @@ pub(crate) fn create_auth_strategy(
     provider_id: ProviderId,
     auth_method: forge_domain::AuthMethod,
     required_params: Vec<URLParam>,
-) -> anyhow::Result<AuthStrategyImpl> {
+) -> anyhow::Result<AnyAuthStrategy> {
     match auth_method {
-        forge_domain::AuthMethod::ApiKey => Ok(AuthStrategyImpl::ApiKey(ApiKeyStrategy::new(
+        forge_domain::AuthMethod::ApiKey => Ok(AnyAuthStrategy::ApiKey(ApiKeyStrategy::new(
             provider_id,
             required_params,
         ))),
         forge_domain::AuthMethod::OAuthCode(config) => {
             if let ProviderId::Anthropic = provider_id {
-                return Ok(AuthStrategyImpl::OAuthCodeAnthropic(
-                    OAuthCodeStrategy::new(AnthropicHttpProvider, provider_id, config),
-                ));
+                return Ok(AnyAuthStrategy::OAuthCodeAnthropic(OAuthCodeStrategy::new(
+                    AnthropicHttpProvider,
+                    provider_id,
+                    config,
+                )));
             }
 
             if let ProviderId::GithubCopilot = provider_id {
-                return Ok(AuthStrategyImpl::OAuthCodeGithub(OAuthCodeStrategy::new(
+                return Ok(AnyAuthStrategy::OAuthCodeGithub(OAuthCodeStrategy::new(
                     GithubHttpProvider,
                     provider_id,
                     config,
                 )));
             }
 
-            Ok(AuthStrategyImpl::OAuthCodeStandard(OAuthCodeStrategy::new(
+            Ok(AnyAuthStrategy::OAuthCodeStandard(OAuthCodeStrategy::new(
                 StandardHttpProvider,
                 provider_id,
                 config,
@@ -675,11 +677,11 @@ pub(crate) fn create_auth_strategy(
         forge_domain::AuthMethod::OAuthDevice(config) => {
             // Check if this is OAuth-with-API-Key flow (GitHub Copilot pattern)
             if config.token_refresh_url.is_some() {
-                Ok(AuthStrategyImpl::OAuthWithApiKey(
+                Ok(AnyAuthStrategy::OAuthWithApiKey(
                     OAuthWithApiKeyStrategy::new(provider_id, config)?,
                 ))
             } else {
-                Ok(AuthStrategyImpl::OAuthDevice(OAuthDeviceStrategy::new(
+                Ok(AnyAuthStrategy::OAuthDevice(OAuthDeviceStrategy::new(
                     provider_id,
                     config,
                 )))
