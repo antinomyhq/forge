@@ -235,4 +235,49 @@ mod tests {
         assert!(actual.is_err());
         assert_eq!(actual.unwrap_err().to_string(), expected);
     }
+
+    #[tokio::test]
+    async fn test_assert_file_size_with_content_within_limit() {
+        let file = NamedTempFile::new().unwrap();
+        let infra = MockFileService::new();
+        let content = "hello world";
+        let actual = assert_file_size(&infra, file.path(), 20u64, Some(content)).await;
+        assert!(actual.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_assert_file_size_with_content_exceeds_limit() {
+        let file = NamedTempFile::new().unwrap();
+        let infra = MockFileService::new();
+        let content = "this is a very long content";
+        let actual = assert_file_size(&infra, file.path(), 10u64, Some(content)).await;
+        assert!(actual.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_assert_file_size_with_content_exactly_at_limit() {
+        let file = NamedTempFile::new().unwrap();
+        let infra = MockFileService::new();
+        let content = "exact";
+        let actual = assert_file_size(&infra, file.path(), 5u64, Some(content)).await;
+        assert!(actual.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_assert_file_size_with_content_unicode() {
+        let file = NamedTempFile::new().unwrap();
+        let infra = MockFileService::new();
+        let content = "🚀🚀"; // 8 bytes
+        let actual = assert_file_size(&infra, file.path(), 8u64, Some(content)).await;
+        assert!(actual.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_assert_file_size_with_content_empty() {
+        let file = NamedTempFile::new().unwrap();
+        let infra = MockFileService::new();
+        let content = "";
+        let actual = assert_file_size(&infra, file.path(), 100u64, Some(content)).await;
+        assert!(actual.is_ok());
+    }
 }
