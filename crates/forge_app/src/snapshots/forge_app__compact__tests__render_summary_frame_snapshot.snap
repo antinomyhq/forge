@@ -150,9 +150,6 @@ I see - there are other transformer files that also use the old API. Let me fix 
 **Modified:** `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers/drop_role.rs`
 
 
-**Modified:** `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers/drop_role.rs`
-
-
 ````
 Good! Now let me check the other files that have compilation errors. Let me search for files that use `SummaryMessageBlock`:
 ````
@@ -275,40 +272,10 @@ You're right - `tool_call_success` should not be optional since we always know w
 **Modified:** `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/summary.rs`
 
 
-**Modified:** `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/summary.rs`
-
-
-**Modified:** `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/summary.rs`
-
-
-**Modified:** `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/summary.rs`
-
-
-**Modified:** `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/summary.rs`
-
-
-**Modified:** `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/summary.rs`
-
-
-**Modified:** `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/summary.rs`
-
-
-**Modified:** `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/summary.rs`
-
-
-**Modified:** `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/summary.rs`
-
-
-**Modified:** `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/summary.rs`
-
-
 ````
 Now let me update the transformer files to use the non-optional `tool_call_success`:
 ````
 **Modified:** `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers/keep_first_user_message.rs`
-
-
-**Modified:** `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers/trim_context_summary.rs`
 
 
 **Modified:** `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers/trim_context_summary.rs`
@@ -320,15 +287,6 @@ Good! Now let me run the tests to see the current status:
 ````
 There are still errors in other transformer files. Let me quickly fix `strip_working_dir.rs`:
 ````
-
-**Read:** `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers/strip_working_dir.rs`
-
-**Modified:** `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers/strip_working_dir.rs`
-
-
-**Modified:** `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers/strip_working_dir.rs`
-
-
 **Modified:** `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers/strip_working_dir.rs`
 
 
@@ -387,9 +345,6 @@ Let me fix those mutable warnings and then run the actual summary tests:
 **Modified:** `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/summary.rs`
 
 
-**Modified:** `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/summary.rs`
-
-
 ````
 Now let me run just the summary tests to verify they work:
 ````
@@ -399,12 +354,6 @@ Let me check if there are still compilation errors:
 ````
 Let me fix the strip_working_dir.rs import and type issues:
 ````
-**Modified:** `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers/strip_working_dir.rs`
-
-
-
-**Read:** `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers/strip_working_dir.rs`
-
 **Modified:** `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers/strip_working_dir.rs`
 
 

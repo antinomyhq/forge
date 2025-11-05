@@ -1,6 +1,3 @@
-use derive_setters::Setters;
-use indexmap::IndexMap;
-
 use crate::compact::summary::{ContextSummary, SummaryMessageBlock, SummaryToolCall};
 use crate::{Role, Transformer};
 
@@ -12,33 +9,11 @@ use crate::{Role, Transformer};
 /// size while preserving the final state of file operations.
 pub struct TrimContextSummary;
 
-#[derive(Default, Hash, PartialEq, Eq, Setters)]
-struct BlockKey {
-    path: Option<String>,
-    content: Option<String>,
-    tool_call_id: Option<String>,
-}
-
-impl From<&SummaryMessageBlock> for BlockKey {
-    fn from(value: &SummaryMessageBlock) -> Self {
-        match value {
-            SummaryMessageBlock::Content(text) => {
-                Self { path: None, content: Some(text.clone()), tool_call_id: None }
-            }
-            SummaryMessageBlock::ToolCall(tool_data) => Self {
-                path: extract_path(&tool_data.call),
-                content: None,
-                tool_call_id: tool_data.tool_call_id.as_ref().map(|id| id.0.clone()),
-            },
-        }
-    }
-}
-
-fn extract_path(tool_call: &SummaryToolCall) -> Option<String> {
+fn extract_path(tool_call: &SummaryToolCall) -> &str {
     match tool_call {
-        SummaryToolCall::FileRead { path } => Some(path.to_owned()),
-        SummaryToolCall::FileUpdate { path } => Some(path.to_owned()),
-        SummaryToolCall::FileRemove { path } => Some(path.to_owned()),
+        SummaryToolCall::FileRead { path } => path.as_str(),
+        SummaryToolCall::FileUpdate { path } => path.as_str(),
+        SummaryToolCall::FileRemove { path } => path.as_str(),
     }
 }
 
@@ -52,30 +27,31 @@ impl Transformer for TrimContextSummary {
                 continue;
             }
 
-            let mut block_map: IndexMap<BlockKey, SummaryMessageBlock> = IndexMap::new();
+            let mut block_seq: Vec<SummaryMessageBlock> = Default::default();
 
             for block in message.blocks.drain(..) {
                 // For tool calls, only keep successful operations
-                if let SummaryMessageBlock::ToolCall(ref tool_data) = block {
-                    if !tool_data.tool_call_success {
+                if let SummaryMessageBlock::ToolCall(ref current) = block {
+                    if !current.tool_call_success {
                         continue;
                     }
 
-                    let path = extract_path(&tool_data.call);
-                    let key = BlockKey::default().path(path);
-
                     // Remove previous entry if it has no content
-                    if let Some(SummaryMessageBlock::ToolCall(prev_tool_data)) = block_map.get(&key)
-                        && prev_tool_data.tool_call_id.is_none()
+                    if let Some(SummaryMessageBlock::ToolCall(last_tool_data)) =
+                        block_seq.last_mut()
                     {
-                        block_map.shift_remove(&key);
+                        let last_path = extract_path(&last_tool_data.call);
+                        let path = extract_path(&current.call);
+                        if last_path == path {
+                            block_seq.pop();
+                        }
                     }
                 }
 
-                block_map.insert(BlockKey::from(&block), block);
+                block_seq.push(block);
             }
 
-            message.blocks = block_map.into_values().collect();
+            message.blocks = block_seq;
         }
 
         summary
@@ -396,6 +372,29 @@ mod tests {
                 Block::read(None, "/test1"),
                 Block::read(Some(ToolCallId::new("call1")), "/test2"),
                 Block::content("baz"),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_assistant_message_with_different_call_ids() {
+        let fixture = summary(vec![message(
+            Role::Assistant,
+            vec![
+                Block::content("foo"),
+                Block::read(Some(ToolCallId::new("1")), "/test1"),
+                Block::read(Some(ToolCallId::new("2")), "/test1"),
+            ],
+        )]);
+        let actual = TrimContextSummary.transform(fixture);
+
+        let expected = summary(vec![message(
+            Role::Assistant,
+            vec![
+                Block::content("foo"),
+                Block::read(Some(ToolCallId::new("2")), "/test1"),
             ],
         )]);
 
