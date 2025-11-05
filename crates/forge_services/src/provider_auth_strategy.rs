@@ -26,10 +26,8 @@ pub(crate) trait AuthStrategy: Send + Sync {
         context_response: forge_domain::AuthContextResponse,
     ) -> anyhow::Result<AuthCredential>;
 
-    /// Refresh credential (default: no-op for non-refreshable)
-    async fn refresh(&self, credential: &AuthCredential) -> anyhow::Result<AuthCredential> {
-        Ok(credential.clone())
-    }
+    /// Refresh credential
+    async fn refresh(&self, credential: &AuthCredential) -> anyhow::Result<AuthCredential>;
 }
 
 /// API Key Strategy - Simple static key authentication
@@ -66,7 +64,10 @@ impl AuthStrategy for ApiKeyStrategy {
         }
     }
 
-    // No refresh needed - uses default implementation
+    async fn refresh(&self, credential: &AuthCredential) -> anyhow::Result<AuthCredential> {
+        // API keys don't expire - return as-is
+        Ok(credential.clone())
+    }
 }
 
 /// OAuth Code Strategy - Browser redirect flow

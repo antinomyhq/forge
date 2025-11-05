@@ -263,7 +263,8 @@ pub trait OAuthHttpProvider: Send + Sync {
     /// Builds an authorization URL with provider-specific parameters.
     async fn build_auth_url(&self, config: &OAuthConfig) -> anyhow::Result<AuthCodeParams>;
 
-    /// Exchanges an authorization code for an access token with provider-specific handling.
+    /// Exchanges an authorization code for an access token with
+    /// provider-specific handling.
     async fn exchange_code(
         &self,
         config: &OAuthConfig,

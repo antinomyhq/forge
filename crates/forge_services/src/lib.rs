@@ -35,7 +35,8 @@ pub use policy::*;
 pub use preferences::*;
 pub use provider_auth_service::*;
 
-/// Converts a type from its external representation into its domain model representation.
+/// Converts a type from its external representation into its domain model
+/// representation.
 pub trait IntoDomain {
     type Domain;
 
