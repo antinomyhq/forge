@@ -116,7 +116,11 @@ pub trait API: Sync + Send {
     async fn get_provider(&self, scope: &ConfigScope) -> anyhow::Result<Option<Provider<Url>>>;
 
     /// Sets the provider for a given configuration scope
-    async fn set_provider(&self, scope: &ConfigScope, provider: Provider<Url>) -> anyhow::Result<()>;
+    async fn set_provider(
+        &self,
+        scope: &ConfigScope,
+        provider: Provider<Url>,
+    ) -> anyhow::Result<()>;
 
     /// Retrieves information about the currently authenticated user
     async fn user_info(&self) -> anyhow::Result<Option<User>>;

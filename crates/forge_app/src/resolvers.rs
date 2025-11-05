@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use url::Url;
 use forge_domain::{AgentId, ModelId, Provider, ProviderId, ScopeResolution};
+use url::Url;
 
 use crate::{AgentRegistry, AppConfigService, ProviderService, Services};
 
