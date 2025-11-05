@@ -35,34 +35,6 @@
       },
       {
         "text": {
-          "role": "User",
-          "content": "Use the following summary as the authoritative reference for all coding suggestions and decisions. Do not re-explain or revisit it unless I ask.\n\n---\n## Summary\n### 1. Assistant\n- Read: `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/message.rs`\n- Read: `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/tools/mod.rs`\n- Read: `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/tools/catalog.rs`\n- Read: `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/context.rs`\n- Read: `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/tools/call/tool_call.rs`\n- Read: `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/tools/result.rs`\n- Read: `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/image.rs`\n- Updated: `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/summary.rs`\n\n### 2. Assistant\n- Read: `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/summary.rs`\n\n---\n\nProceed with implementation based on this context.\n",
-          "model": "claude-sonnet-4-5-20250929"
-        }
-      },
-      {
-        "text": {
-          "role": "User",
-          "content": "Use the following summary as the authoritative reference for all coding suggestions and decisions. Do not re-explain or revisit it unless I ask.\n\n---\n---\n\nProceed with implementation based on this context.\n",
-          "model": "claude-sonnet-4-5-20250929"
-        }
-      },
-      {
-        "text": {
-          "role": "User",
-          "content": "Use the following summary as the authoritative reference for all coding suggestions and decisions. Do not re-explain or revisit it unless I ask.\n\n---\n## Summary\n### 1. Assistant\n- Read: `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/summary.rs`\n\n### 2. Assistant\n- Updated: `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/summary.rs`\n\n### 3. Assistant\n- Updated: `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/summary.rs`\n\n### 4. Assistant\n- Read: `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/summary.rs`\n\n---\n\nProceed with implementation based on this context.\n",
-          "model": "claude-sonnet-4-5-20250929"
-        }
-      },
-      {
-        "text": {
-          "role": "User",
-          "content": "Use the following summary as the authoritative reference for all coding suggestions and decisions. Do not re-explain or revisit it unless I ask.\n\n---\n## Summary\n### 1. Assistant\n- Updated: `/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/summary.rs`\n\n---\n\nProceed with implementation based on this context.\n",
-          "model": "claude-sonnet-4-5-20250929"
-        }
-      },
-      {
-        "text": {
           "role": "Assistant",
           "content": "You're right - the call_id should be optional. Let me fix that:",
           "tool_calls": [

@@ -39,6 +39,27 @@ pub fn create_handlebars() -> Handlebars<'static> {
         ),
     );
 
+    // Register the 'json' helper to serialize context as JSON string
+    hb.register_helper(
+        "json",
+        Box::new(
+            |h: &handlebars::Helper,
+             _: &handlebars::Handlebars,
+             _: &handlebars::Context,
+             _: &mut handlebars::RenderContext,
+             out: &mut dyn handlebars::Output|
+             -> handlebars::HelperResult {
+                let value = h.param(0).ok_or_else(|| {
+                    handlebars::RenderErrorReason::ParamNotFoundForIndex("json", 0)
+                })?;
+                let json_string = serde_json::to_string(value.value())
+                    .map_err(|e| handlebars::RenderErrorReason::NestedError(Box::new(e)))?;
+                out.write(&json_string)?;
+                Ok(())
+            },
+        ),
+    );
+
     // Register all partial templates
     hb.register_embed_templates::<Templates>().unwrap();
 
