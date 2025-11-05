@@ -159,7 +159,7 @@ mod tests {
             Self { services, agent, tool_context, context }
         }
 
-        fn watcher(&self) -> PlanExecutionWatcher<MockService> {
+        fn watcher(&self) -> PlanExecutionWatcher<'_, MockService> {
             PlanExecutionWatcher::new(self.services.clone(), &self.agent, &self.tool_context)
         }
     }
