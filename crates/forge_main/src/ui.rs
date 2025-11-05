@@ -6,8 +6,9 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, AnyProvider, ChatRequest, ChatResponse, ConfigScope, Conversation, ConversationId, Event,
-    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, Workflow,
+    API, AgentId, AnyProvider, ChatRequest, ChatResponse, ConfigScope, Conversation,
+    ConversationId, Event, InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage,
+    Workflow,
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
@@ -1782,12 +1783,24 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .get_providers()
                     .await?
                     .into_iter()
-                    .find(|p| p.id == provider_id)
+                    .find(|p| p.id() == provider_id)
                     .ok_or(anyhow::anyhow!("Provider not found"))?;
-                self.api
-                    .set_provider(&ConfigScope::Global, provider)
-                    .await?;
-                self.writeln_title(TitleFormat::action("Provider set").sub_title(&args.value))?;
+                match provider {
+                    AnyProvider::Url(provider) => {
+                        self.api
+                            .set_provider(&ConfigScope::Global, provider)
+                            .await?;
+                        self.writeln_title(
+                            TitleFormat::action("Provider set").sub_title(&args.value),
+                        )?;
+                    }
+                    AnyProvider::Template(provider) => {
+                        self.writeln_title(TitleFormat::error(format!(
+                            "The provider {} is not fully configured.",
+                            provider.id
+                        )))?;
+                    }
+                }
             }
             ConfigField::Model => {
                 let model_id = self.validate_model(&args.value).await?;

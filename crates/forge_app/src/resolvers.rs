@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use url::Url;
 use forge_domain::{AgentId, ModelId, Provider, ProviderId, ScopeResolution};
 
 use crate::{AgentRegistry, AppConfigService, ProviderService, Services};
@@ -21,7 +22,7 @@ impl<S> ScopeResolution for ProviderResolver<S>
 where
     S: Services + AgentRegistry + AppConfigService + ProviderService,
 {
-    type Config = Provider;
+    type Config = Provider<Url>;
 
     async fn get_global_level(&self) -> Result<Option<Self::Config>> {
         let provider = self.services.get_default_provider().await?;

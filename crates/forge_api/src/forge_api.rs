@@ -186,7 +186,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         scope.get(&resolver).await
     }
 
-    async fn set_provider(&self, scope: &ConfigScope, provider: Provider) -> anyhow::Result<()> {
+    async fn set_provider(&self, scope: &ConfigScope, provider: Provider<Url>) -> anyhow::Result<()> {
         let resolver = forge_app::ProviderResolver::new(self.services.clone());
         scope.set(&resolver, provider).await?;
         Ok(())
