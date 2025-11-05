@@ -126,6 +126,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> Prov
     async fn get_credential(&self, id: &ProviderId) -> anyhow::Result<Option<AuthCredential>> {
         self.provider_repository.get_credential(id).await
     }
+
+    async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()> {
+        self.provider_repository.remove_credential(id).await
+    }
 }
 
 #[async_trait::async_trait]

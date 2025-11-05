@@ -132,4 +132,17 @@ impl<I: EnvironmentInfra + HttpInfra + ProviderRepository> ProviderService
 
         Ok(())
     }
+
+    async fn remove_credential(&self, id: &ProviderId) -> Result<()> {
+        // Remove the credential from the repository
+        self.http_infra.remove_credential(id).await?;
+
+        // Clear the cached client for this provider
+        {
+            let mut clients_guard = self.cached_clients.lock().await;
+            clients_guard.remove(id);
+        }
+
+        Ok(())
+    }
 }

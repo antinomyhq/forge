@@ -438,6 +438,20 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Sync> ProviderRep
         let credentials = self.read_credentials().await;
         Ok(credentials.into_iter().find(|c| &c.id == id))
     }
+
+    async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()> {
+        let mut credentials = self.read_credentials().await;
+        credentials.retain(|c| &c.id != id);
+        self.write_credentials(&credentials).await?;
+
+        // Clear cached providers to force reload with removed credentials
+        {
+            let mut write_lock = self.providers.write().await;
+            *write_lock = None;
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -662,6 +676,10 @@ mod env_tests {
             _id: &ProviderId,
         ) -> anyhow::Result<Option<forge_domain::AuthCredential>> {
             Ok(None)
+        }
+
+        async fn remove_credential(&self, _id: &ProviderId) -> anyhow::Result<()> {
+            Ok(())
         }
     }
 
@@ -1018,6 +1036,10 @@ mod env_tests {
                 _id: &ProviderId,
             ) -> anyhow::Result<Option<forge_domain::AuthCredential>> {
                 Ok(None)
+            }
+
+            async fn remove_credential(&self, _id: &ProviderId) -> anyhow::Result<()> {
+                Ok(())
             }
         }
 

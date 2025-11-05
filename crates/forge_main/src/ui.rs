@@ -545,6 +545,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ProviderCommand::Add => {
                 self.handle_provider_add().await?;
             }
+            ProviderCommand::Logout => {
+                self.handle_provider_logout().await?;
+            }
         }
 
         Ok(())
@@ -585,6 +588,52 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         self.configure_provider(provider.id, provider.auth_methods)
                             .await?;
                     }
+                }
+            }
+            None => {
+                self.writeln_title(TitleFormat::info("Cancelled"))?;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn handle_provider_logout(&mut self) -> anyhow::Result<()> {
+        use crate::model::CliProvider;
+
+        // Fetch all providers
+        let providers = self.api.get_providers().await?;
+
+        // Filter only configured providers
+        let configured_providers: Vec<_> = providers
+            .into_iter()
+            .filter_map(|p| match p {
+                AnyProvider::Url(provider) => Some(CliProvider(AnyProvider::Url(provider))),
+                AnyProvider::Template(_) => None,
+            })
+            .collect();
+
+        if configured_providers.is_empty() {
+            self.writeln_title(TitleFormat::info("No configured providers found"))?;
+            return Ok(());
+        }
+
+        // Sort the providers by their display names
+        let mut sorted_providers = configured_providers;
+        sorted_providers.sort_by_key(|a| a.to_string());
+
+        // Use the centralized select module
+        match ForgeSelect::select("Select a provider to logout:", sorted_providers)
+            .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
+            .prompt()?
+        {
+            Some(provider) => {
+                if let AnyProvider::Url(p) = provider.0 {
+                    self.api.remove_provider(&p.id).await?;
+                    self.writeln_title(TitleFormat::completion(format!(
+                        "Successfully logged out from {}",
+                        p.id
+                    )))?;
                 }
             }
             None => {

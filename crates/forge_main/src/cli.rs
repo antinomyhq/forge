@@ -406,6 +406,11 @@ pub enum ProviderCommand {
     ///
     /// Example: forge provider add
     Add,
+
+    /// Remove a configured provider (logout)
+    ///
+    /// Example: forge provider logout
+    Logout,
 }
 
 #[cfg(test)]

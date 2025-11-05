@@ -91,4 +91,5 @@ pub trait ProviderRepository: Send + Sync {
     async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider<Url>>;
     async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()>;
     async fn get_credential(&self, id: &ProviderId) -> anyhow::Result<Option<AuthCredential>>;
+    async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()>;
 }
