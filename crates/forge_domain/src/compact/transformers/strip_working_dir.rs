@@ -45,7 +45,7 @@ impl Transformer for StripWorkingDir {
         for message in summary.messages.iter_mut() {
             for block in message.blocks.iter_mut() {
                 if let SummaryMessageBlock::ToolCall(tool_data) = block {
-                    match &mut tool_data.tool_call {
+                    match &mut tool_data.call {
                         SummaryToolCall::FileRead { path } => {
                             *path = self.strip_prefix(path);
                         }

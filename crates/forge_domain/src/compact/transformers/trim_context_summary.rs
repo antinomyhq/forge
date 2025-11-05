@@ -26,7 +26,7 @@ impl From<&SummaryMessageBlock> for BlockKey {
                 Self { path: None, content: Some(text.clone()), tool_call_id: None }
             }
             SummaryMessageBlock::ToolCall(tool_data) => Self {
-                path: extract_path(&tool_data.tool_call),
+                path: extract_path(&tool_data.call),
                 content: None,
                 tool_call_id: tool_data.tool_call_id.as_ref().map(|id| id.0.clone()),
             },
@@ -61,7 +61,7 @@ impl Transformer for TrimContextSummary {
                         continue;
                     }
 
-                    let path = extract_path(&tool_data.tool_call);
+                    let path = extract_path(&tool_data.call);
                     let key = BlockKey::default().path(path);
 
                     // Remove previous entry if it has no content
@@ -108,7 +108,7 @@ mod tests {
     fn tool_block(call: SummaryToolCall, success: bool) -> SummaryMessageBlock {
         SummaryMessageBlock::ToolCall(SummaryToolData {
             tool_call_id: None,
-            tool_call: call,
+            call,
             tool_call_success: success,
         })
     }
@@ -244,7 +244,7 @@ mod tests {
                 Block::read(None, "/unknown"),
                 SummaryMessageBlock::ToolCall(SummaryToolData {
                     tool_call_id: None,
-                    tool_call: SummaryToolCall::FileRead { path: "/unknown".to_string() },
+                    call: SummaryToolCall::FileRead { path: "/unknown".to_string() },
                     tool_call_success: false, // Should be filtered out
                 }),
                 Block::update(None, "file.txt"),

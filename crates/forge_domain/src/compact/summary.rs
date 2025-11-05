@@ -23,7 +23,7 @@ pub struct SummaryMessage {
 
 /// A message block that can be either content or a tool call
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", untagged)]
+#[serde(rename_all = "snake_case")]
 pub enum SummaryMessageBlock {
     Content(String),
     ToolCall(SummaryToolData),
@@ -34,7 +34,7 @@ pub enum SummaryMessageBlock {
 #[serde(rename_all = "snake_case")]
 pub struct SummaryToolData {
     pub tool_call_id: Option<ToolCallId>,
-    pub tool_call: SummaryToolCall,
+    pub call: SummaryToolCall,
     pub tool_call_success: bool,
 }
 
@@ -49,7 +49,7 @@ impl SummaryMessageBlock {
     pub fn read(call_id: Option<ToolCallId>, path: impl Into<String>) -> Self {
         Self::ToolCall(SummaryToolData {
             tool_call_id: call_id,
-            tool_call: SummaryToolCall::FileRead { path: path.into() },
+            call: SummaryToolCall::FileRead { path: path.into() },
             tool_call_success: true,
         })
     }
@@ -58,7 +58,7 @@ impl SummaryMessageBlock {
     pub fn update(call_id: Option<ToolCallId>, path: impl Into<String>) -> Self {
         Self::ToolCall(SummaryToolData {
             tool_call_id: call_id,
-            tool_call: SummaryToolCall::FileUpdate { path: path.into() },
+            call: SummaryToolCall::FileUpdate { path: path.into() },
             tool_call_success: true,
         })
     }
@@ -67,7 +67,7 @@ impl SummaryMessageBlock {
     pub fn remove(call_id: Option<ToolCallId>, path: impl Into<String>) -> Self {
         Self::ToolCall(SummaryToolData {
             tool_call_id: call_id,
-            tool_call: SummaryToolCall::FileRemove { path: path.into() },
+            call: SummaryToolCall::FileRemove { path: path.into() },
             tool_call_success: true,
         })
     }
@@ -157,7 +157,7 @@ impl From<&TextMessage> for Vec<SummaryMessageBlock> {
                 extract_tool_info(tool_call).map(|call| {
                     SummaryMessageBlock::ToolCall(SummaryToolData {
                         tool_call_id: tool_call.call_id.clone(),
-                        tool_call: call,
+                        call,
                         tool_call_success: false,
                     })
                 })
@@ -296,7 +296,7 @@ mod tests {
     fn block_read(call_id: &str, path: &str, success: bool) -> SummaryMessageBlock {
         SummaryMessageBlock::ToolCall(SummaryToolData {
             tool_call_id: Some(ToolCallId::new(call_id)),
-            tool_call: SummaryToolCall::FileRead { path: path.to_string() },
+            call: SummaryToolCall::FileRead { path: path.to_string() },
             tool_call_success: success,
         })
     }
@@ -311,7 +311,7 @@ mod tests {
             SummaryMessageBlock::Content(content.to_string()),
             SummaryMessageBlock::ToolCall(SummaryToolData {
                 tool_call_id: Some(ToolCallId::new(call_id)),
-                tool_call: SummaryToolCall::FileRead { path: path.to_string() },
+                call: SummaryToolCall::FileRead { path: path.to_string() },
                 tool_call_success: success,
             }),
         ]
@@ -320,7 +320,7 @@ mod tests {
     fn block_update(call_id: &str, path: &str, success: bool) -> SummaryMessageBlock {
         SummaryMessageBlock::ToolCall(SummaryToolData {
             tool_call_id: Some(ToolCallId::new(call_id)),
-            tool_call: SummaryToolCall::FileUpdate { path: path.to_string() },
+            call: SummaryToolCall::FileUpdate { path: path.to_string() },
             tool_call_success: success,
         })
     }
@@ -335,7 +335,7 @@ mod tests {
             SummaryMessageBlock::Content(content.to_string()),
             SummaryMessageBlock::ToolCall(SummaryToolData {
                 tool_call_id: Some(ToolCallId::new(call_id)),
-                tool_call: SummaryToolCall::FileUpdate { path: path.to_string() },
+                call: SummaryToolCall::FileUpdate { path: path.to_string() },
                 tool_call_success: success,
             }),
         ]
@@ -344,7 +344,7 @@ mod tests {
     fn block_remove(call_id: &str, path: &str, success: bool) -> SummaryMessageBlock {
         SummaryMessageBlock::ToolCall(SummaryToolData {
             tool_call_id: Some(ToolCallId::new(call_id)),
-            tool_call: SummaryToolCall::FileRemove { path: path.to_string() },
+            call: SummaryToolCall::FileRemove { path: path.to_string() },
             tool_call_success: success,
         })
     }
@@ -359,7 +359,7 @@ mod tests {
 
         let expected = SummaryMessageBlock::ToolCall(SummaryToolData {
             tool_call_id: None,
-            tool_call: SummaryToolCall::FileRead { path: "/path/to/file.rs".to_string() },
+            call: SummaryToolCall::FileRead { path: "/path/to/file.rs".to_string() },
             tool_call_success: true,
         });
 
@@ -372,7 +372,7 @@ mod tests {
 
         let expected = SummaryMessageBlock::ToolCall(SummaryToolData {
             tool_call_id: None,
-            tool_call: SummaryToolCall::FileUpdate { path: "/path/to/file.rs".to_string() },
+            call: SummaryToolCall::FileUpdate { path: "/path/to/file.rs".to_string() },
             tool_call_success: true,
         });
 
@@ -385,7 +385,7 @@ mod tests {
 
         let expected = SummaryMessageBlock::ToolCall(SummaryToolData {
             tool_call_id: None,
-            tool_call: SummaryToolCall::FileRemove { path: "/path/to/file.rs".to_string() },
+            call: SummaryToolCall::FileRemove { path: "/path/to/file.rs".to_string() },
             tool_call_success: true,
         });
 

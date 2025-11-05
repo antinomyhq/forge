@@ -57,7 +57,7 @@ mod tests {
     fn fixture_message_block() -> SummaryMessageBlock {
         SummaryMessageBlock::ToolCall(SummaryToolData {
             tool_call_id: None,
-            tool_call: SummaryToolCall::FileRead { path: "test".to_string() },
+            call: SummaryToolCall::FileRead { path: "test".to_string() },
             tool_call_success: false,
         })
     }
