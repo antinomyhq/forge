@@ -432,7 +432,7 @@ impl<S: AgentService> Orchestrator<S> {
                 let Ok(rendered_prompt) = self
                     .services
                     .render(
-                        Template::new("forge-plan-notification.md"),
+                        Template::new("{{> forge-plan-notification.md}}"),
                         &serde_json::json!({
                             "plan": plan_view
                         }),
