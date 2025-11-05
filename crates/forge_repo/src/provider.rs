@@ -53,10 +53,10 @@ fn overwrite<T>(base: &mut T, other: T) {
 struct ProviderConfigs(#[merge(strategy = merge_configs)] Vec<ProviderConfig>);
 
 fn merge_configs(base: &mut Vec<ProviderConfig>, other: Vec<ProviderConfig>) {
-    let mut map: std::collections::HashMap<_, _> = base.drain(..).map(|c| (c.id, c)).collect();
+    let mut map: std::collections::HashMap<_, _> = base.drain(..).map(|c| (c.id.clone(), c)).collect();
 
     for other_config in other {
-        map.entry(other_config.id)
+        map.entry(other_config.id.clone())
             .and_modify(|base_config| base_config.merge(other_config.clone()))
             .or_insert(other_config);
     }
@@ -77,7 +77,7 @@ impl From<&ProviderConfig>
             Models::Hardcoded(model_list) => forge_domain::Models::Hardcoded(model_list.clone()),
         };
         Provider {
-            id: config.id,
+            id: config.id.clone(),
             response: config.response_type.clone(),
             url: forge_domain::Template::new(&config.url),
             auth_methods: config.auth_methods.clone(),
@@ -252,7 +252,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
         let api_key = self
             .infra
             .get_env_var(&config.api_key_vars)
-            .ok_or_else(|| Error::env_var_not_found(config.id, &config.api_key_vars))?;
+            .ok_or_else(|| Error::env_var_not_found(config.id.clone(), &config.api_key_vars))?;
 
         // Check URL parameter environment variables
         let mut url_params = std::collections::HashMap::new();
@@ -261,7 +261,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
             if let Some(value) = self.infra.get_env_var(env_var) {
                 url_params.insert(URLParam::from(env_var.clone()), URLParamValue::from(value));
             } else {
-                return Err(Error::env_var_not_found(config.id, env_var).into());
+                return Err(Error::env_var_not_found(config.id.clone(), env_var).into());
             }
         }
 
@@ -320,7 +320,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
         };
 
         Ok(Provider {
-            id: config.id,
+            id: config.id.clone(),
             response: config.response_type.clone(),
             url: final_url,
             auth_methods: config.auth_methods.clone(),

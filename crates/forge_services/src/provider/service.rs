@@ -39,7 +39,7 @@ impl<I: EnvironmentInfra + HttpInfra> ForgeProviderService<I> {
     }
 
     async fn client(&self, provider: Provider<Url>) -> Result<Client<HttpClient<I>>> {
-        let provider_id = provider.id;
+        let provider_id = provider.id.clone();
 
         // Check cache first
         {
@@ -86,7 +86,7 @@ impl<I: EnvironmentInfra + HttpInfra + ProviderRepository> ProviderService
     }
 
     async fn models(&self, provider: Provider<Url>) -> Result<Vec<Model>> {
-        let provider_id = provider.id;
+        let provider_id = provider.id.clone();
 
         // Check cache first
         {

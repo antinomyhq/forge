@@ -1612,7 +1612,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         };
 
         // Set the provider via API
-        self.api.set_default_provider(provider.id).await?;
+        let provider_id = provider.id.clone();
+        self.api.set_default_provider(provider_id).await?;
 
         self.writeln_title(TitleFormat::action(format!(
             "Switched to provider: {}",
@@ -2193,8 +2194,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Validate provider exists and has API key
     async fn validate_provider(&mut self, provider_str: &str) -> Result<ProviderId> {
         // Parse provider ID from string
-        let provider_id = ProviderId::from_str(provider_str).with_context(|| {
-            format!(
+        let provider_id = ProviderId::from_str(provider_str).map_err(|_| {
+            anyhow::anyhow!(
                 "Invalid provider: '{}'. Valid providers are: {}",
                 provider_str,
                 get_valid_provider_names().join(", ")
