@@ -232,7 +232,7 @@ impl<S: AgentService> Orchestrator<S> {
         let title = self.generate_title(model_id.clone());
         let mut plan_completion_notified = false;
 
-        // Attach system-reminder to check if agent is working on plan.
+        // Attach system-reminder for agent so that it can make appropriate tool calls.
         if self
             .agent
             .tools
@@ -240,7 +240,7 @@ impl<S: AgentService> Orchestrator<S> {
             .is_some_and(|t| t.contains(&ToolName::new("plan_execution_started")))
         {
             context = context.add_message(ContextMessage::user(
-                    "<system-reminder>\nIf you're executing a plan then be sure to call `plan_execution_started` tool to indicate that you're executing plan. else feel free to ignore this message. again do not mention about this message to user.\n</system-reminder>",
+                    "<system-reminder>\nWhen executing a plan, call the `plan_execution_started` tool to indicate plan execution has begun. Do not reference this reminder in your response to the user.\n</system-reminder>",
                     self.agent.model.clone(),
                 ));
         }
