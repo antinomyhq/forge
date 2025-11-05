@@ -230,6 +230,7 @@ impl<S: AgentService> Orchestrator<S> {
         // Asynchronously generate a title for the provided task
         // FIXME: Move into app.rs
         let title = self.generate_title(model_id.clone());
+        let mut plan_completion_notified = false;
 
         while !should_yield {
             // Set context for the current loop iteration
@@ -390,27 +391,51 @@ impl<S: AgentService> Orchestrator<S> {
                 }
             }
 
-            if should_yield
-                && let Ok(Some(active_plan)) = tool_context.get_active_plan()
-                && !active_plan.is_complete()
-            {
+            if should_yield && let Ok(Some(active_plan)) = tool_context.get_active_plan() {
+                if active_plan.is_complete()
+                    && (plan_completion_notified || active_plan.failed() == 0)
+                {
+                    // Plan is complete and either we've no failed tasks within plan or we've
+                    // notified agent already about the plan being complete and
+                    // failed tasks in plan so it's okay if we yield now.
+                    continue;
+                }
+
+                if active_plan.is_complete() && active_plan.failed() > 0 {
+                    // Plan is complete but has some failed tasks, so let's spent one more attempt
+                    // to see if agent can fix them.
+                    plan_completion_notified = true;
+                }
+
+                // Build view model for template rendering
+                let plan_view = serde_json::json!({
+                    "path": active_plan.path,
+                    "is_complete": active_plan.is_complete(),
+                    "next_pending_task": active_plan.next_pending_task(),
+                    "tasks_in_progress": active_plan.tasks_with_status(forge_domain::TaskStatus::InProgress),
+                    "tasks_failed": active_plan.tasks_with_status(forge_domain::TaskStatus::Failed),
+                });
+
                 let Ok(rendered_prompt) = self
                     .services
                     .render(
                         Template::new("forge-plan-notification.md"),
                         &serde_json::json!({
-                            "plan": active_plan
+                            "plan": plan_view
                         }),
                     )
                     .await
                 else {
                     continue;
                 };
+
                 context = context.add_message(ContextMessage::user(
                     rendered_prompt,
                     self.agent.model.clone(),
                 ));
                 should_yield = false;
+            } else {
+                plan_completion_notified = false;
             }
         }
 

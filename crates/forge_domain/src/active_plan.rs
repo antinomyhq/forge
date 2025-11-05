@@ -96,15 +96,13 @@ impl ActivePlan {
         Self { path, tasks }
     }
 
-    /// Check if the plan is complete (all tasks are done and no tasks are
-    /// pending or in progress)
+    /// Check if the plan is complete (no pending tasks remaining or in-progress tasks)
     pub fn is_complete(&self) -> bool {
         !self.tasks.is_empty()
-            && self.tasks.iter().all(|t| t.is_complete())
             && !self
                 .tasks
                 .iter()
-                .any(|t| t.is_pending() || t.is_in_progress() || t.has_failed())
+                .any(|t| t.is_pending() || t.is_in_progress())
     }
 
     /// Get completion percentage
@@ -113,7 +111,7 @@ impl ActivePlan {
             return 0.0;
         }
         let completed = self.tasks.iter().filter(|t| t.is_complete()).count();
-        completed as f32 / self.tasks.len() as f32
+        completed as f32 / self.tasks.len() as f32 * 100.0
     }
 
     /// Get the total number of tasks
@@ -212,7 +210,7 @@ mod tests {
             Task::new("Task 1".to_string(), TaskStatus::Pending, 1),
             Task::new("Task 2".to_string(), TaskStatus::Done, 2),
         ];
-        let plan = ActivePlan::new(PathBuf::from("/test/plan.md"), tasks);
+        let plan = ActivePlan::new(PathBuf::from(file!()), tasks);
 
         assert_eq!(plan.total(), 2);
         assert_eq!(plan.completed(), 1);
@@ -221,7 +219,7 @@ mod tests {
 
     #[test]
     fn test_active_plan_empty() {
-        let plan = ActivePlan::new(PathBuf::from("/test/plan.md"), vec![]);
+        let plan = ActivePlan::new(PathBuf::from(file!()), vec![]);
 
         assert_eq!(plan.total(), 0);
         assert_eq!(plan.completed(), 0);
@@ -237,7 +235,7 @@ mod tests {
             Task::new("Task 2".to_string(), TaskStatus::Done, 2),
             Task::new("Task 3".to_string(), TaskStatus::Done, 3),
         ];
-        let plan = ActivePlan::new(PathBuf::from("/test/plan.md"), tasks);
+        let plan = ActivePlan::new(PathBuf::from(file!()), tasks);
 
         assert_eq!(plan.completed(), 3);
         assert_eq!(plan.todo(), 0);
@@ -251,9 +249,9 @@ mod tests {
             Task::new("Task 2".to_string(), TaskStatus::Pending, 2),
             Task::new("Task 3".to_string(), TaskStatus::InProgress, 3),
         ];
-        let plan = ActivePlan::new(PathBuf::from("/test/plan.md"), tasks);
+        let plan = ActivePlan::new(PathBuf::from(file!()), tasks);
 
-        assert_eq!(plan.complete_percentage(), 1.0 / 3.0);
+        assert_eq!(plan.complete_percentage(), (1.0 / 3.0) * 100.0);
         assert!(!plan.is_complete());
 
         let next = plan.next_pending_task().unwrap();
@@ -271,7 +269,7 @@ mod tests {
             Task::new("Task 3".to_string(), TaskStatus::Done, 3),
             Task::new("Task 4".to_string(), TaskStatus::Failed, 4),
         ];
-        let plan = ActivePlan::new(PathBuf::from("/test/plan.md"), tasks);
+        let plan = ActivePlan::new(PathBuf::from(file!()), tasks);
 
         assert_eq!(plan.total(), 4);
         assert_eq!(plan.todo(), 1);
