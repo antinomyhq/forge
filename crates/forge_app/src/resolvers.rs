@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_domain::{AgentId, ModelId, Provider, ProviderId, ScopeResolution, Trace};
+use forge_domain::{AgentId, ModelId, Provider, ProviderId, ScopeGetter, ScopeSetter, Trace};
 use url::Url;
 
 use crate::{AgentRegistry, AppConfigService, ProviderService, Services};
@@ -18,7 +18,7 @@ impl<S> ProviderResolver<S> {
 }
 
 #[async_trait::async_trait]
-impl<S> ScopeResolution for ProviderResolver<S>
+impl<S> ScopeGetter for ProviderResolver<S>
 where
     S: Services + AgentRegistry + AppConfigService + ProviderService,
 {
@@ -52,25 +52,30 @@ where
             Ok(None)
         }
     }
+}
 
-    async fn set_global_level(&self, config: Self::Config) -> Result<Option<()>> {
-        Ok(Some(self.services.set_default_provider(config.id).await?))
+#[async_trait::async_trait]
+impl<S> ScopeSetter for ProviderResolver<S>
+where
+    S: Services + AgentRegistry + AppConfigService + ProviderService,
+{
+    type Config = Provider<Url>;
+
+    async fn set_global_level(&self, config: Self::Config) -> Result<bool> {
+        self.services.set_default_provider(config.id).await?;
+        Ok(true)
     }
 
-    async fn set_project_level(&self, _config: Self::Config) -> Result<Option<()>> {
-        Ok(None)
+    async fn set_project_level(&self, _config: Self::Config) -> Result<bool> {
+        Ok(false)
     }
 
-    async fn set_provider_level(
-        &self,
-        _id: &ProviderId,
-        _config: Self::Config,
-    ) -> Result<Option<()>> {
-        Ok(None)
+    async fn set_provider_level(&self, _id: &ProviderId, _config: Self::Config) -> Result<bool> {
+        Ok(false)
     }
 
-    async fn set_agent_level(&self, _id: &AgentId, _config: Self::Config) -> Result<Option<()>> {
-        Ok(None)
+    async fn set_agent_level(&self, _id: &AgentId, _config: Self::Config) -> Result<bool> {
+        Ok(false)
     }
 }
 
@@ -86,7 +91,7 @@ impl<S> ModelResolver<S> {
 }
 
 #[async_trait::async_trait]
-impl<S> ScopeResolution for ModelResolver<S>
+impl<S> ScopeGetter for ModelResolver<S>
 where
     S: Services + AgentRegistry + AppConfigService,
 {
@@ -118,27 +123,30 @@ where
             Ok(None)
         }
     }
+}
 
-    async fn set_global_level(&self, config: Self::Config) -> Result<Option<()>> {
+#[async_trait::async_trait]
+impl<S> ScopeSetter for ModelResolver<S>
+where
+    S: Services + AgentRegistry + AppConfigService,
+{
+    type Config = ModelId;
+
+    async fn set_global_level(&self, config: Self::Config) -> Result<bool> {
         let provider = self.services.get_default_provider().await?;
-        Ok(Some(
-            self.services.set_default_model(config, provider.id).await?,
-        ))
+        self.services.set_default_model(config, provider.id).await?;
+        Ok(true)
     }
 
-    async fn set_project_level(&self, _config: Self::Config) -> Result<Option<()>> {
-        Ok(None)
+    async fn set_project_level(&self, _config: Self::Config) -> Result<bool> {
+        Ok(false)
     }
 
-    async fn set_provider_level(
-        &self,
-        _id: &ProviderId,
-        _config: Self::Config,
-    ) -> Result<Option<()>> {
-        Ok(None)
+    async fn set_provider_level(&self, _id: &ProviderId, _config: Self::Config) -> Result<bool> {
+        Ok(false)
     }
 
-    async fn set_agent_level(&self, _id: &AgentId, _config: Self::Config) -> Result<Option<()>> {
-        Ok(None)
+    async fn set_agent_level(&self, _id: &AgentId, _config: Self::Config) -> Result<bool> {
+        Ok(false)
     }
 }

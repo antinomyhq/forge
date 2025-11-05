@@ -48,9 +48,9 @@ impl ConfigScope {
     }
 }
 
-/// Trait for resolving and setting configuration values at different scopes.
+/// Trait for getting configuration values at different scopes.
 #[async_trait::async_trait]
-pub trait ScopeResolution {
+pub trait ScopeGetter {
     type Config;
 
     async fn get_global_level(&self) -> anyhow::Result<Option<Trace<Self::Config>>>;
@@ -60,78 +60,99 @@ pub trait ScopeResolution {
         id: &ProviderId,
     ) -> anyhow::Result<Option<Trace<Self::Config>>>;
     async fn get_agent_level(&self, id: &AgentId) -> anyhow::Result<Option<Trace<Self::Config>>>;
+}
 
-    async fn set_global_level(&self, config: Self::Config) -> anyhow::Result<Option<()>>;
-    async fn set_project_level(&self, config: Self::Config) -> anyhow::Result<Option<()>>;
+/// Trait for setting configuration values at different scopes.
+#[async_trait::async_trait]
+pub trait ScopeSetter {
+    type Config;
+
+    async fn set_global_level(&self, config: Self::Config) -> anyhow::Result<bool>;
+    async fn set_project_level(&self, config: Self::Config) -> anyhow::Result<bool>;
     async fn set_provider_level(
         &self,
         id: &ProviderId,
         config: Self::Config,
-    ) -> anyhow::Result<Option<()>>;
-    async fn set_agent_level(
-        &self,
-        id: &AgentId,
-        config: Self::Config,
-    ) -> anyhow::Result<Option<()>>;
+    ) -> anyhow::Result<bool>;
+    async fn set_agent_level(&self, id: &AgentId, config: Self::Config) -> anyhow::Result<bool>;
 }
 
-impl ConfigScope {
-    #[async_recursion::async_recursion]
-    pub async fn get<T>(&self, resolver: &T) -> anyhow::Result<Option<Trace<T::Config>>>
+/// Extension methods for types implementing ScopeGetter
+#[async_trait::async_trait]
+pub trait ScopeGetterExt: ScopeGetter {
+    /// Gets a configuration value at the specified scope
+    async fn get_at_scope(&self, scope: &ConfigScope) -> anyhow::Result<Option<Trace<Self::Config>>>
     where
-        T: ScopeResolution + Send + Sync,
-        T::Config: Send + Sync,
+        Self: Send + Sync,
+        Self::Config: Send + Sync,
     {
-        match self {
-            ConfigScope::Global => resolver.get_global_level().await,
-            ConfigScope::Project => resolver.get_project_level().await,
-            ConfigScope::Provider(id) => resolver.get_provider_level(id).await,
-            ConfigScope::Agent(id) => resolver.get_agent_level(id).await,
-            ConfigScope::Or(a, b) => match a.get(resolver).await? {
+        match scope {
+            ConfigScope::Global => self.get_global_level().await,
+            ConfigScope::Project => self.get_project_level().await,
+            ConfigScope::Provider(id) => self.get_provider_level(id).await,
+            ConfigScope::Agent(id) => self.get_agent_level(id).await,
+            ConfigScope::Or(a, b) => match Box::pin(self.get_at_scope(a)).await? {
                 Some(value) => Ok(Some(value)),
-                None => b.get(resolver).await,
+                None => Box::pin(self.get_at_scope(b)).await,
             },
         }
     }
 
-    #[async_recursion::async_recursion]
-    pub async fn set<T>(&self, resolver: &T, config: T::Config) -> anyhow::Result<Option<()>>
+    /// Gets all configuration values at the specified scope
+    async fn get_all_at_scope(&self, scope: &ConfigScope) -> anyhow::Result<Vec<Self::Config>>
     where
-        T: ScopeResolution + Send + Sync,
-        T::Config: Send + Sync + Clone,
+        Self: Send + Sync,
+        Self::Config: Send + Sync,
     {
-        match self {
-            ConfigScope::Global => resolver.set_global_level(config).await,
-            ConfigScope::Project => resolver.set_project_level(config).await,
-            ConfigScope::Provider(id) => resolver.set_provider_level(id, config).await,
-            ConfigScope::Agent(id) => resolver.set_agent_level(id, config).await,
-            ConfigScope::Or(a, b) => match a.set(resolver, config.clone()).await {
-                Ok(Some(_)) => Ok(Some(())),
-                Ok(None) => b.set(resolver, config).await,
-                Err(e) => Err(e),
-            },
-        }
-    }
-
-    pub async fn merged<T>(&self, resolver: &T) -> anyhow::Result<Option<T::Config>>
-    where
-        T: ScopeResolution,
-        T::Config: Merge,
-    {
-        match self {
-            ConfigScope::Global => Ok(resolver.get_global_level().await?.map(Trace::into_inner)),
-            ConfigScope::Project => Ok(resolver.get_project_level().await?.map(Trace::into_inner)),
-            ConfigScope::Provider(id) => Ok(resolver
+        match scope {
+            ConfigScope::Global => Ok(self
+                .get_global_level()
+                .await?
+                .map(Trace::into_inner)
+                .into_iter()
+                .collect()),
+            ConfigScope::Project => Ok(self
+                .get_project_level()
+                .await?
+                .map(Trace::into_inner)
+                .into_iter()
+                .collect()),
+            ConfigScope::Provider(id) => Ok(self
                 .get_provider_level(id)
                 .await?
-                .map(Trace::into_inner)),
-            ConfigScope::Agent(id) => {
-                Ok(resolver.get_agent_level(id).await?.map(Trace::into_inner))
-            }
+                .map(Trace::into_inner)
+                .into_iter()
+                .collect()),
+            ConfigScope::Agent(id) => Ok(self
+                .get_agent_level(id)
+                .await?
+                .map(Trace::into_inner)
+                .into_iter()
+                .collect()),
             ConfigScope::Or(a, b) => {
-                let a = a.merged(resolver).await?;
-                let b = b.merged(resolver).await?;
-                match (a, b) {
+                let a_side = Box::pin(self.get_all_at_scope(a)).await?;
+                let b_side = Box::pin(self.get_all_at_scope(b)).await?;
+                Ok(a_side.into_iter().chain(b_side).collect())
+            }
+        }
+    }
+
+    /// Gets merged configuration values at the specified scope
+    async fn get_merged_at_scope(&self, scope: &ConfigScope) -> anyhow::Result<Option<Self::Config>>
+    where
+        Self::Config: Merge + Send,
+    {
+        match scope {
+            ConfigScope::Global => Ok(self.get_global_level().await?.map(Trace::into_inner)),
+            ConfigScope::Project => Ok(self.get_project_level().await?.map(Trace::into_inner)),
+            ConfigScope::Provider(id) => {
+                Ok(self.get_provider_level(id).await?.map(Trace::into_inner))
+            }
+            ConfigScope::Agent(id) => Ok(self.get_agent_level(id).await?.map(Trace::into_inner)),
+            ConfigScope::Or(a, b) => {
+                let a_val = Box::pin(self.get_merged_at_scope(a)).await?;
+                let b_val = Box::pin(self.get_merged_at_scope(b)).await?;
+                match (a_val, b_val) {
                     (Some(mut a), Some(b)) => {
                         a.merge(b);
                         Ok(Some(a))
@@ -143,44 +164,70 @@ impl ConfigScope {
             }
         }
     }
+}
 
-    #[async_recursion::async_recursion]
-    pub async fn all<T>(&self, resolver: &T) -> anyhow::Result<Vec<T::Config>>
+// Blanket implementation for all types implementing ScopeGetter
+impl<T: ScopeGetter> ScopeGetterExt for T {}
+
+/// Extension methods for types implementing ScopeSetter
+#[async_trait::async_trait]
+pub trait ScopeSetterExt: ScopeSetter {
+    /// Sets a configuration value at the specified scope
+    async fn set_at_scope(&self, scope: &ConfigScope, config: Self::Config) -> anyhow::Result<bool>
     where
-        T: ScopeResolution + Send + Sync,
-        T::Config: Send + Sync,
+        Self: Send + Sync,
+        Self::Config: Send + Sync + Clone,
     {
-        match self {
-            ConfigScope::Global => Ok(resolver
-                .get_global_level()
-                .await?
-                .map(Trace::into_inner)
-                .into_iter()
-                .collect()),
-            ConfigScope::Project => Ok(resolver
-                .get_project_level()
-                .await?
-                .map(Trace::into_inner)
-                .into_iter()
-                .collect()),
-            ConfigScope::Provider(id) => Ok(resolver
-                .get_provider_level(id)
-                .await?
-                .map(Trace::into_inner)
-                .into_iter()
-                .collect()),
-            ConfigScope::Agent(id) => Ok(resolver
-                .get_agent_level(id)
-                .await?
-                .map(Trace::into_inner)
-                .into_iter()
-                .collect()),
+        match scope {
+            ConfigScope::Global => self.set_global_level(config).await,
+            ConfigScope::Project => self.set_project_level(config).await,
+            ConfigScope::Provider(id) => self.set_provider_level(id, config).await,
+            ConfigScope::Agent(id) => self.set_agent_level(id, config).await,
             ConfigScope::Or(a, b) => {
-                let a_side = a.all(resolver).await?;
-                let b_side = b.all(resolver).await?;
-                Ok(a_side.into_iter().chain(b_side.into_iter()).collect())
+                if Box::pin(self.set_at_scope(a, config.clone())).await? {
+                    Ok(true)
+                } else {
+                    Box::pin(self.set_at_scope(b, config)).await
+                }
             }
         }
+    }
+}
+
+// Blanket implementation for all types implementing ScopeSetter
+impl<T: ScopeSetter> ScopeSetterExt for T {}
+
+impl ConfigScope {
+    pub async fn get<T>(&self, resolver: &T) -> anyhow::Result<Option<Trace<T::Config>>>
+    where
+        T: ScopeGetter + Send + Sync,
+        T::Config: Send + Sync,
+    {
+        resolver.get_at_scope(self).await
+    }
+
+    pub async fn set<T>(&self, resolver: &T, config: T::Config) -> anyhow::Result<bool>
+    where
+        T: ScopeSetter + Send + Sync,
+        T::Config: Send + Sync + Clone,
+    {
+        resolver.set_at_scope(self, config).await
+    }
+
+    pub async fn merged<T>(&self, resolver: &T) -> anyhow::Result<Option<T::Config>>
+    where
+        T: ScopeGetter + Sync,
+        T::Config: Merge + Send,
+    {
+        resolver.get_merged_at_scope(self).await
+    }
+
+    pub async fn all<T>(&self, resolver: &T) -> anyhow::Result<Vec<T::Config>>
+    where
+        T: ScopeGetter + Send + Sync,
+        T::Config: Send + Sync,
+    {
+        resolver.get_all_at_scope(self).await
     }
 }
 
