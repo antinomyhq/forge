@@ -1,38 +1,12 @@
-use forge_domain::OAuthConfig;
+use forge_app::OAuthHttpProvider;
+use forge_domain::{AuthCodeParams, OAuthConfig, OAuthTokenResponse};
 use oauth2::{
     AuthorizationCode as OAuth2AuthCode, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, Scope,
 };
 use serde::Serialize;
 
 use super::provider_auth_utils::*;
-
-/// Authorization URL parameters
-#[derive(Debug, Clone)]
-pub struct AuthCodeParams {
-    pub auth_url: String,
-    pub state: String,
-    pub code_verifier: Option<String>,
-}
-
-/// Provider useful http features for OAuth flows
-#[async_trait::async_trait]
-pub(crate) trait OAuthHttpProvider: Send + Sync {
-    /// Build authorization URL with provider-specific parameters
-    async fn build_auth_url(&self, config: &OAuthConfig) -> anyhow::Result<AuthCodeParams>;
-
-    /// Exchange authorization code with provider-specific handling
-    async fn exchange_code(
-        &self,
-        config: &OAuthConfig,
-        code: &str,
-        verifier: Option<&str>,
-    ) -> anyhow::Result<OAuthTokenResponse>;
-
-    /// Create HTTP client with provider-specific headers/behavior
-    fn build_http_client(&self, config: &OAuthConfig) -> anyhow::Result<reqwest::Client> {
-        build_http_client(config.custom_headers.as_ref())
-    }
-}
+use crate::IntoDomain;
 
 /// Standard RFC-compliant OAuth provider
 pub(crate) struct StandardHttpProvider;
@@ -106,7 +80,12 @@ impl OAuthHttpProvider for StandardHttpProvider {
         }
 
         let token_result = request.request_async(&http_client).await?;
-        Ok(token_result.into())
+        Ok(token_result.into_domain())
+    }
+
+    /// Create HTTP client with provider-specific headers/behavior
+    fn build_http_client(&self, config: &OAuthConfig) -> anyhow::Result<reqwest::Client> {
+        build_http_client(config.custom_headers.as_ref())
     }
 }
 
@@ -211,6 +190,11 @@ impl OAuthHttpProvider for AnthropicHttpProvider {
         }
 
         Ok(response.json().await?)
+    }
+
+    /// Create HTTP client with provider-specific headers/behavior
+    fn build_http_client(&self, config: &OAuthConfig) -> anyhow::Result<reqwest::Client> {
+        build_http_client(config.custom_headers.as_ref())
     }
 }
 

@@ -1,15 +1,15 @@
 use std::time::Duration;
 
+use forge_app::OAuthHttpProvider;
 use forge_domain::{
     ApiKey, ApiKeyRequest, AuthContextRequest, AuthCredential, CodeRequest, DeviceCodeRequest,
-    OAuthConfig, OAuthTokens, ProviderId, URLParam,
+    OAuthConfig, OAuthTokenResponse, OAuthTokens, ProviderId, URLParam,
 };
 use oauth2::basic::BasicClient;
 use oauth2::{ClientId, DeviceAuthorizationUrl, Scope, TokenUrl};
 use reqwest::header::{HeaderMap, HeaderValue};
 use url::Url;
 
-use super::oauth_http_provider::OAuthHttpProvider;
 use super::provider_auth_utils::*;
 use crate::Error;
 use crate::oauth_http_provider::{AnthropicHttpProvider, GithubHttpProvider, StandardHttpProvider};

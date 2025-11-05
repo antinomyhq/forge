@@ -4,7 +4,8 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_domain::{
-    CommandOutput, Environment, FileInfo, McpServerConfig, ToolDefinition, ToolName, ToolOutput,
+    AuthCodeParams, CommandOutput, Environment, FileInfo, McpServerConfig, OAuthConfig,
+    OAuthTokenResponse, ToolDefinition, ToolName, ToolOutput,
 };
 use reqwest::Response;
 use reqwest::header::HeaderMap;
@@ -254,4 +255,22 @@ pub trait KVStore: Send + Sync {
     /// # Errors
     /// Returns an error if the cache clear operation fails
     async fn cache_clear(&self) -> Result<()>;
+}
+
+/// Provides HTTP features for OAuth authentication flows.
+#[async_trait::async_trait]
+pub trait OAuthHttpProvider: Send + Sync {
+    /// Builds an authorization URL with provider-specific parameters.
+    async fn build_auth_url(&self, config: &OAuthConfig) -> anyhow::Result<AuthCodeParams>;
+
+    /// Exchanges an authorization code for an access token with provider-specific handling.
+    async fn exchange_code(
+        &self,
+        config: &OAuthConfig,
+        code: &str,
+        verifier: Option<&str>,
+    ) -> anyhow::Result<OAuthTokenResponse>;
+
+    /// Creates an HTTP client with provider-specific headers and behavior.
+    fn build_http_client(&self, config: &OAuthConfig) -> anyhow::Result<reqwest::Client>;
 }

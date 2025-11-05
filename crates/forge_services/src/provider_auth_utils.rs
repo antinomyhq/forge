@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 
 use chrono::Utc;
-use forge_domain::{AuthCredential, AuthDetails, OAuthConfig, OAuthTokens, ProviderId};
+use forge_domain::{
+    AuthCredential, AuthDetails, OAuthConfig, OAuthTokenResponse, OAuthTokens, ProviderId,
+};
 use oauth2::basic::BasicClient;
 use oauth2::{ClientId, RefreshToken, TokenUrl};
-use serde::{Deserialize, Serialize};
 
-use crate::Error;
+use crate::{Error, IntoDomain};
 
 /// Calculate token expiry with fallback duration
 pub(crate) fn calculate_token_expiry(
@@ -20,47 +21,16 @@ pub(crate) fn calculate_token_expiry(
     }
 }
 
-/// OAuth token response structure
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OAuthTokenResponse {
-    /// Access token for API requests
-    #[serde(alias = "token")]
-    pub access_token: String,
-
-    /// Refresh token for obtaining new access tokens
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub refresh_token: Option<String>,
-
-    /// Seconds until access token expires
-    #[serde(skip_serializing_if = "Option::is_none", alias = "refresh_in")]
-    pub expires_in: Option<u64>,
-
-    /// Unix timestamp when token expires (GitHub Copilot pattern)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub expires_at: Option<i64>,
-
-    /// Token type (usually "Bearer")
-    #[serde(default = "default_token_type")]
-    pub token_type: String,
-
-    /// OAuth scopes granted
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub scope: Option<String>,
-}
-
-fn default_token_type() -> String {
-    "Bearer".to_string()
-}
-
-impl<T: oauth2::TokenResponse> From<T> for OAuthTokenResponse {
-    fn from(token: T) -> Self {
-        Self {
-            access_token: token.access_token().secret().to_string(),
-            refresh_token: token.refresh_token().map(|t| t.secret().to_string()),
-            expires_in: token.expires_in().map(|d| d.as_secs()),
+impl<T: oauth2::TokenResponse> IntoDomain for T {
+    type Domain = OAuthTokenResponse;
+    fn into_domain(self) -> Self::Domain {
+        Self::Domain {
+            access_token: self.access_token().secret().to_string(),
+            refresh_token: self.refresh_token().map(|t| t.secret().to_string()),
+            expires_in: self.expires_in().map(|d| d.as_secs()),
             expires_at: None,
             token_type: "Bearer".to_string(),
-            scope: token.scopes().map(|scopes| {
+            scope: self.scopes().map(|scopes| {
                 scopes
                     .iter()
                     .map(|s| s.to_string())
@@ -170,7 +140,7 @@ pub(crate) async fn refresh_access_token(
         .request_async(&http_fn)
         .await?;
 
-    Ok(token_result.into())
+    Ok(token_result.into_domain())
 }
 
 /// GitHub-compliant HTTP request handler that fixes status codes for error

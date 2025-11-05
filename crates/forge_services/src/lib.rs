@@ -11,10 +11,10 @@ mod error;
 mod forge_services;
 mod http;
 mod mcp;
+mod oauth_http_provider;
 mod policy;
 mod preferences;
 mod provider;
-mod provider_auth_adapter;
 mod provider_auth_service;
 mod provider_auth_strategy;
 mod provider_auth_utils;
@@ -34,3 +34,10 @@ pub use forge_services::*;
 pub use policy::*;
 pub use preferences::*;
 pub use provider_auth_service::*;
+
+/// Converts a type from its external representation into its domain model representation.
+pub trait IntoDomain {
+    type Domain;
+
+    fn into_domain(self) -> Self::Domain;
+}
