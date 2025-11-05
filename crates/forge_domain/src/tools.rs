@@ -372,11 +372,10 @@ pub struct PlanCreate {
     pub content: String,
 }
 
-/// Initiates execution of a plan file by marking it as active. MUST be called
-/// before executing any tasks from a plan file to enable progress tracking and
-/// status updates. The path must be absolute and point to an existing plan
-/// file. Without calling this tool first, plan execution tracking will not
-/// function.
+/// This tool Must be called immediately when starting to execute a plan file.
+/// This is MANDATORY and NON-NEGOTIABLE. Call this tool first before executing
+/// any tasks from the plan. The path must be absolute and point to the plan
+/// file being executed.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct PlanExecutionStarted {
     /// The absolute path of plan file which we're trying to execute.
