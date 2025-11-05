@@ -89,7 +89,8 @@ impl<S: Services> ForgeApp<S> {
         let custom_instructions = services.get_custom_instructions().await;
 
         // Prepare agents with user configuration
-        let active_model = self.get_model(Some(agent_id.clone())).await?;
+        let active_model_trace = self.get_model(Some(agent_id.clone())).await?;
+        let active_model = active_model_trace.into_value();
         let agent = services
             .get_agents()
             .await?
@@ -102,7 +103,8 @@ impl<S: Services> ForgeApp<S> {
             .find(|agent| agent.id == agent_id)
             .ok_or(crate::Error::AgentNotFound(agent_id))?;
 
-        let agent_provider = self.get_provider(Some(agent.id.clone())).await?;
+        let agent_provider_trace = self.get_provider(Some(agent.id.clone())).await?;
+        let agent_provider = agent_provider_trace.into_value();
         let models = services.models(agent_provider).await?;
 
         // Get system and mcp tool definitions and resolve them for the agent
@@ -206,7 +208,8 @@ impl<S: Services> ForgeApp<S> {
         let original_messages = context.messages.len();
         let original_token_count = *context.token_count();
         let active_agent_id = self.services.get_active_agent_id().await?;
-        let model = self.get_model(active_agent_id.clone()).await?;
+        let model_trace = self.get_model(active_agent_id.clone()).await?;
+        let model = model_trace.into_value();
         let workflow = self.services.read_merged(None).await.unwrap_or_default();
         let Some(compact) = self
             .services
@@ -274,7 +277,10 @@ impl<S: Services> ForgeApp<S> {
         self.services.write_workflow(path, workflow).await
     }
 
-    async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider<url::Url>> {
+    async fn get_provider(
+        &self,
+        agent: Option<AgentId>,
+    ) -> anyhow::Result<Trace<Provider<url::Url>>> {
         let scope = if let Some(agent_id) = agent {
             ConfigScope::Agent(agent_id).or(ConfigScope::Global)
         } else {
@@ -288,7 +294,7 @@ impl<S: Services> ForgeApp<S> {
             .context("No provider configured")
     }
 
-    async fn get_model(&self, agent_id: Option<AgentId>) -> anyhow::Result<ModelId> {
+    async fn get_model(&self, agent_id: Option<AgentId>) -> anyhow::Result<Trace<ModelId>> {
         let scope = if let Some(agent_id) = agent_id {
             ConfigScope::Agent(agent_id).or(ConfigScope::Global)
         } else {

@@ -13,7 +13,7 @@ use forge_api::{
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
 use forge_display::MarkdownFormat;
-use forge_domain::{ChatResponseContent, ContextMessage, Role, TitleFormat, UserCommand};
+use forge_domain::{ChatResponseContent, ContextMessage, Role, TitleFormat, Trace, UserCommand};
 use forge_fs::ForgeFS;
 use forge_select::ForgeSelect;
 use forge_spinner::SpinnerManager;
@@ -80,10 +80,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Some(id) => ConfigScope::Agent(id),
             None => ConfigScope::Global,
         };
-        self.api
+        Ok(self
+            .api
             .get_provider(&scope)
             .await?
-            .context("No provider configured")
+            .context("No provider configured")?
+            .into_value())
     }
 
     /// Helper to get model for an optional agent, defaulting to the current
@@ -93,7 +95,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Some(id) => ConfigScope::Agent(id),
             None => ConfigScope::Global,
         };
-        self.api.get_model(&scope).await.ok().flatten()
+        self.api
+            .get_model(&scope)
+            .await
+            .ok()
+            .flatten()
+            .map(Trace::into_value)
     }
 
     /// Displays banner only if user is in interactive mode.
@@ -828,7 +835,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .get_provider(&ConfigScope::Global)
             .await
             .ok()
-            .flatten();
+            .flatten()
+            .map(Trace::into_value);
 
         // Add agent information
         info = info.add_title("AGENT");
@@ -1834,7 +1842,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .await
                     .ok()
                     .flatten()
-                    .map(|m| m.as_str().to_string());
+                    .map(|m| m.into_value().as_str().to_string());
                 match model {
                     Some(v) => self.writeln(v.to_string())?,
                     None => self.writeln("Model: Not set")?,
@@ -1847,7 +1855,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .await
                     .ok()
                     .flatten()
-                    .map(|p| p.id.to_string());
+                    .map(|p| p.into_value().id.to_string());
                 match provider {
                     Some(v) => self.writeln(v.to_string())?,
                     None => self.writeln("Provider: Not set")?,

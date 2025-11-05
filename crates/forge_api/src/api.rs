@@ -113,7 +113,7 @@ pub trait API: Sync + Send {
     async fn logout(&self) -> anyhow::Result<()>;
 
     /// Gets the provider for a given configuration scope
-    async fn get_provider(&self, scope: &ConfigScope) -> anyhow::Result<Option<Provider<Url>>>;
+    async fn get_provider(&self, scope: &ConfigScope) -> anyhow::Result<Option<Trace<Provider<Url>>>>;
 
     /// Sets the provider for a given configuration scope
     async fn set_provider(
@@ -135,7 +135,7 @@ pub trait API: Sync + Send {
     async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()>;
 
     /// Gets the model for a given configuration scope
-    async fn get_model(&self, scope: &ConfigScope) -> anyhow::Result<Option<ModelId>>;
+    async fn get_model(&self, scope: &ConfigScope) -> anyhow::Result<Option<Trace<ModelId>>>;
 
     /// Sets the model for a given configuration scope
     async fn set_model(&self, scope: &ConfigScope, model: ModelId) -> anyhow::Result<()>;

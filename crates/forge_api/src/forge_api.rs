@@ -62,7 +62,8 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
             .get_provider(&ConfigScope::Global)
             .await
             .context("Failed to fetch models")?
-            .context("No provider configured")?;
+            .context("No provider configured")?
+            .into_value();
         Ok(self.services.models(provider).await?)
     }
     async fn get_agents(&self) -> Result<Vec<Agent>> {
@@ -181,7 +182,10 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         self.app().logout().await
     }
 
-    async fn get_provider(&self, scope: &ConfigScope) -> anyhow::Result<Option<Provider<Url>>> {
+    async fn get_provider(
+        &self,
+        scope: &ConfigScope,
+    ) -> anyhow::Result<Option<Trace<Provider<Url>>>> {
         let resolver = forge_app::ProviderResolver::new(self.services.clone());
         scope.get(&resolver).await
     }
@@ -200,7 +204,8 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         let provider = self
             .get_provider(&ConfigScope::Global)
             .await?
-            .context("No provider configured")?;
+            .context("No provider configured")?
+            .into_value();
         if let Some(ref api_key) = provider.key {
             let user_info = self.services.user_info(api_key).await?;
             return Ok(Some(user_info));
@@ -212,7 +217,8 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         let provider = self
             .get_provider(&ConfigScope::Global)
             .await?
-            .context("No provider configured")?;
+            .context("No provider configured")?
+            .into_value();
         if let Some(ref api_key) = provider.key {
             let user_usage = self.services.user_usage(api_key).await?;
             return Ok(Some(user_usage));
@@ -228,7 +234,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         self.services.set_active_agent_id(agent_id).await
     }
 
-    async fn get_model(&self, scope: &ConfigScope) -> anyhow::Result<Option<ModelId>> {
+    async fn get_model(&self, scope: &ConfigScope) -> anyhow::Result<Option<Trace<ModelId>>> {
         let resolver = forge_app::ModelResolver::new(self.services.clone());
         scope.get(&resolver).await
     }
