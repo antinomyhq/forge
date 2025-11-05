@@ -17,7 +17,7 @@ use url::Url;
 /// Represents the source of models for a provider
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
-pub enum Models {
+enum Models {
     /// Models are fetched from a URL
     Url(String),
     /// Models are hardcoded in the configuration
@@ -25,21 +25,21 @@ pub enum Models {
 }
 
 #[derive(Debug, Clone, Deserialize, Merge)]
-pub struct ProviderConfig {
+struct ProviderConfig {
     #[merge(strategy = overwrite)]
-    pub id: ProviderId,
+    id: ProviderId,
     #[merge(strategy = overwrite)]
-    pub api_key_vars: String,
+    api_key_vars: String,
     #[merge(strategy = merge::vec::append)]
-    pub url_param_vars: Vec<String>,
+    url_param_vars: Vec<String>,
     #[merge(strategy = overwrite)]
-    pub response_type: ProviderResponse,
+    response_type: ProviderResponse,
     #[merge(strategy = overwrite)]
-    pub url: String,
+    url: String,
     #[merge(strategy = overwrite)]
-    pub models: Models,
+    models: Models,
     #[merge(strategy = merge::vec::append)]
-    pub auth_methods: Vec<forge_domain::AuthMethod>,
+    auth_methods: Vec<forge_domain::AuthMethod>,
 }
 
 fn overwrite<T>(base: &mut T, other: T) {
