@@ -24,8 +24,13 @@ pub(super) async fn assert_file_size<F: FileInfoInfra>(
     infra: &F,
     path: &Path,
     max_file_size: u64,
+    content: Option<&str>,
 ) -> anyhow::Result<()> {
-    let file_size = infra.file_size(path).await?;
+    let file_size = if let Some(content) = content {
+        content.len() as u64
+    } else {
+        infra.file_size(path).await?
+    };
     if file_size > max_file_size {
         return Err(anyhow::anyhow!(
             "File size ({file_size} bytes) exceeds the maximum allowed size of {max_file_size} bytes"
@@ -63,11 +68,11 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
         assert_absolute_path(path)?;
         let env = self.0.get_environment();
 
-        let is_range_given = start_line.is_some() || end_line.is_some();
+        let has_range = start_line.is_some() || end_line.is_some();
 
         // Validate file size before reading content only when range is not given.
-        if !is_range_given
-            && let Err(e) = assert_file_size(&*self.0, path, env.max_read_chunk_size).await
+        if !has_range
+            && let Err(e) = assert_file_size(&*self.0, path, env.max_read_chunk_size, None).await
         {
             tracing::error!(
                 path = %path.display(),
@@ -96,23 +101,17 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
             })
             .with_context(|| format!("Failed to read file content from {}", path.display()))?;
 
-        if is_range_given {
-            // Validate the actual content size against max_read_chunk_size
-            let content_size = content.len() as u64;
-            if content_size > env.max_read_chunk_size {
-                tracing::error!(
-                    path = %path.display(),
-                    content_size = content_size,
-                    max_file_size = env.max_read_chunk_size,
-                    start_line = start_line,
-                    end_line = end_line,
-                    "Content size validation failed"
-                );
-                return Err(anyhow::anyhow!(
-                    "Content size ({content_size} bytes) exceeds the maximum allowed size of {} bytes",
-                    env.max_read_chunk_size
-                ));
-            }
+        if has_range
+            && let Err(e) =
+                assert_file_size(&*self.0, path, env.max_read_chunk_size, Some(&content)).await
+        {
+            tracing::error!(
+                path = %path.display(),
+                max_file_size = env.max_read_chunk_size,
+                error = %e,
+                "File size validation failed"
+            );
+            return Err(e);
         }
 
         Ok(ReadOutput {
