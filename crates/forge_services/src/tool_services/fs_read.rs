@@ -97,7 +97,7 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
             .with_context(|| format!("Failed to read file content from {}", path.display()))?;
 
         if is_range_given {
-            // Validate the actual content size against max_file_size
+            // Validate the actual content size against max_read_chunk_size
             let content_size = content.len() as u64;
             if content_size > env.max_read_chunk_size {
                 tracing::error!(
