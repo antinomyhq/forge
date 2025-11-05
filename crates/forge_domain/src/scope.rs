@@ -53,13 +53,10 @@ impl ConfigScope {
 pub trait ScopeGetter {
     type Config;
 
-    async fn get_global_level(&self) -> anyhow::Result<Option<Trace<Self::Config>>>;
-    async fn get_project_level(&self) -> anyhow::Result<Option<Trace<Self::Config>>>;
-    async fn get_provider_level(
-        &self,
-        id: &ProviderId,
-    ) -> anyhow::Result<Option<Trace<Self::Config>>>;
-    async fn get_agent_level(&self, id: &AgentId) -> anyhow::Result<Option<Trace<Self::Config>>>;
+    async fn get_global_level(&self) -> anyhow::Result<Option<Self::Config>>;
+    async fn get_project_level(&self) -> anyhow::Result<Option<Self::Config>>;
+    async fn get_provider_level(&self, id: &ProviderId) -> anyhow::Result<Option<Self::Config>>;
+    async fn get_agent_level(&self, id: &AgentId) -> anyhow::Result<Option<Self::Config>>;
 }
 
 /// Trait for setting configuration values at different scopes.
@@ -80,17 +77,29 @@ pub trait ScopeSetter {
 /// Extension methods for types implementing ScopeGetter
 #[async_trait::async_trait]
 pub trait ScopeGetterExt: ScopeGetter {
-    /// Gets a configuration value at the specified scope
+    /// Gets a configuration value at the specified scope with tracing
     async fn get_at_scope(&self, scope: &ConfigScope) -> anyhow::Result<Option<Trace<Self::Config>>>
     where
         Self: Send + Sync,
         Self::Config: Send + Sync,
     {
         match scope {
-            ConfigScope::Global => self.get_global_level().await,
-            ConfigScope::Project => self.get_project_level().await,
-            ConfigScope::Provider(id) => self.get_provider_level(id).await,
-            ConfigScope::Agent(id) => self.get_agent_level(id).await,
+            ConfigScope::Global => Ok(self
+                .get_global_level()
+                .await?
+                .map(|v| Trace::new(v).add_trace("global"))),
+            ConfigScope::Project => Ok(self
+                .get_project_level()
+                .await?
+                .map(|v| Trace::new(v).add_trace("project"))),
+            ConfigScope::Provider(id) => Ok(self
+                .get_provider_level(id)
+                .await?
+                .map(|v| Trace::new(v).add_trace("provider"))),
+            ConfigScope::Agent(id) => Ok(self
+                .get_agent_level(id)
+                .await?
+                .map(|v| Trace::new(v).add_trace("agent"))),
             ConfigScope::Or(a, b) => match Box::pin(self.get_at_scope(a)).await? {
                 Some(value) => Ok(Some(value)),
                 None => Box::pin(self.get_at_scope(b)).await,
@@ -105,30 +114,12 @@ pub trait ScopeGetterExt: ScopeGetter {
         Self::Config: Send + Sync,
     {
         match scope {
-            ConfigScope::Global => Ok(self
-                .get_global_level()
-                .await?
-                .map(Trace::into_inner)
-                .into_iter()
-                .collect()),
-            ConfigScope::Project => Ok(self
-                .get_project_level()
-                .await?
-                .map(Trace::into_inner)
-                .into_iter()
-                .collect()),
-            ConfigScope::Provider(id) => Ok(self
-                .get_provider_level(id)
-                .await?
-                .map(Trace::into_inner)
-                .into_iter()
-                .collect()),
-            ConfigScope::Agent(id) => Ok(self
-                .get_agent_level(id)
-                .await?
-                .map(Trace::into_inner)
-                .into_iter()
-                .collect()),
+            ConfigScope::Global => Ok(self.get_global_level().await?.into_iter().collect()),
+            ConfigScope::Project => Ok(self.get_project_level().await?.into_iter().collect()),
+            ConfigScope::Provider(id) => {
+                Ok(self.get_provider_level(id).await?.into_iter().collect())
+            }
+            ConfigScope::Agent(id) => Ok(self.get_agent_level(id).await?.into_iter().collect()),
             ConfigScope::Or(a, b) => {
                 let a_side = Box::pin(self.get_all_at_scope(a)).await?;
                 let b_side = Box::pin(self.get_all_at_scope(b)).await?;
@@ -143,12 +134,10 @@ pub trait ScopeGetterExt: ScopeGetter {
         Self::Config: Merge + Send,
     {
         match scope {
-            ConfigScope::Global => Ok(self.get_global_level().await?.map(Trace::into_inner)),
-            ConfigScope::Project => Ok(self.get_project_level().await?.map(Trace::into_inner)),
-            ConfigScope::Provider(id) => {
-                Ok(self.get_provider_level(id).await?.map(Trace::into_inner))
-            }
-            ConfigScope::Agent(id) => Ok(self.get_agent_level(id).await?.map(Trace::into_inner)),
+            ConfigScope::Global => self.get_global_level().await,
+            ConfigScope::Project => self.get_project_level().await,
+            ConfigScope::Provider(id) => self.get_provider_level(id).await,
+            ConfigScope::Agent(id) => self.get_agent_level(id).await,
             ConfigScope::Or(a, b) => {
                 let a_val = Box::pin(self.get_merged_at_scope(a)).await?;
                 let b_val = Box::pin(self.get_merged_at_scope(b)).await?;

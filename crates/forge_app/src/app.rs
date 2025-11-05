@@ -287,9 +287,8 @@ impl<S: Services> ForgeApp<S> {
             ConfigScope::Global
         };
 
-        let resolver = crate::ProviderResolver::new(self.services.clone());
-        scope
-            .get(&resolver)
+        crate::ProviderScope::new(self.services.clone())
+            .get_at_scope(&scope)
             .await?
             .context("No provider configured")
     }
@@ -301,7 +300,9 @@ impl<S: Services> ForgeApp<S> {
             ConfigScope::Global
         };
 
-        let resolver = crate::ModelResolver::new(self.services.clone());
-        scope.get(&resolver).await?.context("No model configured")
+        crate::ModelScope::new(self.services.clone())
+            .get_at_scope(&scope)
+            .await?
+            .context("No model configured")
     }
 }

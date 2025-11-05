@@ -186,7 +186,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         &self,
         scope: &ConfigScope,
     ) -> anyhow::Result<Option<Trace<Provider<Url>>>> {
-        let resolver = forge_app::ProviderResolver::new(self.services.clone());
+        let resolver = forge_app::ProviderScope::new(self.services.clone());
         scope.get(&resolver).await
     }
 
@@ -195,7 +195,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         scope: &ConfigScope,
         provider: Provider<Url>,
     ) -> anyhow::Result<()> {
-        let resolver = forge_app::ProviderResolver::new(self.services.clone());
+        let resolver = forge_app::ProviderScope::new(self.services.clone());
         scope.set(&resolver, provider).await?;
         Ok(())
     }
@@ -235,12 +235,12 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     }
 
     async fn get_model(&self, scope: &ConfigScope) -> anyhow::Result<Option<Trace<ModelId>>> {
-        let resolver = forge_app::ModelResolver::new(self.services.clone());
+        let resolver = forge_app::ModelScope::new(self.services.clone());
         scope.get(&resolver).await
     }
 
     async fn set_model(&self, scope: &ConfigScope, model: ModelId) -> anyhow::Result<()> {
-        let resolver = forge_app::ModelResolver::new(self.services.clone());
+        let resolver = forge_app::ModelScope::new(self.services.clone());
         scope.set(&resolver, model).await?;
         Ok(())
     }
