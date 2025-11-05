@@ -14,9 +14,9 @@ pub struct AuthCodeParams {
     pub code_verifier: Option<String>,
 }
 
-/// Handles provider-specific OAuth quirks
+/// Provider useful http features for OAuth flows
 #[async_trait::async_trait]
-pub(crate) trait ProviderAdapter: Send + Sync {
+pub(crate) trait OAuthHttpProvider: Send + Sync {
     /// Build authorization URL with provider-specific parameters
     async fn build_auth_url(&self, config: &OAuthConfig) -> anyhow::Result<AuthCodeParams>;
 
@@ -35,10 +35,10 @@ pub(crate) trait ProviderAdapter: Send + Sync {
 }
 
 /// Standard RFC-compliant OAuth provider
-pub(crate) struct StandardProvider;
+pub(crate) struct StandardHttpProvider;
 
 #[async_trait::async_trait]
-impl ProviderAdapter for StandardProvider {
+impl OAuthHttpProvider for StandardHttpProvider {
     async fn build_auth_url(&self, config: &OAuthConfig) -> anyhow::Result<AuthCodeParams> {
         // Use oauth2 library - standard flow
         use oauth2::{AuthUrl, ClientId, TokenUrl};
@@ -113,7 +113,7 @@ impl ProviderAdapter for StandardProvider {
 /// Anthropic Provider - Non-standard PKCE implementation
 /// Quirk: state parameter equals PKCE verifier
 #[allow(unused)]
-pub(crate) struct AnthropicProvider;
+pub(crate) struct AnthropicHttpProvider;
 
 #[allow(unused)]
 #[derive(Debug, Serialize)]
@@ -134,7 +134,7 @@ struct AnthropicTokenRequest {
 }
 
 #[async_trait::async_trait]
-impl ProviderAdapter for AnthropicProvider {
+impl OAuthHttpProvider for AnthropicHttpProvider {
     async fn build_auth_url(&self, config: &OAuthConfig) -> anyhow::Result<AuthCodeParams> {
         // Anthropic quirk: state = verifier
         let (challenge, verifier) = PkceCodeChallenge::new_random_sha256();
@@ -215,13 +215,13 @@ impl ProviderAdapter for AnthropicProvider {
 }
 
 /// GitHub Provider - HTTP 200 responses may contain errors
-pub(crate) struct GithubProvider;
+pub(crate) struct GithubHttpProvider;
 
 #[async_trait::async_trait]
-impl ProviderAdapter for GithubProvider {
+impl OAuthHttpProvider for GithubHttpProvider {
     async fn build_auth_url(&self, config: &OAuthConfig) -> anyhow::Result<AuthCodeParams> {
         // Use standard flow - no quirks in auth URL
-        StandardProvider.build_auth_url(config).await
+        StandardHttpProvider.build_auth_url(config).await
     }
 
     async fn exchange_code(
@@ -232,7 +232,9 @@ impl ProviderAdapter for GithubProvider {
     ) -> anyhow::Result<OAuthTokenResponse> {
         // Use standard exchange - quirks handled in HTTP client via
         // github_compliant_http_request
-        StandardProvider.exchange_code(config, code, verifier).await
+        StandardHttpProvider
+            .exchange_code(config, code, verifier)
+            .await
     }
 
     fn build_http_client(&self, config: &OAuthConfig) -> anyhow::Result<reqwest::Client> {
@@ -265,7 +267,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_standard_provider_build_auth_url() {
-        let provider = StandardProvider;
+        let provider = StandardHttpProvider;
         let config = test_oauth_config();
 
         let result = provider.build_auth_url(&config).await.unwrap();
@@ -278,7 +280,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_anthropic_provider_state_equals_verifier() {
-        let provider = AnthropicProvider;
+        let provider = AnthropicHttpProvider;
         let config = test_oauth_config();
 
         let result = provider.build_auth_url(&config).await.unwrap();

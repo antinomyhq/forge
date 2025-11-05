@@ -9,10 +9,10 @@ use oauth2::{ClientId, DeviceAuthorizationUrl, Scope, TokenUrl};
 use reqwest::header::{HeaderMap, HeaderValue};
 use url::Url;
 
-use super::provider_auth_adapter::ProviderAdapter;
+use super::oauth_http_provider::OAuthHttpProvider;
 use super::provider_auth_utils::*;
 use crate::Error;
-use crate::provider_auth_adapter::{AnthropicProvider, GithubProvider, StandardProvider};
+use crate::oauth_http_provider::{AnthropicHttpProvider, GithubHttpProvider, StandardHttpProvider};
 
 /// Core authentication strategy - one implementation per flow type
 #[async_trait::async_trait]
@@ -83,7 +83,7 @@ impl<T> OAuthCodeStrategy<T> {
 }
 
 #[async_trait::async_trait]
-impl<T: ProviderAdapter> AuthStrategy for OAuthCodeStrategy<T> {
+impl<T: OAuthHttpProvider> AuthStrategy for OAuthCodeStrategy<T> {
     async fn init(&self) -> anyhow::Result<AuthContextRequest> {
         let auth_params = self
             .adapter
@@ -593,9 +593,9 @@ async fn exchange_oauth_for_api_key(
 /// Eliminates heap allocation and dynamic dispatch
 pub(crate) enum AuthStrategyImpl {
     ApiKey(ApiKeyStrategy),
-    OAuthCodeStandard(OAuthCodeStrategy<StandardProvider>),
-    OAuthCodeAnthropic(OAuthCodeStrategy<AnthropicProvider>),
-    OAuthCodeGithub(OAuthCodeStrategy<GithubProvider>),
+    OAuthCodeStandard(OAuthCodeStrategy<StandardHttpProvider>),
+    OAuthCodeAnthropic(OAuthCodeStrategy<AnthropicHttpProvider>),
+    OAuthCodeGithub(OAuthCodeStrategy<GithubHttpProvider>),
     OAuthDevice(OAuthDeviceStrategy),
     OAuthWithApiKey(OAuthWithApiKeyStrategy),
 }
@@ -653,20 +653,20 @@ pub(crate) fn create_auth_strategy(
         forge_domain::AuthMethod::OAuthCode(config) => {
             if let ProviderId::Anthropic = provider_id {
                 return Ok(AuthStrategyImpl::OAuthCodeAnthropic(
-                    OAuthCodeStrategy::new(AnthropicProvider, provider_id, config),
+                    OAuthCodeStrategy::new(AnthropicHttpProvider, provider_id, config),
                 ));
             }
 
             if let ProviderId::GithubCopilot = provider_id {
                 return Ok(AuthStrategyImpl::OAuthCodeGithub(OAuthCodeStrategy::new(
-                    GithubProvider,
+                    GithubHttpProvider,
                     provider_id,
                     config,
                 )));
             }
 
             Ok(AuthStrategyImpl::OAuthCodeStandard(OAuthCodeStrategy::new(
-                StandardProvider,
+                StandardHttpProvider,
                 provider_id,
                 config,
             )))
