@@ -77,7 +77,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// active agent's provider
     async fn get_provider(&self, agent_id: Option<AgentId>) -> Result<Provider<Url>> {
         let scope = match agent_id {
-            Some(id) => ConfigScope::Agent(id),
+            Some(id) => ConfigScope::Agent(id).or(ConfigScope::Global),
             None => ConfigScope::Global,
         };
         Ok(self
@@ -91,9 +91,26 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Helper to get model for an optional agent, defaulting to the current
     /// active agent's model
     async fn get_agent_model(&self, agent_id: Option<AgentId>) -> Option<ModelId> {
+        let mut scope = ConfigScope::Global;
+
         let scope = match agent_id {
-            Some(id) => ConfigScope::Agent(id),
-            None => ConfigScope::Global,
+            Some(id) => {
+                let provider_id = self
+                    .api
+                    .get_agents()
+                    .await.ok()?
+                    .iter()
+                    .find(|agent| agent.id == id)
+                    .and_then(|agent| agent.provider);
+
+                scope = match provider_id {
+                    Some(provider_id) => ConfigScope::Provider(provider_id).or(scope),
+                    None => scope,
+                };
+
+                ConfigScope::Agent(id).or(scope)
+            }
+            None => scope,
         };
         self.api
             .get_model(&scope)
