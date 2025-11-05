@@ -7,7 +7,7 @@ use crate::{AgentId, ProviderId};
 
 #[derive(Clone)]
 pub struct Trace<Config> {
-    trace: Vec<(SimpleConfigScope, bool)>,
+    trace: Vec<(String, bool)>,
     value: Config,
 }
 
@@ -16,7 +16,7 @@ impl<Config> Trace<Config> {
     pub fn new(scope: impl Into<SimpleConfigScope>, config: Config) -> Self {
         let scope: SimpleConfigScope = scope.into();
         let trace = SimpleConfigScope::iter()
-            .map(|a| if a == scope { (a, true) } else { (a, false) })
+            .map(|a| if a == scope { (a.to_string(), true) } else { (a.to_string(), false) })
             .collect::<Vec<_>>();
         Self { trace, value: config }
     }
@@ -25,7 +25,7 @@ impl<Config> Trace<Config> {
         self.value
     }
 
-    pub fn trace(&self) -> &[(SimpleConfigScope, bool)] {
+    pub fn trace(&self) -> &[(String, bool)] {
         &self.trace
     }
 }
@@ -34,7 +34,7 @@ impl<Config> Trace<Config> {
 /// configuration value should be resolved or
 /// set.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, EnumDiscriminants)]
-#[strum_discriminants(derive(EnumIter))]
+#[strum_discriminants(derive(EnumIter, strum_macros::Display))]
 #[strum_discriminants(name(SimpleConfigScope))]
 pub enum ConfigScope {
     Global,
