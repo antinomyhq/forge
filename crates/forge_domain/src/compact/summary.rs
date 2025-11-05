@@ -301,44 +301,12 @@ mod tests {
         })
     }
 
-    fn block_read_with_content(
-        content: &str,
-        call_id: &str,
-        path: &str,
-        success: bool,
-    ) -> Vec<SummaryMessageBlock> {
-        vec![
-            SummaryMessageBlock::Content(content.to_string()),
-            SummaryMessageBlock::ToolCall(SummaryToolData {
-                tool_call_id: Some(ToolCallId::new(call_id)),
-                call: SummaryToolCall::FileRead { path: path.to_string() },
-                tool_call_success: success,
-            }),
-        ]
-    }
-
     fn block_update(call_id: &str, path: &str, success: bool) -> SummaryMessageBlock {
         SummaryMessageBlock::ToolCall(SummaryToolData {
             tool_call_id: Some(ToolCallId::new(call_id)),
             call: SummaryToolCall::FileUpdate { path: path.to_string() },
             tool_call_success: success,
         })
-    }
-
-    fn block_update_with_content(
-        content: &str,
-        call_id: &str,
-        path: &str,
-        success: bool,
-    ) -> Vec<SummaryMessageBlock> {
-        vec![
-            SummaryMessageBlock::Content(content.to_string()),
-            SummaryMessageBlock::ToolCall(SummaryToolData {
-                tool_call_id: Some(ToolCallId::new(call_id)),
-                call: SummaryToolCall::FileUpdate { path: path.to_string() },
-                tool_call_success: success,
-            }),
-        ]
     }
 
     fn block_remove(call_id: &str, path: &str, success: bool) -> SummaryMessageBlock {
