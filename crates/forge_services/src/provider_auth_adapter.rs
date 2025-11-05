@@ -215,10 +215,10 @@ impl ProviderAdapter for AnthropicProvider {
 }
 
 /// GitHub Provider - HTTP 200 responses may contain errors
-pub(crate) struct GitHubProvider;
+pub(crate) struct GithubProvider;
 
 #[async_trait::async_trait]
-impl ProviderAdapter for GitHubProvider {
+impl ProviderAdapter for GithubProvider {
     async fn build_auth_url(&self, config: &OAuthConfig) -> anyhow::Result<AuthCodeParams> {
         // Use standard flow - no quirks in auth URL
         StandardProvider.build_auth_url(config).await

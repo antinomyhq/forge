@@ -12,7 +12,7 @@ use url::Url;
 use super::provider_auth_adapter::ProviderAdapter;
 use super::provider_auth_utils::*;
 use crate::Error;
-use crate::provider_auth_adapter::GitHubProvider;
+use crate::provider_auth_adapter::{AnthropicProvider, GithubProvider, StandardProvider};
 
 /// Core authentication strategy - one implementation per flow type
 #[async_trait::async_trait]
@@ -593,7 +593,9 @@ async fn exchange_oauth_for_api_key(
 /// Eliminates heap allocation and dynamic dispatch
 pub(crate) enum AuthStrategyImpl {
     ApiKey(ApiKeyStrategy),
-    OAuthCode(OAuthCodeStrategy<GitHubProvider>),
+    OAuthCodeStandard(OAuthCodeStrategy<StandardProvider>),
+    OAuthCodeAnthropic(OAuthCodeStrategy<AnthropicProvider>),
+    OAuthCodeGithub(OAuthCodeStrategy<GithubProvider>),
     OAuthDevice(OAuthDeviceStrategy),
     OAuthWithApiKey(OAuthWithApiKeyStrategy),
 }
@@ -603,7 +605,9 @@ impl AuthStrategy for AuthStrategyImpl {
     async fn init(&self) -> anyhow::Result<AuthContextRequest> {
         match self {
             Self::ApiKey(s) => s.init().await,
-            Self::OAuthCode(s) => s.init().await,
+            Self::OAuthCodeStandard(s) => s.init().await,
+            Self::OAuthCodeAnthropic(s) => s.init().await,
+            Self::OAuthCodeGithub(s) => s.init().await,
             Self::OAuthDevice(s) => s.init().await,
             Self::OAuthWithApiKey(s) => s.init().await,
         }
@@ -615,7 +619,9 @@ impl AuthStrategy for AuthStrategyImpl {
     ) -> anyhow::Result<AuthCredential> {
         match self {
             Self::ApiKey(s) => s.complete(context_response).await,
-            Self::OAuthCode(s) => s.complete(context_response).await,
+            Self::OAuthCodeStandard(s) => s.complete(context_response).await,
+            Self::OAuthCodeAnthropic(s) => s.complete(context_response).await,
+            Self::OAuthCodeGithub(s) => s.complete(context_response).await,
             Self::OAuthDevice(s) => s.complete(context_response).await,
             Self::OAuthWithApiKey(s) => s.complete(context_response).await,
         }
@@ -624,7 +630,9 @@ impl AuthStrategy for AuthStrategyImpl {
     async fn refresh(&self, credential: &AuthCredential) -> anyhow::Result<AuthCredential> {
         match self {
             Self::ApiKey(s) => s.refresh(credential).await,
-            Self::OAuthCode(s) => s.refresh(credential).await,
+            Self::OAuthCodeStandard(s) => s.refresh(credential).await,
+            Self::OAuthCodeAnthropic(s) => s.refresh(credential).await,
+            Self::OAuthCodeGithub(s) => s.refresh(credential).await,
             Self::OAuthDevice(s) => s.refresh(credential).await,
             Self::OAuthWithApiKey(s) => s.refresh(credential).await,
         }
@@ -642,9 +650,27 @@ pub(crate) fn create_auth_strategy(
             provider_id,
             required_params,
         ))),
-        forge_domain::AuthMethod::OAuthCode(config) => Ok(AuthStrategyImpl::OAuthCode(
-            OAuthCodeStrategy::new(GitHubProvider, provider_id, config),
-        )),
+        forge_domain::AuthMethod::OAuthCode(config) => {
+            if let ProviderId::Anthropic = provider_id {
+                return Ok(AuthStrategyImpl::OAuthCodeAnthropic(
+                    OAuthCodeStrategy::new(AnthropicProvider, provider_id, config),
+                ));
+            }
+
+            if let ProviderId::GithubCopilot = provider_id {
+                return Ok(AuthStrategyImpl::OAuthCodeGithub(OAuthCodeStrategy::new(
+                    GithubProvider,
+                    provider_id,
+                    config,
+                )));
+            }
+
+            Ok(AuthStrategyImpl::OAuthCodeStandard(OAuthCodeStrategy::new(
+                StandardProvider,
+                provider_id,
+                config,
+            )))
+        }
         forge_domain::AuthMethod::OAuthDevice(config) => {
             // Check if this is OAuth-with-API-Key flow (GitHub Copilot pattern)
             if config.token_refresh_url.is_some() {
