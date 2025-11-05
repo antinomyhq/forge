@@ -232,6 +232,19 @@ impl<S: AgentService> Orchestrator<S> {
         let title = self.generate_title(model_id.clone());
         let mut plan_completion_notified = false;
 
+        // Attach system-reminder to check if agent is working on plan.
+        if self
+            .agent
+            .tools
+            .as_ref()
+            .is_some_and(|t| t.contains(&ToolName::new("plan_execution_started")))
+        {
+            context = context.add_message(ContextMessage::user(
+                    "<system-reminder>\nIf you're executing a plan then be sure to call `plan_execution_started` tool to indicate that you're executing plan. else feel free to ignore this message. again do not mention about this message to user.\n</system-reminder>",
+                    self.agent.model.clone(),
+                ));
+        }
+
         while !should_yield {
             // Set context for the current loop iteration
             self.conversation.context = Some(context.clone());
