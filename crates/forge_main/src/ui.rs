@@ -98,7 +98,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 let provider_id = self
                     .api
                     .get_agents()
-                    .await.ok()?
+                    .await
+                    .ok()?
                     .iter()
                     .find(|agent| agent.id == id)
                     .and_then(|agent| agent.provider);
