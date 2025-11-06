@@ -1421,7 +1421,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         .prompt()?;
 
         if should_set_active.unwrap_or(false) {
-            self.spinner.start(None)?;
             self.api.set_default_provider(provider_id).await?;
         }
         Ok(())
