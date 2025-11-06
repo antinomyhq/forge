@@ -102,7 +102,9 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
             .get_active_agent_id()
             .await?
             .unwrap_or_default();
-        self.app().compact_conversation(agent_id,conversation_id).await
+        self.app()
+            .compact_conversation(agent_id, conversation_id)
+            .await
     }
 
     fn environment(&self) -> Environment {
