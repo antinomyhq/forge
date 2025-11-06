@@ -136,24 +136,27 @@ pub struct ListCommandGroup {
 pub enum ListCommand {
     /// List all available agents
     ///
-    /// Example: forge list agents
-    Agents,
+    /// Example: forge list agent
+    #[command(alias = "agents")]
+    Agent,
 
     /// List all available providers
     ///
-    /// Example: forge list providers
-    Providers,
+    /// Example: forge list provider
+    #[command(alias = "providers")]
+    Provider,
 
     /// List all available models
     ///
-    /// Example: forge list models
-    Models,
+    /// Example: forge list model
+    #[command(alias = "models")]
+    Model,
 
     /// List all available commands
     ///
-    /// Example: forge list commands
-    #[command(hide = true)]
-    Commands,
+    /// Example: forge list command
+    #[command(hide = true, alias = "commands")]
+    Command,
 
     /// List current configuration values
     ///
@@ -162,8 +165,9 @@ pub enum ListCommand {
 
     /// List all tools for a specific agent
     ///
-    /// Example: forge list tools sage
-    Tools {
+    /// Example: forge list tool sage
+    #[command(alias = "tools")]
+    Tool {
         /// Agent ID to show tools for
         agent: AgentId,
     },
@@ -623,10 +627,10 @@ mod tests {
 
     #[test]
     fn test_list_tools_command_with_agent() {
-        let fixture = Cli::parse_from(["forge", "list", "tools", "sage"]);
+        let fixture = Cli::parse_from(["forge", "list", "tool", "sage"]);
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::List(list)) => match list.command {
-                ListCommand::Tools { agent } => agent,
+                ListCommand::Tool { agent } => agent,
                 _ => AgentId::default(),
             },
             _ => AgentId::default(),
