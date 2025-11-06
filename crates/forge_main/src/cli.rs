@@ -20,6 +20,14 @@ pub struct Cli {
     #[arg(long, short = 'c')]
     pub command: Option<String>,
 
+    /// Execute a custom command directly (e.g., "custom-command args").
+    ///
+    /// Unlike --prompt, this flag parses the input through the command manager,
+    /// enabling proper handling of custom commands with template substitution
+    /// and parameter extraction. The slash prefix is optional.
+    #[arg(long, hide = true)]
+    pub custom_command: Option<String>,
+
     /// Path to a file containing the conversation to execute.
     /// This file should be in JSON format.
     #[arg(long)]
@@ -73,7 +81,10 @@ pub struct Cli {
 impl Cli {
     /// Checks if user is in is_interactive
     pub fn is_interactive(&self) -> bool {
-        self.prompt.is_none() && self.command.is_none() && self.subcommands.is_none()
+        self.prompt.is_none()
+            && self.command.is_none()
+            && self.custom_command.is_none()
+            && self.subcommands.is_none()
     }
 }
 
@@ -855,6 +866,70 @@ mod tests {
         ]);
         let actual = fixture.conversation_id;
         let expected = Some("550e8400-e29b-41d4-a716-446655440000".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_custom_command_flag_with_slash() {
+        let fixture = Cli::parse_from(["forge", "--custom-command", "/custom-command arg1 arg2"]);
+        let actual = fixture.custom_command;
+        let expected = Some("/custom-command arg1 arg2".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_custom_command_flag_without_slash() {
+        let fixture = Cli::parse_from(["forge", "--custom-command", "custom-command arg1 arg2"]);
+        let actual = fixture.custom_command;
+        let expected = Some("custom-command arg1 arg2".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_custom_command_flag_with_builtin_command() {
+        let fixture = Cli::parse_from(["forge", "--custom-command", "compact"]);
+        let actual = fixture.custom_command;
+        let expected = Some("compact".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_command_file_flag() {
+        let fixture = Cli::parse_from(["forge", "-c", "path/to/commands.txt"]);
+        let actual = fixture.command;
+        let expected = Some("path/to/commands.txt".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_prompt_and_custom_command_can_coexist() {
+        // --prompt and --custom-command serve different purposes and can both be parsed
+        let fixture = Cli::parse_from(["forge", "--prompt", "hello", "--custom-command", "info"]);
+        assert_eq!(fixture.prompt, Some("hello".to_string()));
+        assert_eq!(fixture.custom_command, Some("info".to_string()));
+    }
+
+    #[test]
+    fn test_is_interactive_with_custom_command() {
+        let fixture = Cli::parse_from(["forge", "--custom-command", "custom-cmd"]);
+        let actual = fixture.is_interactive();
+        let expected = false;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_is_interactive_with_command_file() {
+        let fixture = Cli::parse_from(["forge", "-c", "commands.txt"]);
+        let actual = fixture.is_interactive();
+        let expected = false;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_is_interactive_without_flags() {
+        let fixture = Cli::parse_from(["forge"]);
+        let actual = fixture.is_interactive();
+        let expected = true;
         assert_eq!(actual, expected);
     }
 }

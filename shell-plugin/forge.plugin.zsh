@@ -29,11 +29,11 @@ ZSH_HIGHLIGHT_HIGHLIGHTERS+=(pattern)
 # Style the conversation pattern with appropriate highlighting
 # Keywords in yellow, rest in default white
 
-# Highlight colon + word at the beginning in yellow
-ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z]#' 'fg=yellow,bold')
+# Highlight colon + command name (supports letters, numbers, hyphens, underscores) in yellow
+ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z][a-zA-Z0-9_-]#' 'fg=yellow,bold')
 
-# Highlight everything after that word + space in white
-ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z]# *(*|[[:graph:]]*)' 'fg=white,bold')
+# Highlight everything after the command name + space in white
+ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z][a-zA-Z0-9_-]# *(*|[[:graph:]]*)' 'fg=white,bold')
 
 # Lazy loader for commands cache
 # Loads the commands list only when first needed, avoiding startup cost
@@ -42,6 +42,41 @@ function _forge_get_commands() {
         _FORGE_COMMANDS="$($_FORGE_BIN list commands --porcelain 2>/dev/null)"
     fi
     echo "$_FORGE_COMMANDS"
+}
+
+# Lazy loader for agents cache
+typeset -h _FORGE_AGENTS=""
+function _forge_get_agents() {
+    if [[ -z "$_FORGE_AGENTS" ]]; then
+        _FORGE_AGENTS="$($_FORGE_BIN list agents --porcelain 2>/dev/null)"
+    fi
+    echo "$_FORGE_AGENTS"
+}
+
+# Check if a name is a custom command (not agent, not built-in)
+function _forge_is_custom_command() {
+    local name="$1"
+    
+    # Check if it's a built-in command first (fastest check)
+    case "$name" in
+        info|env|provider|model|new|dump|conversation|retry|compact|tools|ask|plan)
+            return 1  # Built-in command
+            ;;
+    esac
+    
+    # Check if it's an agent
+    local agents_list=$(_forge_get_agents)
+    if [[ -n "$agents_list" ]] && echo "$agents_list" | grep -q "^${name}\b"; then
+        return 1  # Is an agent
+    fi
+    
+    # Must exist in commands list to be a custom command
+    local commands_list=$(_forge_get_commands)
+    if [[ -n "$commands_list" ]] && echo "$commands_list" | grep -q "^${name}\b"; then
+        return 0  # Is a custom command
+    fi
+    
+    return 1  # Not found anywhere
 }
 
 # Private fzf function with common options for consistent UX
@@ -187,8 +222,8 @@ function forge-completion() {
         return 0
     fi
     
-    # Handle :command completion
-    if [[ "${LBUFFER}" =~ "^:[a-zA-Z]*$" ]]; then
+    # Handle :command completion (supports letters, numbers, hyphens, underscores)
+    if [[ "${LBUFFER}" =~ "^:([a-zA-Z][a-zA-Z0-9_-]*)?$" ]]; then
         # Extract the text after the colon for filtering
         local filter_text="${LBUFFER#:}"
         
@@ -351,17 +386,31 @@ function _forge_action_default() {
     local user_action="$1"
     local input_text="$2"
     
-    # Validate that the command exists in show-commands (if user_action is provided)
+    # Handle custom commands and validate user_action
     if [[ -n "$user_action" ]]; then
-        local commands_list=$(_forge_get_commands)
-        if [[ -n "$commands_list" ]]; then
-            # Check if the user_action is in the list of valid commands
-            if ! echo "$commands_list" | grep -q "^${user_action}\b"; then
-                echo
-                echo "\033[31m⏺\033[0m \033[90m[$(date '+%H:%M:%S')]\033[0m \033[1;31mERROR:\033[0m Command '\033[1m${user_action}\033[0m' not found"
-                _forge_reset
-                return 0
+        # Check if it's a custom command - execute it and return
+        if _forge_is_custom_command "$user_action"; then
+            # Generate conversation ID if needed
+            [[ -z "$_FORGE_CONVERSATION_ID" ]] && _FORGE_CONVERSATION_ID=$($_FORGE_BIN conversation new)
+            
+            echo
+            # Execute custom command with --custom-command flag
+            if [[ -n "$input_text" ]]; then
+                _forge_exec --custom-command "$user_action $input_text" --cid "$_FORGE_CONVERSATION_ID"
+            else
+                _forge_exec --custom-command "$user_action" --cid "$_FORGE_CONVERSATION_ID"
             fi
+            _forge_reset
+            return 0
+        fi
+        
+        # Validate it exists in commands list (agent or built-in)
+        local commands_list=$(_forge_get_commands)
+        if [[ -n "$commands_list" ]] && ! echo "$commands_list" | grep -q "^${user_action}\b"; then
+            echo
+            echo "\033[31m⏺\033[0m \033[90m[$(date '+%H:%M:%S')]\033[0m \033[1;31mERROR:\033[0m Command '\033[1m${user_action}\033[0m' not found"
+            _forge_reset
+            return 0
         fi
     fi
     

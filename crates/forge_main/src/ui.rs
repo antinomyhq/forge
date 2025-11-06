@@ -218,7 +218,21 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return self.handle_dispatch(dispatch_json).await;
         }
 
-        // Handle direct prompt if provided
+        // Handle --custom-command flag (parsed custom commands)
+        if let Some(command_str) = self.cli.custom_command.clone() {
+            self.spinner.start(None)?;
+            // Add slash prefix if not present
+            let command_with_slash = if command_str.starts_with('/') {
+                command_str
+            } else {
+                format!("/{}", command_str)
+            };
+            let command = self.command.parse(&command_with_slash)?;
+            self.on_command(command).await?;
+            return Ok(());
+        }
+
+        // Handle direct prompt if provided (raw text messages)
         let prompt = self.cli.prompt.clone();
         if let Some(prompt) = prompt {
             self.spinner.start(None)?;
@@ -824,6 +838,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .collect::<Vec<_>>()
                 .join(" ");
             info = info.add_key_value(agent.id.to_string(), title);
+        }
+
+        let custom_commands = self.api.get_commands().await?;
+        for command in custom_commands {
+            info = info.add_key_value(command.name.clone(), command.description.clone());
         }
 
         if porcelain {
