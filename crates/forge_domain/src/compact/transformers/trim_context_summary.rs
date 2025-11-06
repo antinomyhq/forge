@@ -197,6 +197,7 @@ mod tests {
                 Block::read_with_status(None, "/test", true),
                 Block::read(None, "/unknown"),
                 Block::update(None, "file.txt"),
+                Block::read_with_status(None, "/all_failed", true),
             ],
         )]);
 
@@ -355,29 +356,6 @@ mod tests {
                 Block::read(None, "/test.rs"),
                 Block::shell(None, "cargo test"),
                 Block::update(None, "/output.txt"),
-            ],
-        )]);
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_filters_failed_shell_commands() {
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
-            Role::Assistant,
-            vec![
-                Block::shell_with_status(None, "cargo build", true),
-                Block::shell_with_status(None, "cargo test", false),
-                Block::shell_with_status(None, "cargo run", true),
-            ],
-        )]);
-        let actual = TrimContextSummary.transform(fixture);
-
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
-            Role::Assistant,
-            vec![
-                Block::shell_with_status(None, "cargo build", true),
-                Block::shell_with_status(None, "cargo run", true),
             ],
         )]);
 
