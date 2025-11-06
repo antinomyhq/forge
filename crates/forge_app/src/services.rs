@@ -1,12 +1,14 @@
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, AgentId, Attachment, ChatCompletionMessage, CommandOutput, Context, Conversation,
+    Agent, AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse,
+    AuthCredential, AuthMethod, ChatCompletionMessage, CommandOutput, Context, Conversation,
     ConversationId, Environment, File, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model,
-    ModelId, PatchOperation, Provider, ResultStream, Scope, Template, ToolCallFull, ToolOutput,
-    Workflow,
+    ModelId, PatchOperation, Provider, ProviderId, ResultStream, Scope, Template, ToolCallFull,
+    ToolOutput, Workflow,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -126,11 +128,16 @@ pub trait ProviderService: Send + Sync {
         &self,
         id: &ModelId,
         context: Context,
-        provider: Provider,
+        provider: Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error>;
-    async fn models(&self, provider: Provider) -> anyhow::Result<Vec<Model>>;
-    async fn get_provider(&self, id: forge_domain::ProviderId) -> anyhow::Result<Provider>;
-    async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>>;
+    async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>>;
+    async fn get_provider(&self, id: forge_domain::ProviderId) -> anyhow::Result<Provider<Url>>;
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>>;
+    async fn upsert_credential(
+        &self,
+        credential: forge_domain::AuthCredential,
+    ) -> anyhow::Result<()>;
+    async fn remove_credential(&self, id: &forge_domain::ProviderId) -> anyhow::Result<()>;
 }
 
 /// Manages user preferences for default providers and models.
@@ -138,7 +145,7 @@ pub trait ProviderService: Send + Sync {
 pub trait AppConfigService: Send + Sync {
     /// Gets the user's default provider, or falls back to the first available
     /// provider.
-    async fn get_default_provider(&self) -> anyhow::Result<Provider>;
+    async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>>;
 
     /// Sets the user's default provider preference.
     async fn set_default_provider(
@@ -418,6 +425,27 @@ pub trait PolicyService: Send + Sync {
     ) -> anyhow::Result<PolicyDecision>;
 }
 
+/// Provider authentication service
+#[async_trait::async_trait]
+pub trait ProviderAuthService: Send + Sync {
+    async fn init_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        method: AuthMethod,
+    ) -> anyhow::Result<AuthContextRequest>;
+    async fn complete_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        context: AuthContextResponse,
+        timeout: Duration,
+    ) -> anyhow::Result<()>;
+    async fn refresh_provider_credential(
+        &self,
+        provider: &Provider<Url>,
+        method: AuthMethod,
+    ) -> anyhow::Result<AuthCredential>;
+}
+
 /// Core app trait providing access to services and repositories.
 /// This trait follows clean architecture principles for dependency management
 /// and service/repository composition.
@@ -448,6 +476,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type AgentRegistry: AgentRegistry;
     type CommandLoaderService: CommandLoaderService;
     type PolicyService: PolicyService;
+    type ProviderAuthService: ProviderAuthService;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn config_service(&self) -> &Self::AppConfigService;
@@ -475,6 +504,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn agent_registry(&self) -> &Self::AgentRegistry;
     fn command_loader_service(&self) -> &Self::CommandLoaderService;
     fn policy_service(&self) -> &Self::PolicyService;
+    fn provider_auth_service(&self) -> &Self::ProviderAuthService;
 }
 
 #[async_trait::async_trait]
@@ -514,21 +544,32 @@ impl<I: Services> ProviderService for I {
         &self,
         id: &ModelId,
         context: Context,
-        provider: Provider,
+        provider: Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         self.provider_service().chat(id, context, provider).await
     }
 
-    async fn models(&self, provider: Provider) -> anyhow::Result<Vec<Model>> {
+    async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
         self.provider_service().models(provider).await
     }
 
-    async fn get_provider(&self, id: forge_domain::ProviderId) -> anyhow::Result<Provider> {
+    async fn get_provider(&self, id: forge_domain::ProviderId) -> anyhow::Result<Provider<Url>> {
         self.provider_service().get_provider(id).await
     }
 
-    async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
+    async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
         self.provider_service().get_all_providers().await
+    }
+
+    async fn upsert_credential(
+        &self,
+        credential: forge_domain::AuthCredential,
+    ) -> anyhow::Result<()> {
+        self.provider_service().upsert_credential(credential).await
+    }
+
+    async fn remove_credential(&self, id: &forge_domain::ProviderId) -> anyhow::Result<()> {
+        self.provider_service().remove_credential(id).await
     }
 }
 
@@ -842,7 +883,7 @@ impl<I: Services> PolicyService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> AppConfigService for I {
-    async fn get_default_provider(&self) -> anyhow::Result<Provider> {
+    async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>> {
         self.config_service().get_default_provider().await
     }
 
@@ -869,6 +910,38 @@ impl<I: Services> AppConfigService for I {
     ) -> anyhow::Result<()> {
         self.config_service()
             .set_default_model(model, provider_id)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> ProviderAuthService for I {
+    async fn init_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        method: AuthMethod,
+    ) -> anyhow::Result<AuthContextRequest> {
+        self.provider_auth_service()
+            .init_provider_auth(provider_id, method)
+            .await
+    }
+    async fn complete_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        context: AuthContextResponse,
+        timeout: Duration,
+    ) -> anyhow::Result<()> {
+        self.provider_auth_service()
+            .complete_provider_auth(provider_id, context, timeout)
+            .await
+    }
+    async fn refresh_provider_credential(
+        &self,
+        provider: &Provider<Url>,
+        method: AuthMethod,
+    ) -> anyhow::Result<AuthCredential> {
+        self.provider_auth_service()
+            .refresh_provider_credential(provider, method)
             .await
     }
 }

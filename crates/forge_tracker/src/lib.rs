@@ -1,4 +1,5 @@
 mod can_track;
+mod client_id;
 mod collect;
 mod dispatch;
 mod error;

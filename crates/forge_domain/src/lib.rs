@@ -1,6 +1,7 @@
 mod agent;
 mod app_config;
 mod attachment;
+mod auth;
 mod chat_request;
 mod chat_response;
 mod compact;
@@ -105,6 +106,7 @@ pub use workflow::*;
 pub use xml::*;
 pub mod line_numbers;
 pub use app_config::*;
+pub use auth::*;
 pub use line_numbers::*;
 
 /// Type alias for tokio mpsc Sender that sends ChatResponse results

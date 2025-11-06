@@ -33,9 +33,7 @@ async fn main() -> Result<()> {
         let mut stdin_content = String::new();
         std::io::stdin().read_to_string(&mut stdin_content)?;
         let trimmed_content = stdin_content.trim();
-        if !trimmed_content.is_empty() {
-            cli.prompt = Some(trimmed_content.to_string());
-        }
+        cli.prompt = Some(trimmed_content.to_string());
     }
 
     // Handle worktree creation if specified

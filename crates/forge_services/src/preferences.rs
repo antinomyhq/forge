@@ -4,6 +4,7 @@ use forge_app::AppConfigService;
 use forge_domain::{
     AppConfig, AppConfigRepository, ModelId, Provider, ProviderId, ProviderRepository,
 };
+use url::Url;
 
 /// Service for managing user preferences for default providers and models.
 pub struct ForgeAppConfigService<F> {
@@ -30,12 +31,15 @@ impl<F: ProviderRepository + AppConfigRepository> ForgeAppConfigService<F> {
     }
 
     /// Gets the first available provider from the provider registry.
-    async fn get_first_available_provider(&self) -> anyhow::Result<Provider> {
+    async fn get_first_available_provider(&self) -> anyhow::Result<Provider<Url>> {
         self.infra
             .get_all_providers()
             .await?
             .into_iter()
-            .next()
+            .find_map(|p| match p {
+                forge_domain::AnyProvider::Url(provider) => Some(provider),
+                forge_domain::AnyProvider::Template(_) => None,
+            })
             .ok_or_else(|| forge_app::Error::NoActiveProvider.into())
     }
 }
@@ -44,7 +48,7 @@ impl<F: ProviderRepository + AppConfigRepository> ForgeAppConfigService<F> {
 impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
     for ForgeAppConfigService<F>
 {
-    async fn get_default_provider(&self) -> anyhow::Result<Provider> {
+    async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>> {
         let app_config = self.infra.get_app_config().await?;
         if let Some(provider_id) = app_config.provider {
             return self.infra.get_provider(provider_id).await;
@@ -87,7 +91,9 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::Mutex;
 
-    use forge_domain::{AppConfig, Model, Models, Provider, ProviderId, ProviderResponse};
+    use forge_domain::{
+        AnyProvider, AppConfig, Model, Models, Provider, ProviderId, ProviderResponse,
+    };
     use pretty_assertions::assert_eq;
     use url::Url;
 
@@ -96,7 +102,7 @@ mod tests {
     #[derive(Clone)]
     struct MockInfra {
         app_config: Arc<Mutex<AppConfig>>,
-        providers: Vec<Provider>,
+        providers: Vec<Provider<Url>>,
     }
 
     impl MockInfra {
@@ -108,7 +114,15 @@ mod tests {
                         id: ProviderId::OpenAI,
                         response: ProviderResponse::OpenAI,
                         url: Url::parse("https://api.openai.com").unwrap(),
-                        key: Some("test-key".to_string()),
+                        credential: Some(forge_domain::AuthCredential {
+                            id: ProviderId::OpenAI,
+                            auth_details: forge_domain::AuthDetails::ApiKey(
+                                forge_domain::ApiKey::from("test-key".to_string()),
+                            ),
+                            url_params: HashMap::new(),
+                        }),
+                        auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+                        url_params: vec![],
                         models: Models::Hardcoded(vec![Model {
                             id: "gpt-4".to_string().into(),
                             name: Some("GPT-4".to_string()),
@@ -123,7 +137,15 @@ mod tests {
                         id: ProviderId::Anthropic,
                         response: ProviderResponse::Anthropic,
                         url: Url::parse("https://api.anthropic.com").unwrap(),
-                        key: Some("test-key".to_string()),
+                        auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+                        url_params: vec![],
+                        credential: Some(forge_domain::AuthCredential {
+                            id: ProviderId::Anthropic,
+                            auth_details: forge_domain::AuthDetails::ApiKey(
+                                forge_domain::ApiKey::from("test-key".to_string()),
+                            ),
+                            url_params: HashMap::new(),
+                        }),
                         models: Models::Hardcoded(vec![Model {
                             id: "claude-3".to_string().into(),
                             name: Some("Claude 3".to_string()),
@@ -153,16 +175,38 @@ mod tests {
 
     #[async_trait::async_trait]
     impl ProviderRepository for MockInfra {
-        async fn get_all_providers(&self) -> anyhow::Result<Vec<Provider>> {
-            Ok(self.providers.clone())
+        async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
+            Ok(self
+                .providers
+                .iter()
+                .map(|p| AnyProvider::Url(p.clone()))
+                .collect())
         }
 
-        async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider> {
+        async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider<Url>> {
             self.providers
                 .iter()
                 .find(|p| p.id == id)
                 .cloned()
                 .ok_or_else(|| anyhow::anyhow!("Provider not found"))
+        }
+
+        async fn upsert_credential(
+            &self,
+            _credential: forge_domain::AuthCredential,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn get_credential(
+            &self,
+            _id: &ProviderId,
+        ) -> anyhow::Result<Option<forge_domain::AuthCredential>> {
+            Ok(None)
+        }
+
+        async fn remove_credential(&self, _id: &ProviderId) -> anyhow::Result<()> {
+            Ok(())
         }
     }
 
