@@ -9,6 +9,26 @@ use crate::compact::summary::{ContextSummary, SummaryMessageBlock, SummaryToolCa
 /// FileRead, FileUpdate, and FileRemove tool calls, making paths relative to
 /// the working directory. This is useful for reducing context size and making
 /// summaries more portable across different environments.
+///
+/// # Platform-Specific Behavior
+///
+/// This implementation uses `std::path::Path::strip_prefix()`, which is
+/// **platform-specific**:
+///
+/// - On **Windows**: Recognizes and strips Windows paths (e.g., `C:\Users\...`,
+///   `\\server\share\...`)
+/// - On **Unix/macOS**: Only recognizes Unix paths (forward slashes). Windows
+///   paths are treated as literal strings and left unchanged.
+///
+/// This means:
+/// - Windows paths in summaries will only be stripped when running on Windows
+/// - Unix paths in summaries will only be stripped when running on Unix/macOS
+/// - Cross-platform path handling would require a custom implementation that
+///   doesn't rely on the OS-specific `std::path::Path`
+///
+/// For truly cross-platform path stripping (e.g., stripping Windows paths on
+/// Unix or vice versa), consider implementing custom path parsing logic that
+/// handles both path styles regardless of the host OS.
 pub struct StripWorkingDir {
     working_dir: String,
 }
@@ -71,6 +91,25 @@ mod tests {
     use super::*;
     use crate::Role;
     use crate::compact::summary::{SummaryMessage, SummaryMessageBlock as Block};
+
+    // Note on test expectations:
+    //
+    // Many tests in this module use #[cfg(windows)] and #[cfg(not(windows))]
+    // for their expected values. This is because the StripWorkingDir
+    // implementation relies on std::path::Path::strip_prefix(), which is
+    // platform-specific:
+    //
+    // - On Windows: Recognizes Windows paths (C:\, \\server\, backslashes)
+    // - On Unix: Only recognizes Unix paths (forward slashes)
+    //
+    // This means Windows paths like "C:\Users\..." will only be stripped when
+    // running tests on Windows. On Unix/macOS, these paths are treated as
+    // literal strings and left unchanged.
+    //
+    // The conditional expectations allow tests to run on all platforms while
+    // verifying the correct platform-specific behavior. For a truly
+    // cross-platform implementation, we would need custom path parsing logic
+    // that handles both Windows and Unix path styles regardless of the host OS.
 
     // Helper to create a summary message with role and blocks
     fn message(role: Role, blocks: Vec<Block>) -> SummaryMessage {

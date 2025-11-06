@@ -1,23 +1,20 @@
-use std::sync::Arc;
-
 use forge_domain::{
     Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, DedupeRole, DropRole,
-    Environment, Role, StripWorkingDir, Template, Transformer, TrimContextSummary,
+    Environment, Role, StripWorkingDir, Transformer, TrimContextSummary,
 };
 use tracing::info;
 
-use crate::agent::AgentService;
+use crate::TemplateEngine;
 
 /// A service dedicated to handling context compaction.
-pub struct Compactor<S> {
-    services: Arc<S>,
+pub struct Compactor {
     compact: Compact,
     environment: Environment,
 }
 
-impl<S> Compactor<S> {
-    pub fn new(services: Arc<S>, compact: Compact, environment: Environment) -> Self {
-        Self { services, compact, environment }
+impl Compactor {
+    pub fn new(compact: Compact, environment: Environment) -> Self {
+        Self { compact, environment }
     }
 
     /// Applies the standard transformer pipeline to a context summary.
@@ -42,7 +39,7 @@ impl<S> Compactor<S> {
     }
 }
 
-impl<S: AgentService> Compactor<S> {
+impl Compactor {
     /// Apply compaction to the context if requested.
     pub async fn compact(&self, context: Context, max: bool) -> anyhow::Result<Context> {
         let eviction = CompactionStrategy::evict(self.compact.eviction_window);
@@ -88,15 +85,12 @@ impl<S: AgentService> Compactor<S> {
             "Created context compaction summary"
         );
 
-        let summary = self
-            .services
-            .render(
-                Template::new("{{> forge-partial-summary-frame.md}}"),
-                &serde_json::json!({
-                    "messages": context_summary.messages
-                }),
-            )
-            .await?;
+        let summary = TemplateEngine.render_template(
+            "{{> forge-partial-summary-frame.md}}",
+            &serde_json::json!({
+                "messages": context_summary.messages
+            }),
+        )?;
 
         // Extended thinking reasoning chain preservation
         //
@@ -162,48 +156,12 @@ mod tests {
         env.cwd(std::path::PathBuf::from("/test/working/dir"))
     }
 
-    struct MockService;
-
-    #[async_trait::async_trait]
-    impl AgentService for MockService {
-        async fn chat_agent(
-            &self,
-            _: &forge_domain::ModelId,
-            _: Context,
-            _: Option<forge_domain::ProviderId>,
-        ) -> forge_domain::ResultStream<forge_domain::ChatCompletionMessage, anyhow::Error>
-        {
-            unimplemented!()
-        }
-
-        async fn call(
-            &self,
-            _: &forge_domain::Agent,
-            _: &forge_domain::ToolCallContext,
-            _: forge_domain::ToolCallFull,
-        ) -> forge_domain::ToolResult {
-            unimplemented!()
-        }
-
-        async fn render<V: serde::Serialize + Send + Sync>(
-            &self,
-            _: forge_domain::Template<V>,
-            _: &V,
-        ) -> anyhow::Result<String> {
-            Ok("Summary frame".to_string())
-        }
-
-        async fn update(&self, _: forge_domain::Conversation) -> anyhow::Result<()> {
-            Ok(())
-        }
-    }
-
     #[tokio::test]
     async fn test_compress_single_sequence_preserves_only_last_reasoning() {
         use forge_domain::ReasoningFull;
 
         let environment = test_environment();
-        let compactor = Compactor::new(Arc::new(MockService), Compact::new(), environment);
+        let compactor = Compactor::new(Compact::new(), environment);
 
         let first_reasoning = vec![ReasoningFull {
             text: Some("First thought".to_string()),
@@ -259,7 +217,7 @@ mod tests {
         use forge_domain::ReasoningFull;
 
         let environment = test_environment();
-        let compactor = Compactor::new(Arc::new(MockService), Compact::new(), environment);
+        let compactor = Compactor::new(Compact::new(), environment);
 
         let reasoning = vec![ReasoningFull {
             text: Some("Original thought".to_string()),
@@ -324,7 +282,7 @@ mod tests {
         use forge_domain::ReasoningFull;
 
         let environment = test_environment();
-        let compactor = Compactor::new(Arc::new(MockService), Compact::new(), environment);
+        let compactor = Compactor::new(Compact::new(), environment);
 
         let non_empty_reasoning = vec![ReasoningFull {
             text: Some("Valid thought".to_string()),
@@ -369,8 +327,7 @@ mod tests {
     }
 
     async fn render_template(data: &serde_json::Value) -> String {
-        let handlebars = crate::create_handlebars();
-        handlebars
+        TemplateEngine
             .render("forge-partial-summary-frame.md", data)
             .unwrap()
     }
@@ -391,7 +348,7 @@ mod tests {
         let environment = test_environment().cwd(PathBuf::from(
             "/Users/tushar/Documents/Projects/code-forge-workspace/code-forge",
         ));
-        let compactor = Compactor::new(Arc::new(MockService), Compact::new(), environment);
+        let compactor = Compactor::new(Compact::new(), environment);
 
         // Create context summary with tool call information
         let context_summary = ContextSummary::from(&context);

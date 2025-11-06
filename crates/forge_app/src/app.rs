@@ -233,7 +233,7 @@ impl<S: Services> ForgeApp<S> {
 
         // Apply compaction using the Compactor
         let environment = self.services.get_environment();
-        let compacted_context = Compactor::new(self.services.clone(), compact, environment)
+        let compacted_context = Compactor::new(compact, environment)
             .compact(context, true)
             .await?;
 

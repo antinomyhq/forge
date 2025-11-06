@@ -10,6 +10,7 @@ use forge_template::Element;
 use tokio::task::JoinHandle;
 use tracing::{debug, info, warn};
 
+use crate::TemplateEngine;
 use crate::agent::AgentService;
 use crate::compact::Compactor;
 use crate::title_generator::TitleGenerator;
@@ -178,7 +179,7 @@ impl<S: AgentService> Orchestrator<S> {
             && let Some(compact) = agent.compact.clone()
         {
             info!(agent_id = %agent.id, "Compaction needed");
-            Compactor::new(self.services.clone(), compact, self.environment.clone())
+            Compactor::new(compact, self.environment.clone())
                 .compact(context.clone(), false)
                 .await
                 .map(Some)
@@ -335,13 +336,8 @@ impl<S: AgentService> Orchestrator<S> {
                         "attempts_left": attempts_left,
                         "allowed_max_attempts": allowed_max_attempts,
                     });
-                    let text = self
-                        .services
-                        .render(
-                            Template::new("{{> forge-tool-retry-message.md }}"),
-                            &context,
-                        )
-                        .await?;
+                    let text = TemplateEngine
+                        .render_template("{{> forge-tool-retry-message.md }}", &context)?;
                     let message = Element::new("retry").text(text);
 
                     result.output.combine_mut(ToolOutput::text(message));
