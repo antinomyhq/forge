@@ -217,9 +217,18 @@ fn create_usage(before: Option<Usage>, summary: Option<Usage>) -> Option<Usage> 
         return None;
     };
 
+    // Rough estimation of the overhead added by compaction prompt.
+    let rough_overhead_of_compaction = 600;
+
     // After
     let prompt_tokens = TokenCount::Approx(
-        *summary.completion_tokens + *before.prompt_tokens - *summary.prompt_tokens,
+        summary.completion_tokens.saturating_add(
+            before.prompt_tokens.saturating_sub(
+                summary
+                    .prompt_tokens
+                    .saturating_sub(rough_overhead_of_compaction),
+            ),
+        ),
     );
     let completion_tokens = before.completion_tokens;
     Some(Usage {
@@ -544,9 +553,9 @@ mod tests {
         };
 
         let summary = Usage {
-            prompt_tokens: TokenCount::Actual(50),
+            prompt_tokens: TokenCount::Actual(650), // 50 + 600 overhead
             completion_tokens: TokenCount::Actual(25),
-            total_tokens: TokenCount::Actual(75),
+            total_tokens: TokenCount::Actual(675), // 650 + 25
             cached_tokens: TokenCount::Actual(5),
             cost: Some(0.005),
         };
@@ -554,11 +563,12 @@ mod tests {
         let actual = create_usage(Some(before), Some(summary)).unwrap();
 
         let expected = Usage {
-            prompt_tokens: TokenCount::Approx(175), // 25 + 200 - 50 = 175
+            prompt_tokens: TokenCount::Approx(175), /* 25 + (200 - (650 - 600)) = 25 + (200 - 50)
+                                                     * = 175 */
             completion_tokens: TokenCount::Actual(100), // Preserved from before
-            total_tokens: TokenCount::Approx(275),  // 175 + 100 = 275
-            cached_tokens: TokenCount::default(),   // Reset to 0
-            cost: Some(0.015),                      // 0.010 + 0.005 = 0.015
+            total_tokens: TokenCount::Approx(275),      // 175 + 100 = 275
+            cached_tokens: TokenCount::default(),       // Reset to 0
+            cost: Some(0.015),                          // 0.010 + 0.005 = 0.015
         };
 
         assert_eq!(actual, expected);
@@ -575,9 +585,9 @@ mod tests {
         };
 
         let summary = Usage {
-            prompt_tokens: TokenCount::Actual(300),
+            prompt_tokens: TokenCount::Actual(900), // 300 + 600 overhead
             completion_tokens: TokenCount::Actual(150),
-            total_tokens: TokenCount::Actual(450),
+            total_tokens: TokenCount::Actual(1050), // 900 + 150
             cached_tokens: TokenCount::Actual(0),
             cost: Some(0.008),
         };
@@ -585,11 +595,12 @@ mod tests {
         let actual = create_usage(Some(before), Some(summary)).unwrap();
 
         let expected = Usage {
-            prompt_tokens: TokenCount::Approx(850), // 150 + 1000 - 300 = 850
+            prompt_tokens: TokenCount::Approx(850), /* 150 + (1000 - (900 - 600)) = 150 + (1000 -
+                                                     * 300) = 150 + 700 = 850 */
             completion_tokens: TokenCount::Actual(500), // Preserved from before
-            total_tokens: TokenCount::Approx(1350), // 850 + 500 = 1350
-            cached_tokens: TokenCount::default(),   // Reset to 0
-            cost: Some(0.028),                      // 0.020 + 0.008 = 0.028
+            total_tokens: TokenCount::Approx(1350),     // 850 + 500 = 1350
+            cached_tokens: TokenCount::default(),       // Reset to 0
+            cost: Some(0.028),                          // 0.020 + 0.008 = 0.028
         };
 
         assert_eq!(actual, expected);
@@ -606,9 +617,9 @@ mod tests {
         };
 
         let summary = Usage {
-            prompt_tokens: TokenCount::Approx(200),
+            prompt_tokens: TokenCount::Approx(800), // 200 + 600 overhead
             completion_tokens: TokenCount::Approx(100),
-            total_tokens: TokenCount::Approx(300),
+            total_tokens: TokenCount::Approx(900), // 800 + 100
             cached_tokens: TokenCount::Actual(0),
             cost: Some(0.007),
         };
@@ -616,11 +627,12 @@ mod tests {
         let actual = create_usage(Some(before), Some(summary)).unwrap();
 
         let expected = Usage {
-            prompt_tokens: TokenCount::Approx(700), // 100 + 800 - 200 = 700
+            prompt_tokens: TokenCount::Approx(700), /* 100 + (800 - (800 - 600)) = 100 + (800 -
+                                                     * 200) = 100 + 600 = 700 */
             completion_tokens: TokenCount::Approx(400), // Preserved from before
-            total_tokens: TokenCount::Approx(1100), // 700 + 400 = 1100
-            cached_tokens: TokenCount::default(),   // Reset to 0
-            cost: Some(0.022),                      // 0.015 + 0.007 = 0.022
+            total_tokens: TokenCount::Approx(1100),     // 700 + 400 = 1100
+            cached_tokens: TokenCount::default(),       // Reset to 0
+            cost: Some(0.022),                          // 0.015 + 0.007 = 0.022
         };
 
         assert_eq!(actual, expected);
@@ -637,9 +649,9 @@ mod tests {
         };
 
         let summary = Usage {
-            prompt_tokens: TokenCount::Approx(150),
+            prompt_tokens: TokenCount::Approx(750), // 150 + 600 overhead
             completion_tokens: TokenCount::Actual(75),
-            total_tokens: TokenCount::Approx(225),
+            total_tokens: TokenCount::Approx(825), // 750 + 75
             cached_tokens: TokenCount::Actual(10),
             cost: Some(0.006),
         };
@@ -647,11 +659,12 @@ mod tests {
         let actual = create_usage(Some(before), Some(summary)).unwrap();
 
         let expected = Usage {
-            prompt_tokens: TokenCount::Approx(525), // 75 + 600 - 150 = 525
+            prompt_tokens: TokenCount::Approx(525), /* 75 + (600 - (750 - 600)) = 75 + (600 -
+                                                     * 150) = 75 + 450 = 525 */
             completion_tokens: TokenCount::Approx(300), // Preserved from before
-            total_tokens: TokenCount::Approx(825),  // 525 + 300 = 825
-            cached_tokens: TokenCount::default(),   // Reset to 0
-            cost: Some(0.018000000000000002),       // Float precision: 0.012 + 0.006
+            total_tokens: TokenCount::Approx(825),      // 525 + 300 = 825
+            cached_tokens: TokenCount::default(),       // Reset to 0
+            cost: Some(0.018000000000000002),           // Float precision: 0.012 + 0.006
         };
 
         assert_eq!(actual, expected);
@@ -668,9 +681,9 @@ mod tests {
         };
 
         let summary = Usage {
-            prompt_tokens: TokenCount::Actual(100),
+            prompt_tokens: TokenCount::Actual(700), // 100 + 600 overhead
             completion_tokens: TokenCount::Actual(50),
-            total_tokens: TokenCount::Actual(150),
+            total_tokens: TokenCount::Actual(750), // 700 + 50
             cached_tokens: TokenCount::Actual(0),
             cost: None,
         };
@@ -678,11 +691,12 @@ mod tests {
         let actual = create_usage(Some(before), Some(summary)).unwrap();
 
         let expected = Usage {
-            prompt_tokens: TokenCount::Approx(350), // 50 + 400 - 100 = 350
+            prompt_tokens: TokenCount::Approx(350), /* 50 + (400 - (700 - 600)) = 50 + (400 -
+                                                     * 100) = 50 + 300 = 350 */
             completion_tokens: TokenCount::Actual(200), // Preserved from before
-            total_tokens: TokenCount::Approx(550),  // 350 + 200 = 550
-            cached_tokens: TokenCount::default(),   // Reset to 0
-            cost: None,                             // No costs in either input
+            total_tokens: TokenCount::Approx(550),      // 350 + 200 = 550
+            cached_tokens: TokenCount::default(),       // Reset to 0
+            cost: None,                                 // No costs in either input
         };
 
         assert_eq!(actual, expected);
@@ -699,9 +713,9 @@ mod tests {
         };
 
         let summary = Usage {
-            prompt_tokens: TokenCount::Actual(80),
+            prompt_tokens: TokenCount::Actual(680), // 80 + 600 overhead
             completion_tokens: TokenCount::Actual(40),
-            total_tokens: TokenCount::Actual(120),
+            total_tokens: TokenCount::Actual(720), // 680 + 40
             cached_tokens: TokenCount::Actual(0),
             cost: None,
         };
@@ -709,11 +723,12 @@ mod tests {
         let actual = create_usage(Some(before), Some(summary)).unwrap();
 
         let expected = Usage {
-            prompt_tokens: TokenCount::Approx(260), // 40 + 300 - 80 = 260
+            prompt_tokens: TokenCount::Approx(260), /* 40 + (300 - (680 - 600)) = 40 + (300 - 80)
+                                                     * = 40 + 220 = 260 */
             completion_tokens: TokenCount::Actual(150), // Preserved from before
-            total_tokens: TokenCount::Approx(410),  // 260 + 150 = 410
-            cached_tokens: TokenCount::default(),   // Reset to 0
-            cost: Some(0.008),                      // Only before cost preserved
+            total_tokens: TokenCount::Approx(410),      // 260 + 150 = 410
+            cached_tokens: TokenCount::default(),       // Reset to 0
+            cost: Some(0.008),                          // Only before cost preserved
         };
 
         assert_eq!(actual, expected);
@@ -761,9 +776,9 @@ mod tests {
         };
 
         let summary = Usage {
-            prompt_tokens: TokenCount::Actual(200000),
+            prompt_tokens: TokenCount::Actual(200600), // 200000 + 600 overhead
             completion_tokens: TokenCount::Actual(100000),
-            total_tokens: TokenCount::Actual(300000),
+            total_tokens: TokenCount::Actual(300600), // 200600 + 100000
             cached_tokens: TokenCount::Actual(20000),
             cost: Some(2.25),
         };
@@ -771,11 +786,42 @@ mod tests {
         let actual = create_usage(Some(before), Some(summary)).unwrap();
 
         let expected = Usage {
-            prompt_tokens: TokenCount::Approx(900000), // 100000 + 1000000 - 200000 = 900000
-            completion_tokens: TokenCount::Actual(500000), // Preserved from before
-            total_tokens: TokenCount::Approx(1400000), // 900000 + 500000 = 1400000
-            cached_tokens: TokenCount::default(),      // Reset to 0
-            cost: Some(12.75),                         // 10.50 + 2.25 = 12.75
+            prompt_tokens: TokenCount::Approx(900000), // 100000 + (1000000 - (200600 - 600))
+            completion_tokens: TokenCount::Actual(500000),
+            total_tokens: TokenCount::Approx(1400000),
+            cached_tokens: TokenCount::default(),
+            cost: Some(12.75),
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_create_usage_overflow_saturation() {
+        let before = Usage {
+            prompt_tokens: TokenCount::Actual(100),
+            completion_tokens: TokenCount::Actual(50),
+            total_tokens: TokenCount::Actual(150),
+            cached_tokens: TokenCount::Actual(0),
+            cost: Some(0.005),
+        };
+
+        let summary = Usage {
+            prompt_tokens: TokenCount::Actual(800), // 100 + some random overhead + 600
+            completion_tokens: TokenCount::Actual(200),
+            total_tokens: TokenCount::Actual(1000),
+            cached_tokens: TokenCount::Actual(0),
+            cost: Some(0.002),
+        };
+
+        let actual = create_usage(Some(before), Some(summary)).unwrap();
+
+        let expected = Usage {
+            prompt_tokens: TokenCount::Approx(200),
+            completion_tokens: TokenCount::Actual(50),
+            total_tokens: TokenCount::Approx(250),
+            cached_tokens: TokenCount::default(),
+            cost: Some(0.007),
         };
 
         assert_eq!(actual, expected);

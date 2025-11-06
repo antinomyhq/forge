@@ -96,12 +96,12 @@ impl<S: Services> ForgeApp<S> {
             .get_agents()
             .await?
             .into_iter()
+            .find(|agent| agent.id == agent_id)
             .map(|agent| {
                 agent
                     .apply_workflow_config(&workflow)
                     .set_model_deeply(active_model.clone())
             })
-            .find(|agent| agent.id == agent_id)
             .ok_or(crate::Error::AgentNotFound(agent_id))?;
 
         let agent_provider = self.get_provider(Some(agent.id.clone())).await?;
@@ -184,6 +184,7 @@ impl<S: Services> ForgeApp<S> {
     /// compacted tokens and messages).
     pub async fn compact_conversation(
         &self,
+        active_agent_id: AgentId,
         conversation_id: &ConversationId,
     ) -> Result<CompactionResult> {
         use crate::compact::Compactor;
@@ -207,15 +208,14 @@ impl<S: Services> ForgeApp<S> {
         // Calculate original metrics
         let original_messages = context.messages.len();
         let original_token_count = *context.token_count();
-        let active_agent_id = self.services.get_active_agent_id().await?;
-        let model = self.get_model(active_agent_id.clone()).await?;
+        let model = self.get_model(Some(active_agent_id.clone())).await?;
         let workflow = self.services.read_merged(None).await.unwrap_or_default();
         let Some(compact) = self
             .services
             .get_agents()
             .await?
             .into_iter()
-            .find(|agent| active_agent_id.as_ref().is_some_and(|id| agent.id == *id))
+            .find(|agent| active_agent_id == agent.id)
             .and_then(|agent| {
                 agent
                     .apply_workflow_config(&workflow)
