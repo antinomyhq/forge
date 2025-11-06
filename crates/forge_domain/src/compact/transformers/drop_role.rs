@@ -36,7 +36,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::compact::summary::{SummaryBlock, SummaryMessage as Block};
+    use crate::compact::summary::{SummaryBlock, SummaryMessage as Block, SummaryToolCall};
 
     #[test]
     fn test_empty_summary() {
@@ -176,8 +176,8 @@ mod tests {
             SummaryBlock::new(
                 Role::Assistant,
                 vec![
-                    Block::read(None, "/src/main.rs"),
-                    Block::update(None, "/src/lib.rs"),
+                    SummaryToolCall::read("/src/main.rs").into(),
+                    SummaryToolCall::update("/src/lib.rs").into(),
                 ],
             ),
             SummaryBlock::new(Role::User, vec![Block::content("User message")]),
@@ -188,8 +188,8 @@ mod tests {
             SummaryBlock::new(
                 Role::Assistant,
                 vec![
-                    Block::read(None, "/src/main.rs"),
-                    Block::update(None, "/src/lib.rs"),
+                    SummaryToolCall::read("/src/main.rs").into(),
+                    SummaryToolCall::update("/src/lib.rs").into(),
                 ],
             ),
             SummaryBlock::new(Role::User, vec![Block::content("User message")]),

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use derive_more::From;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -24,15 +25,16 @@ pub struct SummaryBlock {
 }
 
 /// A message block that can be either content or a tool call
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, From)]
 #[serde(rename_all = "snake_case")]
 pub enum SummaryMessage {
     Text(String),
-    ToolCall(SummaryToolCall),
+    ToolCall(#[from] SummaryToolCall),
 }
 
 /// Tool call data with execution status
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, derive_setters::Setters)]
+#[setters(strip_option, into)]
 #[serde(rename_all = "snake_case")]
 pub struct SummaryToolCall {
     pub id: Option<ToolCallId>,
@@ -59,207 +61,100 @@ impl SummaryMessage {
     pub fn content(text: impl Into<String>) -> Self {
         Self::Text(text.into())
     }
+}
 
-    /// Creates a FileRead tool call block with success=true by default
-    pub fn read(call_id: Option<ToolCallId>, path: impl Into<String>) -> Self {
-        Self::ToolCall(SummaryToolCall {
-            id: call_id,
+impl SummaryToolCall {
+    /// Creates a FileRead tool call with default values (id: None, is_success:
+    /// true)
+    pub fn read(path: impl Into<String>) -> Self {
+        Self {
+            id: None,
             tool: SummaryTool::FileRead { path: path.into() },
             is_success: true,
-        })
+        }
     }
 
-    /// Creates a FileRead tool call block with custom success status
-    pub fn read_with_status(
-        call_id: Option<ToolCallId>,
-        path: impl Into<String>,
-        success: bool,
-    ) -> Self {
-        Self::ToolCall(SummaryToolCall {
-            id: call_id,
-            tool: SummaryTool::FileRead { path: path.into() },
-            is_success: success,
-        })
-    }
-
-    /// Creates a FileUpdate tool call block with success=true by default
-    pub fn update(call_id: Option<ToolCallId>, path: impl Into<String>) -> Self {
-        Self::ToolCall(SummaryToolCall {
-            id: call_id,
+    /// Creates a FileUpdate tool call with default values (id: None,
+    /// is_success: true)
+    pub fn update(path: impl Into<String>) -> Self {
+        Self {
+            id: None,
             tool: SummaryTool::FileUpdate { path: path.into() },
             is_success: true,
-        })
+        }
     }
 
-    /// Creates a FileUpdate tool call block with custom success status
-    pub fn update_with_status(
-        call_id: Option<ToolCallId>,
-        path: impl Into<String>,
-        success: bool,
-    ) -> Self {
-        Self::ToolCall(SummaryToolCall {
-            id: call_id,
-            tool: SummaryTool::FileUpdate { path: path.into() },
-            is_success: success,
-        })
-    }
-
-    /// Creates a FileRemove tool call block with success=true by default
-    pub fn remove(call_id: Option<ToolCallId>, path: impl Into<String>) -> Self {
-        Self::ToolCall(SummaryToolCall {
-            id: call_id,
+    /// Creates a FileRemove tool call with default values (id: None,
+    /// is_success: true)
+    pub fn remove(path: impl Into<String>) -> Self {
+        Self {
+            id: None,
             tool: SummaryTool::FileRemove { path: path.into() },
             is_success: true,
-        })
+        }
     }
 
-    /// Creates a FileRemove tool call block with custom success status
-    pub fn remove_with_status(
-        call_id: Option<ToolCallId>,
-        path: impl Into<String>,
-        success: bool,
-    ) -> Self {
-        Self::ToolCall(SummaryToolCall {
-            id: call_id,
-            tool: SummaryTool::FileRemove { path: path.into() },
-            is_success: success,
-        })
-    }
-
-    /// Creates a Shell tool call block with success=true by default
-    pub fn shell(call_id: Option<ToolCallId>, command: impl Into<String>) -> Self {
-        Self::ToolCall(SummaryToolCall {
-            id: call_id,
+    /// Creates a Shell tool call with default values (id: None, is_success:
+    /// true)
+    pub fn shell(command: impl Into<String>) -> Self {
+        Self {
+            id: None,
             tool: SummaryTool::Shell { command: command.into() },
             is_success: true,
-        })
+        }
     }
 
-    /// Creates a Shell tool call block with custom success status
-    pub fn shell_with_status(
-        call_id: Option<ToolCallId>,
-        command: impl Into<String>,
-        success: bool,
-    ) -> Self {
-        Self::ToolCall(SummaryToolCall {
-            id: call_id,
-            tool: SummaryTool::Shell { command: command.into() },
-            is_success: success,
-        })
-    }
-
-    /// Creates a Search tool call block with success=true by default
-    pub fn search(call_id: Option<ToolCallId>, path: impl Into<String>) -> Self {
-        Self::ToolCall(SummaryToolCall {
-            id: call_id,
-            tool: SummaryTool::Search { pattern: path.into() },
+    /// Creates a Search tool call with default values (id: None, is_success:
+    /// true)
+    pub fn search(pattern: impl Into<String>) -> Self {
+        Self {
+            id: None,
+            tool: SummaryTool::Search { pattern: pattern.into() },
             is_success: true,
-        })
+        }
     }
 
-    /// Creates a Search tool call block with custom success status
-    pub fn search_with_status(
-        call_id: Option<ToolCallId>,
-        path: impl Into<String>,
-        success: bool,
-    ) -> Self {
-        Self::ToolCall(SummaryToolCall {
-            id: call_id,
-            tool: SummaryTool::Search { pattern: path.into() },
-            is_success: success,
-        })
-    }
-
-    /// Creates an Undo tool call block with success=true by default
-    pub fn undo(call_id: Option<ToolCallId>, path: impl Into<String>) -> Self {
-        Self::ToolCall(SummaryToolCall {
-            id: call_id,
+    /// Creates an Undo tool call with default values (id: None, is_success:
+    /// true)
+    pub fn undo(path: impl Into<String>) -> Self {
+        Self {
+            id: None,
             tool: SummaryTool::Undo { path: path.into() },
             is_success: true,
-        })
+        }
     }
 
-    /// Creates an Undo tool call block with custom success status
-    pub fn undo_with_status(
-        call_id: Option<ToolCallId>,
-        path: impl Into<String>,
-        success: bool,
-    ) -> Self {
-        Self::ToolCall(SummaryToolCall {
-            id: call_id,
-            tool: SummaryTool::Undo { path: path.into() },
-            is_success: success,
-        })
-    }
-
-    /// Creates a Fetch tool call block with success=true by default
-    pub fn fetch(call_id: Option<ToolCallId>, url: impl Into<String>) -> Self {
-        Self::ToolCall(SummaryToolCall {
-            id: call_id,
+    /// Creates a Fetch tool call with default values (id: None, is_success:
+    /// true)
+    pub fn fetch(url: impl Into<String>) -> Self {
+        Self {
+            id: None,
             tool: SummaryTool::Fetch { url: url.into() },
             is_success: true,
-        })
+        }
     }
 
-    /// Creates a Fetch tool call block with custom success status
-    pub fn fetch_with_status(
-        call_id: Option<ToolCallId>,
-        url: impl Into<String>,
-        success: bool,
-    ) -> Self {
-        Self::ToolCall(SummaryToolCall {
-            id: call_id,
-            tool: SummaryTool::Fetch { url: url.into() },
-            is_success: success,
-        })
-    }
-
-    /// Creates a Followup tool call block with success=true by default
-    pub fn followup(call_id: Option<ToolCallId>, question: impl Into<String>) -> Self {
-        Self::ToolCall(SummaryToolCall {
-            id: call_id,
+    /// Creates a Followup tool call with default values (id: None, is_success:
+    /// true)
+    pub fn followup(question: impl Into<String>) -> Self {
+        Self {
+            id: None,
             tool: SummaryTool::Followup { question: question.into() },
             is_success: true,
-        })
+        }
     }
 
-    /// Creates a Followup tool call block with custom success status
-    pub fn followup_with_status(
-        call_id: Option<ToolCallId>,
-        question: impl Into<String>,
-        success: bool,
-    ) -> Self {
-        Self::ToolCall(SummaryToolCall {
-            id: call_id,
-            tool: SummaryTool::Followup { question: question.into() },
-            is_success: success,
-        })
-    }
-
-    /// Creates a Plan tool call block with success=true by default
-    pub fn plan(call_id: Option<ToolCallId>, plan_name: impl Into<String>) -> Self {
-        Self::ToolCall(SummaryToolCall {
-            id: call_id,
+    /// Creates a Plan tool call with default values (id: None, is_success:
+    /// true)
+    pub fn plan(plan_name: impl Into<String>) -> Self {
+        Self {
+            id: None,
             tool: SummaryTool::Plan { plan_name: plan_name.into() },
             is_success: true,
-        })
-    }
-
-    /// Creates a Plan tool call block with custom success status
-    pub fn plan_with_status(
-        call_id: Option<ToolCallId>,
-        plan_name: impl Into<String>,
-        success: bool,
-    ) -> Self {
-        Self::ToolCall(SummaryToolCall {
-            id: call_id,
-            tool: SummaryTool::Plan { plan_name: plan_name.into() },
-            is_success: success,
-        })
+        }
     }
 }
 
-/// Categorized tool call information for summary purposes
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SummaryTool {
@@ -540,7 +435,7 @@ mod tests {
 
     #[test]
     fn test_summary_message_block_read_helper() {
-        let actual = Block::read(None, "/path/to/file.rs");
+        let actual: SummaryMessage = SummaryToolCall::read("/path/to/file.rs").into();
 
         let expected = Block::ToolCall(SummaryToolCall {
             id: None,
@@ -553,7 +448,7 @@ mod tests {
 
     #[test]
     fn test_summary_message_block_update_helper() {
-        let actual = Block::update(None, "/path/to/file.rs");
+        let actual: SummaryMessage = SummaryToolCall::update("/path/to/file.rs").into();
 
         let expected = Block::ToolCall(SummaryToolCall {
             id: None,
@@ -566,7 +461,7 @@ mod tests {
 
     #[test]
     fn test_summary_message_block_remove_helper() {
-        let actual = Block::remove(None, "/path/to/file.rs");
+        let actual: SummaryMessage = SummaryToolCall::remove("/path/to/file.rs").into();
 
         let expected = Block::ToolCall(SummaryToolCall {
             id: None,
@@ -635,7 +530,10 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Reading file"),
-                Block::read_with_status(Some(ToolCallId::new("call_1")), "/test/file.rs", false),
+                SummaryToolCall::read("/test/file.rs")
+                    .id(ToolCallId::new("call_1"))
+                    .is_success(false)
+                    .into(),
             ],
         )]);
 
@@ -655,7 +553,10 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Writing file"),
-                Block::update_with_status(Some(ToolCallId::new("call_1")), "/test/file.rs", false),
+                SummaryToolCall::update("/test/file.rs")
+                    .id(ToolCallId::new("call_1"))
+                    .is_success(false)
+                    .into(),
             ],
         )]);
 
@@ -675,7 +576,10 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Patching file"),
-                Block::update_with_status(Some(ToolCallId::new("call_1")), "/test/file.rs", false),
+                SummaryToolCall::update("/test/file.rs")
+                    .id(ToolCallId::new("call_1"))
+                    .is_success(false)
+                    .into(),
             ],
         )]);
 
@@ -695,7 +599,10 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Removing file"),
-                Block::remove_with_status(Some(ToolCallId::new("call_1")), "/test/file.rs", false),
+                SummaryToolCall::remove("/test/file.rs")
+                    .id(ToolCallId::new("call_1"))
+                    .is_success(false)
+                    .into(),
             ],
         )]);
 
@@ -715,7 +622,10 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Reading image"),
-                Block::read_with_status(Some(ToolCallId::new("call_1")), "/test/image.png", false),
+                SummaryToolCall::read("/test/image.png")
+                    .id(ToolCallId::new("call_1"))
+                    .is_success(false)
+                    .into(),
             ],
         )]);
 
@@ -735,7 +645,10 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Running shell"),
-                Block::shell_with_status(Some(ToolCallId::new("call_1")), "ls -la", false),
+                SummaryToolCall::shell("ls -la")
+                    .id(ToolCallId::new("call_1"))
+                    .is_success(false)
+                    .into(),
             ],
         )]);
 
@@ -759,9 +672,18 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Multiple operations"),
-                Block::read_with_status(Some(ToolCallId::new("call_1")), "/test/file1.rs", false),
-                Block::update_with_status(Some(ToolCallId::new("call_2")), "/test/file2.rs", false),
-                Block::remove_with_status(Some(ToolCallId::new("call_3")), "/test/file3.rs", false),
+                SummaryToolCall::read("/test/file1.rs")
+                    .id(ToolCallId::new("call_1"))
+                    .is_success(false)
+                    .into(),
+                SummaryToolCall::update("/test/file2.rs")
+                    .id(ToolCallId::new("call_2"))
+                    .is_success(false)
+                    .into(),
+                SummaryToolCall::remove("/test/file3.rs")
+                    .id(ToolCallId::new("call_3"))
+                    .is_success(false)
+                    .into(),
             ],
         )]);
 
@@ -784,7 +706,9 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Reading file"),
-                Block::read(Some(ToolCallId::new("call_1")), "/test/file.rs"),
+                SummaryToolCall::read("/test/file.rs")
+                    .id(ToolCallId::new("call_1"))
+                    .into(),
             ],
         )]);
 
@@ -807,7 +731,10 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Reading file"),
-                Block::read_with_status(Some(ToolCallId::new("call_1")), "/test/file.rs", false),
+                SummaryToolCall::read("/test/file.rs")
+                    .id(ToolCallId::new("call_1"))
+                    .is_success(false)
+                    .into(),
             ],
         )]);
 
@@ -834,8 +761,13 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Multiple operations"),
-                Block::read(Some(ToolCallId::new("call_1")), "/test/file1.rs"),
-                Block::update_with_status(Some(ToolCallId::new("call_2")), "/test/file2.rs", false),
+                SummaryToolCall::read("/test/file1.rs")
+                    .id(ToolCallId::new("call_1"))
+                    .into(),
+                SummaryToolCall::update("/test/file2.rs")
+                    .id(ToolCallId::new("call_2"))
+                    .is_success(false)
+                    .into(),
             ],
         )]);
 
@@ -862,7 +794,10 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Reading file"),
-                Block::read_with_status(Some(ToolCallId::new("call_1")), "/test/file.rs", false),
+                SummaryToolCall::read("/test/file.rs")
+                    .id(ToolCallId::new("call_1"))
+                    .is_success(false)
+                    .into(),
             ],
         )]);
 
@@ -896,7 +831,9 @@ mod tests {
                 Role::Assistant,
                 vec![
                     Block::content("Reading"),
-                    Block::read(Some(ToolCallId::new("call_1")), "/test/file1.rs"),
+                    SummaryToolCall::read("/test/file1.rs")
+                        .id(ToolCallId::new("call_1"))
+                        .into(),
                 ],
             ),
             SummaryBlock::new(Role::User, vec![Block::content("Now update it")]),
@@ -904,7 +841,9 @@ mod tests {
                 Role::Assistant,
                 vec![
                     Block::content("Updating"),
-                    Block::update(Some(ToolCallId::new("call_2")), "/test/file1.rs"),
+                    SummaryToolCall::update("/test/file1.rs")
+                        .id(ToolCallId::new("call_2"))
+                        .into(),
                     Block::content("Done"),
                 ],
             ),
@@ -949,7 +888,7 @@ mod tests {
 
     #[test]
     fn test_summary_message_block_shell_helper() {
-        let actual = Block::shell(None, "cargo build");
+        let actual: SummaryMessage = SummaryToolCall::shell("cargo build").into();
 
         let expected = Block::ToolCall(SummaryToolCall {
             id: None,
@@ -976,7 +915,9 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Running command"),
-                Block::shell(Some(ToolCallId::new("call_1")), "echo test"),
+                SummaryToolCall::shell("echo test")
+                    .id(ToolCallId::new("call_1"))
+                    .into(),
             ],
         )]);
 
@@ -1000,13 +941,18 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Multiple operations"),
-                Block::read_with_status(Some(ToolCallId::new("call_1")), "/test/file.rs", false),
-                Block::shell_with_status(Some(ToolCallId::new("call_2")), "cargo test", false),
-                Block::update_with_status(
-                    Some(ToolCallId::new("call_3")),
-                    "/test/output.txt",
-                    false,
-                ),
+                SummaryToolCall::read("/test/file.rs")
+                    .id(ToolCallId::new("call_1"))
+                    .is_success(false)
+                    .into(),
+                SummaryToolCall::shell("cargo test")
+                    .id(ToolCallId::new("call_2"))
+                    .is_success(false)
+                    .into(),
+                SummaryToolCall::update("/test/output.txt")
+                    .id(ToolCallId::new("call_3"))
+                    .is_success(false)
+                    .into(),
             ],
         )]);
 
@@ -1030,7 +976,10 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Searching"),
-                Block::search_with_status(Some(ToolCallId::new("call_1")), "pattern", false),
+                SummaryToolCall::search("pattern")
+                    .id(ToolCallId::new("call_1"))
+                    .is_success(false)
+                    .into(),
             ],
         )]);
 
@@ -1039,7 +988,7 @@ mod tests {
 
     #[test]
     fn test_summary_message_block_search_helper() {
-        let actual = Block::search(None, "/project/src");
+        let actual: SummaryMessage = SummaryToolCall::search("/project/src").into();
 
         let expected = Block::ToolCall(SummaryToolCall {
             id: None,
@@ -1063,7 +1012,10 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Searching files"),
-                Block::search_with_status(Some(ToolCallId::new("call_1")), "/test/src", false),
+                SummaryToolCall::search("/test/src")
+                    .id(ToolCallId::new("call_1"))
+                    .is_success(false)
+                    .into(),
             ],
         )]);
 
@@ -1083,7 +1035,9 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Searching"),
-                Block::search(Some(ToolCallId::new("call_1")), "/test/src"),
+                SummaryToolCall::search("/test/src")
+                    .id(ToolCallId::new("call_1"))
+                    .into(),
             ],
         )]);
 
@@ -1108,14 +1062,22 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Multiple operations"),
-                Block::read_with_status(Some(ToolCallId::new("call_1")), "/test/file.rs", false),
-                Block::shell_with_status(Some(ToolCallId::new("call_2")), "cargo test", false),
-                Block::search_with_status(Some(ToolCallId::new("call_3")), "/test/src", false),
-                Block::update_with_status(
-                    Some(ToolCallId::new("call_4")),
-                    "/test/output.txt",
-                    false,
-                ),
+                SummaryToolCall::read("/test/file.rs")
+                    .id(ToolCallId::new("call_1"))
+                    .is_success(false)
+                    .into(),
+                SummaryToolCall::shell("cargo test")
+                    .id(ToolCallId::new("call_2"))
+                    .is_success(false)
+                    .into(),
+                SummaryToolCall::search("/test/src")
+                    .id(ToolCallId::new("call_3"))
+                    .is_success(false)
+                    .into(),
+                SummaryToolCall::update("/test/output.txt")
+                    .id(ToolCallId::new("call_4"))
+                    .is_success(false)
+                    .into(),
             ],
         )]);
 
@@ -1124,7 +1086,7 @@ mod tests {
 
     #[test]
     fn test_summary_message_block_undo_helper() {
-        let actual = Block::undo(None, "/test/file.rs");
+        let actual: SummaryMessage = SummaryToolCall::undo("/test/file.rs").into();
 
         let expected = Block::ToolCall(SummaryToolCall {
             id: None,
@@ -1137,7 +1099,7 @@ mod tests {
 
     #[test]
     fn test_summary_message_block_fetch_helper() {
-        let actual = Block::fetch(None, "https://example.com");
+        let actual: SummaryMessage = SummaryToolCall::fetch("https://example.com").into();
 
         let expected = Block::ToolCall(SummaryToolCall {
             id: None,
@@ -1150,7 +1112,7 @@ mod tests {
 
     #[test]
     fn test_summary_message_block_followup_helper() {
-        let actual = Block::followup(None, "What should I do next?");
+        let actual: SummaryMessage = SummaryToolCall::followup("What should I do next?").into();
 
         let expected = Block::ToolCall(SummaryToolCall {
             id: None,
@@ -1163,7 +1125,7 @@ mod tests {
 
     #[test]
     fn test_summary_message_block_plan_helper() {
-        let actual = Block::plan(None, "feature-implementation");
+        let actual: SummaryMessage = SummaryToolCall::plan("feature-implementation").into();
 
         let expected = Block::ToolCall(SummaryToolCall {
             id: None,
@@ -1187,7 +1149,10 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Undoing changes"),
-                Block::undo_with_status(Some(ToolCallId::new("call_1")), "/test/file.rs", false),
+                SummaryToolCall::undo("/test/file.rs")
+                    .id(ToolCallId::new("call_1"))
+                    .is_success(false)
+                    .into(),
             ],
         )]);
 
@@ -1207,11 +1172,10 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Fetching data"),
-                Block::fetch_with_status(
-                    Some(ToolCallId::new("call_1")),
-                    "https://api.example.com",
-                    false,
-                ),
+                SummaryToolCall::fetch("https://api.example.com")
+                    .id(ToolCallId::new("call_1"))
+                    .is_success(false)
+                    .into(),
             ],
         )]);
 
@@ -1231,11 +1195,10 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Asking question"),
-                Block::followup_with_status(
-                    Some(ToolCallId::new("call_1")),
-                    "Should I proceed?",
-                    false,
-                ),
+                SummaryToolCall::followup("Should I proceed?")
+                    .id(ToolCallId::new("call_1"))
+                    .is_success(false)
+                    .into(),
             ],
         )]);
 
@@ -1255,7 +1218,10 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Creating plan"),
-                Block::plan_with_status(Some(ToolCallId::new("call_1")), "feature-plan", false),
+                SummaryToolCall::plan("feature-plan")
+                    .id(ToolCallId::new("call_1"))
+                    .is_success(false)
+                    .into(),
             ],
         )]);
 
@@ -1275,7 +1241,9 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Undoing"),
-                Block::undo(Some(ToolCallId::new("call_1")), "/test/file.rs"),
+                SummaryToolCall::undo("/test/file.rs")
+                    .id(ToolCallId::new("call_1"))
+                    .into(),
             ],
         )]);
 
@@ -1298,7 +1266,9 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Fetching"),
-                Block::fetch(Some(ToolCallId::new("call_1")), "https://example.com"),
+                SummaryToolCall::fetch("https://example.com")
+                    .id(ToolCallId::new("call_1"))
+                    .into(),
             ],
         )]);
 
@@ -1318,7 +1288,9 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Asking"),
-                Block::followup(Some(ToolCallId::new("call_1")), "Continue?"),
+                SummaryToolCall::followup("Continue?")
+                    .id(ToolCallId::new("call_1"))
+                    .into(),
             ],
         )]);
 
@@ -1338,7 +1310,9 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Planning"),
-                Block::plan(Some(ToolCallId::new("call_1")), "my-plan"),
+                SummaryToolCall::plan("my-plan")
+                    .id(ToolCallId::new("call_1"))
+                    .into(),
             ],
         )]);
 
@@ -1368,23 +1342,42 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("All operations"),
-                Block::read_with_status(Some(ToolCallId::new("call_1")), "/test/file.rs", false),
-                Block::update_with_status(
-                    Some(ToolCallId::new("call_2")),
-                    "/test/output.txt",
-                    false,
-                ),
-                Block::remove_with_status(Some(ToolCallId::new("call_3")), "/test/old.txt", false),
-                Block::shell_with_status(Some(ToolCallId::new("call_4")), "cargo build", false),
-                Block::search_with_status(Some(ToolCallId::new("call_5")), "/test/src", false),
-                Block::undo_with_status(Some(ToolCallId::new("call_6")), "/test/undo.txt", false),
-                Block::fetch_with_status(
-                    Some(ToolCallId::new("call_7")),
-                    "https://example.com",
-                    false,
-                ),
-                Block::followup_with_status(Some(ToolCallId::new("call_8")), "Proceed?", false),
-                Block::plan_with_status(Some(ToolCallId::new("call_9")), "implementation", false),
+                SummaryToolCall::read("/test/file.rs")
+                    .id(ToolCallId::new("call_1"))
+                    .is_success(false)
+                    .into(),
+                SummaryToolCall::update("/test/output.txt")
+                    .id(ToolCallId::new("call_2"))
+                    .is_success(false)
+                    .into(),
+                SummaryToolCall::remove("/test/old.txt")
+                    .id(ToolCallId::new("call_3"))
+                    .is_success(false)
+                    .into(),
+                SummaryToolCall::shell("cargo build")
+                    .id(ToolCallId::new("call_4"))
+                    .is_success(false)
+                    .into(),
+                SummaryToolCall::search("/test/src")
+                    .id(ToolCallId::new("call_5"))
+                    .is_success(false)
+                    .into(),
+                SummaryToolCall::undo("/test/undo.txt")
+                    .id(ToolCallId::new("call_6"))
+                    .is_success(false)
+                    .into(),
+                SummaryToolCall::fetch("https://example.com")
+                    .id(ToolCallId::new("call_7"))
+                    .is_success(false)
+                    .into(),
+                SummaryToolCall::followup("Proceed?")
+                    .id(ToolCallId::new("call_8"))
+                    .is_success(false)
+                    .into(),
+                SummaryToolCall::plan("implementation")
+                    .id(ToolCallId::new("call_9"))
+                    .is_success(false)
+                    .into(),
             ],
         )]);
 

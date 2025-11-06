@@ -51,11 +51,13 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::compact::summary::{SummaryBlock, SummaryMessage as Block};
+    use crate::compact::summary::{SummaryBlock, SummaryMessage, SummaryToolCall};
+
+    type Block = SummaryMessage;
 
     #[test]
     fn test_keeps_first_user_message_in_sequence() {
-        let block = Block::read_with_status(None, "test", false);
+        let block: SummaryMessage = SummaryToolCall::read("test").is_success(false).into();
         let fixture = ContextSummary::new(vec![
             SummaryBlock::new(Role::User, vec![block.clone()]),
             SummaryBlock::new(Role::User, vec![block.clone()]),
@@ -72,7 +74,7 @@ mod tests {
 
     #[test]
     fn test_preserves_non_user_messages() {
-        let block = Block::read_with_status(None, "test", false);
+        let block: SummaryMessage = SummaryToolCall::read("test").is_success(false).into();
         let fixture = ContextSummary::new(vec![
             SummaryBlock::new(Role::System, vec![block.clone()]),
             SummaryBlock::new(Role::Assistant, vec![block.clone()]),
@@ -93,7 +95,7 @@ mod tests {
 
     #[test]
     fn test_keeps_first_user_message_per_sequence() {
-        let block = Block::read_with_status(None, "test", false);
+        let block: SummaryMessage = SummaryToolCall::read("test").is_success(false).into();
 
         let fixture = ContextSummary::new(vec![
             SummaryBlock::new(Role::User, vec![block.clone()]),
@@ -129,7 +131,7 @@ mod tests {
 
     #[test]
     fn test_handles_mixed_roles() {
-        let block = Block::read_with_status(None, "test", false);
+        let block: SummaryMessage = SummaryToolCall::read("test").is_success(false).into();
 
         let fixture = ContextSummary::new(vec![
             SummaryBlock::new(Role::System, vec![block.clone()]),
@@ -156,7 +158,7 @@ mod tests {
 
     #[test]
     fn test_dedupes_assistant_role() {
-        let block = Block::read_with_status(None, "test", false);
+        let block: SummaryMessage = SummaryToolCall::read("test").is_success(false).into();
 
         let fixture = ContextSummary::new(vec![
             SummaryBlock::new(Role::User, vec![block.clone()]),
@@ -180,7 +182,7 @@ mod tests {
 
     #[test]
     fn test_drains_all_blocks_except_first_in_deduplicated_messages() {
-        let block = Block::read_with_status(None, "test", false);
+        let block: SummaryMessage = SummaryToolCall::read("test").is_success(false).into();
 
         let fixture = ContextSummary::new(vec![
             SummaryBlock::new(

@@ -100,7 +100,7 @@ mod tests {
 
     use super::*;
     use crate::Role;
-    use crate::compact::summary::{SummaryBlock, SummaryMessage as Block};
+    use crate::compact::summary::{SummaryBlock, SummaryMessage as Block, SummaryToolCall};
 
     #[test]
     fn test_empty_summary() {
@@ -117,8 +117,8 @@ mod tests {
         let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
-                Block::read(None, "/home/user/project/src/main.rs"),
-                Block::read(None, "/home/user/project/tests/test.rs"),
+                SummaryToolCall::read("/home/user/project/src/main.rs").into(),
+                SummaryToolCall::read("/home/user/project/tests/test.rs").into(),
             ],
         )]);
         let actual = StripWorkingDir::new("/home/user/project").transform(fixture);
@@ -126,8 +126,8 @@ mod tests {
         let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
-                Block::read(None, "src/main.rs"),
-                Block::read(None, "tests/test.rs"),
+                SummaryToolCall::read("src/main.rs").into(),
+                SummaryToolCall::read("tests/test.rs").into(),
             ],
         )]);
 
@@ -139,8 +139,8 @@ mod tests {
         let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
-                Block::update(None, "/home/user/project/src/lib.rs"),
-                Block::update(None, "/home/user/project/README.md"),
+                SummaryToolCall::update("/home/user/project/src/lib.rs").into(),
+                SummaryToolCall::update("/home/user/project/README.md").into(),
             ],
         )]);
         let actual = StripWorkingDir::new("/home/user/project").transform(fixture);
@@ -148,8 +148,8 @@ mod tests {
         let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
-                Block::update(None, "src/lib.rs"),
-                Block::update(None, "README.md"),
+                SummaryToolCall::update("src/lib.rs").into(),
+                SummaryToolCall::update("README.md").into(),
             ],
         )]);
 
@@ -161,8 +161,8 @@ mod tests {
         let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
-                Block::remove(None, "/home/user/project/old.rs"),
-                Block::remove(None, "/home/user/project/deprecated/mod.rs"),
+                SummaryToolCall::remove("/home/user/project/old.rs").into(),
+                SummaryToolCall::remove("/home/user/project/deprecated/mod.rs").into(),
             ],
         )]);
         let actual = StripWorkingDir::new("/home/user/project").transform(fixture);
@@ -170,8 +170,8 @@ mod tests {
         let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
-                Block::remove(None, "old.rs"),
-                Block::remove(None, "deprecated/mod.rs"),
+                SummaryToolCall::remove("old.rs").into(),
+                SummaryToolCall::remove("deprecated/mod.rs").into(),
             ],
         )]);
 
@@ -183,9 +183,9 @@ mod tests {
         let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
-                Block::read(None, "/home/user/project/src/main.rs"),
-                Block::read(None, "/etc/config.toml"),
-                Block::update(None, "/tmp/cache.json"),
+                SummaryToolCall::read("/home/user/project/src/main.rs").into(),
+                SummaryToolCall::read("/etc/config.toml").into(),
+                SummaryToolCall::update("/tmp/cache.json").into(),
             ],
         )]);
         let actual = StripWorkingDir::new("/home/user/project").transform(fixture);
@@ -193,9 +193,9 @@ mod tests {
         let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
-                Block::read(None, "src/main.rs"),
-                Block::read(None, "/etc/config.toml"),
-                Block::update(None, "/tmp/cache.json"),
+                SummaryToolCall::read("src/main.rs").into(),
+                SummaryToolCall::read("/etc/config.toml").into(),
+                SummaryToolCall::update("/tmp/cache.json").into(),
             ],
         )]);
 
@@ -207,10 +207,10 @@ mod tests {
         let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
-                Block::read(None, "/home/user/project/src/main.rs"),
-                Block::update(None, "/home/user/project/src/lib.rs"),
-                Block::remove(None, "/home/user/project/old.rs"),
-                Block::read(None, "/other/path/file.rs"),
+                SummaryToolCall::read("/home/user/project/src/main.rs").into(),
+                SummaryToolCall::update("/home/user/project/src/lib.rs").into(),
+                SummaryToolCall::remove("/home/user/project/old.rs").into(),
+                SummaryToolCall::read("/other/path/file.rs").into(),
             ],
         )]);
         let actual = StripWorkingDir::new("/home/user/project").transform(fixture);
@@ -218,10 +218,10 @@ mod tests {
         let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
-                Block::read(None, "src/main.rs"),
-                Block::update(None, "src/lib.rs"),
-                Block::remove(None, "old.rs"),
-                Block::read(None, "/other/path/file.rs"),
+                SummaryToolCall::read("src/main.rs").into(),
+                SummaryToolCall::update("src/lib.rs").into(),
+                SummaryToolCall::remove("old.rs").into(),
+                SummaryToolCall::read("/other/path/file.rs").into(),
             ],
         )]);
 
@@ -233,32 +233,35 @@ mod tests {
         let fixture = ContextSummary::new(vec![
             SummaryBlock::new(
                 Role::User,
-                vec![Block::read(None, "/home/user/project/src/main.rs")],
+                vec![SummaryToolCall::read("/home/user/project/src/main.rs").into()],
             ),
             SummaryBlock::new(
                 Role::Assistant,
                 vec![
-                    Block::read(None, "/home/user/project/src/lib.rs"),
-                    Block::update(None, "/home/user/project/README.md"),
+                    SummaryToolCall::read("/home/user/project/src/lib.rs").into(),
+                    SummaryToolCall::update("/home/user/project/README.md").into(),
                 ],
             ),
             SummaryBlock::new(
                 Role::User,
-                vec![Block::remove(None, "/home/user/project/old.rs")],
+                vec![SummaryToolCall::remove("/home/user/project/old.rs").into()],
             ),
         ]);
         let actual = StripWorkingDir::new("/home/user/project").transform(fixture);
 
         let expected = ContextSummary::new(vec![
-            SummaryBlock::new(Role::User, vec![Block::read(None, "src/main.rs")]),
+            SummaryBlock::new(
+                Role::User,
+                vec![SummaryToolCall::read("src/main.rs").into()],
+            ),
             SummaryBlock::new(
                 Role::Assistant,
                 vec![
-                    Block::read(None, "src/lib.rs"),
-                    Block::update(None, "README.md"),
+                    SummaryToolCall::read("src/lib.rs").into(),
+                    SummaryToolCall::update("README.md").into(),
                 ],
             ),
-            SummaryBlock::new(Role::User, vec![Block::remove(None, "old.rs")]),
+            SummaryBlock::new(Role::User, vec![SummaryToolCall::remove("old.rs").into()]),
         ]);
 
         assert_eq!(actual, expected);
@@ -270,7 +273,7 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Some text content"),
-                Block::read(None, "/home/user/project/src/main.rs"),
+                SummaryToolCall::read("/home/user/project/src/main.rs").into(),
                 Block::content("More content"),
             ],
         )]);
@@ -280,7 +283,7 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Some text content"),
-                Block::read(None, "src/main.rs"),
+                SummaryToolCall::read("src/main.rs").into(),
                 Block::content("More content"),
             ],
         )]);
@@ -292,13 +295,13 @@ mod tests {
     fn test_handles_trailing_slash_in_working_dir() {
         let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
-            vec![Block::read(None, "/home/user/project/src/main.rs")],
+            vec![SummaryToolCall::read("/home/user/project/src/main.rs").into()],
         )]);
         let actual = StripWorkingDir::new("/home/user/project/").transform(fixture);
 
         let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
-            vec![Block::read(None, "src/main.rs")],
+            vec![SummaryToolCall::read("src/main.rs").into()],
         )]);
 
         assert_eq!(actual, expected);
@@ -309,9 +312,9 @@ mod tests {
         let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
-                Block::read(None, "src/main.rs"),
-                Block::update(None, "./tests/test.rs"),
-                Block::remove(None, "../other/file.rs"),
+                SummaryToolCall::read("src/main.rs").into(),
+                SummaryToolCall::update("./tests/test.rs").into(),
+                SummaryToolCall::remove("../other/file.rs").into(),
             ],
         )]);
         let actual = StripWorkingDir::new("/home/user/project").transform(fixture);
@@ -319,9 +322,9 @@ mod tests {
         let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
-                Block::read(None, "src/main.rs"),
-                Block::update(None, "./tests/test.rs"),
-                Block::remove(None, "../other/file.rs"),
+                SummaryToolCall::read("src/main.rs").into(),
+                SummaryToolCall::update("./tests/test.rs").into(),
+                SummaryToolCall::remove("../other/file.rs").into(),
             ],
         )]);
 
@@ -333,8 +336,8 @@ mod tests {
         let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
-                Block::read(None, r"C:\Users\user\project\src\main.rs"),
-                Block::update(None, r"C:\Users\user\project\tests\test.rs"),
+                SummaryToolCall::read(r"C:\Users\user\project\src\main.rs").into(),
+                SummaryToolCall::update(r"C:\Users\user\project\tests\test.rs").into(),
             ],
         )]);
         let actual = StripWorkingDir::new(r"C:\Users\user\project").transform(fixture);
@@ -344,8 +347,8 @@ mod tests {
         let expected = ContextSummary::new(vec![SummaryMessage::new(
             Role::Assistant,
             vec![
-                Block::read(None, r"src\main.rs"),
-                Block::update(None, r"tests\test.rs"),
+                SummaryToolCall::read(r"src\main.rs").into(),
+                SummaryToolCall::update(r"tests\test.rs").into(),
             ],
         )]);
 
@@ -354,8 +357,8 @@ mod tests {
         let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
-                Block::read(None, r"C:\Users\user\project\src\main.rs"),
-                Block::update(None, r"C:\Users\user\project\tests\test.rs"),
+                SummaryToolCall::read(r"C:\Users\user\project\src\main.rs").into(),
+                SummaryToolCall::update(r"C:\Users\user\project\tests\test.rs").into(),
             ],
         )]);
 
@@ -367,8 +370,8 @@ mod tests {
         let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
-                Block::read(None, "C:/Users/user/project/src/main.rs"),
-                Block::update(None, "C:/Users/user/project/tests/test.rs"),
+                SummaryToolCall::read("C:/Users/user/project/src/main.rs").into(),
+                SummaryToolCall::update("C:/Users/user/project/tests/test.rs").into(),
             ],
         )]);
         let actual = StripWorkingDir::new("C:/Users/user/project").transform(fixture);
@@ -376,8 +379,8 @@ mod tests {
         let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
-                Block::read(None, "src/main.rs"),
-                Block::update(None, "tests/test.rs"),
+                SummaryToolCall::read("src/main.rs").into(),
+                SummaryToolCall::update("tests/test.rs").into(),
             ],
         )]);
 
@@ -389,8 +392,8 @@ mod tests {
         let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
-                Block::read(None, r"C:\Users\user\project\src\main.rs"),
-                Block::update(None, "C:/Users/user/project/tests/test.rs"),
+                SummaryToolCall::read(r"C:\Users\user\project\src\main.rs").into(),
+                SummaryToolCall::update("C:/Users/user/project/tests/test.rs").into(),
             ],
         )]);
         let actual = StripWorkingDir::new(r"C:\Users\user\project").transform(fixture);
@@ -399,8 +402,8 @@ mod tests {
         let expected = ContextSummary::new(vec![SummaryMessage::new(
             Role::Assistant,
             vec![
-                Block::read(None, r"src\main.rs"),
-                Block::update(None, "tests/test.rs"),
+                SummaryToolCall::read(r"src\main.rs").into(),
+                SummaryToolCall::update("tests/test.rs").into(),
             ],
         )]);
 
@@ -408,8 +411,8 @@ mod tests {
         let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
-                Block::read(None, r"C:\Users\user\project\src\main.rs"),
-                Block::update(None, "C:/Users/user/project/tests/test.rs"),
+                SummaryToolCall::read(r"C:\Users\user\project\src\main.rs").into(),
+                SummaryToolCall::update("C:/Users/user/project/tests/test.rs").into(),
             ],
         )]);
 
@@ -421,9 +424,9 @@ mod tests {
         let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
-                Block::read(None, r"C:\Users\user\project\src\main.rs"),
-                Block::read(None, r"D:\other\config.toml"),
-                Block::update(None, r"C:\Windows\System32\file.dll"),
+                SummaryToolCall::read(r"C:\Users\user\project\src\main.rs").into(),
+                SummaryToolCall::read(r"D:\other\config.toml").into(),
+                SummaryToolCall::update(r"C:\Windows\System32\file.dll").into(),
             ],
         )]);
         let actual = StripWorkingDir::new(r"C:\Users\user\project").transform(fixture);
@@ -432,9 +435,9 @@ mod tests {
         let expected = ContextSummary::new(vec![SummaryMessage::new(
             Role::Assistant,
             vec![
-                Block::read(None, r"src\main.rs"),
-                Block::read(None, r"D:\other\config.toml"),
-                Block::update(None, r"C:\Windows\System32\file.dll"),
+                SummaryToolCall::read(r"src\main.rs").into(),
+                SummaryToolCall::read(r"D:\other\config.toml").into(),
+                SummaryToolCall::update(r"C:\Windows\System32\file.dll").into(),
             ],
         )]);
 
@@ -442,9 +445,9 @@ mod tests {
         let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
-                Block::read(None, r"C:\Users\user\project\src\main.rs"),
-                Block::read(None, r"D:\other\config.toml"),
-                Block::update(None, r"C:\Windows\System32\file.dll"),
+                SummaryToolCall::read(r"C:\Users\user\project\src\main.rs").into(),
+                SummaryToolCall::read(r"D:\other\config.toml").into(),
+                SummaryToolCall::update(r"C:\Windows\System32\file.dll").into(),
             ],
         )]);
 
@@ -456,8 +459,8 @@ mod tests {
         let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
-                Block::read(None, r"\\server\share\project\src\main.rs"),
-                Block::update(None, r"\\server\share\project\tests\test.rs"),
+                SummaryToolCall::read(r"\\server\share\project\src\main.rs").into(),
+                SummaryToolCall::update(r"\\server\share\project\tests\test.rs").into(),
             ],
         )]);
         let actual = StripWorkingDir::new(r"\\server\share\project").transform(fixture);
@@ -466,8 +469,8 @@ mod tests {
         let expected = ContextSummary::new(vec![SummaryMessage::new(
             Role::Assistant,
             vec![
-                Block::read(None, r"src\main.rs"),
-                Block::update(None, r"tests\test.rs"),
+                SummaryToolCall::read(r"src\main.rs").into(),
+                SummaryToolCall::update(r"tests\test.rs").into(),
             ],
         )]);
 
@@ -475,8 +478,8 @@ mod tests {
         let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
-                Block::read(None, r"\\server\share\project\src\main.rs"),
-                Block::update(None, r"\\server\share\project\tests\test.rs"),
+                SummaryToolCall::read(r"\\server\share\project\src\main.rs").into(),
+                SummaryToolCall::update(r"\\server\share\project\tests\test.rs").into(),
             ],
         )]);
 
@@ -487,20 +490,20 @@ mod tests {
     fn test_handles_windows_trailing_backslash() {
         let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
-            vec![Block::read(None, r"C:\Users\user\project\src\main.rs")],
+            vec![SummaryToolCall::read(r"C:\Users\user\project\src\main.rs").into()],
         )]);
         let actual = StripWorkingDir::new(r"C:\Users\user\project\").transform(fixture);
 
         #[cfg(windows)]
         let expected = ContextSummary::new(vec![SummaryMessage::new(
             Role::Assistant,
-            vec![Block::read(None, r"src\main.rs")],
+            vec![SummaryToolCall::read(r"src\main.rs").into()],
         )]);
 
         #[cfg(not(windows))]
         let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
-            vec![Block::read(None, r"C:\Users\user\project\src\main.rs")],
+            vec![SummaryToolCall::read(r"C:\Users\user\project\src\main.rs").into()],
         )]);
 
         assert_eq!(actual, expected);
@@ -513,8 +516,8 @@ mod tests {
         let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
-                Block::read(None, r"C:\Users\User\Project\src\main.rs"),
-                Block::update(None, r"c:\users\user\project\tests\test.rs"),
+                SummaryToolCall::read(r"C:\Users\User\Project\src\main.rs").into(),
+                SummaryToolCall::update(r"c:\users\user\project\tests\test.rs").into(),
             ],
         )]);
         let actual = StripWorkingDir::new(r"C:\Users\User\Project").transform(fixture);
@@ -526,8 +529,8 @@ mod tests {
         let expected = ContextSummary::new(vec![SummaryMessage::new(
             Role::Assistant,
             vec![
-                Block::read(None, r"src\main.rs"),
-                Block::update(None, r"c:\users\user\project\tests\test.rs"),
+                SummaryToolCall::read(r"src\main.rs").into(),
+                SummaryToolCall::update(r"c:\users\user\project\tests\test.rs").into(),
             ],
         )]);
 
@@ -535,8 +538,8 @@ mod tests {
         let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
-                Block::read(None, r"C:\Users\User\Project\src\main.rs"),
-                Block::update(None, r"c:\users\user\project\tests\test.rs"),
+                SummaryToolCall::read(r"C:\Users\User\Project\src\main.rs").into(),
+                SummaryToolCall::update(r"c:\users\user\project\tests\test.rs").into(),
             ],
         )]);
 
@@ -548,46 +551,55 @@ mod tests {
         let fixture = ContextSummary::new(vec![
             SummaryBlock::new(
                 Role::User,
-                vec![Block::read(None, r"C:\project\src\main.rs")],
+                vec![SummaryToolCall::read(r"C:\project\src\main.rs").into()],
             ),
             SummaryBlock::new(
                 Role::Assistant,
                 vec![
-                    Block::read(None, r"C:\project\src\lib.rs"),
-                    Block::update(None, r"C:\project\README.md"),
+                    SummaryToolCall::read(r"C:\project\src\lib.rs").into(),
+                    SummaryToolCall::update(r"C:\project\README.md").into(),
                 ],
             ),
-            SummaryBlock::new(Role::User, vec![Block::remove(None, r"C:\project\old.rs")]),
+            SummaryBlock::new(
+                Role::User,
+                vec![SummaryToolCall::remove(r"C:\project\old.rs").into()],
+            ),
         ]);
         let actual = StripWorkingDir::new(r"C:\project").transform(fixture);
 
         #[cfg(windows)]
         let expected = ContextSummary::new(vec![
-            SummaryMessage::new(Role::User, vec![Block::read(None, r"src\main.rs")]),
+            SummaryMessage::new(
+                Role::User,
+                vec![SummaryToolCall::read(r"src\main.rs").into()],
+            ),
             SummaryMessage::new(
                 Role::Assistant,
                 vec![
-                    Block::read(None, r"src\lib.rs"),
-                    Block::update(None, "README.md"),
+                    SummaryToolCall::read(r"src\lib.rs").into(),
+                    SummaryToolCall::update("README.md").into(),
                 ],
             ),
-            SummaryMessage::new(Role::User, vec![Block::remove(None, "old.rs")]),
+            SummaryMessage::new(Role::User, vec![SummaryToolCall::remove("old.rs").into()]),
         ]);
 
         #[cfg(not(windows))]
         let expected = ContextSummary::new(vec![
             SummaryBlock::new(
                 Role::User,
-                vec![Block::read(None, r"C:\project\src\main.rs")],
+                vec![SummaryToolCall::read(r"C:\project\src\main.rs").into()],
             ),
             SummaryBlock::new(
                 Role::Assistant,
                 vec![
-                    Block::read(None, r"C:\project\src\lib.rs"),
-                    Block::update(None, r"C:\project\README.md"),
+                    SummaryToolCall::read(r"C:\project\src\lib.rs").into(),
+                    SummaryToolCall::update(r"C:\project\README.md").into(),
                 ],
             ),
-            SummaryBlock::new(Role::User, vec![Block::remove(None, r"C:\project\old.rs")]),
+            SummaryBlock::new(
+                Role::User,
+                vec![SummaryToolCall::remove(r"C:\project\old.rs").into()],
+            ),
         ]);
 
         assert_eq!(actual, expected);
