@@ -7,14 +7,16 @@ use crate::{
 };
 
 /// A simplified summary of a context, focusing on messages and their tool calls
-#[derive(PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Default, PartialEq, Debug, Serialize, Deserialize, derive_setters::Setters)]
+#[setters(strip_option)]
 #[serde(rename_all = "snake_case")]
 pub struct ContextSummary {
     pub messages: Vec<SummaryMessage>,
 }
 
 /// A simplified representation of a message with its key information
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, derive_setters::Setters)]
+#[setters(strip_option)]
 #[serde(rename_all = "snake_case")]
 pub struct SummaryMessage {
     pub role: Role,
@@ -38,19 +40,45 @@ pub struct SummaryToolData {
     pub tool_call_success: bool,
 }
 
+impl ContextSummary {
+    /// Creates a new ContextSummary with the given messages
+    pub fn new(messages: Vec<SummaryMessage>) -> Self {
+        Self { messages }
+    }
+}
+
+impl SummaryMessage {
+    /// Creates a new SummaryMessage with the given role and blocks
+    pub fn new(role: Role, blocks: Vec<SummaryMessageBlock>) -> Self {
+        Self { role, blocks }
+    }
+}
+
 impl SummaryMessageBlock {
     /// Creates a content block
     pub fn content(text: impl Into<String>) -> Self {
         Self::Content(text.into())
     }
 
-    /// Creates a FileRead tool call block with unknown success status (defaults
-    /// to false)
+    /// Creates a FileRead tool call block with success=true by default
     pub fn read(call_id: Option<ToolCallId>, path: impl Into<String>) -> Self {
         Self::ToolCall(SummaryToolData {
             tool_call_id: call_id,
             call: SummaryToolCall::FileRead { path: path.into() },
             tool_call_success: true,
+        })
+    }
+
+    /// Creates a FileRead tool call block with custom success status
+    pub fn read_with_status(
+        call_id: Option<ToolCallId>,
+        path: impl Into<String>,
+        success: bool,
+    ) -> Self {
+        Self::ToolCall(SummaryToolData {
+            tool_call_id: call_id,
+            call: SummaryToolCall::FileRead { path: path.into() },
+            tool_call_success: success,
         })
     }
 
@@ -63,12 +91,38 @@ impl SummaryMessageBlock {
         })
     }
 
+    /// Creates a FileUpdate tool call block with custom success status
+    pub fn update_with_status(
+        call_id: Option<ToolCallId>,
+        path: impl Into<String>,
+        success: bool,
+    ) -> Self {
+        Self::ToolCall(SummaryToolData {
+            tool_call_id: call_id,
+            call: SummaryToolCall::FileUpdate { path: path.into() },
+            tool_call_success: success,
+        })
+    }
+
     /// Creates a FileRemove tool call block with success=true by default
     pub fn remove(call_id: Option<ToolCallId>, path: impl Into<String>) -> Self {
         Self::ToolCall(SummaryToolData {
             tool_call_id: call_id,
             call: SummaryToolCall::FileRemove { path: path.into() },
             tool_call_success: true,
+        })
+    }
+
+    /// Creates a FileRemove tool call block with custom success status
+    pub fn remove_with_status(
+        call_id: Option<ToolCallId>,
+        path: impl Into<String>,
+        success: bool,
+    ) -> Self {
+        Self::ToolCall(SummaryToolData {
+            tool_call_id: call_id,
+            call: SummaryToolCall::FileRemove { path: path.into() },
+            tool_call_success: success,
         })
     }
 }

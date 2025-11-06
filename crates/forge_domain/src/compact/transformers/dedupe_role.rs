@@ -51,202 +51,158 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::compact::summary::{
-        SummaryMessage, SummaryMessageBlock, SummaryToolCall, SummaryToolData,
-    };
-
-    fn fixture_message_block() -> SummaryMessageBlock {
-        SummaryMessageBlock::ToolCall(SummaryToolData {
-            tool_call_id: None,
-            call: SummaryToolCall::FileRead { path: "test".to_string() },
-            tool_call_success: false,
-        })
-    }
-
-    fn fixture_summary_message(role: Role) -> SummaryMessage {
-        SummaryMessage { role, blocks: vec![fixture_message_block()] }
-    }
+    use crate::compact::summary::{SummaryMessage, SummaryMessageBlock as Block};
 
     #[test]
     fn test_keeps_first_user_message_in_sequence() {
-        let fixture = ContextSummary {
-            messages: vec![
-                fixture_summary_message(Role::User),
-                fixture_summary_message(Role::User),
-                fixture_summary_message(Role::User),
-            ],
-        };
+        let block = Block::read_with_status(None, "test", false);
+        let fixture = ContextSummary::new(vec![
+            SummaryMessage::new(Role::User, vec![block.clone()]),
+            SummaryMessage::new(Role::User, vec![block.clone()]),
+            SummaryMessage::new(Role::User, vec![block.clone()]),
+        ]);
 
         let mut transformer = DedupeRole::new(Role::User);
         let actual = transformer.transform(fixture);
 
-        let expected = ContextSummary { messages: vec![fixture_summary_message(Role::User)] };
+        let expected = ContextSummary::new(vec![SummaryMessage::new(Role::User, vec![block])]);
 
         assert_eq!(actual.messages.len(), expected.messages.len());
     }
 
     #[test]
     fn test_preserves_non_user_messages() {
-        let fixture = ContextSummary {
-            messages: vec![
-                fixture_summary_message(Role::System),
-                fixture_summary_message(Role::Assistant),
-                fixture_summary_message(Role::User),
-            ],
-        };
+        let block = Block::read_with_status(None, "test", false);
+        let fixture = ContextSummary::new(vec![
+            SummaryMessage::new(Role::System, vec![block.clone()]),
+            SummaryMessage::new(Role::Assistant, vec![block.clone()]),
+            SummaryMessage::new(Role::User, vec![block.clone()]),
+        ]);
 
         let mut transformer = DedupeRole::new(Role::User);
         let actual = transformer.transform(fixture);
 
-        let expected = ContextSummary {
-            messages: vec![
-                fixture_summary_message(Role::System),
-                fixture_summary_message(Role::Assistant),
-                fixture_summary_message(Role::User),
-            ],
-        };
+        let expected = ContextSummary::new(vec![
+            SummaryMessage::new(Role::System, vec![block.clone()]),
+            SummaryMessage::new(Role::Assistant, vec![block.clone()]),
+            SummaryMessage::new(Role::User, vec![block]),
+        ]);
 
         assert_eq!(actual.messages.len(), expected.messages.len());
     }
 
     #[test]
     fn test_keeps_first_user_message_per_sequence() {
-        let fixture = ContextSummary {
-            messages: vec![
-                fixture_summary_message(Role::User),
-                fixture_summary_message(Role::User),
-                fixture_summary_message(Role::Assistant),
-                fixture_summary_message(Role::User),
-                fixture_summary_message(Role::User),
-            ],
-        };
+        let block = Block::read_with_status(None, "test", false);
+
+        let fixture = ContextSummary::new(vec![
+            SummaryMessage::new(Role::User, vec![block.clone()]),
+            SummaryMessage::new(Role::User, vec![block.clone()]),
+            SummaryMessage::new(Role::Assistant, vec![block.clone()]),
+            SummaryMessage::new(Role::User, vec![block.clone()]),
+            SummaryMessage::new(Role::User, vec![block.clone()]),
+        ]);
 
         let mut transformer = DedupeRole::new(Role::User);
         let actual = transformer.transform(fixture);
 
-        let expected = ContextSummary {
-            messages: vec![
-                fixture_summary_message(Role::User),
-                fixture_summary_message(Role::Assistant),
-                fixture_summary_message(Role::User),
-            ],
-        };
+        let expected = ContextSummary::new(vec![
+            SummaryMessage::new(Role::User, vec![block.clone()]),
+            SummaryMessage::new(Role::Assistant, vec![block.clone()]),
+            SummaryMessage::new(Role::User, vec![block]),
+        ]);
 
         assert_eq!(actual.messages.len(), expected.messages.len());
     }
 
     #[test]
     fn test_handles_empty_messages() {
-        let fixture = ContextSummary { messages: vec![] };
+        let fixture = ContextSummary::new(vec![]);
 
         let mut transformer = DedupeRole::new(Role::User);
         let actual = transformer.transform(fixture);
 
-        let expected = ContextSummary { messages: vec![] };
+        let expected = ContextSummary::new(vec![]);
 
         assert_eq!(actual.messages.len(), expected.messages.len());
     }
 
     #[test]
     fn test_handles_mixed_roles() {
-        let fixture = ContextSummary {
-            messages: vec![
-                fixture_summary_message(Role::System),
-                fixture_summary_message(Role::User),
-                fixture_summary_message(Role::User),
-                fixture_summary_message(Role::Assistant),
-                fixture_summary_message(Role::Assistant),
-                fixture_summary_message(Role::User),
-            ],
-        };
+        let block = Block::read_with_status(None, "test", false);
+
+        let fixture = ContextSummary::new(vec![
+            SummaryMessage::new(Role::System, vec![block.clone()]),
+            SummaryMessage::new(Role::User, vec![block.clone()]),
+            SummaryMessage::new(Role::User, vec![block.clone()]),
+            SummaryMessage::new(Role::Assistant, vec![block.clone()]),
+            SummaryMessage::new(Role::Assistant, vec![block.clone()]),
+            SummaryMessage::new(Role::User, vec![block.clone()]),
+        ]);
 
         let mut transformer = DedupeRole::new(Role::User);
         let actual = transformer.transform(fixture);
 
-        let expected = ContextSummary {
-            messages: vec![
-                fixture_summary_message(Role::System),
-                fixture_summary_message(Role::User),
-                fixture_summary_message(Role::Assistant),
-                fixture_summary_message(Role::Assistant),
-                fixture_summary_message(Role::User),
-            ],
-        };
+        let expected = ContextSummary::new(vec![
+            SummaryMessage::new(Role::System, vec![block.clone()]),
+            SummaryMessage::new(Role::User, vec![block.clone()]),
+            SummaryMessage::new(Role::Assistant, vec![block.clone()]),
+            SummaryMessage::new(Role::Assistant, vec![block.clone()]),
+            SummaryMessage::new(Role::User, vec![block]),
+        ]);
 
         assert_eq!(actual.messages.len(), expected.messages.len());
     }
 
     #[test]
     fn test_dedupes_assistant_role() {
-        let fixture = ContextSummary {
-            messages: vec![
-                fixture_summary_message(Role::User),
-                fixture_summary_message(Role::Assistant),
-                fixture_summary_message(Role::Assistant),
-                fixture_summary_message(Role::Assistant),
-                fixture_summary_message(Role::User),
-            ],
-        };
+        let block = Block::read_with_status(None, "test", false);
+
+        let fixture = ContextSummary::new(vec![
+            SummaryMessage::new(Role::User, vec![block.clone()]),
+            SummaryMessage::new(Role::Assistant, vec![block.clone()]),
+            SummaryMessage::new(Role::Assistant, vec![block.clone()]),
+            SummaryMessage::new(Role::Assistant, vec![block.clone()]),
+            SummaryMessage::new(Role::User, vec![block.clone()]),
+        ]);
 
         let mut transformer = DedupeRole::new(Role::Assistant);
         let actual = transformer.transform(fixture);
 
-        let expected = ContextSummary {
-            messages: vec![
-                fixture_summary_message(Role::User),
-                fixture_summary_message(Role::Assistant),
-                fixture_summary_message(Role::User),
-            ],
-        };
+        let expected = ContextSummary::new(vec![
+            SummaryMessage::new(Role::User, vec![block.clone()]),
+            SummaryMessage::new(Role::Assistant, vec![block.clone()]),
+            SummaryMessage::new(Role::User, vec![block]),
+        ]);
 
         assert_eq!(actual.messages.len(), expected.messages.len());
     }
 
     #[test]
     fn test_drains_all_blocks_except_first_in_deduplicated_messages() {
-        let fixture = ContextSummary {
-            messages: vec![
-                SummaryMessage {
-                    role: Role::User,
-                    blocks: vec![
-                        fixture_message_block(),
-                        fixture_message_block(),
-                        fixture_message_block(),
-                    ],
-                },
-                SummaryMessage {
-                    role: Role::User,
-                    blocks: vec![fixture_message_block(), fixture_message_block()],
-                },
-                SummaryMessage {
-                    role: Role::Assistant,
-                    blocks: vec![fixture_message_block(), fixture_message_block()],
-                },
-                SummaryMessage {
-                    role: Role::User,
-                    blocks: vec![
-                        fixture_message_block(),
-                        fixture_message_block(),
-                        fixture_message_block(),
-                        fixture_message_block(),
-                    ],
-                },
-            ],
-        };
+        let block = Block::read_with_status(None, "test", false);
+
+        let fixture = ContextSummary::new(vec![
+            SummaryMessage::new(
+                Role::User,
+                vec![block.clone(), block.clone(), block.clone()],
+            ),
+            SummaryMessage::new(Role::User, vec![block.clone(), block.clone()]),
+            SummaryMessage::new(Role::Assistant, vec![block.clone(), block.clone()]),
+            SummaryMessage::new(
+                Role::User,
+                vec![block.clone(), block.clone(), block.clone(), block.clone()],
+            ),
+        ]);
 
         let mut transformer = DedupeRole::new(Role::User);
         let actual = transformer.transform(fixture);
 
-        let expected = ContextSummary {
-            messages: vec![
-                SummaryMessage { role: Role::User, blocks: vec![fixture_message_block()] },
-                SummaryMessage {
-                    role: Role::Assistant,
-                    blocks: vec![fixture_message_block(), fixture_message_block()],
-                },
-                SummaryMessage { role: Role::User, blocks: vec![fixture_message_block()] },
-            ],
-        };
+        let expected = ContextSummary::new(vec![
+            SummaryMessage::new(Role::User, vec![block.clone()]),
+            SummaryMessage::new(Role::Assistant, vec![block.clone(), block.clone()]),
+            SummaryMessage::new(Role::User, vec![block]),
+        ]);
 
         assert_eq!(actual, expected);
     }

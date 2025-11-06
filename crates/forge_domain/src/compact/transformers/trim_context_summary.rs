@@ -60,48 +60,28 @@ impl Transformer for TrimContextSummary {
 
 #[cfg(test)]
 mod tests {
-    // Alias for convenience in tests
-    use SummaryMessageBlock as Block;
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::compact::summary::{
-        SummaryMessage, SummaryMessageBlock, SummaryToolCall, SummaryToolData,
-    };
+    use crate::compact::summary::SummaryMessage;
     use crate::{Role, ToolCallId};
 
-    // Helper to create a summary message with role and blocks
-    fn message(role: Role, blocks: Vec<SummaryMessageBlock>) -> SummaryMessage {
-        SummaryMessage { role, blocks }
-    }
-
-    // Helper to create a context summary
-    fn summary(messages: Vec<SummaryMessage>) -> ContextSummary {
-        ContextSummary { messages }
-    }
-
-    // Helper to create a successful tool call block
-    fn tool_block(call: SummaryToolCall, success: bool) -> SummaryMessageBlock {
-        SummaryMessageBlock::ToolCall(SummaryToolData {
-            tool_call_id: None,
-            call,
-            tool_call_success: success,
-        })
-    }
+    // Alias for convenience in tests
+    type Block = SummaryMessageBlock;
 
     #[test]
     fn test_empty_summary() {
-        let fixture = summary(vec![]);
+        let fixture = ContextSummary::new(vec![]);
         let actual = TrimContextSummary.transform(fixture);
 
-        let expected = summary(vec![]);
+        let expected = ContextSummary::new(vec![]);
 
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_keeps_last_operation_per_path() {
-        let fixture = summary(vec![message(
+        let fixture = ContextSummary::new(vec![SummaryMessage::new(
             Role::Assistant,
             vec![
                 Block::read(None, "/test1"),
@@ -112,7 +92,7 @@ mod tests {
         )]);
         let actual = TrimContextSummary.transform(fixture);
 
-        let expected = summary(vec![message(
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
             Role::Assistant,
             vec![
                 Block::read(None, "/test1"),
@@ -126,7 +106,7 @@ mod tests {
 
     #[test]
     fn test_keeps_last_operation_with_content() {
-        let fixture = summary(vec![message(
+        let fixture = ContextSummary::new(vec![SummaryMessage::new(
             Role::Assistant,
             vec![
                 Block::read(Some(ToolCallId::new("call1")), "/test"),
@@ -135,7 +115,7 @@ mod tests {
         )]);
         let actual = TrimContextSummary.transform(fixture);
 
-        let expected = summary(vec![message(
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
             Role::Assistant,
             vec![Block::read(Some(ToolCallId::new("call2")), "/test")],
         )]);
@@ -145,7 +125,7 @@ mod tests {
 
     #[test]
     fn test_different_operation_types_on_same_path() {
-        let fixture = summary(vec![message(
+        let fixture = ContextSummary::new(vec![SummaryMessage::new(
             Role::Assistant,
             vec![
                 Block::read(None, "/test"),
@@ -159,7 +139,7 @@ mod tests {
         )]);
         let actual = TrimContextSummary.transform(fixture);
 
-        let expected = summary(vec![message(
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
             Role::Assistant,
             vec![
                 Block::read(None, "/test"),
@@ -173,43 +153,24 @@ mod tests {
 
     #[test]
     fn test_filters_failed_and_none_operations() {
-        let fixture = summary(vec![message(
+        let fixture = ContextSummary::new(vec![SummaryMessage::new(
             Role::Assistant,
             vec![
-                tool_block(
-                    SummaryToolCall::FileRead { path: "/test".to_string() },
-                    true,
-                ),
-                tool_block(
-                    SummaryToolCall::FileRead { path: "/test".to_string() },
-                    false,
-                ),
-                tool_block(
-                    SummaryToolCall::FileRead { path: "/test".to_string() },
-                    true,
-                ),
+                Block::read_with_status(None, "/test", true),
+                Block::read_with_status(None, "/test", false),
+                Block::read_with_status(None, "/test", true),
                 Block::read(None, "/unknown"),
-                SummaryMessageBlock::ToolCall(SummaryToolData {
-                    tool_call_id: None,
-                    call: SummaryToolCall::FileRead { path: "/unknown".to_string() },
-                    tool_call_success: false, // Should be filtered out
-                }),
+                Block::read_with_status(None, "/unknown", false),
                 Block::update(None, "file.txt"),
-                tool_block(
-                    SummaryToolCall::FileRead { path: "/all_failed".to_string() },
-                    false,
-                ),
+                Block::read_with_status(None, "/all_failed", false),
             ],
         )]);
         let actual = TrimContextSummary.transform(fixture);
 
-        let expected = summary(vec![message(
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
             Role::Assistant,
             vec![
-                tool_block(
-                    SummaryToolCall::FileRead { path: "/test".to_string() },
-                    true,
-                ),
+                Block::read_with_status(None, "/test", true),
                 Block::read(None, "/unknown"),
                 Block::update(None, "file.txt"),
             ],
@@ -220,68 +181,62 @@ mod tests {
 
     #[test]
     fn test_empty_assistant_message_after_filtering() {
-        let fixture = summary(vec![message(
+        let fixture = ContextSummary::new(vec![SummaryMessage::new(
             Role::Assistant,
             vec![
-                tool_block(
-                    SummaryToolCall::FileRead { path: "/test1".to_string() },
-                    false,
-                ),
-                tool_block(
-                    SummaryToolCall::FileRead { path: "/test2".to_string() },
-                    false,
-                ),
+                Block::read_with_status(None, "/test1", false),
+                Block::read_with_status(None, "/test2", false),
             ],
         )]);
         let actual = TrimContextSummary.transform(fixture);
 
-        let expected = summary(vec![message(Role::Assistant, vec![])]);
+        let expected = ContextSummary::new(vec![SummaryMessage::new(Role::Assistant, vec![])]);
 
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_only_trims_assistant_messages() {
-        let fixture = summary(vec![
-            message(
+        let fixture = ContextSummary::new(vec![
+            SummaryMessage::new(
                 Role::User,
                 vec![Block::read(None, "/test"), Block::read(None, "/test")],
             ),
-            message(
+            SummaryMessage::new(
                 Role::Assistant,
                 vec![
                     Block::update(None, "file.txt"),
                     Block::update(None, "file.txt"),
                 ],
             ),
-            message(
+            SummaryMessage::new(
                 Role::System,
                 vec![
                     Block::remove(None, "remove.txt"),
                     Block::remove(None, "remove.txt"),
                 ],
             ),
-            message(
+            SummaryMessage::new(
                 Role::Assistant,
                 vec![Block::read(None, "/test"), Block::read(None, "/test")],
             ),
         ]);
         let actual = TrimContextSummary.transform(fixture);
 
-        let expected = summary(vec![
-            message(
+        let expected = ContextSummary::new(vec![
+            SummaryMessage::new(
                 Role::User,
                 vec![Block::read(None, "/test"), Block::read(None, "/test")],
             ),
-            message(Role::Assistant, vec![Block::update(None, "file.txt")]),
-            message(
+            SummaryMessage::new(Role::Assistant, vec![Block::update(None, "file.txt")]),
+            SummaryMessage::new(
                 Role::System,
                 vec![
                     Block::remove(None, "remove.txt"),
                     Block::remove(None, "remove.txt"),
                 ],
             ),
-            message(Role::Assistant, vec![Block::read(None, "/test")]),
+            SummaryMessage::new(Role::Assistant, vec![Block::read(None, "/test")]),
         ]);
 
         assert_eq!(actual, expected);
@@ -289,19 +244,16 @@ mod tests {
 
     #[test]
     fn test_multiple_assistant_messages_trimmed_independently() {
-        let fixture = summary(vec![
-            message(
+        let fixture = ContextSummary::new(vec![
+            SummaryMessage::new(
                 Role::Assistant,
                 vec![Block::read(None, "/test"), Block::read(None, "/test")],
             ),
-            message(
+            SummaryMessage::new(
                 Role::Assistant,
-                vec![tool_block(
-                    SummaryToolCall::FileRead { path: "/test".to_string() },
-                    false,
-                )],
+                vec![Block::read_with_status(None, "/test", false)],
             ),
-            message(
+            SummaryMessage::new(
                 Role::Assistant,
                 vec![
                     Block::read(None, "/test"),
@@ -312,10 +264,10 @@ mod tests {
         ]);
         let actual = TrimContextSummary.transform(fixture);
 
-        let expected = summary(vec![
-            message(Role::Assistant, vec![Block::read(None, "/test")]),
-            message(Role::Assistant, vec![]),
-            message(Role::Assistant, vec![Block::read(None, "/test")]),
+        let expected = ContextSummary::new(vec![
+            SummaryMessage::new(Role::Assistant, vec![Block::read(None, "/test")]),
+            SummaryMessage::new(Role::Assistant, vec![]),
+            SummaryMessage::new(Role::Assistant, vec![Block::read(None, "/test")]),
         ]);
 
         assert_eq!(actual, expected);
@@ -323,7 +275,7 @@ mod tests {
 
     #[test]
     fn test_assistant_message_with_different_call_ids() {
-        let fixture = summary(vec![message(
+        let fixture = ContextSummary::new(vec![SummaryMessage::new(
             Role::Assistant,
             vec![
                 Block::content("foo"),
@@ -333,7 +285,7 @@ mod tests {
         )]);
         let actual = TrimContextSummary.transform(fixture);
 
-        let expected = summary(vec![message(
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
             Role::Assistant,
             vec![
                 Block::content("foo"),
