@@ -320,7 +320,7 @@ function _forge_action_cmd() {
     # Generate the command
     echo
     local generated_command
-    generated_command=$(_forge_exec cmd "$description")
+    generated_command=$(FORCE_COLOR=true CLICOLOR_FORCE=1 _forge_exec cmd "$description")
     
     if [[ -n "$generated_command" ]]; then
         # Replace the buffer with the generated command
