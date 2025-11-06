@@ -548,6 +548,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ProviderCommand::Logout => {
                 self.handle_provider_logout().await?;
             }
+            ProviderCommand::List => {
+                self.on_show_providers(provider_group.porcelain).await?;
+            }
         }
 
         Ok(())

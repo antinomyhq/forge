@@ -398,6 +398,10 @@ pub enum ConversationCommand {
 pub struct ProviderCommandGroup {
     #[command(subcommand)]
     pub command: ProviderCommand,
+
+    /// Output in machine-readable format (porcelain)
+    #[arg(long, global = true)]
+    pub porcelain: bool,
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -411,6 +415,11 @@ pub enum ProviderCommand {
     ///
     /// Example: forge provider logout
     Logout,
+
+    /// List all available providers
+    ///
+    /// Example: forge provider list
+    List,
 }
 
 #[cfg(test)]
