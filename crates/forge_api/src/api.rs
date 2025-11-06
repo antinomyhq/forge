@@ -151,4 +151,22 @@ pub trait API: Sync + Send {
 
     /// List of commands defined in .md file(s)
     async fn get_commands(&self) -> Result<Vec<Command>>;
+
+    /// Initiate provider auth flow
+    async fn init_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        method: AuthMethod,
+    ) -> Result<AuthContextRequest>;
+
+    /// Complete provider authentication and save credentials
+    async fn complete_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        context: AuthContextResponse,
+        timeout: std::time::Duration,
+    ) -> Result<()>;
+
+    /// Remove provider credentials (logout)
+    async fn remove_provider(&self, provider_id: &ProviderId) -> Result<()>;
 }

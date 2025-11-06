@@ -1,18 +1,23 @@
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, AnyProvider, ChatRequest, ChatResponse, Conversation, ConversationId, Event,
+    API, AgentId, AnyProvider, ApiKeyRequest, AuthContextRequest, AuthContextResponse, ChatRequest,
+    ChatResponse, CodeRequest, Conversation, ConversationId, DeviceCodeRequest, Event,
     InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, Workflow,
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
 use forge_display::MarkdownFormat;
-use forge_domain::{ChatResponseContent, ContextMessage, Role, TitleFormat, UserCommand};
+use forge_domain::{
+    AuthMethod, ChatResponseContent, ContextMessage, Role, TitleFormat, UserCommand,
+};
 use forge_fs::ForgeFS;
 use forge_select::ForgeSelect;
 use forge_spinner::SpinnerManager;
@@ -414,6 +419,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 return Ok(());
             }
 
+            TopLevelCommand::Provider(provider_group) => {
+                self.handle_provider_command(provider_group).await?;
+                return Ok(());
+            }
+
             TopLevelCommand::Conversation(conversation_group) => {
                 self.handle_conversation_command(conversation_group).await?;
                 return Ok(());
@@ -520,6 +530,118 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 "Conversation '{}' not found. Use 'forge conversation list' to see available conversations.",
                 conversation_id
             );
+        }
+
+        Ok(())
+    }
+
+    async fn handle_provider_command(
+        &mut self,
+        provider_group: crate::cli::ProviderCommandGroup,
+    ) -> anyhow::Result<()> {
+        use crate::cli::ProviderCommand;
+
+        match provider_group.command {
+            ProviderCommand::Login => {
+                self.handle_provider_login().await?;
+            }
+            ProviderCommand::Logout => {
+                self.handle_provider_logout().await?;
+            }
+            ProviderCommand::List => {
+                self.on_show_providers(provider_group.porcelain).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn handle_provider_login(&mut self) -> anyhow::Result<()> {
+        use crate::model::CliProvider;
+
+        // Fetch all providers (configured and unconfigured)
+        let providers = self
+            .api
+            .get_providers()
+            .await?
+            .into_iter()
+            .map(CliProvider)
+            .collect::<Vec<_>>();
+
+        // Sort the providers by their display names
+        let mut sorted_providers = providers;
+        sorted_providers.sort_by_key(|a| a.to_string());
+
+        // Use the centralized select module
+        match ForgeSelect::select("Select a provider to login:", sorted_providers)
+            .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
+            .prompt()?
+        {
+            Some(provider) => {
+                // Handle only unconfigured providers
+                match provider.0 {
+                    AnyProvider::Template(p) => {
+                        let provider_id = p.id;
+                        let auth_methods = p.auth_methods;
+
+                        // Configure the provider
+                        self.configure_provider(provider_id, auth_methods).await?;
+                    }
+                    AnyProvider::Url(provider) => {
+                        self.configure_provider(provider.id, provider.auth_methods)
+                            .await?;
+                    }
+                }
+            }
+            None => {
+                self.writeln_title(TitleFormat::info("Cancelled"))?;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn handle_provider_logout(&mut self) -> anyhow::Result<()> {
+        use crate::model::CliProvider;
+
+        // Fetch all providers
+        let providers = self.api.get_providers().await?;
+
+        // Filter only configured providers
+        let configured_providers: Vec<_> = providers
+            .into_iter()
+            .filter_map(|p| match p {
+                AnyProvider::Url(provider) => Some(CliProvider(AnyProvider::Url(provider))),
+                AnyProvider::Template(_) => None,
+            })
+            .collect();
+
+        if configured_providers.is_empty() {
+            self.writeln_title(TitleFormat::info("No configured providers found"))?;
+            return Ok(());
+        }
+
+        // Sort the providers by their display names
+        let mut sorted_providers = configured_providers;
+        sorted_providers.sort_by_key(|a| a.to_string());
+
+        // Use the centralized select module
+        match ForgeSelect::select("Select a provider to logout:", sorted_providers)
+            .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
+            .prompt()?
+        {
+            Some(provider) => {
+                if let AnyProvider::Url(p) = provider.0 {
+                    self.api.remove_provider(&p.id).await?;
+                    self.writeln_title(TitleFormat::completion(format!(
+                        "Successfully logged out from {}",
+                        p.id
+                    )))?;
+                }
+            }
+            None => {
+                self.writeln_title(TitleFormat::info("Cancelled"))?;
+            }
         }
 
         Ok(())
@@ -835,20 +957,20 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             (Some(default), Some(agent_specific)) if default.id != agent_specific.id => {
                 // Show both providers if they're different
                 info = info.add_key_value("Agent Provider (URL)", &agent_specific.url);
-                if let Some(ref api_key) = agent_specific.key {
-                    info = info.add_key_value("Agent API Key", truncate_key(api_key));
+                if let Some(api_key) = agent_specific.api_key() {
+                    info = info.add_key_value("Agent API Key", truncate_key(api_key.as_str()));
                 }
 
                 info = info.add_key_value("Default Provider (URL)", &default.url);
-                if let Some(ref api_key) = default.key {
-                    info = info.add_key_value("Default API Key", truncate_key(api_key));
+                if let Some(api_key) = default.api_key() {
+                    info = info.add_key_value("Default API Key", truncate_key(api_key.as_str()));
                 }
             }
             (Some(provider), _) | (_, Some(provider)) => {
                 // Show single provider (either default or agent-specific)
                 info = info.add_key_value("Provider (URL)", &provider.url);
-                if let Some(ref api_key) = provider.key {
-                    info = info.add_key_value("API Key", truncate_key(api_key));
+                if let Some(api_key) = provider.api_key() {
+                    info = info.add_key_value("API Key", truncate_key(api_key.as_str()));
                 }
             }
             _ => {
@@ -1171,6 +1293,283 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             None => Ok(None),
         }
     }
+    async fn handle_api_key_input(
+        &mut self,
+        provider_id: ProviderId,
+        request: &ApiKeyRequest,
+    ) -> anyhow::Result<()> {
+        use anyhow::Context;
+        self.spinner.stop(None)?;
+        // Collect URL parameters if required
+        let url_params = request
+            .required_params
+            .iter()
+            .map(|param| {
+                let param_value = ForgeSelect::input(format!("Enter {}:", param))
+                    .prompt()?
+                    .context("Parameter input cancelled")?;
+
+                anyhow::ensure!(!param_value.trim().is_empty(), "{} cannot be empty", param);
+
+                Ok((param.to_string(), param_value))
+            })
+            .collect::<anyhow::Result<HashMap<_, _>>>()?;
+
+        let api_key = ForgeSelect::input(format!("Enter your {} API key:", provider_id))
+            .prompt()?
+            .context("API key input cancelled")?;
+
+        let api_key_str = api_key.trim();
+        anyhow::ensure!(!api_key_str.is_empty(), "API key cannot be empty");
+
+        // Update the context with collected data
+        let response = AuthContextResponse::api_key(request.clone(), api_key_str, url_params);
+
+        self.api
+            .complete_provider_auth(
+                provider_id,
+                response,
+                Duration::from_secs(0), // No timeout needed since we have the data
+            )
+            .await?;
+
+        self.display_credential_success(provider_id).await?;
+
+        Ok(())
+    }
+
+    fn display_oauth_device_info_new(
+        &mut self,
+        user_code: &str,
+        verification_uri: &str,
+        verification_uri_complete: Option<&str>,
+    ) -> anyhow::Result<()> {
+        use colored::Colorize;
+
+        let display_uri = verification_uri_complete.unwrap_or(verification_uri);
+
+        self.writeln("")?;
+        self.writeln(format!(
+            "{} Please visit: {}",
+            "→".blue(),
+            display_uri.blue().underline()
+        ))?;
+        self.writeln(format!(
+            "{} Enter code: {}",
+            "→".blue(),
+            user_code.bold().yellow()
+        ))?;
+        self.writeln("")?;
+
+        // Try to open browser automatically
+        if let Err(e) = open::that(display_uri) {
+            self.writeln_title(TitleFormat::error(format!(
+                "Failed to open browser automatically: {}",
+                e
+            )))?;
+        }
+
+        Ok(())
+    }
+
+    async fn handle_device_flow(
+        &mut self,
+        provider_id: ProviderId,
+        request: &DeviceCodeRequest,
+    ) -> Result<()> {
+        use std::time::Duration;
+
+        let user_code = request.user_code.clone();
+        let verification_uri = request.verification_uri.clone();
+        let verification_uri_complete = request.verification_uri_complete.clone();
+
+        self.spinner.stop(None)?;
+        // Display OAuth device information
+        self.display_oauth_device_info_new(
+            user_code.as_ref(),
+            verification_uri.as_ref(),
+            verification_uri_complete.as_ref().map(|v| v.as_ref()),
+        )?;
+
+        // Step 2: Complete authentication (polls if needed for OAuth flows)
+        self.spinner.start(Some("Completing authentication..."))?;
+
+        let response = AuthContextResponse::device_code(request.clone());
+
+        self.api
+            .complete_provider_auth(provider_id, response, Duration::from_secs(600))
+            .await?;
+
+        self.spinner.stop(None)?;
+
+        self.display_credential_success(provider_id).await?;
+        Ok(())
+    }
+
+    async fn display_credential_success(&mut self, provider_id: ProviderId) -> anyhow::Result<()> {
+        self.writeln_title(TitleFormat::info(format!(
+            "{} configured successfully!",
+            provider_id
+        )))?;
+
+        // Prompt user to set as active provider
+        let should_set_active = ForgeSelect::confirm(format!(
+            "Would you like to set {} as the active provider?",
+            provider_id
+        ))
+        .with_default(true)
+        .prompt()?;
+
+        if should_set_active.unwrap_or(false) {
+            self.api.set_default_provider(provider_id).await?;
+        }
+        Ok(())
+    }
+
+    async fn handle_code_flow(
+        &mut self,
+        provider_id: ProviderId,
+        request: &CodeRequest,
+    ) -> anyhow::Result<()> {
+        use colored::Colorize;
+
+        self.spinner.stop(None)?;
+
+        self.writeln(format!(
+            "{}",
+            format!("Authenticate using your {} account", provider_id).dimmed()
+        ))?;
+
+        // Display authorization URL
+        self.writeln(format!(
+            "{} Please visit: {}",
+            "→".blue(),
+            request.authorization_url.as_str().blue().underline()
+        ))?;
+
+        // Try to open browser automatically
+        if let Err(e) = open::that(request.authorization_url.as_str()) {
+            self.writeln_title(TitleFormat::error(format!(
+                "Failed to open browser automatically: {}",
+                e
+            )))?;
+        }
+
+        // Prompt user to paste authorization code
+        let code = ForgeSelect::input("Paste the authorization code:")
+            .prompt()?
+            .ok_or_else(|| anyhow::anyhow!("Authorization code input cancelled"))?;
+
+        if code.trim().is_empty() {
+            anyhow::bail!("Authorization code cannot be empty");
+        }
+
+        self.spinner
+            .start(Some("Exchanging authorization code..."))?;
+
+        let response = AuthContextResponse::code(request.clone(), &code);
+
+        self.api
+            .complete_provider_auth(
+                provider_id,
+                response,
+                Duration::from_secs(0), // No timeout needed since we have the data
+            )
+            .await?;
+
+        self.spinner.stop(None)?;
+
+        self.display_credential_success(provider_id).await?;
+        Ok(())
+    }
+
+    /// Helper method to select an authentication method when multiple are
+    /// available
+    async fn select_auth_method(
+        &mut self,
+        provider_id: ProviderId,
+        auth_methods: &[AuthMethod],
+    ) -> Result<Option<AuthMethod>> {
+        use colored::Colorize;
+
+        if auth_methods.is_empty() {
+            anyhow::bail!(
+                "No authentication methods available for provider {}",
+                provider_id
+            );
+        }
+
+        // If only one auth method, use it directly
+        if auth_methods.len() == 1 {
+            return Ok(Some(auth_methods[0].clone()));
+        }
+
+        // Multiple auth methods - ask user to choose
+        self.spinner.stop(None)?;
+
+        self.writeln_title(TitleFormat::action(format!("Configure {}", provider_id)))?;
+        self.writeln("Multiple authentication methods available".dimmed())?;
+
+        let method_names: Vec<String> = auth_methods
+            .iter()
+            .map(|method| match method {
+                AuthMethod::ApiKey => "API Key".to_string(),
+                AuthMethod::OAuthDevice(_) => "OAuth Device Flow".to_string(),
+                AuthMethod::OAuthCode(_) => "OAuth Authorization Code".to_string(),
+            })
+            .collect();
+
+        match ForgeSelect::select("Select authentication method:", method_names.clone())
+            .with_help_message("Use arrow keys to navigate and Enter to select")
+            .prompt()?
+        {
+            Some(selected_name) => {
+                // Find the corresponding auth method
+                let index = method_names
+                    .iter()
+                    .position(|name| name == &selected_name)
+                    .expect("Selected method should exist");
+                Ok(Some(auth_methods[index].clone()))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Handle authentication flow for an unavailable provider
+    async fn configure_provider(
+        &mut self,
+        provider_id: ProviderId,
+        auth_methods: Vec<AuthMethod>,
+    ) -> Result<()> {
+        // Select auth method (or use the only one available)
+        let auth_method = match self.select_auth_method(provider_id, &auth_methods).await? {
+            Some(method) => method,
+            None => return Ok(()), // User cancelled
+        };
+
+        self.spinner.start(Some("Initiating authentication..."))?;
+
+        // Initiate the authentication flow
+        let auth_request = self
+            .api
+            .init_provider_auth(provider_id, auth_method)
+            .await?;
+
+        // Handle the specific authentication flow based on the request type
+        match auth_request {
+            AuthContextRequest::ApiKey(request) => {
+                self.handle_api_key_input(provider_id, &request).await?;
+            }
+            AuthContextRequest::DeviceCode(request) => {
+                self.handle_device_flow(provider_id, &request).await?;
+            }
+            AuthContextRequest::Code(request) => {
+                self.handle_code_flow(provider_id, &request).await?;
+            }
+        }
+
+        Ok(())
+    }
 
     async fn select_provider(&mut self) -> Result<Option<Provider<Url>>> {
         // Fetch available providers
@@ -1206,11 +1605,28 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .prompt()?
         {
             Some(provider) => {
-                // Only return configured providers
+                // Handle both configured and unconfigured providers
                 match provider.0 {
                     AnyProvider::Url(p) => Ok(Some(p)),
                     AnyProvider::Template(p) => {
-                        Err(forge_domain::Error::provider_not_available(p.id).into())
+                        // Provider is not configured - initiate authentication flow
+                        let provider_id = p.id;
+                        let auth_methods = p.auth_methods;
+
+                        // Configure the provider
+                        self.configure_provider(provider_id, auth_methods).await?;
+
+                        // After configuration, fetch the provider again
+                        let providers = self.api.get_providers().await?;
+                        let configured_provider = providers
+                            .into_iter()
+                            .find(|entry| entry.id() == provider_id)
+                            .and_then(|entry| match entry {
+                                AnyProvider::Url(p) => Some(p),
+                                AnyProvider::Template(_) => None,
+                            });
+
+                        Ok(configured_provider)
                     }
                 }
             }
@@ -1834,7 +2250,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     /// Validate provider exists and has API key
-    async fn validate_provider(&self, provider_str: &str) -> Result<ProviderId> {
+    async fn validate_provider(&mut self, provider_str: &str) -> Result<ProviderId> {
         // Parse provider ID from string
         let provider_id = ProviderId::from_str(provider_str).with_context(|| {
             format!(
@@ -1844,15 +2260,39 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             )
         })?;
 
-        // Check if provider has valid API key
+        // Check if provider is configured
         let providers = self.api.get_providers().await?;
-        if providers
+        let provider_entry = providers
             .iter()
-            .any(|p| p.id() == provider_id && p.is_configured())
-        {
-            Ok(provider_id)
-        } else {
-            Err(forge_domain::Error::provider_not_available(provider_id).into())
+            .find(|p| p.id() == provider_id)
+            .ok_or_else(|| forge_domain::Error::provider_not_available(provider_id))?;
+
+        if provider_entry.is_configured() {
+            return Ok(provider_id);
+        }
+
+        match provider_entry {
+            AnyProvider::Template(p) => {
+                let auth_methods = p.auth_methods.clone();
+
+                // Configure the provider
+                self.configure_provider(provider_id, auth_methods).await?;
+
+                // Verify configuration succeeded
+                let providers = self.api.get_providers().await?;
+                if providers
+                    .iter()
+                    .any(|p| p.id() == provider_id && p.is_configured())
+                {
+                    Ok(provider_id)
+                } else {
+                    Err(anyhow::anyhow!(
+                        "Failed to configure provider {}",
+                        provider_id
+                    ))
+                }
+            }
+            AnyProvider::Url(_) => Ok(provider_id),
         }
     }
 

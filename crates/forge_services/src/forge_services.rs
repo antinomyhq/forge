@@ -3,12 +3,13 @@ use std::sync::Arc;
 use forge_app::{
     CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
     FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, KVStore, McpServerInfra,
-    Services, UserInfra, WalkerInfra,
+    Services, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
     AppConfigRepository, ConversationRepository, ProviderRepository, SnapshotRepository,
 };
 
+use crate::ForgeProviderAuthService;
 use crate::agent_registry::AgentLoaderService as ForgeAgentLoaderService;
 use crate::attachment::ForgeChatRequest;
 use crate::auth::ForgeAuthService;
@@ -76,6 +77,7 @@ pub struct ForgeServices<
     agent_loader_service: Arc<ForgeAgentLoaderService<F>>,
     command_loader_service: Arc<ForgeCommandLoaderService<F>>,
     policy_service: ForgePolicyService<F>,
+    provider_auth_service: ForgeProviderAuthService<F>,
 }
 
 impl<
@@ -124,6 +126,7 @@ impl<
         let agent_loader_service = Arc::new(ForgeAgentLoaderService::new(infra.clone()));
         let command_loader_service = Arc::new(ForgeCommandLoaderService::new(infra.clone()));
         let policy_service = ForgePolicyService::new(infra.clone());
+        let provider_auth_service = ForgeProviderAuthService::new(infra.clone());
 
         Self {
             conversation_service,
@@ -152,6 +155,7 @@ impl<
             agent_loader_service,
             command_loader_service,
             policy_service,
+            provider_auth_service,
         }
     }
 }
@@ -175,6 +179,7 @@ impl<
         + AppConfigRepository
         + KVStore
         + ProviderRepository
+        + StrategyFactory
         + Clone
         + 'static,
 > Services for ForgeServices<F>
@@ -183,6 +188,11 @@ impl<
     type AppConfigService = ForgeAppConfigService<F>;
     type ConversationService = ForgeConversationService<F>;
     type TemplateService = ForgeTemplateService<F>;
+    type ProviderAuthService = ForgeProviderAuthService<F>;
+
+    fn provider_auth_service(&self) -> &Self::ProviderAuthService {
+        &self.provider_auth_service
+    }
     type AttachmentService = ForgeChatRequest<F>;
     type EnvironmentService = ForgeEnvironmentService<F>;
     type CustomInstructionsService = ForgeCustomInstructionsService<F>;
