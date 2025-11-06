@@ -207,13 +207,11 @@ impl<S: Services> GitApp<S> {
             .await?;
         let message = stream.into_full(false).await?;
 
-        Ok(CommitMessageDetails { message: Self::extract_commit_message(&message.content), has_staged_files })
-    }
+        // Extract the command from the <shell_command> tag
+        let commit_message = forge_domain::extract_tag_content(&message.content, "commit_message")
+            .ok_or_else(|| anyhow::anyhow!("Failed to generate commit message"))?;
 
-    /// Extracts the commit message from the AI response
-    fn extract_commit_message(s: &str) -> String {
-        let re = regex::Regex::new(r"^```[^\n]*\n?|```$").unwrap();
-        re.replace_all(s.trim(), "").trim().to_string()
+        Ok(CommitMessageDetails { message: commit_message.to_string(), has_staged_files })
     }
 
     pub async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider> {
