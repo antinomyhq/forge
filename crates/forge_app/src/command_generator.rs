@@ -79,7 +79,7 @@ impl<S: Services, F: EnvironmentInfra + FileReaderInfra> CommandGenerator<S, F> 
 
         // Extract the command from the <shell_command> tag
         let command = extract_tag_content(&message.content, "shell_command")
-            .ok_or_else(|| anyhow::anyhow!("Failed to extract <command> tag from LLM response"))?;
+            .ok_or_else(|| anyhow::anyhow!("Failed to generate shell command"))?;
 
         Ok(command.to_string())
     }
