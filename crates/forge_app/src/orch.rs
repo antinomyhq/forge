@@ -181,7 +181,6 @@ impl<S: AgentService> Orchestrator<S> {
             info!(agent_id = %agent.id, "Compaction needed");
             Compactor::new(compact, self.environment.clone())
                 .compact(context.clone(), false)
-                .await
                 .map(Some)
         } else {
             debug!(agent_id = %agent.id, "Compaction not needed");

@@ -233,9 +233,7 @@ impl<S: Services> ForgeApp<S> {
 
         // Apply compaction using the Compactor
         let environment = self.services.get_environment();
-        let compacted_context = Compactor::new(compact, environment)
-            .compact(context, true)
-            .await?;
+        let compacted_context = Compactor::new(compact, environment).compact(context, true)?;
 
         let compacted_messages = compacted_context.messages.len();
         let compacted_tokens = *compacted_context.token_count();
