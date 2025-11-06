@@ -1,6 +1,6 @@
 use forge_domain::{
-    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, DedupeRole, DropRole,
-    Environment, Role, StripWorkingDir, Transformer, TrimContextSummary,
+    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment,
+    SummaryTransformer, Transformer,
 };
 use tracing::info;
 
@@ -17,25 +17,21 @@ impl Compactor {
         Self { compact, environment }
     }
 
-    /// Applies the standard transformer pipeline to a context summary.
+    /// Applies the standard compaction transformer pipeline to a context
+    /// summary.
     ///
-    /// This pipeline:
+    /// This pipeline uses the `Compaction` transformer which:
     /// 1. Drops system role messages
-    /// 2. Trims context summary content
-    /// 3. Deduplicates consecutive user messages
-    /// 4. Strips working directory from file paths
+    /// 2. Deduplicates consecutive user messages
+    /// 3. Trims context by keeping only the last operation per file path
+    /// 4. Deduplicates consecutive assistant content blocks
+    /// 5. Strips working directory prefix from file paths
     ///
     /// # Arguments
     ///
     /// * `context_summary` - The context summary to transform
     fn transform(&self, context_summary: ContextSummary) -> ContextSummary {
-        DropRole::new(Role::System)
-            .pipe(DedupeRole::new(Role::User))
-            .pipe(TrimContextSummary)
-            .pipe(StripWorkingDir::new(
-                self.environment.cwd.to_string_lossy().to_string(),
-            ))
-            .transform(context_summary)
+        SummaryTransformer::new(&self.environment.cwd).transform(context_summary)
     }
 }
 

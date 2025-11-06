@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::Transformer;
 use crate::compact::summary::{ContextSummary, SummaryMessageBlock, SummaryToolCall};
@@ -30,7 +30,7 @@ use crate::compact::summary::{ContextSummary, SummaryMessageBlock, SummaryToolCa
 /// Unix or vice versa), consider implementing custom path parsing logic that
 /// handles both path styles regardless of the host OS.
 pub struct StripWorkingDir {
-    working_dir: String,
+    working_dir: PathBuf,
 }
 
 impl StripWorkingDir {
@@ -40,7 +40,7 @@ impl StripWorkingDir {
     /// # Arguments
     ///
     /// * `working_dir` - The working directory path to strip from file paths
-    pub fn new(working_dir: impl Into<String>) -> Self {
+    pub fn new(working_dir: impl Into<PathBuf>) -> Self {
         Self { working_dir: working_dir.into() }
     }
 
