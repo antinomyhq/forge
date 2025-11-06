@@ -41,7 +41,7 @@ impl Compactor {
 
 impl Compactor {
     /// Apply compaction to the context if requested.
-    pub async fn compact(&self, context: Context, max: bool) -> anyhow::Result<Context> {
+    pub fn compact(&self, context: Context, max: bool) -> anyhow::Result<Context> {
         let eviction = CompactionStrategy::evict(self.compact.eviction_window);
         let retention = CompactionStrategy::retain(self.compact.retention_window);
 
@@ -53,13 +53,13 @@ impl Compactor {
         };
 
         match strategy.eviction_range(&context) {
-            Some(sequence) => self.compress_single_sequence(context, sequence).await,
+            Some(sequence) => self.compress_single_sequence(context, sequence),
             None => Ok(context),
         }
     }
 
     /// Compress a single identified sequence of assistant messages.
-    async fn compress_single_sequence(
+    fn compress_single_sequence(
         &self,
         mut context: Context,
         sequence: (usize, usize),
@@ -154,8 +154,8 @@ mod tests {
         env.cwd(std::path::PathBuf::from("/test/working/dir"))
     }
 
-    #[tokio::test]
-    async fn test_compress_single_sequence_preserves_only_last_reasoning() {
+    #[test]
+    fn test_compress_single_sequence_preserves_only_last_reasoning() {
         use forge_domain::ReasoningFull;
 
         let environment = test_environment();
@@ -187,10 +187,7 @@ mod tests {
             .add_message(ContextMessage::user("M3", None))
             .add_message(ContextMessage::assistant("R3", None, None));
 
-        let actual = compactor
-            .compress_single_sequence(context, (0, 3))
-            .await
-            .unwrap();
+        let actual = compactor.compress_single_sequence(context, (0, 3)).unwrap();
 
         // Verify only LAST reasoning_details were preserved
         let assistant_msg = actual
@@ -210,8 +207,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_compress_single_sequence_no_reasoning_accumulation() {
+    #[test]
+    fn test_compress_single_sequence_no_reasoning_accumulation() {
         use forge_domain::ReasoningFull;
 
         let environment = test_environment();
@@ -233,10 +230,7 @@ mod tests {
             .add_message(ContextMessage::user("M2", None))
             .add_message(ContextMessage::assistant("R2", None, None));
 
-        let context = compactor
-            .compress_single_sequence(context, (0, 1))
-            .await
-            .unwrap();
+        let context = compactor.compress_single_sequence(context, (0, 1)).unwrap();
 
         // Verify first assistant has the reasoning
         let first_assistant = context
@@ -254,10 +248,7 @@ mod tests {
             .add_message(ContextMessage::user("M3", None))
             .add_message(ContextMessage::assistant("R3", None, None));
 
-        let context = compactor
-            .compress_single_sequence(context, (0, 2))
-            .await
-            .unwrap();
+        let context = compactor.compress_single_sequence(context, (0, 2)).unwrap();
 
         // Verify reasoning didn't accumulate - should still be just 1 reasoning block
         let first_assistant = context
@@ -275,8 +266,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_compress_single_sequence_filters_empty_reasoning() {
+    #[test]
+    fn test_compress_single_sequence_filters_empty_reasoning() {
         use forge_domain::ReasoningFull;
 
         let environment = test_environment();
@@ -300,10 +291,7 @@ mod tests {
             .add_message(ContextMessage::user("M3", None))
             .add_message(ContextMessage::assistant("R3", None, None)); // Outside range
 
-        let actual = compactor
-            .compress_single_sequence(context, (0, 3))
-            .await
-            .unwrap();
+        let actual = compactor.compress_single_sequence(context, (0, 3)).unwrap();
 
         // After compression: [U-summary, U3, A3]
         // The reasoning from R1 (non-empty) should be injected into A3
@@ -324,14 +312,14 @@ mod tests {
         }
     }
 
-    async fn render_template(data: &serde_json::Value) -> String {
+    fn render_template(data: &serde_json::Value) -> String {
         TemplateEngine::default()
             .render("forge-partial-summary-frame.md", data)
             .unwrap()
     }
 
-    #[tokio::test]
-    async fn test_render_summary_frame_snapshot() {
+    #[test]
+    fn test_render_summary_frame_snapshot() {
         // Load the conversation fixture
         let fixture_json = include_str!("fixtures/conversation.json");
         let conversation: forge_domain::Conversation =
@@ -356,7 +344,7 @@ mod tests {
 
         let data = serde_json::json!({"messages": context_summary.messages});
 
-        let actual = render_template(&data).await;
+        let actual = render_template(&data);
 
         insta::assert_snapshot!(actual);
     }
