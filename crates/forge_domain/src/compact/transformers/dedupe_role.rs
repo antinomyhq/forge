@@ -32,7 +32,7 @@ impl Transformer for DedupeRole {
             let role = message.role;
             if role == self.role {
                 if last_role != self.role {
-                    message.blocks.drain(1..);
+                    message.contents.drain(1..);
                     messages.push(message)
                 }
             } else {
@@ -51,7 +51,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::compact::summary::{SummaryMessage, SummaryMessageBlock as Block};
+    use crate::compact::summary::{SummaryMessage, SummaryMessageContent as Block};
 
     #[test]
     fn test_keeps_first_user_message_in_sequence() {

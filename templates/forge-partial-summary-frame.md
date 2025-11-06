@@ -6,21 +6,21 @@ Use the following summary frames as the authoritative reference for all coding s
 ### {{inc @index}}. {{role}}
 
 {{#each blocks}}
-{{#if content}}
+{{#if text}}
 ````
-{{content}}
+{{text}}
 ````
 {{/if}}
 {{~#if tool_call}}
 {{#if tool_call.call.file_update}}
-**Update:** `{{tool_call.call.file_update.path}}`
-{{else if tool_call.call.file_read}}
-**Read:** `{{tool_call.call.file_read.path}}`
-{{else if tool_call.call.file_remove}}
-**Delete:** `{{tool_call.call.file_remove.path}}`
-{{else if tool_call.call.search}}
-**Search:** `{{tool_call.call.search.pattern}}`
-{{else if tool_call.call.shell}}
+**Update:** `{{tool_call.tool.file_update.path}}`
+{{else if tool_call.tool.file_read}}
+**Read:** `{{tool_call.tool.file_read.path}}`
+{{else if tool_call.tool.file_remove}}
+**Delete:** `{{tool_call.tool.file_remove.path}}`
+{{else if tool_call.tool.search}}
+**Search:** `{{tool_call.tool.search.pattern}}`
+{{else if tool_call.tool.shell}}
 **Shell:** 
 ```
 {{tool_call.call.shell.command}}

@@ -36,7 +36,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::compact::summary::{SummaryMessage, SummaryMessageBlock as Block};
+    use crate::compact::summary::{SummaryMessage, SummaryMessageContent as Block};
 
     #[test]
     fn test_empty_summary() {

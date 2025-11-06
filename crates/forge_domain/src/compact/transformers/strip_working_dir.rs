@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::Transformer;
-use crate::compact::summary::{ContextSummary, SummaryMessageBlock, SummaryToolCall};
+use crate::compact::summary::{ContextSummary, SummaryMessageContent, SummaryTool};
 
 /// Strips the working directory prefix from all file paths in tool calls.
 ///
@@ -63,26 +63,26 @@ impl Transformer for StripWorkingDir {
 
     fn transform(&mut self, mut summary: Self::Value) -> Self::Value {
         for message in summary.messages.iter_mut() {
-            for block in message.blocks.iter_mut() {
-                if let SummaryMessageBlock::ToolCall(tool_data) = block {
-                    match &mut tool_data.call {
-                        SummaryToolCall::FileRead { path } => {
+            for block in message.contents.iter_mut() {
+                if let SummaryMessageContent::ToolCall(tool_data) = block {
+                    match &mut tool_data.tool {
+                        SummaryTool::FileRead { path } => {
                             *path = self.strip_prefix(path);
                         }
-                        SummaryToolCall::FileUpdate { path } => {
+                        SummaryTool::FileUpdate { path } => {
                             *path = self.strip_prefix(path);
                         }
-                        SummaryToolCall::FileRemove { path } => {
+                        SummaryTool::FileRemove { path } => {
                             *path = self.strip_prefix(path);
                         }
-                        SummaryToolCall::Undo { path } => {
+                        SummaryTool::Undo { path } => {
                             *path = self.strip_prefix(path);
                         }
-                        SummaryToolCall::Shell { .. }
-                        | SummaryToolCall::Search { .. }
-                        | SummaryToolCall::Fetch { .. }
-                        | SummaryToolCall::Followup { .. }
-                        | SummaryToolCall::Plan { .. } => {
+                        SummaryTool::Shell { .. }
+                        | SummaryTool::Search { .. }
+                        | SummaryTool::Fetch { .. }
+                        | SummaryTool::Followup { .. }
+                        | SummaryTool::Plan { .. } => {
                             // These tools don't have paths to strip
                         }
                     }
@@ -100,7 +100,7 @@ mod tests {
 
     use super::*;
     use crate::Role;
-    use crate::compact::summary::{SummaryMessage, SummaryMessageBlock as Block};
+    use crate::compact::summary::{SummaryMessage, SummaryMessageContent as Block};
 
     #[test]
     fn test_empty_summary() {

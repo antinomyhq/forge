@@ -20,24 +20,24 @@ pub struct ContextSummary {
 #[serde(rename_all = "snake_case")]
 pub struct SummaryMessage {
     pub role: Role,
-    pub blocks: Vec<SummaryMessageBlock>,
+    pub contents: Vec<SummaryMessageContent>,
 }
 
 /// A message block that can be either content or a tool call
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum SummaryMessageBlock {
-    Content(String),
-    ToolCall(SummaryToolData),
+pub enum SummaryMessageContent {
+    Text(String),
+    ToolCall(SummaryToolCall),
 }
 
 /// Tool call data with execution status
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub struct SummaryToolData {
-    pub tool_call_id: Option<ToolCallId>,
-    pub call: SummaryToolCall,
-    pub tool_call_success: bool,
+pub struct SummaryToolCall {
+    pub id: Option<ToolCallId>,
+    pub tool: SummaryTool,
+    pub is_success: bool,
 }
 
 impl ContextSummary {
@@ -49,23 +49,23 @@ impl ContextSummary {
 
 impl SummaryMessage {
     /// Creates a new SummaryMessage with the given role and blocks
-    pub fn new(role: Role, blocks: Vec<SummaryMessageBlock>) -> Self {
-        Self { role, blocks }
+    pub fn new(role: Role, blocks: Vec<SummaryMessageContent>) -> Self {
+        Self { role, contents: blocks }
     }
 }
 
-impl SummaryMessageBlock {
+impl SummaryMessageContent {
     /// Creates a content block
     pub fn content(text: impl Into<String>) -> Self {
-        Self::Content(text.into())
+        Self::Text(text.into())
     }
 
     /// Creates a FileRead tool call block with success=true by default
     pub fn read(call_id: Option<ToolCallId>, path: impl Into<String>) -> Self {
-        Self::ToolCall(SummaryToolData {
-            tool_call_id: call_id,
-            call: SummaryToolCall::FileRead { path: path.into() },
-            tool_call_success: true,
+        Self::ToolCall(SummaryToolCall {
+            id: call_id,
+            tool: SummaryTool::FileRead { path: path.into() },
+            is_success: true,
         })
     }
 
@@ -75,19 +75,19 @@ impl SummaryMessageBlock {
         path: impl Into<String>,
         success: bool,
     ) -> Self {
-        Self::ToolCall(SummaryToolData {
-            tool_call_id: call_id,
-            call: SummaryToolCall::FileRead { path: path.into() },
-            tool_call_success: success,
+        Self::ToolCall(SummaryToolCall {
+            id: call_id,
+            tool: SummaryTool::FileRead { path: path.into() },
+            is_success: success,
         })
     }
 
     /// Creates a FileUpdate tool call block with success=true by default
     pub fn update(call_id: Option<ToolCallId>, path: impl Into<String>) -> Self {
-        Self::ToolCall(SummaryToolData {
-            tool_call_id: call_id,
-            call: SummaryToolCall::FileUpdate { path: path.into() },
-            tool_call_success: true,
+        Self::ToolCall(SummaryToolCall {
+            id: call_id,
+            tool: SummaryTool::FileUpdate { path: path.into() },
+            is_success: true,
         })
     }
 
@@ -97,19 +97,19 @@ impl SummaryMessageBlock {
         path: impl Into<String>,
         success: bool,
     ) -> Self {
-        Self::ToolCall(SummaryToolData {
-            tool_call_id: call_id,
-            call: SummaryToolCall::FileUpdate { path: path.into() },
-            tool_call_success: success,
+        Self::ToolCall(SummaryToolCall {
+            id: call_id,
+            tool: SummaryTool::FileUpdate { path: path.into() },
+            is_success: success,
         })
     }
 
     /// Creates a FileRemove tool call block with success=true by default
     pub fn remove(call_id: Option<ToolCallId>, path: impl Into<String>) -> Self {
-        Self::ToolCall(SummaryToolData {
-            tool_call_id: call_id,
-            call: SummaryToolCall::FileRemove { path: path.into() },
-            tool_call_success: true,
+        Self::ToolCall(SummaryToolCall {
+            id: call_id,
+            tool: SummaryTool::FileRemove { path: path.into() },
+            is_success: true,
         })
     }
 
@@ -119,19 +119,19 @@ impl SummaryMessageBlock {
         path: impl Into<String>,
         success: bool,
     ) -> Self {
-        Self::ToolCall(SummaryToolData {
-            tool_call_id: call_id,
-            call: SummaryToolCall::FileRemove { path: path.into() },
-            tool_call_success: success,
+        Self::ToolCall(SummaryToolCall {
+            id: call_id,
+            tool: SummaryTool::FileRemove { path: path.into() },
+            is_success: success,
         })
     }
 
     /// Creates a Shell tool call block with success=true by default
     pub fn shell(call_id: Option<ToolCallId>, command: impl Into<String>) -> Self {
-        Self::ToolCall(SummaryToolData {
-            tool_call_id: call_id,
-            call: SummaryToolCall::Shell { command: command.into() },
-            tool_call_success: true,
+        Self::ToolCall(SummaryToolCall {
+            id: call_id,
+            tool: SummaryTool::Shell { command: command.into() },
+            is_success: true,
         })
     }
 
@@ -141,19 +141,19 @@ impl SummaryMessageBlock {
         command: impl Into<String>,
         success: bool,
     ) -> Self {
-        Self::ToolCall(SummaryToolData {
-            tool_call_id: call_id,
-            call: SummaryToolCall::Shell { command: command.into() },
-            tool_call_success: success,
+        Self::ToolCall(SummaryToolCall {
+            id: call_id,
+            tool: SummaryTool::Shell { command: command.into() },
+            is_success: success,
         })
     }
 
     /// Creates a Search tool call block with success=true by default
     pub fn search(call_id: Option<ToolCallId>, path: impl Into<String>) -> Self {
-        Self::ToolCall(SummaryToolData {
-            tool_call_id: call_id,
-            call: SummaryToolCall::Search { pattern: path.into() },
-            tool_call_success: true,
+        Self::ToolCall(SummaryToolCall {
+            id: call_id,
+            tool: SummaryTool::Search { pattern: path.into() },
+            is_success: true,
         })
     }
 
@@ -163,19 +163,19 @@ impl SummaryMessageBlock {
         path: impl Into<String>,
         success: bool,
     ) -> Self {
-        Self::ToolCall(SummaryToolData {
-            tool_call_id: call_id,
-            call: SummaryToolCall::Search { pattern: path.into() },
-            tool_call_success: success,
+        Self::ToolCall(SummaryToolCall {
+            id: call_id,
+            tool: SummaryTool::Search { pattern: path.into() },
+            is_success: success,
         })
     }
 
     /// Creates an Undo tool call block with success=true by default
     pub fn undo(call_id: Option<ToolCallId>, path: impl Into<String>) -> Self {
-        Self::ToolCall(SummaryToolData {
-            tool_call_id: call_id,
-            call: SummaryToolCall::Undo { path: path.into() },
-            tool_call_success: true,
+        Self::ToolCall(SummaryToolCall {
+            id: call_id,
+            tool: SummaryTool::Undo { path: path.into() },
+            is_success: true,
         })
     }
 
@@ -185,19 +185,19 @@ impl SummaryMessageBlock {
         path: impl Into<String>,
         success: bool,
     ) -> Self {
-        Self::ToolCall(SummaryToolData {
-            tool_call_id: call_id,
-            call: SummaryToolCall::Undo { path: path.into() },
-            tool_call_success: success,
+        Self::ToolCall(SummaryToolCall {
+            id: call_id,
+            tool: SummaryTool::Undo { path: path.into() },
+            is_success: success,
         })
     }
 
     /// Creates a Fetch tool call block with success=true by default
     pub fn fetch(call_id: Option<ToolCallId>, url: impl Into<String>) -> Self {
-        Self::ToolCall(SummaryToolData {
-            tool_call_id: call_id,
-            call: SummaryToolCall::Fetch { url: url.into() },
-            tool_call_success: true,
+        Self::ToolCall(SummaryToolCall {
+            id: call_id,
+            tool: SummaryTool::Fetch { url: url.into() },
+            is_success: true,
         })
     }
 
@@ -207,19 +207,19 @@ impl SummaryMessageBlock {
         url: impl Into<String>,
         success: bool,
     ) -> Self {
-        Self::ToolCall(SummaryToolData {
-            tool_call_id: call_id,
-            call: SummaryToolCall::Fetch { url: url.into() },
-            tool_call_success: success,
+        Self::ToolCall(SummaryToolCall {
+            id: call_id,
+            tool: SummaryTool::Fetch { url: url.into() },
+            is_success: success,
         })
     }
 
     /// Creates a Followup tool call block with success=true by default
     pub fn followup(call_id: Option<ToolCallId>, question: impl Into<String>) -> Self {
-        Self::ToolCall(SummaryToolData {
-            tool_call_id: call_id,
-            call: SummaryToolCall::Followup { question: question.into() },
-            tool_call_success: true,
+        Self::ToolCall(SummaryToolCall {
+            id: call_id,
+            tool: SummaryTool::Followup { question: question.into() },
+            is_success: true,
         })
     }
 
@@ -229,19 +229,19 @@ impl SummaryMessageBlock {
         question: impl Into<String>,
         success: bool,
     ) -> Self {
-        Self::ToolCall(SummaryToolData {
-            tool_call_id: call_id,
-            call: SummaryToolCall::Followup { question: question.into() },
-            tool_call_success: success,
+        Self::ToolCall(SummaryToolCall {
+            id: call_id,
+            tool: SummaryTool::Followup { question: question.into() },
+            is_success: success,
         })
     }
 
     /// Creates a Plan tool call block with success=true by default
     pub fn plan(call_id: Option<ToolCallId>, plan_name: impl Into<String>) -> Self {
-        Self::ToolCall(SummaryToolData {
-            tool_call_id: call_id,
-            call: SummaryToolCall::Plan { plan_name: plan_name.into() },
-            tool_call_success: true,
+        Self::ToolCall(SummaryToolCall {
+            id: call_id,
+            tool: SummaryTool::Plan { plan_name: plan_name.into() },
+            is_success: true,
         })
     }
 
@@ -251,10 +251,10 @@ impl SummaryMessageBlock {
         plan_name: impl Into<String>,
         success: bool,
     ) -> Self {
-        Self::ToolCall(SummaryToolData {
-            tool_call_id: call_id,
-            call: SummaryToolCall::Plan { plan_name: plan_name.into() },
-            tool_call_success: success,
+        Self::ToolCall(SummaryToolCall {
+            id: call_id,
+            tool: SummaryTool::Plan { plan_name: plan_name.into() },
+            is_success: success,
         })
     }
 }
@@ -262,7 +262,7 @@ impl SummaryMessageBlock {
 /// Categorized tool call information for summary purposes
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum SummaryToolCall {
+pub enum SummaryTool {
     FileRead { path: String },
     FileUpdate { path: String },
     FileRemove { path: String },
@@ -277,7 +277,7 @@ pub enum SummaryToolCall {
 impl From<&Context> for ContextSummary {
     fn from(value: &Context) -> Self {
         let mut messages = vec![];
-        let mut buffer: Vec<SummaryMessageBlock> = vec![];
+        let mut buffer: Vec<SummaryMessageContent> = vec![];
         let mut tool_results: HashMap<&ToolCallId, &ToolResult> = Default::default();
         let mut current_role = Role::System;
         for msg in &value.messages {
@@ -293,14 +293,14 @@ impl From<&Context> for ContextSummary {
                         if !buffer.is_empty() {
                             messages.push(SummaryMessage {
                                 role: current_role,
-                                blocks: std::mem::take(&mut buffer),
+                                contents: std::mem::take(&mut buffer),
                             });
                         }
 
                         current_role = text_msg.role;
                     }
 
-                    buffer.extend(Vec::<SummaryMessageBlock>::from(text_msg));
+                    buffer.extend(Vec::<SummaryMessageContent>::from(text_msg));
                 }
                 ContextMessage::Tool(tool_result) => {
                     if let Some(ref call_id) = tool_result.call_id {
@@ -314,19 +314,19 @@ impl From<&Context> for ContextSummary {
         // Insert the last chunk if buffer is not empty
         if !buffer.is_empty() {
             messages
-                .push(SummaryMessage { role: current_role, blocks: std::mem::take(&mut buffer) });
+                .push(SummaryMessage { role: current_role, contents: std::mem::take(&mut buffer) });
         }
 
         // Update tool call success status based on results
         messages
             .iter_mut()
-            .flat_map(|message| message.blocks.iter_mut())
+            .flat_map(|message| message.contents.iter_mut())
             .for_each(|block| {
-                if let SummaryMessageBlock::ToolCall(tool_data) = block
-                    && let Some(call_id) = &tool_data.tool_call_id
+                if let SummaryMessageContent::ToolCall(tool_data) = block
+                    && let Some(call_id) = &tool_data.id
                     && let Some(result) = tool_results.get(call_id)
                 {
-                    tool_data.tool_call_success = !result.is_error();
+                    tool_data.is_success = !result.is_error();
                 }
             });
 
@@ -334,23 +334,23 @@ impl From<&Context> for ContextSummary {
     }
 }
 
-impl From<&TextMessage> for Vec<SummaryMessageBlock> {
+impl From<&TextMessage> for Vec<SummaryMessageContent> {
     fn from(text_msg: &TextMessage) -> Self {
         let mut blocks = vec![];
 
         // Add content block if there's text content
         if !text_msg.content.is_empty() {
-            blocks.push(SummaryMessageBlock::Content(text_msg.content.clone()));
+            blocks.push(SummaryMessageContent::Text(text_msg.content.clone()));
         }
 
         // Add tool call blocks if present
         if let Some(calls) = &text_msg.tool_calls {
             blocks.extend(calls.iter().filter_map(|tool_call| {
                 extract_tool_info(tool_call).map(|call| {
-                    SummaryMessageBlock::ToolCall(SummaryToolData {
-                        tool_call_id: tool_call.call_id.clone(),
-                        call,
-                        tool_call_success: false,
+                    SummaryMessageContent::ToolCall(SummaryToolCall {
+                        id: tool_call.call_id.clone(),
+                        tool: call,
+                        is_success: false,
                     })
                 })
             }));
@@ -361,25 +361,25 @@ impl From<&TextMessage> for Vec<SummaryMessageBlock> {
 }
 
 /// Extracts tool information from a tool call
-fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryToolCall> {
+fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
     // Try to parse as a Tools enum variant
     let tool = Tools::try_from(call.clone()).ok()?;
 
     match tool {
-        Tools::Read(input) => Some(SummaryToolCall::FileRead { path: input.path }),
-        Tools::ReadImage(input) => Some(SummaryToolCall::FileRead { path: input.path }),
-        Tools::Write(input) => Some(SummaryToolCall::FileUpdate { path: input.path }),
-        Tools::Patch(input) => Some(SummaryToolCall::FileUpdate { path: input.path }),
-        Tools::Remove(input) => Some(SummaryToolCall::FileRemove { path: input.path }),
-        Tools::Shell(input) => Some(SummaryToolCall::Shell { command: input.command }),
+        Tools::Read(input) => Some(SummaryTool::FileRead { path: input.path }),
+        Tools::ReadImage(input) => Some(SummaryTool::FileRead { path: input.path }),
+        Tools::Write(input) => Some(SummaryTool::FileUpdate { path: input.path }),
+        Tools::Patch(input) => Some(SummaryTool::FileUpdate { path: input.path }),
+        Tools::Remove(input) => Some(SummaryTool::FileRemove { path: input.path }),
+        Tools::Shell(input) => Some(SummaryTool::Shell { command: input.command }),
         Tools::Search(input) => input
             .file_pattern
             .or(input.regex)
-            .map(|pattern| SummaryToolCall::Search { pattern }),
-        Tools::Undo(input) => Some(SummaryToolCall::Undo { path: input.path }),
-        Tools::Fetch(input) => Some(SummaryToolCall::Fetch { url: input.url }),
-        Tools::Followup(input) => Some(SummaryToolCall::Followup { question: input.question }),
-        Tools::Plan(input) => Some(SummaryToolCall::Plan { plan_name: input.plan_name }),
+            .map(|pattern| SummaryTool::Search { pattern }),
+        Tools::Undo(input) => Some(SummaryTool::Undo { path: input.path }),
+        Tools::Fetch(input) => Some(SummaryTool::Fetch { url: input.url }),
+        Tools::Followup(input) => Some(SummaryTool::Followup { question: input.question }),
+        Tools::Plan(input) => Some(SummaryTool::Plan { plan_name: input.plan_name }),
     }
 }
 
@@ -390,7 +390,7 @@ mod tests {
     use super::*;
     use crate::{ContextMessage, TextMessage, ToolCallArguments, ToolCallId, ToolName, ToolOutput};
 
-    type Block = SummaryMessageBlock;
+    type Block = SummaryMessageContent;
 
     fn context(messages: Vec<ContextMessage>) -> Context {
         Context::default().messages(messages)
@@ -542,10 +542,10 @@ mod tests {
     fn test_summary_message_block_read_helper() {
         let actual = Block::read(None, "/path/to/file.rs");
 
-        let expected = Block::ToolCall(SummaryToolData {
-            tool_call_id: None,
-            call: SummaryToolCall::FileRead { path: "/path/to/file.rs".to_string() },
-            tool_call_success: true,
+        let expected = Block::ToolCall(SummaryToolCall {
+            id: None,
+            tool: SummaryTool::FileRead { path: "/path/to/file.rs".to_string() },
+            is_success: true,
         });
 
         assert_eq!(actual, expected);
@@ -555,10 +555,10 @@ mod tests {
     fn test_summary_message_block_update_helper() {
         let actual = Block::update(None, "/path/to/file.rs");
 
-        let expected = Block::ToolCall(SummaryToolData {
-            tool_call_id: None,
-            call: SummaryToolCall::FileUpdate { path: "/path/to/file.rs".to_string() },
-            tool_call_success: true,
+        let expected = Block::ToolCall(SummaryToolCall {
+            id: None,
+            tool: SummaryTool::FileUpdate { path: "/path/to/file.rs".to_string() },
+            is_success: true,
         });
 
         assert_eq!(actual, expected);
@@ -568,10 +568,10 @@ mod tests {
     fn test_summary_message_block_remove_helper() {
         let actual = Block::remove(None, "/path/to/file.rs");
 
-        let expected = Block::ToolCall(SummaryToolData {
-            tool_call_id: None,
-            call: SummaryToolCall::FileRemove { path: "/path/to/file.rs".to_string() },
-            tool_call_success: true,
+        let expected = Block::ToolCall(SummaryToolCall {
+            id: None,
+            tool: SummaryTool::FileRemove { path: "/path/to/file.rs".to_string() },
+            is_success: true,
         });
 
         assert_eq!(actual, expected);
@@ -951,10 +951,10 @@ mod tests {
     fn test_summary_message_block_shell_helper() {
         let actual = Block::shell(None, "cargo build");
 
-        let expected = Block::ToolCall(SummaryToolData {
-            tool_call_id: None,
-            call: SummaryToolCall::Shell { command: "cargo build".to_string() },
-            tool_call_success: true,
+        let expected = Block::ToolCall(SummaryToolCall {
+            id: None,
+            tool: SummaryTool::Shell { command: "cargo build".to_string() },
+            is_success: true,
         });
 
         assert_eq!(actual, expected);
@@ -1041,10 +1041,10 @@ mod tests {
     fn test_summary_message_block_search_helper() {
         let actual = Block::search(None, "/project/src");
 
-        let expected = Block::ToolCall(SummaryToolData {
-            tool_call_id: None,
-            call: SummaryToolCall::Search { pattern: "/project/src".to_string() },
-            tool_call_success: true,
+        let expected = Block::ToolCall(SummaryToolCall {
+            id: None,
+            tool: SummaryTool::Search { pattern: "/project/src".to_string() },
+            is_success: true,
         });
 
         assert_eq!(actual, expected);
@@ -1126,10 +1126,10 @@ mod tests {
     fn test_summary_message_block_undo_helper() {
         let actual = Block::undo(None, "/test/file.rs");
 
-        let expected = Block::ToolCall(SummaryToolData {
-            tool_call_id: None,
-            call: SummaryToolCall::Undo { path: "/test/file.rs".to_string() },
-            tool_call_success: true,
+        let expected = Block::ToolCall(SummaryToolCall {
+            id: None,
+            tool: SummaryTool::Undo { path: "/test/file.rs".to_string() },
+            is_success: true,
         });
 
         assert_eq!(actual, expected);
@@ -1139,10 +1139,10 @@ mod tests {
     fn test_summary_message_block_fetch_helper() {
         let actual = Block::fetch(None, "https://example.com");
 
-        let expected = Block::ToolCall(SummaryToolData {
-            tool_call_id: None,
-            call: SummaryToolCall::Fetch { url: "https://example.com".to_string() },
-            tool_call_success: true,
+        let expected = Block::ToolCall(SummaryToolCall {
+            id: None,
+            tool: SummaryTool::Fetch { url: "https://example.com".to_string() },
+            is_success: true,
         });
 
         assert_eq!(actual, expected);
@@ -1152,10 +1152,10 @@ mod tests {
     fn test_summary_message_block_followup_helper() {
         let actual = Block::followup(None, "What should I do next?");
 
-        let expected = Block::ToolCall(SummaryToolData {
-            tool_call_id: None,
-            call: SummaryToolCall::Followup { question: "What should I do next?".to_string() },
-            tool_call_success: true,
+        let expected = Block::ToolCall(SummaryToolCall {
+            id: None,
+            tool: SummaryTool::Followup { question: "What should I do next?".to_string() },
+            is_success: true,
         });
 
         assert_eq!(actual, expected);
@@ -1165,10 +1165,10 @@ mod tests {
     fn test_summary_message_block_plan_helper() {
         let actual = Block::plan(None, "feature-implementation");
 
-        let expected = Block::ToolCall(SummaryToolData {
-            tool_call_id: None,
-            call: SummaryToolCall::Plan { plan_name: "feature-implementation".to_string() },
-            tool_call_success: true,
+        let expected = Block::ToolCall(SummaryToolCall {
+            id: None,
+            tool: SummaryTool::Plan { plan_name: "feature-implementation".to_string() },
+            is_success: true,
         });
 
         assert_eq!(actual, expected);

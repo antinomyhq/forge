@@ -1,4 +1,4 @@
-use crate::compact::summary::{ContextSummary, SummaryMessageBlock, SummaryToolCall};
+use crate::compact::summary::{ContextSummary, SummaryMessageContent, SummaryTool};
 use crate::{Role, Transformer};
 
 /// Removes redundant operations from the context summary.
@@ -29,22 +29,22 @@ enum Operation<'a> {
     Plan(&'a str),
 }
 
-impl SummaryToolCall {
+impl SummaryTool {
     /// Converts the tool call to its operation type for comparison.
     ///
     /// File operations (read, update, remove, undo) on the same path are
     /// considered the same operation type for deduplication purposes.
     fn to_op(&self) -> Operation<'_> {
         match self {
-            SummaryToolCall::FileRead { path } => Operation::File(path),
-            SummaryToolCall::FileUpdate { path } => Operation::File(path),
-            SummaryToolCall::FileRemove { path } => Operation::File(path),
-            SummaryToolCall::Undo { path } => Operation::File(path),
-            SummaryToolCall::Shell { command } => Operation::Shell(command),
-            SummaryToolCall::Search { pattern } => Operation::Search(pattern),
-            SummaryToolCall::Fetch { url } => Operation::Fetch(url),
-            SummaryToolCall::Followup { question } => Operation::Followup(question),
-            SummaryToolCall::Plan { plan_name } => Operation::Plan(plan_name),
+            SummaryTool::FileRead { path } => Operation::File(path),
+            SummaryTool::FileUpdate { path } => Operation::File(path),
+            SummaryTool::FileRemove { path } => Operation::File(path),
+            SummaryTool::Undo { path } => Operation::File(path),
+            SummaryTool::Shell { command } => Operation::Shell(command),
+            SummaryTool::Search { pattern } => Operation::Search(pattern),
+            SummaryTool::Fetch { url } => Operation::Fetch(url),
+            SummaryTool::Followup { question } => Operation::Followup(question),
+            SummaryTool::Plan { plan_name } => Operation::Plan(plan_name),
         }
     }
 }
@@ -59,14 +59,14 @@ impl Transformer for TrimContextSummary {
                 continue;
             }
 
-            let mut block_seq: Vec<SummaryMessageBlock> = Default::default();
+            let mut block_seq: Vec<SummaryMessageContent> = Default::default();
 
-            for block in message.blocks.drain(..) {
+            for block in message.contents.drain(..) {
                 // For tool calls, only keep successful operations
-                if let SummaryMessageBlock::ToolCall(ref current) = block {
+                if let SummaryMessageContent::ToolCall(ref tool_call) = block {
                     // Remove previous entry if it has the same operation
-                    if let Some(SummaryMessageBlock::ToolCall(last)) = block_seq.last_mut()
-                        && last.call.to_op() == current.call.to_op()
+                    if let Some(SummaryMessageContent::ToolCall(last_tool_call)) = block_seq.last_mut()
+                        && last_tool_call.tool.to_op() == tool_call.tool.to_op()
                     {
                         block_seq.pop();
                     }
@@ -75,7 +75,7 @@ impl Transformer for TrimContextSummary {
                 block_seq.push(block);
             }
 
-            message.blocks = block_seq;
+            message.contents = block_seq;
         }
 
         summary
@@ -91,7 +91,7 @@ mod tests {
     use crate::{Role, ToolCallId};
 
     // Alias for convenience in tests
-    type Block = SummaryMessageBlock;
+    type Block = SummaryMessageContent;
 
     #[test]
     fn test_empty_summary() {
@@ -195,9 +195,9 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::read_with_status(None, "/test", true),
-                Block::read(None, "/unknown"),
+                Block::read_with_status(None, "/unknown", false),
                 Block::update(None, "file.txt"),
-                Block::read_with_status(None, "/all_failed", true),
+                Block::read_with_status(None, "/all_failed", false),
             ],
         )]);
 
