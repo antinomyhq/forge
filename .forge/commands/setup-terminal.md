@@ -36,8 +36,8 @@ Use the detected package manager to install dependencies if not already present:
 3. Backup: `cp ~/.zshrc ~/.zshrc.backup.$(date +%Y%m%d_%H%M%S)`
 4. Remove existing `FORGE_BIN` exports and Forge lines from ~/.zshrc
 5. Add to ~/.zshrc in the following order:
-   - **First:** Source all installed ZSH plugins (must come before Forge configuration)
-   - **Then:** Add Forge configuration
+   - **First:** Source ALL installed ZSH plugins (no exceptions - every plugin must load before Forge)
+   - **Last:** Add Forge configuration
      - `export FORGE_BIN=forge`
      - `source <($FORGE_BIN extension zsh)`
 
