@@ -1,5 +1,6 @@
 pub mod executor;
 
+mod auth;
 mod env;
 mod error;
 mod forge_infra;

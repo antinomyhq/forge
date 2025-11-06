@@ -55,6 +55,10 @@ url.workspace = true
 reqwest-eventsource.workspace = true
 lazy_static = "1.5.0"
 forge_domain.workspace = true
+oauth2 = { version = "5.0", features = ["reqwest"] }
+serde_urlencoded = "0.7.1"
+http.workspace = true
+
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
 insta.workspace = true
@@ -62,4 +66,5 @@ mockito.workspace = true
 pretty_assertions.workspace = true
 tempfile.workspace = true
 fake = { version = "4.4.0", features = ["derive"] }
+
 

@@ -116,4 +116,20 @@ impl<I: EnvironmentInfra + HttpInfra + ProviderRepository> ProviderService
     async fn get_all_providers(&self) -> Result<Vec<AnyProvider>> {
         self.http_infra.get_all_providers().await
     }
+
+    async fn upsert_credential(&self, credential: forge_domain::AuthCredential) -> Result<()> {
+        let provider_id = credential.id;
+
+        // Save the credential to the repository
+        self.http_infra.upsert_credential(credential).await?;
+
+        // Clear the cached client for this provider to force recreation with new
+        // credentials
+        {
+            let mut clients_guard = self.cached_clients.lock().await;
+            clients_guard.remove(&provider_id);
+        }
+
+        Ok(())
+    }
 }

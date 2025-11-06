@@ -983,12 +983,14 @@ mod tests {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
-            key: None,
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
+            credential: None,
             models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "✓ OpenAI     [api.openai.com]";
+        let expected = "✓ OpenAI              [api.openai.com]";
         assert_eq!(actual, expected);
     }
 
@@ -998,12 +1000,14 @@ mod tests {
             id: ProviderId::OpenRouter,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://openrouter.ai/api/v1/chat/completions").unwrap(),
-            key: None,
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
+            credential: None,
             models: Models::Url(Url::parse("https://openrouter.ai/api/v1/models").unwrap()),
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "✓ OpenRouter [openrouter.ai]";
+        let expected = "✓ OpenRouter          [openrouter.ai]";
         assert_eq!(actual, expected);
     }
 
@@ -1013,12 +1017,14 @@ mod tests {
             id: ProviderId::Forge,
             response: ProviderResponse::OpenAI,
             url: Url::parse("http://localhost:8080/chat/completions").unwrap(),
-            key: None,
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
+            credential: None,
             models: Models::Url(Url::parse("http://localhost:8080/models").unwrap()),
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "✓ Forge      [localhost]";
+        let expected = "✓ Forge               [localhost]";
         assert_eq!(actual, expected);
     }
 
@@ -1028,12 +1034,14 @@ mod tests {
             id: ProviderId::Anthropic,
             response: ProviderResponse::Anthropic,
             url: Template::new("https://api.anthropic.com/v1/messages"),
-            key: None,
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
+            credential: None,
             models: Models::Url(Template::new("https://api.anthropic.com/v1/models")),
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "  Anthropic  [unavailable]";
+        let expected = "  Anthropic           [unavailable]";
         assert_eq!(actual, expected);
     }
 
@@ -1043,12 +1051,14 @@ mod tests {
             id: ProviderId::Forge,
             response: ProviderResponse::OpenAI,
             url: Url::parse("http://192.168.1.1:8080/chat/completions").unwrap(),
-            key: None,
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
+            credential: None,
             models: Models::Url(Url::parse("http://192.168.1.1:8080/models").unwrap()),
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "✓ Forge      [unavailable]";
+        let expected = "✓ Forge               [unavailable]";
         assert_eq!(actual, expected);
     }
 

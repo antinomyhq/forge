@@ -5,12 +5,12 @@ use bytes::Bytes;
 use forge_app::{
     CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
     FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, KVStore, McpServerInfra,
-    UserInfra, WalkedFile, Walker, WalkerInfra,
+    StrategyFactory, UserInfra, WalkedFile, Walker, WalkerInfra,
 };
 use forge_domain::{
-    AnyProvider, AppConfig, AppConfigRepository, CommandOutput, Conversation, ConversationId,
-    ConversationRepository, Environment, FileInfo, McpServerConfig, Provider, ProviderId,
-    ProviderRepository, Snapshot, SnapshotRepository,
+    AnyProvider, AppConfig, AppConfigRepository, AuthCredential, CommandOutput, Conversation,
+    ConversationId, ConversationRepository, Environment, FileInfo, McpServerConfig, Provider,
+    ProviderId, ProviderRepository, Snapshot, SnapshotRepository,
 };
 use forge_infra::CacacheStorage;
 use reqwest::header::HeaderMap;
@@ -53,6 +53,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
         )); // 1 hour TTL
 
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
+
         Self {
             infra,
             file_snapshot_service,
@@ -107,13 +108,23 @@ impl<F: Send + Sync> ConversationRepository for ForgeRepo<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + FileReaderInfra + Send + Sync> ProviderRepository for ForgeRepo<F> {
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> ProviderRepository
+    for ForgeRepo<F>
+{
     async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
         self.provider_repository.get_all_providers().await
     }
 
     async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider<Url>> {
         self.provider_repository.get_provider(id).await
+    }
+
+    async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()> {
+        self.provider_repository.upsert_credential(credential).await
+    }
+
+    async fn get_credential(&self, id: &ProviderId) -> anyhow::Result<Option<AuthCredential>> {
+        self.provider_repository.get_credential(id).await
     }
 }
 
@@ -357,5 +368,19 @@ where
         self.infra
             .execute_command_raw(command, working_dir, env_vars)
             .await
+    }
+}
+
+impl<F: StrategyFactory> StrategyFactory for ForgeRepo<F> {
+    type Strategy = F::Strategy;
+
+    fn create_auth_strategy(
+        &self,
+        provider_id: ProviderId,
+        auth_method: forge_domain::AuthMethod,
+        required_params: Vec<forge_domain::URLParam>,
+    ) -> anyhow::Result<Self::Strategy> {
+        self.infra
+            .create_auth_strategy(provider_id, auth_method, required_params)
     }
 }

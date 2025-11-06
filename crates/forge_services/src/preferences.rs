@@ -114,7 +114,15 @@ mod tests {
                         id: ProviderId::OpenAI,
                         response: ProviderResponse::OpenAI,
                         url: Url::parse("https://api.openai.com").unwrap(),
-                        key: Some("test-key".to_string()),
+                        credential: Some(forge_domain::AuthCredential {
+                            id: ProviderId::OpenAI,
+                            auth_details: forge_domain::AuthDetails::ApiKey(
+                                forge_domain::ApiKey::from("test-key".to_string()),
+                            ),
+                            url_params: HashMap::new(),
+                        }),
+                        auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+                        url_params: vec![],
                         models: Models::Hardcoded(vec![Model {
                             id: "gpt-4".to_string().into(),
                             name: Some("GPT-4".to_string()),
@@ -129,7 +137,15 @@ mod tests {
                         id: ProviderId::Anthropic,
                         response: ProviderResponse::Anthropic,
                         url: Url::parse("https://api.anthropic.com").unwrap(),
-                        key: Some("test-key".to_string()),
+                        auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+                        url_params: vec![],
+                        credential: Some(forge_domain::AuthCredential {
+                            id: ProviderId::Anthropic,
+                            auth_details: forge_domain::AuthDetails::ApiKey(
+                                forge_domain::ApiKey::from("test-key".to_string()),
+                            ),
+                            url_params: HashMap::new(),
+                        }),
                         models: Models::Hardcoded(vec![Model {
                             id: "claude-3".to_string().into(),
                             name: Some("Claude 3".to_string()),
@@ -173,6 +189,20 @@ mod tests {
                 .find(|p| p.id == id)
                 .cloned()
                 .ok_or_else(|| anyhow::anyhow!("Provider not found"))
+        }
+
+        async fn upsert_credential(
+            &self,
+            _credential: forge_domain::AuthCredential,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn get_credential(
+            &self,
+            _id: &ProviderId,
+        ) -> anyhow::Result<Option<forge_domain::AuthCredential>> {
+            Ok(None)
         }
     }
 

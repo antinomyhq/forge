@@ -59,7 +59,10 @@ impl ClientBuilder {
                 let url = provider.url.clone();
                 InnerClient::Anthropic(Box::new(Anthropic::new(
                     http.clone(),
-                    provider.key.clone().unwrap_or_default(),
+                    provider
+                        .api_key()
+                        .map(|x| x.as_str().to_string())
+                        .unwrap_or_default(),
                     url,
                     provider.models,
                     "2023-06-01".to_string(),
@@ -230,13 +233,25 @@ mod tests {
         }
     }
 
+    fn make_test_credential() -> Option<forge_domain::AuthCredential> {
+        Some(forge_domain::AuthCredential {
+            id: ProviderId::OpenAI,
+            auth_details: forge_domain::AuthDetails::ApiKey(forge_domain::ApiKey::from(
+                "test-key".to_string(),
+            )),
+            url_params: HashMap::new(),
+        })
+    }
+
     #[tokio::test]
     async fn test_cache_initialization() {
         let provider = forge_domain::Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
-            key: Some("test-key".to_string()),
+            credential: make_test_credential(),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
             models: forge_domain::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
@@ -256,7 +271,9 @@ mod tests {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
-            key: Some("test-key".to_string()),
+            credential: make_test_credential(),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
             models: forge_domain::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
@@ -278,7 +295,9 @@ mod tests {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
-            key: Some("test-key".to_string()),
+            credential: make_test_credential(),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
             models: forge_domain::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
@@ -303,7 +322,9 @@ mod tests {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
-            key: Some("test-key".to_string()),
+            credential: make_test_credential(),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
             models: forge_domain::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),

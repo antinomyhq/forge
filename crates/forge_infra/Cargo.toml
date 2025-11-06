@@ -38,6 +38,10 @@ diesel_migrations = "2.2.0"
 chrono = { version = "0.4", features = ["serde"] }
 cacache = { version = "13.1.0", features = ["tokio-runtime"], default-features = false }
 serde.workspace = true
+oauth2 = { version = "5.0", features = ["reqwest"] }
+serde_urlencoded = "0.7.1"
+http.workspace = true
+url.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }

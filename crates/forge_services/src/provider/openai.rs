@@ -32,9 +32,38 @@ impl<H: HttpClientService> OpenAIProvider<H> {
     // - `X-Title`: Sets/modifies your app's title
     fn get_headers(&self) -> Vec<(String, String)> {
         let mut headers = Vec::new();
-        if let Some(ref api_key) = self.provider.key {
+        if let Some(api_key) = self
+            .provider
+            .credential
+            .as_ref()
+            .map(|c| match &c.auth_details {
+                forge_domain::AuthDetails::ApiKey(key) => key.as_str(),
+                forge_domain::AuthDetails::OAuthWithApiKey { api_key, .. } => api_key.as_str(),
+                forge_domain::AuthDetails::OAuth { tokens, .. } => tokens.access_token.as_str(),
+            })
+        {
             headers.push((AUTHORIZATION.to_string(), format!("Bearer {api_key}")));
         }
+        self.provider
+            .auth_methods
+            .iter()
+            .for_each(|method| match method {
+                forge_domain::AuthMethod::ApiKey => {}
+                forge_domain::AuthMethod::OAuthDevice(oauth_config) => {
+                    if let Some(custom_headers) = &oauth_config.custom_headers {
+                        custom_headers.iter().for_each(|(k, v)| {
+                            headers.push((k.clone(), v.clone()));
+                        });
+                    }
+                }
+                forge_domain::AuthMethod::OAuthCode(oauth_config) => {
+                    if let Some(custom_headers) = &oauth_config.custom_headers {
+                        custom_headers.iter().for_each(|(k, v)| {
+                            headers.push((k.clone(), v.clone()));
+                        });
+                    }
+                }
+            });
         headers
     }
 
@@ -184,6 +213,8 @@ impl<T: HttpClientService> OpenAIProvider<T> {
 #[cfg(test)]
 mod tests {
 
+    use std::collections::HashMap;
+
     use anyhow::Context;
     use bytes::Bytes;
     use forge_app::HttpClientService;
@@ -196,12 +227,24 @@ mod tests {
     use crate::provider::mock_server::{MockServer, normalize_ports};
 
     // Test helper functions
+    fn make_credential(provider_id: ProviderId, key: &str) -> Option<forge_domain::AuthCredential> {
+        Some(forge_domain::AuthCredential {
+            id: provider_id,
+            auth_details: forge_domain::AuthDetails::ApiKey(forge_domain::ApiKey::from(
+                key.to_string(),
+            )),
+            url_params: HashMap::new(),
+        })
+    }
+
     fn openai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
-            key: Some(key.into()),
+            credential: make_credential(ProviderId::OpenAI, key),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
             models: forge_domain::Models::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             ),
@@ -213,7 +256,9 @@ mod tests {
             id: ProviderId::Zai,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
-            key: Some(key.into()),
+            credential: make_credential(ProviderId::Zai, key),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
             models: forge_domain::Models::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             ),
@@ -225,7 +270,9 @@ mod tests {
             id: ProviderId::ZaiCoding,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
-            key: Some(key.into()),
+            credential: make_credential(ProviderId::ZaiCoding, key),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
             models: forge_domain::Models::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             ),
@@ -237,7 +284,9 @@ mod tests {
             id: ProviderId::Anthropic,
             response: ProviderResponse::Anthropic,
             url: Url::parse("https://api.anthropic.com/v1/messages").unwrap(),
-            key: Some(key.into()),
+            credential: make_credential(ProviderId::Anthropic, key),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
             models: forge_domain::Models::Url(
                 Url::parse("https://api.anthropic.com/v1/models").unwrap(),
             ),
@@ -297,7 +346,9 @@ mod tests {
             id: ProviderId::OpenAI,
             response: ProviderResponse::OpenAI,
             url: reqwest::Url::parse(base_url)?,
-            key: Some("test-api-key".to_string()),
+            credential: make_credential(ProviderId::OpenAI, "test-api-key"),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
             models: forge_domain::Models::Url(reqwest::Url::parse(base_url)?.join("models")?),
         };
 

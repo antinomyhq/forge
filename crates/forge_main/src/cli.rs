@@ -116,6 +116,9 @@ pub enum TopLevelCommand {
 
     /// MCP server management commands
     Mcp(McpCommandGroup),
+
+    /// Provider management commands
+    Provider(ProviderCommandGroup),
 }
 
 /// Group of list-related commands
@@ -388,6 +391,21 @@ pub enum ConversationCommand {
         /// Conversation ID
         id: String,
     },
+}
+
+/// Group of Provider-related commands
+#[derive(Parser, Debug, Clone)]
+pub struct ProviderCommandGroup {
+    #[command(subcommand)]
+    pub command: ProviderCommand,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum ProviderCommand {
+    /// Add a new provider by selecting from available options
+    ///
+    /// Example: forge provider add
+    Add,
 }
 
 #[cfg(test)]
