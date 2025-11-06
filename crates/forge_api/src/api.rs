@@ -154,7 +154,7 @@ pub trait API: Sync + Send {
 
     /// Generate a shell command from natural language prompt
     async fn generate_command(&self, prompt: UserPrompt) -> Result<String>;
-    
+
     /// Initiate provider auth flow
     async fn init_provider_auth(
         &self,
