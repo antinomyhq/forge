@@ -1,5 +1,4 @@
-use crate::compact::summary::{ContextSummary, SummaryMessage, SummaryTool};
-use crate::{Role, Transformer};
+use forge_domain::{ContextSummary, Role, SummaryMessage, SummaryTool, Transformer};
 
 /// Removes redundant operations from the context summary.
 ///
@@ -30,23 +29,21 @@ enum Operation<'a> {
     Plan(&'a str),
 }
 
-impl SummaryTool {
-    /// Converts the tool call to its operation type for comparison.
-    ///
-    /// File operations (read, update, remove, undo) on the same path are
-    /// considered the same operation type for deduplication purposes.
-    fn to_op(&self) -> Operation<'_> {
-        match self {
-            SummaryTool::FileRead { path } => Operation::File(path),
-            SummaryTool::FileUpdate { path } => Operation::File(path),
-            SummaryTool::FileRemove { path } => Operation::File(path),
-            SummaryTool::Undo { path } => Operation::File(path),
-            SummaryTool::Shell { command } => Operation::Shell(command),
-            SummaryTool::Search { pattern } => Operation::Search(pattern),
-            SummaryTool::Fetch { url } => Operation::Fetch(url),
-            SummaryTool::Followup { question } => Operation::Followup(question),
-            SummaryTool::Plan { plan_name } => Operation::Plan(plan_name),
-        }
+/// Converts the tool call to its operation type for comparison.
+///
+/// File operations (read, update, remove, undo) on the same path are
+/// considered the same operation type for deduplication purposes.
+fn to_op(tool: &SummaryTool) -> Operation<'_> {
+    match tool {
+        SummaryTool::FileRead { path } => Operation::File(path),
+        SummaryTool::FileUpdate { path } => Operation::File(path),
+        SummaryTool::FileRemove { path } => Operation::File(path),
+        SummaryTool::Undo { path } => Operation::File(path),
+        SummaryTool::Shell { command } => Operation::Shell(command),
+        SummaryTool::Search { pattern } => Operation::Search(pattern),
+        SummaryTool::Fetch { url } => Operation::Fetch(url),
+        SummaryTool::Followup { question } => Operation::Followup(question),
+        SummaryTool::Plan { plan_name } => Operation::Plan(plan_name),
     }
 }
 
@@ -67,7 +64,7 @@ impl Transformer for TrimContextSummary {
                 if let SummaryMessage::ToolCall(ref tool_call) = block {
                     // Remove previous entry if it has the same operation
                     if let Some(SummaryMessage::ToolCall(last_tool_call)) = block_seq.last_mut()
-                        && last_tool_call.tool.to_op() == tool_call.tool.to_op()
+                        && to_op(&last_tool_call.tool) == to_op(&tool_call.tool)
                     {
                         block_seq.pop();
                     }
@@ -85,11 +82,10 @@ impl Transformer for TrimContextSummary {
 
 #[cfg(test)]
 mod tests {
+    use forge_domain::{Role, SummaryBlock, SummaryToolCall, ToolCallId};
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::compact::summary::{SummaryBlock, SummaryToolCall};
-    use crate::{Role, ToolCallId};
 
     // Alias for convenience in tests
     type Block = SummaryMessage;

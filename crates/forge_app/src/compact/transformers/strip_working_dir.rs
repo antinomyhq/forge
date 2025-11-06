@@ -1,7 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::Transformer;
-use crate::compact::summary::{ContextSummary, SummaryMessage, SummaryTool};
+use forge_domain::{ContextSummary, SummaryMessage, SummaryTool, Transformer};
 
 /// Strips the working directory prefix from all file paths in tool calls.
 ///
@@ -96,11 +95,10 @@ impl Transformer for StripWorkingDir {
 
 #[cfg(test)]
 mod tests {
+    use forge_domain::{Role, SummaryBlock, SummaryMessage as Block, SummaryToolCall};
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::Role;
-    use crate::compact::summary::{SummaryBlock, SummaryMessage as Block, SummaryToolCall};
 
     #[test]
     fn test_empty_summary() {

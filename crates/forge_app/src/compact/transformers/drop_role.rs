@@ -1,5 +1,4 @@
-use crate::compact::summary::ContextSummary;
-use crate::{Role, Transformer};
+use forge_domain::{ContextSummary, Role, Transformer};
 
 /// Drops all messages with a specific role from the context summary.
 ///
@@ -33,10 +32,10 @@ impl Transformer for DropRole {
 
 #[cfg(test)]
 mod tests {
+    use forge_domain::{SummaryBlock, SummaryMessage as Block, SummaryToolCall};
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::compact::summary::{SummaryBlock, SummaryMessage as Block, SummaryToolCall};
 
     #[test]
     fn test_empty_summary() {

@@ -1,10 +1,10 @@
 use forge_domain::{
-    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment,
-    SummaryTransformer, Transformer,
+    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment, Transformer,
 };
 use tracing::info;
 
 use crate::TemplateEngine;
+use crate::compact::SummaryTransformer;
 
 /// A service dedicated to handling context compaction.
 pub struct Compactor {
@@ -317,7 +317,7 @@ mod tests {
     #[test]
     fn test_render_summary_frame_snapshot() {
         // Load the conversation fixture
-        let fixture_json = include_str!("fixtures/conversation.json");
+        let fixture_json = include_str!("../fixtures/conversation.json");
         let conversation: forge_domain::Conversation =
             serde_json::from_str(fixture_json).expect("Failed to parse conversation fixture");
 

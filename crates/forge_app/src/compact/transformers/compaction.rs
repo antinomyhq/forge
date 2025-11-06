@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 
-use crate::compact::summary::ContextSummary;
+use forge_domain::{ContextSummary, Role, Transformer};
+
 use crate::compact::transformers::dedupe_role::DedupeRole;
 use crate::compact::transformers::drop_role::DropRole;
 use crate::compact::transformers::strip_working_dir::StripWorkingDir;
 use crate::compact::transformers::trim_context_summary::TrimContextSummary;
-use crate::{Role, Transformer};
 
 /// Composes all compaction transformers into a single transformation pipeline.
 ///

@@ -1,6 +1,4 @@
-use super::super::SummaryBlock;
-use crate::compact::summary::ContextSummary;
-use crate::{Role, Transformer};
+use forge_domain::{ContextSummary, Role, SummaryBlock, Transformer};
 
 /// Keeps only the first message in consecutive sequences of a specific role.
 ///
@@ -48,12 +46,10 @@ impl Transformer for DedupeRole {
 
 #[cfg(test)]
 mod tests {
+    use forge_domain::{SummaryMessage, SummaryToolCall};
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::compact::summary::{SummaryBlock, SummaryMessage, SummaryToolCall};
-
-    type Block = SummaryMessage;
 
     #[test]
     fn test_keeps_first_user_message_in_sequence() {
