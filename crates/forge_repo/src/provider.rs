@@ -11,7 +11,6 @@ use forge_domain::{
 use handlebars::Handlebars;
 use merge::Merge;
 use serde::Deserialize;
-use tokio::sync::RwLock;
 use url::Url;
 
 /// Represents the source of models for a provider
@@ -111,16 +110,11 @@ fn get_provider_configs() -> &'static Vec<ProviderConfig> {
 pub struct ForgeProviderRepository<F> {
     infra: Arc<F>,
     handlebars: &'static Handlebars<'static>,
-    providers: RwLock<Option<Vec<AnyProvider>>>,
 }
 
 impl<F> ForgeProviderRepository<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        Self {
-            infra,
-            handlebars: get_handlebars(),
-            providers: RwLock::new(None),
-        }
+        Self { infra, handlebars: get_handlebars() }
     }
 }
 
@@ -135,27 +129,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
     }
 
     async fn get_providers(&self) -> Vec<AnyProvider> {
-        // Try to get cached providers
-        {
-            let read_lock = self.providers.read().await;
-            if let Some(providers) = read_lock.as_ref() {
-                return providers.clone();
-            }
-        }
-
-        // Initialize providers if not cached
-        let providers = self.init_providers().await;
-
-        // Cache the providers
-        {
-            let mut write_lock = self.providers.write().await;
-            *write_lock = Some(providers.clone());
-        }
-
-        providers
-    }
-
-    async fn init_providers(&self) -> Vec<AnyProvider> {
         // Run migration if needed (one-time)
         self.migrate_env_to_file().await.ok();
 
@@ -425,18 +398,20 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Sync> ProviderRep
         }
         self.write_credentials(&credentials).await?;
 
-        // Clear cached providers to force reload with new credentials
-        {
-            let mut write_lock = self.providers.write().await;
-            *write_lock = None;
-        }
-
         Ok(())
     }
 
     async fn get_credential(&self, id: &ProviderId) -> anyhow::Result<Option<AuthCredential>> {
         let credentials = self.read_credentials().await;
         Ok(credentials.into_iter().find(|c| &c.id == id))
+    }
+
+    async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()> {
+        let mut credentials = self.read_credentials().await;
+        credentials.retain(|c| &c.id != id);
+        self.write_credentials(&credentials).await?;
+
+        Ok(())
     }
 }
 
@@ -662,6 +637,10 @@ mod env_tests {
             _id: &ProviderId,
         ) -> anyhow::Result<Option<forge_domain::AuthCredential>> {
             Ok(None)
+        }
+
+        async fn remove_credential(&self, _id: &ProviderId) -> anyhow::Result<()> {
+            Ok(())
         }
     }
 
@@ -1018,6 +997,10 @@ mod env_tests {
                 _id: &ProviderId,
             ) -> anyhow::Result<Option<forge_domain::AuthCredential>> {
                 Ok(None)
+            }
+
+            async fn remove_credential(&self, _id: &ProviderId) -> anyhow::Result<()> {
+                Ok(())
             }
         }
 

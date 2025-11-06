@@ -166,4 +166,7 @@ pub trait API: Sync + Send {
         context: AuthContextResponse,
         timeout: std::time::Duration,
     ) -> Result<()>;
+
+    /// Remove provider credentials (logout)
+    async fn remove_provider(&self, provider_id: &ProviderId) -> Result<()>;
 }

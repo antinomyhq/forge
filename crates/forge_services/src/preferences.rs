@@ -204,6 +204,10 @@ mod tests {
         ) -> anyhow::Result<Option<forge_domain::AuthCredential>> {
             Ok(None)
         }
+
+        async fn remove_credential(&self, _id: &ProviderId) -> anyhow::Result<()> {
+            Ok(())
+        }
     }
 
     #[tokio::test]

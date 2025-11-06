@@ -137,6 +137,7 @@ pub trait ProviderService: Send + Sync {
         &self,
         credential: forge_domain::AuthCredential,
     ) -> anyhow::Result<()>;
+    async fn remove_credential(&self, id: &forge_domain::ProviderId) -> anyhow::Result<()>;
 }
 
 /// Manages user preferences for default providers and models.
@@ -565,6 +566,10 @@ impl<I: Services> ProviderService for I {
         credential: forge_domain::AuthCredential,
     ) -> anyhow::Result<()> {
         self.provider_service().upsert_credential(credential).await
+    }
+
+    async fn remove_credential(&self, id: &forge_domain::ProviderId) -> anyhow::Result<()> {
+        self.provider_service().remove_credential(id).await
     }
 }
 

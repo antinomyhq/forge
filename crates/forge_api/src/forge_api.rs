@@ -277,4 +277,8 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
             .complete_provider_auth(provider_id, context, timeout)
             .await?)
     }
+
+    async fn remove_provider(&self, provider_id: &ProviderId) -> Result<()> {
+        Ok(self.services.remove_credential(provider_id).await?)
+    }
 }
