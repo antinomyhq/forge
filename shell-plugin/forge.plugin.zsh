@@ -59,13 +59,16 @@ function forge_verify_dependencies() {
         missing_deps+=("zsh-syntax-highlighting")
     fi
     
-    # Check zsh-autocomplete
-    if [[ "$ZSH_AUTOSUGGEST_USE_ASYNC" != "yes" ]]; then
+
+    # Check zsh-autocomplete (optional but recommended)
+    # zsh-autocomplete sets _autocomplete__funcfiletrace when loaded
+    if [[ ! -v _autocomplete__funcfiletrace ]]; then
         missing_deps+=("zsh-autocomplete")
     fi
     
     command -v fzf &>/dev/null || missing_deps+=("fzf")
     command -v fd &>/dev/null || command -v fdfind &>/dev/null || missing_deps+=("fd")
+    command -v bat &>/dev/null || missing_deps+=("bat")
     
     # Report results
     if [[ ${#missing_deps[@]} -eq 0 ]]; then
@@ -76,6 +79,7 @@ function forge_verify_dependencies() {
         command -v fzf &>/dev/null && echo "  • fzf: $(fzf --version 2>/dev/null)"
         command -v fd &>/dev/null && echo "  • fd: $(fd --version 2>/dev/null | head -1)"
         command -v fdfind &>/dev/null && echo "  • fd: $(fdfind --version 2>/dev/null | head -1)"
+        command -v bat &>/dev/null && echo "  • bat: $(bat --version 2>/dev/null | head -1)"
         return 0
     else
         echo "\033[31m✗\033[0m Missing dependencies: ${missing_deps[*]}"
