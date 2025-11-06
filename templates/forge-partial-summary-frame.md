@@ -5,14 +5,14 @@ Use the following summary frames as the authoritative reference for all coding s
 {{#each messages}}
 ### {{inc @index}}. {{role}}
 
-{{#each blocks}}
+{{#each contents}}
 {{#if text}}
 ````
 {{text}}
 ````
 {{/if}}
 {{~#if tool_call}}
-{{#if tool_call.call.file_update}}
+{{#if tool_call.tool.file_update}}
 **Update:** `{{tool_call.tool.file_update.path}}`
 {{else if tool_call.tool.file_read}}
 **Read:** `{{tool_call.tool.file_read.path}}`
@@ -23,7 +23,7 @@ Use the following summary frames as the authoritative reference for all coding s
 {{else if tool_call.tool.shell}}
 **Shell:** 
 ```
-{{tool_call.call.shell.command}}
+{{tool_call.tool.shell.command}}
 ```
 {{/if~}}
 {{/if~}}
