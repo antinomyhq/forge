@@ -662,7 +662,7 @@ impl StrategyFactory for ForgeAuthStrategyFactory {
                 required_params,
             ))),
             forge_domain::AuthMethod::OAuthCode(config) => {
-                if let ProviderId::Anthropic = provider_id {
+                if let ProviderId::ClaudeCode = provider_id {
                     return Ok(AnyAuthStrategy::OAuthCodeAnthropic(OAuthCodeStrategy::new(
                         AnthropicHttpProvider,
                         provider_id,

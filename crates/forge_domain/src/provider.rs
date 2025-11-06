@@ -39,6 +39,7 @@ pub enum ProviderId {
     Cerebras,
     Xai,
     Anthropic,
+    ClaudeCode,
     VertexAi,
     BigModel,
     Azure,
