@@ -36,7 +36,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::compact::summary::{SummaryMessage, SummaryMessageContent as Block};
+    use crate::compact::summary::{SummaryBlock, SummaryMessage as Block};
 
     #[test]
     fn test_empty_summary() {
@@ -51,15 +51,15 @@ mod tests {
     #[test]
     fn test_drops_system_role() {
         let fixture = ContextSummary::new(vec![
-            SummaryMessage::new(Role::System, vec![Block::content("System prompt")]),
-            SummaryMessage::new(Role::User, vec![Block::content("User message")]),
-            SummaryMessage::new(Role::Assistant, vec![Block::content("Assistant response")]),
+            SummaryBlock::new(Role::System, vec![Block::content("System prompt")]),
+            SummaryBlock::new(Role::User, vec![Block::content("User message")]),
+            SummaryBlock::new(Role::Assistant, vec![Block::content("Assistant response")]),
         ]);
         let actual = DropRole::new(Role::System).transform(fixture);
 
         let expected = ContextSummary::new(vec![
-            SummaryMessage::new(Role::User, vec![Block::content("User message")]),
-            SummaryMessage::new(Role::Assistant, vec![Block::content("Assistant response")]),
+            SummaryBlock::new(Role::User, vec![Block::content("User message")]),
+            SummaryBlock::new(Role::Assistant, vec![Block::content("Assistant response")]),
         ]);
 
         assert_eq!(actual, expected);
@@ -68,16 +68,16 @@ mod tests {
     #[test]
     fn test_drops_user_role() {
         let fixture = ContextSummary::new(vec![
-            SummaryMessage::new(Role::System, vec![Block::content("System prompt")]),
-            SummaryMessage::new(Role::User, vec![Block::content("User message 1")]),
-            SummaryMessage::new(Role::Assistant, vec![Block::content("Assistant response")]),
-            SummaryMessage::new(Role::User, vec![Block::content("User message 2")]),
+            SummaryBlock::new(Role::System, vec![Block::content("System prompt")]),
+            SummaryBlock::new(Role::User, vec![Block::content("User message 1")]),
+            SummaryBlock::new(Role::Assistant, vec![Block::content("Assistant response")]),
+            SummaryBlock::new(Role::User, vec![Block::content("User message 2")]),
         ]);
         let actual = DropRole::new(Role::User).transform(fixture);
 
         let expected = ContextSummary::new(vec![
-            SummaryMessage::new(Role::System, vec![Block::content("System prompt")]),
-            SummaryMessage::new(Role::Assistant, vec![Block::content("Assistant response")]),
+            SummaryBlock::new(Role::System, vec![Block::content("System prompt")]),
+            SummaryBlock::new(Role::Assistant, vec![Block::content("Assistant response")]),
         ]);
 
         assert_eq!(actual, expected);
@@ -86,19 +86,19 @@ mod tests {
     #[test]
     fn test_drops_assistant_role() {
         let fixture = ContextSummary::new(vec![
-            SummaryMessage::new(Role::User, vec![Block::content("User message")]),
-            SummaryMessage::new(
+            SummaryBlock::new(Role::User, vec![Block::content("User message")]),
+            SummaryBlock::new(
                 Role::Assistant,
                 vec![Block::content("Assistant response 1")],
             ),
-            SummaryMessage::new(
+            SummaryBlock::new(
                 Role::Assistant,
                 vec![Block::content("Assistant response 2")],
             ),
         ]);
         let actual = DropRole::new(Role::Assistant).transform(fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::User,
             vec![Block::content("User message")],
         )]);
@@ -109,16 +109,16 @@ mod tests {
     #[test]
     fn test_drops_multiple_messages_of_same_role() {
         let fixture = ContextSummary::new(vec![
-            SummaryMessage::new(Role::System, vec![Block::content("First system message")]),
-            SummaryMessage::new(Role::User, vec![Block::content("User message")]),
-            SummaryMessage::new(Role::System, vec![Block::content("Second system message")]),
-            SummaryMessage::new(Role::Assistant, vec![Block::content("Assistant response")]),
+            SummaryBlock::new(Role::System, vec![Block::content("First system message")]),
+            SummaryBlock::new(Role::User, vec![Block::content("User message")]),
+            SummaryBlock::new(Role::System, vec![Block::content("Second system message")]),
+            SummaryBlock::new(Role::Assistant, vec![Block::content("Assistant response")]),
         ]);
         let actual = DropRole::new(Role::System).transform(fixture);
 
         let expected = ContextSummary::new(vec![
-            SummaryMessage::new(Role::User, vec![Block::content("User message")]),
-            SummaryMessage::new(Role::Assistant, vec![Block::content("Assistant response")]),
+            SummaryBlock::new(Role::User, vec![Block::content("User message")]),
+            SummaryBlock::new(Role::Assistant, vec![Block::content("Assistant response")]),
         ]);
 
         assert_eq!(actual, expected);
@@ -127,13 +127,13 @@ mod tests {
     #[test]
     fn test_preserves_other_roles() {
         let fixture = ContextSummary::new(vec![
-            SummaryMessage::new(Role::User, vec![Block::content("User message 1")]),
-            SummaryMessage::new(
+            SummaryBlock::new(Role::User, vec![Block::content("User message 1")]),
+            SummaryBlock::new(
                 Role::Assistant,
                 vec![Block::content("Assistant response 1")],
             ),
-            SummaryMessage::new(Role::User, vec![Block::content("User message 2")]),
-            SummaryMessage::new(
+            SummaryBlock::new(Role::User, vec![Block::content("User message 2")]),
+            SummaryBlock::new(
                 Role::Assistant,
                 vec![Block::content("Assistant response 2")],
             ),
@@ -141,13 +141,13 @@ mod tests {
         let actual = DropRole::new(Role::System).transform(fixture);
 
         let expected = ContextSummary::new(vec![
-            SummaryMessage::new(Role::User, vec![Block::content("User message 1")]),
-            SummaryMessage::new(
+            SummaryBlock::new(Role::User, vec![Block::content("User message 1")]),
+            SummaryBlock::new(
                 Role::Assistant,
                 vec![Block::content("Assistant response 1")],
             ),
-            SummaryMessage::new(Role::User, vec![Block::content("User message 2")]),
-            SummaryMessage::new(
+            SummaryBlock::new(Role::User, vec![Block::content("User message 2")]),
+            SummaryBlock::new(
                 Role::Assistant,
                 vec![Block::content("Assistant response 2")],
             ),
@@ -159,8 +159,8 @@ mod tests {
     #[test]
     fn test_only_target_role_results_in_empty() {
         let fixture = ContextSummary::new(vec![
-            SummaryMessage::new(Role::System, vec![Block::content("System message 1")]),
-            SummaryMessage::new(Role::System, vec![Block::content("System message 2")]),
+            SummaryBlock::new(Role::System, vec![Block::content("System message 1")]),
+            SummaryBlock::new(Role::System, vec![Block::content("System message 2")]),
         ]);
         let actual = DropRole::new(Role::System).transform(fixture);
 
@@ -172,27 +172,27 @@ mod tests {
     #[test]
     fn test_preserves_tool_calls_in_non_dropped_messages() {
         let fixture = ContextSummary::new(vec![
-            SummaryMessage::new(Role::System, vec![Block::content("System with tool")]),
-            SummaryMessage::new(
+            SummaryBlock::new(Role::System, vec![Block::content("System with tool")]),
+            SummaryBlock::new(
                 Role::Assistant,
                 vec![
                     Block::read(None, "/src/main.rs"),
                     Block::update(None, "/src/lib.rs"),
                 ],
             ),
-            SummaryMessage::new(Role::User, vec![Block::content("User message")]),
+            SummaryBlock::new(Role::User, vec![Block::content("User message")]),
         ]);
         let actual = DropRole::new(Role::System).transform(fixture);
 
         let expected = ContextSummary::new(vec![
-            SummaryMessage::new(
+            SummaryBlock::new(
                 Role::Assistant,
                 vec![
                     Block::read(None, "/src/main.rs"),
                     Block::update(None, "/src/lib.rs"),
                 ],
             ),
-            SummaryMessage::new(Role::User, vec![Block::content("User message")]),
+            SummaryBlock::new(Role::User, vec![Block::content("User message")]),
         ]);
 
         assert_eq!(actual, expected);

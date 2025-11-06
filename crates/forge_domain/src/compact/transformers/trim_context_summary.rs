@@ -1,4 +1,4 @@
-use crate::compact::summary::{ContextSummary, SummaryMessageContent, SummaryTool};
+use crate::compact::summary::{ContextSummary, SummaryMessage, SummaryTool};
 use crate::{Role, Transformer};
 
 /// Removes redundant operations from the context summary.
@@ -59,13 +59,13 @@ impl Transformer for TrimContextSummary {
                 continue;
             }
 
-            let mut block_seq: Vec<SummaryMessageContent> = Default::default();
+            let mut block_seq: Vec<SummaryMessage> = Default::default();
 
             for block in message.contents.drain(..) {
                 // For tool calls, only keep successful operations
-                if let SummaryMessageContent::ToolCall(ref tool_call) = block {
+                if let SummaryMessage::ToolCall(ref tool_call) = block {
                     // Remove previous entry if it has the same operation
-                    if let Some(SummaryMessageContent::ToolCall(last_tool_call)) = block_seq.last_mut()
+                    if let Some(SummaryMessage::ToolCall(last_tool_call)) = block_seq.last_mut()
                         && last_tool_call.tool.to_op() == tool_call.tool.to_op()
                     {
                         block_seq.pop();
@@ -87,11 +87,11 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::compact::summary::SummaryMessage;
+    use crate::compact::summary::SummaryBlock;
     use crate::{Role, ToolCallId};
 
     // Alias for convenience in tests
-    type Block = SummaryMessageContent;
+    type Block = SummaryMessage;
 
     #[test]
     fn test_empty_summary() {
@@ -105,7 +105,7 @@ mod tests {
 
     #[test]
     fn test_keeps_last_operation_per_path() {
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+        let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, "/test1"),
@@ -116,7 +116,7 @@ mod tests {
         )]);
         let actual = TrimContextSummary.transform(fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, "/test1"),
@@ -130,7 +130,7 @@ mod tests {
 
     #[test]
     fn test_keeps_last_operation_with_content() {
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+        let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(Some(ToolCallId::new("call1")), "/test"),
@@ -139,7 +139,7 @@ mod tests {
         )]);
         let actual = TrimContextSummary.transform(fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![Block::read(Some(ToolCallId::new("call2")), "/test")],
         )]);
@@ -149,7 +149,7 @@ mod tests {
 
     #[test]
     fn test_different_operation_types_on_same_path() {
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+        let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, "/test"),
@@ -163,7 +163,7 @@ mod tests {
         )]);
         let actual = TrimContextSummary.transform(fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, "/test"),
@@ -177,7 +177,7 @@ mod tests {
 
     #[test]
     fn test_filters_failed_and_none_operations() {
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+        let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read_with_status(None, "/test", true),
@@ -191,7 +191,7 @@ mod tests {
         )]);
         let actual = TrimContextSummary.transform(fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read_with_status(None, "/test", true),
@@ -207,25 +207,25 @@ mod tests {
     #[test]
     fn test_only_trims_assistant_messages() {
         let fixture = ContextSummary::new(vec![
-            SummaryMessage::new(
+            SummaryBlock::new(
                 Role::User,
                 vec![Block::read(None, "/test"), Block::read(None, "/test")],
             ),
-            SummaryMessage::new(
+            SummaryBlock::new(
                 Role::Assistant,
                 vec![
                     Block::update(None, "file.txt"),
                     Block::update(None, "file.txt"),
                 ],
             ),
-            SummaryMessage::new(
+            SummaryBlock::new(
                 Role::System,
                 vec![
                     Block::remove(None, "remove.txt"),
                     Block::remove(None, "remove.txt"),
                 ],
             ),
-            SummaryMessage::new(
+            SummaryBlock::new(
                 Role::Assistant,
                 vec![Block::read(None, "/test"), Block::read(None, "/test")],
             ),
@@ -233,19 +233,19 @@ mod tests {
         let actual = TrimContextSummary.transform(fixture);
 
         let expected = ContextSummary::new(vec![
-            SummaryMessage::new(
+            SummaryBlock::new(
                 Role::User,
                 vec![Block::read(None, "/test"), Block::read(None, "/test")],
             ),
-            SummaryMessage::new(Role::Assistant, vec![Block::update(None, "file.txt")]),
-            SummaryMessage::new(
+            SummaryBlock::new(Role::Assistant, vec![Block::update(None, "file.txt")]),
+            SummaryBlock::new(
                 Role::System,
                 vec![
                     Block::remove(None, "remove.txt"),
                     Block::remove(None, "remove.txt"),
                 ],
             ),
-            SummaryMessage::new(Role::Assistant, vec![Block::read(None, "/test")]),
+            SummaryBlock::new(Role::Assistant, vec![Block::read(None, "/test")]),
         ]);
 
         assert_eq!(actual, expected);
@@ -254,15 +254,15 @@ mod tests {
     #[test]
     fn test_multiple_assistant_messages_trimmed_independently() {
         let fixture = ContextSummary::new(vec![
-            SummaryMessage::new(
+            SummaryBlock::new(
                 Role::Assistant,
                 vec![Block::read(None, "/test"), Block::read(None, "/test")],
             ),
-            SummaryMessage::new(
+            SummaryBlock::new(
                 Role::Assistant,
                 vec![Block::read_with_status(None, "/test", false)],
             ),
-            SummaryMessage::new(
+            SummaryBlock::new(
                 Role::Assistant,
                 vec![
                     Block::read(None, "/test"),
@@ -274,12 +274,12 @@ mod tests {
         let actual = TrimContextSummary.transform(fixture);
 
         let expected = ContextSummary::new(vec![
-            SummaryMessage::new(Role::Assistant, vec![Block::read(None, "/test")]),
-            SummaryMessage::new(
+            SummaryBlock::new(Role::Assistant, vec![Block::read(None, "/test")]),
+            SummaryBlock::new(
                 Role::Assistant,
                 vec![Block::read_with_status(None, "/test", false)],
             ),
-            SummaryMessage::new(Role::Assistant, vec![Block::read(None, "/test")]),
+            SummaryBlock::new(Role::Assistant, vec![Block::read(None, "/test")]),
         ]);
 
         assert_eq!(actual, expected);
@@ -287,7 +287,7 @@ mod tests {
 
     #[test]
     fn test_assistant_message_with_different_call_ids() {
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+        let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("foo"),
@@ -297,7 +297,7 @@ mod tests {
         )]);
         let actual = TrimContextSummary.transform(fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("foo"),
@@ -310,7 +310,7 @@ mod tests {
 
     #[test]
     fn test_preserves_shell_commands() {
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+        let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::shell(None, "cargo build"),
@@ -320,7 +320,7 @@ mod tests {
         )]);
         let actual = TrimContextSummary.transform(fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::shell(None, "cargo build"),
@@ -334,7 +334,7 @@ mod tests {
 
     #[test]
     fn test_mixed_shell_and_file_operations() {
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+        let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, "/test.rs"),
@@ -348,7 +348,7 @@ mod tests {
 
         // Shell commands break the deduplication chain, so both reads of /test.rs are
         // preserved
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, "/test.rs"),
@@ -364,7 +364,7 @@ mod tests {
 
     #[test]
     fn test_shell_commands_between_file_operations_on_same_path() {
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+        let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, "/test.rs"),
@@ -378,7 +378,7 @@ mod tests {
 
         // Shell commands break the deduplication chain - all reads are preserved
         // because shell commands are interspersed between them
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, "/test.rs"),

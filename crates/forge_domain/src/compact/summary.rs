@@ -11,22 +11,22 @@ use crate::{
 #[setters(strip_option)]
 #[serde(rename_all = "snake_case")]
 pub struct ContextSummary {
-    pub messages: Vec<SummaryMessage>,
+    pub messages: Vec<SummaryBlock>,
 }
 
 /// A simplified representation of a message with its key information
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize, derive_setters::Setters)]
 #[setters(strip_option)]
 #[serde(rename_all = "snake_case")]
-pub struct SummaryMessage {
+pub struct SummaryBlock {
     pub role: Role,
-    pub contents: Vec<SummaryMessageContent>,
+    pub contents: Vec<SummaryMessage>,
 }
 
 /// A message block that can be either content or a tool call
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum SummaryMessageContent {
+pub enum SummaryMessage {
     Text(String),
     ToolCall(SummaryToolCall),
 }
@@ -42,19 +42,19 @@ pub struct SummaryToolCall {
 
 impl ContextSummary {
     /// Creates a new ContextSummary with the given messages
-    pub fn new(messages: Vec<SummaryMessage>) -> Self {
+    pub fn new(messages: Vec<SummaryBlock>) -> Self {
         Self { messages }
     }
 }
 
-impl SummaryMessage {
+impl SummaryBlock {
     /// Creates a new SummaryMessage with the given role and blocks
-    pub fn new(role: Role, blocks: Vec<SummaryMessageContent>) -> Self {
+    pub fn new(role: Role, blocks: Vec<SummaryMessage>) -> Self {
         Self { role, contents: blocks }
     }
 }
 
-impl SummaryMessageContent {
+impl SummaryMessage {
     /// Creates a content block
     pub fn content(text: impl Into<String>) -> Self {
         Self::Text(text.into())
@@ -277,7 +277,7 @@ pub enum SummaryTool {
 impl From<&Context> for ContextSummary {
     fn from(value: &Context) -> Self {
         let mut messages = vec![];
-        let mut buffer: Vec<SummaryMessageContent> = vec![];
+        let mut buffer: Vec<SummaryMessage> = vec![];
         let mut tool_results: HashMap<&ToolCallId, &ToolResult> = Default::default();
         let mut current_role = Role::System;
         for msg in &value.messages {
@@ -291,7 +291,7 @@ impl From<&Context> for ContextSummary {
                     if current_role != text_msg.role {
                         // Only push if buffer is not empty (avoid empty System role at start)
                         if !buffer.is_empty() {
-                            messages.push(SummaryMessage {
+                            messages.push(SummaryBlock {
                                 role: current_role,
                                 contents: std::mem::take(&mut buffer),
                             });
@@ -300,7 +300,7 @@ impl From<&Context> for ContextSummary {
                         current_role = text_msg.role;
                     }
 
-                    buffer.extend(Vec::<SummaryMessageContent>::from(text_msg));
+                    buffer.extend(Vec::<SummaryMessage>::from(text_msg));
                 }
                 ContextMessage::Tool(tool_result) => {
                     if let Some(ref call_id) = tool_result.call_id {
@@ -314,7 +314,7 @@ impl From<&Context> for ContextSummary {
         // Insert the last chunk if buffer is not empty
         if !buffer.is_empty() {
             messages
-                .push(SummaryMessage { role: current_role, contents: std::mem::take(&mut buffer) });
+                .push(SummaryBlock { role: current_role, contents: std::mem::take(&mut buffer) });
         }
 
         // Update tool call success status based on results
@@ -322,7 +322,7 @@ impl From<&Context> for ContextSummary {
             .iter_mut()
             .flat_map(|message| message.contents.iter_mut())
             .for_each(|block| {
-                if let SummaryMessageContent::ToolCall(tool_data) = block
+                if let SummaryMessage::ToolCall(tool_data) = block
                     && let Some(call_id) = &tool_data.id
                     && let Some(result) = tool_results.get(call_id)
                 {
@@ -334,20 +334,20 @@ impl From<&Context> for ContextSummary {
     }
 }
 
-impl From<&TextMessage> for Vec<SummaryMessageContent> {
+impl From<&TextMessage> for Vec<SummaryMessage> {
     fn from(text_msg: &TextMessage) -> Self {
         let mut blocks = vec![];
 
         // Add content block if there's text content
         if !text_msg.content.is_empty() {
-            blocks.push(SummaryMessageContent::Text(text_msg.content.clone()));
+            blocks.push(SummaryMessage::Text(text_msg.content.clone()));
         }
 
         // Add tool call blocks if present
         if let Some(calls) = &text_msg.tool_calls {
             blocks.extend(calls.iter().filter_map(|tool_call| {
                 extract_tool_info(tool_call).map(|call| {
-                    SummaryMessageContent::ToolCall(SummaryToolCall {
+                    SummaryMessage::ToolCall(SummaryToolCall {
                         id: tool_call.call_id.clone(),
                         tool: call,
                         is_success: false,
@@ -390,7 +390,7 @@ mod tests {
     use super::*;
     use crate::{ContextMessage, TextMessage, ToolCallArguments, ToolCallId, ToolName, ToolOutput};
 
-    type Block = SummaryMessageContent;
+    type Block = SummaryMessage;
 
     fn context(messages: Vec<ContextMessage>) -> Context {
         Context::default().messages(messages)
@@ -599,10 +599,10 @@ mod tests {
         let actual = ContextSummary::from(&fixture);
 
         let expected = ContextSummary::new(vec![
-            SummaryMessage::new(Role::User, vec![Block::content("Please help me")]),
-            SummaryMessage::new(Role::Assistant, vec![Block::content("Sure, I can help")]),
-            SummaryMessage::new(Role::User, vec![Block::content("Thanks")]),
-            SummaryMessage::new(Role::Assistant, vec![Block::content("You're welcome")]),
+            SummaryBlock::new(Role::User, vec![Block::content("Please help me")]),
+            SummaryBlock::new(Role::Assistant, vec![Block::content("Sure, I can help")]),
+            SummaryBlock::new(Role::User, vec![Block::content("Thanks")]),
+            SummaryBlock::new(Role::Assistant, vec![Block::content("You're welcome")]),
         ]);
 
         assert_eq!(actual, expected);
@@ -614,7 +614,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::User,
             vec![Block::content("User message")],
         )]);
@@ -631,7 +631,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Reading file"),
@@ -651,7 +651,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Writing file"),
@@ -671,7 +671,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Patching file"),
@@ -691,7 +691,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Removing file"),
@@ -711,7 +711,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Reading image"),
@@ -731,7 +731,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Running shell"),
@@ -755,7 +755,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Multiple operations"),
@@ -780,7 +780,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Reading file"),
@@ -803,7 +803,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Reading file"),
@@ -830,7 +830,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Multiple operations"),
@@ -858,7 +858,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Reading file"),
@@ -891,16 +891,16 @@ mod tests {
         let actual = ContextSummary::from(&fixture);
 
         let expected = ContextSummary::new(vec![
-            SummaryMessage::new(Role::User, vec![Block::content("Read this file")]),
-            SummaryMessage::new(
+            SummaryBlock::new(Role::User, vec![Block::content("Read this file")]),
+            SummaryBlock::new(
                 Role::Assistant,
                 vec![
                     Block::content("Reading"),
                     Block::read(Some(ToolCallId::new("call_1")), "/test/file1.rs"),
                 ],
             ),
-            SummaryMessage::new(Role::User, vec![Block::content("Now update it")]),
-            SummaryMessage::new(
+            SummaryBlock::new(Role::User, vec![Block::content("Now update it")]),
+            SummaryBlock::new(
                 Role::Assistant,
                 vec![
                     Block::content("Updating"),
@@ -927,8 +927,8 @@ mod tests {
         let actual = ContextSummary::from(&fixture);
 
         let expected = ContextSummary::new(vec![
-            SummaryMessage::new(Role::User, vec![Block::content("User message")]),
-            SummaryMessage::new(Role::Assistant, vec![Block::content("Assistant")]),
+            SummaryBlock::new(Role::User, vec![Block::content("User message")]),
+            SummaryBlock::new(Role::Assistant, vec![Block::content("Assistant")]),
         ]);
 
         assert_eq!(actual, expected);
@@ -972,7 +972,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Running command"),
@@ -996,7 +996,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Multiple operations"),
@@ -1026,7 +1026,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Searching"),
@@ -1059,7 +1059,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Searching files"),
@@ -1079,7 +1079,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Searching"),
@@ -1104,7 +1104,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Multiple operations"),
@@ -1183,7 +1183,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Undoing changes"),
@@ -1203,7 +1203,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Fetching data"),
@@ -1227,7 +1227,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Asking question"),
@@ -1251,7 +1251,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Creating plan"),
@@ -1271,7 +1271,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Undoing"),
@@ -1294,7 +1294,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Fetching"),
@@ -1314,7 +1314,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Asking"),
@@ -1334,7 +1334,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Planning"),
@@ -1364,7 +1364,7 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("All operations"),

@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::Transformer;
-use crate::compact::summary::{ContextSummary, SummaryMessageContent, SummaryTool};
+use crate::compact::summary::{ContextSummary, SummaryMessage, SummaryTool};
 
 /// Strips the working directory prefix from all file paths in tool calls.
 ///
@@ -64,7 +64,7 @@ impl Transformer for StripWorkingDir {
     fn transform(&mut self, mut summary: Self::Value) -> Self::Value {
         for message in summary.messages.iter_mut() {
             for block in message.contents.iter_mut() {
-                if let SummaryMessageContent::ToolCall(tool_data) = block {
+                if let SummaryMessage::ToolCall(tool_data) = block {
                     match &mut tool_data.tool {
                         SummaryTool::FileRead { path } => {
                             *path = self.strip_prefix(path);
@@ -100,7 +100,7 @@ mod tests {
 
     use super::*;
     use crate::Role;
-    use crate::compact::summary::{SummaryMessage, SummaryMessageContent as Block};
+    use crate::compact::summary::{SummaryBlock, SummaryMessage as Block};
 
     #[test]
     fn test_empty_summary() {
@@ -114,7 +114,7 @@ mod tests {
 
     #[test]
     fn test_strips_working_dir_from_file_read() {
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+        let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, "/home/user/project/src/main.rs"),
@@ -123,7 +123,7 @@ mod tests {
         )]);
         let actual = StripWorkingDir::new("/home/user/project").transform(fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, "src/main.rs"),
@@ -136,7 +136,7 @@ mod tests {
 
     #[test]
     fn test_strips_working_dir_from_file_update() {
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+        let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::update(None, "/home/user/project/src/lib.rs"),
@@ -145,7 +145,7 @@ mod tests {
         )]);
         let actual = StripWorkingDir::new("/home/user/project").transform(fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::update(None, "src/lib.rs"),
@@ -158,7 +158,7 @@ mod tests {
 
     #[test]
     fn test_strips_working_dir_from_file_remove() {
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+        let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::remove(None, "/home/user/project/old.rs"),
@@ -167,7 +167,7 @@ mod tests {
         )]);
         let actual = StripWorkingDir::new("/home/user/project").transform(fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::remove(None, "old.rs"),
@@ -180,7 +180,7 @@ mod tests {
 
     #[test]
     fn test_handles_paths_outside_working_dir() {
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+        let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, "/home/user/project/src/main.rs"),
@@ -190,7 +190,7 @@ mod tests {
         )]);
         let actual = StripWorkingDir::new("/home/user/project").transform(fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, "src/main.rs"),
@@ -204,7 +204,7 @@ mod tests {
 
     #[test]
     fn test_handles_mixed_tool_calls() {
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+        let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, "/home/user/project/src/main.rs"),
@@ -215,7 +215,7 @@ mod tests {
         )]);
         let actual = StripWorkingDir::new("/home/user/project").transform(fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, "src/main.rs"),
@@ -231,18 +231,18 @@ mod tests {
     #[test]
     fn test_handles_multiple_messages_and_roles() {
         let fixture = ContextSummary::new(vec![
-            SummaryMessage::new(
+            SummaryBlock::new(
                 Role::User,
                 vec![Block::read(None, "/home/user/project/src/main.rs")],
             ),
-            SummaryMessage::new(
+            SummaryBlock::new(
                 Role::Assistant,
                 vec![
                     Block::read(None, "/home/user/project/src/lib.rs"),
                     Block::update(None, "/home/user/project/README.md"),
                 ],
             ),
-            SummaryMessage::new(
+            SummaryBlock::new(
                 Role::User,
                 vec![Block::remove(None, "/home/user/project/old.rs")],
             ),
@@ -250,15 +250,15 @@ mod tests {
         let actual = StripWorkingDir::new("/home/user/project").transform(fixture);
 
         let expected = ContextSummary::new(vec![
-            SummaryMessage::new(Role::User, vec![Block::read(None, "src/main.rs")]),
-            SummaryMessage::new(
+            SummaryBlock::new(Role::User, vec![Block::read(None, "src/main.rs")]),
+            SummaryBlock::new(
                 Role::Assistant,
                 vec![
                     Block::read(None, "src/lib.rs"),
                     Block::update(None, "README.md"),
                 ],
             ),
-            SummaryMessage::new(Role::User, vec![Block::remove(None, "old.rs")]),
+            SummaryBlock::new(Role::User, vec![Block::remove(None, "old.rs")]),
         ]);
 
         assert_eq!(actual, expected);
@@ -266,7 +266,7 @@ mod tests {
 
     #[test]
     fn test_preserves_blocks_without_tool_calls() {
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+        let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Some text content"),
@@ -276,7 +276,7 @@ mod tests {
         )]);
         let actual = StripWorkingDir::new("/home/user/project").transform(fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::content("Some text content"),
@@ -290,13 +290,13 @@ mod tests {
 
     #[test]
     fn test_handles_trailing_slash_in_working_dir() {
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+        let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![Block::read(None, "/home/user/project/src/main.rs")],
         )]);
         let actual = StripWorkingDir::new("/home/user/project/").transform(fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![Block::read(None, "src/main.rs")],
         )]);
@@ -306,7 +306,7 @@ mod tests {
 
     #[test]
     fn test_handles_relative_paths() {
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+        let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, "src/main.rs"),
@@ -316,7 +316,7 @@ mod tests {
         )]);
         let actual = StripWorkingDir::new("/home/user/project").transform(fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, "src/main.rs"),
@@ -330,7 +330,7 @@ mod tests {
 
     #[test]
     fn test_strips_windows_paths() {
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+        let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, r"C:\Users\user\project\src\main.rs"),
@@ -351,7 +351,7 @@ mod tests {
 
         // On Unix, Windows paths are not recognized, so they remain unchanged
         #[cfg(not(windows))]
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, r"C:\Users\user\project\src\main.rs"),
@@ -364,7 +364,7 @@ mod tests {
 
     #[test]
     fn test_strips_windows_paths_with_forward_slashes() {
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+        let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, "C:/Users/user/project/src/main.rs"),
@@ -373,7 +373,7 @@ mod tests {
         )]);
         let actual = StripWorkingDir::new("C:/Users/user/project").transform(fixture);
 
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, "src/main.rs"),
@@ -386,7 +386,7 @@ mod tests {
 
     #[test]
     fn test_strips_windows_paths_mixed_slashes() {
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+        let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, r"C:\Users\user\project\src\main.rs"),
@@ -405,7 +405,7 @@ mod tests {
         )]);
 
         #[cfg(not(windows))]
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, r"C:\Users\user\project\src\main.rs"),
@@ -418,7 +418,7 @@ mod tests {
 
     #[test]
     fn test_handles_windows_paths_outside_working_dir() {
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+        let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, r"C:\Users\user\project\src\main.rs"),
@@ -439,7 +439,7 @@ mod tests {
         )]);
 
         #[cfg(not(windows))]
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, r"C:\Users\user\project\src\main.rs"),
@@ -453,7 +453,7 @@ mod tests {
 
     #[test]
     fn test_handles_windows_unc_paths() {
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+        let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, r"\\server\share\project\src\main.rs"),
@@ -472,7 +472,7 @@ mod tests {
         )]);
 
         #[cfg(not(windows))]
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, r"\\server\share\project\src\main.rs"),
@@ -485,7 +485,7 @@ mod tests {
 
     #[test]
     fn test_handles_windows_trailing_backslash() {
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+        let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![Block::read(None, r"C:\Users\user\project\src\main.rs")],
         )]);
@@ -498,7 +498,7 @@ mod tests {
         )]);
 
         #[cfg(not(windows))]
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![Block::read(None, r"C:\Users\user\project\src\main.rs")],
         )]);
@@ -510,7 +510,7 @@ mod tests {
     fn test_windows_case_sensitivity() {
         // On Windows, paths are case-insensitive, but we preserve the original case
         // when stripping. This test verifies case-sensitive matching behavior.
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+        let fixture = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, r"C:\Users\User\Project\src\main.rs"),
@@ -532,7 +532,7 @@ mod tests {
         )]);
 
         #[cfg(not(windows))]
-        let expected = ContextSummary::new(vec![SummaryMessage::new(
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
             Role::Assistant,
             vec![
                 Block::read(None, r"C:\Users\User\Project\src\main.rs"),
@@ -546,18 +546,18 @@ mod tests {
     #[test]
     fn test_windows_multiple_messages_and_roles() {
         let fixture = ContextSummary::new(vec![
-            SummaryMessage::new(
+            SummaryBlock::new(
                 Role::User,
                 vec![Block::read(None, r"C:\project\src\main.rs")],
             ),
-            SummaryMessage::new(
+            SummaryBlock::new(
                 Role::Assistant,
                 vec![
                     Block::read(None, r"C:\project\src\lib.rs"),
                     Block::update(None, r"C:\project\README.md"),
                 ],
             ),
-            SummaryMessage::new(Role::User, vec![Block::remove(None, r"C:\project\old.rs")]),
+            SummaryBlock::new(Role::User, vec![Block::remove(None, r"C:\project\old.rs")]),
         ]);
         let actual = StripWorkingDir::new(r"C:\project").transform(fixture);
 
@@ -576,18 +576,18 @@ mod tests {
 
         #[cfg(not(windows))]
         let expected = ContextSummary::new(vec![
-            SummaryMessage::new(
+            SummaryBlock::new(
                 Role::User,
                 vec![Block::read(None, r"C:\project\src\main.rs")],
             ),
-            SummaryMessage::new(
+            SummaryBlock::new(
                 Role::Assistant,
                 vec![
                     Block::read(None, r"C:\project\src\lib.rs"),
                     Block::update(None, r"C:\project\README.md"),
                 ],
             ),
-            SummaryMessage::new(Role::User, vec![Block::remove(None, r"C:\project\old.rs")]),
+            SummaryBlock::new(Role::User, vec![Block::remove(None, r"C:\project\old.rs")]),
         ]);
 
         assert_eq!(actual, expected);
