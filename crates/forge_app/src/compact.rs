@@ -798,7 +798,6 @@ mod tests {
 
     #[test]
     fn test_create_usage_overflow_saturation() {
-        // Test saturating behavior when summary reduces more tokens than available
         let before = Usage {
             prompt_tokens: TokenCount::Actual(100),
             completion_tokens: TokenCount::Actual(50),
