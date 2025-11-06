@@ -1447,7 +1447,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Try to open browser automatically
         if let Err(e) = open::that(request.authorization_url.as_str()) {
-            eprintln!("Failed to open browser automatically: {}", e);
+            self.writeln_title(TitleFormat::error(format!(
+                "Failed to open browser automatically: {}",
+                e
+            )))?;
         }
 
         // Prompt user to paste authorization code
