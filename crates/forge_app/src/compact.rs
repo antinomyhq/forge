@@ -218,8 +218,8 @@ fn create_usage(before: Option<Usage>, summary: Option<Usage>) -> Option<Usage> 
     };
 
     // Rough estimation of the overhead added by compaction prompt.
-    let rough_overhead_of_compaction = 520;
-
+    let rough_overhead_of_compaction = 600;
+    
     // After
     let prompt_tokens = TokenCount::Approx(
         summary.completion_tokens.saturating_add(
