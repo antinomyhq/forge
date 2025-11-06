@@ -2,19 +2,24 @@ use std::sync::{Arc, Mutex};
 
 use derive_setters::Setters;
 
-use crate::{ArcSender, ChatResponse, ChatResponseContent, Metrics, TitleFormat};
+use crate::{ActivePlan, ArcSender, ChatResponse, ChatResponseContent, Metrics, TitleFormat};
 
 /// Provides additional context for tool calls.
 #[derive(Debug, Clone, Setters)]
 pub struct ToolCallContext {
     sender: Option<ArcSender>,
     metrics: Arc<Mutex<Metrics>>,
+    active_plan: Arc<Mutex<Option<ActivePlan>>>,
 }
 
 impl ToolCallContext {
     /// Creates a new ToolCallContext with default values
     pub fn new(metrics: Metrics) -> Self {
-        Self { sender: None, metrics: Arc::new(Mutex::new(metrics)) }
+        Self {
+            sender: None,
+            metrics: Arc::new(Mutex::new(metrics)),
+            active_plan: Arc::new(Mutex::new(None)),
+        }
     }
 
     /// Send a message through the sender if available
@@ -46,6 +51,25 @@ impl ToolCallContext {
             .lock()
             .map_err(|_| anyhow::anyhow!("Failed to acquire metrics lock"))?;
         Ok(f(&mut metrics))
+    }
+
+    /// Set the active plan path
+    pub fn set_active_plan(&self, plan: ActivePlan) -> anyhow::Result<()> {
+        let mut active_plan = self
+            .active_plan
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire active_plan lock"))?;
+        *active_plan = Some(plan);
+        Ok(())
+    }
+
+    /// Get the active plan path
+    pub fn get_active_plan(&self) -> anyhow::Result<Option<ActivePlan>> {
+        let active_plan = self
+            .active_plan
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire active_plan lock"))?;
+        Ok(active_plan.clone())
     }
 }
 

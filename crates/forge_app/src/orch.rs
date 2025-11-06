@@ -12,6 +12,7 @@ use tracing::{debug, info, warn};
 
 use crate::agent::AgentService;
 use crate::compact::Compactor;
+use crate::plan_execution_watcher::PlanExecutionWatcher;
 use crate::title_generator::TitleGenerator;
 
 #[derive(Clone, Setters)]
@@ -231,6 +232,11 @@ impl<S: AgentService> Orchestrator<S> {
         // FIXME: Move into app.rs
         let title = self.generate_title(model_id.clone());
 
+        // Initialize plan execution watcher
+        let mut plan_watcher =
+            PlanExecutionWatcher::new(self.services.clone(), &self.agent, &tool_context);
+        context = plan_watcher.init_context(context).await?;
+
         while !should_yield {
             // Set context for the current loop iteration
             self.conversation.context = Some(context.clone());
@@ -389,6 +395,8 @@ impl<S: AgentService> Orchestrator<S> {
                     should_yield = true;
                 }
             }
+
+            (context, should_yield) = plan_watcher.update_context(context, should_yield).await?;
         }
 
         // Update metrics in conversation

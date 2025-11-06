@@ -10,7 +10,7 @@ use crate::utils::format_display_path;
 use crate::{
     ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
     FsReadService, FsRemoveService, FsSearchService, FsUndoService, ImageReadService,
-    NetFetchService, PlanCreateService, PolicyService,
+    NetFetchService, PlanCreateService, PolicyService, plan_parser,
 };
 
 pub struct ToolExecutor<S> {
@@ -149,7 +149,11 @@ impl<
         Ok(path)
     }
 
-    async fn call_internal(&self, input: Tools) -> anyhow::Result<ToolOperation> {
+    async fn call_internal(
+        &self,
+        input: Tools,
+        context: &ToolCallContext,
+    ) -> anyhow::Result<ToolOperation> {
         Ok(match input {
             Tools::Read(input) => {
                 let normalized_path = self.normalize_path(input.path.clone());
@@ -266,6 +270,41 @@ impl<
                     .await?;
                 (input, output).into()
             }
+
+            Tools::PlanStart(input) => {
+                let path = &input.path;
+                let normalized_path = self.normalize_path(path.display().to_string());
+
+                // Read the plan file using the service
+                let content = self
+                    .services
+                    .read(normalized_path, None, None)
+                    .await?
+                    .content
+                    .file_content()
+                    .to_string();
+
+                // Parse the plan using the plan parser
+                let active_plan = plan_parser::parse_plan(path.clone(), &content);
+
+                // Set the active plan in context
+                context.set_active_plan(active_plan.clone())?;
+
+                let output = format!(
+                    "Plan execution started: {} (Total: {}, Todo: {}, In Progress: {}, Completed: {}, Failed: {})",
+                    path.display(),
+                    active_plan.total(),
+                    active_plan.todo(),
+                    active_plan.in_progress(),
+                    active_plan.completed(),
+                    active_plan.failed()
+                );
+
+                ToolOperation::PlanStart {
+                    input: input.clone(),
+                    output: forge_domain::ToolOutput::text(output),
+                }
+            }
         })
     }
 
@@ -295,13 +334,42 @@ impl<
         //     ));
         // }
 
-        let execution_result = self.call_internal(tool_input.clone()).await;
+        let execution_result = self.call_internal(tool_input.clone(), context).await;
 
         if let Err(ref error) = execution_result {
             tracing::error!(error = ?error, "Tool execution failed");
         }
 
         let operation = execution_result?;
+
+        // If an edit operation was performed on the active plan file, reload and update
+        // it
+        if let Some(active_plan) = context.get_active_plan()? {
+            let edited_path = match &operation {
+                ToolOperation::FsCreate { input, .. } => Some(PathBuf::from(&input.path)),
+                ToolOperation::FsPatch { input, .. } => Some(PathBuf::from(&input.path)),
+                ToolOperation::FsUndo { input, .. } => Some(PathBuf::from(&input.path)),
+                _ => None,
+            };
+
+            if let Some(edited_path) = edited_path
+                && edited_path == active_plan.path
+            {
+                // Reload the plan file
+                let normalized_path = self.normalize_path(edited_path.display().to_string());
+                let content = self
+                    .services
+                    .read(normalized_path, None, None)
+                    .await?
+                    .content
+                    .file_content()
+                    .to_string();
+
+                // Parse and update the active plan
+                let updated_plan = plan_parser::parse_plan(edited_path, &content);
+                context.set_active_plan(updated_plan)?;
+            }
+        }
 
         // Send formatted output message
         if let Some(output) = operation.to_content(&env) {
