@@ -216,10 +216,19 @@ fn create_usage(before: Option<Usage>, summary: Option<Usage>) -> Option<Usage> 
     let (Some(before), Some(summary)) = (before, summary) else {
         return None;
     };
-
+    
+    // Rough estimation of the overhead added by compaction prompt.
+    let rough_overhead_of_compaction = 520;
+    
     // After
     let prompt_tokens = TokenCount::Approx(
-        *summary.completion_tokens + *before.prompt_tokens - *summary.prompt_tokens,
+        summary.completion_tokens.saturating_add(
+            before.prompt_tokens.saturating_sub(
+                summary
+                    .prompt_tokens
+                    .saturating_sub(rough_overhead_of_compaction),
+            ),
+        ),
     );
     let completion_tokens = before.completion_tokens;
     Some(Usage {
