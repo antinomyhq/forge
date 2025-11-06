@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use forge_domain::*;
+use forge_domain::{extract_tag_content, *};
 
 use crate::{
     AppConfigService, EnvironmentInfra, EnvironmentService, ExecutedCommands, FileReaderInfra,
@@ -77,6 +77,10 @@ impl<S: Services, F: EnvironmentInfra + FileReaderInfra> CommandGenerator<S, F> 
             .await?;
         let message = stream.into_full(false).await?;
 
-        Ok(message.content)
+        // Extract the command from the <command> tag
+        let command = extract_tag_content(&message.content, "command")
+            .ok_or_else(|| anyhow::anyhow!("Failed to extract <command> tag from LLM response"))?;
+
+        Ok(command.to_string())
     }
 }
