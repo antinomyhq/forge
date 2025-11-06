@@ -41,8 +41,10 @@ impl<S: AS> TitleGenerator<S> {
     }
 
     pub async fn generate(&self) -> anyhow::Result<Option<String>> {
-        let template = TemplateEngine
-            .render_template("{{> forge-system-prompt-title-generation.md }}", &())?;
+        let template = TemplateEngine::default().render(
+            "{{> forge-system-prompt-title-generation.md }}",
+            &Default::default(),
+        )?;
 
         let prompt = format!("<user_prompt>{}</user_prompt>", self.user_prompt.as_str());
         let mut ctx = Context::default()

@@ -16,7 +16,7 @@ pub struct ForgeTemplateService<F> {
 
 impl<F: EnvironmentInfra + FileReaderInfra> ForgeTemplateService<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        let hb = forge_app::create_handlebars();
+        let hb = forge_app::TemplateEngine::handlebar_instance();
         Self { hb: Arc::new(RwLock::new(hb)), infra }
     }
 

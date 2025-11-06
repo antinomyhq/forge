@@ -1,3 +1,4 @@
+use forge_domain::Template;
 use handlebars::{Handlebars, no_escape};
 use lazy_static::lazy_static;
 use rust_embed::Embed;
@@ -16,7 +17,7 @@ struct TemplateSource;
 ///
 /// This is useful for creating standalone Handlebars instances with consistent
 /// configuration across the application.
-pub fn create_handlebars() -> Handlebars<'static> {
+fn create_handlerbar() -> Handlebars<'static> {
     let mut hb = Handlebars::new();
     hb.set_strict_mode(true);
     hb.register_escape_fn(no_escape);
@@ -79,5 +80,34 @@ lazy_static! {
     ///
     /// Use this instance for template rendering throughout the application to avoid
     /// creating multiple Handlebars instances.
-    pub static ref TemplateEngine: Handlebars<'static> = create_handlebars();
+    static ref HANDLEBARS: Handlebars<'static> = create_handlerbar();
+}
+
+/// A wrapper around the Handlebars template engine providing a simplified API.
+///
+/// This struct provides a clean interface for template rendering using the
+/// `Template` type from the domain layer.
+pub struct TemplateEngine<'a> {
+    handlebar: Handlebars<'a>,
+}
+
+impl<'a> TemplateEngine<'a> {
+    /// Renders a template with the provided data.
+
+    pub fn render<V: serde::Serialize>(
+        &self,
+        template: impl Into<Template<V>>,
+        data: &V,
+    ) -> anyhow::Result<String> {
+        let template = template.into();
+        Ok(self.handlebar.render(&template.template, data)?)
+    }
+
+    pub fn handlebar_instance() -> Handlebars<'static> {
+        create_handlerbar()
+    }
+
+    pub(crate) fn default() -> Self {
+        TemplateEngine { handlebar: HANDLEBARS.clone() }
+    }
 }

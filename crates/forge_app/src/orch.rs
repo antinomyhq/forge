@@ -336,8 +336,8 @@ impl<S: AgentService> Orchestrator<S> {
                         "attempts_left": attempts_left,
                         "allowed_max_attempts": allowed_max_attempts,
                     });
-                    let text = TemplateEngine
-                        .render_template("{{> forge-tool-retry-message.md }}", &context)?;
+                    let text = TemplateEngine::default()
+                        .render("{{> forge-tool-retry-message.md }}", &context)?;
                     let message = Element::new("retry").text(text);
 
                     result.output.combine_mut(ToolOutput::text(message));

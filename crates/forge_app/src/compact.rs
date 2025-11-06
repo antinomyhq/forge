@@ -85,7 +85,7 @@ impl Compactor {
             "Created context compaction summary"
         );
 
-        let summary = TemplateEngine.render_template(
+        let summary = TemplateEngine::default().render(
             "{{> forge-partial-summary-frame.md}}",
             &serde_json::json!({
                 "messages": context_summary.messages
@@ -327,7 +327,7 @@ mod tests {
     }
 
     async fn render_template(data: &serde_json::Value) -> String {
-        TemplateEngine
+        TemplateEngine::default()
             .render("forge-partial-summary-frame.md", data)
             .unwrap()
     }
