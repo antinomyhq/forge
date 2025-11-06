@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use forge_domain::{Agent, ToolDefinition, ToolName};
-use globset::Glob;
+use glob::Pattern;
 
 /// Service that resolves tool definitions for agents based on their configured
 /// tool list
@@ -24,42 +24,41 @@ impl ToolResolver {
     /// duplicate tool definitions. Returns tools sorted alphabetically by name.
     /// Returns references to avoid unnecessary cloning.
     pub fn resolve<'a>(&'a self, agent: &Agent) -> Vec<&'a ToolDefinition> {
-        let matchers = Self::build_matchers(agent);
-        let mut resolved = self.match_tools(&matchers);
+        let patterns = Self::build_patterns(agent);
+        let mut resolved = self.match_tools(&patterns);
         self.dedupe_tools(&mut resolved);
         self.sort_tools(&mut resolved);
         resolved
     }
 
-    fn is_allowed_pattern(matchers: &[globset::GlobMatcher], tool_name: &ToolName) -> bool {
-        matchers
+    fn is_allowed_pattern(patterns: &[Pattern], tool_name: &ToolName) -> bool {
+        patterns
             .iter()
-            .any(|pattern| pattern.is_match(tool_name.as_str()))
+            .any(|pattern| pattern.matches(tool_name.as_str()))
     }
 
     pub fn is_allowed(agent: &Agent, tool_name: &ToolName) -> bool {
-        Self::is_allowed_pattern(&Self::build_matchers(agent), tool_name)
+        Self::is_allowed_pattern(&Self::build_patterns(agent), tool_name)
     }
 
-    /// Builds glob matchers from the agent's tool patterns, deduplicating
+    /// Builds glob patterns from the agent's tool patterns, deduplicating
     /// patterns
-    fn build_matchers(agent: &Agent) -> Vec<globset::GlobMatcher> {
+    fn build_patterns(agent: &Agent) -> Vec<Pattern> {
         agent
             .tools
             .iter()
             .flatten()
             .collect::<HashSet<_>>()
             .into_iter()
-            .filter_map(|pattern| Glob::new(pattern.as_str()).ok())
-            .map(|glob| glob.compile_matcher())
+            .filter_map(|pattern| Pattern::new(pattern.as_str()).ok())
             .collect()
     }
 
     /// Matches tool definitions against glob patterns
-    fn match_tools<'a>(&'a self, matchers: &[globset::GlobMatcher]) -> Vec<&'a ToolDefinition> {
+    fn match_tools<'a>(&'a self, patterns: &[Pattern]) -> Vec<&'a ToolDefinition> {
         self.all_tool_definitions
             .iter()
-            .filter(|tool| Self::is_allowed_pattern(matchers, &tool.name))
+            .filter(|tool| Self::is_allowed_pattern(patterns, &tool.name))
             .collect()
     }
 

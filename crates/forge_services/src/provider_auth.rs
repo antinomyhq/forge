@@ -1,0 +1,128 @@
+use std::sync::Arc;
+use std::time::Duration;
+
+use forge_app::{AuthStrategy, ProviderAuthService, StrategyFactory};
+use forge_domain::{
+    AuthContextRequest, AuthContextResponse, AuthCredential, AuthMethod, Provider, ProviderId,
+    ProviderRepository,
+};
+
+/// Forge Provider Authentication Service
+#[derive(Clone)]
+pub struct ForgeProviderAuthService<I> {
+    infra: Arc<I>,
+}
+
+impl<I> ForgeProviderAuthService<I> {
+    /// Create a new provider authentication service
+    pub fn new(infra: Arc<I>) -> Self {
+        Self { infra }
+    }
+}
+
+#[async_trait::async_trait]
+impl<I> ProviderAuthService for ForgeProviderAuthService<I>
+where
+    I: StrategyFactory + ProviderRepository + Send + Sync + 'static,
+{
+    /// Initialize authentication flow for a provider
+    async fn init_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        auth_method: AuthMethod,
+    ) -> anyhow::Result<AuthContextRequest> {
+        // Get required URL parameters for API key flow
+        let required_params = if matches!(auth_method, AuthMethod::ApiKey) {
+            // Get URL params from provider entry (works for both configured and
+            // unconfigured)
+            let providers = self.infra.get_all_providers().await?;
+            let provider = providers
+                .iter()
+                .find(|p| p.id() == provider_id)
+                .ok_or_else(|| forge_domain::Error::provider_not_available(provider_id))?;
+            provider.url_params().to_vec()
+        } else {
+            vec![]
+        };
+
+        // Create appropriate strategy and initialize
+        let strategy =
+            self.infra
+                .create_auth_strategy(provider_id, auth_method, required_params)?;
+        strategy.init().await
+    }
+
+    /// Complete authentication flow for a provider
+    async fn complete_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        auth_context_response: AuthContextResponse,
+        _timeout: Duration,
+    ) -> anyhow::Result<()> {
+        // Extract auth method from context response
+        let auth_method = match &auth_context_response {
+            AuthContextResponse::ApiKey(_) => AuthMethod::ApiKey,
+            AuthContextResponse::Code(ctx) => {
+                AuthMethod::OAuthCode(ctx.request.oauth_config.clone())
+            }
+            AuthContextResponse::DeviceCode(ctx) => {
+                AuthMethod::OAuthDevice(ctx.request.oauth_config.clone())
+            }
+        };
+
+        // Get required params for API key flow
+        let required_params = if matches!(auth_method, AuthMethod::ApiKey) {
+            // Get URL params from provider entry (works for both configured and
+            // unconfigured)
+            let providers = self.infra.get_all_providers().await?;
+            let provider = providers
+                .iter()
+                .find(|p| p.id() == provider_id)
+                .ok_or_else(|| forge_domain::Error::provider_not_available(provider_id))?;
+            provider.url_params().to_vec()
+        } else {
+            vec![]
+        };
+
+        // Create strategy and complete authentication
+        let strategy =
+            self.infra
+                .create_auth_strategy(provider_id, auth_method, required_params)?;
+        let credential = strategy.complete(auth_context_response).await?;
+
+        // Store credential
+        self.infra.upsert_credential(credential).await
+    }
+
+    /// Refresh provider credential
+    async fn refresh_provider_credential(
+        &self,
+        provider: &Provider<url::Url>,
+        auth_method: AuthMethod,
+    ) -> anyhow::Result<AuthCredential> {
+        // Get existing credential
+        let credential = self
+            .infra
+            .get_credential(&provider.id)
+            .await?
+            .ok_or_else(|| forge_domain::Error::ProviderNotAvailable { provider: provider.id })?;
+
+        // Get required params (only used for API key, but needed for factory)
+        let required_params = if matches!(auth_method, AuthMethod::ApiKey) {
+            provider.url_params.clone()
+        } else {
+            vec![]
+        };
+
+        // Create strategy and refresh credential
+        let strategy =
+            self.infra
+                .create_auth_strategy(provider.id, auth_method, required_params)?;
+        let refreshed = strategy.refresh(&credential).await?;
+
+        // Store refreshed credential
+        self.infra.upsert_credential(refreshed.clone()).await?;
+
+        Ok(refreshed)
+    }
+}
