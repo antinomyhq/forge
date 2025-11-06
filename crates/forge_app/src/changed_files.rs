@@ -27,13 +27,12 @@ impl<S: FsReadService + TemplateService> ChangedFiles<S> {
         mut conversation: Conversation,
     ) -> Conversation {
         use crate::file_tracking::FileChangeDetector;
-        let mut context = conversation.context.take().unwrap_or_default();
         let changes = FileChangeDetector::new(self.services.clone())
             .detect(&conversation.metrics)
             .await;
 
         if changes.is_empty() {
-            return conversation.context(context);
+            return conversation;
         }
 
         // Update file hashes to prevent duplicate notifications
@@ -58,13 +57,14 @@ impl<S: FsReadService + TemplateService> ChangedFiles<S> {
             )
             .await
         {
-            context = context.add_message(ContextMessage::user(
+            let context = conversation.context.take().unwrap_or_default();
+            conversation = conversation.context(context.add_message(ContextMessage::user(
                 rendered_prompt,
                 self.agent.model.clone(),
-            ))
+            )))
         }
 
-        conversation.context(context)
+        conversation
     }
 }
 
