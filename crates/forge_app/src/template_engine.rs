@@ -1,9 +1,10 @@
 use handlebars::{Handlebars, no_escape};
+use lazy_static::lazy_static;
 use rust_embed::Embed;
 
 #[derive(Embed)]
 #[folder = "../../templates/"]
-pub struct Templates;
+struct TemplateSource;
 
 /// Creates a new Handlebars instance with all custom helpers registered.
 ///
@@ -61,7 +62,22 @@ pub fn create_handlebars() -> Handlebars<'static> {
     );
 
     // Register all partial templates
-    hb.register_embed_templates::<Templates>().unwrap();
+    hb.register_embed_templates::<TemplateSource>().unwrap();
 
     hb
+}
+
+lazy_static! {
+    /// Global template engine instance with all custom helpers and templates registered.
+    ///
+    /// This static instance is lazily initialized on first access and provides:
+    /// - The 'inc' helper for incrementing values (useful for 1-based indexing)
+    /// - The 'json' helper for serializing values to JSON strings
+    /// - Strict mode enabled
+    /// - No HTML escaping
+    /// - All embedded templates registered
+    ///
+    /// Use this instance for template rendering throughout the application to avoid
+    /// creating multiple Handlebars instances.
+    pub static ref TemplateEngine: Handlebars<'static> = create_handlebars();
 }
