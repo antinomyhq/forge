@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use forge_domain::{
     Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, DedupeRole, DropRole,
-    Role, Template, Transformer, TrimContextSummary,
+    Environment, Role, StripWorkingDir, Template, Transformer, TrimContextSummary,
 };
 use tracing::info;
 
@@ -12,11 +12,12 @@ use crate::agent::AgentService;
 pub struct Compactor<S> {
     services: Arc<S>,
     compact: Compact,
+    environment: Environment,
 }
 
 impl<S> Compactor<S> {
-    pub fn new(services: Arc<S>, compact: Compact) -> Self {
-        Self { services, compact }
+    pub fn new(services: Arc<S>, compact: Compact, environment: Environment) -> Self {
+        Self { services, compact, environment }
     }
 
     /// Applies the standard transformer pipeline to a context summary.
@@ -25,6 +26,7 @@ impl<S> Compactor<S> {
     /// 1. Drops system role messages
     /// 2. Trims context summary content
     /// 3. Deduplicates consecutive user messages
+    /// 4. Strips working directory from file paths
     ///
     /// # Arguments
     ///
@@ -33,6 +35,9 @@ impl<S> Compactor<S> {
         DropRole::new(Role::System)
             .pipe(DedupeRole::new(Role::User))
             .pipe(TrimContextSummary)
+            .pipe(StripWorkingDir::new(
+                self.environment.cwd.to_string_lossy().to_string(),
+            ))
             .transform(context_summary)
     }
 }
@@ -145,9 +150,17 @@ impl<S: AgentService> Compactor<S> {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use pretty_assertions::assert_eq;
 
     use super::*;
+
+    fn test_environment() -> Environment {
+        use fake::{Fake, Faker};
+        let env: Environment = Faker.fake();
+        env.cwd(std::path::PathBuf::from("/test/working/dir"))
+    }
 
     struct MockService;
 
@@ -189,7 +202,8 @@ mod tests {
     async fn test_compress_single_sequence_preserves_only_last_reasoning() {
         use forge_domain::ReasoningFull;
 
-        let compactor = Compactor::new(Arc::new(MockService), Compact::new());
+        let environment = test_environment();
+        let compactor = Compactor::new(Arc::new(MockService), Compact::new(), environment);
 
         let first_reasoning = vec![ReasoningFull {
             text: Some("First thought".to_string()),
@@ -244,7 +258,8 @@ mod tests {
     async fn test_compress_single_sequence_no_reasoning_accumulation() {
         use forge_domain::ReasoningFull;
 
-        let compactor = Compactor::new(Arc::new(MockService), Compact::new());
+        let environment = test_environment();
+        let compactor = Compactor::new(Arc::new(MockService), Compact::new(), environment);
 
         let reasoning = vec![ReasoningFull {
             text: Some("Original thought".to_string()),
@@ -308,7 +323,8 @@ mod tests {
     async fn test_compress_single_sequence_filters_empty_reasoning() {
         use forge_domain::ReasoningFull;
 
-        let compactor = Compactor::new(Arc::new(MockService), Compact::new());
+        let environment = test_environment();
+        let compactor = Compactor::new(Arc::new(MockService), Compact::new(), environment);
 
         let non_empty_reasoning = vec![ReasoningFull {
             text: Some("Valid thought".to_string()),
@@ -372,7 +388,10 @@ mod tests {
             .expect("Conversation should have context");
 
         // Create compactor instance for transformer access
-        let compactor = Compactor::new(Arc::new(MockService), Compact::new());
+        let environment = test_environment().cwd(PathBuf::from(
+            "/Users/tushar/Documents/Projects/code-forge-workspace/code-forge",
+        ));
+        let compactor = Compactor::new(Arc::new(MockService), Compact::new(), environment);
 
         // Create context summary with tool call information
         let context_summary = ContextSummary::from(&context);

@@ -178,7 +178,7 @@ impl<S: AgentService> Orchestrator<S> {
             && let Some(compact) = agent.compact.clone()
         {
             info!(agent_id = %agent.id, "Compaction needed");
-            Compactor::new(self.services.clone(), compact)
+            Compactor::new(self.services.clone(), compact, self.environment.clone())
                 .compact(context.clone(), false)
                 .await
                 .map(Some)
