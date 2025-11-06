@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 use crate::compact::summary::ContextSummary;
-use crate::compact::transformers::dedupe_assistant_content::DedupeAssistantContent;
 use crate::compact::transformers::dedupe_role::DedupeRole;
 use crate::compact::transformers::drop_role::DropRole;
 use crate::compact::transformers::strip_working_dir::StripWorkingDir;
@@ -43,7 +42,6 @@ impl Transformer for SummaryTransformer {
         DropRole::new(Role::System)
             .pipe(DedupeRole::new(Role::User))
             .pipe(TrimContextSummary)
-            .pipe(DedupeAssistantContent)
             .pipe(StripWorkingDir::new(self.working_dir.clone()))
             .transform(context_summary)
     }

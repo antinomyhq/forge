@@ -9,11 +9,17 @@ use crate::{Role, Transformer};
 /// size while preserving the final state of file operations.
 pub struct TrimContextSummary;
 
-fn extract_path(tool_call: &SummaryToolCall) -> &str {
+fn extract_path(tool_call: &SummaryToolCall) -> Option<&str> {
     match tool_call {
-        SummaryToolCall::FileRead { path } => path.as_str(),
-        SummaryToolCall::FileUpdate { path } => path.as_str(),
-        SummaryToolCall::FileRemove { path } => path.as_str(),
+        SummaryToolCall::FileRead { path } => Some(path.as_str()),
+        SummaryToolCall::FileUpdate { path } => Some(path.as_str()),
+        SummaryToolCall::FileRemove { path } => Some(path.as_str()),
+        SummaryToolCall::Undo { path } => Some(path.as_str()),
+        SummaryToolCall::Shell { .. }
+        | SummaryToolCall::Search { .. }
+        | SummaryToolCall::Fetch { .. }
+        | SummaryToolCall::Followup { .. }
+        | SummaryToolCall::Plan { .. } => None,
     }
 }
 
@@ -36,15 +42,16 @@ impl Transformer for TrimContextSummary {
                         continue;
                     }
 
-                    // Remove previous entry if it has no content
+                    // Remove previous entry if it has the same path
                     if let Some(SummaryMessageBlock::ToolCall(last_tool_data)) =
                         block_seq.last_mut()
+                        && let (Some(last_path), Some(path)) = (
+                            extract_path(&last_tool_data.call),
+                            extract_path(&current.call),
+                        )
+                        && last_path == path
                     {
-                        let last_path = extract_path(&last_tool_data.call);
-                        let path = extract_path(&current.call);
-                        if last_path == path {
-                            block_seq.pop();
-                        }
+                        block_seq.pop();
                     }
                 }
 
@@ -290,6 +297,113 @@ mod tests {
             vec![
                 Block::content("foo"),
                 Block::read(Some(ToolCallId::new("2")), "/test1"),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_preserves_shell_commands() {
+        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::shell(None, "cargo build"),
+                Block::shell(None, "cargo test"),
+                Block::shell(None, "cargo build"),
+            ],
+        )]);
+        let actual = TrimContextSummary.transform(fixture);
+
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::shell(None, "cargo build"),
+                Block::shell(None, "cargo test"),
+                Block::shell(None, "cargo build"),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_mixed_shell_and_file_operations() {
+        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::read(None, "/test.rs"),
+                Block::shell(None, "cargo build"),
+                Block::read(None, "/test.rs"),
+                Block::shell(None, "cargo test"),
+                Block::update(None, "/output.txt"),
+            ],
+        )]);
+        let actual = TrimContextSummary.transform(fixture);
+
+        // Shell commands break the deduplication chain, so both reads of /test.rs are
+        // preserved
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::read(None, "/test.rs"),
+                Block::shell(None, "cargo build"),
+                Block::read(None, "/test.rs"),
+                Block::shell(None, "cargo test"),
+                Block::update(None, "/output.txt"),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_filters_failed_shell_commands() {
+        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::shell_with_status(None, "cargo build", true),
+                Block::shell_with_status(None, "cargo test", false),
+                Block::shell_with_status(None, "cargo run", true),
+            ],
+        )]);
+        let actual = TrimContextSummary.transform(fixture);
+
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::shell_with_status(None, "cargo build", true),
+                Block::shell_with_status(None, "cargo run", true),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_shell_commands_between_file_operations_on_same_path() {
+        let fixture = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::read(None, "/test.rs"),
+                Block::shell(None, "cargo build"),
+                Block::read(None, "/test.rs"),
+                Block::shell(None, "cargo test"),
+                Block::read(None, "/test.rs"),
+            ],
+        )]);
+        let actual = TrimContextSummary.transform(fixture);
+
+        // Shell commands break the deduplication chain - all reads are preserved
+        // because shell commands are interspersed between them
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::read(None, "/test.rs"),
+                Block::shell(None, "cargo build"),
+                Block::read(None, "/test.rs"),
+                Block::shell(None, "cargo test"),
+                Block::read(None, "/test.rs"),
             ],
         )]);
 

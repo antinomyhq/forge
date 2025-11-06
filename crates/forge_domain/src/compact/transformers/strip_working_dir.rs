@@ -75,6 +75,16 @@ impl Transformer for StripWorkingDir {
                         SummaryToolCall::FileRemove { path } => {
                             *path = self.strip_prefix(path);
                         }
+                        SummaryToolCall::Undo { path } => {
+                            *path = self.strip_prefix(path);
+                        }
+                        SummaryToolCall::Shell { .. }
+                        | SummaryToolCall::Search { .. }
+                        | SummaryToolCall::Fetch { .. }
+                        | SummaryToolCall::Followup { .. }
+                        | SummaryToolCall::Plan { .. } => {
+                            // These tools don't have paths to strip
+                        }
                     }
                 }
             }

@@ -125,6 +125,138 @@ impl SummaryMessageBlock {
             tool_call_success: success,
         })
     }
+
+    /// Creates a Shell tool call block with success=true by default
+    pub fn shell(call_id: Option<ToolCallId>, command: impl Into<String>) -> Self {
+        Self::ToolCall(SummaryToolData {
+            tool_call_id: call_id,
+            call: SummaryToolCall::Shell { command: command.into() },
+            tool_call_success: true,
+        })
+    }
+
+    /// Creates a Shell tool call block with custom success status
+    pub fn shell_with_status(
+        call_id: Option<ToolCallId>,
+        command: impl Into<String>,
+        success: bool,
+    ) -> Self {
+        Self::ToolCall(SummaryToolData {
+            tool_call_id: call_id,
+            call: SummaryToolCall::Shell { command: command.into() },
+            tool_call_success: success,
+        })
+    }
+
+    /// Creates a Search tool call block with success=true by default
+    pub fn search(call_id: Option<ToolCallId>, path: impl Into<String>) -> Self {
+        Self::ToolCall(SummaryToolData {
+            tool_call_id: call_id,
+            call: SummaryToolCall::Search { pattern: path.into() },
+            tool_call_success: true,
+        })
+    }
+
+    /// Creates a Search tool call block with custom success status
+    pub fn search_with_status(
+        call_id: Option<ToolCallId>,
+        path: impl Into<String>,
+        success: bool,
+    ) -> Self {
+        Self::ToolCall(SummaryToolData {
+            tool_call_id: call_id,
+            call: SummaryToolCall::Search { pattern: path.into() },
+            tool_call_success: success,
+        })
+    }
+
+    /// Creates an Undo tool call block with success=true by default
+    pub fn undo(call_id: Option<ToolCallId>, path: impl Into<String>) -> Self {
+        Self::ToolCall(SummaryToolData {
+            tool_call_id: call_id,
+            call: SummaryToolCall::Undo { path: path.into() },
+            tool_call_success: true,
+        })
+    }
+
+    /// Creates an Undo tool call block with custom success status
+    pub fn undo_with_status(
+        call_id: Option<ToolCallId>,
+        path: impl Into<String>,
+        success: bool,
+    ) -> Self {
+        Self::ToolCall(SummaryToolData {
+            tool_call_id: call_id,
+            call: SummaryToolCall::Undo { path: path.into() },
+            tool_call_success: success,
+        })
+    }
+
+    /// Creates a Fetch tool call block with success=true by default
+    pub fn fetch(call_id: Option<ToolCallId>, url: impl Into<String>) -> Self {
+        Self::ToolCall(SummaryToolData {
+            tool_call_id: call_id,
+            call: SummaryToolCall::Fetch { url: url.into() },
+            tool_call_success: true,
+        })
+    }
+
+    /// Creates a Fetch tool call block with custom success status
+    pub fn fetch_with_status(
+        call_id: Option<ToolCallId>,
+        url: impl Into<String>,
+        success: bool,
+    ) -> Self {
+        Self::ToolCall(SummaryToolData {
+            tool_call_id: call_id,
+            call: SummaryToolCall::Fetch { url: url.into() },
+            tool_call_success: success,
+        })
+    }
+
+    /// Creates a Followup tool call block with success=true by default
+    pub fn followup(call_id: Option<ToolCallId>, question: impl Into<String>) -> Self {
+        Self::ToolCall(SummaryToolData {
+            tool_call_id: call_id,
+            call: SummaryToolCall::Followup { question: question.into() },
+            tool_call_success: true,
+        })
+    }
+
+    /// Creates a Followup tool call block with custom success status
+    pub fn followup_with_status(
+        call_id: Option<ToolCallId>,
+        question: impl Into<String>,
+        success: bool,
+    ) -> Self {
+        Self::ToolCall(SummaryToolData {
+            tool_call_id: call_id,
+            call: SummaryToolCall::Followup { question: question.into() },
+            tool_call_success: success,
+        })
+    }
+
+    /// Creates a Plan tool call block with success=true by default
+    pub fn plan(call_id: Option<ToolCallId>, plan_name: impl Into<String>) -> Self {
+        Self::ToolCall(SummaryToolData {
+            tool_call_id: call_id,
+            call: SummaryToolCall::Plan { plan_name: plan_name.into() },
+            tool_call_success: true,
+        })
+    }
+
+    /// Creates a Plan tool call block with custom success status
+    pub fn plan_with_status(
+        call_id: Option<ToolCallId>,
+        plan_name: impl Into<String>,
+        success: bool,
+    ) -> Self {
+        Self::ToolCall(SummaryToolData {
+            tool_call_id: call_id,
+            call: SummaryToolCall::Plan { plan_name: plan_name.into() },
+            tool_call_success: success,
+        })
+    }
 }
 
 /// Categorized tool call information for summary purposes
@@ -134,6 +266,12 @@ pub enum SummaryToolCall {
     FileRead { path: String },
     FileUpdate { path: String },
     FileRemove { path: String },
+    Shell { command: String },
+    Search { pattern: String },
+    Undo { path: String },
+    Fetch { url: String },
+    Followup { question: String },
+    Plan { plan_name: String },
 }
 
 impl From<&Context> for ContextSummary {
@@ -233,8 +371,15 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryToolCall> {
         Tools::Write(input) => Some(SummaryToolCall::FileUpdate { path: input.path }),
         Tools::Patch(input) => Some(SummaryToolCall::FileUpdate { path: input.path }),
         Tools::Remove(input) => Some(SummaryToolCall::FileRemove { path: input.path }),
-        // Other tools don't have specific summary info
-        _ => None,
+        Tools::Shell(input) => Some(SummaryToolCall::Shell { command: input.command }),
+        Tools::Search(input) => input
+            .file_pattern
+            .or(input.regex)
+            .map(|pattern| SummaryToolCall::Search { pattern }),
+        Tools::Undo(input) => Some(SummaryToolCall::Undo { path: input.path }),
+        Tools::Fetch(input) => Some(SummaryToolCall::Fetch { url: input.url }),
+        Tools::Followup(input) => Some(SummaryToolCall::Followup { question: input.question }),
+        Tools::Plan(input) => Some(SummaryToolCall::Plan { plan_name: input.plan_name }),
     }
 }
 
@@ -244,6 +389,8 @@ mod tests {
 
     use super::*;
     use crate::{ContextMessage, TextMessage, ToolCallArguments, ToolCallId, ToolName, ToolOutput};
+
+    type Block = SummaryMessageBlock;
 
     fn context(messages: Vec<ContextMessage>) -> Context {
         Context::default().messages(messages)
@@ -335,6 +482,54 @@ mod tests {
         }
     }
 
+    fn tool_call_search(call_id: &str, pattern: &str) -> ToolCallFull {
+        let args = format!(r#"{{"path": "/test", "regex": "{}"}}"#, pattern);
+        ToolCallFull {
+            name: ToolName::new("search"),
+            call_id: Some(ToolCallId::new(call_id)),
+            arguments: ToolCallArguments::from_json(&args),
+        }
+    }
+
+    fn tool_call_undo(call_id: &str, path: &str) -> ToolCallFull {
+        let args = format!(r#"{{"path": "{}"}}"#, path);
+        ToolCallFull {
+            name: ToolName::new("undo"),
+            call_id: Some(ToolCallId::new(call_id)),
+            arguments: ToolCallArguments::from_json(&args),
+        }
+    }
+
+    fn tool_call_fetch(call_id: &str, url: &str) -> ToolCallFull {
+        let args = format!(r#"{{"url": "{}"}}"#, url);
+        ToolCallFull {
+            name: ToolName::new("fetch"),
+            call_id: Some(ToolCallId::new(call_id)),
+            arguments: ToolCallArguments::from_json(&args),
+        }
+    }
+
+    fn tool_call_followup(call_id: &str, question: &str) -> ToolCallFull {
+        let args = format!(r#"{{"question": "{}"}}"#, question);
+        ToolCallFull {
+            name: ToolName::new("followup"),
+            call_id: Some(ToolCallId::new(call_id)),
+            arguments: ToolCallArguments::from_json(&args),
+        }
+    }
+
+    fn tool_call_plan(call_id: &str, plan_name: &str) -> ToolCallFull {
+        let args = format!(
+            r#"{{"plan_name": "{}", "version": "v1", "content": "test"}}"#,
+            plan_name
+        );
+        ToolCallFull {
+            name: ToolName::new("plan"),
+            call_id: Some(ToolCallId::new(call_id)),
+            arguments: ToolCallArguments::from_json(&args),
+        }
+    }
+
     fn tool_result(name: &str, call_id: &str, is_error: bool) -> ContextMessage {
         ContextMessage::Tool(ToolResult {
             name: ToolName::new(name),
@@ -343,43 +538,11 @@ mod tests {
         })
     }
 
-    fn summary_msg(role: Role, blocks: Vec<SummaryMessageBlock>) -> SummaryMessage {
-        SummaryMessage { role, blocks }
-    }
-
-    fn block_read(call_id: &str, path: &str, success: bool) -> SummaryMessageBlock {
-        SummaryMessageBlock::ToolCall(SummaryToolData {
-            tool_call_id: Some(ToolCallId::new(call_id)),
-            call: SummaryToolCall::FileRead { path: path.to_string() },
-            tool_call_success: success,
-        })
-    }
-
-    fn block_update(call_id: &str, path: &str, success: bool) -> SummaryMessageBlock {
-        SummaryMessageBlock::ToolCall(SummaryToolData {
-            tool_call_id: Some(ToolCallId::new(call_id)),
-            call: SummaryToolCall::FileUpdate { path: path.to_string() },
-            tool_call_success: success,
-        })
-    }
-
-    fn block_remove(call_id: &str, path: &str, success: bool) -> SummaryMessageBlock {
-        SummaryMessageBlock::ToolCall(SummaryToolData {
-            tool_call_id: Some(ToolCallId::new(call_id)),
-            call: SummaryToolCall::FileRemove { path: path.to_string() },
-            tool_call_success: success,
-        })
-    }
-
-    fn block_content(content: impl Into<String>) -> SummaryMessageBlock {
-        SummaryMessageBlock::Content(content.into())
-    }
-
     #[test]
     fn test_summary_message_block_read_helper() {
-        let actual = SummaryMessageBlock::read(None, "/path/to/file.rs");
+        let actual = Block::read(None, "/path/to/file.rs");
 
-        let expected = SummaryMessageBlock::ToolCall(SummaryToolData {
+        let expected = Block::ToolCall(SummaryToolData {
             tool_call_id: None,
             call: SummaryToolCall::FileRead { path: "/path/to/file.rs".to_string() },
             tool_call_success: true,
@@ -390,9 +553,9 @@ mod tests {
 
     #[test]
     fn test_summary_message_block_update_helper() {
-        let actual = SummaryMessageBlock::update(None, "/path/to/file.rs");
+        let actual = Block::update(None, "/path/to/file.rs");
 
-        let expected = SummaryMessageBlock::ToolCall(SummaryToolData {
+        let expected = Block::ToolCall(SummaryToolData {
             tool_call_id: None,
             call: SummaryToolCall::FileUpdate { path: "/path/to/file.rs".to_string() },
             tool_call_success: true,
@@ -403,9 +566,9 @@ mod tests {
 
     #[test]
     fn test_summary_message_block_remove_helper() {
-        let actual = SummaryMessageBlock::remove(None, "/path/to/file.rs");
+        let actual = Block::remove(None, "/path/to/file.rs");
 
-        let expected = SummaryMessageBlock::ToolCall(SummaryToolData {
+        let expected = Block::ToolCall(SummaryToolData {
             tool_call_id: None,
             call: SummaryToolCall::FileRemove { path: "/path/to/file.rs".to_string() },
             tool_call_success: true,
@@ -417,10 +580,9 @@ mod tests {
     #[test]
     fn test_context_summary_empty_context() {
         let fixture = Context::default();
-
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary { messages: vec![] };
+        let expected = ContextSummary::default();
 
         assert_eq!(actual, expected);
     }
@@ -436,14 +598,12 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary {
-            messages: vec![
-                summary_msg(Role::User, vec![block_content("Please help me")]),
-                summary_msg(Role::Assistant, vec![block_content("Sure, I can help")]),
-                summary_msg(Role::User, vec![block_content("Thanks")]),
-                summary_msg(Role::Assistant, vec![block_content("You're welcome")]),
-            ],
-        };
+        let expected = ContextSummary::new(vec![
+            SummaryMessage::new(Role::User, vec![Block::content("Please help me")]),
+            SummaryMessage::new(Role::Assistant, vec![Block::content("Sure, I can help")]),
+            SummaryMessage::new(Role::User, vec![Block::content("Thanks")]),
+            SummaryMessage::new(Role::Assistant, vec![Block::content("You're welcome")]),
+        ]);
 
         assert_eq!(actual, expected);
     }
@@ -454,9 +614,10 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary {
-            messages: vec![summary_msg(Role::User, vec![block_content("User message")])],
-        };
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::User,
+            vec![Block::content("User message")],
+        )]);
 
         assert_eq!(actual, expected);
     }
@@ -470,15 +631,13 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary {
-            messages: vec![summary_msg(
-                Role::Assistant,
-                vec![
-                    block_content("Reading file"),
-                    block_read("call_1", "/test/file.rs", false),
-                ],
-            )],
-        };
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Reading file"),
+                Block::read_with_status(Some(ToolCallId::new("call_1")), "/test/file.rs", false),
+            ],
+        )]);
 
         assert_eq!(actual, expected);
     }
@@ -492,15 +651,13 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary {
-            messages: vec![summary_msg(
-                Role::Assistant,
-                vec![
-                    block_content("Writing file"),
-                    block_update("call_1", "/test/file.rs", false),
-                ],
-            )],
-        };
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Writing file"),
+                Block::update_with_status(Some(ToolCallId::new("call_1")), "/test/file.rs", false),
+            ],
+        )]);
 
         assert_eq!(actual, expected);
     }
@@ -514,15 +671,13 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary {
-            messages: vec![summary_msg(
-                Role::Assistant,
-                vec![
-                    block_content("Patching file"),
-                    block_update("call_1", "/test/file.rs", false),
-                ],
-            )],
-        };
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Patching file"),
+                Block::update_with_status(Some(ToolCallId::new("call_1")), "/test/file.rs", false),
+            ],
+        )]);
 
         assert_eq!(actual, expected);
     }
@@ -536,15 +691,13 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary {
-            messages: vec![summary_msg(
-                Role::Assistant,
-                vec![
-                    block_content("Removing file"),
-                    block_remove("call_1", "/test/file.rs", false),
-                ],
-            )],
-        };
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Removing file"),
+                Block::remove_with_status(Some(ToolCallId::new("call_1")), "/test/file.rs", false),
+            ],
+        )]);
 
         assert_eq!(actual, expected);
     }
@@ -558,34 +711,33 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary {
-            messages: vec![summary_msg(
-                Role::Assistant,
-                vec![
-                    block_content("Reading image"),
-                    block_read("call_1", "/test/image.png", false),
-                ],
-            )],
-        };
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Reading image"),
+                Block::read_with_status(Some(ToolCallId::new("call_1")), "/test/image.png", false),
+            ],
+        )]);
 
         assert_eq!(actual, expected);
     }
 
     #[test]
-    fn test_context_summary_ignores_non_file_tool_calls() {
+    fn test_context_summary_extracts_shell_tool_calls() {
         let fixture = context(vec![assistant_with_tools(
             "Running shell",
-            vec![tool_call_shell("call_1", "ls")],
+            vec![tool_call_shell("call_1", "ls -la")],
         )]);
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary {
-            messages: vec![summary_msg(
-                Role::Assistant,
-                vec![block_content("Running shell")],
-            )],
-        };
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Running shell"),
+                Block::shell_with_status(Some(ToolCallId::new("call_1")), "ls -la", false),
+            ],
+        )]);
 
         assert_eq!(actual, expected);
     }
@@ -603,17 +755,15 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary {
-            messages: vec![summary_msg(
-                Role::Assistant,
-                vec![
-                    block_content("Multiple operations"),
-                    block_read("call_1", "/test/file1.rs", false),
-                    block_update("call_2", "/test/file2.rs", false),
-                    block_remove("call_3", "/test/file3.rs", false),
-                ],
-            )],
-        };
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Multiple operations"),
+                Block::read_with_status(Some(ToolCallId::new("call_1")), "/test/file1.rs", false),
+                Block::update_with_status(Some(ToolCallId::new("call_2")), "/test/file2.rs", false),
+                Block::remove_with_status(Some(ToolCallId::new("call_3")), "/test/file3.rs", false),
+            ],
+        )]);
 
         assert_eq!(actual, expected);
     }
@@ -630,14 +780,13 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected_blocks = vec![
-            block_content("Reading file"),
-            block_read("call_1", "/test/file.rs", true),
-        ];
-
-        let expected = ContextSummary {
-            messages: vec![summary_msg(Role::Assistant, expected_blocks)],
-        };
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Reading file"),
+                Block::read(Some(ToolCallId::new("call_1")), "/test/file.rs"),
+            ],
+        )]);
 
         assert_eq!(actual, expected);
     }
@@ -654,14 +803,13 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected_blocks = vec![
-            block_content("Reading file"),
-            block_read("call_1", "/test/file.rs", false),
-        ];
-
-        let expected = ContextSummary {
-            messages: vec![summary_msg(Role::Assistant, expected_blocks)],
-        };
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Reading file"),
+                Block::read_with_status(Some(ToolCallId::new("call_1")), "/test/file.rs", false),
+            ],
+        )]);
 
         assert_eq!(actual, expected);
     }
@@ -682,16 +830,14 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary {
-            messages: vec![summary_msg(
-                Role::Assistant,
-                vec![
-                    block_content("Multiple operations"),
-                    block_read("call_1", "/test/file1.rs", true),
-                    block_update("call_2", "/test/file2.rs", false),
-                ],
-            )],
-        };
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Multiple operations"),
+                Block::read(Some(ToolCallId::new("call_1")), "/test/file1.rs"),
+                Block::update_with_status(Some(ToolCallId::new("call_2")), "/test/file2.rs", false),
+            ],
+        )]);
 
         assert_eq!(actual, expected);
     }
@@ -712,15 +858,13 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary {
-            messages: vec![summary_msg(
-                Role::Assistant,
-                vec![
-                    block_content("Reading file"),
-                    block_read("call_1", "/test/file.rs", false),
-                ],
-            )],
-        };
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Reading file"),
+                Block::read_with_status(Some(ToolCallId::new("call_1")), "/test/file.rs", false),
+            ],
+        )]);
 
         assert_eq!(actual, expected);
     }
@@ -746,27 +890,25 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary {
-            messages: vec![
-                summary_msg(Role::User, vec![block_content("Read this file")]),
-                summary_msg(
-                    Role::Assistant,
-                    vec![
-                        block_content("Reading"),
-                        block_read("call_1", "/test/file1.rs", true),
-                    ],
-                ),
-                summary_msg(Role::User, vec![block_content("Now update it")]),
-                summary_msg(
-                    Role::Assistant,
-                    vec![
-                        block_content("Updating"),
-                        block_update("call_2", "/test/file1.rs", true),
-                        block_content("Done"),
-                    ],
-                ),
-            ],
-        };
+        let expected = ContextSummary::new(vec![
+            SummaryMessage::new(Role::User, vec![Block::content("Read this file")]),
+            SummaryMessage::new(
+                Role::Assistant,
+                vec![
+                    Block::content("Reading"),
+                    Block::read(Some(ToolCallId::new("call_1")), "/test/file1.rs"),
+                ],
+            ),
+            SummaryMessage::new(Role::User, vec![Block::content("Now update it")]),
+            SummaryMessage::new(
+                Role::Assistant,
+                vec![
+                    Block::content("Updating"),
+                    Block::update(Some(ToolCallId::new("call_2")), "/test/file1.rs"),
+                    Block::content("Done"),
+                ],
+            ),
+        ]);
 
         assert_eq!(actual, expected);
     }
@@ -784,12 +926,10 @@ mod tests {
 
         let actual = ContextSummary::from(&fixture);
 
-        let expected = ContextSummary {
-            messages: vec![
-                summary_msg(Role::User, vec![block_content("User message")]),
-                summary_msg(Role::Assistant, vec![block_content("Assistant")]),
-            ],
-        };
+        let expected = ContextSummary::new(vec![
+            SummaryMessage::new(Role::User, vec![Block::content("User message")]),
+            SummaryMessage::new(Role::Assistant, vec![Block::content("Assistant")]),
+        ]);
 
         assert_eq!(actual, expected);
     }
@@ -805,5 +945,449 @@ mod tests {
         let actual = extract_tool_info(&fixture);
 
         assert_eq!(actual, None);
+    }
+
+    #[test]
+    fn test_summary_message_block_shell_helper() {
+        let actual = Block::shell(None, "cargo build");
+
+        let expected = Block::ToolCall(SummaryToolData {
+            tool_call_id: None,
+            call: SummaryToolCall::Shell { command: "cargo build".to_string() },
+            tool_call_success: true,
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_summary_links_shell_results_to_calls() {
+        let fixture = context(vec![
+            assistant_with_tools(
+                "Running command",
+                vec![tool_call_shell("call_1", "echo test")],
+            ),
+            tool_result("shell", "call_1", false),
+        ]);
+
+        let actual = ContextSummary::from(&fixture);
+
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Running command"),
+                Block::shell(Some(ToolCallId::new("call_1")), "echo test"),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_summary_mixed_file_and_shell_calls() {
+        let fixture = context(vec![assistant_with_tools(
+            "Multiple operations",
+            vec![
+                tool_call("read", "call_1", "/test/file.rs"),
+                tool_call_shell("call_2", "cargo test"),
+                tool_call_write("call_3", "/test/output.txt", "result"),
+            ],
+        )]);
+
+        let actual = ContextSummary::from(&fixture);
+
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Multiple operations"),
+                Block::read_with_status(Some(ToolCallId::new("call_1")), "/test/file.rs", false),
+                Block::shell_with_status(Some(ToolCallId::new("call_2")), "cargo test", false),
+                Block::update_with_status(
+                    Some(ToolCallId::new("call_3")),
+                    "/test/output.txt",
+                    false,
+                ),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_summary_ignores_non_file_tool_calls() {
+        let fixture = context(vec![assistant_with_tools(
+            "Searching",
+            vec![ToolCallFull {
+                name: ToolName::new("search"),
+                call_id: Some(ToolCallId::new("call_1")),
+                arguments: ToolCallArguments::from_json(r#"{"path": "/test", "regex": "pattern"}"#),
+            }],
+        )]);
+
+        let actual = ContextSummary::from(&fixture);
+
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Searching"),
+                Block::search_with_status(Some(ToolCallId::new("call_1")), "pattern", false),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_summary_message_block_search_helper() {
+        let actual = Block::search(None, "/project/src");
+
+        let expected = Block::ToolCall(SummaryToolData {
+            tool_call_id: None,
+            call: SummaryToolCall::Search { pattern: "/project/src".to_string() },
+            tool_call_success: true,
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_summary_extracts_search_tool_calls() {
+        let fixture = context(vec![assistant_with_tools(
+            "Searching files",
+            vec![tool_call_search("call_1", "/test/src")],
+        )]);
+
+        let actual = ContextSummary::from(&fixture);
+
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Searching files"),
+                Block::search_with_status(Some(ToolCallId::new("call_1")), "/test/src", false),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_summary_links_search_results_to_calls() {
+        let fixture = context(vec![
+            assistant_with_tools("Searching", vec![tool_call_search("call_1", "/test/src")]),
+            tool_result("search", "call_1", false),
+        ]);
+
+        let actual = ContextSummary::from(&fixture);
+
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Searching"),
+                Block::search(Some(ToolCallId::new("call_1")), "/test/src"),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_summary_mixed_file_shell_and_search_calls() {
+        let fixture = context(vec![assistant_with_tools(
+            "Multiple operations",
+            vec![
+                tool_call("read", "call_1", "/test/file.rs"),
+                tool_call_shell("call_2", "cargo test"),
+                tool_call_search("call_3", "/test/src"),
+                tool_call_write("call_4", "/test/output.txt", "result"),
+            ],
+        )]);
+
+        let actual = ContextSummary::from(&fixture);
+
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Multiple operations"),
+                Block::read_with_status(Some(ToolCallId::new("call_1")), "/test/file.rs", false),
+                Block::shell_with_status(Some(ToolCallId::new("call_2")), "cargo test", false),
+                Block::search_with_status(Some(ToolCallId::new("call_3")), "/test/src", false),
+                Block::update_with_status(
+                    Some(ToolCallId::new("call_4")),
+                    "/test/output.txt",
+                    false,
+                ),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_summary_message_block_undo_helper() {
+        let actual = Block::undo(None, "/test/file.rs");
+
+        let expected = Block::ToolCall(SummaryToolData {
+            tool_call_id: None,
+            call: SummaryToolCall::Undo { path: "/test/file.rs".to_string() },
+            tool_call_success: true,
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_summary_message_block_fetch_helper() {
+        let actual = Block::fetch(None, "https://example.com");
+
+        let expected = Block::ToolCall(SummaryToolData {
+            tool_call_id: None,
+            call: SummaryToolCall::Fetch { url: "https://example.com".to_string() },
+            tool_call_success: true,
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_summary_message_block_followup_helper() {
+        let actual = Block::followup(None, "What should I do next?");
+
+        let expected = Block::ToolCall(SummaryToolData {
+            tool_call_id: None,
+            call: SummaryToolCall::Followup { question: "What should I do next?".to_string() },
+            tool_call_success: true,
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_summary_message_block_plan_helper() {
+        let actual = Block::plan(None, "feature-implementation");
+
+        let expected = Block::ToolCall(SummaryToolData {
+            tool_call_id: None,
+            call: SummaryToolCall::Plan { plan_name: "feature-implementation".to_string() },
+            tool_call_success: true,
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_summary_extracts_undo_tool_calls() {
+        let fixture = context(vec![assistant_with_tools(
+            "Undoing changes",
+            vec![tool_call_undo("call_1", "/test/file.rs")],
+        )]);
+
+        let actual = ContextSummary::from(&fixture);
+
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Undoing changes"),
+                Block::undo_with_status(Some(ToolCallId::new("call_1")), "/test/file.rs", false),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_summary_extracts_fetch_tool_calls() {
+        let fixture = context(vec![assistant_with_tools(
+            "Fetching data",
+            vec![tool_call_fetch("call_1", "https://api.example.com")],
+        )]);
+
+        let actual = ContextSummary::from(&fixture);
+
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Fetching data"),
+                Block::fetch_with_status(
+                    Some(ToolCallId::new("call_1")),
+                    "https://api.example.com",
+                    false,
+                ),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_summary_extracts_followup_tool_calls() {
+        let fixture = context(vec![assistant_with_tools(
+            "Asking question",
+            vec![tool_call_followup("call_1", "Should I proceed?")],
+        )]);
+
+        let actual = ContextSummary::from(&fixture);
+
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Asking question"),
+                Block::followup_with_status(
+                    Some(ToolCallId::new("call_1")),
+                    "Should I proceed?",
+                    false,
+                ),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_summary_extracts_plan_tool_calls() {
+        let fixture = context(vec![assistant_with_tools(
+            "Creating plan",
+            vec![tool_call_plan("call_1", "feature-plan")],
+        )]);
+
+        let actual = ContextSummary::from(&fixture);
+
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Creating plan"),
+                Block::plan_with_status(Some(ToolCallId::new("call_1")), "feature-plan", false),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_summary_links_undo_results_to_calls() {
+        let fixture = context(vec![
+            assistant_with_tools("Undoing", vec![tool_call_undo("call_1", "/test/file.rs")]),
+            tool_result("undo", "call_1", false),
+        ]);
+
+        let actual = ContextSummary::from(&fixture);
+
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Undoing"),
+                Block::undo(Some(ToolCallId::new("call_1")), "/test/file.rs"),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_summary_links_fetch_results_to_calls() {
+        let fixture = context(vec![
+            assistant_with_tools(
+                "Fetching",
+                vec![tool_call_fetch("call_1", "https://example.com")],
+            ),
+            tool_result("fetch", "call_1", false),
+        ]);
+
+        let actual = ContextSummary::from(&fixture);
+
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Fetching"),
+                Block::fetch(Some(ToolCallId::new("call_1")), "https://example.com"),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_summary_links_followup_results_to_calls() {
+        let fixture = context(vec![
+            assistant_with_tools("Asking", vec![tool_call_followup("call_1", "Continue?")]),
+            tool_result("followup", "call_1", false),
+        ]);
+
+        let actual = ContextSummary::from(&fixture);
+
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Asking"),
+                Block::followup(Some(ToolCallId::new("call_1")), "Continue?"),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_summary_links_plan_results_to_calls() {
+        let fixture = context(vec![
+            assistant_with_tools("Planning", vec![tool_call_plan("call_1", "my-plan")]),
+            tool_result("plan", "call_1", false),
+        ]);
+
+        let actual = ContextSummary::from(&fixture);
+
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("Planning"),
+                Block::plan(Some(ToolCallId::new("call_1")), "my-plan"),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_summary_all_tools_mixed() {
+        let fixture = context(vec![assistant_with_tools(
+            "All operations",
+            vec![
+                tool_call("read", "call_1", "/test/file.rs"),
+                tool_call_write("call_2", "/test/output.txt", "content"),
+                tool_call("remove", "call_3", "/test/old.txt"),
+                tool_call_shell("call_4", "cargo build"),
+                tool_call_search("call_5", "/test/src"),
+                tool_call_undo("call_6", "/test/undo.txt"),
+                tool_call_fetch("call_7", "https://example.com"),
+                tool_call_followup("call_8", "Proceed?"),
+                tool_call_plan("call_9", "implementation"),
+            ],
+        )]);
+
+        let actual = ContextSummary::from(&fixture);
+
+        let expected = ContextSummary::new(vec![SummaryMessage::new(
+            Role::Assistant,
+            vec![
+                Block::content("All operations"),
+                Block::read_with_status(Some(ToolCallId::new("call_1")), "/test/file.rs", false),
+                Block::update_with_status(
+                    Some(ToolCallId::new("call_2")),
+                    "/test/output.txt",
+                    false,
+                ),
+                Block::remove_with_status(Some(ToolCallId::new("call_3")), "/test/old.txt", false),
+                Block::shell_with_status(Some(ToolCallId::new("call_4")), "cargo build", false),
+                Block::search_with_status(Some(ToolCallId::new("call_5")), "/test/src", false),
+                Block::undo_with_status(Some(ToolCallId::new("call_6")), "/test/undo.txt", false),
+                Block::fetch_with_status(
+                    Some(ToolCallId::new("call_7")),
+                    "https://example.com",
+                    false,
+                ),
+                Block::followup_with_status(Some(ToolCallId::new("call_8")), "Proceed?", false),
+                Block::plan_with_status(Some(ToolCallId::new("call_9")), "implementation", false),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
     }
 }
