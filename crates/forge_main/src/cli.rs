@@ -3,6 +3,9 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand, ValueEnum};
 use forge_domain::AgentId;
 
+/// NOTE: Always use singular names for commands and subcommands.
+/// For example: `forge provider login` instead of `forge providers login`.
+
 #[derive(Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
 pub struct Cli {
