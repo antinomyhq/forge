@@ -41,12 +41,47 @@ impl TitleDisplay {
 
         // Add timestamp if requested
         if self.with_timestamp {
-            buf.push_str(
-                format!("[{}] ", Local::now().format("%H:%M:%S"))
+            let timestamp = format!("{}", Local::now().format("%H:%M:%S"));
+
+            // Add usage information inline with timestamp if available
+            if let Some(ref usage) = self.inner.usage {
+                let input = *usage.prompt_tokens;
+                let _output = *usage.completion_tokens;
+                let total = *usage.total_tokens;
+
+                // Calculate cache percentage
+                let cached = *usage.cached_tokens;
+                let cache_pct = if total > 0 {
+                    (cached as f64 / total as f64 * 100.0) as u64
+                } else {
+                    0
+                };
+
+                let cost_str = usage
+                    .cost
+                    .map(|c| format!(" ${:.4}", c))
+                    .unwrap_or_default();
+
+                buf.push_str(
+                    format!(
+                        "[{} {}/{}{} {}%] ",
+                        timestamp, input, total, cost_str, cache_pct
+                    )
                     .dimmed()
                     .to_string()
                     .as_str(),
-            );
+                );
+            } else if let Some(limit) = self.inner.token_limit {
+                // Show token limit as fallback when usage is not available
+                buf.push_str(
+                    format!("[{} 0/{}] ", timestamp, limit)
+                        .dimmed()
+                        .to_string()
+                        .as_str(),
+                );
+            } else {
+                buf.push_str(format!("[{}] ", timestamp).dimmed().to_string().as_str());
+            }
         }
 
         let title = match self.inner.category {
@@ -73,7 +108,37 @@ impl TitleDisplay {
 
         // Add timestamp if requested
         if self.with_timestamp {
-            buf.push_str(format!("[{}] ", Local::now().format("%H:%M:%S")).as_str());
+            let timestamp = format!("{}", Local::now().format("%H:%M:%S"));
+
+            // Add usage information inline with timestamp if available
+            if let Some(ref usage) = self.inner.usage {
+                let input = *usage.prompt_tokens;
+                let _output = *usage.completion_tokens;
+                let total = *usage.total_tokens;
+
+                // Calculate cache percentage
+                let cached = *usage.cached_tokens;
+                let cache_pct = if total > 0 {
+                    (cached as f64 / total as f64 * 100.0) as u64
+                } else {
+                    0
+                };
+
+                let cost_str = usage
+                    .cost
+                    .map(|c| format!(" ${:.4}", c))
+                    .unwrap_or_default();
+
+                buf.push_str(&format!(
+                    "[{} {}/{}{} {}%] ",
+                    timestamp, input, total, cost_str, cache_pct
+                ));
+            } else if let Some(limit) = self.inner.token_limit {
+                // Show token limit as fallback when usage is not available
+                buf.push_str(&format!("[{} 0/{}] ", timestamp, limit));
+            } else {
+                buf.push_str(format!("[{}] ", timestamp).as_str());
+            }
         }
 
         buf.push_str(&self.inner.title);

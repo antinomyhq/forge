@@ -124,6 +124,8 @@ pub struct TitleFormat {
     pub title: String,
     pub sub_title: Option<String>,
     pub category: Category,
+    pub usage: Option<Usage>,
+    pub token_limit: Option<usize>,
 }
 
 pub trait TitleExt {
@@ -146,6 +148,8 @@ impl TitleFormat {
             title: message.into(),
             sub_title: None,
             category: Category::Info,
+            usage: None,
+            token_limit: None,
         }
     }
 
@@ -155,6 +159,8 @@ impl TitleFormat {
             title: message.into(),
             sub_title: None,
             category: Category::Action,
+            usage: None,
+            token_limit: None,
         }
     }
 
@@ -163,6 +169,8 @@ impl TitleFormat {
             title: message.into(),
             sub_title: None,
             category: Category::Error,
+            usage: None,
+            token_limit: None,
         }
     }
 
@@ -171,6 +179,8 @@ impl TitleFormat {
             title: message.into(),
             sub_title: None,
             category: Category::Debug,
+            usage: None,
+            token_limit: None,
         }
     }
 
@@ -179,6 +189,8 @@ impl TitleFormat {
             title: message.into(),
             sub_title: None,
             category: Category::Completion,
+            usage: None,
+            token_limit: None,
         }
     }
 }
