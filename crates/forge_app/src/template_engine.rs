@@ -93,7 +93,6 @@ pub struct TemplateEngine<'a> {
 
 impl<'a> TemplateEngine<'a> {
     /// Renders a template with the provided data.
-
     pub fn render<V: serde::Serialize>(
         &self,
         template: impl Into<Template<V>>,
