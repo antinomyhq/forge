@@ -1,6 +1,7 @@
+use std::sync::{Arc, Mutex};
+
 use anyhow::Context;
 use derive_setters::Setters;
-use std::sync::{Arc, Mutex};
 
 use crate::{ArcSender, ChatResponse, ChatResponseContent, Metrics, TitleFormat, Usage};
 
@@ -46,7 +47,7 @@ impl ToolCallContext {
                 }
                 x => x,
             };
-            sender.send(Ok(agent_message.into())).await?
+            sender.send(Ok(agent_message)).await?
         }
         Ok(())
     }
