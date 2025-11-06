@@ -86,10 +86,8 @@ impl Compactor {
         );
 
         let summary = TemplateEngine::default().render(
-            "{{> forge-partial-summary-frame.md}}",
-            &serde_json::json!({
-                "messages": context_summary.messages
-            }),
+            "forge-partial-summary-frame.md",
+            &serde_json::json!({"messages": context_summary.messages}),
         )?;
 
         // Extended thinking reasoning chain preservation
@@ -356,9 +354,7 @@ mod tests {
         // Apply transformers to reduce redundant operations and clean up
         let context_summary = compactor.transform(context_summary);
 
-        let data = serde_json::json!({
-            "messages": context_summary.messages
-        });
+        let data = serde_json::json!({"messages": context_summary.messages});
 
         let actual = render_template(&data).await;
 

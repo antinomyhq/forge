@@ -42,7 +42,7 @@ impl<S: AS> TitleGenerator<S> {
 
     pub async fn generate(&self) -> anyhow::Result<Option<String>> {
         let template = TemplateEngine::default().render(
-            "{{> forge-system-prompt-title-generation.md }}",
+            "forge-system-prompt-title-generation.md",
             &Default::default(),
         )?;
 
