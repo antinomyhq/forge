@@ -291,22 +291,22 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             TopLevelCommand::List(list_group) => {
                 let porcelain = list_group.porcelain;
                 match list_group.command {
-                    ListCommand::Agents => {
+                    ListCommand::Agent => {
                         self.on_show_agents(porcelain).await?;
                     }
-                    ListCommand::Providers => {
+                    ListCommand::Provider => {
                         self.on_show_providers(porcelain).await?;
                     }
-                    ListCommand::Models => {
+                    ListCommand::Model => {
                         self.on_show_models(porcelain).await?;
                     }
-                    ListCommand::Commands => {
+                    ListCommand::Command => {
                         self.on_show_commands(porcelain).await?;
                     }
                     ListCommand::Config => {
                         self.on_show_config(porcelain).await?;
                     }
-                    ListCommand::Tools { agent } => {
+                    ListCommand::Tool { agent } => {
                         self.on_show_tools(agent, porcelain).await?;
                     }
                     ListCommand::Mcp => {
