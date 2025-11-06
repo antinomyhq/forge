@@ -86,8 +86,16 @@
     "response_type": "Anthropic",
     "url": "https://api.anthropic.com/v1/messages",
     "models": "https://api.anthropic.com/v1/models",
+    "auth_methods": ["api_key"]
+  },
+  {
+    "id": "claude_code",
+    "api_key_vars": "ANTHROPIC_API_KEY",
+    "url_param_vars": [],
+    "response_type": "Anthropic",
+    "url": "https://api.anthropic.com/v1/messages",
+    "models": "https://api.anthropic.com/v1/models",
     "auth_methods": [
-      "api_key",
       {
         "oauth_code": {
           "auth_url": "https://claude.ai/oauth/authorize",
