@@ -1,25 +1,51 @@
 use crate::compact::summary::{ContextSummary, SummaryMessageBlock, SummaryToolCall};
 use crate::{Role, Transformer};
 
-/// Trims context summary by keeping only the last operation for each path.
+/// Removes redundant operations from the context summary.
 ///
-/// This transformer deduplicates file operations within assistant messages by
-/// retaining only the most recent operation for each file path. Only applies
-/// to messages with the Assistant role. This is useful for reducing context
-/// size while preserving the final state of file operations.
+/// This transformer deduplicates consecutive operations within assistant messages by
+/// retaining only the most recent operation for each resource (e.g., file path, command).
+/// Only applies to messages with the Assistant role. This is useful for reducing context
+/// size while preserving the final state of operations.
 pub struct TrimContextSummary;
 
-fn extract_path(tool_call: &SummaryToolCall) -> Option<&str> {
-    match tool_call {
-        SummaryToolCall::FileRead { path } => Some(path.as_str()),
-        SummaryToolCall::FileUpdate { path } => Some(path.as_str()),
-        SummaryToolCall::FileRemove { path } => Some(path.as_str()),
-        SummaryToolCall::Undo { path } => Some(path.as_str()),
-        SummaryToolCall::Shell { .. }
-        | SummaryToolCall::Search { .. }
-        | SummaryToolCall::Fetch { .. }
-        | SummaryToolCall::Followup { .. }
-        | SummaryToolCall::Plan { .. } => None,
+/// Represents the type and target of a tool call operation.
+///
+/// Used for identifying and comparing operations to determine if they operate
+/// on the same resource (e.g., same file path, same shell command).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Operation<'a> {
+    /// File operation (read, update, remove, undo) on a specific path
+    File(&'a str),
+    /// Shell command execution
+    Shell(&'a str),
+    /// Search operation with a specific pattern
+    Search(&'a str),
+    /// Fetch operation for a specific URL
+    Fetch(&'a str),
+    /// Follow-up question
+    Followup(&'a str),
+    /// Plan creation with a specific name
+    Plan(&'a str),
+}
+
+impl SummaryToolCall {
+    /// Converts the tool call to its operation type for comparison.
+    ///
+    /// File operations (read, update, remove, undo) on the same path are
+    /// considered the same operation type for deduplication purposes.
+    fn to_op(&self) -> Operation<'_> {
+        match self {
+            SummaryToolCall::FileRead { path } => Operation::File(path),
+            SummaryToolCall::FileUpdate { path } => Operation::File(path),
+            SummaryToolCall::FileRemove { path } => Operation::File(path),
+            SummaryToolCall::Undo { path } => Operation::File(path),
+            SummaryToolCall::Shell { command } => Operation::Shell(command),
+            SummaryToolCall::Search { pattern } => Operation::Search(pattern),
+            SummaryToolCall::Fetch { url } => Operation::Fetch(url),
+            SummaryToolCall::Followup { question } => Operation::Followup(question),
+            SummaryToolCall::Plan { plan_name } => Operation::Plan(plan_name),
+        }
     }
 }
 
@@ -38,18 +64,9 @@ impl Transformer for TrimContextSummary {
             for block in message.blocks.drain(..) {
                 // For tool calls, only keep successful operations
                 if let SummaryMessageBlock::ToolCall(ref current) = block {
-                    if !current.tool_call_success {
-                        continue;
-                    }
-
-                    // Remove previous entry if it has the same path
-                    if let Some(SummaryMessageBlock::ToolCall(last_tool_data)) =
-                        block_seq.last_mut()
-                        && let (Some(last_path), Some(path)) = (
-                            extract_path(&last_tool_data.call),
-                            extract_path(&current.call),
-                        )
-                        && last_path == path
+                    // Remove previous entry if it has the same operation
+                    if let Some(SummaryMessageBlock::ToolCall(last)) = block_seq.last_mut()
+                        && last.call.to_op() == current.call.to_op()
                     {
                         block_seq.pop();
                     }
@@ -187,22 +204,6 @@ mod tests {
     }
 
     #[test]
-    fn test_empty_assistant_message_after_filtering() {
-        let fixture = ContextSummary::new(vec![SummaryMessage::new(
-            Role::Assistant,
-            vec![
-                Block::read_with_status(None, "/test1", false),
-                Block::read_with_status(None, "/test2", false),
-            ],
-        )]);
-        let actual = TrimContextSummary.transform(fixture);
-
-        let expected = ContextSummary::new(vec![SummaryMessage::new(Role::Assistant, vec![])]);
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
     fn test_only_trims_assistant_messages() {
         let fixture = ContextSummary::new(vec![
             SummaryMessage::new(
@@ -273,7 +274,10 @@ mod tests {
 
         let expected = ContextSummary::new(vec![
             SummaryMessage::new(Role::Assistant, vec![Block::read(None, "/test")]),
-            SummaryMessage::new(Role::Assistant, vec![]),
+            SummaryMessage::new(
+                Role::Assistant,
+                vec![Block::read_with_status(None, "/test", false)],
+            ),
             SummaryMessage::new(Role::Assistant, vec![Block::read(None, "/test")]),
         ]);
 
