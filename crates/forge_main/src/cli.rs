@@ -402,10 +402,10 @@ pub struct ProviderCommandGroup {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum ProviderCommand {
-    /// Add a new provider by selecting from available options
+    /// Login to a provider by selecting from available options
     ///
-    /// Example: forge provider add
-    Add,
+    /// Example: forge provider login
+    Login,
 
     /// Remove a configured provider (logout)
     ///

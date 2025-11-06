@@ -542,8 +542,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         use crate::cli::ProviderCommand;
 
         match provider_group.command {
-            ProviderCommand::Add => {
-                self.handle_provider_add().await?;
+            ProviderCommand::Login => {
+                self.handle_provider_login().await?;
             }
             ProviderCommand::Logout => {
                 self.handle_provider_logout().await?;
@@ -553,7 +553,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn handle_provider_add(&mut self) -> anyhow::Result<()> {
+    async fn handle_provider_login(&mut self) -> anyhow::Result<()> {
         use crate::model::CliProvider;
 
         // Fetch all providers (configured and unconfigured)
@@ -570,7 +570,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         sorted_providers.sort_by_key(|a| a.to_string());
 
         // Use the centralized select module
-        match ForgeSelect::select("Select a provider to add:", sorted_providers)
+        match ForgeSelect::select("Select a provider to login:", sorted_providers)
             .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
             .prompt()?
         {
