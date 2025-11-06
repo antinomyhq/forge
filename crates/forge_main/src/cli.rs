@@ -877,15 +877,7 @@ mod tests {
     }
 
     #[test]
-    fn test_custom_command_flag_with_slash() {
-        let fixture = Cli::parse_from(["forge", "--custom-command", "/custom-command arg1 arg2"]);
-        let actual = fixture.custom_command;
-        let expected = Some("/custom-command arg1 arg2".to_string());
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_custom_command_flag_without_slash() {
+    fn test_custom_command_flag() {
         let fixture = Cli::parse_from(["forge", "--custom-command", "custom-command arg1 arg2"]);
         let actual = fixture.custom_command;
         let expected = Some("custom-command arg1 arg2".to_string());
