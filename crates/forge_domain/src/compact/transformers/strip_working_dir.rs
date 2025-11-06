@@ -307,4 +307,269 @@ mod tests {
 
         assert_eq!(actual, expected);
     }
+
+    #[test]
+    fn test_strips_windows_paths() {
+        let fixture = summary(vec![message(
+            Role::Assistant,
+            vec![
+                Block::read(None, r"C:\Users\user\project\src\main.rs"),
+                Block::update(None, r"C:\Users\user\project\tests\test.rs"),
+            ],
+        )]);
+        let actual = StripWorkingDir::new(r"C:\Users\user\project").transform(fixture);
+
+        // On Windows, paths are recognized and stripped
+        #[cfg(windows)]
+        let expected = summary(vec![message(
+            Role::Assistant,
+            vec![
+                Block::read(None, r"src\main.rs"),
+                Block::update(None, r"tests\test.rs"),
+            ],
+        )]);
+
+        // On Unix, Windows paths are not recognized, so they remain unchanged
+        #[cfg(not(windows))]
+        let expected = summary(vec![message(
+            Role::Assistant,
+            vec![
+                Block::read(None, r"C:\Users\user\project\src\main.rs"),
+                Block::update(None, r"C:\Users\user\project\tests\test.rs"),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_strips_windows_paths_with_forward_slashes() {
+        let fixture = summary(vec![message(
+            Role::Assistant,
+            vec![
+                Block::read(None, "C:/Users/user/project/src/main.rs"),
+                Block::update(None, "C:/Users/user/project/tests/test.rs"),
+            ],
+        )]);
+        let actual = StripWorkingDir::new("C:/Users/user/project").transform(fixture);
+
+        let expected = summary(vec![message(
+            Role::Assistant,
+            vec![
+                Block::read(None, "src/main.rs"),
+                Block::update(None, "tests/test.rs"),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_strips_windows_paths_mixed_slashes() {
+        let fixture = summary(vec![message(
+            Role::Assistant,
+            vec![
+                Block::read(None, r"C:\Users\user\project\src\main.rs"),
+                Block::update(None, "C:/Users/user/project/tests/test.rs"),
+            ],
+        )]);
+        let actual = StripWorkingDir::new(r"C:\Users\user\project").transform(fixture);
+
+        #[cfg(windows)]
+        let expected = summary(vec![message(
+            Role::Assistant,
+            vec![
+                Block::read(None, r"src\main.rs"),
+                Block::update(None, "tests/test.rs"),
+            ],
+        )]);
+
+        #[cfg(not(windows))]
+        let expected = summary(vec![message(
+            Role::Assistant,
+            vec![
+                Block::read(None, r"C:\Users\user\project\src\main.rs"),
+                Block::update(None, "C:/Users/user/project/tests/test.rs"),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_handles_windows_paths_outside_working_dir() {
+        let fixture = summary(vec![message(
+            Role::Assistant,
+            vec![
+                Block::read(None, r"C:\Users\user\project\src\main.rs"),
+                Block::read(None, r"D:\other\config.toml"),
+                Block::update(None, r"C:\Windows\System32\file.dll"),
+            ],
+        )]);
+        let actual = StripWorkingDir::new(r"C:\Users\user\project").transform(fixture);
+
+        #[cfg(windows)]
+        let expected = summary(vec![message(
+            Role::Assistant,
+            vec![
+                Block::read(None, r"src\main.rs"),
+                Block::read(None, r"D:\other\config.toml"),
+                Block::update(None, r"C:\Windows\System32\file.dll"),
+            ],
+        )]);
+
+        #[cfg(not(windows))]
+        let expected = summary(vec![message(
+            Role::Assistant,
+            vec![
+                Block::read(None, r"C:\Users\user\project\src\main.rs"),
+                Block::read(None, r"D:\other\config.toml"),
+                Block::update(None, r"C:\Windows\System32\file.dll"),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_handles_windows_unc_paths() {
+        let fixture = summary(vec![message(
+            Role::Assistant,
+            vec![
+                Block::read(None, r"\\server\share\project\src\main.rs"),
+                Block::update(None, r"\\server\share\project\tests\test.rs"),
+            ],
+        )]);
+        let actual = StripWorkingDir::new(r"\\server\share\project").transform(fixture);
+
+        #[cfg(windows)]
+        let expected = summary(vec![message(
+            Role::Assistant,
+            vec![
+                Block::read(None, r"src\main.rs"),
+                Block::update(None, r"tests\test.rs"),
+            ],
+        )]);
+
+        #[cfg(not(windows))]
+        let expected = summary(vec![message(
+            Role::Assistant,
+            vec![
+                Block::read(None, r"\\server\share\project\src\main.rs"),
+                Block::update(None, r"\\server\share\project\tests\test.rs"),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_handles_windows_trailing_backslash() {
+        let fixture = summary(vec![message(
+            Role::Assistant,
+            vec![Block::read(None, r"C:\Users\user\project\src\main.rs")],
+        )]);
+        let actual = StripWorkingDir::new(r"C:\Users\user\project\").transform(fixture);
+
+        #[cfg(windows)]
+        let expected = summary(vec![message(
+            Role::Assistant,
+            vec![Block::read(None, r"src\main.rs")],
+        )]);
+
+        #[cfg(not(windows))]
+        let expected = summary(vec![message(
+            Role::Assistant,
+            vec![Block::read(None, r"C:\Users\user\project\src\main.rs")],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_windows_case_sensitivity() {
+        // On Windows, paths are case-insensitive, but we preserve the original case
+        // when stripping. This test verifies case-sensitive matching behavior.
+        let fixture = summary(vec![message(
+            Role::Assistant,
+            vec![
+                Block::read(None, r"C:\Users\User\Project\src\main.rs"),
+                Block::update(None, r"c:\users\user\project\tests\test.rs"),
+            ],
+        )]);
+        let actual = StripWorkingDir::new(r"C:\Users\User\Project").transform(fixture);
+
+        // On Windows: case-insensitive matching, first path strips, second doesn't
+        // On Unix: case-sensitive matching, neither path strips (Windows paths not
+        // recognized)
+        #[cfg(windows)]
+        let expected = summary(vec![message(
+            Role::Assistant,
+            vec![
+                Block::read(None, r"src\main.rs"),
+                Block::update(None, r"c:\users\user\project\tests\test.rs"),
+            ],
+        )]);
+
+        #[cfg(not(windows))]
+        let expected = summary(vec![message(
+            Role::Assistant,
+            vec![
+                Block::read(None, r"C:\Users\User\Project\src\main.rs"),
+                Block::update(None, r"c:\users\user\project\tests\test.rs"),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_windows_multiple_messages_and_roles() {
+        let fixture = summary(vec![
+            message(
+                Role::User,
+                vec![Block::read(None, r"C:\project\src\main.rs")],
+            ),
+            message(
+                Role::Assistant,
+                vec![
+                    Block::read(None, r"C:\project\src\lib.rs"),
+                    Block::update(None, r"C:\project\README.md"),
+                ],
+            ),
+            message(Role::User, vec![Block::remove(None, r"C:\project\old.rs")]),
+        ]);
+        let actual = StripWorkingDir::new(r"C:\project").transform(fixture);
+
+        #[cfg(windows)]
+        let expected = summary(vec![
+            message(Role::User, vec![Block::read(None, r"src\main.rs")]),
+            message(
+                Role::Assistant,
+                vec![
+                    Block::read(None, r"src\lib.rs"),
+                    Block::update(None, "README.md"),
+                ],
+            ),
+            message(Role::User, vec![Block::remove(None, "old.rs")]),
+        ]);
+
+        #[cfg(not(windows))]
+        let expected = summary(vec![
+            message(
+                Role::User,
+                vec![Block::read(None, r"C:\project\src\main.rs")],
+            ),
+            message(
+                Role::Assistant,
+                vec![
+                    Block::read(None, r"C:\project\src\lib.rs"),
+                    Block::update(None, r"C:\project\README.md"),
+                ],
+            ),
+            message(Role::User, vec![Block::remove(None, r"C:\project\old.rs")]),
+        ]);
+
+        assert_eq!(actual, expected);
+    }
 }
