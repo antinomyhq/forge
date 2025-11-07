@@ -136,14 +136,21 @@ function _forge_select_and_set_config() {
 }
 
 
+function _is_model_configured() {
+    local current_model=$($_FORGE_BIN config get model --porcelain 2>/dev/null)
+    # If no model or "Model: Not set", return 1 (false)
+    if [[ -z "$current_model" || "$current_model" == *"Model: Not set"* ]]; then
+        return 1
+    fi
+    return 0
+}
+
 # Ensures a model is configured, prompting user to select one if not set
 # Returns 0 if model is set, 1 if user failed to select a model
 function _forge_ensure_model_configured() {
-    local current_model=$($_FORGE_BIN config get model --porcelain 2>/dev/null)
-    if [[ -z "$current_model" || "$current_model" == *"Model: Not set"* ]]; then
+    if ! _is_model_configured; then
         _forge_select_and_set_config "list models" "model" "Model" "" "2,3.."
-        current_model=$($_FORGE_BIN config get model --porcelain 2>/dev/null)
-        if [[ -z "$current_model" || "$current_model" == *"Model: Not set"* ]]; then
+        if ! _is_model_configured; then
             echo "\033[31m✗\033[0m No model selected. Cannot proceed."
             _forge_reset
             return 1
@@ -399,8 +406,6 @@ function _forge_action_default() {
         _FORGE_CONVERSATION_ID=$($_FORGE_BIN conversation new)
     fi
     
-    echo
-    
     # Only set the agent if user explicitly specified one
     if [[ -n "$user_action" ]]; then
         _FORGE_ACTIVE_AGENT="$user_action"
@@ -409,6 +414,8 @@ function _forge_action_default() {
     if ! _forge_ensure_model_configured; then
         return 0
     fi
+    
+    echo
 
     # Execute the forge command directly with proper escaping
     _forge_exec -p "$input_text" --cid "$_FORGE_CONVERSATION_ID"
