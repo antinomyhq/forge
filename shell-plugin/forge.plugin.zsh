@@ -355,16 +355,17 @@ function _forge_action_default() {
     if [[ -n "$user_action" ]]; then
         local commands_list=$(_forge_get_commands)
         if [[ -n "$commands_list" ]]; then
-            # Check if the user_action is in the list of valid commands
-            if ! echo "$commands_list" | grep -q "^${user_action}\b"; then
+            # Check if the user_action is in the list of valid commands and extract the row
+            local command_row="${(M)${(f)commands_list}:#${user_action} *}"
+            if [[ -z "$command_row" ]]; then
                 echo
                 echo "\033[31m⏺\033[0m \033[90m[$(date '+%H:%M:%S')]\033[0m \033[1;31mERROR:\033[0m Command '\033[1m${user_action}\033[0m' not found"
                 _forge_reset
                 return 0
             fi
             
-            # Check if it's a custom command by looking at the last field
-            local command_type=$(echo "$commands_list" | awk "\$1 == \"$user_action\" {print \$NF}")
+            # Extract the command type from the last field of the row
+            local command_type="${command_row##* }"
             if [[ "$command_type" == "custom" ]]; then
                 # Generate conversation ID if needed
                 [[ -z "$_FORGE_CONVERSATION_ID" ]] && _FORGE_CONVERSATION_ID=$($_FORGE_BIN conversation new)
