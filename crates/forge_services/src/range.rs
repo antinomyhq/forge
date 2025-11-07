@@ -1,3 +1,6 @@
+/// Maximum number of lines that can be read in a single request
+pub const MAX_READ_SIZE: u64 = 2000;
+
 /// Resolves and validates line ranges, ensuring they are always valid
 /// and within the specified maximum size.
 ///
