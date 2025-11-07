@@ -797,7 +797,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     /// Lists all the commands
-            async fn on_show_commands(&mut self, porcelain: bool) -> anyhow::Result<()> {
+    async fn on_show_commands(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let mut info = Info::new();
 
         // Define base commands with their descriptions and type
@@ -807,13 +807,20 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ("provider", "Switch the providers"),
             ("model", "Switch the models"),
             ("new", "Start new conversation"),
-            ("dump", "Save conversation as JSON or HTML (use /dump html for HTML format)"),
-            ("conversation", "List all conversations for the active workspace"),
+            (
+                "dump",
+                "Save conversation as JSON or HTML (use /dump html for HTML format)",
+            ),
+            (
+                "conversation",
+                "List all conversations for the active workspace",
+            ),
             ("retry", "Retry the last command"),
             ("compact", "Compact the conversation context"),
-            ("tools", "List all available tools with their descriptions and schema"),
-            ("ask", "Alias for agent SAGE"),
-            ("plan", "Alias for agent MUSE"),
+            (
+                "tools",
+                "List all available tools with their descriptions and schema",
+            ),
         ];
 
         for (name, description) in built_in_commands {
@@ -839,6 +846,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .add_key_value("type", "agent");
         }
 
+        // Add agent aliases
+        info = info
+            .add_title("ask")
+            .add_key_value("description", "Alias for agent SAGE")
+            .add_key_value("type", "agent");
+        info = info
+            .add_title("plan")
+            .add_key_value("description", "Alias for agent MUSE")
+            .add_key_value("type", "agent");
+
         let custom_commands = self.api.get_commands().await?;
         for command in custom_commands {
             info = info
@@ -848,8 +865,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info)
-                .skip(1);
+            let porcelain = Porcelain::from(&info).skip(1);
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
