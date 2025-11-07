@@ -37,6 +37,15 @@ impl Element {
         self
     }
 
+    pub fn append_text(mut self, text: impl ToString) -> Self {
+        let text = html_escape::encode_text(&text.to_string()).to_string();
+        self.text = match self.text {
+            None => Some(text),
+            Some(old_text) => Some(format!("{old_text}{text}")),
+        };
+        self
+    }
+
     pub fn cdata(mut self, text: impl ToString) -> Self {
         self.text = Some(format!("<![CDATA[{}]]>", text.to_string()));
         self
