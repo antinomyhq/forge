@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use forge_domain::{
     Agent, ChatCompletionMessage, Context, Conversation, ModelId, ProviderId, ResultStream,
-    Template, ToolCallContext, ToolCallFull, ToolResult,
+    ToolCallContext, ToolCallFull, ToolResult,
 };
 
 use crate::services::AppConfigService;
 use crate::tool_registry::ToolRegistry;
-use crate::{ConversationService, ProviderService, Services, TemplateService};
+use crate::{ConversationService, ProviderService, Services};
 
 /// Agent service trait that provides core chat and tool call functionality.
 /// This trait abstracts the essential operations needed by the Orchestrator.
@@ -28,13 +28,6 @@ pub trait AgentService: Send + Sync + 'static {
         context: &ToolCallContext,
         call: ToolCallFull,
     ) -> ToolResult;
-
-    /// Render a template with the provided object
-    async fn render<V: serde::Serialize + Send + Sync>(
-        &self,
-        template: Template<V>,
-        object: &V,
-    ) -> anyhow::Result<String>;
 
     /// Synchronize the on-going conversation
     async fn update(&self, conversation: Conversation) -> anyhow::Result<()>;
@@ -66,14 +59,6 @@ impl<T: Services> AgentService for T {
     ) -> ToolResult {
         let registry = ToolRegistry::new(Arc::new(self.clone()));
         registry.call(agent, context, call).await
-    }
-
-    async fn render<V: serde::Serialize + Send + Sync>(
-        &self,
-        template: Template<V>,
-        object: &V,
-    ) -> anyhow::Result<String> {
-        self.render_template(template, object).await
     }
 
     async fn update(&self, conversation: Conversation) -> anyhow::Result<()> {
