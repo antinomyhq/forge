@@ -356,7 +356,7 @@ function _forge_action_default() {
         local commands_list=$(_forge_get_commands)
         if [[ -n "$commands_list" ]]; then
             # Check if the user_action is in the list of valid commands and extract the row
-            local command_row="${(M)${(f)commands_list}:#${user_action} *}"
+            local command_row=$(echo "$commands_list" | grep "^${user_action}\b")
             if [[ -z "$command_row" ]]; then
                 echo
                 echo "\033[31m⏺\033[0m \033[90m[$(date '+%H:%M:%S')]\033[0m \033[1;31mERROR:\033[0m Command '\033[1m${user_action}\033[0m' not found"
