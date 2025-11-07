@@ -797,35 +797,31 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     /// Lists all the commands
-    async fn on_show_commands(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let mut info = Info::new().add_title("COMMANDS");
+            async fn on_show_commands(&mut self, porcelain: bool) -> anyhow::Result<()> {
+        let mut info = Info::new();
 
-        // Define base commands with their descriptions
-        info = info
-            .add_key_value("info", "Print session information")
-            .add_key_value("env", "Display environment information")
-            .add_key_value("provider", "Switch the providers")
-            .add_key_value("model", "Switch the models")
-            .add_key_value("new", "Start new conversation")
-            .add_key_value(
-                "dump",
-                "Save conversation as JSON or HTML (use /dump html for HTML format)",
-            )
-            .add_key_value(
-                "conversation",
-                "List all conversations for the active workspace",
-            )
-            .add_key_value("retry", "Retry the last command")
-            .add_key_value("compact", "Compact the conversation context")
-            .add_key_value(
-                "tools",
-                "List all available tools with their descriptions and schema",
-            );
+        // Define base commands with their descriptions and type
+        let built_in_commands = [
+            ("info", "Print session information"),
+            ("env", "Display environment information"),
+            ("provider", "Switch the providers"),
+            ("model", "Switch the models"),
+            ("new", "Start new conversation"),
+            ("dump", "Save conversation as JSON or HTML (use /dump html for HTML format)"),
+            ("conversation", "List all conversations for the active workspace"),
+            ("retry", "Retry the last command"),
+            ("compact", "Compact the conversation context"),
+            ("tools", "List all available tools with their descriptions and schema"),
+            ("ask", "Alias for agent SAGE"),
+            ("plan", "Alias for agent MUSE"),
+        ];
 
-        // Add alias commands
-        info = info
-            .add_key_value("ask", "Alias for agent SAGE")
-            .add_key_value("plan", "Alias for agent MUSE");
+        for (name, description) in built_in_commands {
+            info = info
+                .add_title(name)
+                .add_key_value("description", description)
+                .add_key_value("type", "built-in");
+        }
 
         // Fetch agents and add them to the commands list
         let agents = self.api.get_agents().await?;
@@ -837,16 +833,23 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .lines()
                 .collect::<Vec<_>>()
                 .join(" ");
-            info = info.add_key_value(agent.id.to_string(), title);
+            info = info
+                .add_title(agent.id.to_string())
+                .add_key_value("description", title)
+                .add_key_value("type", "agent");
         }
 
         let custom_commands = self.api.get_commands().await?;
         for command in custom_commands {
-            info = info.add_key_value(command.name.clone(), command.description.clone());
+            info = info
+                .add_title(command.name.clone())
+                .add_key_value("description", command.description.clone())
+                .add_key_value("type", "custom");
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).into_long().drop_col(0).skip(1);
+            let porcelain = Porcelain::from(&info)
+                .skip(1);
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
