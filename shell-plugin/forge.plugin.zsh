@@ -405,7 +405,7 @@ function _forge_action_default() {
     if [[ -n "$user_action" ]]; then
         _FORGE_ACTIVE_AGENT="$user_action"
     fi
-    
+
     # Execute the forge command directly with proper escaping
     _forge_exec -p "$input_text" --cid "$_FORGE_CONVERSATION_ID"
     
@@ -449,30 +449,35 @@ function forge-accept-line() {
         ;;
     esac
 
-    # Check if model is set, if not prompt user to select one
-    if ! _forge_ensure_model_configured; then
-        return 0
-    fi
-
     # Dispatch to appropriate action handler using pattern matching
     case "$user_action" in
         new|n)
             _forge_action_new
         ;;
-        info|i)
-            _forge_action_info
+        info|i|compact|retry|tools)
+            # Actions that require a model to be configured
+            if _forge_ensure_model_configured; then
+                case "$user_action" in
+                    info|i)
+                        _forge_action_info
+                    ;;
+                    compact)
+                        _forge_action_compact
+                    ;;
+                    retry)
+                        _forge_action_retry
+                    ;;
+                    tools)
+                        _forge_action_tools
+                    ;;
+                esac
+            fi
         ;;
         env|e)
             _forge_action_env
         ;;
         dump)
             _forge_action_dump "$input_text"
-        ;;
-        compact)
-            _forge_action_compact
-        ;;
-        retry)
-            _forge_action_retry
         ;;
         conversation)
             _forge_action_conversation
@@ -482,9 +487,6 @@ function forge-accept-line() {
         ;;
         model)
             _forge_action_model
-        ;;
-        tools)
-            _forge_action_tools
         ;;
         *)
             _forge_action_default "$user_action" "$input_text"
