@@ -406,6 +406,10 @@ function _forge_action_default() {
         _FORGE_ACTIVE_AGENT="$user_action"
     fi
 
+    if ! _forge_ensure_model_configured; then
+        return 0
+    fi
+
     # Execute the forge command directly with proper escaping
     _forge_exec -p "$input_text" --cid "$_FORGE_CONVERSATION_ID"
     
