@@ -4,8 +4,8 @@ use anyhow::Result;
 use forge_domain::{extract_tag_content, *};
 
 use crate::{
-    AppConfigService, EnvironmentService, FileDiscoveryService, ProviderService, Services,
-    TemplateEngine, Walker, WorkflowService,
+    AppConfigService, EnvironmentService, FileDiscoveryService, ProviderService, TemplateEngine,
+    Walker,
 };
 
 /// CommandGenerator handles shell command generation from natural language
@@ -13,7 +13,10 @@ pub struct CommandGenerator<S> {
     services: Arc<S>,
 }
 
-impl<S: Services> CommandGenerator<S> {
+impl<S> CommandGenerator<S>
+where
+    S: EnvironmentService + FileDiscoveryService + ProviderService + AppConfigService,
+{
     /// Creates a new CommandGenerator instance with the provided services.
     pub fn new(services: Arc<S>) -> Self {
         Self { services }
@@ -22,14 +25,11 @@ impl<S: Services> CommandGenerator<S> {
     /// Generates a shell command from a natural language prompt
     pub async fn generate(&self, prompt: UserPrompt) -> Result<String> {
         // Get system information for context
-        let env = self.services.environment_service().get_environment();
-        let workflow = self.services.read_merged(None).await.unwrap_or_default();
-        let max_depth = workflow.max_walker_depth;
+        let env = self.services.get_environment();
 
-        let mut walker = Walker::conservative().cwd(env.cwd.clone());
-        if let Some(depth) = max_depth {
-            walker = walker.max_depth(depth);
-        };
+        let walker = Walker::conservative()
+            .cwd(env.cwd.clone())
+            .max_depth(1usize);
         let mut files = self
             .services
             .collect_files(walker)
@@ -56,11 +56,7 @@ impl<S: Services> CommandGenerator<S> {
         let ctx = self.create_context(rendered_system_prompt, user_content, &model);
 
         // Send message to LLM
-        let stream = self
-            .services
-            .provider_service()
-            .chat(&model, ctx, provider)
-            .await?;
+        let stream = self.services.chat(&model, ctx, provider).await?;
         let message = stream.into_full(false).await?;
 
         // Extract the command from the <shell_command> tag
