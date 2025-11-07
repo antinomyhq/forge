@@ -13,7 +13,7 @@ use serde_json::Map;
 use strum::IntoEnumIterator;
 use strum_macros::{AsRefStr, Display, EnumDiscriminants, EnumIter};
 
-use crate::{ToolCallFull, ToolDefinition, ToolDescription, ToolName};
+use crate::{ToolCallArguments, ToolCallFull, ToolDefinition, ToolDescription, ToolName};
 
 /// Enum representing all possible tool input types.
 ///
@@ -605,6 +605,98 @@ impl Tools {
             Tools::Undo(_) | Tools::Followup(_) | Tools::Plan(_) => None,
         }
     }
+
+    /// Creates a Read tool call with the specified path
+    pub fn tool_call_read(path: &str) -> ToolCallFull {
+        ToolCallFull::from(Tools::Read(FSRead {
+            path: path.to_string(),
+            ..Default::default()
+        }))
+    }
+
+    /// Creates a ReadImage tool call with the specified path
+    pub fn tool_call_read_image(path: &str) -> ToolCallFull {
+        ToolCallFull::from(Tools::ReadImage(ReadImage { path: path.to_string() }))
+    }
+
+    /// Creates a Write tool call with the specified path and content
+    pub fn tool_call_write(path: &str, content: &str) -> ToolCallFull {
+        ToolCallFull::from(Tools::Write(FSWrite {
+            path: path.to_string(),
+            content: content.to_string(),
+            ..Default::default()
+        }))
+    }
+
+    /// Creates a Patch tool call with the specified parameters
+    pub fn tool_call_patch(
+        path: &str,
+        content: &str,
+        operation: PatchOperation,
+        search: Option<&str>,
+    ) -> ToolCallFull {
+        ToolCallFull::from(Tools::Patch(FSPatch {
+            path: path.to_string(),
+            search: search.map(|s| s.to_string()),
+            operation,
+            content: content.to_string(),
+        }))
+    }
+
+    /// Creates a Remove tool call with the specified path
+    pub fn tool_call_remove(path: &str) -> ToolCallFull {
+        ToolCallFull::from(Tools::Remove(FSRemove { path: path.to_string() }))
+    }
+
+    /// Creates a Shell tool call with the specified command and working
+    /// directory
+    pub fn tool_call_shell(command: &str, cwd: impl Into<PathBuf>) -> ToolCallFull {
+        ToolCallFull::from(Tools::Shell(Shell {
+            command: command.to_string(),
+            cwd: cwd.into(),
+            ..Default::default()
+        }))
+    }
+
+    /// Creates a Search tool call with the specified path and regex pattern
+    pub fn tool_call_search(path: &str, regex: Option<&str>) -> ToolCallFull {
+        ToolCallFull::from(Tools::Search(FSSearch {
+            path: path.to_string(),
+            regex: regex.map(|r| r.to_string()),
+            ..Default::default()
+        }))
+    }
+
+    /// Creates an Undo tool call with the specified path
+    pub fn tool_call_undo(path: &str) -> ToolCallFull {
+        ToolCallFull::from(Tools::Undo(FSUndo { path: path.to_string() }))
+    }
+
+    /// Creates a Fetch tool call with the specified url
+    pub fn tool_call_fetch(url: &str) -> ToolCallFull {
+        ToolCallFull::from(Tools::Fetch(NetFetch {
+            url: url.to_string(),
+            ..Default::default()
+        }))
+    }
+
+    /// Creates a Followup tool call with the specified question
+    pub fn tool_call_followup(question: &str) -> ToolCallFull {
+        ToolCallFull::from(Tools::Followup(Followup {
+            question: question.to_string(),
+            ..Default::default()
+        }))
+    }
+
+    /// Creates a Plan tool call with the specified plan name, version, and
+    /// content
+    pub fn tool_call_plan(plan_name: &str, version: &str, content: &str) -> ToolCallFull {
+        ToolCallFull::from(Tools::Plan(PlanCreate {
+            plan_name: plan_name.to_string(),
+            version: version.to_string(),
+            content: content.to_string(),
+        }))
+    }
 }
 
 fn format_display_path(path: &Path, cwd: &Path) -> String {
@@ -657,6 +749,23 @@ impl TryFrom<&ToolCallFull> for AgentInput {
     fn try_from(value: &ToolCallFull) -> Result<Self, Self::Error> {
         let value = value.arguments.parse()?;
         serde_json::from_value(value).map_err(|error| crate::Error::AgentCallArgument { error })
+    }
+}
+
+impl From<Tools> for ToolCallFull {
+    fn from(tool: Tools) -> Self {
+        let name = ToolName::new(tool.to_string());
+        // Serialize the tool to get the tagged enum structure
+        let value = serde_json::to_value(&tool).expect("Failed to serialize tool");
+
+        // Extract just the "arguments" part from the tagged enum
+        let arguments = if let Some(args) = value.get("arguments") {
+            ToolCallArguments::from(args.clone())
+        } else {
+            ToolCallArguments::default()
+        };
+
+        ToolCallFull { name, call_id: None, arguments }
     }
 }
 

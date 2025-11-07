@@ -283,7 +283,10 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::{ContextMessage, TextMessage, ToolCallArguments, ToolCallId, ToolName, ToolOutput};
+    use crate::{
+        ContextMessage, PatchOperation, TextMessage, ToolCallArguments, ToolCallId, ToolName,
+        ToolOutput,
+    };
 
     type Block = SummaryMessage;
 
@@ -336,93 +339,6 @@ mod tests {
             model: None,
             reasoning_details: None,
         })
-    }
-
-    fn tool_call(name: &str, call_id: &str, path: &str) -> ToolCallFull {
-        let args = format!(r#"{{"path": "{}"}}"#, path);
-        ToolCallFull {
-            name: ToolName::new(name),
-            call_id: Some(ToolCallId::new(call_id)),
-            arguments: ToolCallArguments::from_json(&args),
-        }
-    }
-
-    fn tool_call_write(call_id: &str, path: &str, content: &str) -> ToolCallFull {
-        let args = format!(r#"{{"path": "{}", "content": "{}"}}"#, path, content);
-        ToolCallFull {
-            name: ToolName::new("write"),
-            call_id: Some(ToolCallId::new(call_id)),
-            arguments: ToolCallArguments::from_json(&args),
-        }
-    }
-
-    fn tool_call_patch(call_id: &str, path: &str) -> ToolCallFull {
-        let args = format!(
-            r#"{{"path": "{}", "search": "old", "content": "new", "operation": "replace"}}"#,
-            path
-        );
-        ToolCallFull {
-            name: ToolName::new("patch"),
-            call_id: Some(ToolCallId::new(call_id)),
-            arguments: ToolCallArguments::from_json(&args),
-        }
-    }
-
-    fn tool_call_shell(call_id: &str, command: &str) -> ToolCallFull {
-        let args = format!(r#"{{"command": "{}", "cwd": "/test"}}"#, command);
-        ToolCallFull {
-            name: ToolName::new("shell"),
-            call_id: Some(ToolCallId::new(call_id)),
-            arguments: ToolCallArguments::from_json(&args),
-        }
-    }
-
-    fn tool_call_search(call_id: &str, pattern: &str) -> ToolCallFull {
-        let args = format!(r#"{{"path": "/test", "regex": "{}"}}"#, pattern);
-        ToolCallFull {
-            name: ToolName::new("search"),
-            call_id: Some(ToolCallId::new(call_id)),
-            arguments: ToolCallArguments::from_json(&args),
-        }
-    }
-
-    fn tool_call_undo(call_id: &str, path: &str) -> ToolCallFull {
-        let args = format!(r#"{{"path": "{}"}}"#, path);
-        ToolCallFull {
-            name: ToolName::new("undo"),
-            call_id: Some(ToolCallId::new(call_id)),
-            arguments: ToolCallArguments::from_json(&args),
-        }
-    }
-
-    fn tool_call_fetch(call_id: &str, url: &str) -> ToolCallFull {
-        let args = format!(r#"{{"url": "{}"}}"#, url);
-        ToolCallFull {
-            name: ToolName::new("fetch"),
-            call_id: Some(ToolCallId::new(call_id)),
-            arguments: ToolCallArguments::from_json(&args),
-        }
-    }
-
-    fn tool_call_followup(call_id: &str, question: &str) -> ToolCallFull {
-        let args = format!(r#"{{"question": "{}"}}"#, question);
-        ToolCallFull {
-            name: ToolName::new("followup"),
-            call_id: Some(ToolCallId::new(call_id)),
-            arguments: ToolCallArguments::from_json(&args),
-        }
-    }
-
-    fn tool_call_plan(call_id: &str, plan_name: &str) -> ToolCallFull {
-        let args = format!(
-            r#"{{"plan_name": "{}", "version": "v1", "content": "test"}}"#,
-            plan_name
-        );
-        ToolCallFull {
-            name: ToolName::new("plan"),
-            call_id: Some(ToolCallId::new(call_id)),
-            arguments: ToolCallArguments::from_json(&args),
-        }
     }
 
     fn tool_result(name: &str, call_id: &str, is_error: bool) -> ContextMessage {
@@ -521,7 +437,7 @@ mod tests {
     fn test_context_summary_extracts_file_read_tool_calls() {
         let fixture = context(vec![assistant_with_tools(
             "Reading file",
-            vec![tool_call("read", "call_1", "/test/file.rs")],
+            vec![Tools::tool_call_read("/test/file.rs").call_id("call_1")],
         )]);
 
         let actual = ContextSummary::from(&fixture);
@@ -531,7 +447,7 @@ mod tests {
             vec![
                 Block::content("Reading file"),
                 SummaryToolCall::read("/test/file.rs")
-                    .id(ToolCallId::new("call_1"))
+                    .id("call_1")
                     .is_success(false)
                     .into(),
             ],
@@ -544,7 +460,7 @@ mod tests {
     fn test_context_summary_extracts_file_write_tool_calls() {
         let fixture = context(vec![assistant_with_tools(
             "Writing file",
-            vec![tool_call_write("call_1", "/test/file.rs", "test")],
+            vec![Tools::tool_call_write("/test/file.rs", "test").call_id("call_1")],
         )]);
 
         let actual = ContextSummary::from(&fixture);
@@ -554,7 +470,7 @@ mod tests {
             vec![
                 Block::content("Writing file"),
                 SummaryToolCall::update("/test/file.rs")
-                    .id(ToolCallId::new("call_1"))
+                    .id("call_1")
                     .is_success(false)
                     .into(),
             ],
@@ -567,7 +483,15 @@ mod tests {
     fn test_context_summary_extracts_file_patch_tool_calls() {
         let fixture = context(vec![assistant_with_tools(
             "Patching file",
-            vec![tool_call_patch("call_1", "/test/file.rs")],
+            vec![
+                Tools::tool_call_patch(
+                    "/test/file.rs",
+                    "new",
+                    PatchOperation::Replace,
+                    Some("old"),
+                )
+                .call_id("call_1"),
+            ],
         )]);
 
         let actual = ContextSummary::from(&fixture);
@@ -577,7 +501,7 @@ mod tests {
             vec![
                 Block::content("Patching file"),
                 SummaryToolCall::update("/test/file.rs")
-                    .id(ToolCallId::new("call_1"))
+                    .id("call_1")
                     .is_success(false)
                     .into(),
             ],
@@ -590,7 +514,7 @@ mod tests {
     fn test_context_summary_extracts_file_remove_tool_calls() {
         let fixture = context(vec![assistant_with_tools(
             "Removing file",
-            vec![tool_call("remove", "call_1", "/test/file.rs")],
+            vec![Tools::tool_call_remove("/test/file.rs").call_id("call_1")],
         )]);
 
         let actual = ContextSummary::from(&fixture);
@@ -600,7 +524,7 @@ mod tests {
             vec![
                 Block::content("Removing file"),
                 SummaryToolCall::remove("/test/file.rs")
-                    .id(ToolCallId::new("call_1"))
+                    .id("call_1")
                     .is_success(false)
                     .into(),
             ],
@@ -613,7 +537,7 @@ mod tests {
     fn test_context_summary_extracts_read_image_tool_calls() {
         let fixture = context(vec![assistant_with_tools(
             "Reading image",
-            vec![tool_call("read_image", "call_1", "/test/image.png")],
+            vec![Tools::tool_call_read_image("/test/image.png").call_id("call_1")],
         )]);
 
         let actual = ContextSummary::from(&fixture);
@@ -623,7 +547,7 @@ mod tests {
             vec![
                 Block::content("Reading image"),
                 SummaryToolCall::read("/test/image.png")
-                    .id(ToolCallId::new("call_1"))
+                    .id("call_1")
                     .is_success(false)
                     .into(),
             ],
@@ -636,7 +560,7 @@ mod tests {
     fn test_context_summary_extracts_shell_tool_calls() {
         let fixture = context(vec![assistant_with_tools(
             "Running shell",
-            vec![tool_call_shell("call_1", "ls -la")],
+            vec![Tools::tool_call_shell("ls -la", "/test").call_id("call_1")],
         )]);
 
         let actual = ContextSummary::from(&fixture);
@@ -646,7 +570,7 @@ mod tests {
             vec![
                 Block::content("Running shell"),
                 SummaryToolCall::shell("ls -la")
-                    .id(ToolCallId::new("call_1"))
+                    .id("call_1")
                     .is_success(false)
                     .into(),
             ],
@@ -660,9 +584,9 @@ mod tests {
         let fixture = context(vec![assistant_with_tools(
             "Multiple operations",
             vec![
-                tool_call("read", "call_1", "/test/file1.rs"),
-                tool_call_write("call_2", "/test/file2.rs", "test"),
-                tool_call("remove", "call_3", "/test/file3.rs"),
+                Tools::tool_call_read("/test/file1.rs").call_id("call_1"),
+                Tools::tool_call_write("/test/file2.rs", "test").call_id("call_2"),
+                Tools::tool_call_remove("/test/file3.rs").call_id("call_3"),
             ],
         )]);
 
@@ -673,15 +597,15 @@ mod tests {
             vec![
                 Block::content("Multiple operations"),
                 SummaryToolCall::read("/test/file1.rs")
-                    .id(ToolCallId::new("call_1"))
+                    .id("call_1")
                     .is_success(false)
                     .into(),
                 SummaryToolCall::update("/test/file2.rs")
-                    .id(ToolCallId::new("call_2"))
+                    .id("call_2")
                     .is_success(false)
                     .into(),
                 SummaryToolCall::remove("/test/file3.rs")
-                    .id(ToolCallId::new("call_3"))
+                    .id("call_3")
                     .is_success(false)
                     .into(),
             ],
@@ -695,7 +619,7 @@ mod tests {
         let fixture = context(vec![
             assistant_with_tools(
                 "Reading file",
-                vec![tool_call("read", "call_1", "/test/file.rs")],
+                vec![Tools::tool_call_read("/test/file.rs").call_id("call_1")],
             ),
             tool_result("read", "call_1", false),
         ]);
@@ -706,9 +630,7 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Reading file"),
-                SummaryToolCall::read("/test/file.rs")
-                    .id(ToolCallId::new("call_1"))
-                    .into(),
+                SummaryToolCall::read("/test/file.rs").id("call_1").into(),
             ],
         )]);
 
@@ -720,7 +642,7 @@ mod tests {
         let fixture = context(vec![
             assistant_with_tools(
                 "Reading file",
-                vec![tool_call("read", "call_1", "/test/file.rs")],
+                vec![Tools::tool_call_read("/test/file.rs").call_id("call_1")],
             ),
             tool_result("read", "call_1", true),
         ]);
@@ -732,7 +654,7 @@ mod tests {
             vec![
                 Block::content("Reading file"),
                 SummaryToolCall::read("/test/file.rs")
-                    .id(ToolCallId::new("call_1"))
+                    .id("call_1")
                     .is_success(false)
                     .into(),
             ],
@@ -747,8 +669,8 @@ mod tests {
             assistant_with_tools(
                 "Multiple operations",
                 vec![
-                    tool_call("read", "call_1", "/test/file1.rs"),
-                    tool_call_write("call_2", "/test/file2.rs", "test"),
+                    Tools::tool_call_read("/test/file1.rs").call_id("call_1"),
+                    Tools::tool_call_write("/test/file2.rs", "test").call_id("call_2"),
                 ],
             ),
             tool_result("read", "call_1", false),
@@ -761,11 +683,9 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Multiple operations"),
-                SummaryToolCall::read("/test/file1.rs")
-                    .id(ToolCallId::new("call_1"))
-                    .into(),
+                SummaryToolCall::read("/test/file1.rs").id("call_1").into(),
                 SummaryToolCall::update("/test/file2.rs")
-                    .id(ToolCallId::new("call_2"))
+                    .id("call_2")
                     .is_success(false)
                     .into(),
             ],
@@ -779,7 +699,7 @@ mod tests {
         let fixture = context(vec![
             assistant_with_tools(
                 "Reading file",
-                vec![tool_call("read", "call_1", "/test/file.rs")],
+                vec![Tools::tool_call_read("/test/file.rs").call_id("call_1")],
             ),
             ContextMessage::Tool(ToolResult {
                 name: ToolName::new("read"),
@@ -795,7 +715,7 @@ mod tests {
             vec![
                 Block::content("Reading file"),
                 SummaryToolCall::read("/test/file.rs")
-                    .id(ToolCallId::new("call_1"))
+                    .id("call_1")
                     .is_success(false)
                     .into(),
             ],
@@ -811,13 +731,13 @@ mod tests {
             user("Read this file"),
             assistant_with_tools(
                 "Reading",
-                vec![tool_call("read", "call_1", "/test/file1.rs")],
+                vec![Tools::tool_call_read("/test/file1.rs").call_id("call_1")],
             ),
             tool_result("read", "call_1", false),
             user("Now update it"),
             assistant_with_tools(
                 "Updating",
-                vec![tool_call_write("call_2", "/test/file1.rs", "new content")],
+                vec![Tools::tool_call_write("/test/file1.rs", "new content").call_id("call_2")],
             ),
             tool_result("write", "call_2", false),
             assistant("Done"),
@@ -831,9 +751,7 @@ mod tests {
                 Role::Assistant,
                 vec![
                     Block::content("Reading"),
-                    SummaryToolCall::read("/test/file1.rs")
-                        .id(ToolCallId::new("call_1"))
-                        .into(),
+                    SummaryToolCall::read("/test/file1.rs").id("call_1").into(),
                 ],
             ),
             SummaryBlock::new(Role::User, vec![Block::content("Now update it")]),
@@ -842,7 +760,7 @@ mod tests {
                 vec![
                     Block::content("Updating"),
                     SummaryToolCall::update("/test/file1.rs")
-                        .id(ToolCallId::new("call_2"))
+                        .id("call_2")
                         .into(),
                     Block::content("Done"),
                 ],
@@ -904,7 +822,7 @@ mod tests {
         let fixture = context(vec![
             assistant_with_tools(
                 "Running command",
-                vec![tool_call_shell("call_1", "echo test")],
+                vec![Tools::tool_call_shell("echo test", "/test").call_id("call_1")],
             ),
             tool_result("shell", "call_1", false),
         ]);
@@ -915,9 +833,7 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Running command"),
-                SummaryToolCall::shell("echo test")
-                    .id(ToolCallId::new("call_1"))
-                    .into(),
+                SummaryToolCall::shell("echo test").id("call_1").into(),
             ],
         )]);
 
@@ -929,9 +845,9 @@ mod tests {
         let fixture = context(vec![assistant_with_tools(
             "Multiple operations",
             vec![
-                tool_call("read", "call_1", "/test/file.rs"),
-                tool_call_shell("call_2", "cargo test"),
-                tool_call_write("call_3", "/test/output.txt", "result"),
+                Tools::tool_call_read("/test/file.rs").call_id("call_1"),
+                Tools::tool_call_shell("cargo test", "/test").call_id("call_2"),
+                Tools::tool_call_write("/test/output.txt", "result").call_id("call_3"),
             ],
         )]);
 
@@ -942,15 +858,15 @@ mod tests {
             vec![
                 Block::content("Multiple operations"),
                 SummaryToolCall::read("/test/file.rs")
-                    .id(ToolCallId::new("call_1"))
+                    .id("call_1")
                     .is_success(false)
                     .into(),
                 SummaryToolCall::shell("cargo test")
-                    .id(ToolCallId::new("call_2"))
+                    .id("call_2")
                     .is_success(false)
                     .into(),
                 SummaryToolCall::update("/test/output.txt")
-                    .id(ToolCallId::new("call_3"))
+                    .id("call_3")
                     .is_success(false)
                     .into(),
             ],
@@ -977,7 +893,7 @@ mod tests {
             vec![
                 Block::content("Searching"),
                 SummaryToolCall::search("pattern")
-                    .id(ToolCallId::new("call_1"))
+                    .id("call_1")
                     .is_success(false)
                     .into(),
             ],
@@ -1003,7 +919,7 @@ mod tests {
     fn test_context_summary_extracts_search_tool_calls() {
         let fixture = context(vec![assistant_with_tools(
             "Searching files",
-            vec![tool_call_search("call_1", "/test/src")],
+            vec![Tools::tool_call_search("/test", Some("/test/src")).call_id("call_1")],
         )]);
 
         let actual = ContextSummary::from(&fixture);
@@ -1013,7 +929,7 @@ mod tests {
             vec![
                 Block::content("Searching files"),
                 SummaryToolCall::search("/test/src")
-                    .id(ToolCallId::new("call_1"))
+                    .id("call_1")
                     .is_success(false)
                     .into(),
             ],
@@ -1025,7 +941,10 @@ mod tests {
     #[test]
     fn test_context_summary_links_search_results_to_calls() {
         let fixture = context(vec![
-            assistant_with_tools("Searching", vec![tool_call_search("call_1", "/test/src")]),
+            assistant_with_tools(
+                "Searching",
+                vec![Tools::tool_call_search("/test", Some("/test/src")).call_id("call_1")],
+            ),
             tool_result("search", "call_1", false),
         ]);
 
@@ -1035,9 +954,7 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Searching"),
-                SummaryToolCall::search("/test/src")
-                    .id(ToolCallId::new("call_1"))
-                    .into(),
+                SummaryToolCall::search("/test/src").id("call_1").into(),
             ],
         )]);
 
@@ -1049,10 +966,10 @@ mod tests {
         let fixture = context(vec![assistant_with_tools(
             "Multiple operations",
             vec![
-                tool_call("read", "call_1", "/test/file.rs"),
-                tool_call_shell("call_2", "cargo test"),
-                tool_call_search("call_3", "/test/src"),
-                tool_call_write("call_4", "/test/output.txt", "result"),
+                Tools::tool_call_read("/test/file.rs").call_id("call_1"),
+                Tools::tool_call_shell("cargo test", "/test").call_id("call_2"),
+                Tools::tool_call_search("/test", Some("/test/src")).call_id("call_3"),
+                Tools::tool_call_write("/test/output.txt", "result").call_id("call_4"),
             ],
         )]);
 
@@ -1063,19 +980,19 @@ mod tests {
             vec![
                 Block::content("Multiple operations"),
                 SummaryToolCall::read("/test/file.rs")
-                    .id(ToolCallId::new("call_1"))
+                    .id("call_1")
                     .is_success(false)
                     .into(),
                 SummaryToolCall::shell("cargo test")
-                    .id(ToolCallId::new("call_2"))
+                    .id("call_2")
                     .is_success(false)
                     .into(),
                 SummaryToolCall::search("/test/src")
-                    .id(ToolCallId::new("call_3"))
+                    .id("call_3")
                     .is_success(false)
                     .into(),
                 SummaryToolCall::update("/test/output.txt")
-                    .id(ToolCallId::new("call_4"))
+                    .id("call_4")
                     .is_success(false)
                     .into(),
             ],
@@ -1140,7 +1057,7 @@ mod tests {
     fn test_context_summary_extracts_undo_tool_calls() {
         let fixture = context(vec![assistant_with_tools(
             "Undoing changes",
-            vec![tool_call_undo("call_1", "/test/file.rs")],
+            vec![Tools::tool_call_undo("/test/file.rs").call_id("call_1")],
         )]);
 
         let actual = ContextSummary::from(&fixture);
@@ -1150,7 +1067,7 @@ mod tests {
             vec![
                 Block::content("Undoing changes"),
                 SummaryToolCall::undo("/test/file.rs")
-                    .id(ToolCallId::new("call_1"))
+                    .id("call_1")
                     .is_success(false)
                     .into(),
             ],
@@ -1163,7 +1080,7 @@ mod tests {
     fn test_context_summary_extracts_fetch_tool_calls() {
         let fixture = context(vec![assistant_with_tools(
             "Fetching data",
-            vec![tool_call_fetch("call_1", "https://api.example.com")],
+            vec![Tools::tool_call_fetch("https://api.example.com").call_id("call_1")],
         )]);
 
         let actual = ContextSummary::from(&fixture);
@@ -1173,7 +1090,7 @@ mod tests {
             vec![
                 Block::content("Fetching data"),
                 SummaryToolCall::fetch("https://api.example.com")
-                    .id(ToolCallId::new("call_1"))
+                    .id("call_1")
                     .is_success(false)
                     .into(),
             ],
@@ -1186,7 +1103,7 @@ mod tests {
     fn test_context_summary_extracts_followup_tool_calls() {
         let fixture = context(vec![assistant_with_tools(
             "Asking question",
-            vec![tool_call_followup("call_1", "Should I proceed?")],
+            vec![Tools::tool_call_followup("Should I proceed?").call_id("call_1")],
         )]);
 
         let actual = ContextSummary::from(&fixture);
@@ -1196,7 +1113,7 @@ mod tests {
             vec![
                 Block::content("Asking question"),
                 SummaryToolCall::followup("Should I proceed?")
-                    .id(ToolCallId::new("call_1"))
+                    .id("call_1")
                     .is_success(false)
                     .into(),
             ],
@@ -1209,7 +1126,7 @@ mod tests {
     fn test_context_summary_extracts_plan_tool_calls() {
         let fixture = context(vec![assistant_with_tools(
             "Creating plan",
-            vec![tool_call_plan("call_1", "feature-plan")],
+            vec![Tools::tool_call_plan("feature-plan", "v1", "test").call_id("call_1")],
         )]);
 
         let actual = ContextSummary::from(&fixture);
@@ -1219,7 +1136,7 @@ mod tests {
             vec![
                 Block::content("Creating plan"),
                 SummaryToolCall::plan("feature-plan")
-                    .id(ToolCallId::new("call_1"))
+                    .id("call_1")
                     .is_success(false)
                     .into(),
             ],
@@ -1231,7 +1148,10 @@ mod tests {
     #[test]
     fn test_context_summary_links_undo_results_to_calls() {
         let fixture = context(vec![
-            assistant_with_tools("Undoing", vec![tool_call_undo("call_1", "/test/file.rs")]),
+            assistant_with_tools(
+                "Undoing",
+                vec![Tools::tool_call_undo("/test/file.rs").call_id("call_1")],
+            ),
             tool_result("undo", "call_1", false),
         ]);
 
@@ -1241,9 +1161,7 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Undoing"),
-                SummaryToolCall::undo("/test/file.rs")
-                    .id(ToolCallId::new("call_1"))
-                    .into(),
+                SummaryToolCall::undo("/test/file.rs").id("call_1").into(),
             ],
         )]);
 
@@ -1255,7 +1173,7 @@ mod tests {
         let fixture = context(vec![
             assistant_with_tools(
                 "Fetching",
-                vec![tool_call_fetch("call_1", "https://example.com")],
+                vec![Tools::tool_call_fetch("https://example.com").call_id("call_1")],
             ),
             tool_result("fetch", "call_1", false),
         ]);
@@ -1267,7 +1185,7 @@ mod tests {
             vec![
                 Block::content("Fetching"),
                 SummaryToolCall::fetch("https://example.com")
-                    .id(ToolCallId::new("call_1"))
+                    .id("call_1")
                     .into(),
             ],
         )]);
@@ -1278,7 +1196,10 @@ mod tests {
     #[test]
     fn test_context_summary_links_followup_results_to_calls() {
         let fixture = context(vec![
-            assistant_with_tools("Asking", vec![tool_call_followup("call_1", "Continue?")]),
+            assistant_with_tools(
+                "Asking",
+                vec![Tools::tool_call_followup("Continue?").call_id("call_1")],
+            ),
             tool_result("followup", "call_1", false),
         ]);
 
@@ -1288,9 +1209,7 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Asking"),
-                SummaryToolCall::followup("Continue?")
-                    .id(ToolCallId::new("call_1"))
-                    .into(),
+                SummaryToolCall::followup("Continue?").id("call_1").into(),
             ],
         )]);
 
@@ -1300,7 +1219,10 @@ mod tests {
     #[test]
     fn test_context_summary_links_plan_results_to_calls() {
         let fixture = context(vec![
-            assistant_with_tools("Planning", vec![tool_call_plan("call_1", "my-plan")]),
+            assistant_with_tools(
+                "Planning",
+                vec![Tools::tool_call_plan("my-plan", "v1", "test").call_id("call_1")],
+            ),
             tool_result("plan", "call_1", false),
         ]);
 
@@ -1310,9 +1232,7 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Planning"),
-                SummaryToolCall::plan("my-plan")
-                    .id(ToolCallId::new("call_1"))
-                    .into(),
+                SummaryToolCall::plan("my-plan").id("call_1").into(),
             ],
         )]);
 
@@ -1324,15 +1244,15 @@ mod tests {
         let fixture = context(vec![assistant_with_tools(
             "All operations",
             vec![
-                tool_call("read", "call_1", "/test/file.rs"),
-                tool_call_write("call_2", "/test/output.txt", "content"),
-                tool_call("remove", "call_3", "/test/old.txt"),
-                tool_call_shell("call_4", "cargo build"),
-                tool_call_search("call_5", "/test/src"),
-                tool_call_undo("call_6", "/test/undo.txt"),
-                tool_call_fetch("call_7", "https://example.com"),
-                tool_call_followup("call_8", "Proceed?"),
-                tool_call_plan("call_9", "implementation"),
+                Tools::tool_call_read("/test/file.rs").call_id("call_1"),
+                Tools::tool_call_write("/test/output.txt", "content").call_id("call_2"),
+                Tools::tool_call_remove("/test/old.txt").call_id("call_3"),
+                Tools::tool_call_shell("cargo build", "/test").call_id("call_4"),
+                Tools::tool_call_search("/test", Some("/test/src")).call_id("call_5"),
+                Tools::tool_call_undo("/test/undo.txt").call_id("call_6"),
+                Tools::tool_call_fetch("https://example.com").call_id("call_7"),
+                Tools::tool_call_followup("Proceed?").call_id("call_8"),
+                Tools::tool_call_plan("implementation", "v1", "test").call_id("call_9"),
             ],
         )]);
 
@@ -1343,39 +1263,39 @@ mod tests {
             vec![
                 Block::content("All operations"),
                 SummaryToolCall::read("/test/file.rs")
-                    .id(ToolCallId::new("call_1"))
+                    .id("call_1")
                     .is_success(false)
                     .into(),
                 SummaryToolCall::update("/test/output.txt")
-                    .id(ToolCallId::new("call_2"))
+                    .id("call_2")
                     .is_success(false)
                     .into(),
                 SummaryToolCall::remove("/test/old.txt")
-                    .id(ToolCallId::new("call_3"))
+                    .id("call_3")
                     .is_success(false)
                     .into(),
                 SummaryToolCall::shell("cargo build")
-                    .id(ToolCallId::new("call_4"))
+                    .id("call_4")
                     .is_success(false)
                     .into(),
                 SummaryToolCall::search("/test/src")
-                    .id(ToolCallId::new("call_5"))
+                    .id("call_5")
                     .is_success(false)
                     .into(),
                 SummaryToolCall::undo("/test/undo.txt")
-                    .id(ToolCallId::new("call_6"))
+                    .id("call_6")
                     .is_success(false)
                     .into(),
                 SummaryToolCall::fetch("https://example.com")
-                    .id(ToolCallId::new("call_7"))
+                    .id("call_7")
                     .is_success(false)
                     .into(),
                 SummaryToolCall::followup("Proceed?")
-                    .id(ToolCallId::new("call_8"))
+                    .id("call_8")
                     .is_success(false)
                     .into(),
                 SummaryToolCall::plan("implementation")
-                    .id(ToolCallId::new("call_9"))
+                    .id("call_9")
                     .is_success(false)
                     .into(),
             ],
