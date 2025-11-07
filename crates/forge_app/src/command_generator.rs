@@ -3,7 +3,10 @@ use std::sync::Arc;
 use anyhow::Result;
 use forge_domain::{extract_tag_content, *};
 
-use crate::{AppConfigService, EnvironmentService, ProviderService, Services, TemplateEngine};
+use crate::{
+    AppConfigService, EnvironmentService, FileDiscoveryService, ProviderService, Services,
+    TemplateEngine, Walker, WorkflowService,
+};
 
 /// CommandGenerator handles shell command generation from natural language
 pub struct CommandGenerator<S> {
@@ -20,10 +23,26 @@ impl<S: Services> CommandGenerator<S> {
     pub async fn generate(&self, prompt: UserPrompt) -> Result<String> {
         // Get system information for context
         let env = self.services.environment_service().get_environment();
+        let workflow = self.services.read_merged(None).await.unwrap_or_default();
+        let max_depth = workflow.max_walker_depth;
+
+        let mut walker = Walker::conservative().cwd(env.cwd.clone());
+        if let Some(depth) = max_depth {
+            walker = walker.max_depth(depth);
+        };
+        let mut files = self
+            .services
+            .collect_files(walker)
+            .await?
+            .into_iter()
+            .filter(|f| !f.is_dir)
+            .map(|f| f.path)
+            .collect::<Vec<_>>();
+        files.sort();
 
         let rendered_system_prompt = TemplateEngine::default().render(
             "forge-command-generator-prompt.md",
-            &serde_json::json!({"env": env}),
+            &serde_json::json!({"env": env, "files": files}),
         )?;
 
         // Get required services and data
