@@ -23,6 +23,7 @@ mod title_generator;
 mod tool_executor;
 mod tool_registry;
 mod tool_resolver;
+mod transformers;
 mod truncation;
 mod user;
 pub mod user_prompt;
