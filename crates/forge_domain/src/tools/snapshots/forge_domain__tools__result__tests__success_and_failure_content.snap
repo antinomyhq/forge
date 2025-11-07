@@ -1,5 +1,5 @@
 ---
-source: crates/forge_domain/src/tool_result.rs
+source: crates/forge_domain/src/tools/result.rs
 expression: failure.output.as_str().unwrap()
 ---
 <tool_call_error>
