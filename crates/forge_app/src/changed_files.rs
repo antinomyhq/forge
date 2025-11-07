@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
-use forge_domain::{Agent, ContextMessage, Conversation, Template};
+use forge_domain::{Agent, ContextMessage, Conversation};
+use forge_template::Element;
 
-use crate::{FsReadService, TemplateService};
+use crate::FsReadService;
 
 /// Service responsible for detecting externally changed files and rendering
 /// notifications
@@ -18,7 +19,7 @@ impl<S> ChangedFiles<S> {
     }
 }
 
-impl<S: FsReadService + TemplateService> ChangedFiles<S> {
+impl<S: FsReadService> ChangedFiles<S> {
     /// Detects externally changed files and renders a notification if changes
     /// are found. Updates file hashes in conversation metrics to prevent
     /// duplicate notifications.
@@ -44,25 +45,23 @@ impl<S: FsReadService + TemplateService> ChangedFiles<S> {
             }
         }
 
-        let file_paths: Vec<String> = changes
+        let file_elements: Vec<Element> = changes
             .iter()
-            .map(|change| change.path.display().to_string())
+            .map(|change| Element::new("file").text(change.path.display().to_string()))
             .collect();
 
-        if let Ok(rendered_prompt) = self
-            .services
-            .render_template(
-                Template::new("{{> forge-file-changes-notification.md }}"),
-                &serde_json::json!({ "files": file_paths }),
+        let notification = Element::new("information")
+            .append(
+                Element::new("critical")
+                    .text("The following files have been modified externally. Please re-read them if its relevant for the task."),
             )
-            .await
-        {
-            let context = conversation.context.take().unwrap_or_default();
-            conversation = conversation.context(context.add_message(ContextMessage::user(
-                rendered_prompt,
-                self.agent.model.clone(),
-            )))
-        }
+            .append(Element::new("files").append(file_elements))
+            .to_string();
+
+        let context = conversation.context.take().unwrap_or_default();
+        conversation = conversation.context(
+            context.add_message(ContextMessage::user(notification, self.agent.model.clone())),
+        );
 
         conversation
     }
@@ -74,13 +73,12 @@ mod tests {
 
     use forge_domain::{
         Agent, AgentId, Context, Conversation, ConversationId, FileChangeMetrics, Metrics, ModelId,
-        Template,
     };
     use pretty_assertions::assert_eq;
 
     use super::*;
     use crate::services::Content;
-    use crate::{FsReadService, ReadOutput, TemplateService};
+    use crate::{FsReadService, ReadOutput};
 
     #[derive(Clone, Default)]
     struct TestServices {
@@ -104,32 +102,6 @@ mod tests {
                     total_lines: 1,
                 })
                 .ok_or_else(|| anyhow::anyhow!(std::io::Error::from(std::io::ErrorKind::NotFound)))
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl TemplateService for TestServices {
-        async fn register_template(&self, _: std::path::PathBuf) -> anyhow::Result<()> {
-            Ok(())
-        }
-
-        async fn render_template<V: serde::Serialize + Send + Sync>(
-            &self,
-            _: Template<V>,
-            object: &V,
-        ) -> anyhow::Result<String> {
-            let json = serde_json::to_value(object)?;
-            let files = json
-                .get("files")
-                .and_then(|v| v.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|f| f.as_str())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                })
-                .unwrap_or_default();
-            Ok(format!("Files changed: {}", files))
         }
     }
 
@@ -190,10 +162,9 @@ mod tests {
 
         let messages = &actual.context.unwrap().messages;
         assert_eq!(messages.len(), 1);
-        assert_eq!(
-            messages[0].content().unwrap().to_string(),
-            "Files changed: /test/file.txt"
-        );
+        let message = messages[0].content().unwrap().to_string();
+        assert!(message.contains("/test/file.txt"));
+        assert!(message.contains("externally_modified_files"));
     }
 
     #[tokio::test]

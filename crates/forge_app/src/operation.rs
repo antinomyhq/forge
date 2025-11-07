@@ -24,6 +24,7 @@ use crate::{
 enum OperationType {
     Change,
     Undo,
+    Read,
 }
 
 struct FileOperationStats {
@@ -54,6 +55,12 @@ fn file_change_stats(operation: FileOperationStats, metrics: &mut Metrics) {
                 operation.file_hash,
             );
         }
+        OperationType::Read => metrics.record_file_operation(
+            operation.path,
+            operation.lines_removed,
+            operation.lines_added,
+            operation.file_hash,
+        ),
     }
 }
 
@@ -228,8 +235,9 @@ impl ToolOperation {
         match self {
             ToolOperation::FsRead { input, output } => {
                 let content = output.content.file_content();
+                let file_hash = compute_hash(content);
                 let elm = Element::new("file_content")
-                    .attr("path", input.path)
+                    .attr("path", &input.path)
                     .attr(
                         "display_lines",
                         format!("{}-{}", output.start_line, output.end_line),
@@ -237,6 +245,17 @@ impl ToolOperation {
                     .attr("total_lines", content.lines().count())
                     .cdata(content);
 
+                file_change_stats(
+                    FileOperationStats {
+                        path: input.path,
+                        tool_name: tool_name,
+                        lines_added: 0,
+                        lines_removed: 0,
+                        operation_type: OperationType::Read,
+                        file_hash: Some(file_hash),
+                    },
+                    metrics,
+                );
                 forge_domain::ToolOutput::text(elm)
             }
             ToolOperation::ImageRead { output } => forge_domain::ToolOutput::image(output),
