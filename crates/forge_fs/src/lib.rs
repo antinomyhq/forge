@@ -15,6 +15,7 @@ mod is_binary;
 mod meta;
 mod read;
 mod read_range;
+mod streaming;
 mod write;
 
 pub use crate::binary_detection::is_binary;
