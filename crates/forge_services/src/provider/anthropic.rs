@@ -93,6 +93,11 @@ impl<T: HttpClientService> Anthropic<T> {
         let url = &self.chat_url;
         debug!(url = %url, model = %model, "Connecting Upstream");
 
+        tokio::spawn(tokio::fs::write(
+            ".anthropic.request.json",
+            serde_json::to_string(&request).unwrap(),
+        ));
+
         let json_bytes =
             serde_json::to_vec(&request).with_context(|| "Failed to serialize request")?;
 
