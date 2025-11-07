@@ -136,6 +136,23 @@ function _forge_select_and_set_config() {
 }
 
 
+# Ensures a model is configured, prompting user to select one if not set
+# Returns 0 if model is set, 1 if user failed to select a model
+function _forge_ensure_model_configured() {
+    local current_model=$($_FORGE_BIN config get model --porcelain 2>/dev/null)
+    if [[ -z "$current_model" || "$current_model" == *"Model: Not set"* ]]; then
+        _forge_select_and_set_config "list models" "model" "Model" "" "2,3.."
+        current_model=$($_FORGE_BIN config get model --porcelain 2>/dev/null)
+        if [[ -z "$current_model" || "$current_model" == *"Model: Not set"* ]]; then
+            echo "\033[31m✗\033[0m No model selected. Cannot proceed."
+            _forge_reset
+            return 1
+        fi
+    fi
+    return 0
+}
+
+
 # Helper function to handle conversation commands that require an active conversation
 function _forge_handle_conversation_command() {
     local subcommand="$1"
@@ -431,7 +448,12 @@ function forge-accept-line() {
             user_action="muse"
         ;;
     esac
-    
+
+    # Check if model is set, if not prompt user to select one
+    if ! _forge_ensure_model_configured; then
+        return 0
+    fi
+
     # Dispatch to appropriate action handler using pattern matching
     case "$user_action" in
         new|n)
