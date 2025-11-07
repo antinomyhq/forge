@@ -13,7 +13,7 @@ use serde_json::Map;
 use strum::IntoEnumIterator;
 use strum_macros::{AsRefStr, Display, EnumDiscriminants, EnumIter};
 
-use crate::{ToolCallFull, ToolDefinition, ToolDescription, ToolName};
+use crate::{ToolCallArguments, ToolCallFull, ToolDefinition, ToolDescription, ToolName};
 
 /// Enum representing all possible tool input types.
 ///
@@ -35,7 +35,7 @@ use crate::{ToolCallFull, ToolDefinition, ToolDescription, ToolName};
 #[strum_discriminants(derive(Display))]
 #[serde(tag = "name", content = "arguments", rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
-pub enum Tools {
+pub enum ToolCatalog {
     Read(FSRead),
     ReadImage(ReadImage),
     Write(FSWrite),
@@ -459,31 +459,31 @@ fn is_default<T: Default + PartialEq>(t: &T) -> bool {
     t == &T::default()
 }
 
-impl ToolDescription for Tools {
+impl ToolDescription for ToolCatalog {
     fn description(&self) -> String {
         match self {
-            Tools::Patch(v) => v.description(),
-            Tools::Shell(v) => v.description(),
-            Tools::Followup(v) => v.description(),
-            Tools::Fetch(v) => v.description(),
-            Tools::Search(v) => v.description(),
-            Tools::Read(v) => v.description(),
-            Tools::ReadImage(v) => v.description(),
-            Tools::Remove(v) => v.description(),
-            Tools::Undo(v) => v.description(),
-            Tools::Write(v) => v.description(),
-            Tools::Plan(v) => v.description(),
+            ToolCatalog::Patch(v) => v.description(),
+            ToolCatalog::Shell(v) => v.description(),
+            ToolCatalog::Followup(v) => v.description(),
+            ToolCatalog::Fetch(v) => v.description(),
+            ToolCatalog::Search(v) => v.description(),
+            ToolCatalog::Read(v) => v.description(),
+            ToolCatalog::ReadImage(v) => v.description(),
+            ToolCatalog::Remove(v) => v.description(),
+            ToolCatalog::Undo(v) => v.description(),
+            ToolCatalog::Write(v) => v.description(),
+            ToolCatalog::Plan(v) => v.description(),
         }
     }
 }
 lazy_static::lazy_static! {
     // Cache of all tool names
-    static ref FORGE_TOOLS: HashSet<ToolName> = Tools::iter()
+    static ref FORGE_TOOLS: HashSet<ToolName> = ToolCatalog::iter()
         .map(ToolName::new)
         .collect();
 }
 
-impl Tools {
+impl ToolCatalog {
     pub fn schema(&self) -> RootSchema {
         use schemars::r#gen::SchemaSettings;
         let r#gen = SchemaSettings::default()
@@ -497,17 +497,17 @@ impl Tools {
             })
             .into_generator();
         match self {
-            Tools::Patch(_) => r#gen.into_root_schema_for::<FSPatch>(),
-            Tools::Shell(_) => r#gen.into_root_schema_for::<Shell>(),
-            Tools::Followup(_) => r#gen.into_root_schema_for::<Followup>(),
-            Tools::Fetch(_) => r#gen.into_root_schema_for::<NetFetch>(),
-            Tools::Search(_) => r#gen.into_root_schema_for::<FSSearch>(),
-            Tools::Read(_) => r#gen.into_root_schema_for::<FSRead>(),
-            Tools::ReadImage(_) => r#gen.into_root_schema_for::<ReadImage>(),
-            Tools::Remove(_) => r#gen.into_root_schema_for::<FSRemove>(),
-            Tools::Undo(_) => r#gen.into_root_schema_for::<FSUndo>(),
-            Tools::Write(_) => r#gen.into_root_schema_for::<FSWrite>(),
-            Tools::Plan(_) => r#gen.into_root_schema_for::<PlanCreate>(),
+            ToolCatalog::Patch(_) => r#gen.into_root_schema_for::<FSPatch>(),
+            ToolCatalog::Shell(_) => r#gen.into_root_schema_for::<Shell>(),
+            ToolCatalog::Followup(_) => r#gen.into_root_schema_for::<Followup>(),
+            ToolCatalog::Fetch(_) => r#gen.into_root_schema_for::<NetFetch>(),
+            ToolCatalog::Search(_) => r#gen.into_root_schema_for::<FSSearch>(),
+            ToolCatalog::Read(_) => r#gen.into_root_schema_for::<FSRead>(),
+            ToolCatalog::ReadImage(_) => r#gen.into_root_schema_for::<ReadImage>(),
+            ToolCatalog::Remove(_) => r#gen.into_root_schema_for::<FSRemove>(),
+            ToolCatalog::Undo(_) => r#gen.into_root_schema_for::<FSUndo>(),
+            ToolCatalog::Write(_) => r#gen.into_root_schema_for::<FSWrite>(),
+            ToolCatalog::Plan(_) => r#gen.into_root_schema_for::<PlanCreate>(),
         }
     }
 
@@ -521,7 +521,7 @@ impl Tools {
     }
     pub fn should_yield(tool_name: &ToolName) -> bool {
         // Tools that convey that the execution should yield
-        [ToolsDiscriminants::Followup]
+        [ToolCatalogDiscriminants::Followup]
             .iter()
             .any(|v| v.to_string().to_case(Case::Snake).eq(tool_name.as_str()))
     }
@@ -542,23 +542,23 @@ impl Tools {
         };
 
         match self {
-            Tools::Read(input) => Some(crate::policies::PermissionOperation::Read {
+            ToolCatalog::Read(input) => Some(crate::policies::PermissionOperation::Read {
                 path: std::path::PathBuf::from(&input.path),
                 cwd,
                 message: format!("Read file: {}", display_path_for(&input.path)),
             }),
-            Tools::ReadImage(input) => Some(crate::policies::PermissionOperation::Read {
+            ToolCatalog::ReadImage(input) => Some(crate::policies::PermissionOperation::Read {
                 path: std::path::PathBuf::from(&input.path),
                 cwd,
                 message: format!("Image file: {}", display_path_for(&input.path)),
             }),
 
-            Tools::Write(input) => Some(crate::policies::PermissionOperation::Write {
+            ToolCatalog::Write(input) => Some(crate::policies::PermissionOperation::Write {
                 path: std::path::PathBuf::from(&input.path),
                 cwd,
                 message: format!("Create/overwrite file: {}", display_path_for(&input.path)),
             }),
-            Tools::Search(input) => {
+            ToolCatalog::Search(input) => {
                 let base_message = format!(
                     "Search in directory/file: {}",
                     display_path_for(&input.path)
@@ -581,29 +581,121 @@ impl Tools {
                     message,
                 })
             }
-            Tools::Remove(input) => Some(crate::policies::PermissionOperation::Write {
+            ToolCatalog::Remove(input) => Some(crate::policies::PermissionOperation::Write {
                 path: std::path::PathBuf::from(&input.path),
                 cwd,
                 message: format!("Remove file: {}", display_path_for(&input.path)),
             }),
-            Tools::Patch(input) => Some(crate::policies::PermissionOperation::Write {
+            ToolCatalog::Patch(input) => Some(crate::policies::PermissionOperation::Write {
                 path: std::path::PathBuf::from(&input.path),
                 cwd,
                 message: format!("Modify file: {}", display_path_for(&input.path)),
             }),
-            Tools::Shell(input) => Some(crate::policies::PermissionOperation::Execute {
+            ToolCatalog::Shell(input) => Some(crate::policies::PermissionOperation::Execute {
                 command: input.command.clone(),
                 cwd,
                 message: format!("Execute shell command: {}", input.command),
             }),
-            Tools::Fetch(input) => Some(crate::policies::PermissionOperation::Fetch {
+            ToolCatalog::Fetch(input) => Some(crate::policies::PermissionOperation::Fetch {
                 url: input.url.clone(),
                 cwd,
                 message: format!("Fetch content from URL: {}", input.url),
             }),
             // Operations that don't require permission checks
-            Tools::Undo(_) | Tools::Followup(_) | Tools::Plan(_) => None,
+            ToolCatalog::Undo(_) | ToolCatalog::Followup(_) | ToolCatalog::Plan(_) => None,
         }
+    }
+
+    /// Creates a Read tool call with the specified path
+    pub fn tool_call_read(path: &str) -> ToolCallFull {
+        ToolCallFull::from(ToolCatalog::Read(FSRead {
+            path: path.to_string(),
+            ..Default::default()
+        }))
+    }
+
+    /// Creates a ReadImage tool call with the specified path
+    pub fn tool_call_read_image(path: &str) -> ToolCallFull {
+        ToolCallFull::from(ToolCatalog::ReadImage(ReadImage { path: path.to_string() }))
+    }
+
+    /// Creates a Write tool call with the specified path and content
+    pub fn tool_call_write(path: &str, content: &str) -> ToolCallFull {
+        ToolCallFull::from(ToolCatalog::Write(FSWrite {
+            path: path.to_string(),
+            content: content.to_string(),
+            ..Default::default()
+        }))
+    }
+
+    /// Creates a Patch tool call with the specified parameters
+    pub fn tool_call_patch(
+        path: &str,
+        content: &str,
+        operation: PatchOperation,
+        search: Option<&str>,
+    ) -> ToolCallFull {
+        ToolCallFull::from(ToolCatalog::Patch(FSPatch {
+            path: path.to_string(),
+            search: search.map(|s| s.to_string()),
+            operation,
+            content: content.to_string(),
+        }))
+    }
+
+    /// Creates a Remove tool call with the specified path
+    pub fn tool_call_remove(path: &str) -> ToolCallFull {
+        ToolCallFull::from(ToolCatalog::Remove(FSRemove { path: path.to_string() }))
+    }
+
+    /// Creates a Shell tool call with the specified command and working
+    /// directory
+    pub fn tool_call_shell(command: &str, cwd: impl Into<PathBuf>) -> ToolCallFull {
+        ToolCallFull::from(ToolCatalog::Shell(Shell {
+            command: command.to_string(),
+            cwd: cwd.into(),
+            ..Default::default()
+        }))
+    }
+
+    /// Creates a Search tool call with the specified path and regex pattern
+    pub fn tool_call_search(path: &str, regex: Option<&str>) -> ToolCallFull {
+        ToolCallFull::from(ToolCatalog::Search(FSSearch {
+            path: path.to_string(),
+            regex: regex.map(|r| r.to_string()),
+            ..Default::default()
+        }))
+    }
+
+    /// Creates an Undo tool call with the specified path
+    pub fn tool_call_undo(path: &str) -> ToolCallFull {
+        ToolCallFull::from(ToolCatalog::Undo(FSUndo { path: path.to_string() }))
+    }
+
+    /// Creates a Fetch tool call with the specified url
+    pub fn tool_call_fetch(url: &str) -> ToolCallFull {
+        ToolCallFull::from(ToolCatalog::Fetch(NetFetch {
+            url: url.to_string(),
+            ..Default::default()
+        }))
+    }
+
+    /// Creates a Followup tool call with the specified question
+    pub fn tool_call_followup(question: &str) -> ToolCallFull {
+        ToolCallFull::from(ToolCatalog::Followup(Followup {
+            question: question.to_string(),
+            ..Default::default()
+        }))
+    }
+
+    /// Creates a Plan tool call with the specified plan name, version, and
+    /// content
+    pub fn tool_call_plan(plan_name: &str, version: &str, content: &str) -> ToolCallFull {
+        ToolCallFull::from(ToolCatalog::Plan(PlanCreate {
+            plan_name: plan_name.to_string(),
+            version: version.to_string(),
+            content: content.to_string(),
+        }))
     }
 }
 
@@ -625,7 +717,7 @@ fn format_display_path(path: &Path, cwd: &Path) -> String {
     }
 }
 
-impl TryFrom<ToolCallFull> for Tools {
+impl TryFrom<ToolCallFull> for ToolCatalog {
     type Error = crate::Error;
 
     fn try_from(value: ToolCallFull) -> Result<Self, Self::Error> {
@@ -638,14 +730,14 @@ impl TryFrom<ToolCallFull> for Tools {
     }
 }
 
-impl ToolsDiscriminants {
+impl ToolCatalogDiscriminants {
     pub fn name(&self) -> ToolName {
         ToolName::new(self.to_string().to_case(Case::Snake))
     }
 
     // TODO: This is an extremely slow operation
     pub fn definition(&self) -> ToolDefinition {
-        Tools::iter()
+        ToolCatalog::iter()
             .find(|tool| tool.definition().name == self.name())
             .map(|tool| tool.definition())
             .expect("Forge tool definition not found")
@@ -660,23 +752,40 @@ impl TryFrom<&ToolCallFull> for AgentInput {
     }
 }
 
+impl From<ToolCatalog> for ToolCallFull {
+    fn from(tool: ToolCatalog) -> Self {
+        let name = ToolName::new(tool.to_string());
+        // Serialize the tool to get the tagged enum structure
+        let value = serde_json::to_value(&tool).expect("Failed to serialize tool");
+
+        // Extract just the "arguments" part from the tagged enum
+        let arguments = if let Some(args) = value.get("arguments") {
+            ToolCallArguments::from(args.clone())
+        } else {
+            ToolCallArguments::default()
+        };
+
+        ToolCallFull { name, call_id: None, arguments }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
     use strum::IntoEnumIterator;
 
-    use crate::{ToolName, Tools, ToolsDiscriminants};
+    use crate::{ToolCatalog, ToolCatalogDiscriminants, ToolName};
 
     #[test]
     fn test_tool_definition() {
-        let actual = ToolsDiscriminants::Remove.name();
+        let actual = ToolCatalogDiscriminants::Remove.name();
         let expected = ToolName::new("remove");
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_tool_definition_json() {
-        let tools = Tools::iter()
+        let tools = ToolCatalog::iter()
             .map(|tool| {
                 let definition = tool.definition().input_schema;
                 serde_json::to_string_pretty(&definition)
@@ -695,7 +804,7 @@ mod tests {
         use crate::FSSearch;
         use crate::policies::PermissionOperation;
 
-        let search_with_regex = Tools::Search(FSSearch {
+        let search_with_regex = ToolCatalog::Search(FSSearch {
             path: "/home/user/project".to_string(),
             regex: Some("fn main".to_string()),
             start_index: None,
@@ -725,7 +834,7 @@ mod tests {
         use crate::FSSearch;
         use crate::policies::PermissionOperation;
 
-        let search_without_regex = Tools::Search(FSSearch {
+        let search_without_regex = ToolCatalog::Search(FSSearch {
             path: "/home/user/project".to_string(),
             regex: None,
             start_index: None,
@@ -752,7 +861,7 @@ mod tests {
         use crate::FSSearch;
         use crate::policies::PermissionOperation;
 
-        let search_with_pattern = Tools::Search(FSSearch {
+        let search_with_pattern = ToolCatalog::Search(FSSearch {
             path: "/home/user/project".to_string(),
             regex: None,
             start_index: None,
@@ -782,7 +891,7 @@ mod tests {
         use crate::FSSearch;
         use crate::policies::PermissionOperation;
 
-        let search_with_both = Tools::Search(FSSearch {
+        let search_with_both = ToolCatalog::Search(FSSearch {
             path: "/home/user/project".to_string(),
             regex: Some("fn main".to_string()),
             start_index: None,

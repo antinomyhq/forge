@@ -1,5 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Clone, Default, Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[serde(transparent)]
@@ -24,5 +25,11 @@ impl<V> Template<V> {
             template: template.to_string(),
             _marker: std::marker::PhantomData,
         }
+    }
+}
+
+impl<S: AsRef<str>> From<S> for Template<Value> {
+    fn from(value: S) -> Self {
+        Template::new(value.as_ref())
     }
 }
