@@ -429,7 +429,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 return Ok(());
             }
 
-            TopLevelCommand::Cmd { prompt } => {
+            TopLevelCommand::Transform { prompt } => {
                 self.on_cmd(UserPrompt::from(prompt)).await?;
                 return Ok(());
             }
