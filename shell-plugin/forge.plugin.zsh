@@ -32,6 +32,9 @@ ZSH_HIGHLIGHT_HIGHLIGHTERS+=(pattern)
 # Highlight :? command in yellow
 ZSH_HIGHLIGHT_PATTERNS+=('(#s):\?' 'fg=yellow,bold')
 
+# Highlight everything after :? + space in white bold
+ZSH_HIGHLIGHT_PATTERNS+=('(#s):\? *(*|[[:graph:]]*)' 'fg=white,bold')
+
 # Highlight colon + word at the beginning in yellow
 ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z]#' 'fg=yellow,bold')
 
