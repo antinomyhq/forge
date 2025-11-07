@@ -19,7 +19,6 @@ compact:
   retention_window: 6
   message_threshold: 200
   eviction_window: 0.2
-  prompt: "{{> forge-system-prompt-context-summarizer.md }}"
   on_turn_end: false
 
 updates:
