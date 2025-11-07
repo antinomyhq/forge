@@ -349,15 +349,53 @@ function _forge_action_tools() {
 
 # Action handler: Login to provider
 function _forge_action_login() {
-    echo
-    _forge_exec provider login
+    (
+        echo
+        local output
+        output=$($_FORGE_BIN list provider --porcelain 2>/dev/null)
+        
+        if [[ -n "$output" ]]; then
+            local selected
+            selected=$(echo "$output" | _forge_fzf --delimiter="$_FORGE_DELIMITER" --with-nth="1,3" --prompt="Provider ❯ ")
+
+            if [[ -n "$selected" ]]; then
+                local name="${selected%% *}"
+                _forge_exec provider login "$name"
+            fi
+        else
+            echo "\033[31m✗\033[0m No providers available"
+        fi
+    )
     _forge_reset
 }
 
 # Action handler: Logout from provider
 function _forge_action_logout() {
-    echo
-    _forge_exec provider logout
+    (
+        echo
+        local output
+        output=$($_FORGE_BIN list provider --porcelain 2>/dev/null)
+        
+        if [[ -n "$output" ]]; then
+            # Filter only configured providers (those with "available" status)
+            local configured_output
+            configured_output=$(echo "$output" | grep -i "available")
+            
+            if [[ -n "$configured_output" ]]; then
+                local selected
+                selected=$(echo "$configured_output" | _forge_fzf --delimiter="$_FORGE_DELIMITER" --prompt="Provider ❯ ")
+
+                if [[ -n "$selected" ]]; then
+                    local name="${selected%% *}"
+                    _forge_exec provider logout "$name"
+                fi
+            else
+                echo "\033[31m✗\033[0m No configured providers found"
+            fi
+        else
+            echo "\033[31m✗\033[0m No providers available"
+        fi
+    )
     _forge_reset
 }
 

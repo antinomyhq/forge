@@ -542,11 +542,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         use crate::cli::ProviderCommand;
 
         match provider_group.command {
-            ProviderCommand::Login => {
-                self.handle_provider_login().await?;
+            ProviderCommand::Login { provider } => {
+                self.handle_provider_login(provider.as_ref()).await?;
             }
-            ProviderCommand::Logout => {
-                self.handle_provider_logout().await?;
+            ProviderCommand::Logout { provider } => {
+                self.handle_provider_logout(provider.as_ref()).await?;
             }
             ProviderCommand::List => {
                 self.on_show_providers(provider_group.porcelain).await?;
@@ -556,7 +556,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn handle_provider_login(&mut self) -> anyhow::Result<()> {
+    async fn handle_provider_login(
+        &mut self,
+        provider_id: Option<&ProviderId>,
+    ) -> anyhow::Result<()> {
         use crate::model::CliProvider;
 
         // Fetch all providers (configured and unconfigured)
@@ -567,6 +570,27 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .into_iter()
             .map(CliProvider)
             .collect::<Vec<_>>();
+
+        // If provider_id is specified, find and login to that specific provider
+        if let Some(id) = provider_id {
+            let provider = providers
+                .iter()
+                .find(|p| p.0.id() == *id)
+                .ok_or_else(|| anyhow::anyhow!("Provider '{}' not found", id))?;
+
+            match &provider.0 {
+                AnyProvider::Template(p) => {
+                    let provider_id = p.id;
+                    let auth_methods = p.auth_methods.clone();
+                    self.configure_provider(provider_id, auth_methods).await?;
+                }
+                AnyProvider::Url(provider) => {
+                    self.configure_provider(provider.id, provider.auth_methods.clone())
+                        .await?;
+                }
+            }
+            return Ok(());
+        }
 
         // Sort the providers by their display names
         let mut sorted_providers = providers;
@@ -601,7 +625,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn handle_provider_logout(&mut self) -> anyhow::Result<()> {
+    async fn handle_provider_logout(
+        &mut self,
+        provider_id: Option<&ProviderId>,
+    ) -> anyhow::Result<()> {
         use crate::model::CliProvider;
 
         // Fetch all providers
@@ -618,6 +645,23 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         if configured_providers.is_empty() {
             self.writeln_title(TitleFormat::info("No configured providers found"))?;
+            return Ok(());
+        }
+
+        // If provider_id is specified, logout from that specific provider
+        if let Some(id) = provider_id {
+            let provider = configured_providers
+                .iter()
+                .find(|p| p.0.id() == *id)
+                .ok_or_else(|| anyhow::anyhow!("Configured provider '{}' not found", id))?;
+
+            if let AnyProvider::Url(p) = &provider.0 {
+                self.api.remove_provider(&p.id).await?;
+                self.writeln_title(TitleFormat::completion(format!(
+                    "Successfully logged out from {}",
+                    p.id
+                )))?;
+            }
             return Ok(());
         }
 
