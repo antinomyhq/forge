@@ -1,3 +1,10 @@
 [profile.default]
 # Set default test timeouts - mark tests as SLOW after 1 sec.
 slow-timeout = { period = "1s", terminate-after = 30, grace-period = "0s" }
+
+
+# Show only failed tests during test execution
+status-level = "fail"
+
+# Show only failed tests in the final summary
+final-status-level = "fail"

@@ -154,58 +154,12 @@ fn find_sequence_preserving_last_n(
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
-    use serde_json::json;
 
     use super::*;
-    use crate::{ContextMessage, ModelId, ToolCallFull, ToolCallId, ToolName, ToolResult};
+    use crate::MessagePattern;
 
     fn context_from_pattern(pattern: impl ToString) -> Context {
-        let model_id = ModelId::new("gpt-4");
-        let pattern = pattern.to_string();
-
-        let tool_call = ToolCallFull {
-            name: ToolName::new("read"),
-            call_id: Some(ToolCallId::new("call_123")),
-            arguments: serde_json::json!({"path": "/test/path"}).into(),
-        };
-
-        let tool_result = ToolResult::new(ToolName::new("read"))
-            .call_id(ToolCallId::new("call_123"))
-            .success(json!({"content": "File content"}).to_string());
-
-        let mut context = Context::default();
-
-        for c in pattern.chars() {
-            match c {
-                's' => context = context.add_message(ContextMessage::system("System message")),
-                'u' => {
-                    context = context.add_message(ContextMessage::user(
-                        "User message",
-                        model_id.clone().into(),
-                    ))
-                }
-                'a' => {
-                    context = context.add_message(ContextMessage::assistant(
-                        "Assistant message",
-                        None,
-                        None,
-                    ))
-                }
-                't' => {
-                    context = context.add_message(ContextMessage::assistant(
-                        "Assistant message with tool call",
-                        None,
-                        Some(vec![tool_call.clone()]),
-                    ))
-                }
-                'r' => {
-                    context = context.add_message(ContextMessage::tool_result(tool_result.clone()))
-                }
-                _ => panic!("Invalid character in test pattern: {c}"),
-            }
-        }
-
-        context
+        MessagePattern::new(pattern.to_string()).build()
     }
 
     fn seq(pattern: impl ToString, preserve_last_n: usize) -> String {
@@ -388,18 +342,15 @@ mod tests {
         let fixture = context_from_pattern("sua");
 
         // Test Percentage strategy conversion
-        // Context: System (0 tokens), User (3 tokens), Assistant (5 tokens) = 8 total
-        // tokens Eviction budget: 40% of 8 = 4 tokens (rounded up)
+        // Context: System (0 tokens), User (3 tokens), Assistant (3 tokens) = 6 total
+        // tokens Eviction budget: 40% of 6 = 2.4 → 3 tokens (rounded up)
         // Calculation:
         // - Skip system message (0 tokens)
-        // - User message: 3 tokens → budget: 4 - 3 = 1 token remaining
-        // - Assistant message: 5 tokens → budget: 1 - 5 = 0 (saturating_sub), budget
-        //   exhausted
-        // Result: Can evict 1 message (User), so preserve last 2 messages (System +
-        // Assistant)
+        // - User message: 3 tokens → budget: 3 - 3 = 0 token remaining
+        // Result: Can evict 1 message (User), so preserve last 1 message (Assistant)
         let percentage_strategy = CompactionStrategy::evict(0.4);
         let actual = percentage_strategy.to_fixed(&fixture);
-        let expected = 2; // Preserve last 2 messages
+        let expected = 1; // Preserve last 1 message
         assert_eq!(actual, expected);
 
         // Test PreserveLastN strategy
@@ -409,7 +360,7 @@ mod tests {
         assert_eq!(actual, expected);
 
         // Test invalid percentage (gets clamped to 1.0 = 100%)
-        // With 100% eviction budget (8 tokens), we can evict all non-system messages
+        // With 100% eviction budget (6 tokens), we can evict all non-system messages
         // This leaves us with just the system message, so preserve last 1 message
         let invalid_strategy = CompactionStrategy::evict(1.5);
         let actual = invalid_strategy.to_fixed(&fixture);

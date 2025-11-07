@@ -5,7 +5,7 @@ use anyhow::Context;
 use console::style;
 use forge_domain::{
     Agent, AgentId, AgentInput, ChatResponse, ChatResponseContent, ToolCallContext, ToolCallFull,
-    ToolDefinition, ToolName, ToolOutput, ToolResult, Tools,
+    ToolCatalog, ToolDefinition, ToolName, ToolOutput, ToolResult,
 };
 use futures::future::join_all;
 use strum::IntoEnumIterator;
@@ -66,7 +66,7 @@ impl<S: Services> ToolRegistry<S> {
         let tool_name = input.name.clone();
 
         // First, try to call a Forge tool
-        if Tools::contains(&input.name) {
+        if ToolCatalog::contains(&input.name) {
             self.call_with_timeout(&tool_name, || self.tool_executor.execute(input, context))
                 .await
         } else if self.agent_executor.contains_tool(&input.name).await? {
@@ -129,7 +129,7 @@ impl<S: Services> ToolRegistry<S> {
         let mcp_tools = self.services.get_mcp_servers().await?;
         let agent_tools = self.agent_executor.agent_definitions().await?;
 
-        let system_tools = Tools::iter()
+        let system_tools = ToolCatalog::iter()
             .map(|tool| tool.definition())
             .collect::<Vec<_>>();
 
@@ -165,7 +165,7 @@ impl<S> ToolRegistry<S> {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Agent, AgentId, ToolName, Tools};
+    use forge_domain::{Agent, AgentId, ToolCatalog, ToolName};
     use pretty_assertions::assert_eq;
 
     use crate::error::Error;
@@ -181,7 +181,7 @@ mod tests {
     async fn test_restricted_tool_call() {
         let result = ToolRegistry::<()>::validate_tool_call(
             &agent(),
-            &ToolName::new(Tools::Read(Default::default())),
+            &ToolName::new(ToolCatalog::Read(Default::default())),
         );
         assert!(result.is_ok(), "Tool call should be valid");
     }

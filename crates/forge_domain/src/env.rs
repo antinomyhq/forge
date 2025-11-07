@@ -61,6 +61,9 @@ pub struct Environment {
     /// Whether to automatically open HTML dump files in the browser.
     /// Controlled by FORGE_DUMP_AUTO_OPEN environment variable.
     pub auto_open_dump: bool,
+    /// Whether to write debug request files to .forge directory.
+    /// Controlled by FORGE_DEBUG_REQUESTS environment variable.
+    pub debug_requests: bool,
     /// Custom history file path from FORGE_HISTORY_FILE environment variable.
     /// If None, uses the default history path.
     pub custom_history_path: Option<PathBuf>,
@@ -211,6 +214,7 @@ fn test_command_path() {
         max_file_size: 104857600,
         tool_timeout: 300,
         auto_open_dump: false,
+        debug_requests: false,
         custom_history_path: None,
         max_conversations: 100,
         max_image_size: 262144,
@@ -244,6 +248,7 @@ fn test_command_cwd_path() {
         max_file_size: 104857600,
         tool_timeout: 300,
         auto_open_dump: false,
+        debug_requests: false,
         custom_history_path: None,
         max_conversations: 100,
         max_image_size: 262144,
@@ -277,6 +282,7 @@ fn test_command_cwd_path_independent_from_command_path() {
         max_file_size: 104857600,
         tool_timeout: 300,
         auto_open_dump: false,
+        debug_requests: false,
         custom_history_path: None,
         max_conversations: 100,
         max_image_size: 262144,
