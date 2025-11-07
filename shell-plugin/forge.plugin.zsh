@@ -360,6 +360,7 @@ function _forge_action_transform() {
         return 0
     fi
     
+    echo
     # Generate the command
     local generated_command
     generated_command=$(FORCE_COLOR=true CLICOLOR_FORCE=1 _forge_exec transform "$description")
