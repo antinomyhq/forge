@@ -175,14 +175,6 @@ impl AgentService for Runner {
         panic!("No mock tool call not found: {name}")
     }
 
-    async fn render<V: serde::Serialize + Send + Sync>(
-        &self,
-        template: forge_domain::Template<V>,
-        object: &V,
-    ) -> anyhow::Result<String> {
-        Ok(self.hb.render_template(&template.template, object)?)
-    }
-
     async fn update(&self, conversation: Conversation) -> anyhow::Result<()> {
         self.conversation_history.lock().await.push(conversation);
         Ok(())

@@ -190,13 +190,6 @@
             "null"
           ]
         },
-        "prompt": {
-          "description": "Optional custom prompt template to use during compaction",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
         "retention_window": {
           "description": "Number of most recent messages to preserve during compaction. These messages won't be considered for summarization. Works alongside eviction_window - the more conservative limit (fewer messages to compact) takes precedence.",
           "default": 0,

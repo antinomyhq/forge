@@ -34,7 +34,7 @@ impl Transformer for TransformToolCalls {
                 {
                     // Add the assistant message without tool calls
                     new_messages.push(ContextMessage::Text(TextMessage {
-                        role: text_msg.role.clone(),
+                        role: text_msg.role,
                         content: text_msg.content.clone(),
                         raw_content: text_msg.raw_content.clone(),
                         tool_calls: None,

@@ -46,11 +46,6 @@ pub struct Compact {
     #[merge(strategy = crate::merge::option)]
     pub message_threshold: Option<usize>,
 
-    /// Optional custom prompt template to use during compaction
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = crate::merge::option)]
-    pub prompt: Option<String>,
-
     /// Model ID to use for compaction, useful when compacting with a
     /// cheaper/faster model. If not specified, the root level model will be
     /// used.
@@ -115,7 +110,6 @@ impl Compact {
             token_threshold: None,
             turn_threshold: None,
             message_threshold: None,
-            prompt: None,
             summary_tag: None,
             model: None,
             eviction_window: 0.2, // Default to 20% compaction
@@ -192,7 +186,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::{ContextMessage, TextMessage};
+    use crate::MessagePattern;
 
     /// Creates a Context from a condensed string pattern where:
     /// - 'u' = User message
@@ -200,41 +194,7 @@ mod tests {
     /// - 's' = System message Example: ctx("uau") creates User -> Assistant ->
     ///   User messages
     fn ctx(pattern: &str) -> Context {
-        let messages: Vec<ContextMessage> = pattern
-            .chars()
-            .enumerate()
-            .map(|(i, c)| {
-                let content = format!("Message {}", i + 1);
-                match c {
-                    'u' => ContextMessage::Text(TextMessage {
-                        role: Role::User,
-                        content,
-                        raw_content: None,
-                        tool_calls: None,
-                        model: None,
-                        reasoning_details: None,
-                    }),
-                    'a' => ContextMessage::Text(TextMessage {
-                        role: Role::Assistant,
-                        content,
-                        raw_content: None,
-                        tool_calls: None,
-                        model: None,
-                        reasoning_details: None,
-                    }),
-                    's' => ContextMessage::Text(TextMessage {
-                        role: Role::System,
-                        content,
-                        raw_content: None,
-                        tool_calls: None,
-                        model: None,
-                        reasoning_details: None,
-                    }),
-                    _ => panic!("Invalid character '{c}' in pattern. Use 'u', 'a', or 's'"),
-                }
-            })
-            .collect();
-        Context::default().messages(messages)
+        MessagePattern::new(pattern).build()
     }
 
     #[test]
