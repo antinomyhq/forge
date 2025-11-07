@@ -4,7 +4,7 @@ use derive_more::From;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Context, ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolResult, ToolCatalog,
+    Context, ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolCatalog, ToolResult,
 };
 
 /// A simplified summary of a context, focusing on messages and their tool calls
@@ -737,7 +737,9 @@ mod tests {
             user("Now update it"),
             assistant_with_tools(
                 "Updating",
-                vec![ToolCatalog::tool_call_write("/test/file1.rs", "new content").call_id("call_2")],
+                vec![
+                    ToolCatalog::tool_call_write("/test/file1.rs", "new content").call_id("call_2"),
+                ],
             ),
             tool_result("write", "call_2", false),
             assistant("Done"),

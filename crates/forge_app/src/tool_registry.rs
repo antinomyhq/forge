@@ -5,7 +5,7 @@ use anyhow::Context;
 use console::style;
 use forge_domain::{
     Agent, AgentId, AgentInput, ChatResponse, ChatResponseContent, ToolCallContext, ToolCallFull,
-    ToolDefinition, ToolName, ToolOutput, ToolResult, ToolCatalog,
+    ToolCatalog, ToolDefinition, ToolName, ToolOutput, ToolResult,
 };
 use futures::future::join_all;
 use strum::IntoEnumIterator;
@@ -165,7 +165,7 @@ impl<S> ToolRegistry<S> {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Agent, AgentId, ToolName, ToolCatalog};
+    use forge_domain::{Agent, AgentId, ToolCatalog, ToolName};
     use pretty_assertions::assert_eq;
 
     use crate::error::Error;

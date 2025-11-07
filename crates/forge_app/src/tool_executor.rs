@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use forge_domain::{LineNumbers, TitleFormat, ToolCallContext, ToolCallFull, ToolOutput, ToolCatalog};
+use forge_domain::{
+    LineNumbers, TitleFormat, ToolCallContext, ToolCallFull, ToolCatalog, ToolOutput,
+};
 
 use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};

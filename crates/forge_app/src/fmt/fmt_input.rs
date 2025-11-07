@@ -81,7 +81,9 @@ impl FormatContent for ToolCatalog {
                     .sub_title(&input.command)
                     .into(),
             ),
-            ToolCatalog::Fetch(input) => Some(TitleFormat::debug("GET").sub_title(&input.url).into()),
+            ToolCatalog::Fetch(input) => {
+                Some(TitleFormat::debug("GET").sub_title(&input.url).into())
+            }
             ToolCatalog::Followup(input) => Some(
                 TitleFormat::debug("Follow-up")
                     .sub_title(&input.question)

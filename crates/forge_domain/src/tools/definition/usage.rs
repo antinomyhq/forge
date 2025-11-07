@@ -104,7 +104,9 @@ mod tests {
 
     #[test]
     fn test_tool_usage() {
-        let tools = ToolCatalog::iter().map(|v| v.definition()).collect::<Vec<_>>();
+        let tools = ToolCatalog::iter()
+            .map(|v| v.definition())
+            .collect::<Vec<_>>();
         let prompt = ToolUsagePrompt::from(&tools);
         assert_snapshot!(prompt);
     }

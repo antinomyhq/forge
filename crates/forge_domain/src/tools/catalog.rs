@@ -521,7 +521,7 @@ impl ToolCatalog {
     }
     pub fn should_yield(tool_name: &ToolName) -> bool {
         // Tools that convey that the execution should yield
-        [ToolsDiscriminants::Followup]
+        [ToolCatalogDiscriminants::Followup]
             .iter()
             .any(|v| v.to_string().to_case(Case::Snake).eq(tool_name.as_str()))
     }
@@ -730,7 +730,7 @@ impl TryFrom<ToolCallFull> for ToolCatalog {
     }
 }
 
-impl ToolsDiscriminants {
+impl ToolCatalogDiscriminants {
     pub fn name(&self) -> ToolName {
         ToolName::new(self.to_string().to_case(Case::Snake))
     }
@@ -774,11 +774,11 @@ mod tests {
     use pretty_assertions::assert_eq;
     use strum::IntoEnumIterator;
 
-    use crate::{ToolName, ToolCatalog, ToolsDiscriminants};
+    use crate::{ToolCatalog, ToolCatalogDiscriminants, ToolName};
 
     #[test]
     fn test_tool_definition() {
-        let actual = ToolsDiscriminants::Remove.name();
+        let actual = ToolCatalogDiscriminants::Remove.name();
         let expected = ToolName::new("remove");
         assert_eq!(actual, expected);
     }
