@@ -21,7 +21,7 @@ Use the following summary frames as the authoritative reference for all coding s
 {{else if tool_call.tool.search}}
 **Search:** `{{tool_call.tool.search.pattern}}`
 {{else if tool_call.tool.shell}}
-**Shell:** 
+**Execute:** 
 ```
 {{tool_call.tool.shell.command}}
 ```
