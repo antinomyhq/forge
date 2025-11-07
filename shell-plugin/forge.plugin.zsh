@@ -465,7 +465,7 @@ function forge-accept-line() {
         new|n)
             _forge_action_new
         ;;
-        info|i|compact|retry|tools)
+        info|i|compact|retry)
             # Actions that require a model to be configured
             if _forge_ensure_model_configured; then
                 case "$user_action" in
@@ -477,9 +477,6 @@ function forge-accept-line() {
                     ;;
                     retry)
                         _forge_action_retry
-                    ;;
-                    tools)
-                        _forge_action_tools
                     ;;
                 esac
             fi
@@ -498,6 +495,9 @@ function forge-accept-line() {
         ;;
         model)
             _forge_action_model
+        ;;
+        tools)
+            _forge_action_tools
         ;;
         *)
             _forge_action_default "$user_action" "$input_text"
