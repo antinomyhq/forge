@@ -542,8 +542,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         use crate::cli::ProviderCommand;
 
         match provider_group.command {
-            ProviderCommand::Login => {
-                self.handle_provider_login().await?;
+            ProviderCommand::Login { provider } => {
+                self.handle_provider_login(provider).await?;
             }
             ProviderCommand::Logout => {
                 self.handle_provider_logout().await?;
@@ -556,7 +556,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn handle_provider_login(&mut self) -> anyhow::Result<()> {
+    async fn handle_provider_login(
+        &mut self,
+        provider_id: Option<ProviderId>,
+    ) -> anyhow::Result<()> {
         use crate::model::CliProvider;
 
         // Fetch all providers (configured and unconfigured)
@@ -568,33 +571,42 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .map(CliProvider)
             .collect::<Vec<_>>();
 
-        // Sort the providers by their display names
-        let mut sorted_providers = providers;
-        sorted_providers.sort_by_key(|a| a.to_string());
+        // If provider ID is specified, find and use it directly
+        let selected_provider = if let Some(id) = provider_id {
+            providers
+                .into_iter()
+                .find(|p| p.0.id() == id)
+                .ok_or_else(|| anyhow::anyhow!("Provider '{}' not found", id))?
+        } else {
+            // Sort the providers by their display names
+            let mut sorted_providers = providers;
+            sorted_providers.sort_by_key(|a| a.to_string());
 
-        // Use the centralized select module
-        match ForgeSelect::select("Select a provider to login:", sorted_providers)
-            .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
-            .prompt()?
-        {
-            Some(provider) => {
-                // Handle only unconfigured providers
-                match provider.0 {
-                    AnyProvider::Template(p) => {
-                        let provider_id = p.id;
-                        let auth_methods = p.auth_methods;
-
-                        // Configure the provider
-                        self.configure_provider(provider_id, auth_methods).await?;
-                    }
-                    AnyProvider::Url(provider) => {
-                        self.configure_provider(provider.id, provider.auth_methods)
-                            .await?;
-                    }
+            // Use the centralized select module
+            match ForgeSelect::select("Select a provider to login:", sorted_providers)
+                .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
+                .prompt()?
+            {
+                Some(provider) => provider,
+                None => {
+                    self.writeln_title(TitleFormat::info("Cancelled"))?;
+                    return Ok(());
                 }
             }
-            None => {
-                self.writeln_title(TitleFormat::info("Cancelled"))?;
+        };
+
+        // Handle the selected provider
+        match selected_provider.0 {
+            AnyProvider::Template(p) => {
+                let provider_id = p.id;
+                let auth_methods = p.auth_methods;
+
+                // Configure the provider
+                self.configure_provider(provider_id, auth_methods).await?;
+            }
+            AnyProvider::Url(provider) => {
+                self.configure_provider(provider.id, provider.auth_methods)
+                    .await?;
             }
         }
 
@@ -1422,6 +1434,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         if should_set_active.unwrap_or(false) {
             self.api.set_default_provider(provider_id).await?;
+            self.writeln_title(TitleFormat::action(format!("Provider set {}", provider_id)))?;
         }
         Ok(())
     }
@@ -1571,6 +1584,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
+    /// Selects a provider from the list
+    /// Returns Some(provider) if configured, None if cancelled or unconfigured
     async fn select_provider(&mut self) -> Result<Option<Provider<Url>>> {
         // Fetch available providers
         let mut providers = self
@@ -1609,24 +1624,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 match provider.0 {
                     AnyProvider::Url(p) => Ok(Some(p)),
                     AnyProvider::Template(p) => {
-                        // Provider is not configured - initiate authentication flow
-                        let provider_id = p.id;
-                        let auth_methods = p.auth_methods;
-
-                        // Configure the provider
-                        self.configure_provider(provider_id, auth_methods).await?;
-
-                        // After configuration, fetch the provider again
-                        let providers = self.api.get_providers().await?;
-                        let configured_provider = providers
-                            .into_iter()
-                            .find(|entry| entry.id() == provider_id)
-                            .and_then(|entry| match entry {
-                                AnyProvider::Url(p) => Some(p),
-                                AnyProvider::Template(_) => None,
-                            });
-
-                        Ok(configured_provider)
+                        // Provider is unconfigured - handle login here
+                        self.handle_provider_login(Some(p.id)).await?;
+                        Ok(None)
                     }
                 }
             }
@@ -1662,34 +1662,37 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn on_provider_selection(&mut self) -> Result<()> {
         // Select a provider
-        let provider_option = self.select_provider().await?;
+        let provider = self.select_provider().await?;
 
-        // If no provider was selected (user canceled), return early
-        let provider = match provider_option {
-            Some(provider) => provider,
-            None => return Ok(()),
-        };
+        match provider {
+            Some(provider) => {
+                // Configured provider - set it as active
+                self.api.set_default_provider(provider.id).await?;
 
-        // Set the provider via API
-        self.api.set_default_provider(provider.id).await?;
+                self.writeln_title(TitleFormat::action(format!(
+                    "Switched to provider: {}",
+                    CliProvider(AnyProvider::Url(provider.clone()))
+                )))?;
 
-        self.writeln_title(TitleFormat::action(format!(
-            "Switched to provider: {}",
-            CliProvider(AnyProvider::Url(provider.clone()))
-        )))?;
+                // Check if the current model is available for the new provider
+                let current_model = self
+                    .get_agent_model(self.api.get_active_agent().await)
+                    .await;
+                if let Some(current_model) = current_model {
+                    let models = self.get_models().await?;
+                    let model_available = models.iter().any(|m| m.id == current_model);
 
-        // Check if the current model is available for the new provider
-        let current_model = self
-            .get_agent_model(self.api.get_active_agent().await)
-            .await;
-        if let Some(current_model) = current_model {
-            let models = self.get_models().await?;
-            let model_available = models.iter().any(|m| m.id == current_model);
-
-            if !model_available {
-                // Prompt user to select a new model
-                self.writeln_title(TitleFormat::info("Please select a new model"))?;
-                self.on_model_selection().await?;
+                    if !model_available {
+                        // Prompt user to select a new model
+                        self.writeln_title(TitleFormat::info("Please select a new model"))?;
+                        self.on_model_selection().await?;
+                    }
+                }
+            }
+            None => {
+                // User cancelled or provider is unconfigured
+                // The selection handler already dealt with unconfigured
+                // providers
             }
         }
 

@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
+use forge_api::ProviderId;
 use forge_domain::AgentId;
 
 /// NOTE: Always use singular names for commands and subcommands.
@@ -416,7 +417,11 @@ pub enum ProviderCommand {
     /// Login to a provider by selecting from available options
     ///
     /// Example: forge provider login
-    Login,
+    /// Example: forge provider login OpenAI
+    Login {
+        /// Optional provider name to login to directly
+        provider: Option<ProviderId>,
+    },
 
     /// Remove a configured provider (logout)
     ///

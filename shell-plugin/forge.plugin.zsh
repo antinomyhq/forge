@@ -327,7 +327,34 @@ function _forge_action_conversation() {
 
 # Action handler: Select provider
 function _forge_action_provider() {
-    _forge_select_and_set_config "list providers" "provider" "Provider" "$($_FORGE_BIN config get provider --porcelain)"
+    (
+        echo
+        local output
+        output=$($_FORGE_BIN list provider --porcelain 2>/dev/null)
+        
+        if [[ -n "$output" ]]; then
+            local selected
+            local default_value="$($_FORGE_BIN config get provider --porcelain 2>/dev/null)"
+            local fzf_args=(--delimiter="$_FORGE_DELIMITER" --prompt="Provider ❯ ")
+
+            if [[ -n "$default_value" ]]; then
+                local index=$(_forge_find_index "$output" "$default_value")
+                fzf_args+=(--bind="start:pos($index)")
+            fi
+            
+            selected=$(echo "$output" | _forge_fzf "${fzf_args[@]}")
+
+            if [[ -n "$selected" ]]; then
+                local name="${selected%% *}"
+                
+                if echo "$selected" | grep -q "available"; then
+                    _forge_exec config set provider "$name"
+                else
+                    _forge_exec provider login "$name"
+                fi
+            fi
+        fi
+    )
     _forge_reset
 }
 
