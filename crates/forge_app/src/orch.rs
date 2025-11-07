@@ -306,7 +306,7 @@ impl<S: AgentService> Orchestrator<S> {
             should_yield = is_complete
                 || tool_calls
                     .iter()
-                    .any(|call| Tools::should_yield(&call.name));
+                    .any(|call| ToolCatalog::should_yield(&call.name));
 
             if let Some(reasoning) = reasoning.as_ref()
                 && context.is_reasoning_supported()
