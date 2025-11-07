@@ -351,7 +351,7 @@ function _forge_action_tools() {
 
 # Action handler: Generate shell command from natural language
 # Usage: :? <description>
-function _forge_action_cmd() {
+function _forge_action_transform() {
     local description="$1"
     
     if [[ -z "$description" ]]; then
@@ -361,9 +361,8 @@ function _forge_action_cmd() {
     fi
     
     # Generate the command
-    echo
     local generated_command
-    generated_command=$(FORCE_COLOR=true CLICOLOR_FORCE=1 _forge_exec cmd "$description")
+    generated_command=$(FORCE_COLOR=true CLICOLOR_FORCE=1 _forge_exec transform "$description")
     
     if [[ -n "$generated_command" ]]; then
         # Replace the buffer with the generated command
@@ -499,7 +498,7 @@ function forge-accept-line() {
             _forge_action_tools
         ;;
         cmd)
-            _forge_action_cmd "$input_text"
+            _forge_action_transform "$input_text"
         ;;
         *)
             _forge_action_default "$user_action" "$input_text"

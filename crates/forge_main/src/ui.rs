@@ -1022,7 +1022,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     /// Handle the cmd command - generates shell command from natural language
     async fn on_cmd(&mut self, prompt: UserPrompt) -> anyhow::Result<()> {
-        self.spinner.start(Some("Generating command"))?;
+        self.spinner.start(Some("Generating"))?;
 
         match self.api.generate_command(prompt).await {
             Ok(command) => {

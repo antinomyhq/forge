@@ -6,9 +6,9 @@ use anyhow::{Context, Result};
 use forge_app::dto::ToolsOverview;
 use forge_app::{
     AgentRegistry, AppConfigService, AuthService, CommandInfra, CommandLoaderService,
-    ConversationService, EnvironmentInfra, EnvironmentService, FileDiscoveryService,
-    FileReaderInfra, ForgeApp, McpConfigManager, McpService, ProviderAuthService, ProviderService,
-    Services, User, UserUsage, Walker, WorkflowService,
+    ConversationService, EnvironmentInfra, EnvironmentService, FileDiscoveryService, ForgeApp,
+    McpConfigManager, McpService, ProviderAuthService, ProviderService, Services, User, UserUsage,
+    Walker, WorkflowService,
 };
 use forge_domain::{InitAuth, LoginInfo, *};
 use forge_infra::ForgeInfra;
@@ -48,7 +48,7 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeInfra> {
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: CommandInfra + EnvironmentInfra + FileReaderInfra> API for ForgeAPI<A, F> {
+impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     async fn discover(&self) -> Result<Vec<File>> {
         let environment = self.services.get_environment();
         let config = Walker::unlimited().cwd(environment.cwd);
@@ -264,7 +264,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + FileReaderInfra> API for 
 
     async fn generate_command(&self, prompt: UserPrompt) -> Result<String> {
         use forge_app::CommandGenerator;
-        let generator = CommandGenerator::new(self.services.clone(), self.infra.clone());
+        let generator = CommandGenerator::new(self.services.clone());
         generator.generate(prompt).await
     }
 
