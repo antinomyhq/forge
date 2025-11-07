@@ -792,6 +792,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .add_key_value("env", "Display environment information")
             .add_key_value("provider", "Switch the providers")
             .add_key_value("model", "Switch the models")
+            .add_key_value("login", "Log in to provider")
+            .add_key_value("logout", "Log out from provider")
             .add_key_value("new", "Start new conversation")
             .add_key_value(
                 "dump",

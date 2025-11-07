@@ -346,6 +346,21 @@ function _forge_action_tools() {
     _forge_reset
 }
 
+
+# Action handler: Login to provider
+function _forge_action_login() {
+    echo
+    _forge_exec provider login
+    _forge_reset
+}
+
+# Action handler: Logout from provider
+function _forge_action_logout() {
+    echo
+    _forge_exec provider logout
+    _forge_reset
+}
+
 # Action handler: Set active agent or execute command
 function _forge_action_default() {
     local user_action="$1"
@@ -463,6 +478,12 @@ function forge-accept-line() {
         ;;
         tools)
             _forge_action_tools
+        ;;
+        login)
+            _forge_action_login
+        ;;
+        logout)
+            _forge_action_logout
         ;;
         *)
             _forge_action_default "$user_action" "$input_text"
