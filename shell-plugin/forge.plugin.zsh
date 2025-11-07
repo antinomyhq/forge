@@ -406,16 +406,12 @@ function _forge_action_default() {
         _FORGE_CONVERSATION_ID=$($_FORGE_BIN conversation new)
     fi
     
+    echo
+
     # Only set the agent if user explicitly specified one
     if [[ -n "$user_action" ]]; then
         _FORGE_ACTIVE_AGENT="$user_action"
     fi
-
-    if ! _forge_ensure_model_configured; then
-        return 0
-    fi
-    
-    echo
 
     # Execute the forge command directly with proper escaping
     _forge_exec -p "$input_text" --cid "$_FORGE_CONVERSATION_ID"
@@ -465,22 +461,6 @@ function forge-accept-line() {
         new|n)
             _forge_action_new
         ;;
-        info|i|compact|retry)
-            # Actions that require a model to be configured
-            if _forge_ensure_model_configured; then
-                case "$user_action" in
-                    info|i)
-                        _forge_action_info
-                    ;;
-                    compact)
-                        _forge_action_compact
-                    ;;
-                    retry)
-                        _forge_action_retry
-                    ;;
-                esac
-            fi
-        ;;
         env|e)
             _forge_action_env
         ;;
@@ -499,8 +479,24 @@ function forge-accept-line() {
         tools)
             _forge_action_tools
         ;;
-        *)
-            _forge_action_default "$user_action" "$input_text"
+        info|i|compact|retry|*)
+            # Actions that require a model to be configured
+            if _forge_ensure_model_configured; then
+                case "$user_action" in
+                    info|i)
+                        _forge_action_info
+                    ;;
+                    compact)
+                        _forge_action_compact
+                    ;;
+                    retry)
+                        _forge_action_retry
+                    ;;
+                    *)
+                        _forge_action_default "$user_action" "$input_text"
+                    ;;
+                esac
+            fi
         ;;
     esac
 }
