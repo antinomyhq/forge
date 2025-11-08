@@ -7,7 +7,7 @@ use forge_app::McpClientInfra;
 use forge_domain::{Image, McpServerConfig, ToolDefinition, ToolName, ToolOutput};
 use rmcp::model::{CallToolRequestParam, ClientInfo, Implementation, InitializeRequestParam};
 use rmcp::service::RunningService;
-use rmcp::transport::{SseClientTransport, TokioChildProcess};
+use rmcp::transport::{SseClientTransport, StreamableHttpClientTransport, TokioChildProcess};
 use rmcp::{RoleClient, ServiceExt};
 use schemars::schema::RootSchema;
 use serde_json::Value;
@@ -87,9 +87,16 @@ impl ForgeMcpClient {
 
                 self.client_info().serve(transport).await?
             }
-            McpServerConfig::Sse(sse) => {
-                let transport = SseClientTransport::start(sse.url.clone()).await?;
-                self.client_info().serve(transport).await?
+            McpServerConfig::Http(http) => {
+                // Try HTTP first, fall back to SSE if it fails
+                let transport = StreamableHttpClientTransport::from_uri(http.url.clone());
+                match self.client_info().serve(transport).await {
+                    Ok(client) => client,
+                    Err(_) => {
+                        let transport = SseClientTransport::start(http.url.clone()).await?;
+                        self.client_info().serve(transport).await?
+                    }
+                }
             }
         };
 

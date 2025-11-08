@@ -20,7 +20,7 @@ pub enum Scope {
 #[serde(untagged)]
 pub enum McpServerConfig {
     Stdio(McpStdioServer),
-    Sse(McpSseServer),
+    Http(McpHttpServer),
 }
 
 impl McpServerConfig {
@@ -38,15 +38,15 @@ impl McpServerConfig {
         })
     }
 
-    /// Create a new SSE-based MCP server
-    pub fn new_sse(url: impl Into<String>) -> Self {
-        Self::Sse(McpSseServer { url: url.into(), disable: false })
+    /// Create a new HTTP-based MCP server (auto-detects transport type)
+    pub fn new_http(url: impl Into<String>) -> Self {
+        Self::Http(McpHttpServer { url: url.into(), disable: false })
     }
 
     pub fn is_disabled(&self) -> bool {
         match self {
             McpServerConfig::Stdio(v) => v.disable,
-            McpServerConfig::Sse(v) => v.disable,
+            McpServerConfig::Http(v) => v.disable,
         }
     }
 }
@@ -73,7 +73,7 @@ pub struct McpStdioServer {
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
-pub struct McpSseServer {
+pub struct McpHttpServer {
     /// Url of the MCP server
     #[serde(skip_serializing_if = "String::is_empty")]
     pub url: String,
@@ -98,7 +98,7 @@ impl Display for McpServerConfig {
                     output.push_str(&format!("{key}={value} "));
                 });
             }
-            McpServerConfig::Sse(sse) => {
+            McpServerConfig::Http(sse) => {
                 output.push_str(&format!("{} ", sse.url));
             }
         }
@@ -163,7 +163,7 @@ mod tests {
             mcp_servers: BTreeMap::from([
                 (
                     "server1".to_string().into(),
-                    McpServerConfig::new_sse("http://localhost:3000"),
+                    McpServerConfig::new_http("http://localhost:3000"),
                 ),
                 (
                     "server2".to_string().into(),
@@ -176,7 +176,7 @@ mod tests {
             mcp_servers: BTreeMap::from([
                 (
                     "server1".to_string().into(),
-                    McpServerConfig::new_sse("http://localhost:3000"),
+                    McpServerConfig::new_http("http://localhost:3000"),
                 ),
                 (
                     "server2".to_string().into(),
@@ -199,14 +199,14 @@ mod tests {
         let fixture1 = McpConfig {
             mcp_servers: BTreeMap::from([(
                 "server1".to_string().into(),
-                McpServerConfig::new_sse("http://localhost:3000"),
+                McpServerConfig::new_http("http://localhost:3000"),
             )]),
         };
 
         let fixture2 = McpConfig {
             mcp_servers: BTreeMap::from([(
                 "server1".to_string().into(),
-                McpServerConfig::new_sse("http://localhost:3001"),
+                McpServerConfig::new_http("http://localhost:3001"),
             )]),
         };
 
@@ -225,11 +225,11 @@ mod tests {
             mcp_servers: BTreeMap::from([
                 (
                     "a_server".to_string().into(),
-                    McpServerConfig::new_sse("http://a"),
+                    McpServerConfig::new_http("http://a"),
                 ),
                 (
                     "z_server".to_string().into(),
-                    McpServerConfig::new_sse("http://z"),
+                    McpServerConfig::new_http("http://z"),
                 ),
             ]),
         };
@@ -239,11 +239,11 @@ mod tests {
             mcp_servers: BTreeMap::from([
                 (
                     "z_server".to_string().into(),
-                    McpServerConfig::new_sse("http://z"),
+                    McpServerConfig::new_http("http://z"),
                 ),
                 (
                     "a_server".to_string().into(),
-                    McpServerConfig::new_sse("http://a"),
+                    McpServerConfig::new_http("http://a"),
                 ),
             ]),
         };
@@ -261,9 +261,9 @@ mod tests {
         let config = McpServerConfig::Stdio(server);
         assert!(config.is_disabled());
 
-        let sse_server = McpSseServer { disable: false, ..Default::default() };
+        let sse_server = McpHttpServer { disable: false, ..Default::default() };
 
-        let config = McpServerConfig::Sse(sse_server);
+        let config = McpServerConfig::Http(sse_server);
         assert!(!config.is_disabled());
     }
 
