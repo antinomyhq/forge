@@ -218,20 +218,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return self.handle_dispatch(dispatch_json).await;
         }
 
-        // Handle --run flag (parsed custom commands)
-        if let Some(command_str) = self.cli.run.clone() {
-            self.spinner.start(None)?;
-            // Add slash prefix if not present
-            let command_with_slash = if command_str.starts_with('/') {
-                command_str
-            } else {
-                format!("/{}", command_str)
-            };
-            let command = self.command.parse(&command_with_slash)?;
-            self.on_command(command).await?;
-            return Ok(());
-        }
-
         // Handle direct prompt if provided (raw text messages)
         let prompt = self.cli.prompt.clone();
         if let Some(prompt) = prompt {
@@ -328,6 +314,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     }
                     ListCommand::Conversation => {
                         self.on_show_conversations(porcelain).await?;
+                    }
+                    ListCommand::Cmd => {
+                        self.on_show_custom_commands(porcelain).await?;
                     }
                 }
                 return Ok(());
@@ -445,6 +434,41 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
             TopLevelCommand::Suggest { prompt } => {
                 self.on_cmd(UserPrompt::from(prompt)).await?;
+                return Ok(());
+            }
+
+            TopLevelCommand::Cmd(run_group) => {
+                let porcelain = run_group.porcelain;
+                match run_group.command {
+                    crate::cli::CmdCommand::List => {
+                        // List all custom commands
+                        self.on_show_custom_commands(porcelain).await?;
+                    }
+                    crate::cli::CmdCommand::Execute(args) => {
+                        // Execute the custom command
+                        self.init_state(false).await?;
+
+                        // If conversation_id is provided, set it in CLI before initializing
+                        if let Some(ref cid) = run_group.conversation_id {
+                            self.cli.conversation_id = Some(cid.clone());
+                        }
+
+                        self.init_conversation().await?;
+                        self.spinner.start(None)?;
+
+                        // Join all args into a single command string
+                        let command_str = args.join(" ");
+
+                        // Add slash prefix if not present
+                        let command_with_slash = if command_str.starts_with('/') {
+                            command_str
+                        } else {
+                            format!("/{}", command_str)
+                        };
+                        let command = self.command.parse(&command_with_slash)?;
+                        self.on_command(command).await?;
+                    }
+                }
                 return Ok(());
             }
         }
@@ -880,6 +904,27 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         if porcelain {
             let porcelain = Porcelain::from(&info).swap_cols(1, 2).skip(1);
+            self.writeln(porcelain)?;
+        } else {
+            self.writeln(info)?;
+        }
+
+        Ok(())
+    }
+
+    /// Lists only custom commands (used by `forge run`)
+    async fn on_show_custom_commands(&mut self, porcelain: bool) -> anyhow::Result<()> {
+        let custom_commands = self.api.get_commands().await?;
+        let mut info = Info::new().add_title("CUSTOM COMMANDS");
+
+        for command in custom_commands {
+            info = info
+                .add_title(command.name.clone())
+                .add_key_value("description", command.description.clone());
+        }
+
+        if porcelain {
+            let porcelain = Porcelain::from(&info).skip(2);
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;

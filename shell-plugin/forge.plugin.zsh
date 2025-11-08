@@ -421,11 +421,11 @@ function _forge_action_default() {
                 [[ -z "$_FORGE_CONVERSATION_ID" ]] && _FORGE_CONVERSATION_ID=$($_FORGE_BIN conversation new)
                 
                 echo
-                # Execute custom command with --run flag
+                # Execute custom command with run subcommand
                 if [[ -n "$input_text" ]]; then
-                    _forge_exec --run "$user_action $input_text" --cid "$_FORGE_CONVERSATION_ID"
+                    _forge_exec cmd --cid "$_FORGE_CONVERSATION_ID" "$user_action" "$input_text"
                 else
-                    _forge_exec --run "$user_action" --cid "$_FORGE_CONVERSATION_ID"
+                    _forge_exec cmd --cid "$_FORGE_CONVERSATION_ID" "$user_action"
                 fi
                 _forge_reset
                 return 0

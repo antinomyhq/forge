@@ -23,14 +23,6 @@ pub struct Cli {
     #[arg(long, short = 'c')]
     pub command: Option<String>,
 
-    /// Execute a custom command directly (e.g., "run args").
-    ///
-    /// Unlike --prompt, this flag parses the input through the command manager,
-    /// enabling proper handling of custom commands with template substitution
-    /// and parameter extraction.
-    #[arg(long, conflicts_with_all = ["prompt", "command"])]
-    pub run: Option<String>,
-
     /// Path to a file containing the conversation to execute.
     /// This file should be in JSON format.
     #[arg(long)]
@@ -84,10 +76,7 @@ pub struct Cli {
 impl Cli {
     /// Checks if user is in is_interactive
     pub fn is_interactive(&self) -> bool {
-        self.prompt.is_none()
-            && self.command.is_none()
-            && self.run.is_none()
-            && self.subcommands.is_none()
+        self.prompt.is_none() && self.command.is_none() && self.subcommands.is_none()
     }
 }
 
@@ -141,6 +130,45 @@ pub enum TopLevelCommand {
 
     /// Provider management commands
     Provider(ProviderCommandGroup),
+
+    /// Execute or manage custom commands
+    ///
+    /// Examples:
+    ///   forge cmd list                # List all custom commands
+    ///   forge cmd fixme               # Execute 'fixme' (creates new
+    /// conversation)   forge cmd --cid <id> fixme    # Execute 'fixme' in
+    /// specific conversation
+    Cmd(CmdCommandGroup),
+}
+
+/// Group of cmd-related commands
+#[derive(Parser, Debug, Clone)]
+pub struct CmdCommandGroup {
+    #[command(subcommand)]
+    pub command: CmdCommand,
+
+    /// Optional conversation ID to use when executing commands (not used for
+    /// list)
+    #[arg(long, alias = "cid", global = true)]
+    pub conversation_id: Option<String>,
+
+    /// Output in machine-readable format (porcelain) when listing commands
+    #[arg(long, global = true)]
+    pub porcelain: bool,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum CmdCommand {
+    /// List all available custom commands
+    ///
+    /// Example: forge cmd list
+    List,
+
+    /// Execute a custom command
+    ///
+    /// Example: forge cmd fixme
+    #[command(external_subcommand)]
+    Execute(Vec<String>),
 }
 
 /// Group of list-related commands
@@ -203,6 +231,11 @@ pub enum ListCommand {
     /// Example: forge list conversation
     #[command(alias = "session")]
     Conversation,
+
+    /// List all custom commands
+    ///
+    /// Example: forge list cmd
+    Cmd,
 }
 
 /// Group of extension-related commands
@@ -885,18 +918,16 @@ mod tests {
     }
 
     #[test]
-    fn test_run_flag() {
-        let fixture = Cli::parse_from(["forge", "--run", "custom-command arg1 arg2"]);
-        let actual = fixture.run;
-        let expected = Some("custom-command arg1 arg2".to_string());
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_run_flag_with_builtin_command() {
-        let fixture = Cli::parse_from(["forge", "--run", "compact"]);
-        let actual = fixture.run;
-        let expected = Some("compact".to_string());
+    fn test_cmd_command_with_args() {
+        let fixture = Cli::parse_from(["forge", "cmd", "custom-command", "arg1", "arg2"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Cmd(run_group)) => match run_group.command {
+                CmdCommand::Execute(args) => args.join(" "),
+                _ => panic!("Expected Execute command"),
+            },
+            _ => panic!("Expected Cmd command"),
+        };
+        let expected = "custom-command arg1 arg2".to_string();
         assert_eq!(actual, expected);
     }
 
@@ -905,66 +936,6 @@ mod tests {
         let fixture = Cli::parse_from(["forge", "-c", "path/to/commands.txt"]);
         let actual = fixture.command;
         let expected = Some("path/to/commands.txt".to_string());
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_prompt_and_run_conflict() {
-        // --prompt and --run should conflict and not be allowed together
-        let result = Cli::try_parse_from(["forge", "--prompt", "hello", "--run", "info"]);
-        assert!(
-            result.is_err(),
-            "Expected parsing to fail when both --prompt and --run are provided"
-        );
-        if let Err(err) = result {
-            assert!(
-                err.to_string().contains("cannot be used with"),
-                "Error message should indicate conflict"
-            );
-        }
-    }
-
-    #[test]
-    fn test_command_and_run_conflict() {
-        // --command and --run should conflict and not be allowed together
-        let result = Cli::try_parse_from(["forge", "--command", "file.txt", "--run", "info"]);
-        assert!(
-            result.is_err(),
-            "Expected parsing to fail when both --command and --run are provided"
-        );
-        if let Err(err) = result {
-            assert!(
-                err.to_string().contains("cannot be used with"),
-                "Error message should indicate conflict"
-            );
-        }
-    }
-
-    #[test]
-    fn test_run_with_agent_allowed() {
-        // --run with --agent should be allowed
-        let fixture = Cli::parse_from(["forge", "--run", "fixme", "--agent", "muse"]);
-        assert_eq!(fixture.run, Some("fixme".to_string()));
-        assert_eq!(fixture.agent, Some(AgentId::MUSE));
-    }
-
-    #[test]
-    fn test_prompt_with_agent_and_run_conflict() {
-        // Even with --agent, --prompt and --run should still conflict
-        let result = Cli::try_parse_from([
-            "forge", "--prompt", "Hi", "--agent", "muse", "--run", "fixme",
-        ]);
-        assert!(
-            result.is_err(),
-            "Expected parsing to fail when both --prompt and --run are provided"
-        );
-    }
-
-    #[test]
-    fn test_is_interactive_with_run() {
-        let fixture = Cli::parse_from(["forge", "--run", "custom-cmd"]);
-        let actual = fixture.is_interactive();
-        let expected = false;
         assert_eq!(actual, expected);
     }
 
