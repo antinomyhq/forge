@@ -16,13 +16,6 @@ pub struct Cli {
     #[arg(long, short = 'p')]
     pub prompt: Option<String>,
 
-    /// Path to a file containing initial commands to execute.
-    ///
-    /// The application will execute the commands from this file first,
-    /// then continue in interactive mode.
-    #[arg(long, short = 'c')]
-    pub command: Option<String>,
-
     /// Path to a file containing the conversation to execute.
     /// This file should be in JSON format.
     #[arg(long)]
@@ -76,7 +69,7 @@ pub struct Cli {
 impl Cli {
     /// Checks if user is in is_interactive
     pub fn is_interactive(&self) -> bool {
-        self.prompt.is_none() && self.command.is_none() && self.subcommands.is_none()
+        self.prompt.is_none() && self.subcommands.is_none()
     }
 }
 
