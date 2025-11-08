@@ -262,6 +262,12 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         self.services.get_commands().await
     }
 
+    async fn generate_command(&self, prompt: UserPrompt) -> Result<String> {
+        use forge_app::CommandGenerator;
+        let generator = CommandGenerator::new(self.services.clone());
+        generator.generate(prompt).await
+    }
+
     async fn init_provider_auth(
         &self,
         provider_id: ProviderId,

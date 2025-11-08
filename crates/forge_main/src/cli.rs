@@ -120,6 +120,14 @@ pub enum TopLevelCommand {
     /// MCP server management commands
     Mcp(McpCommandGroup),
 
+    /// Generate shell commands without executing them
+    ///
+    /// Example: forge cmd "run tests in the current project"
+    Suggest {
+        /// Natural language description of what you want to do
+        prompt: String,
+    },
+
     /// Provider management commands
     Provider(ProviderCommandGroup),
 }

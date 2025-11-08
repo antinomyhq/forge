@@ -346,6 +346,33 @@ function _forge_action_tools() {
     _forge_reset
 }
 
+# Action handler: Generate shell command from natural language
+# Usage: :? <description>
+function _forge_action_suggest() {
+    local description="$1"
+    
+    if [[ -z "$description" ]]; then
+        echo "\033[31m✗\033[0m Please provide a command description"
+        _forge_reset
+        return 0
+    fi
+    
+    echo
+    # Generate the command
+    local generated_command
+    generated_command=$(FORCE_COLOR=true CLICOLOR_FORCE=1 _forge_exec suggest "$description")
+    
+    if [[ -n "$generated_command" ]]; then
+        # Replace the buffer with the generated command
+        BUFFER="$generated_command"
+        CURSOR=${#BUFFER}
+        zle reset-prompt
+    else
+        echo "\033[31m✗\033[0m Failed to generate command"
+        _forge_reset
+    fi
+}
+
 # Action handler: Set active agent or execute command
 function _forge_action_default() {
     local user_action="$1"
@@ -409,7 +436,7 @@ function forge-accept-line() {
         # Action with or without parameters: :foo or :foo bar baz
         user_action="${match[1]}"
         input_text="${match[3]:-}"  # Use empty string if no parameters
-        elif [[ "$BUFFER" =~ "^: (.*)$" ]]; then
+    elif [[ "$BUFFER" =~ "^: (.*)$" ]]; then
         # Default action with parameters: : something
         user_action=""
         input_text="${match[1]}"
@@ -443,26 +470,29 @@ function forge-accept-line() {
         env|e)
             _forge_action_env
         ;;
-        dump)
+        dump|d)
             _forge_action_dump "$input_text"
         ;;
         compact)
             _forge_action_compact
         ;;
-        retry)
+        retry|r)
             _forge_action_retry
         ;;
-        conversation)
+        conversation|c)
             _forge_action_conversation
         ;;
-        provider)
+        provider|p)
             _forge_action_provider
         ;;
-        model)
+        model|m)
             _forge_action_model
         ;;
-        tools)
+        tools|t)
             _forge_action_tools
+        ;;
+        suggest|s)
+            _forge_action_suggest "$input_text"
         ;;
         *)
             _forge_action_default "$user_action" "$input_text"
