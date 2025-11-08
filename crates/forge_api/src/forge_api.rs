@@ -77,6 +77,14 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         Ok(self.services.get_all_providers().await?)
     }
 
+    async fn get_provider(&self, id: &ProviderId) -> Result<AnyProvider> {
+        let providers = self.services.get_all_providers().await?;
+        Ok(providers
+            .into_iter()
+            .find(|p| p.id() == *id)
+            .ok_or_else(|| Error::provider_not_available(*id))?)
+    }
+
     async fn chat(
         &self,
         chat: ChatRequest,
