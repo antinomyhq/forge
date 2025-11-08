@@ -87,6 +87,13 @@ impl Default for TestContext {
                 custom_history_path: None,
                 max_conversations: 100,
                 max_image_size: 262144,
+                title_format: "[{metadata}] {title} {subtitle}".to_string(),
+                title_metadata_format: "{timestamp} {input}/{total} {cost} {cache_pct}".to_string(),
+                title_show_timestamp: true,
+                title_show_input_tokens: true,
+                title_show_total_tokens: true,
+                title_show_cost: true,
+                title_show_cache_pct: true,
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(AgentId::new("forge"))

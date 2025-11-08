@@ -66,7 +66,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     /// Writes a TitleFormat to the console output with proper formatting
     fn writeln_title(&mut self, title: TitleFormat) -> anyhow::Result<()> {
-        self.spinner.write_ln(title.display())
+        let env = self.api.environment();
+        self.spinner.write_ln(title.display_with_env(env))
     }
 
     /// Retrieve available models
@@ -1978,7 +1979,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         match message {
             ChatResponse::TaskMessage { content } => match content {
-                ChatResponseContent::Title(title) => self.writeln(title.display())?,
+                ChatResponseContent::Title(title) => {
+                    let env = self.api.environment();
+                    self.writeln(title.display_with_env(env))?
+                }
                 ChatResponseContent::PlainText(text) => self.writeln(text)?,
                 ChatResponseContent::Markdown(text) => {
                     tracing::info!(message = %text, "Agent Response");

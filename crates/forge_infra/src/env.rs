@@ -80,6 +80,17 @@ impl ForgeEnvironmentInfra {
             forge_api_url,
             custom_history_path,
             max_conversations: parse_env::<usize>("FORGE_MAX_CONVERSATIONS").unwrap_or(100),
+            title_format: parse_env::<String>("FORGE_TITLE_FORMAT")
+                .unwrap_or_else(|| "[{metadata}] {title} {subtitle}".to_string()),
+            title_metadata_format: parse_env::<String>("FORGE_TITLE_METADATA_FORMAT")
+                .unwrap_or_else(|| "{timestamp} {input}/{total} {cost} {cache_pct}".to_string()),
+            title_show_timestamp: parse_env::<bool>("FORGE_TITLE_SHOW_TIMESTAMP").unwrap_or(true),
+            title_show_input_tokens: parse_env::<bool>("FORGE_TITLE_SHOW_INPUT_TOKENS")
+                .unwrap_or(true),
+            title_show_total_tokens: parse_env::<bool>("FORGE_TITLE_SHOW_TOTAL_TOKENS")
+                .unwrap_or(true),
+            title_show_cost: parse_env::<bool>("FORGE_TITLE_SHOW_COST").unwrap_or(true),
+            title_show_cache_pct: parse_env::<bool>("FORGE_TITLE_SHOW_CACHE_PCT").unwrap_or(true),
         }
     }
 
