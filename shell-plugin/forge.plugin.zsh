@@ -271,7 +271,30 @@ function _forge_action_retry() {
 
 # Action handler: List/switch conversations
 function _forge_action_conversation() {
+    local input_text="$1"
+    
     echo
+    
+    # If an ID is provided directly, use it
+    if [[ -n "$input_text" ]]; then
+        local conversation_id="$input_text"
+        
+        # Set the conversation as active
+        _FORGE_CONVERSATION_ID="$conversation_id"
+        
+        # Show conversation content
+        echo
+        _forge_exec conversation show "$conversation_id"
+        
+        # Show conversation info
+        _forge_exec conversation info "$conversation_id"
+        
+        # Print log about conversation switching
+        echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Switched to conversation \033[1m${conversation_id}\033[0m"
+        
+        _forge_reset
+        return 0
+    fi
     
     # Get conversations list
     local conversations_output
@@ -480,7 +503,7 @@ function forge-accept-line() {
             _forge_action_retry
         ;;
         conversation|c)
-            _forge_action_conversation
+            _forge_action_conversation "$input_text"
         ;;
         provider|p)
             _forge_action_provider
