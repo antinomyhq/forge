@@ -2109,13 +2109,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 }
             }
             ChatResponse::TaskComplete => {
-                if let Some(conversation_id) = self.state.conversation_id {
-                    if let Ok(conversation) =
+                if let Some(conversation_id) = self.state.conversation_id
+                    && let Ok(conversation) =
                         self.validate_conversation_exists(&conversation_id).await
                     {
                         self.on_show_conv_info(conversation).await?;
                     }
-                }
             }
         }
         Ok(())
@@ -2191,8 +2190,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             println!("{}", new_id);
         } else {
             self.writeln_title(
-                TitleFormat::info("Cloned")
-                    .sub_title(format!("[{} → {}]", original.id, cloned.id)),
+                TitleFormat::info("Cloned").sub_title(format!("[{} → {}]", original.id, cloned.id)),
             )?;
         }
 
