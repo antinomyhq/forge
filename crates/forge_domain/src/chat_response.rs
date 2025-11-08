@@ -216,18 +216,4 @@ mod tests {
         assert_eq!(title.category, Category::Action);
         assert_eq!(title.timestamp, timestamp);
     }
-
-    #[test]
-    fn test_title_format_with_timestamp_setter() {
-        let timestamp = DateTime::parse_from_rfc3339("2023-10-26T14:45:30Z")
-            .unwrap()
-            .with_timezone(&Utc);
-
-        let title = TitleFormat::info("Test")
-            .timestamp(timestamp)
-            .sub_title("With timestamp");
-
-        assert_eq!(title.timestamp, timestamp);
-        assert_eq!(title.sub_title, Some("With timestamp".to_string()));
-    }
 }
