@@ -475,6 +475,16 @@ zle -N forge-accept-line
 # Register completions
 zle -N forge-completion
 
+# Custom bracketed-paste handler to fix syntax highlighting after paste
+function forge-bracketed-paste() {
+    zle .$WIDGET "$@"
+    zle reset-prompt
+}
+
+# Register the bracketed paste widget to fix highlighting on paste
+zle -N bracketed-paste forge-bracketed-paste
+
+
 
 # Bind Enter to our custom accept-line that transforms :commands
 bindkey '^M' forge-accept-line
