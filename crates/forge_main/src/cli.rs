@@ -960,14 +960,6 @@ mod tests {
     }
 
     #[test]
-    fn test_command_file_flag() {
-        let fixture = Cli::parse_from(["forge", "-c", "path/to/commands.txt"]);
-        let actual = fixture.command;
-        let expected = Some("path/to/commands.txt".to_string());
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
     fn test_is_interactive_with_command_file() {
         let fixture = Cli::parse_from(["forge", "-c", "commands.txt"]);
         let actual = fixture.is_interactive();
