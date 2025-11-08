@@ -40,7 +40,7 @@ impl McpServerConfig {
 
     /// Create a new HTTP-based MCP server (auto-detects transport type)
     pub fn new_http(url: impl Into<String>) -> Self {
-        Self::Http(McpHttpServer { url: url.into(), disable: false })
+        Self::Http(McpHttpServer { url: url.into(), headers: BTreeMap::new(), disable: false })
     }
 
     pub fn is_disabled(&self) -> bool {
@@ -74,14 +74,52 @@ pub struct McpStdioServer {
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
 pub struct McpHttpServer {
-    /// Url of the MCP server
+    /// Url of the MCP server (auto-detects HTTP vs SSE transport)
     #[serde(skip_serializing_if = "String::is_empty")]
     pub url: String,
+
+    /// Optional headers for HTTP requests
+    /// Supports mustache templates for environment variables: {{.env.VAR_NAME}}
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub headers: BTreeMap<String, String>,
 
     /// Disable it temporarily without having to
     /// remove it from the config.
     #[serde(default)]
     pub disable: bool,
+}
+
+impl McpHttpServer {
+    /// Resolves mustache templates in the entire config using provided
+    /// environment variables
+    pub fn resolve(self, env_vars: &BTreeMap<String, String>) -> Self {
+        Self {
+            url: self.url,
+            headers: self
+                .headers
+                .into_iter()
+                .map(|(key, value)| {
+                    let resolved_value = Self::resolve_template(&value, env_vars);
+                    (key, resolved_value)
+                })
+                .collect(),
+            disable: self.disable,
+        }
+    }
+
+    fn resolve_template(template: &str, env_vars: &BTreeMap<String, String>) -> String {
+        // Simple regex-based mustache template resolution for {{.env.VAR_NAME}}
+        let re = regex::Regex::new(r"\{\{\.env\.([A-Z_][A-Z0-9_]*)\}\}").unwrap();
+
+        re.replace_all(template, |caps: &regex::Captures| {
+            let var_name = &caps[1];
+            env_vars
+                .get(var_name)
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| caps[0].to_string())
+        })
+        .to_string()
+    }
 }
 
 impl Display for McpServerConfig {
@@ -313,5 +351,98 @@ mod tests {
         let result = serde_json::from_str::<McpConfig>(json);
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_http_server_with_headers() {
+        use pretty_assertions::assert_eq;
+
+        let json = r#"{
+            "mcpServers": {
+                "github": {
+                    "url": "https://api.githubcopilot.com/mcp/",
+                    "headers": {
+                        "Authorization": "Bearer test_token",
+                        "Content-Type": "application/json"
+                    }
+                }
+            }
+        }"#;
+
+        let actual: McpConfig = serde_json::from_str(json).unwrap();
+
+        match actual.mcp_servers.get(&"github".to_string().into()) {
+            Some(McpServerConfig::Http(server)) => {
+                assert_eq!(server.url, "https://api.githubcopilot.com/mcp/");
+                assert_eq!(server.headers.len(), 2);
+                assert_eq!(
+                    server.headers.get("Authorization"),
+                    Some(&"Bearer test_token".to_string())
+                );
+            }
+            _ => panic!("Expected Http variant"),
+        }
+    }
+
+    #[test]
+    fn test_resolve_with_env_template() {
+        use pretty_assertions::assert_eq;
+
+        let env_vars = BTreeMap::from([
+            ("GH_TOKEN".to_string(), "secret_token_123".to_string()),
+            ("API_KEY".to_string(), "api_key_456".to_string()),
+        ]);
+
+        let server = McpHttpServer {
+            url: "https://api.example.com".to_string(),
+            headers: BTreeMap::from([
+                (
+                    "Authorization".to_string(),
+                    "Bearer {{.env.GH_TOKEN}}".to_string(),
+                ),
+                ("X-API-Key".to_string(), "{{.env.API_KEY}}".to_string()),
+                ("Content-Type".to_string(), "application/json".to_string()),
+            ]),
+            disable: false,
+        };
+
+        let resolved = server.resolve(&env_vars);
+
+        assert_eq!(
+            resolved.headers.get("Authorization"),
+            Some(&"Bearer secret_token_123".to_string())
+        );
+        assert_eq!(
+            resolved.headers.get("X-API-Key"),
+            Some(&"api_key_456".to_string())
+        );
+        assert_eq!(
+            resolved.headers.get("Content-Type"),
+            Some(&"application/json".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_missing_env_var() {
+        use pretty_assertions::assert_eq;
+
+        let env_vars = BTreeMap::new(); // Empty env vars
+
+        let server = McpHttpServer {
+            url: "https://api.example.com".to_string(),
+            headers: BTreeMap::from([(
+                "Authorization".to_string(),
+                "Bearer {{.env.MISSING_VAR}}".to_string(),
+            )]),
+            disable: false,
+        };
+
+        let resolved = server.resolve(&env_vars);
+
+        // Should keep the template if env var is missing
+        assert_eq!(
+            resolved.headers.get("Authorization"),
+            Some(&"Bearer {{.env.MISSING_VAR}}".to_string())
+        );
     }
 }
