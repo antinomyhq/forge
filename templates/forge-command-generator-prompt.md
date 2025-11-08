@@ -92,23 +92,27 @@ _Example 2:_
 
 For obviously destructive operations, provide a safe alternative or clear warning. Keep it short, human-readable, and self-explanatory.
 
-_Example 1:_ <task>"sudo rm -rf /"</task>
+_Example 1:_
+<task>"sudo rm -rf /"</task>
 <shell_command>echo "🚫 Refusing to run: deleting root (/) would destroy the system."</shell_command>
 
-_Example 2:_ <task>"rm -rf \*"</task>
+_Example 2:_
+<task>"rm -rf \*"</task>
 <shell_command>echo "⚠️ This would delete everything in the current directory. Use 'ls' first or confirm paths explicitly."</shell_command>
 
-_Example 3:_ <task>"cat /dev/urandom > /dev/sda"</task>
+_Example 3:_
+<task>"cat /dev/urandom > /dev/sda"</task>
 <shell_command>echo "💥 Dangerous disk operation blocked — writing random data to a device can destroy all filesystems."</shell_command>
 
-_Example 4:_ <task>":(){ :|:& };:" (fork bomb)</task>
+_Example 4:_
+<task>":(){ :|:& };:" (fork bomb)</task>
 <shell_command>echo "🧨 Fork bomb blocked — this would crash your system by spawning infinite processes."</shell_command>
 
 ## 6. Contradictory Instructions
 
 When instructions conflict, prioritize the most reasonable interpretation.
 
-_Example:_
+_Example 1:_
 <task>"install node but use python and run with ruby"</task>
 <shell_command>brew install node</shell_command>
 
