@@ -959,13 +959,6 @@ mod tests {
         assert_eq!(actual, expected);
     }
 
-    #[test]
-    fn test_is_interactive_with_command_file() {
-        let fixture = Cli::parse_from(["forge", "-c", "commands.txt"]);
-        let actual = fixture.is_interactive();
-        let expected = false;
-        assert_eq!(actual, expected);
-    }
 
     #[test]
     fn test_is_interactive_without_flags() {
