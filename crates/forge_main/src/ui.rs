@@ -517,17 +517,28 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 let conversation_id = ConversationId::parse(&id)
                     .context(format!("Invalid conversation ID: {}", id))?;
 
-                self.validate_conversation_exists(&conversation_id).await?;
+                let conversation = self.validate_conversation_exists(&conversation_id).await?;
 
-                self.on_show_last_message(&conversation_id).await?;
+                self.on_show_last_message(conversation).await?;
             }
             ConversationCommand::Info { id } => {
                 let conversation_id = ConversationId::parse(&id)
                     .context(format!("Invalid conversation ID: {}", id))?;
 
-                self.validate_conversation_exists(&conversation_id).await?;
+                let conversation = self.validate_conversation_exists(&conversation_id).await?;
 
-                self.on_show_conv_info(conversation_id).await?;
+                self.on_show_conv_info(conversation).await?;
+            }
+            ConversationCommand::Clone { id } => {
+                let conversation_id = ConversationId::parse(&id)
+                    .context(format!("Invalid conversation ID: {}", id))?;
+
+                let conversation = self.validate_conversation_exists(&conversation_id).await?;
+
+                self.spinner.start(Some("Cloning"))?;
+                self.on_clone_conversation(conversation, conversation_group.porcelain)
+                    .await?;
+                self.spinner.stop(None)?;
             }
         }
 
@@ -537,17 +548,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn validate_conversation_exists(
         &self,
         conversation_id: &ConversationId,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Conversation> {
         let conversation = self.api.conversation(conversation_id).await?;
 
-        if conversation.is_none() {
-            anyhow::bail!(
+        conversation.ok_or_else(|| {
+            anyhow::anyhow!(
                 "Conversation '{}' not found. Use 'forge conversation list' to see available conversations.",
                 conversation_id
-            );
-        }
-
-        Ok(())
+            )
+        })
     }
 
     async fn handle_provider_command(
@@ -1117,7 +1126,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             self.state.conversation_id = Some(conversation_id);
 
             // Show conversation content
-            self.on_show_last_message(&conversation_id).await?;
+            self.on_show_last_message(conversation).await?;
 
             // Print log about conversation switching
             self.writeln_title(TitleFormat::info(format!(
@@ -2109,8 +2118,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 }
             }
             ChatResponse::TaskComplete => {
-                if let Some(conversation_id) = self.state.conversation_id {
-                    self.on_show_conv_info(conversation_id).await?;
+                if let Some(conversation_id) = self.state.conversation_id
+                    && let Ok(conversation) =
+                        self.validate_conversation_exists(&conversation_id).await
+                {
+                    self.on_show_conv_info(conversation).await?;
                 }
             }
         }
@@ -2130,17 +2142,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn on_show_conv_info(&mut self, conversation_id: ConversationId) -> anyhow::Result<()> {
+    async fn on_show_conv_info(&mut self, conversation: Conversation) -> anyhow::Result<()> {
         if !should_show_completion_prompt() {
             return Ok(());
         }
 
         self.spinner.start(Some("Loading Summary"))?;
-        let conversation = self
-            .api
-            .conversation(&conversation_id)
-            .await?
-            .ok_or(anyhow::anyhow!("Conversation not found: {conversation_id}"))?;
 
         let info = Info::default().extend(&conversation);
 
@@ -2164,6 +2171,36 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             if should_start_new_chat {
                 self.on_new().await?;
             }
+        }
+
+        Ok(())
+    }
+
+    /// Clones a conversation with a new ID
+    ///
+    /// # Arguments
+    /// * `original` - The conversation to clone
+    /// * `porcelain` - If true, output only the new conversation ID
+    async fn on_clone_conversation(
+        &mut self,
+        original: Conversation,
+        porcelain: bool,
+    ) -> anyhow::Result<()> {
+        // Create a new conversation with a new ID but same content
+        let new_id = ConversationId::generate();
+        let mut cloned = original.clone();
+        cloned.id = new_id;
+
+        // Upsert the cloned conversation
+        self.api.upsert_conversation(cloned.clone()).await?;
+
+        // Output based on format
+        if porcelain {
+            println!("{}", new_id);
+        } else {
+            self.writeln_title(
+                TitleFormat::info("Cloned").sub_title(format!("[{} → {}]", original.id, cloned.id)),
+            )?;
         }
 
         Ok(())
@@ -2366,13 +2403,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// # Errors
     /// - If the conversation doesn't exist
     /// - If the conversation has no messages
-    async fn on_show_last_message(&mut self, conversation_id: &ConversationId) -> Result<()> {
-        let conversation = self
-            .api
-            .conversation(conversation_id)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("Conversation not found"))?;
-
+    async fn on_show_last_message(&mut self, conversation: Conversation) -> Result<()> {
         let context = conversation
             .context
             .as_ref()
