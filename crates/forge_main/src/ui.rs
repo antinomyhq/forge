@@ -226,11 +226,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
-        // Get initial input from file or prompt
-        let mut command = match &self.cli.command {
-            Some(path) => self.console.upload(path).await,
-            None => self.prompt().await,
-        };
+        // Get initial input from prompt
+        let mut command = self.prompt().await;
 
         loop {
             match command {
