@@ -1468,6 +1468,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         if should_set_active.unwrap_or(false) {
             self.api.set_default_provider(provider_id).await?;
+            self.writeln_title(TitleFormat::action(format!("Provider set {}", provider_id)))?;
         }
         Ok(())
     }

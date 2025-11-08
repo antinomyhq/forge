@@ -92,6 +92,39 @@ function _forge_find_index() {
     return 0
 }
 
+# Helper function to select a provider from the list
+# Usage: _forge_select_provider [filter_status]
+# Returns: selected provider line (via stdout)
+function _forge_select_provider() {
+    local filter_status="${1:-}"
+    local output
+    output=$($_FORGE_BIN list provider --porcelain 2>/dev/null)
+    
+    if [[ -z "$output" ]]; then
+        echo "\033[31m✗\033[0m No providers available"
+        return 1
+    fi
+    
+    # Filter by status if specified (e.g., "available" for configured providers)
+    if [[ -n "$filter_status" ]]; then
+        output=$(echo "$output" | grep -i "$filter_status")
+        if [[ -z "$output" ]]; then
+            echo "\033[31m✗\033[0m No ${filter_status} providers found"
+            return 1
+        fi
+    fi
+    
+    local selected
+    selected=$(echo "$output" | _forge_fzf --delimiter="$_FORGE_DELIMITER" --prompt="Provider ❯ ")
+    
+    if [[ -n "$selected" ]]; then
+        echo "$selected"
+        return 0
+    fi
+    
+    return 1
+}
+
 # Helper function to select and set config values with fzf
 function _forge_select_and_set_config() {
     local show_command="$1"
@@ -327,7 +360,21 @@ function _forge_action_conversation() {
 
 # Action handler: Select provider
 function _forge_action_provider() {
-    _forge_select_and_set_config "list providers" "provider" "Provider" "$($_FORGE_BIN config get provider --porcelain)"
+    echo
+    local selected
+    selected=$(_forge_select_provider)
+    
+    if [[ -n "$selected" ]]; then
+        local name="${selected%% *}"
+        # Check if status contains "available"
+        if echo "$selected" | grep -qi "available"; then
+            # Provider is already configured, just set it as active
+            _forge_exec config set provider "$name"
+        else
+            # Provider needs authentication, login first
+            _forge_exec provider login "$name"
+        fi
+    fi
     _forge_reset
 }
 
@@ -346,59 +393,29 @@ function _forge_action_tools() {
     _forge_reset
 }
 
-
 # Action handler: Login to provider
 function _forge_action_login() {
-    (
-        echo
-        local output
-        output=$($_FORGE_BIN list provider --porcelain 2>/dev/null)
-        
-        if [[ -n "$output" ]]; then
-            local selected
-            selected=$(echo "$output" | _forge_fzf --delimiter="$_FORGE_DELIMITER" --with-nth="1,3" --prompt="Provider ❯ ")
-
-            if [[ -n "$selected" ]]; then
-                local name="${selected%% *}"
-                _forge_exec provider login "$name"
-            fi
-        else
-            echo "\033[31m✗\033[0m No providers available"
-        fi
-    )
+    echo
+    local selected
+    selected=$(_forge_select_provider)
+    if [[ -n "$selected" ]]; then
+        local provider="${selected%% *}"
+        _forge_exec provider login "$provider"
+    fi
     _forge_reset
 }
 
 # Action handler: Logout from provider
 function _forge_action_logout() {
-    (
-        echo
-        local output
-        output=$($_FORGE_BIN list provider --porcelain 2>/dev/null)
-        
-        if [[ -n "$output" ]]; then
-            # Filter only configured providers (those with "available" status)
-            local configured_output
-            configured_output=$(echo "$output" | grep -i "available")
-            
-            if [[ -n "$configured_output" ]]; then
-                local selected
-                selected=$(echo "$configured_output" | _forge_fzf --delimiter="$_FORGE_DELIMITER" --prompt="Provider ❯ ")
-
-                if [[ -n "$selected" ]]; then
-                    local name="${selected%% *}"
-                    _forge_exec provider logout "$name"
-                fi
-            else
-                echo "\033[31m✗\033[0m No configured providers found"
-            fi
-        else
-            echo "\033[31m✗\033[0m No providers available"
-        fi
-    )
+    echo
+    local selected
+    selected=$(_forge_select_provider "available")
+    if [[ -n "$selected" ]]; then
+        local provider="${selected%% *}"
+        _forge_exec provider logout "$provider"
+    fi
     _forge_reset
 }
-
 # Action handler: Set active agent or execute command
 function _forge_action_default() {
     local user_action="$1"
