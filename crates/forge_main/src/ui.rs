@@ -2112,9 +2112,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 if let Some(conversation_id) = self.state.conversation_id
                     && let Ok(conversation) =
                         self.validate_conversation_exists(&conversation_id).await
-                    {
-                        self.on_show_conv_info(conversation).await?;
-                    }
+                {
+                    self.on_show_conv_info(conversation).await?;
+                }
             }
         }
         Ok(())
