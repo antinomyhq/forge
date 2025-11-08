@@ -29,12 +29,6 @@ ZSH_HIGHLIGHT_HIGHLIGHTERS+=(pattern)
 # Style the conversation pattern with appropriate highlighting
 # Keywords in yellow, rest in default white
 
-# Highlight :? command in yellow
-ZSH_HIGHLIGHT_PATTERNS+=('(#s):\?' 'fg=yellow,bold')
-
-# Highlight everything after :? + space in white bold
-ZSH_HIGHLIGHT_PATTERNS+=('(#s):\? *(*|[[:graph:]]*)' 'fg=white,bold')
-
 # Highlight colon + word at the beginning in yellow
 ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z]#' 'fg=yellow,bold')
 
@@ -354,7 +348,7 @@ function _forge_action_tools() {
 
 # Action handler: Generate shell command from natural language
 # Usage: :? <description>
-function _forge_action_transform() {
+function _forge_action_suggest() {
     local description="$1"
     
     if [[ -z "$description" ]]; then
@@ -366,7 +360,7 @@ function _forge_action_transform() {
     echo
     # Generate the command
     local generated_command
-    generated_command=$(FORCE_COLOR=true CLICOLOR_FORCE=1 _forge_exec transform "$description")
+    generated_command=$(FORCE_COLOR=true CLICOLOR_FORCE=1 _forge_exec suggest "$description")
     
     if [[ -n "$generated_command" ]]; then
         # Replace the buffer with the generated command
@@ -438,11 +432,7 @@ function forge-accept-line() {
     local input_text=""
     
     # Check if the line starts with any of the supported patterns
-    if [[ "$BUFFER" =~ "^:\? (.*)$" ]]; then
-        # Command generation: :? <description>
-        user_action="cmd"
-        input_text="${match[1]}"
-    elif [[ "$BUFFER" =~ "^:([a-zA-Z][a-zA-Z0-9_-]*)( (.*))?$" ]]; then
+    if [[ "$BUFFER" =~ "^:([a-zA-Z][a-zA-Z0-9_-]*)( (.*))?$" ]]; then
         # Action with or without parameters: :foo or :foo bar baz
         user_action="${match[1]}"
         input_text="${match[3]:-}"  # Use empty string if no parameters
@@ -480,29 +470,29 @@ function forge-accept-line() {
         env|e)
             _forge_action_env
         ;;
-        dump)
+        dump|d)
             _forge_action_dump "$input_text"
         ;;
         compact)
             _forge_action_compact
         ;;
-        retry)
+        retry|r)
             _forge_action_retry
         ;;
-        conversation)
+        conversation|c)
             _forge_action_conversation
         ;;
-        provider)
+        provider|p)
             _forge_action_provider
         ;;
-        model)
+        model|m)
             _forge_action_model
         ;;
-        tools)
+        tools|t)
             _forge_action_tools
         ;;
-        cmd)
-            _forge_action_transform "$input_text"
+        suggest|s)
+            _forge_action_suggest "$input_text"
         ;;
         *)
             _forge_action_default "$user_action" "$input_text"
