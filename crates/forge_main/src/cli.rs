@@ -406,6 +406,14 @@ pub enum ConversationCommand {
         /// Conversation ID
         id: String,
     },
+
+    /// Clone a conversation with a new ID
+    ///
+    /// Example: forge conversation clone abc123
+    Clone {
+        /// Conversation ID to clone
+        id: String,
+    },
 }
 
 /// Group of Provider-related commands
@@ -871,5 +879,32 @@ mod tests {
         let actual = fixture.conversation_id;
         let expected = Some("550e8400-e29b-41d4-a716-446655440000".to_string());
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_conversation_clone_with_id() {
+        let fixture = Cli::parse_from(["forge", "conversation", "clone", "abc123"]);
+        let id = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Clone { id } => id,
+                _ => String::new(),
+            },
+            _ => String::new(),
+        };
+        assert_eq!(id, "abc123");
+    }
+
+    #[test]
+    fn test_conversation_clone_with_porcelain() {
+        let fixture = Cli::parse_from(["forge", "conversation", "clone", "test123", "--porcelain"]);
+        let (id, porcelain) = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Clone { id } => (id, conversation.porcelain),
+                _ => (String::new(), false),
+            },
+            _ => (String::new(), false),
+        };
+        assert_eq!(id, "test123");
+        assert_eq!(porcelain, true);
     }
 }
