@@ -152,6 +152,9 @@ pub trait API: Sync + Send {
     /// List of commands defined in .md file(s)
     async fn get_commands(&self) -> Result<Vec<Command>>;
 
+    /// Generate a shell command from natural language prompt
+    async fn generate_command(&self, prompt: UserPrompt) -> Result<String>;
+
     /// Initiate provider auth flow
     async fn init_provider_auth(
         &self,

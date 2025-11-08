@@ -1,0 +1,256 @@
+use std::sync::Arc;
+
+use anyhow::Result;
+use forge_domain::{extract_tag_content, *};
+
+use crate::{
+    AppConfigService, EnvironmentService, FileDiscoveryService, ProviderService, TemplateEngine,
+    Walker,
+};
+
+/// CommandGenerator handles shell command generation from natural language
+pub struct CommandGenerator<S> {
+    services: Arc<S>,
+}
+
+impl<S> CommandGenerator<S>
+where
+    S: EnvironmentService + FileDiscoveryService + ProviderService + AppConfigService,
+{
+    /// Creates a new CommandGenerator instance with the provided services.
+    pub fn new(services: Arc<S>) -> Self {
+        Self { services }
+    }
+
+    /// Generates a shell command from a natural language prompt
+    pub async fn generate(&self, prompt: UserPrompt) -> Result<String> {
+        // Get system information for context
+        let env = self.services.get_environment();
+
+        let walker = Walker::conservative()
+            .cwd(env.cwd.clone())
+            .max_depth(1usize);
+        let mut files = self
+            .services
+            .collect_files(walker)
+            .await?
+            .into_iter()
+            .filter(|f| !f.is_dir)
+            .map(|f| f.path)
+            .collect::<Vec<_>>();
+        files.sort();
+
+        let rendered_system_prompt = TemplateEngine::default().render(
+            "forge-command-generator-prompt.md",
+            &serde_json::json!({"env": env, "files": files}),
+        )?;
+
+        // Get required services and data
+        let provider = self.services.get_default_provider().await?;
+        let model = self.services.get_default_model(&provider.id).await?;
+
+        // Build user prompt with task and recent commands
+        let user_content = format!("<task>{}</task>", prompt.as_str());
+
+        // Create context with system and user prompts
+        let ctx = self.create_context(rendered_system_prompt, user_content, &model);
+
+        // Send message to LLM
+        let stream = self.services.chat(&model, ctx, provider).await?;
+        let message = stream.into_full(false).await?;
+
+        // Extract the command from the <shell_command> tag
+        let command = extract_tag_content(&message.content, "shell_command").ok_or_else(|| {
+            anyhow::anyhow!(
+                "Failed to generate shell command: Unexpected response: {}",
+                message.content
+            )
+        })?;
+
+        Ok(command.to_string())
+    }
+
+    /// Creates a context with system and user messages for the LLM
+    fn create_context(
+        &self,
+        system_prompt: String,
+        user_content: String,
+        model: &ModelId,
+    ) -> Context {
+        Context::default()
+            .add_message(ContextMessage::system(system_prompt))
+            .add_message(ContextMessage::user(user_content, Some(model.clone())))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use forge_domain::{
+        AuthCredential, AuthDetails, AuthMethod, ChatCompletionMessage, Content, FinishReason,
+        Models, ProviderId, ProviderResponse, ResultStream,
+    };
+    use tokio::sync::Mutex;
+    use url::Url;
+
+    use super::*;
+
+    struct MockServices {
+        files: Vec<(String, bool)>,
+        response: Arc<Mutex<Option<String>>>,
+        captured_context: Arc<Mutex<Option<Context>>>,
+        environment: Environment,
+    }
+
+    impl MockServices {
+        fn new(response: &str, files: Vec<(&str, bool)>) -> Arc<Self> {
+            use fake::{Fake, Faker};
+            let mut env: Environment = Faker.fake();
+            // Override only the fields that appear in templates
+            env.os = "macos".to_string();
+            env.cwd = "/test/dir".into();
+            env.shell = "/bin/bash".to_string();
+            env.home = Some("/home/test".into());
+
+            Arc::new(Self {
+                files: files.into_iter().map(|(p, d)| (p.to_string(), d)).collect(),
+                response: Arc::new(Mutex::new(Some(response.to_string()))),
+                captured_context: Arc::new(Mutex::new(None)),
+                environment: env,
+            })
+        }
+    }
+
+    impl EnvironmentService for MockServices {
+        fn get_environment(&self) -> Environment {
+            self.environment.clone()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl FileDiscoveryService for MockServices {
+        async fn collect_files(&self, _walker: Walker) -> Result<Vec<File>> {
+            Ok(self
+                .files
+                .iter()
+                .map(|(path, is_dir)| File { path: path.clone(), is_dir: *is_dir })
+                .collect())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ProviderService for MockServices {
+        async fn chat(
+            &self,
+            _id: &ModelId,
+            context: Context,
+            _provider: Provider<Url>,
+        ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+            *self.captured_context.lock().await = Some(context);
+
+            let response = self.response.lock().await.take().unwrap();
+            let message = ChatCompletionMessage::assistant(Content::full(response))
+                .finish_reason(FinishReason::Stop);
+            Ok(Box::pin(tokio_stream::iter(std::iter::once(Ok(message)))))
+        }
+
+        async fn models(&self, _provider: Provider<Url>) -> Result<Vec<forge_domain::Model>> {
+            Ok(vec![])
+        }
+
+        async fn get_provider(&self, _id: ProviderId) -> Result<Provider<Url>> {
+            Ok(Provider {
+                id: ProviderId::OpenAI,
+                response: ProviderResponse::OpenAI,
+                url: Url::parse("https://api.test.com").unwrap(),
+                models: Models::Url(Url::parse("https://api.test.com/models").unwrap()),
+                auth_methods: vec![AuthMethod::ApiKey],
+                url_params: vec![],
+                credential: Some(AuthCredential {
+                    id: ProviderId::OpenAI,
+                    auth_details: AuthDetails::ApiKey("test-key".to_string().into()),
+                    url_params: Default::default(),
+                }),
+            })
+        }
+
+        async fn get_all_providers(&self) -> Result<Vec<forge_domain::AnyProvider>> {
+            Ok(vec![])
+        }
+
+        async fn upsert_credential(&self, _credential: AuthCredential) -> Result<()> {
+            Ok(())
+        }
+
+        async fn remove_credential(&self, _id: &ProviderId) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl AppConfigService for MockServices {
+        async fn get_default_provider(&self) -> Result<Provider<Url>> {
+            self.get_provider(ProviderId::OpenAI).await
+        }
+
+        async fn set_default_provider(&self, _provider_id: ProviderId) -> Result<()> {
+            Ok(())
+        }
+
+        async fn get_default_model(&self, _provider_id: &ProviderId) -> Result<ModelId> {
+            Ok(ModelId::new("test-model"))
+        }
+
+        async fn set_default_model(&self, _model: ModelId, _provider_id: ProviderId) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_generate_simple_command() {
+        let fixture = MockServices::new(
+            "<shell_command>ls -la</shell_command>",
+            vec![("file1.txt", false), ("file2.rs", false)],
+        );
+        let generator = CommandGenerator::new(fixture.clone());
+
+        let actual = generator
+            .generate(UserPrompt::from("list all files".to_string()))
+            .await
+            .unwrap();
+
+        assert_eq!(actual, "ls -la");
+        let captured_context = fixture.captured_context.lock().await.clone().unwrap();
+        insta::assert_yaml_snapshot!(captured_context);
+    }
+
+    #[tokio::test]
+    async fn test_generate_with_no_files() {
+        let fixture = MockServices::new("<shell_command>pwd</shell_command>", vec![]);
+        let generator = CommandGenerator::new(fixture.clone());
+
+        let actual = generator
+            .generate(UserPrompt::from("show current directory".to_string()))
+            .await
+            .unwrap();
+
+        assert_eq!(actual, "pwd");
+        let captured_context = fixture.captured_context.lock().await.clone().unwrap();
+        insta::assert_yaml_snapshot!(captured_context);
+    }
+
+    #[tokio::test]
+    async fn test_generate_fails_when_missing_tag() {
+        let fixture = MockServices::new("No command tag here", vec![]);
+        let generator = CommandGenerator::new(fixture);
+
+        let actual = generator
+            .generate(UserPrompt::from("do something".to_string()))
+            .await;
+
+        assert!(actual.is_err());
+        assert_eq!(
+            actual.unwrap_err().to_string(),
+            "Failed to generate shell command: Unexpected response: No command tag here"
+        );
+    }
+}

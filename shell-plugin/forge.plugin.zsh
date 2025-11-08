@@ -271,7 +271,30 @@ function _forge_action_retry() {
 
 # Action handler: List/switch conversations
 function _forge_action_conversation() {
+    local input_text="$1"
+    
     echo
+    
+    # If an ID is provided directly, use it
+    if [[ -n "$input_text" ]]; then
+        local conversation_id="$input_text"
+        
+        # Set the conversation as active
+        _FORGE_CONVERSATION_ID="$conversation_id"
+        
+        # Show conversation content
+        echo
+        _forge_exec conversation show "$conversation_id"
+        
+        # Show conversation info
+        _forge_exec conversation info "$conversation_id"
+        
+        # Print log about conversation switching
+        echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Switched to conversation \033[1m${conversation_id}\033[0m"
+        
+        _forge_reset
+        return 0
+    fi
     
     # Get conversations list
     local conversations_output
@@ -344,6 +367,33 @@ function _forge_action_tools() {
     local agent_id="${_FORGE_ACTIVE_AGENT:-forge}"
     _forge_exec list tools "$agent_id"
     _forge_reset
+}
+
+# Action handler: Generate shell command from natural language
+# Usage: :? <description>
+function _forge_action_suggest() {
+    local description="$1"
+    
+    if [[ -z "$description" ]]; then
+        echo "\033[31m✗\033[0m Please provide a command description"
+        _forge_reset
+        return 0
+    fi
+    
+    echo
+    # Generate the command
+    local generated_command
+    generated_command=$(FORCE_COLOR=true CLICOLOR_FORCE=1 _forge_exec suggest "$description")
+    
+    if [[ -n "$generated_command" ]]; then
+        # Replace the buffer with the generated command
+        BUFFER="$generated_command"
+        CURSOR=${#BUFFER}
+        zle reset-prompt
+    else
+        echo "\033[31m✗\033[0m Failed to generate command"
+        _forge_reset
+    fi
 }
 
 # Action handler: Set active agent or execute command
@@ -427,7 +477,7 @@ function forge-accept-line() {
         # Action with or without parameters: :foo or :foo bar baz
         user_action="${match[1]}"
         input_text="${match[3]:-}"  # Use empty string if no parameters
-        elif [[ "$BUFFER" =~ "^: (.*)$" ]]; then
+    elif [[ "$BUFFER" =~ "^: (.*)$" ]]; then
         # Default action with parameters: : something
         user_action=""
         input_text="${match[1]}"
@@ -461,26 +511,29 @@ function forge-accept-line() {
         env|e)
             _forge_action_env
         ;;
-        dump)
+        dump|d)
             _forge_action_dump "$input_text"
         ;;
         compact)
             _forge_action_compact
         ;;
-        retry)
+        retry|r)
             _forge_action_retry
         ;;
-        conversation)
-            _forge_action_conversation
+        conversation|c)
+            _forge_action_conversation "$input_text"
         ;;
-        provider)
+        provider|p)
             _forge_action_provider
         ;;
-        model)
+        model|m)
             _forge_action_model
         ;;
-        tools)
+        tools|t)
             _forge_action_tools
+        ;;
+        suggest|s)
+            _forge_action_suggest "$input_text"
         ;;
         *)
             _forge_action_default "$user_action" "$input_text"
