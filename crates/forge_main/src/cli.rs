@@ -959,7 +959,6 @@ mod tests {
         assert_eq!(actual, expected);
     }
 
-
     #[test]
     fn test_is_interactive_without_flags() {
         let fixture = Cli::parse_from(["forge"]);
