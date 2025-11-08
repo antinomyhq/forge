@@ -3,6 +3,7 @@ mod agent_executor;
 mod app;
 mod apply_tunable_parameters;
 mod authenticator;
+mod command_generator;
 mod compact;
 pub mod dto;
 mod error;
@@ -32,6 +33,7 @@ mod walker;
 
 pub use agent::*;
 pub use app::*;
+pub use command_generator::*;
 pub use error::*;
 pub use infra::*;
 pub use services::*;

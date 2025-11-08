@@ -102,6 +102,107 @@ impl From<&Environment> for Info {
                 format_path_for_display(env, &env.permissions_path()),
             );
 
+        // Add configuration sections
+        info = info
+            .add_title("RETRY CONFIGURATION")
+            .add_key_value(
+                "Initial Backoff",
+                format!("{}ms", env.retry_config.initial_backoff_ms),
+            )
+            .add_key_value(
+                "Backoff Factor",
+                env.retry_config.backoff_factor.to_string(),
+            )
+            .add_key_value(
+                "Max Attempts",
+                env.retry_config.max_retry_attempts.to_string(),
+            )
+            .add_key_value(
+                "Suppress Errors",
+                env.retry_config.suppress_retry_errors.to_string(),
+            )
+            .add_key_value(
+                "Status Codes",
+                env.retry_config
+                    .retry_status_codes
+                    .iter()
+                    .map(|c| c.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            )
+            .add_title("HTTP CONFIGURATION")
+            .add_key_value("Connect Timeout", format!("{}s", env.http.connect_timeout))
+            .add_key_value("Read Timeout", format!("{}s", env.http.read_timeout))
+            .add_key_value(
+                "Pool Idle Timeout",
+                format!("{}s", env.http.pool_idle_timeout),
+            )
+            .add_key_value("Pool Max Idle", env.http.pool_max_idle_per_host.to_string())
+            .add_key_value("Max Redirects", env.http.max_redirects.to_string())
+            .add_key_value("Use Hickory DNS", env.http.hickory.to_string())
+            .add_key_value("TLS Backend", format!("{}", env.http.tls_backend))
+            .add_key_value(
+                "Min TLS Version",
+                env.http
+                    .min_tls_version
+                    .as_ref()
+                    .map(|v| format!("{v}"))
+                    .unwrap_or_else(|| "None".to_string()),
+            )
+            .add_key_value(
+                "Max TLS Version",
+                env.http
+                    .max_tls_version
+                    .as_ref()
+                    .map(|v| format!("{v}"))
+                    .unwrap_or_else(|| "None".to_string()),
+            )
+            .add_key_value("Adaptive Window", env.http.adaptive_window.to_string())
+            .add_key_value(
+                "Keep-Alive Interval",
+                env.http
+                    .keep_alive_interval
+                    .map(|v| format!("{v}s"))
+                    .unwrap_or_else(|| "Disabled".to_string()),
+            )
+            .add_key_value(
+                "Keep-Alive Timeout",
+                format!("{}s", env.http.keep_alive_timeout),
+            )
+            .add_key_value(
+                "Keep-Alive While Idle",
+                env.http.keep_alive_while_idle.to_string(),
+            )
+            .add_key_value(
+                "Accept Invalid Certs",
+                env.http.accept_invalid_certs.to_string(),
+            )
+            .add_key_value(
+                "Root Cert Paths",
+                env.http
+                    .root_cert_paths
+                    .as_ref()
+                    .map(|paths| paths.join(", "))
+                    .unwrap_or_else(|| "None".to_string()),
+            )
+            .add_title("API CONFIGURATION")
+            .add_key_value("Forge API URL", env.forge_api_url.to_string())
+            .add_title("TOOL CONFIGURATION")
+            .add_key_value("Tool Timeout", format!("{}s", env.tool_timeout))
+            .add_key_value("Max Image Size", format!("{} bytes", env.max_image_size))
+            .add_key_value("Auto Open Dump", env.auto_open_dump.to_string())
+            .add_key_value("Debug Requests", env.debug_requests.to_string())
+            .add_key_value(
+                "Stdout Max Line Length",
+                env.stdout_max_line_length.to_string(),
+            )
+            .add_title("SYSTEM CONFIGURATION")
+            .add_key_value(
+                "Max Search Result Bytes",
+                format!("{} bytes", env.max_search_result_bytes),
+            )
+            .add_key_value("Max Conversations", env.max_conversations.to_string());
+
         info
     }
 }

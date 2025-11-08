@@ -10,7 +10,7 @@ use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, AnyProvider, ApiKeyRequest, AuthContextRequest, AuthContextResponse, ChatRequest,
     ChatResponse, CodeRequest, Conversation, ConversationId, DeviceCodeRequest, Event,
-    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, Workflow,
+    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, UserPrompt, Workflow,
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
@@ -428,6 +428,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.handle_conversation_command(conversation_group).await?;
                 return Ok(());
             }
+
+            TopLevelCommand::Suggest { prompt } => {
+                self.on_cmd(UserPrompt::from(prompt)).await?;
+                return Ok(());
+            }
         }
         Ok(())
     }
@@ -828,36 +833,81 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     /// Lists all the commands
     async fn on_show_commands(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let mut info = Info::new().add_title("COMMANDS");
+        let mut info = Info::new();
 
-        // Define base commands with their descriptions
+        // Define base commands with their descriptions and aliases
         info = info
-            .add_key_value("info", "Print session information")
-            .add_key_value("env", "Display environment information")
-            .add_key_value("provider", "Switch the providers")
-            .add_key_value("model", "Switch the models")
-            .add_key_value("login", "Log in to provider")
-            .add_key_value("logout", "Log out from provider")
-            .add_key_value("new", "Start new conversation")
+            .add_title("info")
+            .add_key_value("type", "command")
+            .add_key_value("description", "Print session information [alias: i]")
+            .add_title("env")
+            .add_key_value("type", "command")
+            .add_key_value("description", "Display environment information [alias: e]")
+            .add_title("provider")
+            .add_key_value("type", "command")
+            .add_key_value("description", "Switch the providers [alias: p]")
+            .add_title("model")
+            .add_key_value("type", "command")
+            .add_key_value("description", "Switch the models [alias: m]")
+            .add_title("new")
+            .add_key_value("type", "command")
+            .add_key_value("description", "Start new conversation [alias: n]")
+            .add_title("dump")
+            .add_key_value("type", "command")
             .add_key_value(
-                "dump",
-                "Save conversation as JSON or HTML (use /dump html for HTML format)",
+                "description",
+                "Save conversation as JSON or HTML (use /dump html for HTML format) [alias: d]",
             )
+            .add_title("conversation")
+            .add_key_value("type", "command")
             .add_key_value(
-                "conversation",
-                "List all conversations for the active workspace",
+                "description",
+                "List all conversations for the active workspace [alias: c]",
             )
-            .add_key_value("retry", "Retry the last command")
-            .add_key_value("compact", "Compact the conversation context")
+            .add_title("retry")
+            .add_key_value("type", "command")
+            .add_key_value("description", "Retry the last command [alias: r]")
+            .add_title("compact")
+            .add_key_value("type", "command")
+            .add_key_value("description", "Compact the conversation context")
+            .add_title("tools")
+            .add_key_value("type", "command")
             .add_key_value(
-                "tools",
-                "List all available tools with their descriptions and schema",
+                "description",
+                "List all available tools with their descriptions and schema [alias: t]",
+            )
+            .add_title("suggest")
+            .add_key_value("type", "command")
+            .add_key_value(
+                "description",
+                "Generate shell commands without executing them [alias: s]",
+            ).add_title("login")
+            .add_key_value("type", "command")
+            .add_key_value(
+                "description",
+                "Login to a provider",
+            ).add_title("logout")
+            .add_key_value("type", "command")
+            .add_key_value(
+                "description",
+                "Logout from a provider",
             );
 
-        // Add alias commands
+
+        // Add agent aliases
         info = info
-            .add_key_value("ask", "Alias for agent SAGE")
-            .add_key_value("plan", "Alias for agent MUSE");
+            .add_title("ask")
+            .add_key_value("type", "agent")
+            .add_key_value(
+                "description",
+                "Research and investigation agent [alias for: sage]",
+            )
+            .add_title("plan")
+            .add_key_value("type", "agent")
+            .add_key_value(
+                "description",
+                "Planning and strategy agent [alias for: muse]",
+            );
 
         // Fetch agents and add them to the commands list
         let agents = self.api.get_agents().await?;
@@ -869,11 +919,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .lines()
                 .collect::<Vec<_>>()
                 .join(" ");
-            info = info.add_key_value(agent.id.to_string(), title);
+            info = info
+                .add_title(agent.id.to_string())
+                .add_key_value("type", "agent")
+                .add_key_value("description", title);
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).into_long().drop_col(0).skip(1);
+            let porcelain = Porcelain::from(&info).swap_cols(1, 2).skip(1);
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -1061,6 +1114,23 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
+    /// Handle the cmd command - generates shell command from natural language
+    async fn on_cmd(&mut self, prompt: UserPrompt) -> anyhow::Result<()> {
+        self.spinner.start(Some("Generating"))?;
+
+        match self.api.generate_command(prompt).await {
+            Ok(command) => {
+                self.spinner.stop(None)?;
+                self.writeln(command)?;
+                Ok(())
+            }
+            Err(err) => {
+                self.spinner.stop(None)?;
+                Err(err)
+            }
+        }
+    }
+
     async fn list_conversations(&mut self) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Conversations"))?;
         let max_conversations = self.api.environment().max_conversations;
@@ -1106,11 +1176,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let mut info = Info::new().add_title("SESSIONS");
 
         for conv in conversations.into_iter() {
-            if conv.title.is_none() || conv.context.is_none() {
+            if conv.context.is_none() {
                 continue;
             }
 
-            let title = conv.title.as_deref().unwrap();
+            let title = conv
+                .title
+                .as_deref()
+                .map(|t| t.to_string())
+                .unwrap_or_else(|| format!("<untitled> [{}]", conv.id));
 
             // Format time using humantime library (same as conversation_selector.rs)
             let duration = chrono::Utc::now().signed_duration_since(
@@ -1127,7 +1201,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             // Add conversation: Title=<title>, Updated=<time_ago>, with ID as section title
             info = info
                 .add_title(conv.id)
-                .add_key_value("Title", title.to_string())
+                .add_key_value("Title", title)
                 .add_key_value("Updated", time_ago);
         }
 
