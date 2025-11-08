@@ -248,7 +248,7 @@ impl ToolOperation {
                 file_change_stats(
                     FileOperationStats {
                         path: input.path,
-                        tool_name: tool_name,
+                        tool_name,
                         lines_added: 0,
                         lines_removed: 0,
                         operation_type: OperationType::Read,
