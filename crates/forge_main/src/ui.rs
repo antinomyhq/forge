@@ -1121,11 +1121,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let mut info = Info::new().add_title("SESSIONS");
 
         for conv in conversations.into_iter() {
-            if conv.title.is_none() || conv.context.is_none() {
+            if conv.context.is_none() {
                 continue;
             }
 
-            let title = conv.title.as_deref().unwrap();
+            let title = conv
+                .title
+                .as_deref()
+                .map(|t| t.to_string())
+                .unwrap_or_else(|| format!("<untitled> [{}]", conv.id));
 
             // Format time using humantime library (same as conversation_selector.rs)
             let duration = chrono::Utc::now().signed_duration_since(
@@ -1142,7 +1146,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             // Add conversation: Title=<title>, Updated=<time_ago>, with ID as section title
             info = info
                 .add_title(conv.id)
-                .add_key_value("Title", title.to_string())
+                .add_key_value("Title", title)
                 .add_key_value("Updated", time_ago);
         }
 
