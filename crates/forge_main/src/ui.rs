@@ -881,18 +881,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .add_key_value(
                 "description",
                 "Generate shell commands without executing them [alias: s]",
-            ).add_title("login")
+            )
+            .add_title("login")
             .add_key_value("type", "command")
-            .add_key_value(
-                "description",
-                "Login to a provider",
-            ).add_title("logout")
+            .add_key_value("description", "Login to a provider")
+            .add_title("logout")
             .add_key_value("type", "command")
-            .add_key_value(
-                "description",
-                "Logout from a provider",
-            );
-
+            .add_key_value("description", "Logout from a provider");
 
         // Add agent aliases
         info = info
