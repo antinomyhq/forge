@@ -218,8 +218,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return self.handle_dispatch(dispatch_json).await;
         }
 
-        // Handle --custom-command flag (parsed custom commands)
-        if let Some(command_str) = self.cli.custom_command.clone() {
+        // Handle --run flag (parsed custom commands)
+        if let Some(command_str) = self.cli.run.clone() {
             self.spinner.start(None)?;
             // Add slash prefix if not present
             let command_with_slash = if command_str.starts_with('/') {

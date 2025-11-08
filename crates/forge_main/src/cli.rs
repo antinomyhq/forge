@@ -23,13 +23,13 @@ pub struct Cli {
     #[arg(long, short = 'c')]
     pub command: Option<String>,
 
-    /// Execute a custom command directly (e.g., "custom-command args").
+    /// Execute a custom command directly (e.g., "run args").
     ///
     /// Unlike --prompt, this flag parses the input through the command manager,
     /// enabling proper handling of custom commands with template substitution
-    /// and parameter extraction. The slash prefix is optional.
-    #[arg(long, hide = true)]
-    pub custom_command: Option<String>,
+    /// and parameter extraction.
+    #[arg(long, conflicts_with_all = ["prompt", "command"])]
+    pub run: Option<String>,
 
     /// Path to a file containing the conversation to execute.
     /// This file should be in JSON format.
@@ -86,7 +86,7 @@ impl Cli {
     pub fn is_interactive(&self) -> bool {
         self.prompt.is_none()
             && self.command.is_none()
-            && self.custom_command.is_none()
+            && self.run.is_none()
             && self.subcommands.is_none()
     }
 }
@@ -877,17 +877,17 @@ mod tests {
     }
 
     #[test]
-    fn test_custom_command_flag() {
-        let fixture = Cli::parse_from(["forge", "--custom-command", "custom-command arg1 arg2"]);
-        let actual = fixture.custom_command;
+    fn test_run_flag() {
+        let fixture = Cli::parse_from(["forge", "--run", "custom-command arg1 arg2"]);
+        let actual = fixture.run;
         let expected = Some("custom-command arg1 arg2".to_string());
         assert_eq!(actual, expected);
     }
 
     #[test]
-    fn test_custom_command_flag_with_builtin_command() {
-        let fixture = Cli::parse_from(["forge", "--custom-command", "compact"]);
-        let actual = fixture.custom_command;
+    fn test_run_flag_with_builtin_command() {
+        let fixture = Cli::parse_from(["forge", "--run", "compact"]);
+        let actual = fixture.run;
         let expected = Some("compact".to_string());
         assert_eq!(actual, expected);
     }
@@ -901,16 +901,60 @@ mod tests {
     }
 
     #[test]
-    fn test_prompt_and_custom_command_can_coexist() {
-        // --prompt and --custom-command serve different purposes and can both be parsed
-        let fixture = Cli::parse_from(["forge", "--prompt", "hello", "--custom-command", "info"]);
-        assert_eq!(fixture.prompt, Some("hello".to_string()));
-        assert_eq!(fixture.custom_command, Some("info".to_string()));
+    fn test_prompt_and_run_conflict() {
+        // --prompt and --run should conflict and not be allowed together
+        let result = Cli::try_parse_from(["forge", "--prompt", "hello", "--run", "info"]);
+        assert!(
+            result.is_err(),
+            "Expected parsing to fail when both --prompt and --run are provided"
+        );
+        if let Err(err) = result {
+            assert!(
+                err.to_string().contains("cannot be used with"),
+                "Error message should indicate conflict"
+            );
+        }
     }
 
     #[test]
-    fn test_is_interactive_with_custom_command() {
-        let fixture = Cli::parse_from(["forge", "--custom-command", "custom-cmd"]);
+    fn test_command_and_run_conflict() {
+        // --command and --run should conflict and not be allowed together
+        let result = Cli::try_parse_from(["forge", "--command", "file.txt", "--run", "info"]);
+        assert!(
+            result.is_err(),
+            "Expected parsing to fail when both --command and --run are provided"
+        );
+        if let Err(err) = result {
+            assert!(
+                err.to_string().contains("cannot be used with"),
+                "Error message should indicate conflict"
+            );
+        }
+    }
+
+    #[test]
+    fn test_run_with_agent_allowed() {
+        // --run with --agent should be allowed
+        let fixture = Cli::parse_from(["forge", "--run", "fixme", "--agent", "muse"]);
+        assert_eq!(fixture.run, Some("fixme".to_string()));
+        assert_eq!(fixture.agent, Some(AgentId::MUSE));
+    }
+
+    #[test]
+    fn test_prompt_with_agent_and_run_conflict() {
+        // Even with --agent, --prompt and --run should still conflict
+        let result = Cli::try_parse_from([
+            "forge", "--prompt", "Hi", "--agent", "muse", "--run", "fixme",
+        ]);
+        assert!(
+            result.is_err(),
+            "Expected parsing to fail when both --prompt and --run are provided"
+        );
+    }
+
+    #[test]
+    fn test_is_interactive_with_run() {
+        let fixture = Cli::parse_from(["forge", "--run", "custom-cmd"]);
         let actual = fixture.is_interactive();
         let expected = false;
         assert_eq!(actual, expected);
