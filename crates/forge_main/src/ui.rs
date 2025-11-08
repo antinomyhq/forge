@@ -1667,6 +1667,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
+    /// Selects a provider, optionally configuring it if not already configured.
     async fn select_provider(&mut self) -> Result<Option<Provider<Url>>> {
         // Fetch and sort available providers
         let mut providers = self
@@ -1705,16 +1706,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(provider.0.into_configured());
         }
 
-        // Configure unconfigured provider
         self.configure_provider(provider.0.id(), provider.0.auth_methods().to_vec())
             .await?;
 
-        // Return configured provider if successful
-        Ok(self
-            .api
-            .get_provider(&provider.0.id())
-            .await?
-            .into_configured())
+        Ok(None)
     }
 
     // Helper method to handle model selection and update the conversation
