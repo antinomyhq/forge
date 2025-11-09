@@ -5,7 +5,7 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use diesel::prelude::*;
 use forge_domain::{
     Context, Conversation, ConversationId, ConversationRepository, FileChangeMetrics, MetaData,
-    Metrics, WorkspaceId,
+    Metrics, ToolKind, WorkspaceId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -19,6 +19,7 @@ struct FileChangeMetricsRecord {
     lines_added: u64,
     lines_removed: u64,
     file_hash: Option<String>,
+    tool: ToolKind,
 }
 
 impl From<&FileChangeMetrics> for FileChangeMetricsRecord {
@@ -27,17 +28,17 @@ impl From<&FileChangeMetrics> for FileChangeMetricsRecord {
             lines_added: metrics.lines_added,
             lines_removed: metrics.lines_removed,
             file_hash: metrics.file_hash.clone(),
+            tool: metrics.tool,
         }
     }
 }
 
 impl From<FileChangeMetricsRecord> for FileChangeMetrics {
     fn from(record: FileChangeMetricsRecord) -> Self {
-        Self {
-            lines_added: record.lines_added,
-            lines_removed: record.lines_removed,
-            file_hash: record.file_hash,
-        }
+        Self::new(record.tool)
+            .lines_added(record.lines_added)
+            .lines_removed(record.lines_removed)
+            .file_hash(record.file_hash)
     }
 }
 
@@ -46,7 +47,7 @@ impl From<FileChangeMetricsRecord> for FileChangeMetrics {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct MetricsRecord {
     started_at: Option<DateTime<Utc>>,
-    files_changed: HashMap<String, FileChangeMetricsRecord>,
+    files_changed: HashMap<String, Vec<FileChangeMetricsRecord>>,
 }
 
 impl From<&Metrics> for MetricsRecord {
@@ -56,7 +57,12 @@ impl From<&Metrics> for MetricsRecord {
             files_changed: metrics
                 .files_changed
                 .iter()
-                .map(|(path, file_metrics)| (path.clone(), file_metrics.into()))
+                .map(|(path, file_metrics_vec)| {
+                    (
+                        path.clone(),
+                        file_metrics_vec.iter().map(|m| m.into()).collect(),
+                    )
+                })
                 .collect(),
         }
     }
@@ -69,7 +75,9 @@ impl From<MetricsRecord> for Metrics {
         metrics.files_changed = record
             .files_changed
             .into_iter()
-            .map(|(path, file_record)| (path, file_record.into()))
+            .map(|(path, file_records)| {
+                (path, file_records.into_iter().map(|r| r.into()).collect())
+            })
             .collect();
         metrics
     }
@@ -125,7 +133,7 @@ impl TryFrom<ConversationRecord> for Conversation {
             .metrics
             .and_then(|m| serde_json::from_str::<MetricsRecord>(&m).ok())
             .map(Metrics::from)
-            .unwrap_or_else(|| Metrics::new().with_time(record.created_at.and_utc()));
+            .unwrap_or_else(|| Metrics::new().started_at(record.created_at.and_utc()));
 
         Ok(Conversation::new(id)
             .context(context)
@@ -475,19 +483,22 @@ mod tests {
         let repo = repository()?;
 
         // Create a conversation with metrics
-        let mut metrics = Metrics::new().with_time(Utc::now());
-        metrics.record_file_operation(
-            "src/main.rs".to_string(),
-            10,
-            5,
-            Some("abc123def456".to_string()),
-        );
-        metrics.record_file_operation(
-            "src/lib.rs".to_string(),
-            3,
-            2,
-            Some("789xyz456abc".to_string()),
-        );
+        let metrics = Metrics::new()
+            .started_at(Utc::now())
+            .add(
+                "src/main.rs".to_string(),
+                FileChangeMetrics::new(ToolKind::Write)
+                    .lines_added(10u64)
+                    .lines_removed(5u64)
+                    .file_hash(Some("abc123def456".to_string())),
+            )
+            .add(
+                "src/lib.rs".to_string(),
+                FileChangeMetrics::new(ToolKind::Write)
+                    .lines_added(3u64)
+                    .lines_removed(2u64)
+                    .file_hash(Some("789xyz456abc".to_string())),
+            );
 
         let fixture = Conversation::generate().metrics(metrics.clone());
 
@@ -503,14 +514,16 @@ mod tests {
         // Verify metrics are preserved
         assert_eq!(actual.metrics.files_changed.len(), 2);
         let main_metrics = actual.metrics.files_changed.get("src/main.rs").unwrap();
-        assert_eq!(main_metrics.lines_added, 10);
-        assert_eq!(main_metrics.lines_removed, 5);
-        assert_eq!(main_metrics.file_hash, Some("abc123def456".to_string()));
+        assert_eq!(main_metrics.len(), 1);
+        assert_eq!(main_metrics[0].lines_added, 10);
+        assert_eq!(main_metrics[0].lines_removed, 5);
+        assert_eq!(main_metrics[0].file_hash, Some("abc123def456".to_string()));
 
         let lib_metrics = actual.metrics.files_changed.get("src/lib.rs").unwrap();
-        assert_eq!(lib_metrics.lines_added, 3);
-        assert_eq!(lib_metrics.lines_removed, 2);
-        assert_eq!(lib_metrics.file_hash, Some("789xyz456abc".to_string()));
+        assert_eq!(lib_metrics.len(), 1);
+        assert_eq!(lib_metrics[0].lines_added, 3);
+        assert_eq!(lib_metrics[0].lines_removed, 2);
+        assert_eq!(lib_metrics[0].file_hash, Some("789xyz456abc".to_string()));
 
         Ok(())
     }
@@ -519,12 +532,12 @@ mod tests {
     fn test_metrics_record_conversion_preserves_all_fields() {
         // This test ensures compile-time safety: if Metrics schema changes,
         // this test will fail to compile, alerting us to update MetricsRecord
-        let mut fixture = Metrics::new().with_time(Utc::now());
-        fixture.record_file_operation(
+        let fixture = Metrics::new().started_at(Utc::now()).add(
             "test.rs".to_string(),
-            5,
-            3,
-            Some("test_hash_123".to_string()),
+            FileChangeMetrics::new(ToolKind::Write)
+                .lines_added(5u64)
+                .lines_removed(3u64)
+                .file_hash(Some("test_hash_123".to_string())),
         );
 
         // Convert to record and back
@@ -537,8 +550,9 @@ mod tests {
 
         let actual_file = actual.files_changed.get("test.rs").unwrap();
         let expected_file = fixture.files_changed.get("test.rs").unwrap();
-        assert_eq!(actual_file.lines_added, expected_file.lines_added);
-        assert_eq!(actual_file.lines_removed, expected_file.lines_removed);
-        assert_eq!(actual_file.file_hash, expected_file.file_hash);
+        assert_eq!(actual_file.len(), expected_file.len());
+        assert_eq!(actual_file[0].lines_added, expected_file[0].lines_added);
+        assert_eq!(actual_file[0].lines_removed, expected_file[0].lines_removed);
+        assert_eq!(actual_file[0].file_hash, expected_file[0].file_hash);
     }
 }

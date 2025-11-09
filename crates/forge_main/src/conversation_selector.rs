@@ -98,7 +98,7 @@ mod tests {
             id: ConversationId::parse(id).unwrap(),
             title: title.map(|t| t.to_string()),
             context: None,
-            metrics: Metrics::new().with_time(now),
+            metrics: Metrics::new().started_at(now),
             metadata: MetaData { created_at: now, updated_at: Some(now) },
         }
     }

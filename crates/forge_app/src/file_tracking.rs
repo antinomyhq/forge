@@ -11,7 +11,7 @@ use crate::{Content, FsReadService};
 pub struct FileChange {
     pub path: std::path::PathBuf,
     /// File hash if readable, None if unreadable
-    pub file_hash: Option<String>,
+    pub content_hash: Option<String>,
 }
 
 /// Detects file changes by comparing current file hashes with stored hashes
@@ -45,7 +45,7 @@ impl<F: FsReadService> FileChangeDetector<F> {
             .iter()
             .map(|(path, file_metrics)| {
                 let file_path = std::path::PathBuf::from(path);
-                let last_hash = file_metrics.file_hash.clone();
+                let last_hash = file_metrics.last().and_then(|m| m.file_hash.clone());
 
                 async move {
                     // Get current hash: Some(hash) if readable, None if unreadable
@@ -62,7 +62,7 @@ impl<F: FsReadService> FileChangeDetector<F> {
                             current_hash = ?current_hash,
                             "Detected file change"
                         );
-                        Some(FileChange { path: file_path, file_hash: current_hash })
+                        Some(FileChange { path: file_path, content_hash: current_hash })
                     } else {
                         None
                     }
@@ -94,7 +94,7 @@ impl<F: FsReadService> FileChangeDetector<F> {
 mod tests {
     use std::collections::HashMap;
 
-    use forge_domain::{FileChangeMetrics, Metrics};
+    use forge_domain::{FileChangeMetrics, Metrics, ToolKind};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -161,7 +161,7 @@ mod tests {
         let mut metrics = Metrics::new();
         metrics.files_changed.insert(
             "/test/file.txt".to_string(),
-            FileChangeMetrics::new(Some(file_hash)),
+            vec![FileChangeMetrics::new(ToolKind::Write).file_hash(Some(file_hash))],
         );
 
         let actual = detector.detect(&metrics).await;
@@ -182,13 +182,13 @@ mod tests {
         let mut metrics = Metrics::new();
         metrics.files_changed.insert(
             "/test/file.txt".to_string(),
-            FileChangeMetrics::new(Some(old_hash)),
+            vec![FileChangeMetrics::new(ToolKind::Write).file_hash(Some(old_hash))],
         );
 
         let actual = detector.detect(&metrics).await;
         let expected = vec![FileChange {
             path: std::path::PathBuf::from("/test/file.txt"),
-            file_hash: Some(new_hash),
+            content_hash: Some(new_hash),
         }];
 
         assert_eq!(actual, expected);
@@ -204,13 +204,13 @@ mod tests {
         let mut metrics = Metrics::new();
         metrics.files_changed.insert(
             "/test/file.txt".to_string(),
-            FileChangeMetrics::new(Some(old_hash)),
+            vec![FileChangeMetrics::new(ToolKind::Write).file_hash(Some(old_hash))],
         );
 
         let actual = detector.detect(&metrics).await;
         let expected = vec![FileChange {
             path: std::path::PathBuf::from("/test/file.txt"),
-            file_hash: None,
+            content_hash: None,
         }];
 
         assert_eq!(actual, expected);
@@ -229,7 +229,7 @@ mod tests {
         let mut metrics = Metrics::new();
         metrics.files_changed.insert(
             "/test/file.txt".to_string(),
-            FileChangeMetrics::new(Some(old_hash)),
+            vec![FileChangeMetrics::new(ToolKind::Write).file_hash(Some(old_hash))],
         );
 
         let first = detector.detect(&metrics).await;
@@ -238,7 +238,7 @@ mod tests {
         // Simulate updating file_hash after notification (like app.rs does)
         metrics.files_changed.insert(
             "/test/file.txt".to_string(),
-            FileChangeMetrics::new(Some(new_hash)),
+            vec![FileChangeMetrics::new(ToolKind::Write).file_hash(Some(new_hash))],
         );
 
         // Second call: should not detect change

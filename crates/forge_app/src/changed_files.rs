@@ -37,13 +37,18 @@ impl<S: FsReadService> ChangedFiles<S> {
         }
 
         // Update file hashes to prevent duplicate notifications
+        let mut updated_metrics = conversation.metrics.clone();
         for change in &changes {
             if let Some(path_str) = change.path.to_str()
-                && let Some(metrics) = conversation.metrics.files_changed.get_mut(path_str)
+                && let Some(metrics) = updated_metrics.files_changed.get_mut(path_str)
             {
-                metrics.file_hash = change.file_hash.clone();
+                // Update the last entry's file hash
+                if let Some(last_entry) = metrics.last_mut() {
+                    last_entry.file_hash = change.content_hash.clone();
+                }
             }
         }
+        conversation.metrics = updated_metrics;
 
         let file_elements: Vec<Element> = changes
             .iter()
@@ -73,6 +78,7 @@ mod tests {
 
     use forge_domain::{
         Agent, AgentId, Context, Conversation, ConversationId, FileChangeMetrics, Metrics, ModelId,
+        ToolKind,
     };
     use pretty_assertions::assert_eq;
 
@@ -115,9 +121,10 @@ mod tests {
 
         let mut metrics = Metrics::new();
         for (path, hash) in tracked_files {
-            metrics
-                .files_changed
-                .insert(path, FileChangeMetrics::new(hash));
+            metrics.files_changed.insert(
+                path,
+                vec![FileChangeMetrics::new(ToolKind::Write).file_hash(hash)],
+            );
         }
 
         let conversation = Conversation::new(ConversationId::generate()).metrics(metrics);
@@ -184,9 +191,8 @@ mod tests {
             .metrics
             .files_changed
             .get("/test/file.txt")
-            .unwrap()
-            .file_hash
-            .clone();
+            .and_then(|vec| vec.last())
+            .and_then(|m| m.file_hash.clone());
 
         assert_eq!(updated_hash, Some(new_hash));
     }
