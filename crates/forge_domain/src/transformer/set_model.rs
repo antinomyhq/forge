@@ -97,22 +97,14 @@ mod tests {
     #[test]
     fn test_set_model_only_affects_user_messages() {
         let fixture = Context::default()
-            .add_message(ContextMessage::Text(TextMessage {
-                raw_content: None,
-                role: Role::System,
-                content: "System message".to_string(),
-                tool_calls: None,
-                model: None,
-                reasoning_details: None,
-            }))
-            .add_message(ContextMessage::Text(TextMessage {
-                raw_content: None,
-                role: Role::Assistant,
-                content: "Assistant message".to_string(),
-                tool_calls: None,
-                model: None,
-                reasoning_details: None,
-            }))
+            .add_message(ContextMessage::Text(TextMessage::new(
+                Role::System,
+                "System message",
+            )))
+            .add_message(ContextMessage::Text(TextMessage::new(
+                Role::Assistant,
+                "Assistant message",
+            )))
             .add_message(ContextMessage::user("User message", None));
 
         let mut transformer = SetModel::new(ModelId::new("gpt-4"));

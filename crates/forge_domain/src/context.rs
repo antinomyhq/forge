@@ -266,6 +266,18 @@ pub struct TextMessage {
 }
 
 impl TextMessage {
+    /// Creates a new TextMessage with the given role and content
+    pub fn new(role: Role, content: impl Into<String>) -> Self {
+        Self {
+            role,
+            content: content.into(),
+            raw_content: None,
+            tool_calls: None,
+            model: None,
+            reasoning_details: None,
+        }
+    }
+
     pub fn has_role(&self, role: Role) -> bool {
         self.role == role
     }

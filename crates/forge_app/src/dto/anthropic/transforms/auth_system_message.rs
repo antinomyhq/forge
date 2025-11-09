@@ -58,25 +58,16 @@ mod tests {
 
         // Add system messages
         for i in 0..system_count {
-            messages.push(ContextMessage::Text(TextMessage {
-                role: Role::System,
-                content: format!("System message {}", i),
-                raw_content: None,
-                tool_calls: None,
-                model: None,
-                reasoning_details: None,
-            }));
+            messages.push(ContextMessage::Text(TextMessage::new(
+                Role::System,
+                format!("System message {}", i),
+            )));
         }
 
         // Add at least one user message
-        messages.push(ContextMessage::Text(TextMessage {
-            role: Role::User,
-            content: "Hello".to_string(),
-            raw_content: None,
-            tool_calls: None,
-            model: ModelId::new("claude-3-5-sonnet-20241022").into(),
-            reasoning_details: None,
-        }));
+        messages.push(ContextMessage::Text(
+            TextMessage::new(Role::User, "Hello").model(ModelId::new("claude-3-5-sonnet-20241022")),
+        ));
 
         let context = Context {
             conversation_id: None,
