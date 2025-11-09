@@ -83,13 +83,8 @@ fn create_file_metrics_section(conversation: &Conversation) -> Element {
     }
 
     // Calculate total metrics by summing all file change metrics
-    let total_metrics: crate::session_metrics::FileOperation = conversation
-        .metrics
-        .file_operations
-        .values()
-        .flatten()
-        .cloned()
-        .sum();
+    let total_metrics: crate::session_metrics::FileOperation =
+        conversation.metrics.file_operations.values().cloned().sum();
     let total_files = conversation.metrics.file_operations.len();
 
     // Add summary statistics
@@ -121,63 +116,40 @@ fn create_file_metrics_section(conversation: &Conversation) -> Element {
                 .metrics
                 .file_operations
                 .iter()
-                .map(|(path, changes)| {
-                    // Show individual operations for this file
-                    if changes.is_empty() {
-                        return Element::new("div");
-                    }
-
-                    // Use fold to declaratively build up the file card with all operations
-                    changes.iter().enumerate().fold(
-                        Element::new("div.file-card").append(
+                .map(|(path, operation)| {
+                    // Show the operation for this file
+                    Element::new("div.file-card")
+                        .append(
                             Element::new("p")
                                 .append(Element::new("strong").text("File: "))
                                 .text(path),
-                        ),
-                        |file_card, (idx, operation)| {
-                            let operation_header = if changes.len() > 1 {
-                                format!("Operation {} ({})", idx + 1, operation.tool)
-                            } else {
-                                format!("Operation ({})", operation.tool)
-                            };
-
-                            let card_with_operation = file_card
-                                .append(
-                                    Element::new("p")
-                                        .append(Element::new("strong").text(operation_header)),
-                                )
-                                .append(
-                                    Element::new("p")
-                                        .append(Element::new("strong").text("  Lines Added: "))
-                                        .text(format!("{}", operation.lines_added)),
-                                )
-                                .append(
-                                    Element::new("p")
-                                        .append(Element::new("strong").text("  Lines Removed: "))
-                                        .text(format!("{}", operation.lines_removed)),
-                                )
-                                .append(
-                                    Element::new("p")
-                                        .append(Element::new("strong").text("  Net Change: "))
-                                        .text(format!(
-                                            "{:+}",
-                                            operation.lines_added as i64
-                                                - operation.lines_removed as i64
-                                        )),
-                                );
-
-                            // Conditionally append content hash if present
-                            if let Some(hash) = &operation.content_hash {
-                                card_with_operation.append(
-                                    Element::new("p")
-                                        .append(Element::new("strong").text("  Content Hash: "))
-                                        .text(hash),
-                                )
-                            } else {
-                                card_with_operation
-                            }
-                        },
-                    )
+                        )
+                        .append(Element::new("p").append(
+                            Element::new("strong").text(format!("Operation ({})", operation.tool)),
+                        ))
+                        .append(
+                            Element::new("p")
+                                .append(Element::new("strong").text("  Lines Added: "))
+                                .text(format!("{}", operation.lines_added)),
+                        )
+                        .append(
+                            Element::new("p")
+                                .append(Element::new("strong").text("  Lines Removed: "))
+                                .text(format!("{}", operation.lines_removed)),
+                        )
+                        .append(
+                            Element::new("p")
+                                .append(Element::new("strong").text("  Net Change: "))
+                                .text(format!(
+                                    "{:+}",
+                                    operation.lines_added as i64 - operation.lines_removed as i64
+                                )),
+                        )
+                        .append(operation.content_hash.as_ref().map(|hash| {
+                            Element::new("p")
+                                .append(Element::new("strong").text("  Content Hash: "))
+                                .text(hash)
+                        }))
                 }),
         );
 
@@ -506,13 +478,6 @@ mod tests {
                     .lines_added(20u64)
                     .lines_removed(5u64)
                     .content_hash(Some("hash2".to_string())),
-            )
-            .add(
-                "src/main.rs".to_string(),
-                FileOperation::new(ToolKind::Patch)
-                    .lines_added(10u64)
-                    .lines_removed(2u64)
-                    .content_hash(Some("hash3".to_string())),
             );
 
         let fixture = Conversation::new(id).metrics(metrics);
@@ -531,14 +496,14 @@ mod tests {
         assert!(actual.contains("src/main.rs"));
         assert!(actual.contains("src/lib.rs"));
 
-        // Verify individual operations are displayed with tool names
-        assert!(actual.contains("Operation")); // Check operation headers
-        assert!(actual.contains("Write")); // First operation on main.rs
-        assert!(actual.contains("Patch")); // Second operation on main.rs and lib.rs
+        // Verify operations are displayed with tool names
+        assert!(actual.contains("Operation"));
+        assert!(actual.contains("Write")); // Operation on main.rs
+        assert!(actual.contains("Patch")); // Operation on lib.rs
         assert!(actual.contains("Lines Added:"));
         assert!(actual.contains("Lines Removed:"));
         assert!(actual.contains("Net Change:"));
-        assert!(actual.contains("Content Hash:")); // Changed from "Final Hash:"
+        assert!(actual.contains("Content Hash:"));
 
         // Verify file-card class is used
         assert!(actual.contains("file-card"));

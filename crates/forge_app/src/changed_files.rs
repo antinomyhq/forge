@@ -42,10 +42,8 @@ impl<S: FsReadService> ChangedFiles<S> {
             if let Some(path_str) = change.path.to_str()
                 && let Some(metrics) = updated_metrics.file_operations.get_mut(path_str)
             {
-                // Update the last entry's file hash
-                if let Some(last_entry) = metrics.last_mut() {
-                    last_entry.content_hash = change.content_hash.clone();
-                }
+                // Update the file hash
+                metrics.content_hash = change.content_hash.clone();
             }
         }
         conversation.metrics = updated_metrics;
@@ -121,10 +119,9 @@ mod tests {
 
         let mut metrics = Metrics::new();
         for (path, hash) in tracked_files {
-            metrics.file_operations.insert(
-                path,
-                vec![FileOperation::new(ToolKind::Write).content_hash(hash)],
-            );
+            metrics
+                .file_operations
+                .insert(path, FileOperation::new(ToolKind::Write).content_hash(hash));
         }
 
         let conversation = Conversation::new(ConversationId::generate()).metrics(metrics);
@@ -191,7 +188,6 @@ mod tests {
             .metrics
             .file_operations
             .get("/test/file.txt")
-            .and_then(|vec| vec.last())
             .and_then(|m| m.content_hash.clone());
 
         assert_eq!(updated_hash, Some(new_hash));

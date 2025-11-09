@@ -12,8 +12,8 @@ pub use crate::file_operation::FileOperation;
 pub struct Metrics {
     pub started_at: Option<DateTime<Utc>>,
 
-    /// Holds a collection of all the files that have been operated on
-    pub file_operations: HashMap<String, Vec<FileOperation>>,
+    /// Holds the last file operation for each file
+    pub file_operations: HashMap<String, FileOperation>,
 }
 
 impl Metrics {
@@ -21,9 +21,10 @@ impl Metrics {
         Self::default()
     }
 
-    /// Records a file operation by adding it to the history
+    /// Records a file operation, replacing any previous operation for the same
+    /// file
     pub fn add(mut self, path: String, metrics: FileOperation) -> Self {
-        self.file_operations.entry(path).or_default().push(metrics);
+        self.file_operations.insert(path, metrics);
         self
     }
 
@@ -75,19 +76,16 @@ mod tests {
 
         let actual = fixture;
 
-        // Check file1 has 2 operations recorded
+        // Check file1 has the last operation recorded (second add overwrites the first)
         let file1_metrics = actual.file_operations.get("file1.rs").unwrap();
-        assert_eq!(file1_metrics.len(), 2);
-        assert_eq!(file1_metrics[0].lines_added, 10);
-        assert_eq!(file1_metrics[0].lines_removed, 5);
-        assert_eq!(file1_metrics[1].lines_added, 5);
-        assert_eq!(file1_metrics[1].lines_removed, 1);
+        assert_eq!(file1_metrics.lines_added, 5);
+        assert_eq!(file1_metrics.lines_removed, 1);
+        assert_eq!(file1_metrics.content_hash, Some("hash1_v2".to_string()));
 
-        // Check file2 has 1 operation recorded
+        // Check file2 has its operation recorded
         let file2_metrics = actual.file_operations.get("file2.rs").unwrap();
-        assert_eq!(file2_metrics.len(), 1);
-        assert_eq!(file2_metrics[0].lines_added, 3);
-        assert_eq!(file2_metrics[0].lines_removed, 2);
+        assert_eq!(file2_metrics.lines_added, 3);
+        assert_eq!(file2_metrics.lines_removed, 2);
     }
 
     #[test]
@@ -102,23 +100,21 @@ mod tests {
                 .lines_removed(1u64)
                 .content_hash(Some("hash_v1".to_string())),
         );
-        let changes = metrics.file_operations.get(&path).unwrap();
+        let operation = metrics.file_operations.get(&path).unwrap();
         assert_eq!(metrics.file_operations.len(), 1);
-        assert_eq!(changes.len(), 1);
-        assert_eq!(changes[0].lines_added, 2);
-        assert_eq!(changes[0].lines_removed, 1);
-        assert_eq!(changes[0].content_hash, Some("hash_v1".to_string()));
+        assert_eq!(operation.lines_added, 2);
+        assert_eq!(operation.lines_removed, 1);
+        assert_eq!(operation.content_hash, Some("hash_v1".to_string()));
 
-        // Undo operation
+        // Undo operation replaces the previous operation
         let metrics = metrics.add(
             path.clone(),
             FileOperation::new(ToolKind::Undo).content_hash(Some("hash_v0".to_string())),
         );
-        let changes = metrics.file_operations.get(&path).unwrap();
-        assert_eq!(changes.len(), 2);
-        assert_eq!(changes[1].lines_added, 0);
-        assert_eq!(changes[1].lines_removed, 0);
-        assert_eq!(changes[1].content_hash, Some("hash_v0".to_string()));
+        let operation = metrics.file_operations.get(&path).unwrap();
+        assert_eq!(operation.lines_added, 0);
+        assert_eq!(operation.lines_removed, 0);
+        assert_eq!(operation.content_hash, Some("hash_v0".to_string()));
     }
 
     #[test]
@@ -145,22 +141,12 @@ mod tests {
                 FileOperation::new(ToolKind::Undo).content_hash(Some("hash1".to_string())),
             );
 
-        let operations = metrics.file_operations.get(&path).unwrap();
-        assert_eq!(operations.len(), 3);
+        // Only the last operation is stored
+        let operation = metrics.file_operations.get(&path).unwrap();
 
-        // First operation
-        assert_eq!(operations[0].lines_added, 10);
-        assert_eq!(operations[0].lines_removed, 5);
-        assert_eq!(operations[0].content_hash, Some("hash1".to_string()));
-
-        // Second operation
-        assert_eq!(operations[1].lines_added, 5);
-        assert_eq!(operations[1].lines_removed, 1);
-        assert_eq!(operations[1].content_hash, Some("hash2".to_string()));
-
-        // Third operation (undo)
-        assert_eq!(operations[2].lines_added, 0);
-        assert_eq!(operations[2].lines_removed, 0);
-        assert_eq!(operations[2].content_hash, Some("hash1".to_string()));
+        // Last operation (undo) overwrites previous operations
+        assert_eq!(operation.lines_added, 0);
+        assert_eq!(operation.lines_removed, 0);
+        assert_eq!(operation.content_hash, Some("hash1".to_string()));
     }
 }

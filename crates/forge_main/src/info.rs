@@ -123,20 +123,16 @@ impl From<&Metrics> for Info {
         if metrics.file_operations.is_empty() {
             info = info.add_value("[No Changes Produced]");
         } else {
-            for (path, file_metrics_vec) in &metrics.file_operations {
+            for (path, file_metrics) in &metrics.file_operations {
                 // Extract just the filename from the path
                 let filename = std::path::Path::new(path)
                     .file_name()
                     .and_then(|name| name.to_str())
                     .unwrap_or(path);
 
-                // Sum all operations for this file
-                let total_metrics: forge_api::FileOperation =
-                    file_metrics_vec.iter().cloned().sum();
-
                 let changes = format!(
                     "−{} +{}",
-                    total_metrics.lines_removed, total_metrics.lines_added
+                    file_metrics.lines_removed, file_metrics.lines_added
                 );
 
                 info = info.add_key_value(format!("⦿ {filename}"), changes);

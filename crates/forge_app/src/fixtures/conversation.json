@@ -2129,46 +2129,36 @@
   "metrics": {
     "started_at": "2025-11-05T03:00:12.156134Z",
     "file_operations": {
-      "/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/summary.rs": [
-        {
-          "lines_added": 1179,
-          "lines_removed": 595,
-          "content_hash": null,
-          "tool": "write"
-        }
-      ],
-      "/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers/drop_role.rs": [
-        {
-          "lines_added": 37,
-          "lines_removed": 37,
-          "content_hash": null,
-          "tool": "write"
-        }
-      ],
-      "/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers/strip_working_dir.rs": [
-        {
-          "lines_added": 11,
-          "lines_removed": 11,
-          "content_hash": null,
-          "tool": "write"
-        }
-      ],
-      "/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers/trim_context_summary.rs": [
-        {
-          "lines_added": 42,
-          "lines_removed": 24,
-          "content_hash": null,
-          "tool": "write"
-        }
-      ],
-      "/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers/keep_first_user_message.rs": [
-        {
-          "lines_added": 7,
-          "lines_removed": 7,
-          "content_hash": null,
-          "tool": "write"
-        }
-      ]
+      "/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/summary.rs": {
+        "lines_added": 1179,
+        "lines_removed": 595,
+        "content_hash": null,
+        "tool": "write"
+      },
+      "/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers/drop_role.rs": {
+        "lines_added": 37,
+        "lines_removed": 37,
+        "content_hash": null,
+        "tool": "write"
+      },
+      "/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers/strip_working_dir.rs": {
+        "lines_added": 11,
+        "lines_removed": 11,
+        "content_hash": null,
+        "tool": "write"
+      },
+      "/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers/trim_context_summary.rs": {
+        "lines_added": 42,
+        "lines_removed": 24,
+        "content_hash": null,
+        "tool": "write"
+      },
+      "/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers/keep_first_user_message.rs": {
+        "lines_added": 7,
+        "lines_removed": 7,
+        "content_hash": null,
+        "tool": "write"
+      }
     }
   },
   "metadata": {

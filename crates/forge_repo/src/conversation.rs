@@ -47,7 +47,7 @@ impl From<FileChangeMetricsRecord> for FileOperation {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct MetricsRecord {
     started_at: Option<DateTime<Utc>>,
-    files_changed: HashMap<String, Vec<FileChangeMetricsRecord>>,
+    files_changed: HashMap<String, FileChangeMetricsRecord>,
 }
 
 impl From<&Metrics> for MetricsRecord {
@@ -57,12 +57,7 @@ impl From<&Metrics> for MetricsRecord {
             files_changed: metrics
                 .file_operations
                 .iter()
-                .map(|(path, file_metrics_vec)| {
-                    (
-                        path.clone(),
-                        file_metrics_vec.iter().map(|m| m.into()).collect(),
-                    )
-                })
+                .map(|(path, file_metrics)| (path.clone(), file_metrics.into()))
                 .collect(),
         }
     }
@@ -75,9 +70,7 @@ impl From<MetricsRecord> for Metrics {
         metrics.file_operations = record
             .files_changed
             .into_iter()
-            .map(|(path, file_records)| {
-                (path, file_records.into_iter().map(|r| r.into()).collect())
-            })
+            .map(|(path, file_record)| (path, file_record.into()))
             .collect();
         metrics
     }
@@ -514,22 +507,14 @@ mod tests {
         // Verify metrics are preserved
         assert_eq!(actual.metrics.file_operations.len(), 2);
         let main_metrics = actual.metrics.file_operations.get("src/main.rs").unwrap();
-        assert_eq!(main_metrics.len(), 1);
-        assert_eq!(main_metrics[0].lines_added, 10);
-        assert_eq!(main_metrics[0].lines_removed, 5);
-        assert_eq!(
-            main_metrics[0].content_hash,
-            Some("abc123def456".to_string())
-        );
+        assert_eq!(main_metrics.lines_added, 10);
+        assert_eq!(main_metrics.lines_removed, 5);
+        assert_eq!(main_metrics.content_hash, Some("abc123def456".to_string()));
 
         let lib_metrics = actual.metrics.file_operations.get("src/lib.rs").unwrap();
-        assert_eq!(lib_metrics.len(), 1);
-        assert_eq!(lib_metrics[0].lines_added, 3);
-        assert_eq!(lib_metrics[0].lines_removed, 2);
-        assert_eq!(
-            lib_metrics[0].content_hash,
-            Some("789xyz456abc".to_string())
-        );
+        assert_eq!(lib_metrics.lines_added, 3);
+        assert_eq!(lib_metrics.lines_removed, 2);
+        assert_eq!(lib_metrics.content_hash, Some("789xyz456abc".to_string()));
 
         Ok(())
     }
@@ -556,9 +541,8 @@ mod tests {
 
         let actual_file = actual.file_operations.get("test.rs").unwrap();
         let expected_file = fixture.file_operations.get("test.rs").unwrap();
-        assert_eq!(actual_file.len(), expected_file.len());
-        assert_eq!(actual_file[0].lines_added, expected_file[0].lines_added);
-        assert_eq!(actual_file[0].lines_removed, expected_file[0].lines_removed);
-        assert_eq!(actual_file[0].content_hash, expected_file[0].content_hash);
+        assert_eq!(actual_file.lines_added, expected_file.lines_added);
+        assert_eq!(actual_file.lines_removed, expected_file.lines_removed);
+        assert_eq!(actual_file.content_hash, expected_file.content_hash);
     }
 }

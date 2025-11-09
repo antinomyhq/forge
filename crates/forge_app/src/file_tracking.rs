@@ -45,7 +45,7 @@ impl<F: FsReadService> FileChangeDetector<F> {
             .iter()
             .map(|(path, file_metrics)| {
                 let file_path = std::path::PathBuf::from(path);
-                let last_hash = file_metrics.last().and_then(|m| m.content_hash.clone());
+                let last_hash = file_metrics.content_hash.clone();
 
                 async move {
                     // Get current hash: Some(hash) if readable, None if unreadable
@@ -161,7 +161,7 @@ mod tests {
         let mut metrics = Metrics::new();
         metrics.file_operations.insert(
             "/test/file.txt".to_string(),
-            vec![FileOperation::new(ToolKind::Write).content_hash(Some(content_hash))],
+            FileOperation::new(ToolKind::Write).content_hash(Some(content_hash)),
         );
 
         let actual = detector.detect(&metrics).await;
@@ -182,7 +182,7 @@ mod tests {
         let mut metrics = Metrics::new();
         metrics.file_operations.insert(
             "/test/file.txt".to_string(),
-            vec![FileOperation::new(ToolKind::Write).content_hash(Some(old_hash))],
+            FileOperation::new(ToolKind::Write).content_hash(Some(old_hash)),
         );
 
         let actual = detector.detect(&metrics).await;
@@ -204,7 +204,7 @@ mod tests {
         let mut metrics = Metrics::new();
         metrics.file_operations.insert(
             "/test/file.txt".to_string(),
-            vec![FileOperation::new(ToolKind::Write).content_hash(Some(old_hash))],
+            FileOperation::new(ToolKind::Write).content_hash(Some(old_hash)),
         );
 
         let actual = detector.detect(&metrics).await;
@@ -229,7 +229,7 @@ mod tests {
         let mut metrics = Metrics::new();
         metrics.file_operations.insert(
             "/test/file.txt".to_string(),
-            vec![FileOperation::new(ToolKind::Write).content_hash(Some(old_hash))],
+            FileOperation::new(ToolKind::Write).content_hash(Some(old_hash)),
         );
 
         let first = detector.detect(&metrics).await;
@@ -238,7 +238,7 @@ mod tests {
         // Simulate updating content_hash after notification (like app.rs does)
         metrics.file_operations.insert(
             "/test/file.txt".to_string(),
-            vec![FileOperation::new(ToolKind::Write).content_hash(Some(new_hash))],
+            FileOperation::new(ToolKind::Write).content_hash(Some(new_hash)),
         );
 
         // Second call: should not detect change
