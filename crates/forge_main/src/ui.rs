@@ -458,7 +458,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ConversationCommand::New => {
                 self.handle_generate_conversation_id().await?;
             }
-            ConversationCommand::Dump { id, format } => {
+            ConversationCommand::Dump { id, html } => {
                 let conversation_id = ConversationId::parse(&id)
                     .context(format!("Invalid conversation ID: {}", id))?;
 
@@ -468,7 +468,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.state.conversation_id = Some(conversation_id);
 
                 self.spinner.start(Some("Dumping"))?;
-                self.on_dump(format).await?;
+                self.on_dump(html).await?;
 
                 self.state.conversation_id = original_id;
             }
@@ -1197,9 +1197,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.spinner.start(Some("Compacting"))?;
                 self.on_compaction().await?;
             }
-            SlashCommand::Dump(format) => {
+            SlashCommand::Dump { html } => {
                 self.spinner.start(Some("Dumping"))?;
-                self.on_dump(format).await?;
+                self.on_dump(html).await?;
             }
             SlashCommand::New => {
                 self.on_new().await?;
@@ -1996,28 +1996,24 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     /// Modified version of handle_dump that supports HTML format
-    async fn on_dump(&mut self, format: Option<String>) -> Result<()> {
+    async fn on_dump(&mut self, html: bool) -> Result<()> {
         if let Some(conversation_id) = self.state.conversation_id {
             let conversation = self.api.conversation(&conversation_id).await?;
             if let Some(conversation) = conversation {
                 let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
-                if let Some(format) = format {
-                    if format == "html" {
-                        // Export as HTML
-                        let html_content = conversation.to_html();
-                        let path = format!("{timestamp}-dump.html");
-                        tokio::fs::write(path.as_str(), html_content).await?;
+                if html {
+                    // Export as HTML
+                    let html_content = conversation.to_html();
+                    let path = format!("{timestamp}-dump.html");
+                    tokio::fs::write(path.as_str(), html_content).await?;
 
-                        self.writeln_title(
-                            TitleFormat::action("Conversation HTML dump created".to_string())
-                                .sub_title(path.to_string()),
-                        )?;
+                    self.writeln_title(
+                        TitleFormat::action("Conversation HTML dump created".to_string())
+                            .sub_title(path.to_string()),
+                    )?;
 
-                        if self.api.environment().auto_open_dump {
-                            open::that(path.as_str()).ok();
-                        }
-
-                        return Ok(());
+                    if self.api.environment().auto_open_dump {
+                        open::that(path.as_str()).ok();
                     }
                 } else {
                     // Default: Export as JSON

@@ -334,11 +334,8 @@ impl ForgeCommandManager {
             "/exit" => Ok(SlashCommand::Exit),
             "/update" => Ok(SlashCommand::Update),
             "/dump" => {
-                if !parameters.is_empty() && parameters[0] == "html" {
-                    Ok(SlashCommand::Dump(Some("html".to_string())))
-                } else {
-                    Ok(SlashCommand::Dump(None))
-                }
+                let html = !parameters.is_empty() && parameters[0] == "--html";
+                Ok(SlashCommand::Dump { html })
             }
             "/act" | "/forge" => Ok(SlashCommand::Forge),
             "/plan" | "/muse" => Ok(SlashCommand::Muse),
@@ -446,8 +443,8 @@ pub enum SlashCommand {
     #[strum(props(usage = "Enable help mode for tool questions"))]
     Help,
     /// Dumps the current conversation into a json file or html file
-    #[strum(props(usage = "Save conversation as JSON or HTML (use /dump html for HTML format)"))]
-    Dump(Option<String>),
+    #[strum(props(usage = "Save conversation as JSON or HTML (use /dump --html for HTML format)"))]
+    Dump { html: bool },
     /// Switch or select the active model
     /// This can be triggered with the '/model' command.
     #[strum(props(usage = "Switch to a different model"))]
@@ -506,7 +503,7 @@ impl SlashCommand {
             SlashCommand::Muse => "muse",
             SlashCommand::Sage => "sage",
             SlashCommand::Help => "help",
-            SlashCommand::Dump(_) => "dump",
+            SlashCommand::Dump { .. } => "dump",
             SlashCommand::Model => "model",
             SlashCommand::Provider => "provider",
             SlashCommand::Tools => "tools",
