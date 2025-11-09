@@ -5,35 +5,15 @@ use chrono::{DateTime, Utc};
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
-/// Tracks metrics for individual file changes
-#[derive(Debug, Clone, Default, Setters, Serialize, Deserialize)]
-#[setters(into, strip_option)]
-pub struct FileChangeMetrics {
-    pub lines_added: u64,
-    pub lines_removed: u64,
-}
-
-impl FileChangeMetrics {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn add_operation(&mut self, lines_added: u64, lines_removed: u64) {
-        self.lines_added += lines_added;
-        self.lines_removed += lines_removed;
-    }
-
-    pub fn undo_operation(&mut self, lines_added: u64, lines_removed: u64) {
-        self.lines_added = self.lines_added.saturating_sub(lines_added);
-        self.lines_removed = self.lines_removed.saturating_sub(lines_removed);
-    }
-}
+pub use crate::file_operation::FileOperation;
 
 #[derive(Debug, Clone, Default, Setters, Serialize, Deserialize)]
 #[setters(into, strip_option)]
 pub struct Metrics {
     pub started_at: Option<DateTime<Utc>>,
-    pub files_changed: HashMap<String, FileChangeMetrics>,
+
+    /// Holds the last file operation for each file
+    pub file_operations: HashMap<String, FileOperation>,
 }
 
 impl Metrics {
@@ -41,27 +21,18 @@ impl Metrics {
         Self::default()
     }
 
-    /// Starts tracking session metrics
-    pub fn with_time(mut self, started_at: DateTime<Utc>) -> Self {
-        self.started_at = Some(started_at);
+    /// Records a file operation, replacing any previous operation for the same
+    /// file
+    pub fn insert(mut self, path: String, metrics: FileOperation) -> Self {
+        self.file_operations.insert(path, metrics);
         self
     }
 
-    pub fn record_file_operation(&mut self, path: String, lines_added: u64, lines_removed: u64) {
-        // Update file-specific metrics
-        let file_metrics = self.files_changed.entry(path).or_default();
-        file_metrics.add_operation(lines_added, lines_removed);
-    }
-
-    pub fn record_file_undo(&mut self, path: String, lines_added: u64, lines_removed: u64) {
-        let file_metrics = self.files_changed.entry(path).or_default();
-        file_metrics.undo_operation(lines_added, lines_removed);
-    }
-
     /// Gets the session duration if tracking has started
-    pub fn duration(&self) -> Option<Duration> {
+    /// Gets the session duration if tracking has started
+    pub fn duration(&self, now: DateTime<Utc>) -> Option<Duration> {
         self.started_at
-            .map(|start| (Utc::now() - start).to_std().unwrap_or_default())
+            .map(|start| (now - start).to_std().unwrap_or_default())
     }
 }
 
@@ -70,91 +41,112 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-
-    #[test]
-    fn test_file_change_metrics_new() {
-        let fixture = FileChangeMetrics::new();
-        let actual = fixture;
-        let expected = FileChangeMetrics { lines_added: 0, lines_removed: 0 };
-        assert_eq!(actual.lines_added, expected.lines_added);
-        assert_eq!(actual.lines_removed, expected.lines_removed);
-    }
-
-    #[test]
-    fn test_file_change_metrics_add_operation() {
-        let mut fixture = FileChangeMetrics::new();
-        fixture.add_operation(10, 5);
-        fixture.add_operation(3, 2);
-
-        let actual = fixture;
-        let expected = FileChangeMetrics { lines_added: 13, lines_removed: 7 };
-        assert_eq!(actual.lines_added, expected.lines_added);
-        assert_eq!(actual.lines_removed, expected.lines_removed);
-    }
+    use crate::ToolKind;
 
     #[test]
     fn test_metrics_new() {
-        let fixture = Metrics::new();
-        let actual = fixture;
-
-        assert_eq!(actual.files_changed.len(), 0);
+        let actual = Metrics::new();
+        assert_eq!(actual.file_operations.len(), 0);
     }
 
     #[test]
     fn test_metrics_record_file_operation() {
-        let mut fixture = Metrics::new();
-        fixture.record_file_operation("file1.rs".to_string(), 10, 5);
-        fixture.record_file_operation("file2.rs".to_string(), 3, 2);
-        fixture.record_file_operation("file1.rs".to_string(), 5, 1);
+        let fixture = Metrics::new()
+            .insert(
+                "file1.rs".to_string(),
+                FileOperation::new(ToolKind::Write)
+                    .lines_added(10u64)
+                    .lines_removed(5u64)
+                    .content_hash(Some("hash1".to_string())),
+            )
+            .insert(
+                "file2.rs".to_string(),
+                FileOperation::new(ToolKind::Patch)
+                    .lines_added(3u64)
+                    .lines_removed(2u64)
+                    .content_hash(Some("hash2".to_string())),
+            )
+            .insert(
+                "file1.rs".to_string(),
+                FileOperation::new(ToolKind::Patch)
+                    .lines_added(5u64)
+                    .lines_removed(1u64)
+                    .content_hash(Some("hash1_v2".to_string())),
+            );
 
         let actual = fixture;
 
-        let file1_metrics = actual.files_changed.get("file1.rs").unwrap();
-        assert_eq!(file1_metrics.lines_added, 15);
-        assert_eq!(file1_metrics.lines_removed, 6);
+        // Check file1 has the last operation recorded (second add overwrites the first)
+        let file1_metrics = actual.file_operations.get("file1.rs").unwrap();
+        assert_eq!(file1_metrics.lines_added, 5);
+        assert_eq!(file1_metrics.lines_removed, 1);
+        assert_eq!(file1_metrics.content_hash, Some("hash1_v2".to_string()));
+
+        // Check file2 has its operation recorded
+        let file2_metrics = actual.file_operations.get("file2.rs").unwrap();
+        assert_eq!(file2_metrics.lines_added, 3);
+        assert_eq!(file2_metrics.lines_removed, 2);
     }
 
     #[test]
     fn test_metrics_record_file_operation_and_undo() {
-        let mut metrics = Metrics::new();
         let path = "file_to_track.rs".to_string();
 
         // Do operation
-        metrics.record_file_operation(path.clone(), 2, 1);
-        let changes = metrics.files_changed.get(&path).unwrap();
-        assert_eq!(metrics.files_changed.len(), 1);
-        assert_eq!(changes.lines_added, 2);
-        assert_eq!(changes.lines_removed, 1);
+        let metrics = Metrics::new().insert(
+            path.clone(),
+            FileOperation::new(ToolKind::Write)
+                .lines_added(2u64)
+                .lines_removed(1u64)
+                .content_hash(Some("hash_v1".to_string())),
+        );
+        let operation = metrics.file_operations.get(&path).unwrap();
+        assert_eq!(metrics.file_operations.len(), 1);
+        assert_eq!(operation.lines_added, 2);
+        assert_eq!(operation.lines_removed, 1);
+        assert_eq!(operation.content_hash, Some("hash_v1".to_string()));
 
-        // Undo operation
-        metrics.record_file_undo(path.clone(), 2, 1);
-        let changes = metrics.files_changed.get(&path).unwrap();
-        assert_eq!(changes.lines_added, 0);
-        assert_eq!(changes.lines_removed, 0);
+        // Undo operation replaces the previous operation
+        let metrics = metrics.insert(
+            path.clone(),
+            FileOperation::new(ToolKind::Undo).content_hash(Some("hash_v0".to_string())),
+        );
+        let operation = metrics.file_operations.get(&path).unwrap();
+        assert_eq!(operation.lines_added, 0);
+        assert_eq!(operation.lines_removed, 0);
+        assert_eq!(operation.content_hash, Some("hash_v0".to_string()));
     }
 
     #[test]
-    fn test_metrics_record_multiple_file_operations_and_undo() {
-        let mut metrics = Metrics::new();
+    fn test_metrics_record_multiple_file_operations() {
         let path = "file1.rs".to_string();
 
-        metrics.record_file_operation(path.clone(), 10, 5);
-        metrics.record_file_operation(path.clone(), 5, 1);
+        let metrics = Metrics::new()
+            .insert(
+                path.clone(),
+                FileOperation::new(ToolKind::Write)
+                    .lines_added(10u64)
+                    .lines_removed(5u64)
+                    .content_hash(Some("hash1".to_string())),
+            )
+            .insert(
+                path.clone(),
+                FileOperation::new(ToolKind::Patch)
+                    .lines_added(5u64)
+                    .lines_removed(1u64)
+                    .content_hash(Some("hash2".to_string())),
+            )
+            .insert(
+                path.clone(),
+                FileOperation::new(ToolKind::Undo).content_hash(Some("hash1".to_string())),
+            );
 
-        let metric1 = metrics.files_changed.get(&path).unwrap();
-        assert_eq!(metric1.lines_added, 15);
-        assert_eq!(metric1.lines_removed, 6);
+        // Only the last operation is stored
+        let operation = metrics.file_operations.get(&path).unwrap();
 
-        // Undo operation on file1 (undoing the second operation: 5 added, 1 removed)
-        metrics.record_file_undo(path.clone(), 5, 1);
-        let file1_metrics_after_undo1 = metrics.files_changed.get(&path).unwrap();
-        assert_eq!(file1_metrics_after_undo1.lines_added, 10);
-        assert_eq!(file1_metrics_after_undo1.lines_removed, 5);
-
-        // Undo operation on file1 (undoing the first operation: 10 added, 5 removed)
-        metrics.record_file_undo(path.clone(), 10, 5);
-        let file1_metrics_after_undo2 = metrics.files_changed.get(&path).unwrap();
-        assert_eq!(file1_metrics_after_undo2.lines_added, 0);
-        assert_eq!(file1_metrics_after_undo2.lines_removed, 0);
+        // Last operation (undo) overwrites previous operations
+        assert_eq!(operation.lines_added, 0);
+        assert_eq!(operation.lines_removed, 0);
+        assert_eq!(operation.content_hash, Some("hash1".to_string()));
     }
 }

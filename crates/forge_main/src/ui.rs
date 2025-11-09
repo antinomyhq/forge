@@ -95,6 +95,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
     }
 
+    /// Filters providers to return only configured ones
+    fn get_configured_providers(&self, providers: Vec<AnyProvider>) -> Vec<CliProvider> {
+        use crate::model::CliProvider;
+        providers
+            .into_iter()
+            .filter(|p| p.is_configured())
+            .map(CliProvider)
+            .collect()
+    }
+
     /// Displays banner only if user is in interactive mode.
     fn display_banner(&self) -> Result<()> {
         if self.cli.is_interactive() {
@@ -226,11 +236,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
-        // Get initial input from file or prompt
-        let mut command = match &self.cli.command {
-            Some(path) => self.console.upload(path).await,
-            None => self.prompt().await,
-        };
+        // Get initial input from prompt
+        let mut command = self.prompt().await;
 
         loop {
             match command {
@@ -556,11 +563,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         use crate::cli::ProviderCommand;
 
         match provider_group.command {
-            ProviderCommand::Login => {
-                self.handle_provider_login().await?;
+            ProviderCommand::Login { provider } => {
+                self.handle_provider_login(provider.as_ref()).await?;
             }
-            ProviderCommand::Logout => {
-                self.handle_provider_logout().await?;
+            ProviderCommand::Logout { provider } => {
+                self.handle_provider_logout(provider.as_ref()).await?;
             }
             ProviderCommand::List => {
                 self.on_show_providers(provider_group.porcelain).await?;
@@ -570,10 +577,21 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn handle_provider_login(&mut self) -> anyhow::Result<()> {
+    async fn handle_provider_login(
+        &mut self,
+        provider_id: Option<&ProviderId>,
+    ) -> anyhow::Result<()> {
         use crate::model::CliProvider;
 
-        // Fetch all providers (configured and unconfigured)
+        // If provider_id is specified, find and login to that specific provider
+        if let Some(id) = provider_id {
+            let provider = self.api.get_provider(id).await?;
+            self.configure_provider(provider.id(), provider.auth_methods().to_vec())
+                .await?;
+            return Ok(());
+        }
+
+        // Fetch all providers for selection
         let providers = self
             .api
             .get_providers()
@@ -592,20 +610,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .prompt()?
         {
             Some(provider) => {
-                // Handle only unconfigured providers
-                match provider.0 {
-                    AnyProvider::Template(p) => {
-                        let provider_id = p.id;
-                        let auth_methods = p.auth_methods;
-
-                        // Configure the provider
-                        self.configure_provider(provider_id, auth_methods).await?;
-                    }
-                    AnyProvider::Url(provider) => {
-                        self.configure_provider(provider.id, provider.auth_methods)
-                            .await?;
-                    }
-                }
+                self.configure_provider(provider.0.id(), provider.0.auth_methods().to_vec())
+                    .await?;
             }
             None => {
                 self.writeln_title(TitleFormat::info("Cancelled"))?;
@@ -615,20 +621,28 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn handle_provider_logout(&mut self) -> anyhow::Result<()> {
-        use crate::model::CliProvider;
+    async fn handle_provider_logout(
+        &mut self,
+        provider_id: Option<&ProviderId>,
+    ) -> anyhow::Result<()> {
+        // If provider_id is specified, logout from that specific provider
+        if let Some(id) = provider_id {
+            let provider = self.api.get_provider(id).await?;
 
-        // Fetch all providers
-        let providers = self.api.get_providers().await?;
+            if !provider.is_configured() {
+                return Err(anyhow::anyhow!("Provider '{}' is not configured", id));
+            }
 
-        // Filter only configured providers
-        let configured_providers: Vec<_> = providers
-            .into_iter()
-            .filter_map(|p| match p {
-                AnyProvider::Url(provider) => Some(CliProvider(AnyProvider::Url(provider))),
-                AnyProvider::Template(_) => None,
-            })
-            .collect();
+            self.api.remove_provider(id).await?;
+            self.writeln_title(TitleFormat::completion(format!(
+                "Successfully logged out from {}",
+                id
+            )))?;
+            return Ok(());
+        }
+
+        // Fetch and filter configured providers
+        let configured_providers = self.get_configured_providers(self.api.get_providers().await?);
 
         if configured_providers.is_empty() {
             self.writeln_title(TitleFormat::info("No configured providers found"))?;
@@ -645,13 +659,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .prompt()?
         {
             Some(provider) => {
-                if let AnyProvider::Url(p) = provider.0 {
-                    self.api.remove_provider(&p.id).await?;
-                    self.writeln_title(TitleFormat::completion(format!(
-                        "Successfully logged out from {}",
-                        p.id
-                    )))?;
-                }
+                let provider_id = provider.0.id();
+                self.api.remove_provider(&provider_id).await?;
+                self.writeln_title(TitleFormat::completion(format!(
+                    "Successfully logged out from {}",
+                    provider_id
+                )))?;
             }
             None => {
                 self.writeln_title(TitleFormat::info("Cancelled"))?;
@@ -704,13 +717,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         for provider in providers.iter() {
             let id = provider.id().to_string();
-            let (domain, configured) = match provider {
-                AnyProvider::Url(p) => (
-                    p.url.domain().map(|d| d.to_string()).unwrap_or_default(),
-                    true,
-                ),
-                AnyProvider::Template(_) => ("<unset>".to_string(), false),
+            let domain = if let Some(url) = provider.url() {
+                url.domain().map(|d| d.to_string()).unwrap_or_default()
+            } else {
+                "<unset>".to_string()
             };
+            let configured = provider.is_configured();
             info = info
                 .add_title(id.to_case(Case::UpperSnake))
                 .add_key_value("id", id)
@@ -846,7 +858,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .add_key_value(
                 "description",
                 "Generate shell commands without executing them [alias: s]",
-            );
+            )
+            .add_title("login")
+            .add_key_value("type", "command")
+            .add_key_value("description", "Login to a provider")
+            .add_title("logout")
+            .add_key_value("type", "command")
+            .add_key_value("description", "Logout from a provider");
 
         // Add agent aliases
         info = info
@@ -1496,6 +1514,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         if should_set_active.unwrap_or(false) {
             self.api.set_default_provider(provider_id).await?;
+            self.writeln_title(TitleFormat::action(format!("Provider set {}", provider_id)))?;
         }
         Ok(())
     }
@@ -1645,8 +1664,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
+    /// Selects a provider, optionally configuring it if not already configured.
     async fn select_provider(&mut self) -> Result<Option<Provider<Url>>> {
-        // Fetch available providers
+        // Fetch and sort available providers
         let mut providers = self
             .api
             .get_providers()
@@ -1659,53 +1679,34 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Err(anyhow::anyhow!("No AI provider API keys configured"));
         }
 
-        // Sort the providers by their display names in ascending order
         providers.sort_by_key(|a| a.to_string());
 
-        // Find the index of the current provider
-        let current_provider = self
+        // Find starting cursor position
+        let starting_cursor = self
             .get_provider(self.api.get_active_agent().await)
             .await
-            .ok();
-        let starting_cursor = current_provider
-            .as_ref()
+            .ok()
             .and_then(|current| providers.iter().position(|p| p.0.id() == current.id))
             .unwrap_or(0);
 
-        // Use the centralized select module
-        match ForgeSelect::select("Select a provider:", providers)
+        // Prompt user to select a provider
+        let Some(provider) = ForgeSelect::select("Select a provider:", providers)
             .with_starting_cursor(starting_cursor)
             .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
             .prompt()?
-        {
-            Some(provider) => {
-                // Handle both configured and unconfigured providers
-                match provider.0 {
-                    AnyProvider::Url(p) => Ok(Some(p)),
-                    AnyProvider::Template(p) => {
-                        // Provider is not configured - initiate authentication flow
-                        let provider_id = p.id;
-                        let auth_methods = p.auth_methods;
+        else {
+            return Ok(None);
+        };
 
-                        // Configure the provider
-                        self.configure_provider(provider_id, auth_methods).await?;
-
-                        // After configuration, fetch the provider again
-                        let providers = self.api.get_providers().await?;
-                        let configured_provider = providers
-                            .into_iter()
-                            .find(|entry| entry.id() == provider_id)
-                            .and_then(|entry| match entry {
-                                AnyProvider::Url(p) => Some(p),
-                                AnyProvider::Template(_) => None,
-                            });
-
-                        Ok(configured_provider)
-                    }
-                }
-            }
-            None => Ok(None),
+        // If already configured, extract and return Provider<Url>
+        if provider.0.is_configured() {
+            return Ok(provider.0.into_configured());
         }
+
+        self.configure_provider(provider.0.id(), provider.0.auth_methods().to_vec())
+            .await?;
+
+        Ok(None)
     }
 
     // Helper method to handle model selection and update the conversation
@@ -2369,32 +2370,23 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .find(|p| p.id() == provider_id)
             .ok_or_else(|| forge_domain::Error::provider_not_available(provider_id))?;
 
+        // If already configured, return immediately
         if provider_entry.is_configured() {
             return Ok(provider_id);
         }
 
-        match provider_entry {
-            AnyProvider::Template(p) => {
-                let auth_methods = p.auth_methods.clone();
+        // Configure the provider
+        let auth_methods = provider_entry.auth_methods().to_vec();
+        self.configure_provider(provider_id, auth_methods).await?;
 
-                // Configure the provider
-                self.configure_provider(provider_id, auth_methods).await?;
-
-                // Verify configuration succeeded
-                let providers = self.api.get_providers().await?;
-                if providers
-                    .iter()
-                    .any(|p| p.id() == provider_id && p.is_configured())
-                {
-                    Ok(provider_id)
-                } else {
-                    Err(anyhow::anyhow!(
-                        "Failed to configure provider {}",
-                        provider_id
-                    ))
-                }
-            }
-            AnyProvider::Url(_) => Ok(provider_id),
+        // Verify configuration succeeded
+        if self.api.get_provider(&provider_id).await?.is_configured() {
+            Ok(provider_id)
+        } else {
+            Err(anyhow::anyhow!(
+                "Failed to configure provider {}",
+                provider_id
+            ))
         }
     }
 

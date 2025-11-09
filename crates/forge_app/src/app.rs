@@ -8,6 +8,7 @@ use forge_stream::MpscStream;
 
 use crate::apply_tunable_parameters::ApplyTunableParameters;
 use crate::authenticator::Authenticator;
+use crate::changed_files::ChangedFiles;
 use crate::dto::ToolsOverview;
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
@@ -135,6 +136,11 @@ impl<S: Services> ForgeApp<S> {
         )
         .add_user_prompt(conversation)
         .await?;
+
+        // Detect and render externally changed files notification
+        let conversation = ChangedFiles::new(services.clone(), agent.clone())
+            .update_file_stats(conversation)
+            .await;
 
         let conversation = InitConversationMetrics::new(current_time).apply(conversation);
         let conversation = ApplyTunableParameters::new(agent.clone(), tool_definitions.clone())
