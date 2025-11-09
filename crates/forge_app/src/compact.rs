@@ -63,7 +63,12 @@ impl Compactor {
         let (start, end) = sequence;
 
         // The sequence from the original message that needs to be compacted
-        let compaction_sequence = &context.messages[start..=end].to_vec();
+        // Filter out droppable messages (e.g., attachments) from compaction
+        let compaction_sequence: Vec<ContextMessage> = context.messages[start..=end]
+            .iter()
+            .filter(|msg| !msg.is_droppable())
+            .cloned()
+            .collect();
 
         // Create a temporary context for the sequence to generate summary
         let sequence_context = Context::default().messages(compaction_sequence.clone());
@@ -343,5 +348,45 @@ mod tests {
         let actual = render_template(&data);
 
         insta::assert_snapshot!(actual);
+    }
+
+    #[test]
+    fn test_compaction_skips_droppable_messages() {
+        use forge_domain::{ContextMessage, Role, TextMessage};
+
+        let environment = test_environment();
+        let compactor = Compactor::new(Compact::new(), environment);
+
+        // Create a context with droppable attachment messages
+        let context = Context::default()
+            .add_message(ContextMessage::user("User message 1", None))
+            .add_message(ContextMessage::assistant(
+                "Assistant response 1",
+                None,
+                None,
+            ))
+            .add_message(ContextMessage::Text(
+                TextMessage::new(Role::User, "Attachment content").droppable(true),
+            ))
+            .add_message(ContextMessage::user("User message 2", None))
+            .add_message(ContextMessage::assistant(
+                "Assistant response 2",
+                None,
+                None,
+            ));
+
+        let actual = compactor.compress_single_sequence(context, (0, 1)).unwrap();
+
+        // The compaction should skip the droppable message
+        // Expected: [U-summary, U-attachment, U2, A2]
+        assert_eq!(actual.messages.len(), 4);
+
+        // Verify the attachment message is still present (not compacted)
+        if let ContextMessage::Text(text_msg) = &actual.messages[1] {
+            assert_eq!(text_msg.content, "Attachment content");
+            assert!(text_msg.droppable);
+        } else {
+            panic!("Expected droppable text message at index 1");
+        }
     }
 }

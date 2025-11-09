@@ -202,6 +202,14 @@ impl ContextMessage {
         }
     }
 
+    pub fn is_droppable(&self) -> bool {
+        match self {
+            ContextMessage::Text(message) => message.droppable,
+            ContextMessage::Tool(_) => false,
+            ContextMessage::Image(_) => false,
+        }
+    }
+
     pub fn has_tool_result(&self) -> bool {
         match self {
             ContextMessage::Text(_) => false,
