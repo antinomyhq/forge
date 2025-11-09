@@ -69,31 +69,12 @@ pub struct Environment {
     pub max_conversations: usize,
     /// Title display format configuration.
     /// Controlled by FORGE_TITLE_FORMAT environment variable.
-    /// Examples: "[{metadata}] {title} {subtitle}", "{title} [{metadata}]"
-    /// Default: "[{metadata}] {title} {subtitle}"
-    pub title_format: String,
-    /// Metadata format configuration for title display.
-    /// Controlled by FORGE_TITLE_METADATA_FORMAT environment variable.
     /// Placeholders: {timestamp}, {input}, {output}, {total}, {cached},
-    /// {cache_pct}, {cost} Examples: "{timestamp} {input}/{total}",
-    /// "{timestamp} {input}/{output} {cache_pct}", "{cost}"
-    /// Default: "{timestamp} {input}/{total} {cost} {cache_pct}"
-    pub title_metadata_format: String,
-    /// Whether to show timestamp in title display.
-    /// Controlled by FORGE_TITLE_SHOW_TIMESTAMP environment variable.
-    pub title_show_timestamp: bool,
-    /// Whether to show input tokens in title display.
-    /// Controlled by FORGE_TITLE_SHOW_INPUT_TOKENS environment variable.
-    pub title_show_input_tokens: bool,
-    /// Whether to show total tokens in title display.
-    /// Controlled by FORGE_TITLE_SHOW_TOTAL_TOKENS environment variable.
-    pub title_show_total_tokens: bool,
-    /// Whether to show cost in title display.
-    /// Controlled by FORGE_TITLE_SHOW_COST environment variable.
-    pub title_show_cost: bool,
-    /// Whether to show cache percentage in title display.
-    /// Controlled by FORGE_TITLE_SHOW_CACHE_PCT environment variable.
-    pub title_show_cache_pct: bool,
+    /// {cache_pct}, {cost}, {title}, {subtitle}
+    /// Examples: "[{timestamp} {input}/{total}] {title}", "{title} - {cost}"
+    /// Default: "[{timestamp} {input}/{total} {cost} {cache_pct}] {title}
+    /// {subtitle}"
+    pub title_format: String,
 }
 
 impl Environment {
@@ -241,13 +222,8 @@ fn test_command_path() {
         custom_history_path: None,
         max_conversations: 100,
         max_image_size: 262144,
-        title_format: "[{metadata}] {title} {subtitle}".to_string(),
-        title_metadata_format: "{timestamp} {input}/{total} {cost} {cache_pct}".to_string(),
-        title_show_timestamp: true,
-        title_show_input_tokens: true,
-        title_show_total_tokens: true,
-        title_show_cost: true,
-        title_show_cache_pct: true,
+        title_format: "[{timestamp} {input}/{total} {cost} {cache_pct}] {title} {subtitle}"
+            .to_string(),
     };
 
     let actual = fixture.command_path();
@@ -281,13 +257,8 @@ fn test_command_cwd_path() {
         custom_history_path: None,
         max_conversations: 100,
         max_image_size: 262144,
-        title_format: "[{metadata}] {title} {subtitle}".to_string(),
-        title_metadata_format: "{timestamp} {input}/{total} {cost} {cache_pct}".to_string(),
-        title_show_timestamp: true,
-        title_show_input_tokens: true,
-        title_show_total_tokens: true,
-        title_show_cost: true,
-        title_show_cache_pct: true,
+        title_format: "[{timestamp} {input}/{total} {cost} {cache_pct}] {title} {subtitle}"
+            .to_string(),
     };
 
     let actual = fixture.command_cwd_path();
@@ -321,13 +292,8 @@ fn test_command_cwd_path_independent_from_command_path() {
         custom_history_path: None,
         max_conversations: 100,
         max_image_size: 262144,
-        title_format: "[{metadata}] {title} {subtitle}".to_string(),
-        title_metadata_format: "{timestamp} {input}/{total} {cost} {cache_pct}".to_string(),
-        title_show_timestamp: true,
-        title_show_input_tokens: true,
-        title_show_total_tokens: true,
-        title_show_cost: true,
-        title_show_cache_pct: true,
+        title_format: "[{timestamp} {input}/{total} {cost} {cache_pct}] {title} {subtitle}"
+            .to_string(),
     };
 
     let command_path = fixture.command_path();
