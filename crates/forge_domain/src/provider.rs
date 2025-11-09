@@ -1,16 +1,19 @@
 use std::collections::HashMap;
+use std::fmt;
+use std::str::FromStr;
 
 use derive_more::From;
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-use strum_macros::{Display, EnumIter, EnumString};
+use serde::de::Error as SerdeError;
+use serde::{Deserialize, Deserializer, Serialize};
+use strum_macros::EnumIter;
 use url::Url;
 
 use crate::{ApiKey, AuthCredential, AuthDetails, Model, Template};
 
 /// --- IMPORTANT ---
-/// The order of providers is important because that would be order in which the
-/// providers will be resolved
+/// Built-in provider order is important because that would be order in which
+/// the built-in providers will be resolved
 #[derive(
     Debug,
     Copy,
@@ -20,15 +23,13 @@ use crate::{ApiKey, AuthCredential, AuthDetails, Model, Template};
     Hash,
     Serialize,
     Deserialize,
-    Display,
-    EnumString,
     EnumIter,
     PartialOrd,
     Ord,
     JsonSchema,
 )]
 #[serde(rename_all = "snake_case")]
-pub enum ProviderId {
+pub enum BuiltInProviderId {
     Forge,
     #[serde(rename = "openai")]
     OpenAI,
@@ -47,6 +48,369 @@ pub enum ProviderId {
     #[serde(rename = "openai_compatible")]
     OpenAICompatible,
     AnthropicCompatible,
+}
+
+impl fmt::Display for BuiltInProviderId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            BuiltInProviderId::Forge => "forge",
+            BuiltInProviderId::OpenAI => "openai",
+            BuiltInProviderId::OpenRouter => "open_router",
+            BuiltInProviderId::Requesty => "requesty",
+            BuiltInProviderId::Zai => "zai",
+            BuiltInProviderId::ZaiCoding => "zai_coding",
+            BuiltInProviderId::Cerebras => "cerebras",
+            BuiltInProviderId::Xai => "xai",
+            BuiltInProviderId::Anthropic => "anthropic",
+            BuiltInProviderId::ClaudeCode => "claude_code",
+            BuiltInProviderId::VertexAi => "vertex_ai",
+            BuiltInProviderId::BigModel => "big_model",
+            BuiltInProviderId::Azure => "azure",
+            BuiltInProviderId::GithubCopilot => "github_copilot",
+            BuiltInProviderId::OpenAICompatible => "openai_compatible",
+            BuiltInProviderId::AnthropicCompatible => "anthropic_compatible",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+impl FromStr for BuiltInProviderId {
+    type Err = ProviderIdError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "forge" => Ok(BuiltInProviderId::Forge),
+            "openai" => Ok(BuiltInProviderId::OpenAI),
+            "open_router" => Ok(BuiltInProviderId::OpenRouter),
+            "requesty" => Ok(BuiltInProviderId::Requesty),
+            "zai" => Ok(BuiltInProviderId::Zai),
+            "zai_coding" => Ok(BuiltInProviderId::ZaiCoding),
+            "cerebras" => Ok(BuiltInProviderId::Cerebras),
+            "xai" => Ok(BuiltInProviderId::Xai),
+            "anthropic" => Ok(BuiltInProviderId::Anthropic),
+            "claude_code" => Ok(BuiltInProviderId::ClaudeCode),
+            "vertex_ai" => Ok(BuiltInProviderId::VertexAi),
+            "big_model" => Ok(BuiltInProviderId::BigModel),
+            "azure" => Ok(BuiltInProviderId::Azure),
+            "github_copilot" => Ok(BuiltInProviderId::GithubCopilot),
+            "openai_compatible" => Ok(BuiltInProviderId::OpenAICompatible),
+            "anthropic_compatible" => Ok(BuiltInProviderId::AnthropicCompatible),
+            _ => Err(ProviderIdError::UnknownBuiltIn(s.to_string())),
+        }
+    }
+}
+
+/// Provider identifier that supports both built-in and custom providers
+#[derive(Debug, Clone, PartialEq, Eq, Hash, JsonSchema, PartialOrd, Ord)]
+pub enum ProviderId {
+    /// Built-in provider with compile-time type safety
+    BuiltIn(BuiltInProviderId),
+    /// Custom provider with runtime-defined name
+    Custom(String),
+}
+
+impl ProviderId {
+    /// Check if this is a built-in provider
+    pub fn is_builtin(&self) -> bool {
+        matches!(self, ProviderId::BuiltIn(_))
+    }
+
+    /// Check if this is a custom provider
+    pub fn is_custom(&self) -> bool {
+        matches!(self, ProviderId::Custom(_))
+    }
+
+    /// Get the string representation of this provider ID
+    pub fn as_str(&self) -> String {
+        match self {
+            ProviderId::BuiltIn(builtin) => builtin.to_string(),
+            ProviderId::Custom(name) => name.clone(),
+        }
+    }
+
+    /// Convert to built-in provider ID if possible
+    pub fn as_builtin(&self) -> Option<BuiltInProviderId> {
+        match self {
+            ProviderId::BuiltIn(builtin) => Some(*builtin),
+            ProviderId::Custom(_) => None,
+        }
+    }
+
+    /// Convert to custom provider name if possible
+    pub fn as_custom(&self) -> Option<&str> {
+        match self {
+            ProviderId::BuiltIn(_) => None,
+            ProviderId::Custom(name) => Some(name),
+        }
+    }
+
+    /// Create a custom provider ID with validation
+    pub fn custom(name: String) -> Result<Self, ProviderIdError> {
+        if name.trim().is_empty() {
+            return Err(ProviderIdError::EmptyName);
+        }
+
+        if !name
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+        {
+            return Err(ProviderIdError::InvalidName(name));
+        }
+
+        Ok(ProviderId::Custom(name))
+    }
+
+    /// Check if provider ID matches a built-in provider
+    pub fn is_cerebras(&self) -> bool {
+        matches!(self, ProviderId::BuiltIn(BuiltInProviderId::Cerebras))
+    }
+
+    /// Check if provider ID matches ZAI
+    pub fn is_zai(&self) -> bool {
+        matches!(self, ProviderId::BuiltIn(BuiltInProviderId::Zai))
+    }
+
+    /// Check if provider ID matches ZAI Coding
+    pub fn is_zai_coding(&self) -> bool {
+        matches!(self, ProviderId::BuiltIn(BuiltInProviderId::ZaiCoding))
+    }
+
+    /// Check if provider ID matches OpenRouter
+    pub fn is_open_router(&self) -> bool {
+        matches!(self, ProviderId::BuiltIn(BuiltInProviderId::OpenRouter))
+    }
+
+    /// Check if provider ID matches Forge
+    pub fn is_forge(&self) -> bool {
+        matches!(self, ProviderId::BuiltIn(BuiltInProviderId::Forge))
+    }
+
+    /// Check if provider ID matches OpenAI
+    pub fn is_openai(&self) -> bool {
+        matches!(self, ProviderId::BuiltIn(BuiltInProviderId::OpenAI))
+    }
+
+    /// Check if provider ID matches XAI
+    pub fn is_xai(&self) -> bool {
+        matches!(self, ProviderId::BuiltIn(BuiltInProviderId::Xai))
+    }
+
+    /// Check if provider ID matches Anthropic
+    pub fn is_anthropic(&self) -> bool {
+        matches!(self, ProviderId::BuiltIn(BuiltInProviderId::Anthropic))
+    }
+
+    /// Check if provider ID matches Claude Code
+    pub fn is_claude_code(&self) -> bool {
+        matches!(self, ProviderId::BuiltIn(BuiltInProviderId::ClaudeCode))
+    }
+
+    /// Check if provider ID matches Vertex AI
+    pub fn is_vertex_ai(&self) -> bool {
+        matches!(self, ProviderId::BuiltIn(BuiltInProviderId::VertexAi))
+    }
+
+    /// Check if provider ID matches BigModel
+    pub fn is_big_model(&self) -> bool {
+        matches!(self, ProviderId::BuiltIn(BuiltInProviderId::BigModel))
+    }
+
+    /// Check if provider ID matches Azure
+    pub fn is_azure(&self) -> bool {
+        matches!(self, ProviderId::BuiltIn(BuiltInProviderId::Azure))
+    }
+
+    /// Check if provider ID matches Github Copilot
+    pub fn is_github_copilot(&self) -> bool {
+        matches!(self, ProviderId::BuiltIn(BuiltInProviderId::GithubCopilot))
+    }
+
+    /// Check if provider ID matches OpenAI Compatible
+    pub fn is_openai_compatible(&self) -> bool {
+        matches!(
+            self,
+            ProviderId::BuiltIn(BuiltInProviderId::OpenAICompatible)
+        )
+    }
+
+    /// Check if provider ID matches Anthropic Compatible
+    pub fn is_anthropic_compatible(&self) -> bool {
+        matches!(
+            self,
+            ProviderId::BuiltIn(BuiltInProviderId::AnthropicCompatible)
+        )
+    }
+
+    /// Create a built-in Forge provider ID
+    pub fn forge() -> Self {
+        ProviderId::BuiltIn(BuiltInProviderId::Forge)
+    }
+
+    /// Create a built-in OpenAI provider ID
+    pub fn openai() -> Self {
+        ProviderId::BuiltIn(BuiltInProviderId::OpenAI)
+    }
+
+    /// Create a built-in ZAI provider ID
+    pub fn zai() -> Self {
+        ProviderId::BuiltIn(BuiltInProviderId::Zai)
+    }
+
+    /// Create a built-in ZAI Coding provider ID
+    pub fn zai_coding() -> Self {
+        ProviderId::BuiltIn(BuiltInProviderId::ZaiCoding)
+    }
+
+    /// Create a built-in Open Router provider ID
+    pub fn open_router() -> Self {
+        ProviderId::BuiltIn(BuiltInProviderId::OpenRouter)
+    }
+
+    /// Create a built-in XAI provider ID
+    pub fn xai() -> Self {
+        ProviderId::BuiltIn(BuiltInProviderId::Xai)
+    }
+
+    /// Create a built-in Anthropic provider ID
+    pub fn anthropic() -> Self {
+        ProviderId::BuiltIn(BuiltInProviderId::Anthropic)
+    }
+
+    /// Create a built-in Vertex AI provider ID
+    pub fn vertex_ai() -> Self {
+        ProviderId::BuiltIn(BuiltInProviderId::VertexAi)
+    }
+
+    /// Create a built-in Azure provider ID
+    pub fn azure() -> Self {
+        ProviderId::BuiltIn(BuiltInProviderId::Azure)
+    }
+
+    /// Create a built-in Github Copilot provider ID
+    pub fn github_copilot() -> Self {
+        ProviderId::BuiltIn(BuiltInProviderId::GithubCopilot)
+    }
+
+    /// Create a built-in OpenAI Compatible provider ID
+    pub fn openai_compatible() -> Self {
+        ProviderId::BuiltIn(BuiltInProviderId::OpenAICompatible)
+    }
+
+    /// Create a built-in Cerebras provider ID
+    pub fn cerebras() -> Self {
+        ProviderId::BuiltIn(BuiltInProviderId::Cerebras)
+    }
+
+    /// Create a built-in Big Model provider ID
+    pub fn big_model() -> Self {
+        ProviderId::BuiltIn(BuiltInProviderId::BigModel)
+    }
+
+    /// Create a built-in Anthropic Compatible provider ID
+    pub fn anthropic_compatible() -> Self {
+        ProviderId::BuiltIn(BuiltInProviderId::AnthropicCompatible)
+    }
+
+    /// Create a built-in Requesty provider ID
+    pub fn requesty() -> Self {
+        ProviderId::BuiltIn(BuiltInProviderId::Requesty)
+    }
+
+    /// Iterate over all built-in provider IDs
+    pub fn iter() -> impl Iterator<Item = Self> {
+        [
+            BuiltInProviderId::Forge,
+            BuiltInProviderId::OpenAI,
+            BuiltInProviderId::OpenRouter,
+            BuiltInProviderId::Requesty,
+            BuiltInProviderId::Zai,
+            BuiltInProviderId::ZaiCoding,
+            BuiltInProviderId::Cerebras,
+            BuiltInProviderId::Xai,
+            BuiltInProviderId::Anthropic,
+            BuiltInProviderId::VertexAi,
+            BuiltInProviderId::BigModel,
+            BuiltInProviderId::Azure,
+            BuiltInProviderId::GithubCopilot,
+            BuiltInProviderId::OpenAICompatible,
+            BuiltInProviderId::AnthropicCompatible,
+        ]
+        .into_iter()
+        .map(ProviderId::BuiltIn)
+    }
+}
+
+impl fmt::Display for ProviderId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ProviderId::BuiltIn(builtin) => write!(f, "{}", builtin),
+            ProviderId::Custom(name) => write!(f, "{}", name),
+        }
+    }
+}
+
+impl FromStr for ProviderId {
+    type Err = ProviderIdError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // First try to parse as built-in provider
+        if let Ok(builtin) = BuiltInProviderId::from_str(s) {
+            return Ok(ProviderId::BuiltIn(builtin));
+        }
+
+        // If not built-in, treat as custom provider
+        ProviderId::custom(s.to_string())
+    }
+}
+
+impl Serialize for ProviderId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        // Always serialize as string for backward compatibility with config files
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for ProviderId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        ProviderId::from_str(&s)
+            .map_err(|e| D::Error::custom(format!("Invalid provider ID: {}", e)))
+    }
+}
+
+/// Errors that can occur when creating or parsing provider IDs
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum ProviderIdError {
+    #[error("Provider name cannot be empty")]
+    EmptyName,
+    #[error(
+        "Invalid provider name: '{0}'. Only alphanumeric characters, underscores, and hyphens are allowed"
+    )]
+    InvalidName(String),
+    #[error("Unknown built-in provider: '{0}'")]
+    UnknownBuiltIn(String),
+}
+
+// Convert from BuiltInProviderId to ProviderId for convenience
+impl From<BuiltInProviderId> for ProviderId {
+    fn from(builtin: BuiltInProviderId) -> Self {
+        ProviderId::BuiltIn(builtin)
+    }
+}
+
+// Convert from &str to ProviderId for convenience
+impl TryFrom<&str> for ProviderId {
+    type Error = ProviderIdError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        ProviderId::from_str(value)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -118,8 +482,8 @@ impl AnyProvider {
 
     pub fn id(&self) -> ProviderId {
         match self {
-            AnyProvider::Url(p) => p.id,
-            AnyProvider::Template(p) => p.id,
+            AnyProvider::Url(p) => p.id.clone(),
+            AnyProvider::Template(p) => p.id.clone(),
         }
     }
 
@@ -180,12 +544,12 @@ mod test_helpers {
     /// Test helper for creating a ZAI provider
     pub(super) fn zai(key: &str) -> Provider<Url> {
         Provider {
-            id: ProviderId::Zai,
+            id: ProviderId::BuiltIn(BuiltInProviderId::Zai),
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: vec![],
-            credential: make_credential(ProviderId::Zai, key),
+            credential: make_credential(ProviderId::BuiltIn(BuiltInProviderId::Zai), key),
             models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
         }
     }
@@ -193,12 +557,12 @@ mod test_helpers {
     /// Test helper for creating a ZAI Coding provider
     pub(super) fn zai_coding(key: &str) -> Provider<Url> {
         Provider {
-            id: ProviderId::ZaiCoding,
+            id: ProviderId::BuiltIn(BuiltInProviderId::ZaiCoding),
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: vec![],
-            credential: make_credential(ProviderId::ZaiCoding, key),
+            credential: make_credential(ProviderId::BuiltIn(BuiltInProviderId::ZaiCoding), key),
             models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
         }
     }
@@ -206,12 +570,12 @@ mod test_helpers {
     /// Test helper for creating an OpenAI provider
     pub(super) fn openai(key: &str) -> Provider<Url> {
         Provider {
-            id: ProviderId::OpenAI,
+            id: ProviderId::BuiltIn(BuiltInProviderId::OpenAI),
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: vec![],
-            credential: make_credential(ProviderId::OpenAI, key),
+            credential: make_credential(ProviderId::BuiltIn(BuiltInProviderId::OpenAI), key),
             models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
         }
     }
@@ -219,12 +583,12 @@ mod test_helpers {
     /// Test helper for creating an XAI provider
     pub(super) fn xai(key: &str) -> Provider<Url> {
         Provider {
-            id: ProviderId::Xai,
+            id: ProviderId::BuiltIn(BuiltInProviderId::Xai),
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.x.ai/v1/chat/completions").unwrap(),
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: vec![],
-            credential: make_credential(ProviderId::Xai, key),
+            credential: make_credential(ProviderId::BuiltIn(BuiltInProviderId::Xai), key),
             models: Models::Url(Url::parse("https://api.x.ai/v1/models").unwrap()),
         }
     }
@@ -255,7 +619,7 @@ mod test_helpers {
             )
         };
         Provider {
-            id: ProviderId::VertexAi,
+            id: ProviderId::BuiltIn(BuiltInProviderId::VertexAi),
             response: ProviderResponse::OpenAI,
             url: Url::parse(&chat_url).unwrap(),
             auth_methods: vec![crate::AuthMethod::ApiKey],
@@ -263,7 +627,7 @@ mod test_helpers {
                 .iter()
                 .map(|&s| s.to_string().into())
                 .collect(),
-            credential: make_credential(ProviderId::VertexAi, key),
+            credential: make_credential(ProviderId::BuiltIn(BuiltInProviderId::VertexAi), key),
             models: Models::Url(Url::parse(&model_url).unwrap()),
         }
     }
@@ -285,7 +649,7 @@ mod test_helpers {
         );
 
         Provider {
-            id: ProviderId::Azure,
+            id: ProviderId::BuiltIn(BuiltInProviderId::Azure),
             response: ProviderResponse::OpenAI,
             url: Url::parse(&chat_url).unwrap(),
             auth_methods: vec![crate::AuthMethod::ApiKey],
@@ -293,7 +657,7 @@ mod test_helpers {
                 .iter()
                 .map(|&s| s.to_string().into())
                 .collect(),
-            credential: make_credential(ProviderId::Azure, key),
+            credential: make_credential(ProviderId::BuiltIn(BuiltInProviderId::Azure), key),
             models: Models::Url(Url::parse(&model_url).unwrap()),
         }
     }
@@ -314,11 +678,11 @@ mod tests {
         let fixture = "test_key";
         let actual = xai(fixture);
         let expected = Provider {
-            id: ProviderId::Xai,
+            id: ProviderId::BuiltIn(BuiltInProviderId::Xai),
             response: ProviderResponse::OpenAI,
             url: Url::from_str("https://api.x.ai/v1/chat/completions").unwrap(),
             credential: Some(AuthCredential {
-                id: ProviderId::Xai,
+                id: ProviderId::BuiltIn(BuiltInProviderId::Xai),
                 auth_details: AuthDetails::ApiKey(ApiKey::from(fixture.to_string())),
                 url_params: HashMap::new(),
             }),
@@ -332,10 +696,13 @@ mod tests {
     #[test]
     fn test_is_xai_with_direct_comparison() {
         let fixture_xai = xai("key");
-        assert_eq!(fixture_xai.id, ProviderId::Xai);
+        assert_eq!(fixture_xai.id, ProviderId::BuiltIn(BuiltInProviderId::Xai));
 
         let fixture_other = openai("key");
-        assert_ne!(fixture_other.id, ProviderId::Xai);
+        assert_ne!(
+            fixture_other.id,
+            ProviderId::BuiltIn(BuiltInProviderId::Xai)
+        );
     }
 
     #[test]
@@ -405,7 +772,7 @@ mod tests {
         );
         assert_eq!(actual_model, expected_model);
 
-        assert_eq!(fixture.id, ProviderId::Azure);
+        assert_eq!(fixture.id, ProviderId::BuiltIn(BuiltInProviderId::Azure));
         assert_eq!(fixture.response, ProviderResponse::OpenAI);
     }
 
@@ -425,5 +792,70 @@ mod tests {
                 .unwrap(),
         );
         assert_eq!(actual_model, expected_model);
+    }
+
+    #[test]
+    fn test_custom_provider_id_creation() {
+        let custom_id = ProviderId::custom("vllmlocal".to_string()).unwrap();
+        assert!(custom_id.is_custom());
+        assert!(!custom_id.is_builtin());
+        assert_eq!(custom_id.to_string(), "vllmlocal");
+        assert_eq!(custom_id.as_custom(), Some("vllmlocal"));
+        assert_eq!(custom_id.as_builtin(), None);
+    }
+
+    #[test]
+    fn test_builtin_provider_id_conversion() {
+        let builtin = ProviderId::BuiltIn(BuiltInProviderId::OpenAI);
+        assert!(builtin.is_builtin());
+        assert!(!builtin.is_custom());
+        assert_eq!(builtin.to_string(), "openai");
+        assert_eq!(builtin.as_builtin(), Some(BuiltInProviderId::OpenAI));
+        assert_eq!(builtin.as_custom(), None);
+    }
+
+    #[test]
+    fn test_provider_id_from_str_builtin() {
+        let provider_id = ProviderId::from_str("openai").unwrap();
+        assert!(matches!(
+            provider_id,
+            ProviderId::BuiltIn(BuiltInProviderId::OpenAI)
+        ));
+    }
+
+    #[test]
+    fn test_provider_id_from_str_custom() {
+        let provider_id = ProviderId::from_str("vllmlocal").unwrap();
+        assert!(matches!(provider_id, ProviderId::Custom(name) if name == "vllmlocal"));
+    }
+
+    #[test]
+    fn test_provider_id_validation() {
+        // Valid names
+        assert!(ProviderId::custom("valid_name".to_string()).is_ok());
+        assert!(ProviderId::custom("valid-name".to_string()).is_ok());
+        assert!(ProviderId::custom("valid_name123".to_string()).is_ok());
+
+        // Invalid names
+        assert!(matches!(
+            ProviderId::custom("".to_string()),
+            Err(ProviderIdError::EmptyName)
+        ));
+        assert!(matches!(
+            ProviderId::custom("invalid name".to_string()),
+            Err(ProviderIdError::InvalidName(_))
+        ));
+        assert!(matches!(
+            ProviderId::custom("invalid@name".to_string()),
+            Err(ProviderIdError::InvalidName(_))
+        ));
+    }
+
+    #[test]
+    fn test_provider_id_from_builtin() {
+        let builtin = BuiltInProviderId::OpenAI;
+        let provider_id: ProviderId = builtin.into();
+        assert_eq!(provider_id.to_string(), "openai");
+        assert!(provider_id.is_builtin());
     }
 }

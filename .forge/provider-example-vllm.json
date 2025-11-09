@@ -1,0 +1,11 @@
+{
+  "_comment": "VLLM Local Provider Example - Ready to use configuration",
+  "_description": "Copy this file to ~/.forge/provider.json and modify as needed for your VLLM setup",
+  
+  "id": "vllm_local",
+  "api_key_vars": "VLLM_LOCAL_API_KEY",
+  "url_param_vars": ["VLLM_LOCAL_URL"],
+  "response_type": "OpenAI",
+  "url": "{{VLLM_LOCAL_URL}}/v1/chat/completions",
+  "models": "{{VLLM_LOCAL_URL}}/v1/models"
+}

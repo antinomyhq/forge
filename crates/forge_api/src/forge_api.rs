@@ -82,7 +82,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         Ok(providers
             .into_iter()
             .find(|p| p.id() == *id)
-            .ok_or_else(|| Error::provider_not_available(*id))?)
+            .ok_or_else(|| Error::provider_not_available(id.clone()))?)
     }
 
     async fn chat(

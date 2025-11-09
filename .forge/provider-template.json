@@ -1,0 +1,128 @@
+{
+  "_comment": "Forge Custom Provider Configuration Template",
+  "_description": "This file allows you to define custom AI providers that will appear in Forge's provider selection menu. Copy this template and modify it for your specific provider setup.",
+  "_note": "After adding a provider here, run 'forge provider add' to configure credentials and make it available in Forge.",
+  
+  "providers": [
+    {
+      "_example_comment": "EXAMPLE 1: Custom VLLM Local Provider with API-based models",
+      "_example_description": "This provider connects to a local VLLM instance and automatically fetches available models from the API endpoint",
+      
+      "id": "vllm_local",
+      "api_key_vars": "VLLM_LOCAL_API_KEY",
+      "url_param_vars": ["VLLM_LOCAL_URL"],
+      "response_type": "OpenAI",
+      "url": "{{VLLM_LOCAL_URL}}/v1/chat/completions",
+      "models": "{{VLLM_LOCAL_URL}}/v1/models"
+    },
+    
+    {
+      "_example_comment": "EXAMPLE 2: Ollama Local Provider with hardcoded models",
+      "_example_description": "This provider connects to a local Ollama instance with manually defined models",
+      
+      "id": "ollama_local",
+      "api_key_vars": "OLLAMA_API_KEY",
+      "url_param_vars": ["OLLAMA_URL"],
+      "response_type": "OpenAI",
+      "url": "{{OLLAMA_URL}}/v1/chat/completions",
+      "models": [
+        {
+          "id": "llama2:7b",
+          "name": "Llama 2 7B (Ollama Local)",
+          "description": "Llama 2 7B parameter model running locally via Ollama",
+          "context_length": 4096,
+          "tools_supported": true,
+          "supports_parallel_tool_calls": false,
+          "supports_reasoning": false
+        },
+        {
+          "id": "codellama:7b",
+          "name": "CodeLlama 7B (Ollama Local)",
+          "description": "CodeLlama 7B parameter model optimized for code generation",
+          "context_length": 16384,
+          "tools_supported": true,
+          "supports_parallel_tool_calls": false,
+          "supports_reasoning": false
+        },
+        {
+          "id": "mistral:7b",
+          "name": "Mistral 7B (Ollama Local)",
+          "description": "Mistral 7B parameter model for general tasks",
+          "context_length": 8192,
+          "tools_supported": true,
+          "supports_parallel_tool_calls": false,
+          "supports_reasoning": false
+        }
+      ]
+    },
+    
+    {
+      "_example_comment": "EXAMPLE 3: Custom API Provider with authentication",
+      "_example_description": "This provider connects to a custom API endpoint with API key authentication",
+      
+      "id": "my_custom_api",
+      "api_key_vars": "MY_CUSTOM_API_KEY",
+      "url_param_vars": ["CUSTOM_API_URL", "CUSTOM_API_VERSION"],
+      "response_type": "OpenAI",
+      "url": "{{CUSTOM_API_URL}}/v{{CUSTOM_API_VERSION}}/chat/completions",
+      "models": "{{CUSTOM_API_URL}}/v{{CUSTOM_API_VERSION}}/models"
+    },
+    
+    {
+      "_example_comment": "EXAMPLE 4: Anthropic-Compatible Provider",
+      "_example_description": "This provider connects to an Anthropic-compatible API endpoint",
+      
+      "id": "anthropic_compatible_custom",
+      "api_key_vars": "ANTHROPIC_COMPAT_KEY",
+      "url_param_vars": ["ANTHROPIC_COMPAT_URL"],
+      "response_type": "Anthropic",
+      "url": "{{ANTHROPIC_COMPAT_URL}}/v1/messages",
+      "models": [
+        {
+          "id": "claude-3-haiku-20240307",
+          "name": "Claude 3 Haiku (Custom)",
+          "description": "Fast and efficient Claude model for quick responses",
+          "context_length": 200000,
+          "tools_supported": true,
+          "supports_parallel_tool_calls": true,
+          "supports_reasoning": false
+        }
+      ]
+    }
+  ],
+  
+  "_field_explanations": {
+    "id": "Unique identifier for this provider. Use lowercase letters, numbers, and underscores only. This will appear in Forge's provider selection menu.",
+    "api_key_vars": "Environment variable name that will store your API key. Forge will prompt you to enter the API key value when configuring this provider.",
+    "url_param_vars": "Array of environment variable names used in URL templates. These variables will be replaced with values you provide during provider configuration.",
+    "response_type": "API format to use. Options: 'OpenAI' for OpenAI-compatible APIs, 'Anthropic' for Anthropic-compatible APIs.",
+    "url": "Template for the chat completions endpoint URL. Use {{VARIABLE_NAME}} syntax to insert environment variables.",
+    "models": "Either a URL template to fetch models dynamically (string) or an array of hardcoded model definitions (array).",
+    
+    "model_fields": {
+      "id": "Unique model identifier used by the API (required)",
+      "name": "Human-readable model name displayed in Forge (required)",
+      "description": "Brief description of the model's capabilities (optional)",
+      "context_length": "Maximum number of tokens the model can process (optional, defaults to 4096)",
+      "tools_supported": "Whether the model supports function calling (optional, defaults to false)",
+      "supports_parallel_tool_calls": "Whether the model supports multiple simultaneous tool calls (optional, defaults to false)",
+      "supports_reasoning": "Whether the model supports reasoning/chain-of-thought (optional, defaults to false)"
+    }
+  },
+  
+  "_setup_instructions": {
+    "step1": "Copy this template to a new file and modify the provider configuration for your needs",
+    "step2": "Save the file as ~/.forge/provider.json",
+    "step3": "Run 'forge provider add' and select your custom provider from the list",
+    "step4": "Enter the required environment variable values when prompted (API keys, URLs, etc.)",
+    "step5": "Your custom provider will appear in Forge's provider selection menu and be fully functional"
+  },
+  
+  "_tips": {
+    "naming": "Use descriptive provider names like 'vllm_local', 'ollama_work', 'custom_openai_compatible'",
+    "urls": "Always include the full path including /v1/chat/completions or appropriate endpoint",
+    "models": "Use dynamic model fetching (URL) for APIs with changing model lists, or hardcoded models for stable environments",
+    "testing": "Test your API endpoints with curl or similar tools before adding them to Forge",
+    "ports": "For local providers, remember to include non-standard ports (e.g., http://127.0.0.1:8888)"
+  }
+}

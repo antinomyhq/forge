@@ -11,7 +11,7 @@ use reqwest::header::{HeaderMap, HeaderValue};
 use url::Url;
 
 use crate::auth::error::Error as AuthError;
-use crate::auth::http::{AnthropicHttpProvider, GithubHttpProvider, StandardHttpProvider};
+use crate::auth::http::{AnthropicHttpProvider, ClaudeCodeHttpProvider, GithubHttpProvider, StandardHttpProvider};
 use crate::auth::util::*;
 
 /// API Key Strategy - Simple static key authentication
@@ -40,7 +40,7 @@ impl AuthStrategy for ApiKeyStrategy {
     ) -> anyhow::Result<AuthCredential> {
         match context_response {
             AuthContextResponse::ApiKey(ctx) => Ok(AuthCredential::new_api_key(
-                self.provider_id,
+                self.provider_id.clone(),
                 ctx.response.api_key,
             )
             .url_params(ctx.response.url_params)),
@@ -106,7 +106,7 @@ impl<T: OAuthHttpProvider> AuthStrategy for OAuthCodeStrategy<T> {
                     })?;
 
                 build_oauth_credential(
-                    self.provider_id,
+                    self.provider_id.clone(),
                     token_response,
                     &self.config,
                     chrono::Duration::hours(1), // Code flow default
@@ -205,7 +205,7 @@ impl AuthStrategy for OAuthDeviceStrategy {
                 .await?;
 
                 build_oauth_credential(
-                    self.provider_id,
+                    self.provider_id.clone(),
                     token_response,
                     &self.config,
                     chrono::Duration::days(365), // Device flow default
@@ -323,7 +323,7 @@ impl AuthStrategy for OAuthWithApiKeyStrategy {
                 );
 
                 Ok(AuthCredential::new_oauth_with_api_key(
-                    self.provider_id,
+                    self.provider_id.clone(),
                     oauth_tokens,
                     api_key,
                     self.oauth_config.clone(),
@@ -392,14 +392,14 @@ async fn refresh_oauth_credential(
     // Build appropriate credential type
     if let Some(key) = api_key {
         Ok(AuthCredential::new_oauth_with_api_key(
-            credential.id,
+            credential.id.clone(),
             new_tokens,
             key,
             config.clone(),
         ))
     } else {
         Ok(AuthCredential::new_oauth(
-            credential.id,
+            credential.id.clone(),
             new_tokens,
             config.clone(),
         ))
@@ -588,6 +588,7 @@ pub enum AnyAuthStrategy {
     ApiKey(ApiKeyStrategy),
     OAuthCodeStandard(OAuthCodeStrategy<StandardHttpProvider>),
     OAuthCodeAnthropic(OAuthCodeStrategy<AnthropicHttpProvider>),
+    OAuthCodeClaudeCode(OAuthCodeStrategy<ClaudeCodeHttpProvider>),
     OAuthCodeGithub(OAuthCodeStrategy<GithubHttpProvider>),
     OAuthDevice(OAuthDeviceStrategy),
     OAuthWithApiKey(OAuthWithApiKeyStrategy),
@@ -600,6 +601,7 @@ impl AuthStrategy for AnyAuthStrategy {
             Self::ApiKey(s) => s.init().await,
             Self::OAuthCodeStandard(s) => s.init().await,
             Self::OAuthCodeAnthropic(s) => s.init().await,
+            Self::OAuthCodeClaudeCode(s) => s.init().await,
             Self::OAuthCodeGithub(s) => s.init().await,
             Self::OAuthDevice(s) => s.init().await,
             Self::OAuthWithApiKey(s) => s.init().await,
@@ -614,6 +616,7 @@ impl AuthStrategy for AnyAuthStrategy {
             Self::ApiKey(s) => s.complete(context_response).await,
             Self::OAuthCodeStandard(s) => s.complete(context_response).await,
             Self::OAuthCodeAnthropic(s) => s.complete(context_response).await,
+            Self::OAuthCodeClaudeCode(s) => s.complete(context_response).await,
             Self::OAuthCodeGithub(s) => s.complete(context_response).await,
             Self::OAuthDevice(s) => s.complete(context_response).await,
             Self::OAuthWithApiKey(s) => s.complete(context_response).await,
@@ -625,6 +628,7 @@ impl AuthStrategy for AnyAuthStrategy {
             Self::ApiKey(s) => s.refresh(credential).await,
             Self::OAuthCodeStandard(s) => s.refresh(credential).await,
             Self::OAuthCodeAnthropic(s) => s.refresh(credential).await,
+            Self::OAuthCodeClaudeCode(s) => s.refresh(credential).await,
             Self::OAuthCodeGithub(s) => s.refresh(credential).await,
             Self::OAuthDevice(s) => s.refresh(credential).await,
             Self::OAuthWithApiKey(s) => s.refresh(credential).await,
@@ -662,7 +666,15 @@ impl StrategyFactory for ForgeAuthStrategyFactory {
                 required_params,
             ))),
             forge_domain::AuthMethod::OAuthCode(config) => {
-                if let ProviderId::ClaudeCode = provider_id {
+                if provider_id.is_claude_code() {
+                    return Ok(AnyAuthStrategy::OAuthCodeClaudeCode(OAuthCodeStrategy::new(
+                        ClaudeCodeHttpProvider,
+                        provider_id,
+                        config,
+                    )));
+                }
+
+                if provider_id.is_anthropic() {
                     return Ok(AnyAuthStrategy::OAuthCodeAnthropic(OAuthCodeStrategy::new(
                         AnthropicHttpProvider,
                         provider_id,
@@ -670,7 +682,7 @@ impl StrategyFactory for ForgeAuthStrategyFactory {
                     )));
                 }
 
-                if let ProviderId::GithubCopilot = provider_id {
+                if provider_id.is_github_copilot() {
                     return Ok(AnyAuthStrategy::OAuthCodeGithub(OAuthCodeStrategy::new(
                         GithubHttpProvider,
                         provider_id,
@@ -709,7 +721,7 @@ mod tests {
     fn test_create_auth_strategy_api_key() {
         let factory = ForgeAuthStrategyFactory::new();
         let strategy = factory.create_auth_strategy(
-            ProviderId::OpenAI,
+            ProviderId::openai(),
             forge_domain::AuthMethod::ApiKey,
             vec![],
         );
@@ -732,7 +744,7 @@ mod tests {
 
         let factory = ForgeAuthStrategyFactory::new();
         let strategy = factory.create_auth_strategy(
-            ProviderId::OpenAI,
+            ProviderId::openai(),
             forge_domain::AuthMethod::OAuthCode(config),
             vec![],
         );
@@ -755,7 +767,7 @@ mod tests {
 
         let factory = ForgeAuthStrategyFactory::new();
         let strategy = factory.create_auth_strategy(
-            ProviderId::OpenAI,
+            ProviderId::openai(),
             forge_domain::AuthMethod::OAuthDevice(config),
             vec![],
         );
@@ -778,7 +790,7 @@ mod tests {
 
         let factory = ForgeAuthStrategyFactory::new();
         let strategy = factory.create_auth_strategy(
-            ProviderId::GithubCopilot,
+            ProviderId::github_copilot(),
             forge_domain::AuthMethod::OAuthDevice(config),
             vec![],
         );
