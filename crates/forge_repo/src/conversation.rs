@@ -89,7 +89,7 @@ impl From<MetricsRecord> for Metrics {
         metrics.file_operations = record
             .files_changed
             .into_iter()
-            .map(|(path, file_record)| {
+            .filter_map(|(path, file_record)| {
                 let operation = match file_record {
                     // If it's an array, take the last operation (most recent)
                     FileOperationOrArray::Array(mut arr) if !arr.is_empty() => {
@@ -102,7 +102,6 @@ impl From<MetricsRecord> for Metrics {
                 };
                 Some((path, operation))
             })
-            .flatten()
             .collect();
         metrics
     }
@@ -576,5 +575,234 @@ mod tests {
         assert_eq!(actual_file.lines_added, expected_file.lines_added);
         assert_eq!(actual_file.lines_removed, expected_file.lines_removed);
         assert_eq!(actual_file.content_hash, expected_file.content_hash);
+    }
+
+    #[test]
+    fn test_deserialize_old_format_without_tool_field() {
+        // Old format from database: missing tool and content_hash fields
+        let json = r#"{
+            "started_at": "2024-01-01T00:00:00Z",
+            "files_changed": {
+                "src/main.rs": {
+                    "lines_added": 10,
+                    "lines_removed": 5
+                },
+                "src/lib.rs": {
+                    "lines_added": 3,
+                    "lines_removed": 2
+                }
+            }
+        }"#;
+
+        let record: MetricsRecord = serde_json::from_str(json).unwrap();
+        let actual = Metrics::from(record);
+
+        // Verify files are loaded
+        assert_eq!(actual.file_operations.len(), 2);
+
+        // Verify main.rs
+        let main_file = actual.file_operations.get("src/main.rs").unwrap();
+        assert_eq!(main_file.lines_added, 10);
+        assert_eq!(main_file.lines_removed, 5);
+        assert_eq!(main_file.content_hash, None);
+        assert_eq!(main_file.tool, ToolKind::Write); // Default tool
+
+        // Verify lib.rs
+        let lib_file = actual.file_operations.get("src/lib.rs").unwrap();
+        assert_eq!(lib_file.lines_added, 3);
+        assert_eq!(lib_file.lines_removed, 2);
+        assert_eq!(lib_file.content_hash, None);
+        assert_eq!(lib_file.tool, ToolKind::Write); // Default tool
+    }
+
+    #[test]
+    fn test_deserialize_array_format_takes_last_operation() {
+        // Array format from database: multiple operations per file
+        let json = r#"{
+            "started_at": "2024-01-01T00:00:00Z",
+            "files_changed": {
+                "src/main.rs": [
+                    {
+                        "lines_added": 2,
+                        "lines_removed": 4,
+                        "content_hash": "hash1",
+                        "tool": "read"
+                    },
+                    {
+                        "lines_added": 1,
+                        "lines_removed": 1,
+                        "content_hash": "hash2",
+                        "tool": "patch"
+                    },
+                    {
+                        "lines_added": 5,
+                        "lines_removed": 3,
+                        "content_hash": "hash3",
+                        "tool": "write"
+                    }
+                ]
+            }
+        }"#;
+
+        let record: MetricsRecord = serde_json::from_str(json).unwrap();
+        let actual = Metrics::from(record);
+
+        // Verify only the last operation is kept
+        assert_eq!(actual.file_operations.len(), 1);
+
+        let main_file = actual.file_operations.get("src/main.rs").unwrap();
+        assert_eq!(main_file.lines_added, 5);
+        assert_eq!(main_file.lines_removed, 3);
+        assert_eq!(main_file.content_hash, Some("hash3".to_string()));
+        assert_eq!(main_file.tool, ToolKind::Write);
+    }
+
+    #[test]
+    fn test_deserialize_array_format_with_empty_array() {
+        // Array format with empty array should be skipped
+        let json = r#"{
+            "started_at": "2024-01-01T00:00:00Z",
+            "files_changed": {
+                "src/main.rs": [],
+                "src/lib.rs": {
+                    "lines_added": 5,
+                    "lines_removed": 2,
+                    "content_hash": "hash1",
+                    "tool": "patch"
+                }
+            }
+        }"#;
+
+        let record: MetricsRecord = serde_json::from_str(json).unwrap();
+        let actual = Metrics::from(record);
+
+        // Empty array should be skipped, only lib.rs should be present
+        assert_eq!(actual.file_operations.len(), 1);
+        assert!(actual.file_operations.get("src/lib.rs").is_some());
+        assert!(actual.file_operations.get("src/main.rs").is_none());
+    }
+
+    #[test]
+    fn test_deserialize_current_format_with_all_fields() {
+        // Current format: single object with all fields
+        let json = r#"{
+            "started_at": "2024-01-01T00:00:00Z",
+            "files_changed": {
+                "src/main.rs": {
+                    "lines_added": 10,
+                    "lines_removed": 5,
+                    "content_hash": "abc123def456",
+                    "tool": "patch"
+                },
+                "src/lib.rs": {
+                    "lines_added": 3,
+                    "lines_removed": 2,
+                    "content_hash": "789xyz456abc",
+                    "tool": "write"
+                }
+            }
+        }"#;
+
+        let record: MetricsRecord = serde_json::from_str(json).unwrap();
+        let actual = Metrics::from(record);
+
+        // Verify all fields are preserved
+        assert_eq!(actual.file_operations.len(), 2);
+
+        let main_file = actual.file_operations.get("src/main.rs").unwrap();
+        assert_eq!(main_file.lines_added, 10);
+        assert_eq!(main_file.lines_removed, 5);
+        assert_eq!(main_file.content_hash, Some("abc123def456".to_string()));
+        assert_eq!(main_file.tool, ToolKind::Patch);
+
+        let lib_file = actual.file_operations.get("src/lib.rs").unwrap();
+        assert_eq!(lib_file.lines_added, 3);
+        assert_eq!(lib_file.lines_removed, 2);
+        assert_eq!(lib_file.content_hash, Some("789xyz456abc".to_string()));
+        assert_eq!(lib_file.tool, ToolKind::Write);
+    }
+
+    #[test]
+    fn test_deserialize_mixed_format() {
+        // Mix of old format, array format, and current format
+        let json = r#"{
+            "started_at": "2024-01-01T00:00:00Z",
+            "files_changed": {
+                "old_file.rs": {
+                    "lines_added": 10,
+                    "lines_removed": 5
+                },
+                "array_file.rs": [
+                    {
+                        "lines_added": 1,
+                        "lines_removed": 2,
+                        "content_hash": "hash1",
+                        "tool": "read"
+                    },
+                    {
+                        "lines_added": 3,
+                        "lines_removed": 4,
+                        "content_hash": "hash2",
+                        "tool": "patch"
+                    }
+                ],
+                "current_file.rs": {
+                    "lines_added": 7,
+                    "lines_removed": 8,
+                    "content_hash": "hash3",
+                    "tool": "write"
+                }
+            }
+        }"#;
+
+        let record: MetricsRecord = serde_json::from_str(json).unwrap();
+        let actual = Metrics::from(record);
+
+        assert_eq!(actual.file_operations.len(), 3);
+
+        // Old format file
+        let old_file = actual.file_operations.get("old_file.rs").unwrap();
+        assert_eq!(old_file.lines_added, 10);
+        assert_eq!(old_file.lines_removed, 5);
+        assert_eq!(old_file.content_hash, None);
+        assert_eq!(old_file.tool, ToolKind::Write); // Default
+
+        // Array format file (should have last operation)
+        let array_file = actual.file_operations.get("array_file.rs").unwrap();
+        assert_eq!(array_file.lines_added, 3);
+        assert_eq!(array_file.lines_removed, 4);
+        assert_eq!(array_file.content_hash, Some("hash2".to_string()));
+        assert_eq!(array_file.tool, ToolKind::Patch);
+
+        // Current format file
+        let current_file = actual.file_operations.get("current_file.rs").unwrap();
+        assert_eq!(current_file.lines_added, 7);
+        assert_eq!(current_file.lines_removed, 8);
+        assert_eq!(current_file.content_hash, Some("hash3".to_string()));
+        assert_eq!(current_file.tool, ToolKind::Write);
+    }
+
+    #[test]
+    fn test_serialize_current_format() {
+        // Test that we always serialize in the current format (single object)
+        let fixture = Metrics::new().started_at(Utc::now()).insert(
+            "src/main.rs".to_string(),
+            FileOperation::new(ToolKind::Patch)
+                .lines_added(10u64)
+                .lines_removed(5u64)
+                .content_hash(Some("abc123".to_string())),
+        );
+
+        let record = MetricsRecord::from(&fixture);
+        let json = serde_json::to_string(&record).unwrap();
+
+        // Verify it's not an array format
+        assert!(!json.contains("[{"));
+        // Verify it contains the tool field
+        assert!(json.contains("\"tool\":\"patch\""));
+        // Verify structure is correct
+        assert!(json.contains("\"lines_added\":10"));
+        assert!(json.contains("\"lines_removed\":5"));
+        assert!(json.contains("\"content_hash\":\"abc123\""));
     }
 }
