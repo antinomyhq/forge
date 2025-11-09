@@ -2281,7 +2281,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ConfigField::Provider => {
                 let provider_id = self.validate_provider(&args.value).await?;
                 self.api.set_default_provider(provider_id).await?;
-                self.writeln_title(TitleFormat::action("Provider set").sub_title(&args.value))?;
+                self.writeln_title(TitleFormat::action("Provider set").sub_title(provider_id.display_name()))?;
             }
             ConfigField::Model => {
                 let model_id = self.validate_model(&args.value).await?;

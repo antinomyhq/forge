@@ -31,6 +31,35 @@ impl ProviderId {
     pub const OPENAI_COMPATIBLE: Self = Self("openai_compatible");
     pub const ANTHROPIC_COMPATIBLE: Self = Self("anthropic_compatible");
 
+    /// Mapping of snake_case IDs to (const constructor, display name)
+    /// This is the single source of truth for all provider metadata.
+    const PROVIDER_REGISTRY: &'static [(&'static str, Self, &'static str)] = &[
+        ("forge", Self::FORGE, "Forge"),
+        ("openai", Self::OPENAI, "OpenAI"),
+        ("open_router", Self::OPEN_ROUTER, "OpenRouter"),
+        ("requesty", Self::REQUESTY, "Requesty"),
+        ("zai", Self::ZAI, "Zai"),
+        ("zai_coding", Self::ZAI_CODING, "ZaiCoding"),
+        ("cerebras", Self::CEREBRAS, "Cerebras"),
+        ("xai", Self::XAI, "Xai"),
+        ("anthropic", Self::ANTHROPIC, "Anthropic"),
+        ("claude_code", Self::CLAUDE_CODE, "ClaudeCode"),
+        ("vertex_ai", Self::VERTEX_AI, "VertexAi"),
+        ("big_model", Self::BIG_MODEL, "BigModel"),
+        ("azure", Self::AZURE, "Azure"),
+        ("github_copilot", Self::GITHUB_COPILOT, "GithubCopilot"),
+        (
+            "openai_compatible",
+            Self::OPENAI_COMPATIBLE,
+            "OpenaiCompatible",
+        ),
+        (
+            "anthropic_compatible",
+            Self::ANTHROPIC_COMPATIBLE,
+            "AnthropicCompatible",
+        ),
+    ];
+
     /// Creates a provider ID from a static string reference.
     pub const fn new(name: &'static str) -> Self {
         Self(name)
@@ -46,78 +75,42 @@ impl ProviderId {
     ///
     /// This is used by the `Display` trait for user-facing output.
     pub fn display_name(&self) -> &'static str {
-        match self.0 {
-            "forge" => "Forge",
-            "openai" => "OpenAI",
-            "open_router" => "OpenRouter",
-            "requesty" => "Requesty",
-            "zai" => "Zai",
-            "zai_coding" => "ZaiCoding",
-            "cerebras" => "Cerebras",
-            "xai" => "Xai",
-            "anthropic" => "Anthropic",
-            "claude_code" => "ClaudeCode",
-            "vertex_ai" => "VertexAi",
-            "big_model" => "BigModel",
-            "azure" => "Azure",
-            "github_copilot" => "GithubCopilot",
-            "openai_compatible" => "OpenaiCompatible",
-            "anthropic_compatible" => "AnthropicCompatible",
-            // Fallback for any custom providers (though they're rejected in deserialization)
-            other => Box::leak(
-                other
-                    .to_case(convert_case::Case::UpperCamel)
-                    .into_boxed_str(),
-            ),
-        }
+        Self::PROVIDER_REGISTRY
+            .iter()
+            .find(|(id, _, _)| *id == self.0)
+            .map(|(_, _, display)| *display)
+            .unwrap_or_else(|| {
+                // Fallback for any custom providers (though they're rejected in
+                // deserialization)
+                Box::leak(
+                    self.0
+                        .to_case(convert_case::Case::UpperCamel)
+                        .into_boxed_str(),
+                )
+            })
     }
 
     /// Returns all built-in provider IDs.
     pub fn built_in_providers() -> Vec<Self> {
-        vec![
-            Self::FORGE,
-            Self::OPENAI,
-            Self::OPEN_ROUTER,
-            Self::REQUESTY,
-            Self::ZAI,
-            Self::ZAI_CODING,
-            Self::CEREBRAS,
-            Self::XAI,
-            Self::ANTHROPIC,
-            Self::CLAUDE_CODE,
-            Self::VERTEX_AI,
-            Self::BIG_MODEL,
-            Self::AZURE,
-            Self::GITHUB_COPILOT,
-            Self::OPENAI_COMPATIBLE,
-            Self::ANTHROPIC_COMPATIBLE,
-        ]
+        Self::PROVIDER_REGISTRY
+            .iter()
+            .map(|(_, provider, _)| *provider)
+            .collect()
     }
 
     /// Helper to convert from a string to a ProviderId (for deserialization).
     /// Looks up the built-in provider or leaks the string for custom providers.
     fn from_string(s: &str) -> Self {
-        match s {
-            "forge" => Self::FORGE,
-            "openai" => Self::OPENAI,
-            "open_router" => Self::OPEN_ROUTER,
-            "requesty" => Self::REQUESTY,
-            "zai" => Self::ZAI,
-            "zai_coding" => Self::ZAI_CODING,
-            "cerebras" => Self::CEREBRAS,
-            "xai" => Self::XAI,
-            "anthropic" => Self::ANTHROPIC,
-            "claude_code" => Self::CLAUDE_CODE,
-            "vertex_ai" => Self::VERTEX_AI,
-            "big_model" => Self::BIG_MODEL,
-            "azure" => Self::AZURE,
-            "github_copilot" => Self::GITHUB_COPILOT,
-            "openai_compatible" => Self::OPENAI_COMPATIBLE,
-            "anthropic_compatible" => Self::ANTHROPIC_COMPATIBLE,
-            // For custom providers, leak the string to get a 'static lifetime
-            // This is safe because provider IDs are typically loaded once and used throughout
-            other => Self(Box::leak(other.to_string().into_boxed_str())),
-        }
+        Self::PROVIDER_REGISTRY
+            .iter()
+            .find(|(id, _, _)| *id == s)
+            .map(|(_, provider, _)| *provider)
+            .unwrap_or_else(|| {
+                // For custom providers, leak the string to get a 'static lifetime
+                // This is safe because provider IDs are typically loaded once and used
+                // throughout
+                Self(Box::leak(s.to_string().into_boxed_str()))
+            })
     }
 }
 
