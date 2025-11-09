@@ -93,10 +93,11 @@ function _forge_find_index() {
 }
 
 # Helper function to select a provider from the list
-# Usage: _forge_select_provider [filter_status]
+# Usage: _forge_select_provider [filter_status] [current_provider]
 # Returns: selected provider line (via stdout)
 function _forge_select_provider() {
     local filter_status="${1:-}"
+    local current_provider="${2:-}"
     local output
     output=$($_FORGE_BIN list provider --porcelain 2>/dev/null)
     
@@ -114,8 +115,21 @@ function _forge_select_provider() {
         fi
     fi
     
+    # Get current provider if not provided
+    if [[ -z "$current_provider" ]]; then
+        current_provider=$($_FORGE_BIN config get provider --porcelain 2>/dev/null)
+    fi
+    
+    local fzf_args=(--delimiter="$_FORGE_DELIMITER" --prompt="Provider ❯ ")
+    
+    # Position cursor on current provider if available
+    if [[ -n "$current_provider" ]]; then
+        local index=$(_forge_find_index "$output" "$current_provider")
+        fzf_args+=(--bind="start:pos($index)")
+    fi
+    
     local selected
-    selected=$(echo "$output" | _forge_fzf --delimiter="$_FORGE_DELIMITER" --prompt="Provider ❯ ")
+    selected=$(echo "$output" | _forge_fzf "${fzf_args[@]}")
     
     if [[ -n "$selected" ]]; then
         echo "$selected"
