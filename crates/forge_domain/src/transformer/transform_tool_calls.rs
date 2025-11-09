@@ -40,6 +40,7 @@ impl Transformer for TransformToolCalls {
                         tool_calls: None,
                         reasoning_details: text_msg.reasoning_details.clone(),
                         model: text_msg.model.clone(),
+                        droppable: text_msg.droppable,
                     }));
                 }
                 ContextMessage::Tool(tool_result) => {
