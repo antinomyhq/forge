@@ -65,14 +65,10 @@ mod tests {
         // Add system messages to the regular messages array for Anthropic format
         for c in system_messages.chars() {
             match c {
-                's' => messages.push(ContextMessage::Text(TextMessage {
-                    role: Role::System,
-                    raw_content: None,
-                    content: c.to_string(),
-                    tool_calls: None,
-                    model: None,
-                    reasoning_details: None,
-                })),
+                's' => messages.push(ContextMessage::Text(TextMessage::new(
+                    Role::System,
+                    c.to_string(),
+                ))),
                 _ => panic!("Invalid character in system message: {}", c),
             }
         }
@@ -80,22 +76,14 @@ mod tests {
         // Add conversation messages
         for c in conversation_messages.chars() {
             match c {
-                'u' => messages.push(ContextMessage::Text(TextMessage {
-                    role: Role::User,
-                    raw_content: None,
-                    content: c.to_string(),
-                    tool_calls: None,
-                    model: ModelId::new("claude-3-5-sonnet-20241022").into(),
-                    reasoning_details: None,
-                })),
-                'a' => messages.push(ContextMessage::Text(TextMessage {
-                    role: Role::Assistant,
-                    raw_content: None,
-                    content: c.to_string(),
-                    tool_calls: None,
-                    model: None,
-                    reasoning_details: None,
-                })),
+                'u' => messages.push(ContextMessage::Text(
+                    TextMessage::new(Role::User, c.to_string())
+                        .model(ModelId::new("claude-3-5-sonnet-20241022")),
+                )),
+                'a' => messages.push(ContextMessage::Text(TextMessage::new(
+                    Role::Assistant,
+                    c.to_string(),
+                ))),
                 _ => panic!("Invalid character in conversation message: {}", c),
             }
         }
@@ -232,30 +220,12 @@ mod tests {
         let context = Context {
             conversation_id: None,
             messages: vec![
-                ContextMessage::Text(TextMessage {
-                    role: Role::System,
-                    raw_content: None,
-                    content: "first".to_string(),
-                    tool_calls: None,
-                    model: None,
-                    reasoning_details: None,
-                }),
-                ContextMessage::Text(TextMessage {
-                    role: Role::System,
-                    raw_content: None,
-                    content: "second".to_string(),
-                    tool_calls: None,
-                    model: None,
-                    reasoning_details: None,
-                }),
-                ContextMessage::Text(TextMessage {
-                    role: Role::User,
-                    raw_content: None,
-                    content: "user".to_string(),
-                    tool_calls: None,
-                    model: ModelId::new("claude-3-5-sonnet-20241022").into(),
-                    reasoning_details: None,
-                }),
+                ContextMessage::Text(TextMessage::new(Role::System, "first")),
+                ContextMessage::Text(TextMessage::new(Role::System, "second")),
+                ContextMessage::Text(
+                    TextMessage::new(Role::User, "user")
+                        .model(ModelId::new("claude-3-5-sonnet-20241022")),
+                ),
             ],
             tools: vec![],
             tool_choice: None,

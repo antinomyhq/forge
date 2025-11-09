@@ -820,23 +820,15 @@ mod tests {
         // Create a context with user messages
         let context = Context::default()
             .add_message(ContextMessage::system("System prompt"))
-            .add_message(ContextMessage::Text(forge_domain::TextMessage {
-                role: Role::User,
-                content: "First user message".to_string(),
-                raw_content: Some(EventValue::text("First user message")),
-                tool_calls: None,
-                model: None,
-                reasoning_details: None,
-            }))
+            .add_message(ContextMessage::Text(
+                forge_domain::TextMessage::new(Role::User, "First user message")
+                    .raw_content(EventValue::text("First user message")),
+            ))
             .add_message(ContextMessage::assistant("Assistant response", None, None))
-            .add_message(ContextMessage::Text(forge_domain::TextMessage {
-                role: Role::User,
-                content: "Create a new feature".to_string(),
-                raw_content: Some(EventValue::text("Create a new feature")),
-                tool_calls: None,
-                model: None,
-                reasoning_details: None,
-            }));
+            .add_message(ContextMessage::Text(
+                forge_domain::TextMessage::new(Role::User, "Create a new feature")
+                    .raw_content(EventValue::text("Create a new feature")),
+            ));
 
         let fixture = Conversation {
             id: conversation_id,

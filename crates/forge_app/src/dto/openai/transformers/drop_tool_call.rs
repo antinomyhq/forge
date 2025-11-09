@@ -55,14 +55,9 @@ mod tests {
         let context = Context {
             conversation_id: None,
             messages: vec![
-                ContextMessage::Text(TextMessage {
-                    role: Role::Assistant,
-                    raw_content: None,
-                    content: "Using tool".to_string(),
-                    tool_calls: Some(vec![tool_call]),
-                    model: None,
-                    reasoning_details: None,
-                }),
+                ContextMessage::Text(
+                    TextMessage::new(Role::Assistant, "Using tool").tool_calls(vec![tool_call]),
+                ),
                 ContextMessage::Tool(tool_result),
             ],
             tools: vec![forge_domain::ToolDefinition::new("test_tool").description("A test tool")],

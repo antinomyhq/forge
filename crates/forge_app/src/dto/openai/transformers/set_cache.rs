@@ -67,30 +67,11 @@ mod tests {
                 .to_string()
                 .chars()
                 .map(|c| match c {
-                    's' => ContextMessage::Text(TextMessage {
-                        role: Role::System,
-                        raw_content: None,
-                        content: c.to_string(),
-                        tool_calls: None,
-                        model: None,
-                        reasoning_details: None,
-                    }),
-                    'u' => ContextMessage::Text(TextMessage {
-                        role: Role::User,
-                        raw_content: None,
-                        content: c.to_string(),
-                        tool_calls: None,
-                        model: ModelId::new("gpt-4").into(),
-                        reasoning_details: None,
-                    }),
-                    'a' => ContextMessage::Text(TextMessage {
-                        role: Role::Assistant,
-                        raw_content: None,
-                        content: c.to_string(),
-                        tool_calls: None,
-                        model: None,
-                        reasoning_details: None,
-                    }),
+                    's' => ContextMessage::Text(TextMessage::new(Role::System, c.to_string())),
+                    'u' => ContextMessage::Text(
+                        TextMessage::new(Role::User, c.to_string()).model(ModelId::new("gpt-4")),
+                    ),
+                    'a' => ContextMessage::Text(TextMessage::new(Role::Assistant, c.to_string())),
                     _ => {
                         panic!("Invalid character in test message");
                     }

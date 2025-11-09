@@ -116,14 +116,9 @@ mod tests {
     fn test_message_pattern_single_user() {
         let fixture = MessagePattern::new("u");
         let actual = fixture.build();
-        let expected = Context::default().messages(vec![ContextMessage::Text(TextMessage {
-            role: Role::User,
-            content: "Message 1".to_string(),
-            raw_content: None,
-            tool_calls: None,
-            model: Some(ModelId::new("gpt-4")),
-            reasoning_details: None,
-        })]);
+        let expected = Context::default().messages(vec![ContextMessage::Text(
+            TextMessage::new(Role::User, "Message 1").model(ModelId::new("gpt-4")),
+        )]);
         assert_eq!(actual, expected);
     }
 
@@ -132,30 +127,13 @@ mod tests {
         let fixture = MessagePattern::new("uau");
         let actual = fixture.build();
         let expected = Context::default().messages(vec![
-            ContextMessage::Text(TextMessage {
-                role: Role::User,
-                content: "Message 1".to_string(),
-                raw_content: None,
-                tool_calls: None,
-                model: Some(ModelId::new("gpt-4")),
-                reasoning_details: None,
-            }),
-            ContextMessage::Text(TextMessage {
-                role: Role::Assistant,
-                content: "Message 2".to_string(),
-                raw_content: None,
-                tool_calls: None,
-                model: None,
-                reasoning_details: None,
-            }),
-            ContextMessage::Text(TextMessage {
-                role: Role::User,
-                content: "Message 3".to_string(),
-                raw_content: None,
-                tool_calls: None,
-                model: Some(ModelId::new("gpt-4")),
-                reasoning_details: None,
-            }),
+            ContextMessage::Text(
+                TextMessage::new(Role::User, "Message 1").model(ModelId::new("gpt-4")),
+            ),
+            ContextMessage::Text(TextMessage::new(Role::Assistant, "Message 2")),
+            ContextMessage::Text(
+                TextMessage::new(Role::User, "Message 3").model(ModelId::new("gpt-4")),
+            ),
         ]);
         assert_eq!(actual, expected);
     }

@@ -63,7 +63,12 @@ impl Compactor {
         let (start, end) = sequence;
 
         // The sequence from the original message that needs to be compacted
-        let compaction_sequence = &context.messages[start..=end].to_vec();
+        // Filter out droppable messages (e.g., attachments) from compaction
+        let compaction_sequence: Vec<ContextMessage> = context.messages[start..=end]
+            .iter()
+            .filter(|msg| !msg.is_droppable())
+            .cloned()
+            .collect();
 
         // Create a temporary context for the sequence to generate summary
         let sequence_context = Context::default().messages(compaction_sequence.clone());
@@ -118,6 +123,9 @@ impl Compactor {
             start..=end,
             std::iter::once(ContextMessage::user(summary, None)),
         );
+
+        // Remove all droppable messages from the context
+        context.messages.retain(|msg| !msg.is_droppable());
 
         // Inject preserved reasoning into first assistant message (if empty)
         if let Some(reasoning) = reasoning_details
@@ -344,9 +352,53 @@ mod tests {
 
         let data = serde_json::json!({"messages": context_summary.messages});
 
-        let actual = render_template(&data);
+        let summary = render_template(&data);
 
-        insta::assert_snapshot!(actual);
+        insta::assert_snapshot!(summary);
+
+        // Perform a full compaction
+        let compacted_context = compactor.compact(context, true).unwrap();
+
+        insta::assert_yaml_snapshot!(compacted_context);
+    }
+
+    #[test]
+    fn test_compaction_removes_droppable_messages() {
+        use forge_domain::{ContextMessage, Role, TextMessage};
+
+        let environment = test_environment();
+        let compactor = Compactor::new(Compact::new(), environment);
+
+        // Create a context with droppable attachment messages
+        let context = Context::default()
+            .add_message(ContextMessage::user("User message 1", None))
+            .add_message(ContextMessage::assistant(
+                "Assistant response 1",
+                None,
+                None,
+            ))
+            .add_message(ContextMessage::Text(
+                TextMessage::new(Role::User, "Attachment content").droppable(true),
+            ))
+            .add_message(ContextMessage::user("User message 2", None))
+            .add_message(ContextMessage::assistant(
+                "Assistant response 2",
+                None,
+                None,
+            ));
+
+        let actual = compactor.compress_single_sequence(context, (0, 1)).unwrap();
+
+        // The compaction should remove the droppable message
+        // Expected: [U-summary, U2, A2]
+        assert_eq!(actual.messages.len(), 3);
+
+        // Verify the droppable attachment message was removed
+        for msg in &actual.messages {
+            if let ContextMessage::Text(text_msg) = msg {
+                assert!(!text_msg.droppable, "Droppable messages should be removed");
+            }
+        }
     }
 
     #[test]
