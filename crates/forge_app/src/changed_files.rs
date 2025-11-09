@@ -23,10 +23,7 @@ impl<S: FsReadService> ChangedFiles<S> {
     /// Detects externally changed files and renders a notification if changes
     /// are found. Updates file hashes in conversation metrics to prevent
     /// duplicate notifications.
-    pub async fn detect_externally_modified_files(
-        &self,
-        mut conversation: Conversation,
-    ) -> Conversation {
+    pub async fn update_file_stats(&self, mut conversation: Conversation) -> Conversation {
         use crate::file_tracking::FileChangeDetector;
         let changes = FileChangeDetector::new(self.services.clone())
             .detect(&conversation.metrics)
@@ -144,9 +141,7 @@ mod tests {
             Some(ModelId::new("test")),
         )));
 
-        let actual = service
-            .detect_externally_modified_files(conversation.clone())
-            .await;
+        let actual = service.update_file_stats(conversation.clone()).await;
 
         assert_eq!(actual.context.clone().unwrap_or_default().messages.len(), 1);
         assert_eq!(actual.context, conversation.context);
@@ -162,7 +157,7 @@ mod tests {
             [("/test/file.txt".into(), Some(old_hash))].into(),
         );
 
-        let actual = service.detect_externally_modified_files(conversation).await;
+        let actual = service.update_file_stats(conversation).await;
 
         let messages = &actual.context.unwrap().messages;
         assert_eq!(messages.len(), 1);
@@ -182,7 +177,7 @@ mod tests {
             [("/test/file.txt".into(), Some(old_hash))].into(),
         );
 
-        let actual = service.detect_externally_modified_files(conversation).await;
+        let actual = service.update_file_stats(conversation).await;
 
         let updated_hash = actual
             .metrics
@@ -208,7 +203,7 @@ mod tests {
             .into(),
         );
 
-        let actual = service.detect_externally_modified_files(conversation).await;
+        let actual = service.update_file_stats(conversation).await;
 
         let message = actual.context.unwrap().messages[0]
             .content()
