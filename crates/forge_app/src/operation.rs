@@ -5,7 +5,7 @@ use console::strip_ansi_codes;
 use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
-    Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite, FileChangeMetrics, Metrics,
+    Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite, FileOperation, Metrics,
     NetFetch, PlanCreate, ToolKind,
 };
 use forge_template::Element;
@@ -206,7 +206,7 @@ impl ToolOperation {
                 tracing::info!(path = %input.path, tool = %tool_name, "File read");
                 *metrics = metrics.clone().add(
                     input.path.clone(),
-                    FileChangeMetrics::new(tool_kind).content_hash(Some(content_hash)),
+                    FileOperation::new(tool_kind).content_hash(Some(content_hash)),
                 );
 
                 forge_domain::ToolOutput::text(elm)
@@ -222,7 +222,7 @@ impl ToolOperation {
 
                 *metrics = metrics.clone().add(
                     input.path.clone(),
-                    FileChangeMetrics::new(tool_kind)
+                    FileOperation::new(tool_kind)
                         .lines_added(diff_result.lines_added())
                         .lines_removed(diff_result.lines_removed())
                         .content_hash(content_hash),
@@ -250,7 +250,7 @@ impl ToolOperation {
 
                 *metrics = metrics.clone().add(
                     input.path.clone(),
-                    FileChangeMetrics::new(tool_kind)
+                    FileOperation::new(tool_kind)
                         .lines_removed(output.content.lines().count() as u64)
                         .content_hash(content_hash),
                 );
@@ -340,7 +340,7 @@ impl ToolOperation {
 
                 *metrics = metrics.clone().add(
                     input.path.clone(),
-                    FileChangeMetrics::new(tool_kind)
+                    FileOperation::new(tool_kind)
                         .lines_added(diff_result.lines_added())
                         .lines_removed(diff_result.lines_removed())
                         .content_hash(content_hash),
@@ -359,7 +359,7 @@ impl ToolOperation {
 
                 *metrics = metrics.clone().add(
                     input.path.clone(),
-                    FileChangeMetrics::new(tool_kind)
+                    FileOperation::new(tool_kind)
                         .lines_added(diff.lines_added())
                         .lines_removed(diff.lines_removed())
                         .content_hash(content_hash),

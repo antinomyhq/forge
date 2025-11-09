@@ -120,10 +120,10 @@ impl From<&Metrics> for Info {
         }
 
         // Add file changes section
-        if metrics.files_changed.is_empty() {
+        if metrics.file_operations.is_empty() {
             info = info.add_value("[No Changes Produced]");
         } else {
-            for (path, file_metrics_vec) in &metrics.files_changed {
+            for (path, file_metrics_vec) in &metrics.file_operations {
                 // Extract just the filename from the path
                 let filename = std::path::Path::new(path)
                     .file_name()
@@ -431,7 +431,7 @@ impl From<&Conversation> for Info {
         }
 
         // Insert metrics information
-        if !conversation.metrics.files_changed.is_empty() {
+        if !conversation.metrics.file_operations.is_empty() {
             info = info.extend(&conversation.metrics);
         }
 
@@ -601,25 +601,25 @@ mod tests {
     #[test]
     fn test_metrics_info_display() {
         use forge_api::Metrics;
-        use forge_domain::{FileChangeMetrics, ToolKind};
+        use forge_domain::{FileOperation, ToolKind};
 
         let fixture = Metrics::new()
             .started_at(chrono::Utc::now())
             .add(
                 "src/main.rs".to_string(),
-                FileChangeMetrics::new(ToolKind::Write)
+                FileOperation::new(ToolKind::Write)
                     .lines_added(12u64)
                     .lines_removed(3u64),
             )
             .add(
                 "src/agent/mod.rs".to_string(),
-                FileChangeMetrics::new(ToolKind::Write)
+                FileOperation::new(ToolKind::Write)
                     .lines_added(8u64)
                     .lines_removed(2u64),
             )
             .add(
                 "tests/integration/test_agent.rs".to_string(),
-                FileChangeMetrics::new(ToolKind::Write)
+                FileOperation::new(ToolKind::Write)
                     .lines_added(5u64)
                     .lines_removed(0u64),
             );
@@ -643,7 +643,7 @@ mod tests {
     fn test_conversation_info_display() {
         use chrono::Utc;
         use forge_api::ConversationId;
-        use forge_domain::{FileChangeMetrics, ToolKind};
+        use forge_domain::{FileOperation, ToolKind};
 
         use super::{Conversation, Metrics};
 
@@ -652,13 +652,13 @@ mod tests {
             .started_at(Utc::now())
             .add(
                 "src/main.rs".to_string(),
-                FileChangeMetrics::new(ToolKind::Write)
+                FileOperation::new(ToolKind::Write)
                     .lines_added(5u64)
                     .lines_removed(2u64),
             )
             .add(
                 "tests/test.rs".to_string(),
-                FileChangeMetrics::new(ToolKind::Write)
+                FileOperation::new(ToolKind::Write)
                     .lines_added(3u64)
                     .lines_removed(1u64),
             );

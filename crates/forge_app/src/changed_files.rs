@@ -40,7 +40,7 @@ impl<S: FsReadService> ChangedFiles<S> {
         let mut updated_metrics = conversation.metrics.clone();
         for change in &changes {
             if let Some(path_str) = change.path.to_str()
-                && let Some(metrics) = updated_metrics.files_changed.get_mut(path_str)
+                && let Some(metrics) = updated_metrics.file_operations.get_mut(path_str)
             {
                 // Update the last entry's file hash
                 if let Some(last_entry) = metrics.last_mut() {
@@ -77,7 +77,7 @@ mod tests {
     use std::collections::HashMap;
 
     use forge_domain::{
-        Agent, AgentId, Context, Conversation, ConversationId, FileChangeMetrics, Metrics, ModelId,
+        Agent, AgentId, Context, Conversation, ConversationId, FileOperation, Metrics, ModelId,
         ToolKind,
     };
     use pretty_assertions::assert_eq;
@@ -121,9 +121,9 @@ mod tests {
 
         let mut metrics = Metrics::new();
         for (path, hash) in tracked_files {
-            metrics.files_changed.insert(
+            metrics.file_operations.insert(
                 path,
-                vec![FileChangeMetrics::new(ToolKind::Write).content_hash(hash)],
+                vec![FileOperation::new(ToolKind::Write).content_hash(hash)],
             );
         }
 
@@ -189,7 +189,7 @@ mod tests {
 
         let updated_hash = actual
             .metrics
-            .files_changed
+            .file_operations
             .get("/test/file.txt")
             .and_then(|vec| vec.last())
             .and_then(|m| m.content_hash.clone());

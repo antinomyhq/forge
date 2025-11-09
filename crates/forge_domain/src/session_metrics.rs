@@ -12,7 +12,7 @@ use crate::ToolKind;
 /// Tracks metrics for individual file changes
 #[derive(Debug, Clone, PartialEq, Setters, Serialize, Deserialize)]
 #[setters(into)]
-pub struct FileChangeMetrics {
+pub struct FileOperation {
     pub lines_added: u64,
     pub lines_removed: u64,
     /// Content hash of the file. None if file is unreadable (deleted, no
@@ -22,7 +22,7 @@ pub struct FileChangeMetrics {
     pub tool: ToolKind,
 }
 
-impl FileChangeMetrics {
+impl FileOperation {
     /// Creates a new FileChangeMetrics with the specified tool
     /// Other fields default to zero/None and can be set using setters
     pub fn new(tool: ToolKind) -> Self {
@@ -32,7 +32,7 @@ impl FileChangeMetrics {
     /// Aggregates multiple file change metrics into a single metric
     /// The resulting metric will have the sum of all lines added/removed
     /// and will use the content hash from the last operation
-    pub fn aggregate(metrics: &[FileChangeMetrics]) -> Option<Self> {
+    pub fn aggregate(metrics: &[FileOperation]) -> Option<Self> {
         if metrics.is_empty() {
             return None;
         }
@@ -41,7 +41,7 @@ impl FileChangeMetrics {
     }
 }
 
-impl Add for FileChangeMetrics {
+impl Add for FileOperation {
     type Output = Self;
 
     /// Adds two FileChangeMetrics together
@@ -57,11 +57,11 @@ impl Add for FileChangeMetrics {
     }
 }
 
-impl Sum for FileChangeMetrics {
+impl Sum for FileOperation {
     /// Sums an iterator of FileChangeMetrics
     /// Returns a default FileChangeMetrics if the iterator is empty
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
-        iter.fold(FileChangeMetrics::new(ToolKind::Write), |acc, x| acc + x)
+        iter.fold(FileOperation::new(ToolKind::Write), |acc, x| acc + x)
     }
 }
 
@@ -69,7 +69,9 @@ impl Sum for FileChangeMetrics {
 #[setters(into, strip_option)]
 pub struct Metrics {
     pub started_at: Option<DateTime<Utc>>,
-    pub files_changed: HashMap<String, Vec<FileChangeMetrics>>,
+
+    /// Holds a collection of all the files that have been operated on
+    pub file_operations: HashMap<String, Vec<FileOperation>>,
 }
 
 impl Metrics {
@@ -78,8 +80,8 @@ impl Metrics {
     }
 
     /// Records a file operation by adding it to the history
-    pub fn add(mut self, path: String, metrics: FileChangeMetrics) -> Self {
-        self.files_changed.entry(path).or_default().push(metrics);
+    pub fn add(mut self, path: String, metrics: FileOperation) -> Self {
+        self.file_operations.entry(path).or_default().push(metrics);
         self
     }
 
@@ -99,12 +101,12 @@ mod tests {
 
     #[test]
     fn test_file_change_metrics_new() {
-        let actual = FileChangeMetrics::new(ToolKind::Write)
+        let actual = FileOperation::new(ToolKind::Write)
             .lines_added(10u64)
             .lines_removed(5u64)
             .content_hash(Some("abc123".to_string()));
 
-        let expected = FileChangeMetrics {
+        let expected = FileOperation {
             lines_added: 10,
             lines_removed: 5,
             content_hash: Some("abc123".to_string()),
@@ -116,7 +118,7 @@ mod tests {
     #[test]
     fn test_metrics_new() {
         let actual = Metrics::new();
-        assert_eq!(actual.files_changed.len(), 0);
+        assert_eq!(actual.file_operations.len(), 0);
     }
 
     #[test]
@@ -124,21 +126,21 @@ mod tests {
         let fixture = Metrics::new()
             .add(
                 "file1.rs".to_string(),
-                FileChangeMetrics::new(ToolKind::Write)
+                FileOperation::new(ToolKind::Write)
                     .lines_added(10u64)
                     .lines_removed(5u64)
                     .content_hash(Some("hash1".to_string())),
             )
             .add(
                 "file2.rs".to_string(),
-                FileChangeMetrics::new(ToolKind::Patch)
+                FileOperation::new(ToolKind::Patch)
                     .lines_added(3u64)
                     .lines_removed(2u64)
                     .content_hash(Some("hash2".to_string())),
             )
             .add(
                 "file1.rs".to_string(),
-                FileChangeMetrics::new(ToolKind::Patch)
+                FileOperation::new(ToolKind::Patch)
                     .lines_added(5u64)
                     .lines_removed(1u64)
                     .content_hash(Some("hash1_v2".to_string())),
@@ -147,7 +149,7 @@ mod tests {
         let actual = fixture;
 
         // Check file1 has 2 operations recorded
-        let file1_metrics = actual.files_changed.get("file1.rs").unwrap();
+        let file1_metrics = actual.file_operations.get("file1.rs").unwrap();
         assert_eq!(file1_metrics.len(), 2);
         assert_eq!(file1_metrics[0].lines_added, 10);
         assert_eq!(file1_metrics[0].lines_removed, 5);
@@ -155,7 +157,7 @@ mod tests {
         assert_eq!(file1_metrics[1].lines_removed, 1);
 
         // Check file2 has 1 operation recorded
-        let file2_metrics = actual.files_changed.get("file2.rs").unwrap();
+        let file2_metrics = actual.file_operations.get("file2.rs").unwrap();
         assert_eq!(file2_metrics.len(), 1);
         assert_eq!(file2_metrics[0].lines_added, 3);
         assert_eq!(file2_metrics[0].lines_removed, 2);
@@ -168,13 +170,13 @@ mod tests {
         // Do operation
         let metrics = Metrics::new().add(
             path.clone(),
-            FileChangeMetrics::new(ToolKind::Write)
+            FileOperation::new(ToolKind::Write)
                 .lines_added(2u64)
                 .lines_removed(1u64)
                 .content_hash(Some("hash_v1".to_string())),
         );
-        let changes = metrics.files_changed.get(&path).unwrap();
-        assert_eq!(metrics.files_changed.len(), 1);
+        let changes = metrics.file_operations.get(&path).unwrap();
+        assert_eq!(metrics.file_operations.len(), 1);
         assert_eq!(changes.len(), 1);
         assert_eq!(changes[0].lines_added, 2);
         assert_eq!(changes[0].lines_removed, 1);
@@ -183,9 +185,9 @@ mod tests {
         // Undo operation
         let metrics = metrics.add(
             path.clone(),
-            FileChangeMetrics::new(ToolKind::Undo).content_hash(Some("hash_v0".to_string())),
+            FileOperation::new(ToolKind::Undo).content_hash(Some("hash_v0".to_string())),
         );
-        let changes = metrics.files_changed.get(&path).unwrap();
+        let changes = metrics.file_operations.get(&path).unwrap();
         assert_eq!(changes.len(), 2);
         assert_eq!(changes[1].lines_added, 0);
         assert_eq!(changes[1].lines_removed, 0);
@@ -199,24 +201,24 @@ mod tests {
         let metrics = Metrics::new()
             .add(
                 path.clone(),
-                FileChangeMetrics::new(ToolKind::Write)
+                FileOperation::new(ToolKind::Write)
                     .lines_added(10u64)
                     .lines_removed(5u64)
                     .content_hash(Some("hash1".to_string())),
             )
             .add(
                 path.clone(),
-                FileChangeMetrics::new(ToolKind::Patch)
+                FileOperation::new(ToolKind::Patch)
                     .lines_added(5u64)
                     .lines_removed(1u64)
                     .content_hash(Some("hash2".to_string())),
             )
             .add(
                 path.clone(),
-                FileChangeMetrics::new(ToolKind::Undo).content_hash(Some("hash1".to_string())),
+                FileOperation::new(ToolKind::Undo).content_hash(Some("hash1".to_string())),
             );
 
-        let operations = metrics.files_changed.get(&path).unwrap();
+        let operations = metrics.file_operations.get(&path).unwrap();
         assert_eq!(operations.len(), 3);
 
         // First operation
@@ -237,19 +239,19 @@ mod tests {
 
     #[test]
     fn test_file_change_metrics_add() {
-        let first = FileChangeMetrics::new(ToolKind::Write)
+        let first = FileOperation::new(ToolKind::Write)
             .lines_added(10u64)
             .lines_removed(5u64)
             .content_hash(Some("hash1".to_string()));
 
-        let second = FileChangeMetrics::new(ToolKind::Patch)
+        let second = FileOperation::new(ToolKind::Patch)
             .lines_added(20u64)
             .lines_removed(3u64)
             .content_hash(Some("hash2".to_string()));
 
         let actual = first + second;
 
-        let expected = FileChangeMetrics {
+        let expected = FileOperation {
             lines_added: 30,
             lines_removed: 8,
             content_hash: Some("hash2".to_string()),
@@ -262,23 +264,23 @@ mod tests {
     #[test]
     fn test_file_change_metrics_aggregate() {
         let metrics = vec![
-            FileChangeMetrics::new(ToolKind::Write)
+            FileOperation::new(ToolKind::Write)
                 .lines_added(10u64)
                 .lines_removed(5u64)
                 .content_hash(Some("hash1".to_string())),
-            FileChangeMetrics::new(ToolKind::Patch)
+            FileOperation::new(ToolKind::Patch)
                 .lines_added(20u64)
                 .lines_removed(3u64)
                 .content_hash(Some("hash2".to_string())),
-            FileChangeMetrics::new(ToolKind::Patch)
+            FileOperation::new(ToolKind::Patch)
                 .lines_added(5u64)
                 .lines_removed(2u64)
                 .content_hash(Some("hash3".to_string())),
         ];
 
-        let actual = FileChangeMetrics::aggregate(&metrics).unwrap();
+        let actual = FileOperation::aggregate(&metrics).unwrap();
 
-        let expected = FileChangeMetrics {
+        let expected = FileOperation {
             lines_added: 35,
             lines_removed: 10,
             content_hash: Some("hash3".to_string()),
@@ -291,7 +293,7 @@ mod tests {
     #[test]
     fn test_file_change_metrics_aggregate_empty() {
         let metrics = vec![];
-        let actual = FileChangeMetrics::aggregate(&metrics);
+        let actual = FileOperation::aggregate(&metrics);
         assert_eq!(actual, None);
     }
 }

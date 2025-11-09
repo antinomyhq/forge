@@ -4,7 +4,7 @@ use std::sync::Arc;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use diesel::prelude::*;
 use forge_domain::{
-    Context, Conversation, ConversationId, ConversationRepository, FileChangeMetrics, MetaData,
+    Context, Conversation, ConversationId, ConversationRepository, FileOperation, MetaData,
     Metrics, ToolKind, WorkspaceId,
 };
 use serde::{Deserialize, Serialize};
@@ -22,8 +22,8 @@ struct FileChangeMetricsRecord {
     tool: ToolKind,
 }
 
-impl From<&FileChangeMetrics> for FileChangeMetricsRecord {
-    fn from(metrics: &FileChangeMetrics) -> Self {
+impl From<&FileOperation> for FileChangeMetricsRecord {
+    fn from(metrics: &FileOperation) -> Self {
         Self {
             lines_added: metrics.lines_added,
             lines_removed: metrics.lines_removed,
@@ -33,7 +33,7 @@ impl From<&FileChangeMetrics> for FileChangeMetricsRecord {
     }
 }
 
-impl From<FileChangeMetricsRecord> for FileChangeMetrics {
+impl From<FileChangeMetricsRecord> for FileOperation {
     fn from(record: FileChangeMetricsRecord) -> Self {
         Self::new(record.tool)
             .lines_added(record.lines_added)
@@ -55,7 +55,7 @@ impl From<&Metrics> for MetricsRecord {
         Self {
             started_at: metrics.started_at,
             files_changed: metrics
-                .files_changed
+                .file_operations
                 .iter()
                 .map(|(path, file_metrics_vec)| {
                     (
@@ -72,7 +72,7 @@ impl From<MetricsRecord> for Metrics {
     fn from(record: MetricsRecord) -> Self {
         let mut metrics = Self::new();
         metrics.started_at = record.started_at;
-        metrics.files_changed = record
+        metrics.file_operations = record
             .files_changed
             .into_iter()
             .map(|(path, file_records)| {
@@ -487,14 +487,14 @@ mod tests {
             .started_at(Utc::now())
             .add(
                 "src/main.rs".to_string(),
-                FileChangeMetrics::new(ToolKind::Write)
+                FileOperation::new(ToolKind::Write)
                     .lines_added(10u64)
                     .lines_removed(5u64)
                     .content_hash(Some("abc123def456".to_string())),
             )
             .add(
                 "src/lib.rs".to_string(),
-                FileChangeMetrics::new(ToolKind::Write)
+                FileOperation::new(ToolKind::Write)
                     .lines_added(3u64)
                     .lines_removed(2u64)
                     .content_hash(Some("789xyz456abc".to_string())),
@@ -512,8 +512,8 @@ mod tests {
             .expect("Conversation should exist");
 
         // Verify metrics are preserved
-        assert_eq!(actual.metrics.files_changed.len(), 2);
-        let main_metrics = actual.metrics.files_changed.get("src/main.rs").unwrap();
+        assert_eq!(actual.metrics.file_operations.len(), 2);
+        let main_metrics = actual.metrics.file_operations.get("src/main.rs").unwrap();
         assert_eq!(main_metrics.len(), 1);
         assert_eq!(main_metrics[0].lines_added, 10);
         assert_eq!(main_metrics[0].lines_removed, 5);
@@ -522,7 +522,7 @@ mod tests {
             Some("abc123def456".to_string())
         );
 
-        let lib_metrics = actual.metrics.files_changed.get("src/lib.rs").unwrap();
+        let lib_metrics = actual.metrics.file_operations.get("src/lib.rs").unwrap();
         assert_eq!(lib_metrics.len(), 1);
         assert_eq!(lib_metrics[0].lines_added, 3);
         assert_eq!(lib_metrics[0].lines_removed, 2);
@@ -540,7 +540,7 @@ mod tests {
         // this test will fail to compile, alerting us to update MetricsRecord
         let fixture = Metrics::new().started_at(Utc::now()).add(
             "test.rs".to_string(),
-            FileChangeMetrics::new(ToolKind::Write)
+            FileOperation::new(ToolKind::Write)
                 .lines_added(5u64)
                 .lines_removed(3u64)
                 .content_hash(Some("test_hash_123".to_string())),
@@ -552,10 +552,10 @@ mod tests {
 
         // Verify all fields are preserved
         assert_eq!(actual.started_at, fixture.started_at);
-        assert_eq!(actual.files_changed.len(), fixture.files_changed.len());
+        assert_eq!(actual.file_operations.len(), fixture.file_operations.len());
 
-        let actual_file = actual.files_changed.get("test.rs").unwrap();
-        let expected_file = fixture.files_changed.get("test.rs").unwrap();
+        let actual_file = actual.file_operations.get("test.rs").unwrap();
+        let expected_file = fixture.file_operations.get("test.rs").unwrap();
         assert_eq!(actual_file.len(), expected_file.len());
         assert_eq!(actual_file[0].lines_added, expected_file[0].lines_added);
         assert_eq!(actual_file[0].lines_removed, expected_file[0].lines_removed);
