@@ -124,6 +124,9 @@ impl Compactor {
             std::iter::once(ContextMessage::user(summary, None)),
         );
 
+        // Remove all droppable messages from the context
+        context.messages.retain(|msg| !msg.is_droppable());
+
         // Inject preserved reasoning into first assistant message (if empty)
         if let Some(reasoning) = reasoning_details
             && let Some(ContextMessage::Text(msg)) = context
@@ -345,13 +348,18 @@ mod tests {
 
         let data = serde_json::json!({"messages": context_summary.messages});
 
-        let actual = render_template(&data);
+        let summary = render_template(&data);
 
-        insta::assert_snapshot!(actual);
+        insta::assert_snapshot!(summary);
+
+        // Perform a full compaction
+        let compacted_context = compactor.compact(context, true).unwrap();
+
+        insta::assert_yaml_snapshot!(compacted_context);
     }
 
     #[test]
-    fn test_compaction_skips_droppable_messages() {
+    fn test_compaction_removes_droppable_messages() {
         use forge_domain::{ContextMessage, Role, TextMessage};
 
         let environment = test_environment();
@@ -377,16 +385,15 @@ mod tests {
 
         let actual = compactor.compress_single_sequence(context, (0, 1)).unwrap();
 
-        // The compaction should skip the droppable message
-        // Expected: [U-summary, U-attachment, U2, A2]
-        assert_eq!(actual.messages.len(), 4);
+        // The compaction should remove the droppable message
+        // Expected: [U-summary, U2, A2]
+        assert_eq!(actual.messages.len(), 3);
 
-        // Verify the attachment message is still present (not compacted)
-        if let ContextMessage::Text(text_msg) = &actual.messages[1] {
-            assert_eq!(text_msg.content, "Attachment content");
-            assert!(text_msg.droppable);
-        } else {
-            panic!("Expected droppable text message at index 1");
+        // Verify the droppable attachment message was removed
+        for msg in &actual.messages {
+            if let ContextMessage::Text(text_msg) = msg {
+                assert!(!text_msg.droppable, "Droppable messages should be removed");
+            }
         }
     }
 }

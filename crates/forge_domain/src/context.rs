@@ -393,7 +393,13 @@ impl Context {
                         .attr("total_lines", total_lines)
                         .cdata(content);
 
-                    ContextMessage::user(elm, model_id.clone())
+                    let mut message = TextMessage::new(Role::User, elm.to_string()).droppable(true);
+
+                    if let Some(model) = model_id.clone() {
+                        message = message.model(model);
+                    }
+
+                    message.into()
                 }
             })
         })
@@ -913,5 +919,93 @@ mod tests {
             actual, expected,
             "Should not be supported when explicitly disabled, even with effort set"
         );
+    }
+
+    #[test]
+    fn test_add_attachments_file_content_is_droppable() {
+        let fixture_attachments = vec![Attachment {
+            path: "/path/to/file.rs".to_string(),
+            content: AttachmentContent::FileContent {
+                content: "fn main() {}\n".to_string(),
+                start_line: 1,
+                end_line: 1,
+                total_lines: 1,
+            },
+        }];
+
+        let fixture_model = ModelId::new("test-model");
+        let actual = Context::default().add_attachments(fixture_attachments, Some(fixture_model));
+
+        // Verify the message was added
+        assert_eq!(actual.messages.len(), 1);
+
+        // Verify the message is droppable
+        let message = &actual.messages[0];
+        assert!(
+            message.is_droppable(),
+            "File content attachments should be marked as droppable"
+        );
+
+        // Verify the message is a User message
+        assert!(message.has_role(Role::User));
+    }
+
+    #[test]
+    fn test_add_attachments_image_is_not_droppable() {
+        let fixture_image = Image::new_base64("base64data".to_string(), "image/png");
+        let fixture_attachments = vec![Attachment {
+            path: "image.png".to_string(),
+            content: AttachmentContent::Image(fixture_image),
+        }];
+
+        let actual = Context::default().add_attachments(fixture_attachments, None);
+
+        // Verify the message was added
+        assert_eq!(actual.messages.len(), 1);
+
+        // Verify the image message is NOT droppable (images use different
+        // ContextMessage variant)
+        let message = &actual.messages[0];
+        assert!(
+            !message.is_droppable(),
+            "Image attachments should not be marked as droppable"
+        );
+    }
+
+    #[test]
+    fn test_add_attachments_multiple_file_contents_all_droppable() {
+        let fixture_attachments = vec![
+            Attachment {
+                path: "/path/to/file1.rs".to_string(),
+                content: AttachmentContent::FileContent {
+                    content: "fn foo() {}\n".to_string(),
+                    start_line: 1,
+                    end_line: 1,
+                    total_lines: 1,
+                },
+            },
+            Attachment {
+                path: "/path/to/file2.rs".to_string(),
+                content: AttachmentContent::FileContent {
+                    content: "fn bar() {}\n".to_string(),
+                    start_line: 1,
+                    end_line: 1,
+                    total_lines: 1,
+                },
+            },
+        ];
+
+        let actual = Context::default().add_attachments(fixture_attachments, None);
+
+        // Verify both messages were added
+        assert_eq!(actual.messages.len(), 2);
+
+        // Verify all file content messages are droppable
+        for message in &actual.messages {
+            assert!(
+                message.is_droppable(),
+                "All file content attachments should be marked as droppable"
+            );
+        }
     }
 }
