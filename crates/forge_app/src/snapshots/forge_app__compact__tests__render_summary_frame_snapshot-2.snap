@@ -24,13 +24,3 @@ top_p: 0.8
 top_k: 30
 reasoning:
   enabled: true
-usage:
-  prompt_tokens:
-    Actual: 97734
-  completion_tokens:
-    Actual: 588
-  total_tokens:
-    Actual: 98322
-  cached_tokens:
-    Actual: 97274
-  cost: ~
