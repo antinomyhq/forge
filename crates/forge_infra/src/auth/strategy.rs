@@ -709,7 +709,7 @@ mod tests {
     fn test_create_auth_strategy_api_key() {
         let factory = ForgeAuthStrategyFactory::new();
         let strategy = factory.create_auth_strategy(
-            ProviderId::OpenAI,
+            ProviderId::OPENAI,
             forge_domain::AuthMethod::ApiKey,
             vec![],
         );
@@ -732,7 +732,7 @@ mod tests {
 
         let factory = ForgeAuthStrategyFactory::new();
         let strategy = factory.create_auth_strategy(
-            ProviderId::OpenAI,
+            ProviderId::OPENAI,
             forge_domain::AuthMethod::OAuthCode(config),
             vec![],
         );
@@ -755,7 +755,7 @@ mod tests {
 
         let factory = ForgeAuthStrategyFactory::new();
         let strategy = factory.create_auth_strategy(
-            ProviderId::OpenAI,
+            ProviderId::OPENAI,
             forge_domain::AuthMethod::OAuthDevice(config),
             vec![],
         );
@@ -778,7 +778,7 @@ mod tests {
 
         let factory = ForgeAuthStrategyFactory::new();
         let strategy = factory.create_auth_strategy(
-            ProviderId::GithubCopilot,
+            ProviderId::GITHUB_COPILOT,
             forge_domain::AuthMethod::OAuthDevice(config),
             vec![],
         );

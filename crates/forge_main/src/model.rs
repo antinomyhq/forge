@@ -981,7 +981,7 @@ mod tests {
     #[test]
     fn test_cli_provider_display_minimal() {
         let fixture = AnyProvider::Url(Provider {
-            id: ProviderId::OpenAI,
+            id: ProviderId::OPENAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
@@ -998,7 +998,7 @@ mod tests {
     #[test]
     fn test_cli_provider_display_with_subdomain() {
         let fixture = AnyProvider::Url(Provider {
-            id: ProviderId::OpenRouter,
+            id: ProviderId::OPEN_ROUTER,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://openrouter.ai/api/v1/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
@@ -1015,7 +1015,7 @@ mod tests {
     #[test]
     fn test_cli_provider_display_no_domain() {
         let fixture = AnyProvider::Url(Provider {
-            id: ProviderId::Forge,
+            id: ProviderId::FORGE,
             response: ProviderResponse::OpenAI,
             url: Url::parse("http://localhost:8080/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
@@ -1032,7 +1032,7 @@ mod tests {
     #[test]
     fn test_cli_provider_display_template() {
         let fixture = AnyProvider::Template(Provider {
-            id: ProviderId::Anthropic,
+            id: ProviderId::ANTHROPIC,
             response: ProviderResponse::Anthropic,
             url: Template::new("https://api.anthropic.com/v1/messages"),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
@@ -1049,7 +1049,7 @@ mod tests {
     #[test]
     fn test_cli_provider_display_ip_address() {
         let fixture = AnyProvider::Url(Provider {
-            id: ProviderId::Forge,
+            id: ProviderId::FORGE,
             response: ProviderResponse::OpenAI,
             url: Url::parse("http://192.168.1.1:8080/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],

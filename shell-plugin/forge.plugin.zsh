@@ -120,7 +120,9 @@ function _forge_select_provider() {
         current_provider=$($_FORGE_BIN config get provider --porcelain 2>/dev/null)
     fi
     
-    local fzf_args=(--delimiter="$_FORGE_DELIMITER" --prompt="Provider ❯ ")
+    # Use --with-nth to show only columns 1,3,4 (hide column 2 which is the ID)
+    # This shows: name, host, status but keeps the full line for extraction
+    local fzf_args=(--delimiter="$_FORGE_DELIMITER" --with-nth=1,3.. --prompt="Provider ❯ ")
     
     # Position cursor on current provider if available
     if [[ -n "$current_provider" ]]; then
@@ -402,14 +404,15 @@ function _forge_action_provider() {
     selected=$(_forge_select_provider)
     
     if [[ -n "$selected" ]]; then
-        local name="${selected%% *}"
+        # Extract the provider ID (column 2) from the selected line
+        local provider_id=$(echo "$selected" | awk '{print $2}')
         # Check if status contains "available"
         if echo "$selected" | grep -qi "available"; then
             # Provider is already configured, just set it as active
-            _forge_exec config set provider "$name"
+            _forge_exec config set provider "$provider_id"
         else
             # Provider needs authentication, login first
-            _forge_exec provider login "$name"
+            _forge_exec provider login "$provider_id"
         fi
     fi
     _forge_reset
@@ -490,8 +493,9 @@ function _forge_action_login() {
     local selected
     selected=$(_forge_select_provider)
     if [[ -n "$selected" ]]; then
-        local provider="${selected%% *}"
-        _forge_exec provider login "$provider"
+        # Extract the provider ID (column 2) from the selected line
+        local provider_id=$(echo "$selected" | awk '{print $2}')
+        _forge_exec provider login "$provider_id"
     fi
     _forge_reset
 }
@@ -502,8 +506,9 @@ function _forge_action_logout() {
     local selected
     selected=$(_forge_select_provider "available")
     if [[ -n "$selected" ]]; then
-        local provider="${selected%% *}"
-        _forge_exec provider logout "$provider"
+        # Extract the provider ID (column 2) from the selected line
+        local provider_id=$(echo "$selected" | awk '{print $2}')
+        _forge_exec provider logout "$provider_id"
     fi
     _forge_reset
 }

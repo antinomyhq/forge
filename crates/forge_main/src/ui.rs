@@ -715,7 +715,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let mut info = Info::new();
 
         for provider in providers.iter() {
-            let id = provider.id().to_string();
+            let provider_id = provider.id();
+            // Use display_name for human-readable display (UpperCamelCase)
+            let display_name = provider_id.display_name().to_string();
+            // Use as_str for machine-readable ID (snake_case)
+            let id = provider_id.as_str();
             let domain = if let Some(url) = provider.url() {
                 url.domain().map(|d| d.to_string()).unwrap_or_default()
             } else {
@@ -723,7 +727,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             };
             let configured = provider.is_configured();
             info = info
-                .add_title(id.to_case(Case::UpperSnake))
+                .add_title(display_name.to_case(Case::UpperSnake))
+                .add_key_value("name", display_name)
                 .add_key_value("id", id)
                 .add_key_value("host", domain);
             if configured {
