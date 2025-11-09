@@ -92,6 +92,53 @@ function _forge_find_index() {
     return 0
 }
 
+# Helper function to select a provider from the list
+# Usage: _forge_select_provider [filter_status] [current_provider]
+# Returns: selected provider line (via stdout)
+function _forge_select_provider() {
+    local filter_status="${1:-}"
+    local current_provider="${2:-}"
+    local output
+    output=$($_FORGE_BIN list provider --porcelain 2>/dev/null)
+    
+    if [[ -z "$output" ]]; then
+        echo "\033[31m✗\033[0m No providers available"
+        return 1
+    fi
+    
+    # Filter by status if specified (e.g., "available" for configured providers)
+    if [[ -n "$filter_status" ]]; then
+        output=$(echo "$output" | grep -i "$filter_status")
+        if [[ -z "$output" ]]; then
+            echo "\033[31m✗\033[0m No ${filter_status} providers found"
+            return 1
+        fi
+    fi
+    
+    # Get current provider if not provided
+    if [[ -z "$current_provider" ]]; then
+        current_provider=$($_FORGE_BIN config get provider --porcelain 2>/dev/null)
+    fi
+    
+    local fzf_args=(--delimiter="$_FORGE_DELIMITER" --prompt="Provider ❯ ")
+    
+    # Position cursor on current provider if available
+    if [[ -n "$current_provider" ]]; then
+        local index=$(_forge_find_index "$output" "$current_provider")
+        fzf_args+=(--bind="start:pos($index)")
+    fi
+    
+    local selected
+    selected=$(echo "$output" | _forge_fzf "${fzf_args[@]}")
+    
+    if [[ -n "$selected" ]]; then
+        echo "$selected"
+        return 0
+    fi
+    
+    return 1
+}
+
 # Helper function to select and set config values with fzf
 function _forge_select_and_set_config() {
     local show_command="$1"
@@ -271,7 +318,30 @@ function _forge_action_retry() {
 
 # Action handler: List/switch conversations
 function _forge_action_conversation() {
+    local input_text="$1"
+    
     echo
+    
+    # If an ID is provided directly, use it
+    if [[ -n "$input_text" ]]; then
+        local conversation_id="$input_text"
+        
+        # Set the conversation as active
+        _FORGE_CONVERSATION_ID="$conversation_id"
+        
+        # Show conversation content
+        echo
+        _forge_exec conversation show "$conversation_id"
+        
+        # Show conversation info
+        _forge_exec conversation info "$conversation_id"
+        
+        # Print log about conversation switching
+        echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Switched to conversation \033[1m${conversation_id}\033[0m"
+        
+        _forge_reset
+        return 0
+    fi
     
     # Get conversations list
     local conversations_output
@@ -327,7 +397,21 @@ function _forge_action_conversation() {
 
 # Action handler: Select provider
 function _forge_action_provider() {
-    _forge_select_and_set_config "list providers" "provider" "Provider" "$($_FORGE_BIN config get provider --porcelain)"
+    echo
+    local selected
+    selected=$(_forge_select_provider)
+    
+    if [[ -n "$selected" ]]; then
+        local name="${selected%% *}"
+        # Check if status contains "available"
+        if echo "$selected" | grep -qi "available"; then
+            # Provider is already configured, just set it as active
+            _forge_exec config set provider "$name"
+        else
+            # Provider needs authentication, login first
+            _forge_exec provider login "$name"
+        fi
+    fi
     _forge_reset
 }
 
@@ -346,6 +430,83 @@ function _forge_action_tools() {
     _forge_reset
 }
 
+# Action handler: Generate shell command from natural language
+# Usage: :? <description>
+function _forge_action_suggest() {
+    local description="$1"
+    
+    if [[ -z "$description" ]]; then
+        echo "\033[31m✗\033[0m Please provide a command description"
+        _forge_reset
+        return 0
+    fi
+    
+    echo
+    # Generate the command
+    local generated_command
+    generated_command=$(FORCE_COLOR=true CLICOLOR_FORCE=1 _forge_exec suggest "$description")
+    
+    if [[ -n "$generated_command" ]]; then
+        # Replace the buffer with the generated command
+        BUFFER="$generated_command"
+        CURSOR=${#BUFFER}
+        zle reset-prompt
+    else
+        echo "\033[31m✗\033[0m Failed to generate command"
+        _forge_reset
+    fi
+}
+
+# Action handler: Generate shell command from natural language
+# Usage: :? <description>
+function _forge_action_suggest() {
+    local description="$1"
+    
+    if [[ -z "$description" ]]; then
+        echo "\033[31m✗\033[0m Please provide a command description"
+        _forge_reset
+        return 0
+    fi
+    
+    echo
+    # Generate the command
+    local generated_command
+    generated_command=$(FORCE_COLOR=true CLICOLOR_FORCE=1 _forge_exec suggest "$description")
+    
+    if [[ -n "$generated_command" ]]; then
+        # Replace the buffer with the generated command
+        BUFFER="$generated_command"
+        CURSOR=${#BUFFER}
+        zle reset-prompt
+    else
+        echo "\033[31m✗\033[0m Failed to generate command"
+        _forge_reset
+    fi
+}
+
+# Action handler: Login to provider
+function _forge_action_login() {
+    echo
+    local selected
+    selected=$(_forge_select_provider)
+    if [[ -n "$selected" ]]; then
+        local provider="${selected%% *}"
+        _forge_exec provider login "$provider"
+    fi
+    _forge_reset
+}
+
+# Action handler: Logout from provider
+function _forge_action_logout() {
+    echo
+    local selected
+    selected=$(_forge_select_provider "available")
+    if [[ -n "$selected" ]]; then
+        local provider="${selected%% *}"
+        _forge_exec provider logout "$provider"
+    fi
+    _forge_reset
+}
 # Action handler: Set active agent or execute command
 function _forge_action_default() {
     local user_action="$1"
@@ -409,7 +570,7 @@ function forge-accept-line() {
         # Action with or without parameters: :foo or :foo bar baz
         user_action="${match[1]}"
         input_text="${match[3]:-}"  # Use empty string if no parameters
-        elif [[ "$BUFFER" =~ "^: (.*)$" ]]; then
+    elif [[ "$BUFFER" =~ "^: (.*)$" ]]; then
         # Default action with parameters: : something
         user_action=""
         input_text="${match[1]}"
@@ -443,26 +604,35 @@ function forge-accept-line() {
         env|e)
             _forge_action_env
         ;;
-        dump)
+        dump|d)
             _forge_action_dump "$input_text"
         ;;
         compact)
             _forge_action_compact
         ;;
-        retry)
+        retry|r)
             _forge_action_retry
         ;;
-        conversation)
-            _forge_action_conversation
+        conversation|c)
+            _forge_action_conversation "$input_text"
         ;;
-        provider)
+        provider|p)
             _forge_action_provider
         ;;
-        model)
+        model|m)
             _forge_action_model
         ;;
-        tools)
+        tools|t)
             _forge_action_tools
+        ;;
+        suggest|s)
+            _forge_action_suggest "$input_text"
+        ;;
+        login)
+            _forge_action_login
+        ;;
+        logout)
+            _forge_action_logout
         ;;
         *)
             _forge_action_default "$user_action" "$input_text"

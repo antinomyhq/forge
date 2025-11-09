@@ -9,6 +9,7 @@ forge_stream.workspace = true
 async-trait.workspace = true
 anyhow.workspace = true
 serde.workspace = true
+serde_yml.workspace = true
 futures.workspace = true
 tracing.workspace = true
 async-recursion.workspace = true

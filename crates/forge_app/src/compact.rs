@@ -132,6 +132,10 @@ impl Compactor {
         {
             msg.reasoning_details = Some(reasoning);
         }
+
+        // Clear usage field so token_count() recalculates based on new messages
+        context.usage = None;
+
         Ok(context)
     }
 }
@@ -343,5 +347,94 @@ mod tests {
         let actual = render_template(&data);
 
         insta::assert_snapshot!(actual);
+    }
+
+    #[test]
+    fn test_compaction_clears_usage_for_token_recalculation() {
+        use forge_domain::{TokenCount, Usage};
+
+        let environment = test_environment();
+        let compactor = Compactor::new(Compact::new(), environment);
+
+        // Create a context with messages and usage data
+        let original_usage = Usage {
+            total_tokens: TokenCount::Actual(50000),
+            prompt_tokens: TokenCount::Actual(45000),
+            completion_tokens: TokenCount::Actual(5000),
+            cached_tokens: TokenCount::Actual(0),
+            cost: Some(1.5),
+        };
+
+        let msg1 = ContextMessage::user("Message 1", None);
+        let msg2 = ContextMessage::assistant("Response 1", None, None);
+        let msg3 = ContextMessage::user("Message 2", None);
+        let msg4 = ContextMessage::assistant("Response 2", None, None);
+        let msg5 = ContextMessage::user("Message 3", None);
+        let msg6 = ContextMessage::assistant("Response 3", None, None);
+
+        let context = Context::default()
+            .add_message(msg1.clone())
+            .add_message(msg2.clone())
+            .add_message(msg3.clone())
+            .add_message(msg4.clone())
+            .add_message(msg5.clone())
+            .add_message(msg6.clone())
+            .usage(original_usage.clone());
+
+        // Verify usage exists before compaction
+        assert_eq!(context.usage, Some(original_usage.clone()));
+        assert_eq!(context.token_count(), TokenCount::Actual(50000));
+
+        // Calculate expected token count after compaction
+        // After compacting indices 0-3, we'll have:
+        // 1. A summary message (replacing indices 0-3)
+        // 2. Message 5 (index 4 -> "Message 3")
+        // 3. Message 6 (index 5 -> "Response 3")
+        let expected_tokens_after_compaction =
+            msg5.token_count_approx() + msg6.token_count_approx();
+
+        // Compact the sequence (first 4 messages, indices 0-3)
+        let compacted = compactor.compress_single_sequence(context, (0, 3)).unwrap();
+
+        // Verify we have exactly 3 messages after compaction
+        assert_eq!(
+            compacted.messages.len(),
+            3,
+            "Expected 3 messages after compaction: summary + 2 remaining messages"
+        );
+
+        // Verify usage is cleared after compaction
+        assert_eq!(
+            compacted.usage, None,
+            "Usage field should be None after compaction to force token recalculation"
+        );
+
+        // Verify token_count returns approximation based on actual messages
+        let token_count = compacted.token_count();
+        assert!(
+            matches!(token_count, TokenCount::Approx(_)),
+            "Expected TokenCount::Approx after compaction, but got {:?}",
+            token_count
+        );
+
+        // Verify the exact token count matches expected calculation
+        // Note: Summary message tokens + remaining message tokens
+        let actual_tokens = *token_count;
+        let summary_tokens = compacted.messages[0].token_count_approx();
+
+        assert_eq!(
+            actual_tokens,
+            summary_tokens + expected_tokens_after_compaction,
+            "Token count should equal summary tokens ({}) + remaining message tokens ({})",
+            summary_tokens,
+            expected_tokens_after_compaction
+        );
+
+        // Verify it's significantly less than original
+        assert!(
+            actual_tokens < 50000,
+            "Compacted token count ({}) should be less than original (50000)",
+            actual_tokens
+        );
     }
 }

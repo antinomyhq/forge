@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use forge_domain::AgentId;
+use forge_domain::{AgentId, ProviderId};
 
 /// NOTE: Always use singular names for commands and subcommands.
 /// For example: `forge provider login` instead of `forge providers login`.
@@ -15,13 +15,6 @@ pub struct Cli {
     /// Alternatively, you can pipe content to forge: `cat prompt.txt | forge`
     #[arg(long, short = 'p')]
     pub prompt: Option<String>,
-
-    /// Path to a file containing initial commands to execute.
-    ///
-    /// The application will execute the commands from this file first,
-    /// then continue in interactive mode.
-    #[arg(long, short = 'c')]
-    pub command: Option<String>,
 
     /// Path to a file containing the conversation to execute.
     /// This file should be in JSON format.
@@ -76,7 +69,7 @@ pub struct Cli {
 impl Cli {
     /// Checks if user is in is_interactive
     pub fn is_interactive(&self) -> bool {
-        self.prompt.is_none() && self.command.is_none() && self.subcommands.is_none()
+        self.prompt.is_none() && self.subcommands.is_none()
     }
 }
 
@@ -119,6 +112,14 @@ pub enum TopLevelCommand {
 
     /// MCP server management commands
     Mcp(McpCommandGroup),
+
+    /// Generate shell commands without executing them
+    ///
+    /// Example: forge cmd "run tests in the current project"
+    Suggest {
+        /// Natural language description of what you want to do
+        prompt: String,
+    },
 
     /// Provider management commands
     Provider(ProviderCommandGroup),
@@ -398,6 +399,14 @@ pub enum ConversationCommand {
         /// Conversation ID
         id: String,
     },
+
+    /// Clone a conversation with a new ID
+    ///
+    /// Example: forge conversation clone abc123
+    Clone {
+        /// Conversation ID to clone
+        id: String,
+    },
 }
 
 /// Group of Provider-related commands
@@ -416,12 +425,22 @@ pub enum ProviderCommand {
     /// Login to a provider by selecting from available options
     ///
     /// Example: forge provider login
-    Login,
+    /// Example: forge provider login anthropic
+    Login {
+        /// Provider name (optional, if not provided will show interactive
+        /// selection)
+        provider: Option<ProviderId>,
+    },
 
     /// Remove a configured provider (logout)
     ///
     /// Example: forge provider logout
-    Logout,
+    /// Example: forge provider logout anthropic
+    Logout {
+        /// Provider name (optional, if not provided will show interactive
+        /// selection)
+        provider: Option<ProviderId>,
+    },
 
     /// List all available providers
     ///
@@ -863,5 +882,32 @@ mod tests {
         let actual = fixture.conversation_id;
         let expected = Some("550e8400-e29b-41d4-a716-446655440000".to_string());
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_conversation_clone_with_id() {
+        let fixture = Cli::parse_from(["forge", "conversation", "clone", "abc123"]);
+        let id = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Clone { id } => id,
+                _ => String::new(),
+            },
+            _ => String::new(),
+        };
+        assert_eq!(id, "abc123");
+    }
+
+    #[test]
+    fn test_conversation_clone_with_porcelain() {
+        let fixture = Cli::parse_from(["forge", "conversation", "clone", "test123", "--porcelain"]);
+        let (id, porcelain) = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Clone { id } => (id, conversation.porcelain),
+                _ => (String::new(), false),
+            },
+            _ => (String::new(), false),
+        };
+        assert_eq!(id, "test123");
+        assert_eq!(porcelain, true);
     }
 }
