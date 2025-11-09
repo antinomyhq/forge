@@ -252,7 +252,10 @@ mod tests {
 
         let actual = repo.get_app_config().await.unwrap();
 
-        let expected = AppConfig::default();
+        let expected = AppConfig {
+            provider: Some("xyz".into()), // Custom provider is now valid
+            ..Default::default()
+        };
         assert_eq!(actual, expected);
     }
 

@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -23,7 +22,6 @@ use forge_select::ForgeSelect;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
 use merge::Merge;
-use strum::IntoEnumIterator;
 use tokio_stream::StreamExt;
 use tracing::debug;
 use url::Url;
@@ -1401,7 +1399,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         self.api
             .complete_provider_auth(
-                provider_id,
+                provider_id.clone(),
                 response,
                 Duration::from_secs(0), // No timeout needed since we have the data
             )
@@ -1471,7 +1469,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let response = AuthContextResponse::device_code(request.clone());
 
         self.api
-            .complete_provider_auth(provider_id, response, Duration::from_secs(600))
+            .complete_provider_auth(provider_id.clone(), response, Duration::from_secs(600))
             .await?;
 
         self.spinner.stop(None)?;
@@ -1545,7 +1543,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         self.api
             .complete_provider_auth(
-                provider_id,
+                provider_id.clone(),
                 response,
                 Duration::from_secs(0), // No timeout needed since we have the data
             )
@@ -1616,7 +1614,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         auth_methods: Vec<AuthMethod>,
     ) -> Result<()> {
         // Select auth method (or use the only one available)
-        let auth_method = match self.select_auth_method(provider_id, &auth_methods).await? {
+        let auth_method = match self
+            .select_auth_method(provider_id.clone(), &auth_methods)
+            .await?
+        {
             Some(method) => method,
             None => return Ok(()), // User cancelled
         };
@@ -1626,7 +1627,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Initiate the authentication flow
         let auth_request = self
             .api
-            .init_provider_auth(provider_id, auth_method)
+            .init_provider_auth(provider_id.clone(), auth_method)
             .await?;
 
         // Handle the specific authentication flow based on the request type
@@ -1669,7 +1670,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .ok();
         let starting_cursor = current_provider
             .as_ref()
-            .and_then(|current| providers.iter().position(|p| p.0.id() == current.id))
+            .and_then(|current| providers.iter().position(|p| p.0.id() == &current.id))
             .unwrap_or(0);
 
         // Use the centralized select module
@@ -1684,17 +1685,18 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     AnyProvider::Url(p) => Ok(Some(p)),
                     AnyProvider::Template(p) => {
                         // Provider is not configured - initiate authentication flow
-                        let provider_id = p.id;
+                        let provider_id = p.id.clone();
                         let auth_methods = p.auth_methods;
 
                         // Configure the provider
-                        self.configure_provider(provider_id, auth_methods).await?;
+                        self.configure_provider(provider_id.clone(), auth_methods)
+                            .await?;
 
                         // After configuration, fetch the provider again
                         let providers = self.api.get_providers().await?;
                         let configured_provider = providers
                             .into_iter()
-                            .find(|entry| entry.id() == provider_id)
+                            .find(|entry| entry.id() == &provider_id)
                             .and_then(|entry| match entry {
                                 AnyProvider::Url(p) => Some(p),
                                 AnyProvider::Template(_) => None,
@@ -1745,7 +1747,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         };
 
         // Set the provider via API
-        self.api.set_default_provider(provider.id).await?;
+        self.api.set_default_provider(provider.id.clone()).await?;
 
         self.writeln_title(TitleFormat::action(format!(
             "Switched to provider: {}",
@@ -2353,21 +2355,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     /// Validate provider exists and has API key
     async fn validate_provider(&mut self, provider_str: &str) -> Result<ProviderId> {
-        // Parse provider ID from string
-        let provider_id = ProviderId::from_str(provider_str).with_context(|| {
-            format!(
-                "Invalid provider: '{}'. Valid providers are: {}",
-                provider_str,
-                get_valid_provider_names().join(", ")
-            )
-        })?;
+        // Parse provider ID from string - convert to lowercase and create ProviderId
+        let lowercase = provider_str.to_lowercase();
+        let provider_id: ProviderId = lowercase.as_str().into();
 
         // Check if provider is configured
         let providers = self.api.get_providers().await?;
         let provider_entry = providers
             .iter()
-            .find(|p| p.id() == provider_id)
-            .ok_or_else(|| forge_domain::Error::provider_not_available(provider_id))?;
+            .find(|p| p.id() == &provider_id)
+            .ok_or_else(|| forge_domain::Error::provider_not_available(provider_id.clone()))?;
 
         if provider_entry.is_configured() {
             return Ok(provider_id);
@@ -2378,14 +2375,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 let auth_methods = p.auth_methods.clone();
 
                 // Configure the provider
-                self.configure_provider(provider_id, auth_methods).await?;
+                self.configure_provider(provider_id.clone(), auth_methods)
+                    .await?;
 
                 // Verify configuration succeeded
                 let providers = self.api.get_providers().await?;
-                if providers
-                    .iter()
-                    .any(|p| p.id() == provider_id && p.is_configured())
-                {
+                if providers.iter().any(|p| p.id() == &provider_id) {
                     Ok(provider_id)
                 } else {
                     Err(anyhow::anyhow!(
@@ -2424,9 +2419,4 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         Ok(())
     }
-}
-
-/// Get list of valid provider names
-fn get_valid_provider_names() -> Vec<String> {
-    ProviderId::iter().map(|p| p.to_string()).collect()
 }
