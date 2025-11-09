@@ -37,12 +37,112 @@ pub fn render_conversation_html(conversation: &Conversation) -> String {
                 )
                 // Reasoning Configuration Section
                 .append(create_reasoning_config_section(conversation))
+                // File Metrics Section
+                .append(create_file_metrics_section(conversation))
                 // Variables Section
                 // Agent States Section
                 .append(create_conversation_context_section(conversation)),
         );
 
     html.render()
+}
+
+fn create_file_metrics_section(conversation: &Conversation) -> Element {
+    let section = Element::new("div.section").append(Element::new("h2").text("File Metrics"));
+
+    // Check if there are any file changes
+    if conversation.metrics.files_changed.is_empty() {
+        return section.append(Element::new("p").text("No file changes recorded"));
+    }
+
+    // Calculate total metrics
+    let mut total_lines_added = 0u64;
+    let mut total_lines_removed = 0u64;
+    let total_files = conversation.metrics.files_changed.len();
+
+    for changes in conversation.metrics.files_changed.values() {
+        for change in changes {
+            total_lines_added += change.lines_added;
+            total_lines_removed += change.lines_removed;
+        }
+    }
+
+    // Add summary statistics
+    let section_with_summary = section.append(
+        Element::new("div.metrics-summary")
+            .append(Element::new("h3").text("Summary"))
+            .append(
+                Element::new("p")
+                    .append(Element::new("strong").text("Total Files Changed: "))
+                    .text(format!("{total_files}")),
+            )
+            .append(
+                Element::new("p")
+                    .append(Element::new("strong").text("Total Lines Added: "))
+                    .text(format!("{total_lines_added}")),
+            )
+            .append(
+                Element::new("p")
+                    .append(Element::new("strong").text("Total Lines Removed: "))
+                    .text(format!("{total_lines_removed}")),
+            ),
+    );
+
+    // Add detailed file changes
+    let files_section = Element::new("div.file-changes")
+        .append(Element::new("h3").text("File Changes"))
+        .append(
+            conversation
+                .metrics
+                .files_changed
+                .iter()
+                .map(|(path, changes)| {
+                    // Sum all operations for this file
+                    if changes.is_empty() {
+                        return Element::new("div");
+                    }
+
+                    let metrics: crate::session_metrics::FileChangeMetrics =
+                        changes.iter().cloned().sum();
+
+                    Element::new("div.file-card")
+                        .append(
+                            Element::new("p")
+                                .append(Element::new("strong").text("File: "))
+                                .text(path),
+                        )
+                        .append(
+                            Element::new("p")
+                                .append(Element::new("strong").text("Lines Added: "))
+                                .text(format!("{}", metrics.lines_added)),
+                        )
+                        .append(
+                            Element::new("p")
+                                .append(Element::new("strong").text("Lines Removed: "))
+                                .text(format!("{}", metrics.lines_removed)),
+                        )
+                        .append(
+                            Element::new("p")
+                                .append(Element::new("strong").text("Net Change: "))
+                                .text(format!(
+                                    "{:+}",
+                                    metrics.lines_added as i64 - metrics.lines_removed as i64
+                                )),
+                        )
+                        .append(
+                            Element::new("p")
+                                .append(Element::new("strong").text("Operations: "))
+                                .text(format!("{}", changes.len())),
+                        )
+                        .append(metrics.content_hash.as_ref().map(|hash| {
+                            Element::new("p")
+                                .append(Element::new("strong").text("Final Hash: "))
+                                .text(hash)
+                        }))
+                }),
+        );
+
+    section_with_summary.append(files_section)
 }
 
 fn create_conversation_context_section(conversation: &Conversation) -> Element {
@@ -344,5 +444,73 @@ mod tests {
 
         // Verify reasoning indicator in message header
         assert!(actual.contains("🧠 Reasoning"));
+    }
+
+    #[test]
+    fn test_render_conversation_with_file_metrics() {
+        use crate::ToolKind;
+        use crate::conversation::ConversationId;
+        use crate::session_metrics::{FileChangeMetrics, Metrics};
+
+        let id = ConversationId::generate();
+        let metrics = Metrics::new()
+            .add(
+                "src/main.rs".to_string(),
+                FileChangeMetrics::new(ToolKind::Write)
+                    .lines_added(50u64)
+                    .lines_removed(10u64)
+                    .content_hash(Some("hash1".to_string())),
+            )
+            .add(
+                "src/lib.rs".to_string(),
+                FileChangeMetrics::new(ToolKind::Patch)
+                    .lines_added(20u64)
+                    .lines_removed(5u64)
+                    .content_hash(Some("hash2".to_string())),
+            )
+            .add(
+                "src/main.rs".to_string(),
+                FileChangeMetrics::new(ToolKind::Patch)
+                    .lines_added(10u64)
+                    .lines_removed(2u64)
+                    .content_hash(Some("hash3".to_string())),
+            );
+
+        let fixture = Conversation::new(id).metrics(metrics);
+        let actual = render_conversation_html(&fixture);
+
+        // Verify file metrics section exists
+        assert!(actual.contains("File Metrics"));
+
+        // Verify summary statistics
+        assert!(actual.contains("Summary"));
+        assert!(actual.contains("Total Files Changed:"));
+        assert!(actual.contains("Total Lines Added:"));
+        assert!(actual.contains("Total Lines Removed:"));
+
+        // Verify file paths are shown
+        assert!(actual.contains("src/main.rs"));
+        assert!(actual.contains("src/lib.rs"));
+
+        // Verify aggregated metrics are displayed
+        assert!(actual.contains("Lines Added:"));
+        assert!(actual.contains("Lines Removed:"));
+        assert!(actual.contains("Net Change:"));
+        assert!(actual.contains("Operations:"));
+        assert!(actual.contains("Final Hash:"));
+
+        // Verify file-card class is used
+        assert!(actual.contains("file-card"));
+    }
+
+    #[test]
+    fn test_render_conversation_with_no_file_metrics() {
+        let id = crate::conversation::ConversationId::generate();
+        let fixture = Conversation::new(id);
+        let actual = render_conversation_html(&fixture);
+
+        // Verify file metrics section exists but shows no changes
+        assert!(actual.contains("File Metrics"));
+        assert!(actual.contains("No file changes recorded"));
     }
 }

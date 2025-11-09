@@ -192,7 +192,7 @@ impl ToolOperation {
         match self {
             ToolOperation::FsRead { input, output } => {
                 let content = output.content.file_content();
-                let file_hash = compute_hash(content);
+                let content_hash = compute_hash(content);
                 let elm = Element::new("file_content")
                     .attr("path", &input.path)
                     .attr(
@@ -206,7 +206,7 @@ impl ToolOperation {
                 tracing::info!(path = %input.path, tool = %tool_name, "File read");
                 *metrics = metrics.clone().add(
                     input.path.clone(),
-                    FileChangeMetrics::new(tool_kind).file_hash(Some(file_hash)),
+                    FileChangeMetrics::new(tool_kind).content_hash(Some(content_hash)),
                 );
 
                 forge_domain::ToolOutput::text(elm)
@@ -218,14 +218,14 @@ impl ToolOperation {
                     &input.content,
                 );
                 let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
-                let file_hash = Some(compute_hash(&input.content));
+                let content_hash = Some(compute_hash(&input.content));
 
                 *metrics = metrics.clone().add(
                     input.path.clone(),
                     FileChangeMetrics::new(tool_kind)
                         .lines_added(diff_result.lines_added())
                         .lines_removed(diff_result.lines_removed())
-                        .file_hash(file_hash),
+                        .content_hash(content_hash),
                 );
 
                 let mut elm = if output.before.as_ref().is_some() {
@@ -246,13 +246,13 @@ impl ToolOperation {
             }
             ToolOperation::FsRemove { input, output } => {
                 // None since file was removed
-                let file_hash = None;
+                let content_hash = None;
 
                 *metrics = metrics.clone().add(
                     input.path.clone(),
                     FileChangeMetrics::new(tool_kind)
                         .lines_removed(output.content.lines().count() as u64)
-                        .file_hash(file_hash),
+                        .content_hash(content_hash),
                 );
 
                 let display_path = format_display_path(Path::new(&input.path), env.cwd.as_path());
@@ -327,7 +327,7 @@ impl ToolOperation {
             ToolOperation::FsPatch { input, output } => {
                 let diff_result = DiffFormat::format(&output.before, &output.after);
                 let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
-                let file_hash = Some(compute_hash(&output.after));
+                let content_hash = Some(compute_hash(&output.after));
 
                 let mut elm = Element::new("file_diff")
                     .attr("path", &input.path)
@@ -343,7 +343,7 @@ impl ToolOperation {
                     FileChangeMetrics::new(tool_kind)
                         .lines_added(diff_result.lines_added())
                         .lines_removed(diff_result.lines_removed())
-                        .file_hash(file_hash),
+                        .content_hash(content_hash),
                 );
 
                 forge_domain::ToolOutput::text(elm)
@@ -355,14 +355,14 @@ impl ToolOperation {
                     output.after_undo.as_deref().unwrap_or(""),
                     output.before_undo.as_deref().unwrap_or(""),
                 );
-                let file_hash = output.after_undo.as_ref().map(|s| compute_hash(s));
+                let content_hash = output.after_undo.as_ref().map(|s| compute_hash(s));
 
                 *metrics = metrics.clone().add(
                     input.path.clone(),
                     FileChangeMetrics::new(tool_kind)
                         .lines_added(diff.lines_added())
                         .lines_removed(diff.lines_removed())
-                        .file_hash(file_hash),
+                        .content_hash(content_hash),
                 );
 
                 match (&output.before_undo, &output.after_undo) {

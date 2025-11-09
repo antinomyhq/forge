@@ -44,7 +44,7 @@ impl<S: FsReadService> ChangedFiles<S> {
             {
                 // Update the last entry's file hash
                 if let Some(last_entry) = metrics.last_mut() {
-                    last_entry.file_hash = change.content_hash.clone();
+                    last_entry.content_hash = change.content_hash.clone();
                 }
             }
         }
@@ -123,7 +123,7 @@ mod tests {
         for (path, hash) in tracked_files {
             metrics.files_changed.insert(
                 path,
-                vec![FileChangeMetrics::new(ToolKind::Write).file_hash(hash)],
+                vec![FileChangeMetrics::new(ToolKind::Write).content_hash(hash)],
             );
         }
 
@@ -171,11 +171,11 @@ mod tests {
         assert_eq!(messages.len(), 1);
         let message = messages[0].content().unwrap().to_string();
         assert!(message.contains("/test/file.txt"));
-        assert!(message.contains("externally_modified_files"));
+        assert!(message.contains("modified externally"));
     }
 
     #[tokio::test]
-    async fn test_updates_file_hash() {
+    async fn test_updates_content_hash() {
         let old_hash = crate::compute_hash("old content");
         let new_content = "new content";
         let new_hash = crate::compute_hash(new_content);
@@ -192,7 +192,7 @@ mod tests {
             .files_changed
             .get("/test/file.txt")
             .and_then(|vec| vec.last())
-            .and_then(|m| m.file_hash.clone());
+            .and_then(|m| m.content_hash.clone());
 
         assert_eq!(updated_hash, Some(new_hash));
     }

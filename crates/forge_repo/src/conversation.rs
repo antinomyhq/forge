@@ -18,7 +18,7 @@ use crate::database::DatabasePool;
 struct FileChangeMetricsRecord {
     lines_added: u64,
     lines_removed: u64,
-    file_hash: Option<String>,
+    content_hash: Option<String>,
     tool: ToolKind,
 }
 
@@ -27,7 +27,7 @@ impl From<&FileChangeMetrics> for FileChangeMetricsRecord {
         Self {
             lines_added: metrics.lines_added,
             lines_removed: metrics.lines_removed,
-            file_hash: metrics.file_hash.clone(),
+            content_hash: metrics.content_hash.clone(),
             tool: metrics.tool,
         }
     }
@@ -38,7 +38,7 @@ impl From<FileChangeMetricsRecord> for FileChangeMetrics {
         Self::new(record.tool)
             .lines_added(record.lines_added)
             .lines_removed(record.lines_removed)
-            .file_hash(record.file_hash)
+            .content_hash(record.content_hash)
     }
 }
 
@@ -490,14 +490,14 @@ mod tests {
                 FileChangeMetrics::new(ToolKind::Write)
                     .lines_added(10u64)
                     .lines_removed(5u64)
-                    .file_hash(Some("abc123def456".to_string())),
+                    .content_hash(Some("abc123def456".to_string())),
             )
             .add(
                 "src/lib.rs".to_string(),
                 FileChangeMetrics::new(ToolKind::Write)
                     .lines_added(3u64)
                     .lines_removed(2u64)
-                    .file_hash(Some("789xyz456abc".to_string())),
+                    .content_hash(Some("789xyz456abc".to_string())),
             );
 
         let fixture = Conversation::generate().metrics(metrics.clone());
@@ -517,13 +517,19 @@ mod tests {
         assert_eq!(main_metrics.len(), 1);
         assert_eq!(main_metrics[0].lines_added, 10);
         assert_eq!(main_metrics[0].lines_removed, 5);
-        assert_eq!(main_metrics[0].file_hash, Some("abc123def456".to_string()));
+        assert_eq!(
+            main_metrics[0].content_hash,
+            Some("abc123def456".to_string())
+        );
 
         let lib_metrics = actual.metrics.files_changed.get("src/lib.rs").unwrap();
         assert_eq!(lib_metrics.len(), 1);
         assert_eq!(lib_metrics[0].lines_added, 3);
         assert_eq!(lib_metrics[0].lines_removed, 2);
-        assert_eq!(lib_metrics[0].file_hash, Some("789xyz456abc".to_string()));
+        assert_eq!(
+            lib_metrics[0].content_hash,
+            Some("789xyz456abc".to_string())
+        );
 
         Ok(())
     }
@@ -537,7 +543,7 @@ mod tests {
             FileChangeMetrics::new(ToolKind::Write)
                 .lines_added(5u64)
                 .lines_removed(3u64)
-                .file_hash(Some("test_hash_123".to_string())),
+                .content_hash(Some("test_hash_123".to_string())),
         );
 
         // Convert to record and back
@@ -553,6 +559,6 @@ mod tests {
         assert_eq!(actual_file.len(), expected_file.len());
         assert_eq!(actual_file[0].lines_added, expected_file[0].lines_added);
         assert_eq!(actual_file[0].lines_removed, expected_file[0].lines_removed);
-        assert_eq!(actual_file[0].file_hash, expected_file[0].file_hash);
+        assert_eq!(actual_file[0].content_hash, expected_file[0].content_hash);
     }
 }
