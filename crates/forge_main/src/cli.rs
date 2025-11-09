@@ -5,6 +5,10 @@ use forge_domain::{AgentId, ProviderId};
 
 /// NOTE: Always use singular names for commands and subcommands.
 /// For example: `forge provider login` instead of `forge providers login`.
+///
+/// NOTE: With every change to this CLI structure, verify that the ZSH plugin
+/// remains compatible. The plugin at `shell-plugin/forge.plugin.zsh` implements
+/// shell completion and command shortcuts that depend on the CLI structure.
 
 #[derive(Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
