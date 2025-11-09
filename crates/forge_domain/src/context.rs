@@ -8,6 +8,12 @@ use serde::{Deserialize, Serialize};
 use tracing::debug;
 
 use super::{ToolCallFull, ToolResult};
+
+/// Helper function for serde to skip serializing false boolean values
+fn is_false(value: &bool) -> bool {
+    !value
+}
+
 use crate::temperature::Temperature;
 use crate::top_k::TopK;
 use crate::top_p::TopP;
@@ -147,6 +153,7 @@ impl ContextMessage {
             tool_calls: None,
             reasoning_details: None,
             model,
+            droppable: false,
         }
         .into()
     }
@@ -159,6 +166,7 @@ impl ContextMessage {
             tool_calls: None,
             model: None,
             reasoning_details: None,
+            droppable: false,
         }
         .into()
     }
@@ -177,6 +185,7 @@ impl ContextMessage {
             tool_calls,
             reasoning_details,
             model: None,
+            droppable: false,
         }
         .into()
     }
@@ -263,6 +272,9 @@ pub struct TextMessage {
     pub model: Option<ModelId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning_details: Option<Vec<ReasoningFull>>,
+    /// Indicates whether this message can be dropped during context compaction
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub droppable: bool,
 }
 
 impl TextMessage {
@@ -275,6 +287,7 @@ impl TextMessage {
             tool_calls: None,
             model: None,
             reasoning_details: None,
+            droppable: false,
         }
     }
 
@@ -294,6 +307,7 @@ impl TextMessage {
             tool_calls: None,
             reasoning_details,
             model,
+            droppable: false,
         }
     }
 }

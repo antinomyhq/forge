@@ -103,6 +103,7 @@ impl<S: TemplateService + AttachmentService> UserPromptGenerator<S> {
                 tool_calls: None,
                 reasoning_details: None,
                 model: self.agent.model.clone(),
+                droppable: false,
             };
             context = context
                 .add_message(ContextMessage::Text(message))
