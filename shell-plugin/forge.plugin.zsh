@@ -300,7 +300,7 @@ function _forge_action_env() {
 function _forge_action_dump() {
     local input_text="$1"
     if [[ "$input_text" == "html" ]]; then
-        _forge_handle_conversation_command "dump" "html"
+        _forge_handle_conversation_command "dump" "--html"
     else
         _forge_handle_conversation_command "dump"
     fi
