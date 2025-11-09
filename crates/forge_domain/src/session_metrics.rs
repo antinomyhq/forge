@@ -163,6 +163,4 @@ mod tests {
         assert_eq!(operations[2].lines_removed, 0);
         assert_eq!(operations[2].content_hash, Some("hash1".to_string()));
     }
-
-
 }
