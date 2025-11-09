@@ -33,7 +33,7 @@ ZSH_HIGHLIGHT_HIGHLIGHTERS+=(pattern)
 ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z0-9_-]#' 'fg=yellow,bold')
 
 # Highlight everything after the command name + space in white
-ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z0-9_-]# ##(*|[[:graph:]]##)' 'fg=white,bold')
+ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z0-9_-]# [[:graph:]]*' 'fg=white,bold')
 
 # Lazy loader for commands cache
 # Loads the commands list only when first needed, avoiding startup cost
