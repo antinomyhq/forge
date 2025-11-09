@@ -2128,7 +2128,7 @@
   },
   "metrics": {
     "started_at": "2025-11-05T03:00:12.156134Z",
-    "files_changed": {
+    "file_operations": {
       "/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/summary.rs": [
         {
           "lines_added": 1179,

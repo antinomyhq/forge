@@ -130,11 +130,14 @@ impl From<&Metrics> for Info {
                     .and_then(|name| name.to_str())
                     .unwrap_or(path);
 
-                // Aggregate stats from all operations
-                let total_added: u64 = file_metrics_vec.iter().map(|m| m.lines_added).sum();
-                let total_removed: u64 = file_metrics_vec.iter().map(|m| m.lines_removed).sum();
+                // Sum all operations for this file
+                let total_metrics: forge_api::FileOperation =
+                    file_metrics_vec.iter().cloned().sum();
 
-                let changes = format!("−{} +{}", total_removed, total_added);
+                let changes = format!(
+                    "−{} +{}",
+                    total_metrics.lines_removed, total_metrics.lines_added
+                );
 
                 info = info.add_key_value(format!("⦿ {filename}"), changes);
             }

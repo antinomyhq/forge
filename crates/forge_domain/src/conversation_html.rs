@@ -1,3 +1,30 @@
+//! HTML rendering for conversations
+//!
+//! # Coding Style Guidelines
+//!
+//! When working with `Element` types in this module, always prefer:
+//! - **Declarative/functional style** using iterators (`.map()`, `.fold()`,
+//!   etc.)
+//! - **Immutable transformations** via chaining
+//!
+//! Instead of imperative for loops:
+//! ```ignore
+//! // ❌ DON'T: Procedural style with mutable state
+//! let mut element = Element::new("div");
+//! for item in items {
+//!     element = element.append(create_child(item));
+//! }
+//! ```
+//!
+//! Use functional iterator patterns:
+//! ```ignore
+//! // ✅ DO: Declarative style with iterators
+//! let element = items.iter().fold(
+//!     Element::new("div"),
+//!     |acc, item| acc.append(create_child(item))
+//! );
+//! ```
+
 use forge_template::Element;
 use serde_json::to_string_pretty;
 
@@ -51,21 +78,19 @@ fn create_file_metrics_section(conversation: &Conversation) -> Element {
     let section = Element::new("div.section").append(Element::new("h2").text("File Metrics"));
 
     // Check if there are any file changes
-    if conversation.metrics.files_changed.is_empty() {
+    if conversation.metrics.file_operations.is_empty() {
         return section.append(Element::new("p").text("No file changes recorded"));
     }
 
-    // Calculate total metrics
-    let mut total_lines_added = 0u64;
-    let mut total_lines_removed = 0u64;
-    let total_files = conversation.metrics.files_changed.len();
-
-    for changes in conversation.metrics.files_changed.values() {
-        for change in changes {
-            total_lines_added += change.lines_added;
-            total_lines_removed += change.lines_removed;
-        }
-    }
+    // Calculate total metrics by summing all file change metrics
+    let total_metrics: crate::session_metrics::FileOperation = conversation
+        .metrics
+        .file_operations
+        .values()
+        .flatten()
+        .cloned()
+        .sum();
+    let total_files = conversation.metrics.file_operations.len();
 
     // Add summary statistics
     let section_with_summary = section.append(
@@ -79,12 +104,12 @@ fn create_file_metrics_section(conversation: &Conversation) -> Element {
             .append(
                 Element::new("p")
                     .append(Element::new("strong").text("Total Lines Added: "))
-                    .text(format!("{total_lines_added}")),
+                    .text(format!("{}", total_metrics.lines_added)),
             )
             .append(
                 Element::new("p")
                     .append(Element::new("strong").text("Total Lines Removed: "))
-                    .text(format!("{total_lines_removed}")),
+                    .text(format!("{}", total_metrics.lines_removed)),
             ),
     );
 
@@ -94,51 +119,65 @@ fn create_file_metrics_section(conversation: &Conversation) -> Element {
         .append(
             conversation
                 .metrics
-                .files_changed
+                .file_operations
                 .iter()
                 .map(|(path, changes)| {
-                    // Sum all operations for this file
+                    // Show individual operations for this file
                     if changes.is_empty() {
                         return Element::new("div");
                     }
 
-                    let metrics: crate::session_metrics::FileChangeMetrics =
-                        changes.iter().cloned().sum();
-
-                    Element::new("div.file-card")
-                        .append(
+                    // Use fold to declaratively build up the file card with all operations
+                    changes.iter().enumerate().fold(
+                        Element::new("div.file-card").append(
                             Element::new("p")
                                 .append(Element::new("strong").text("File: "))
                                 .text(path),
-                        )
-                        .append(
-                            Element::new("p")
-                                .append(Element::new("strong").text("Lines Added: "))
-                                .text(format!("{}", metrics.lines_added)),
-                        )
-                        .append(
-                            Element::new("p")
-                                .append(Element::new("strong").text("Lines Removed: "))
-                                .text(format!("{}", metrics.lines_removed)),
-                        )
-                        .append(
-                            Element::new("p")
-                                .append(Element::new("strong").text("Net Change: "))
-                                .text(format!(
-                                    "{:+}",
-                                    metrics.lines_added as i64 - metrics.lines_removed as i64
-                                )),
-                        )
-                        .append(
-                            Element::new("p")
-                                .append(Element::new("strong").text("Operations: "))
-                                .text(format!("{}", changes.len())),
-                        )
-                        .append(metrics.content_hash.as_ref().map(|hash| {
-                            Element::new("p")
-                                .append(Element::new("strong").text("Final Hash: "))
-                                .text(hash)
-                        }))
+                        ),
+                        |file_card, (idx, operation)| {
+                            let operation_header = if changes.len() > 1 {
+                                format!("Operation {} ({})", idx + 1, operation.tool)
+                            } else {
+                                format!("Operation ({})", operation.tool)
+                            };
+
+                            let card_with_operation = file_card
+                                .append(
+                                    Element::new("p")
+                                        .append(Element::new("strong").text(operation_header)),
+                                )
+                                .append(
+                                    Element::new("p")
+                                        .append(Element::new("strong").text("  Lines Added: "))
+                                        .text(format!("{}", operation.lines_added)),
+                                )
+                                .append(
+                                    Element::new("p")
+                                        .append(Element::new("strong").text("  Lines Removed: "))
+                                        .text(format!("{}", operation.lines_removed)),
+                                )
+                                .append(
+                                    Element::new("p")
+                                        .append(Element::new("strong").text("  Net Change: "))
+                                        .text(format!(
+                                            "{:+}",
+                                            operation.lines_added as i64
+                                                - operation.lines_removed as i64
+                                        )),
+                                );
+
+                            // Conditionally append content hash if present
+                            if let Some(hash) = &operation.content_hash {
+                                card_with_operation.append(
+                                    Element::new("p")
+                                        .append(Element::new("strong").text("  Content Hash: "))
+                                        .text(hash),
+                                )
+                            } else {
+                                card_with_operation
+                            }
+                        },
+                    )
                 }),
         );
 
@@ -450,27 +489,27 @@ mod tests {
     fn test_render_conversation_with_file_metrics() {
         use crate::ToolKind;
         use crate::conversation::ConversationId;
-        use crate::session_metrics::{FileChangeMetrics, Metrics};
+        use crate::session_metrics::{FileOperation, Metrics};
 
         let id = ConversationId::generate();
         let metrics = Metrics::new()
             .add(
                 "src/main.rs".to_string(),
-                FileChangeMetrics::new(ToolKind::Write)
+                FileOperation::new(ToolKind::Write)
                     .lines_added(50u64)
                     .lines_removed(10u64)
                     .content_hash(Some("hash1".to_string())),
             )
             .add(
                 "src/lib.rs".to_string(),
-                FileChangeMetrics::new(ToolKind::Patch)
+                FileOperation::new(ToolKind::Patch)
                     .lines_added(20u64)
                     .lines_removed(5u64)
                     .content_hash(Some("hash2".to_string())),
             )
             .add(
                 "src/main.rs".to_string(),
-                FileChangeMetrics::new(ToolKind::Patch)
+                FileOperation::new(ToolKind::Patch)
                     .lines_added(10u64)
                     .lines_removed(2u64)
                     .content_hash(Some("hash3".to_string())),
@@ -492,12 +531,14 @@ mod tests {
         assert!(actual.contains("src/main.rs"));
         assert!(actual.contains("src/lib.rs"));
 
-        // Verify aggregated metrics are displayed
+        // Verify individual operations are displayed with tool names
+        assert!(actual.contains("Operation")); // Check operation headers
+        assert!(actual.contains("Write")); // First operation on main.rs
+        assert!(actual.contains("Patch")); // Second operation on main.rs and lib.rs
         assert!(actual.contains("Lines Added:"));
         assert!(actual.contains("Lines Removed:"));
         assert!(actual.contains("Net Change:"));
-        assert!(actual.contains("Operations:"));
-        assert!(actual.contains("Final Hash:"));
+        assert!(actual.contains("Content Hash:")); // Changed from "Final Hash:"
 
         // Verify file-card class is used
         assert!(actual.contains("file-card"));
