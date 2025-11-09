@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use chrono::{DateTime, NaiveDateTime, Utc};
+use derive_more::From;
 use diesel::prelude::*;
 use forge_domain::{
     Context, Conversation, ConversationId, ConversationRepository, FileOperation, MetaData,
@@ -18,8 +19,10 @@ use crate::database::DatabasePool;
 struct FileChangeMetricsRecord {
     lines_added: u64,
     lines_removed: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
     content_hash: Option<String>,
-    tool: ToolKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool: Option<ToolKind>,
 }
 
 impl From<&FileOperation> for FileChangeMetricsRecord {
@@ -28,18 +31,29 @@ impl From<&FileOperation> for FileChangeMetricsRecord {
             lines_added: metrics.lines_added,
             lines_removed: metrics.lines_removed,
             content_hash: metrics.content_hash.clone(),
-            tool: metrics.tool,
+            tool: Some(metrics.tool),
         }
     }
 }
 
 impl From<FileChangeMetricsRecord> for FileOperation {
     fn from(record: FileChangeMetricsRecord) -> Self {
-        Self::new(record.tool)
+        // Use Write as default tool for old records without tool field
+        let tool = record.tool.unwrap_or(ToolKind::Write);
+        Self::new(tool)
             .lines_added(record.lines_added)
             .lines_removed(record.lines_removed)
             .content_hash(record.content_hash)
     }
+}
+
+/// Represents either a single file operation or array (for backward
+/// compatibility)
+#[derive(Debug, Clone, Serialize, Deserialize, From)]
+#[serde(untagged)]
+enum FileOperationOrArray {
+    Single(FileChangeMetricsRecord),
+    Array(Vec<FileChangeMetricsRecord>),
 }
 
 /// Database representation of session metrics
@@ -47,7 +61,7 @@ impl From<FileChangeMetricsRecord> for FileOperation {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct MetricsRecord {
     started_at: Option<DateTime<Utc>>,
-    files_changed: HashMap<String, FileChangeMetricsRecord>,
+    files_changed: HashMap<String, FileOperationOrArray>,
 }
 
 impl From<&Metrics> for MetricsRecord {
@@ -57,7 +71,12 @@ impl From<&Metrics> for MetricsRecord {
             files_changed: metrics
                 .file_operations
                 .iter()
-                .map(|(path, file_metrics)| (path.clone(), file_metrics.into()))
+                .map(|(path, file_metrics)| {
+                    (
+                        path.clone(),
+                        FileOperationOrArray::Single(file_metrics.into()),
+                    )
+                })
                 .collect(),
         }
     }
@@ -70,7 +89,20 @@ impl From<MetricsRecord> for Metrics {
         metrics.file_operations = record
             .files_changed
             .into_iter()
-            .map(|(path, file_record)| (path, file_record.into()))
+            .map(|(path, file_record)| {
+                let operation = match file_record {
+                    // If it's an array, take the last operation (most recent)
+                    FileOperationOrArray::Array(mut arr) if !arr.is_empty() => {
+                        arr.pop().unwrap().into()
+                    }
+                    // If it's a single object, use it directly
+                    FileOperationOrArray::Single(record) => record.into(),
+                    // If it's an empty array, skip this file
+                    FileOperationOrArray::Array(_) => return None,
+                };
+                Some((path, operation))
+            })
+            .flatten()
             .collect();
         metrics
     }

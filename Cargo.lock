@@ -1400,6 +1400,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "chrono",
+ "derive_more",
  "diesel",
  "diesel_migrations",
  "fake",
