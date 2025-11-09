@@ -33,6 +33,7 @@ pub trait API: Sync + Send {
         &self,
         preview: bool,
         max_diff_size: Option<usize>,
+        diff: Option<String>,
     ) -> Result<forge_app::CommitResult>;
 
     /// Returns the current environment

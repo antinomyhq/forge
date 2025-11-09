@@ -79,9 +79,10 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         &self,
         preview: bool,
         max_diff_size: Option<usize>,
+        diff: Option<String>,
     ) -> Result<forge_app::CommitResult> {
         let git_app = GitApp::new(self.services.clone());
-        let result = git_app.commit_message(max_diff_size).await?;
+        let result = git_app.commit_message(max_diff_size, diff).await?;
 
         if preview {
             Ok(result)

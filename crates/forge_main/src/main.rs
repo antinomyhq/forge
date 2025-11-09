@@ -6,7 +6,7 @@ use anyhow::Result;
 use clap::Parser;
 use forge_api::ForgeAPI;
 use forge_domain::TitleFormat;
-use forge_main::{Cli, Sandbox, TitleDisplayExt, UI, tracker};
+use forge_main::{Cli, Sandbox, TitleDisplayExt, TopLevelCommand, UI, tracker};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -28,13 +28,22 @@ async fn main() -> Result<()> {
     // Initialize and run the UI
     let mut cli = Cli::parse();
 
-    // Check if there's piped input and no explicit prompt was provided
-    if cli.prompt.is_none() && !atty::is(atty::Stream::Stdin) {
+    // Check if there's piped input
+    if !atty::is(atty::Stream::Stdin) {
         let mut stdin_content = String::new();
         std::io::stdin().read_to_string(&mut stdin_content)?;
         let trimmed_content = stdin_content.trim();
+
         if !trimmed_content.is_empty() {
-            cli.prompt = Some(trimmed_content.to_string());
+            // If no explicit prompt was provided, use piped content as prompt
+            if cli.prompt.is_none() {
+                cli.prompt = Some(trimmed_content.to_string());
+            }
+
+            // If commit command is being used, populate the diff field
+            if let Some(TopLevelCommand::Commit(ref mut commit_group)) = cli.subcommands {
+                commit_group.diff = Some(trimmed_content.to_string());
+            }
         }
     }
 
@@ -102,5 +111,17 @@ mod tests {
         assert_eq!(cli_with_flags.prompt, None);
         assert_eq!(cli_with_flags.verbose, true);
         assert_eq!(cli_with_flags.restricted, true);
+    }
+
+    #[test]
+    fn test_commit_command_diff_field_initially_none() {
+        // Test that the diff field in CommitCommandGroup starts as None
+        let cli = Cli::parse_from(["forge", "commit", "--preview"]);
+        if let Some(TopLevelCommand::Commit(commit_group)) = cli.subcommands {
+            assert_eq!(commit_group.preview, true);
+            assert_eq!(commit_group.diff, None);
+        } else {
+            panic!("Expected Commit command");
+        }
     }
 }

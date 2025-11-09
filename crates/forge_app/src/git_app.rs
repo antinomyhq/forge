@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -40,6 +41,18 @@ struct CommitMessageDetails {
     has_staged_files: bool,
 }
 
+/// Context for generating a commit message from a diff
+#[derive(Debug)]
+struct DiffContext {
+    diff_content: String,
+    branch_name: String,
+    recent_commits: String,
+    was_truncated: bool,
+    max_diff_size: Option<usize>,
+    original_size: usize,
+    has_staged_files: bool,
+}
+
 impl<S: Services> GitApp<S> {
     /// Creates a new GitApp instance with the provided services.
     pub fn new(services: Arc<S>) -> Self {
@@ -52,13 +65,19 @@ impl<S: Services> GitApp<S> {
     ///
     /// * `max_diff_size` - Maximum size of git diff in bytes. None for
     ///   unlimited.
+    /// * `diff` - Optional diff content provided via pipe. If provided, this
+    ///   diff is used instead of fetching from git.
     ///
     /// # Errors
     ///
     /// Returns an error if git operations fail or AI generation fails
-    pub async fn commit_message(&self, max_diff_size: Option<usize>) -> Result<CommitResult> {
+    pub async fn commit_message(
+        &self,
+        max_diff_size: Option<usize>,
+        diff: Option<String>,
+    ) -> Result<CommitResult> {
         let CommitMessageDetails { message, has_staged_files } =
-            self.generate_commit_message(max_diff_size).await?;
+            self.generate_commit_message(max_diff_size, diff).await?;
 
         Ok(CommitResult { message, committed: false, has_staged_files })
     }
@@ -98,44 +117,84 @@ impl<S: Services> GitApp<S> {
     async fn generate_commit_message(
         &self,
         max_diff_size: Option<usize>,
+        diff: Option<String>,
     ) -> Result<CommitMessageDetails> {
         // Get current working directory
         let cwd = self.services.environment_service().get_environment().cwd;
 
-        // Execute git operations in parallel
-        let (recent_commits, branch_name, staged_diff, unstaged_diff) = tokio::join!(
+        // Fetch git context (always needed for commit message generation)
+        let (recent_commits, branch_name) = self.fetch_git_context(&cwd).await?;
+
+        // Get diff content and metadata
+        let (diff_content, original_size, has_staged_files) = if let Some(piped_diff) = diff {
+            // Use piped diff
+            let size = piped_diff.len();
+            (piped_diff, size, false) // Assume unstaged for piped diff
+        } else {
+            // Fetch diff from git
+            self.fetch_git_diff(&cwd).await?
+        };
+
+        // Truncate diff if it exceeds max size
+        let (truncated_diff, was_truncated) =
+            self.truncate_diff(diff_content, max_diff_size, original_size);
+
+        self.generate_message_from_diff(DiffContext {
+            diff_content: truncated_diff,
+            branch_name,
+            recent_commits,
+            was_truncated,
+            max_diff_size,
+            original_size,
+            has_staged_files,
+        })
+        .await
+    }
+
+    /// Fetches git context (branch name and recent commits)
+    async fn fetch_git_context(&self, cwd: &Path) -> Result<(String, String)> {
+        let (recent_commits, branch_name) = tokio::join!(
             self.services.shell_service().execute(
                 "git log --pretty=format:%s --abbrev-commit --max-count=20".into(),
-                cwd.clone(),
+                cwd.to_path_buf(),
                 false,
                 true,
                 None,
             ),
             self.services.shell_service().execute(
                 "git rev-parse --abbrev-ref HEAD".into(),
-                cwd.clone(),
+                cwd.to_path_buf(),
                 false,
                 true,
                 None,
             ),
+        );
+
+        let recent_commits = recent_commits.context("Failed to get recent commits")?;
+        let branch_name = branch_name.context("Failed to get branch name")?;
+
+        Ok((recent_commits.output.stdout, branch_name.output.stdout))
+    }
+
+    /// Fetches diff from git (staged or unstaged)
+    async fn fetch_git_diff(&self, cwd: &Path) -> Result<(String, usize, bool)> {
+        let (staged_diff, unstaged_diff) = tokio::join!(
             self.services.shell_service().execute(
                 "git diff --staged".into(),
-                cwd.clone(),
+                cwd.to_path_buf(),
                 false,
                 true,
                 None,
             ),
             self.services.shell_service().execute(
                 "git diff".into(),
-                cwd.clone(),
+                cwd.to_path_buf(),
                 false,
                 true,
                 None,
             )
         );
 
-        let recent_commits = recent_commits.context("Failed to get recent commits")?;
-        let branch_name = branch_name.context("Failed to get branch name")?;
         let staged_diff = staged_diff.context("Failed to get staged changes")?;
         let unstaged_diff = unstaged_diff.context("Failed to get unstaged changes")?;
 
@@ -149,22 +208,33 @@ impl<S: Services> GitApp<S> {
             return Err(GitAppError::NoChangesToCommit.into());
         };
 
-        // Truncate diff if it exceeds max size
-        let (diff_content, was_truncated) = match max_diff_size {
-            Some(max_size) if diff_output.output.stdout.len() > max_size => {
+        let size = diff_output.output.stdout.len();
+        Ok((diff_output.output.stdout, size, has_staged_files))
+    }
+
+    /// Truncates diff content if it exceeds the maximum size
+    fn truncate_diff(
+        &self,
+        diff_content: String,
+        max_diff_size: Option<usize>,
+        original_size: usize,
+    ) -> (String, bool) {
+        match max_diff_size {
+            Some(max_size) if original_size > max_size => {
                 // Safely truncate at a char boundary
-                let truncated = diff_output
-                    .output
-                    .stdout
+                let truncated = diff_content
                     .char_indices()
                     .take_while(|(idx, _)| *idx < max_size)
                     .map(|(_, c)| c)
                     .collect::<String>();
                 (truncated, true)
             }
-            _ => (diff_output.output.stdout.clone(), false),
-        };
+            _ => (diff_content, false),
+        }
+    }
 
+    /// Generates a commit message from the provided diff and git context
+    async fn generate_message_from_diff(&self, ctx: DiffContext) -> Result<CommitMessageDetails> {
         // Get required services and data in parallel
         let agent_id = self.services.get_active_agent_id().await?;
         let (rendered_prompt, provider, model) = tokio::try_join!(
@@ -176,24 +246,24 @@ impl<S: Services> GitApp<S> {
         )?;
 
         // Create an context
-        let truncation_notice = if was_truncated {
+        let truncation_notice = if ctx.was_truncated {
             format!(
                 "\n\n[Note: Diff truncated to {} bytes. Original size: {} bytes]",
-                max_diff_size.unwrap(),
-                diff_output.output.stdout.len()
+                ctx.max_diff_size.unwrap(),
+                ctx.original_size
             )
         } else {
             String::new()
         };
 
-        let ctx = forge_domain::Context::default()
+        let context = forge_domain::Context::default()
             .add_message(ContextMessage::system(rendered_prompt))
             .add_message(ContextMessage::user(
                 format!(
                     "<branch_name>\n{}\n</branch_name>\n\n<recent_commit_messages>\n{}\n</recent_commit_messages>\n\n<git_diff>\n{}{}\n</git_diff>",
-                    branch_name.output.stdout,
-                    recent_commits.output.stdout,
-                    diff_content,
+                    ctx.branch_name,
+                    ctx.recent_commits,
+                    ctx.diff_content,
                     truncation_notice
                 ),
                 Some(model.clone()),
@@ -203,7 +273,7 @@ impl<S: Services> GitApp<S> {
         let stream = self
             .services
             .provider_service()
-            .chat(&model, ctx, provider)
+            .chat(&model, context, provider)
             .await?;
         let message = stream.into_full(false).await?;
 
@@ -211,7 +281,10 @@ impl<S: Services> GitApp<S> {
         let commit_message = forge_domain::extract_tag_content(&message.content, "commit_message")
             .ok_or_else(|| anyhow::anyhow!("Failed to generate commit message"))?;
 
-        Ok(CommitMessageDetails { message: commit_message.to_string(), has_staged_files })
+        Ok(CommitMessageDetails {
+            message: commit_message.to_string(),
+            has_staged_files: ctx.has_staged_files,
+        })
     }
 
     pub async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider> {

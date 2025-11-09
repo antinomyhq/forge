@@ -544,7 +544,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Handle the commit command
         let result = self
             .api
-            .commit(commit_group.preview, commit_group.max_diff_size)
+            .commit(
+                commit_group.preview,
+                commit_group.max_diff_size,
+                commit_group.diff,
+            )
             .await;
 
         match result {
@@ -1064,7 +1068,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.api.execute_shell_command_raw(command).await?;
             }
             SlashCommand::Commit { max_diff_size } => {
-                let args = CommitCommandGroup { preview: true, max_diff_size };
+                let args = CommitCommandGroup { preview: true, max_diff_size, diff: None };
                 let result = self.handle_commit_command(args).await?;
                 let flags = if result.has_staged_files { "" } else { " -a" };
                 let commit_command =
