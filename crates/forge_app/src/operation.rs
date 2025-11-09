@@ -204,7 +204,7 @@ impl ToolOperation {
 
                 // Track read operations
                 tracing::info!(path = %input.path, tool = %tool_name, "File read");
-                *metrics = metrics.clone().add(
+                *metrics = metrics.clone().insert(
                     input.path.clone(),
                     FileOperation::new(tool_kind).content_hash(Some(content_hash)),
                 );
@@ -220,7 +220,7 @@ impl ToolOperation {
                 let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
                 let content_hash = Some(compute_hash(&input.content));
 
-                *metrics = metrics.clone().add(
+                *metrics = metrics.clone().insert(
                     input.path.clone(),
                     FileOperation::new(tool_kind)
                         .lines_added(diff_result.lines_added())
@@ -248,7 +248,7 @@ impl ToolOperation {
                 // None since file was removed
                 let content_hash = None;
 
-                *metrics = metrics.clone().add(
+                *metrics = metrics.clone().insert(
                     input.path.clone(),
                     FileOperation::new(tool_kind)
                         .lines_removed(output.content.lines().count() as u64)
@@ -338,7 +338,7 @@ impl ToolOperation {
                     elm = elm.append(Element::new("warning").text(warning));
                 }
 
-                *metrics = metrics.clone().add(
+                *metrics = metrics.clone().insert(
                     input.path.clone(),
                     FileOperation::new(tool_kind)
                         .lines_added(diff_result.lines_added())
@@ -357,7 +357,7 @@ impl ToolOperation {
                 );
                 let content_hash = output.after_undo.as_ref().map(|s| compute_hash(s));
 
-                *metrics = metrics.clone().add(
+                *metrics = metrics.clone().insert(
                     input.path.clone(),
                     FileOperation::new(tool_kind)
                         .lines_added(diff.lines_added())

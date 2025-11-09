@@ -478,14 +478,14 @@ mod tests {
         // Create a conversation with metrics
         let metrics = Metrics::new()
             .started_at(Utc::now())
-            .add(
+            .insert(
                 "src/main.rs".to_string(),
                 FileOperation::new(ToolKind::Write)
                     .lines_added(10u64)
                     .lines_removed(5u64)
                     .content_hash(Some("abc123def456".to_string())),
             )
-            .add(
+            .insert(
                 "src/lib.rs".to_string(),
                 FileOperation::new(ToolKind::Write)
                     .lines_added(3u64)
@@ -523,7 +523,7 @@ mod tests {
     fn test_metrics_record_conversion_preserves_all_fields() {
         // This test ensures compile-time safety: if Metrics schema changes,
         // this test will fail to compile, alerting us to update MetricsRecord
-        let fixture = Metrics::new().started_at(Utc::now()).add(
+        let fixture = Metrics::new().started_at(Utc::now()).insert(
             "test.rs".to_string(),
             FileOperation::new(ToolKind::Write)
                 .lines_added(5u64)

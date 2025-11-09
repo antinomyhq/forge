@@ -604,19 +604,19 @@ mod tests {
 
         let fixture = Metrics::new()
             .started_at(chrono::Utc::now())
-            .add(
+            .insert(
                 "src/main.rs".to_string(),
                 FileOperation::new(ToolKind::Write)
                     .lines_added(12u64)
                     .lines_removed(3u64),
             )
-            .add(
+            .insert(
                 "src/agent/mod.rs".to_string(),
                 FileOperation::new(ToolKind::Write)
                     .lines_added(8u64)
                     .lines_removed(2u64),
             )
-            .add(
+            .insert(
                 "tests/integration/test_agent.rs".to_string(),
                 FileOperation::new(ToolKind::Write)
                     .lines_added(5u64)
@@ -649,13 +649,13 @@ mod tests {
         let conversation_id = ConversationId::generate();
         let metrics = Metrics::new()
             .started_at(Utc::now())
-            .add(
+            .insert(
                 "src/main.rs".to_string(),
                 FileOperation::new(ToolKind::Write)
                     .lines_added(5u64)
                     .lines_removed(2u64),
             )
-            .add(
+            .insert(
                 "tests/test.rs".to_string(),
                 FileOperation::new(ToolKind::Write)
                     .lines_added(3u64)

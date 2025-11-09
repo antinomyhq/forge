@@ -23,7 +23,7 @@ impl Metrics {
 
     /// Records a file operation, replacing any previous operation for the same
     /// file
-    pub fn add(mut self, path: String, metrics: FileOperation) -> Self {
+    pub fn insert(mut self, path: String, metrics: FileOperation) -> Self {
         self.file_operations.insert(path, metrics);
         self
     }
@@ -52,21 +52,21 @@ mod tests {
     #[test]
     fn test_metrics_record_file_operation() {
         let fixture = Metrics::new()
-            .add(
+            .insert(
                 "file1.rs".to_string(),
                 FileOperation::new(ToolKind::Write)
                     .lines_added(10u64)
                     .lines_removed(5u64)
                     .content_hash(Some("hash1".to_string())),
             )
-            .add(
+            .insert(
                 "file2.rs".to_string(),
                 FileOperation::new(ToolKind::Patch)
                     .lines_added(3u64)
                     .lines_removed(2u64)
                     .content_hash(Some("hash2".to_string())),
             )
-            .add(
+            .insert(
                 "file1.rs".to_string(),
                 FileOperation::new(ToolKind::Patch)
                     .lines_added(5u64)
@@ -93,7 +93,7 @@ mod tests {
         let path = "file_to_track.rs".to_string();
 
         // Do operation
-        let metrics = Metrics::new().add(
+        let metrics = Metrics::new().insert(
             path.clone(),
             FileOperation::new(ToolKind::Write)
                 .lines_added(2u64)
@@ -107,7 +107,7 @@ mod tests {
         assert_eq!(operation.content_hash, Some("hash_v1".to_string()));
 
         // Undo operation replaces the previous operation
-        let metrics = metrics.add(
+        let metrics = metrics.insert(
             path.clone(),
             FileOperation::new(ToolKind::Undo).content_hash(Some("hash_v0".to_string())),
         );
@@ -122,21 +122,21 @@ mod tests {
         let path = "file1.rs".to_string();
 
         let metrics = Metrics::new()
-            .add(
+            .insert(
                 path.clone(),
                 FileOperation::new(ToolKind::Write)
                     .lines_added(10u64)
                     .lines_removed(5u64)
                     .content_hash(Some("hash1".to_string())),
             )
-            .add(
+            .insert(
                 path.clone(),
                 FileOperation::new(ToolKind::Patch)
                     .lines_added(5u64)
                     .lines_removed(1u64)
                     .content_hash(Some("hash2".to_string())),
             )
-            .add(
+            .insert(
                 path.clone(),
                 FileOperation::new(ToolKind::Undo).content_hash(Some("hash1".to_string())),
             );
