@@ -678,8 +678,8 @@ mod tests {
 
         // Empty array should be skipped, only lib.rs should be present
         assert_eq!(actual.file_operations.len(), 1);
-        assert!(actual.file_operations.get("src/lib.rs").is_some());
-        assert!(actual.file_operations.get("src/main.rs").is_none());
+        assert!(actual.file_operations.contains_key("src/lib.rs"));
+        assert!(actual.file_operations.contains_key("src/main.rs"));
     }
 
     #[test]
