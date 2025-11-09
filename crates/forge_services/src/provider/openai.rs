@@ -71,7 +71,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
     fn get_headers_with_request(&self, request: &Request) -> Vec<(String, String)> {
         let mut headers = self.get_headers();
         // Add Session-Id header for zai and zai_coding providers
-        if (self.provider.id == ProviderId::Zai || self.provider.id == ProviderId::ZaiCoding)
+        if (self.provider.id == ProviderId::ZAI || self.provider.id == ProviderId::ZAI_CODING)
             && request.session_id.is_some()
         {
             headers.push((
@@ -125,7 +125,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
 
     async fn inner_models(&self) -> Result<Vec<forge_app::domain::Model>> {
         // For Vertex AI, load models from static JSON file using VertexProvider logic
-        if self.provider.id == ProviderId::VertexAi {
+        if self.provider.id == ProviderId::VERTEX_AI {
             debug!("Loading Vertex AI models from static JSON file");
             Ok(self.inner_vertex_models())
         } else {

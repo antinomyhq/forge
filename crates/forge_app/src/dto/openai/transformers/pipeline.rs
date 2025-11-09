@@ -41,7 +41,7 @@ impl Transformer for ProviderPipeline<'_> {
 
         let open_ai_compat = MakeOpenAiCompat.when(move |_| !supports_open_router_params(provider));
 
-        let cerebras_compat = MakeCerebrasCompat.when(move |_| provider.id == ProviderId::Cerebras);
+        let cerebras_compat = MakeCerebrasCompat.when(move |_| provider.id == ProviderId::CEREBRAS);
 
         let mut combined = zai_thinking
             .pipe(or_transformers)
@@ -54,15 +54,15 @@ impl Transformer for ProviderPipeline<'_> {
 
 /// Checks if provider is a z.ai provider (zai or zai_coding)
 fn is_zai_provider(provider: &Provider<Url>) -> bool {
-    provider.id == ProviderId::Zai || provider.id == ProviderId::ZaiCoding
+    provider.id == ProviderId::ZAI || provider.id == ProviderId::ZAI_CODING
 }
 
 /// function checks if provider supports open-router parameters.
 fn supports_open_router_params(provider: &Provider<Url>) -> bool {
-    provider.id == ProviderId::OpenRouter
-        || provider.id == ProviderId::Forge
-        || provider.id == ProviderId::Zai
-        || provider.id == ProviderId::ZaiCoding
+    provider.id == ProviderId::OPEN_ROUTER
+        || provider.id == ProviderId::FORGE
+        || provider.id == ProviderId::ZAI
+        || provider.id == ProviderId::ZAI_CODING
 }
 
 #[cfg(test)]

@@ -59,8 +59,9 @@ pub struct CliProvider(pub AnyProvider);
 impl Display for CliProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Dynamically calculate the maximum provider name width
-        let name_width = ProviderId::iter()
-            .map(|id| id.to_string().len())
+        let name_width = ProviderId::built_in_providers()
+            .iter()
+            .map(|id| id.display_name().len())
             .max()
             .unwrap_or(10);
 

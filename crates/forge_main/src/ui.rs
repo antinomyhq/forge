@@ -23,7 +23,6 @@ use forge_select::ForgeSelect;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
 use merge::Merge;
-use strum::IntoEnumIterator;
 use tokio_stream::StreamExt;
 use tracing::debug;
 use url::Url;
@@ -2420,5 +2419,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
 /// Get list of valid provider names
 fn get_valid_provider_names() -> Vec<String> {
-    ProviderId::iter().map(|p| p.to_string()).collect()
+    ProviderId::built_in_providers()
+        .iter()
+        .map(|p| p.to_string())
+        .collect()
 }

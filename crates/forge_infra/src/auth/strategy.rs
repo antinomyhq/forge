@@ -662,7 +662,7 @@ impl StrategyFactory for ForgeAuthStrategyFactory {
                 required_params,
             ))),
             forge_domain::AuthMethod::OAuthCode(config) => {
-                if let ProviderId::ClaudeCode = provider_id {
+                if provider_id == ProviderId::CLAUDE_CODE {
                     return Ok(AnyAuthStrategy::OAuthCodeAnthropic(OAuthCodeStrategy::new(
                         AnthropicHttpProvider,
                         provider_id,
@@ -670,7 +670,7 @@ impl StrategyFactory for ForgeAuthStrategyFactory {
                     )));
                 }
 
-                if let ProviderId::GithubCopilot = provider_id {
+                if provider_id == ProviderId::GITHUB_COPILOT {
                     return Ok(AnyAuthStrategy::OAuthCodeGithub(OAuthCodeStrategy::new(
                         GithubHttpProvider,
                         provider_id,
