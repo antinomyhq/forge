@@ -21,6 +21,8 @@ mod retry;
 mod services;
 mod set_conversation_id;
 pub mod system_prompt;
+#[cfg(test)]
+mod system_prompt_tests;
 mod template_engine;
 mod title_generator;
 mod tool_executor;

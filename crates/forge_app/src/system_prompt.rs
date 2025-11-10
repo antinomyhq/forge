@@ -57,9 +57,13 @@ impl<S: TemplateService> SystemPrompt<S> {
                 custom_rules.push(rule.as_str());
             });
 
-            self.custom_instructions.iter().for_each(|rule| {
-                custom_rules.push(rule.as_str());
-            });
+            // Only include AGENTS.md content if agent has include_agents_md enabled
+            // (default: true)
+            if agent.include_agents_md.unwrap_or(true) {
+                self.custom_instructions.iter().for_each(|rule| {
+                    custom_rules.push(rule.as_str());
+                });
+            }
 
             let ctx = SystemContext {
                 env: Some(env),
