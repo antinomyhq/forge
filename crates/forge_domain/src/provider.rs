@@ -80,19 +80,16 @@ impl ProviderId {
     /// Returns the display name (UpperCamelCase for UI).
     ///
     /// This is used by the `Display` trait for user-facing output.
-    pub fn display_name(&self) -> &'static str {
+    pub fn display_name(&self) -> String {
         Self::PROVIDER_REGISTRY
             .iter()
             .find(|(id, _, _)| *id == self.0)
             .map(|(_, _, display)| *display)
+            .map(|s| s.to_string())
             .unwrap_or_else(|| {
                 // Fallback for any custom providers (though they're rejected in
                 // deserialization)
-                Box::leak(
-                    self.0
-                        .to_case(convert_case::Case::UpperCamel)
-                        .into_boxed_str(),
-                )
+                self.0.to_case(convert_case::Case::UpperCamel)
             })
     }
 
