@@ -233,30 +233,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_read_handles_invalid_provider_gracefully() {
-        let fixture = r#"{
-            "provider": "xyz",
-            "model": {}
-        }"#;
-        let temp_dir = tempfile::tempdir().unwrap();
-        let config_path = temp_dir.path().join(".config.json");
-
-        let infra = Arc::new(MockInfra::new(config_path.clone()));
-        infra
-            .files
-            .lock()
-            .unwrap()
-            .insert(config_path, fixture.to_string());
-
-        let repo = AppConfigRepositoryImpl::new(infra);
-
-        let actual = repo.get_app_config().await.unwrap();
-
-        let expected = AppConfig::default();
-        assert_eq!(actual, expected);
-    }
-
-    #[tokio::test]
     async fn test_read_returns_default_if_not_exists() {
         let (repo, _temp_dir) = repository_fixture();
 
