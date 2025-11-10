@@ -53,10 +53,18 @@ impl SystemMessage {
     }
 }
 
-#[derive(Serialize, Default)]
+#[derive(Serialize, Default, Debug, PartialEq, Eq)]
 pub struct Thinking {
-    pub r#type: String,
+    pub r#type: ThinkingType,
     pub budget_tokens: u64,
+}
+
+#[derive(Serialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ThinkingType {
+    #[default]
+    Enabled,
+    Disabled,
 }
 
 impl TryFrom<forge_domain::Context> for Request {
@@ -95,13 +103,16 @@ impl TryFrom<forge_domain::Context> for Request {
             top_k: request.top_k.map(|t| t.value() as u64),
             tool_choice: request.tool_choice.map(ToolChoice::from),
             thinking: request.reasoning.and_then(|reasoning| {
-                match (reasoning.enabled, reasoning.max_tokens) {
-                    (Some(true), Some(max_tokens)) => Some(Thinking {
-                        r#type: "enabled".to_string(),
-                        budget_tokens: max_tokens as u64,
-                    }),
-                    _ => None,
-                }
+                reasoning.enabled.and_then(|enabled| {
+                    if enabled {
+                        Some(Thinking {
+                            r#type: ThinkingType::Enabled,
+                            budget_tokens: reasoning.max_tokens.unwrap_or(10000) as u64,
+                        })
+                    } else {
+                        None
+                    }
+                })
             }),
             ..Default::default()
         })
@@ -431,5 +442,114 @@ impl TryFrom<forge_domain::ToolDefinition> for ToolDefinition {
             cache_control: None,
             input_schema: serde_json::to_value(value.input_schema)?,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use forge_domain::{Context, ReasoningConfig};
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    #[test]
+    fn test_thinking_type_serializes_to_enabled() {
+        let thinking_type = ThinkingType::Enabled;
+        let actual = serde_json::to_string(&thinking_type).unwrap();
+        let expected = r#""enabled""#;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_thinking_type_serializes_to_disabled() {
+        let thinking_type = ThinkingType::Disabled;
+        let actual = serde_json::to_string(&thinking_type).unwrap();
+        let expected = r#""disabled""#;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_thinking_struct_serializes_correctly() {
+        let thinking = Thinking { r#type: ThinkingType::Enabled, budget_tokens: 5000 };
+        let actual = serde_json::to_value(&thinking).unwrap();
+        let expected = serde_json::json!({
+            "type": "enabled",
+            "budget_tokens": 5000
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_reasoning_enabled_with_max_tokens_creates_thinking() {
+        let fixture = Context::default().reasoning(ReasoningConfig {
+            enabled: Some(true),
+            max_tokens: Some(8000),
+            effort: None,
+            exclude: None,
+        });
+
+        let actual = Request::try_from(fixture).unwrap();
+
+        assert_eq!(
+            actual.thinking,
+            Some(Thinking { r#type: ThinkingType::Enabled, budget_tokens: 8000 })
+        );
+    }
+
+    #[test]
+    fn test_reasoning_enabled_without_max_tokens_uses_default_budget() {
+        let fixture = Context::default().reasoning(ReasoningConfig {
+            enabled: Some(true),
+            max_tokens: None,
+            effort: None,
+            exclude: None,
+        });
+
+        let actual = Request::try_from(fixture).unwrap();
+
+        assert_eq!(
+            actual.thinking,
+            Some(Thinking { r#type: ThinkingType::Enabled, budget_tokens: 10000 })
+        );
+    }
+
+    #[test]
+    fn test_reasoning_disabled_does_not_create_thinking() {
+        let fixture = Context::default().reasoning(ReasoningConfig {
+            enabled: Some(false),
+            max_tokens: Some(8000),
+            effort: None,
+            exclude: None,
+        });
+
+        let actual = Request::try_from(fixture).unwrap();
+
+        assert_eq!(actual.thinking, None);
+    }
+
+    #[test]
+    fn test_reasoning_enabled_none_does_not_create_thinking() {
+        let fixture = Context::default().reasoning(ReasoningConfig {
+            enabled: None,
+            max_tokens: Some(8000),
+            effort: None,
+            exclude: None,
+        });
+
+        let actual = Request::try_from(fixture).unwrap();
+
+        assert_eq!(actual.thinking, None);
+    }
+
+    #[test]
+    fn test_no_reasoning_config_does_not_create_thinking() {
+        let fixture = Context::default();
+
+        let actual = Request::try_from(fixture).unwrap();
+
+        assert_eq!(actual.thinking, None);
     }
 }

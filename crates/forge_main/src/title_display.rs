@@ -7,7 +7,6 @@ use forge_domain::{Category, Environment, TitleFormat, Usage};
 /// Implementation of Display for TitleFormat in the presentation layer
 pub struct TitleDisplay {
     inner: TitleFormat,
-    with_timestamp: bool,
     with_colors: bool,
     env: Option<Environment>,
 }
@@ -16,15 +15,9 @@ impl TitleDisplay {
     pub fn new(title: TitleFormat) -> Self {
         Self {
             inner: title,
-            with_timestamp: true,
             with_colors: true,
             env: None,
         }
-    }
-
-    pub fn with_timestamp(mut self, with_timestamp: bool) -> Self {
-        self.with_timestamp = with_timestamp;
-        self
     }
 
     pub fn with_colors(mut self, with_colors: bool) -> Self {
@@ -78,10 +71,9 @@ impl TitleDisplay {
         let mut result = template.to_string();
 
         // Replace timestamp
-        let timestamp = if self.with_timestamp {
-            format!("{}", Local::now().format("%H:%M:%S"))
-        } else {
-            String::new()
+        let timestamp = {
+            let local_time: chrono::DateTime<Local> = self.inner.timestamp.into();
+            format!("{}", local_time.format("%H:%M:%S"))
         };
         result = result.replace("{timestamp}", &timestamp);
 
@@ -168,25 +160,90 @@ impl TitleDisplay {
         }
 
         // Clean up extra spaces, brackets, and slashes left from empty replacements
+        // First, clean up spaces within brackets
         result = result
-            .replace("[]", "")
-            .replace("[ ]", "")
-            .replace("/}", "")
-            .replace("{/", "");
+            .replace("[ ", "[")
+            .replace(" ]", "]")
+            .replace("[/", "[")
+            .replace("/]", "]");
 
-        result = result
+        // Then normalize multiple spaces and slashes to single space
+        let result = result
             .split_whitespace()
             .filter(|s| !s.is_empty() && *s != "/")
             .collect::<Vec<_>>()
             .join(" ");
 
-        result.replace(" ]", "]")
+        // Finally, clean up empty brackets completely
+        let result = result.replace("[]", "");
+
+        result
+    }
+
+    fn format_with_colors(&self) -> String {
+        let mut buf = String::new();
+
+        let icon = match self.inner.category {
+            Category::Action => "⏺".yellow(),
+            Category::Info => "⏺".white(),
+            Category::Debug => "⏺".cyan(),
+            Category::Error => "⏺".red(),
+            Category::Completion => "⏺".yellow(),
+        };
+
+        buf.push_str(format!("{icon} ").as_str());
+
+        let local_time: chrono::DateTime<Local> = self.inner.timestamp.into();
+        let timestamp_str = format!("[{}] ", local_time.format("%H:%M:%S"));
+        buf.push_str(timestamp_str.dimmed().to_string().as_str());
+
+        let title = match self.inner.category {
+            Category::Action => self.inner.title.white(),
+            Category::Info => self.inner.title.white(),
+            Category::Debug => self.inner.title.dimmed(),
+            Category::Error => format!("{} {}", "ERROR:".bold(), self.inner.title).red(),
+            Category::Completion => self.inner.title.white().bold(),
+        };
+
+        buf.push_str(title.to_string().as_str());
+
+        if let Some(ref sub_title) = self.inner.sub_title {
+            buf.push_str(&format!(" {}", sub_title.dimmed()).to_string());
+        }
+
+        buf
+    }
+
+    fn format_plain(&self) -> String {
+        let mut buf = String::new();
+
+        buf.push_str("⏺ ");
+
+        let local_time: chrono::DateTime<Local> = self.inner.timestamp.into();
+        let timestamp_str = format!("[{}] ", local_time.format("%H:%M:%S"));
+        buf.push_str(&timestamp_str);
+
+        buf.push_str(&self.inner.title);
+
+        if let Some(ref sub_title) = self.inner.sub_title {
+            buf.push(' ');
+            buf.push_str(sub_title);
+        }
+
+        buf
     }
 }
 
 impl fmt::Display for TitleDisplay {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.format_with_data(None, None))
+        // Check if we have an environment with a custom format
+        if self.env.is_some() {
+            write!(f, "{}", self.format_with_data(None, None))
+        } else if self.with_colors {
+            write!(f, "{}", self.format_with_colors())
+        } else {
+            write!(f, "{}", self.format_plain())
+        }
     }
 }
 
@@ -194,7 +251,6 @@ impl fmt::Display for TitleDisplay {
 pub trait TitleDisplayExt {
     fn display(self) -> TitleDisplay;
     fn display_with_colors(self, with_colors: bool) -> TitleDisplay;
-    fn display_with_timestamp(self, with_timestamp: bool) -> TitleDisplay;
     fn display_with_env(self, env: Environment) -> TitleDisplay;
 }
 
@@ -205,10 +261,6 @@ impl TitleDisplayExt for TitleFormat {
 
     fn display_with_colors(self, with_colors: bool) -> TitleDisplay {
         TitleDisplay::new(self).with_colors(with_colors)
-    }
-
-    fn display_with_timestamp(self, with_timestamp: bool) -> TitleDisplay {
-        TitleDisplay::new(self).with_timestamp(with_timestamp)
     }
 
     fn display_with_env(self, env: Environment) -> TitleDisplay {
@@ -229,6 +281,7 @@ mod tests {
             title: "Test Title".to_string(),
             sub_title: None,
             category: Category::Info,
+            timestamp: chrono::Utc::now(),
         };
 
         let env = Environment {
@@ -236,10 +289,7 @@ mod tests {
             ..fake::Faker.fake()
         };
 
-        let display = title
-            .display_with_env(env)
-            .with_colors(false)
-            .with_timestamp(false);
+        let display = title.display_with_env(env).with_colors(false);
 
         let result = display.format_with_data(None, None);
 
@@ -255,6 +305,7 @@ mod tests {
             title: "Test Title".to_string(),
             sub_title: None,
             category: Category::Info,
+            timestamp: chrono::Utc::now(),
         };
 
         let usage = Usage {
@@ -270,10 +321,7 @@ mod tests {
             ..fake::Faker.fake()
         };
 
-        let display = title
-            .display_with_env(env)
-            .with_colors(false)
-            .with_timestamp(false);
+        let display = title.display_with_env(env).with_colors(false);
 
         let result = display.format_with_data(Some(&usage), None);
 
@@ -289,6 +337,7 @@ mod tests {
             title: "Test Title".to_string(),
             sub_title: Some("Subtitle".to_string()),
             category: Category::Debug,
+            timestamp: chrono::Utc::now(),
         };
 
         let env = Environment {
@@ -296,10 +345,7 @@ mod tests {
             ..fake::Faker.fake()
         };
 
-        let display = title
-            .display_with_env(env)
-            .with_colors(false)
-            .with_timestamp(false);
+        let display = title.display_with_env(env).with_colors(false);
 
         let result = display.format_with_data(None, None);
 

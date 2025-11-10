@@ -50,22 +50,14 @@ mod tests {
         }];
 
         Context::default()
-            .add_message(ContextMessage::Text(TextMessage {
-                role: Role::User,
-                content: "User message with reasoning".to_string(),
-                raw_content: None,
-                tool_calls: None,
-                model: None,
-                reasoning_details: Some(reasoning_details.clone()),
-            }))
-            .add_message(ContextMessage::Text(TextMessage {
-                role: Role::Assistant,
-                content: "Assistant response with reasoning".to_string(),
-                raw_content: None,
-                tool_calls: None,
-                model: None,
-                reasoning_details: Some(reasoning_details),
-            }))
+            .add_message(ContextMessage::Text(
+                TextMessage::new(Role::User, "User message with reasoning")
+                    .reasoning_details(reasoning_details.clone()),
+            ))
+            .add_message(ContextMessage::Text(
+                TextMessage::new(Role::Assistant, "Assistant response with reasoning")
+                    .reasoning_details(reasoning_details),
+            ))
     }
 
     fn create_context_with_mixed_messages() -> Context {
@@ -76,14 +68,10 @@ mod tests {
 
         Context::default()
             .add_message(ContextMessage::system("System message"))
-            .add_message(ContextMessage::Text(TextMessage {
-                role: Role::User,
-                content: "User message with reasoning".to_string(),
-                raw_content: None,
-                tool_calls: None,
-                model: None,
-                reasoning_details: Some(reasoning_details),
-            }))
+            .add_message(ContextMessage::Text(
+                TextMessage::new(Role::User, "User message with reasoning")
+                    .reasoning_details(reasoning_details),
+            ))
             .add_message(ContextMessage::user("User message without reasoning", None))
             .add_message(ContextMessage::assistant("Assistant response", None, None))
             .add_tool_results(vec![ToolResult {
@@ -110,14 +98,11 @@ mod tests {
             signature: None,
         }];
 
-        let fixture = Context::default().add_message(ContextMessage::Text(TextMessage {
-            role: Role::Assistant,
-            content: "Assistant message".to_string(),
-            raw_content: None,
-            tool_calls: None,
-            model: Some(crate::ModelId::new("gpt-4")),
-            reasoning_details: Some(reasoning_details),
-        }));
+        let fixture = Context::default().add_message(ContextMessage::Text(
+            TextMessage::new(Role::Assistant, "Assistant message")
+                .model(crate::ModelId::new("gpt-4"))
+                .reasoning_details(reasoning_details),
+        ));
 
         let mut transformer = DropReasoningDetails;
         let actual = transformer.transform(fixture.clone());
@@ -159,14 +144,10 @@ mod tests {
 
         let fixture = Context::default()
             .reasoning(ReasoningConfig::default().enabled(true))
-            .add_message(ContextMessage::Text(TextMessage {
-                role: Role::User,
-                content: "User with reasoning".to_string(),
-                raw_content: None,
-                tool_calls: None,
-                model: None,
-                reasoning_details: Some(reasoning_details),
-            }))
+            .add_message(ContextMessage::Text(
+                TextMessage::new(Role::User, "User with reasoning")
+                    .reasoning_details(reasoning_details),
+            ))
             .add_message(ContextMessage::Image(crate::Image::new_base64(
                 "image_data".to_string(),
                 "image/png",

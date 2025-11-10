@@ -1,8 +1,6 @@
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use forge_api::Environment;
-use tokio::fs;
 
 use crate::editor::{ForgeEditor, ReadResult};
 use crate::model::{ForgeCommandManager, SlashCommand};
@@ -24,14 +22,6 @@ impl Console {
 }
 
 impl Console {
-    pub async fn upload<P: Into<PathBuf> + Send>(&self, path: P) -> anyhow::Result<SlashCommand> {
-        let path = path.into();
-        let content = fs::read_to_string(&path).await?.trim().to_string();
-
-        println!("{}", content.clone());
-        Ok(SlashCommand::Message(content))
-    }
-
     pub async fn prompt(&self, prompt: ForgePrompt) -> anyhow::Result<SlashCommand> {
         let engine = Mutex::new(ForgeEditor::new(self.env.clone(), self.command.clone()));
 

@@ -46,7 +46,7 @@ pub struct ForgeInfra {
     inquire_service: Arc<ForgeInquire>,
     mcp_server: ForgeMcpServer,
     walker_service: Arc<ForgeWalkerService>,
-    http_service: Arc<ForgeHttpInfra>,
+    http_service: Arc<ForgeHttpInfra<ForgeFileWriteService>>,
     strategy_factory: Arc<ForgeAuthStrategyFactory>,
 }
 
@@ -55,11 +55,12 @@ impl ForgeInfra {
         let environment_service = Arc::new(ForgeEnvironmentInfra::new(restricted, cwd));
         let env = environment_service.get_environment();
 
-        let http_service = Arc::new(ForgeHttpInfra::new(env.http.clone()));
+        let file_write_service = Arc::new(ForgeFileWriteService::new());
+        let http_service = Arc::new(ForgeHttpInfra::new(env.clone(), file_write_service.clone()));
 
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
-            file_write_service: Arc::new(ForgeFileWriteService::new()),
+            file_write_service,
             file_remove_service: Arc::new(ForgeFileRemoveService::new()),
             environment_service,
             file_meta_service: Arc::new(ForgeFileMetaService),

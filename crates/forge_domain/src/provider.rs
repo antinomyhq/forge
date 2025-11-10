@@ -144,6 +144,23 @@ impl AnyProvider {
             AnyProvider::Template(p) => &p.url_params,
         }
     }
+
+    /// Gets the authentication methods supported by this provider
+    pub fn auth_methods(&self) -> &[crate::AuthMethod] {
+        match self {
+            AnyProvider::Url(p) => &p.auth_methods,
+            AnyProvider::Template(p) => &p.auth_methods,
+        }
+    }
+
+    /// Consumes self and returns the configured provider if this is a URL
+    /// provider with credentials
+    pub fn into_configured(self) -> Option<Provider<Url>> {
+        match self {
+            AnyProvider::Url(p) if p.is_configured() => Some(p),
+            _ => None,
+        }
+    }
 }
 
 #[cfg(test)]
