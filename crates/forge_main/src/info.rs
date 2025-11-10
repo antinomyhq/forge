@@ -102,6 +102,107 @@ impl From<&Environment> for Info {
                 format_path_for_display(env, &env.permissions_path()),
             );
 
+        // Add configuration sections
+        info = info
+            .add_title("RETRY CONFIGURATION")
+            .add_key_value(
+                "Initial Backoff",
+                format!("{}ms", env.retry_config.initial_backoff_ms),
+            )
+            .add_key_value(
+                "Backoff Factor",
+                env.retry_config.backoff_factor.to_string(),
+            )
+            .add_key_value(
+                "Max Attempts",
+                env.retry_config.max_retry_attempts.to_string(),
+            )
+            .add_key_value(
+                "Suppress Errors",
+                env.retry_config.suppress_retry_errors.to_string(),
+            )
+            .add_key_value(
+                "Status Codes",
+                env.retry_config
+                    .retry_status_codes
+                    .iter()
+                    .map(|c| c.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            )
+            .add_title("HTTP CONFIGURATION")
+            .add_key_value("Connect Timeout", format!("{}s", env.http.connect_timeout))
+            .add_key_value("Read Timeout", format!("{}s", env.http.read_timeout))
+            .add_key_value(
+                "Pool Idle Timeout",
+                format!("{}s", env.http.pool_idle_timeout),
+            )
+            .add_key_value("Pool Max Idle", env.http.pool_max_idle_per_host.to_string())
+            .add_key_value("Max Redirects", env.http.max_redirects.to_string())
+            .add_key_value("Use Hickory DNS", env.http.hickory.to_string())
+            .add_key_value("TLS Backend", format!("{}", env.http.tls_backend))
+            .add_key_value(
+                "Min TLS Version",
+                env.http
+                    .min_tls_version
+                    .as_ref()
+                    .map(|v| format!("{v}"))
+                    .unwrap_or_else(|| "None".to_string()),
+            )
+            .add_key_value(
+                "Max TLS Version",
+                env.http
+                    .max_tls_version
+                    .as_ref()
+                    .map(|v| format!("{v}"))
+                    .unwrap_or_else(|| "None".to_string()),
+            )
+            .add_key_value("Adaptive Window", env.http.adaptive_window.to_string())
+            .add_key_value(
+                "Keep-Alive Interval",
+                env.http
+                    .keep_alive_interval
+                    .map(|v| format!("{v}s"))
+                    .unwrap_or_else(|| "Disabled".to_string()),
+            )
+            .add_key_value(
+                "Keep-Alive Timeout",
+                format!("{}s", env.http.keep_alive_timeout),
+            )
+            .add_key_value(
+                "Keep-Alive While Idle",
+                env.http.keep_alive_while_idle.to_string(),
+            )
+            .add_key_value(
+                "Accept Invalid Certs",
+                env.http.accept_invalid_certs.to_string(),
+            )
+            .add_key_value(
+                "Root Cert Paths",
+                env.http
+                    .root_cert_paths
+                    .as_ref()
+                    .map(|paths| paths.join(", "))
+                    .unwrap_or_else(|| "None".to_string()),
+            )
+            .add_title("API CONFIGURATION")
+            .add_key_value("Forge API URL", env.forge_api_url.to_string())
+            .add_title("TOOL CONFIGURATION")
+            .add_key_value("Tool Timeout", format!("{}s", env.tool_timeout))
+            .add_key_value("Max Image Size", format!("{} bytes", env.max_image_size))
+            .add_key_value("Auto Open Dump", env.auto_open_dump.to_string())
+            .add_key_value("Debug Requests", env.debug_requests.to_string())
+            .add_key_value(
+                "Stdout Max Line Length",
+                env.stdout_max_line_length.to_string(),
+            )
+            .add_title("SYSTEM CONFIGURATION")
+            .add_key_value(
+                "Max Search Result Bytes",
+                format!("{} bytes", env.max_search_result_bytes),
+            )
+            .add_key_value("Max Conversations", env.max_conversations.to_string());
+
         info
     }
 }
@@ -109,7 +210,7 @@ impl From<&Environment> for Info {
 impl From<&Metrics> for Info {
     fn from(metrics: &Metrics) -> Self {
         let mut info = Info::new();
-        if let Some(duration) = metrics.duration()
+        if let Some(duration) = metrics.duration(chrono::Utc::now())
             && duration.as_secs() > 0
         {
             let duration =
@@ -120,10 +221,10 @@ impl From<&Metrics> for Info {
         }
 
         // Add file changes section
-        if metrics.files_changed.is_empty() {
+        if metrics.file_operations.is_empty() {
             info = info.add_value("[No Changes Produced]");
         } else {
-            for (path, file_metrics) in &metrics.files_changed {
+            for (path, file_metrics) in &metrics.file_operations {
                 // Extract just the filename from the path
                 let filename = std::path::Path::new(path)
                     .file_name()
@@ -430,7 +531,7 @@ impl From<&Conversation> for Info {
         }
 
         // Insert metrics information
-        if !conversation.metrics.files_changed.is_empty() {
+        if !conversation.metrics.file_operations.is_empty() {
             info = info.extend(&conversation.metrics);
         }
 
@@ -447,7 +548,6 @@ impl From<&Conversation> for Info {
 mod tests {
     use std::path::PathBuf;
 
-    use chrono::Utc;
     use forge_api::{Environment, EventValue};
     use pretty_assertions::assert_eq;
 
@@ -601,11 +701,28 @@ mod tests {
     #[test]
     fn test_metrics_info_display() {
         use forge_api::Metrics;
+        use forge_domain::{FileOperation, ToolKind};
 
-        let mut fixture = Metrics::new().with_time(Utc::now());
-        fixture.record_file_operation("src/main.rs".to_string(), 12, 3);
-        fixture.record_file_operation("src/agent/mod.rs".to_string(), 8, 2);
-        fixture.record_file_operation("tests/integration/test_agent.rs".to_string(), 5, 0);
+        let fixture = Metrics::new()
+            .started_at(chrono::Utc::now())
+            .insert(
+                "src/main.rs".to_string(),
+                FileOperation::new(ToolKind::Write)
+                    .lines_added(12u64)
+                    .lines_removed(3u64),
+            )
+            .insert(
+                "src/agent/mod.rs".to_string(),
+                FileOperation::new(ToolKind::Write)
+                    .lines_added(8u64)
+                    .lines_removed(2u64),
+            )
+            .insert(
+                "tests/integration/test_agent.rs".to_string(),
+                FileOperation::new(ToolKind::Write)
+                    .lines_added(5u64)
+                    .lines_removed(0u64),
+            );
 
         let actual = super::Info::from(&fixture);
         let expected_display = actual.to_string();
@@ -626,13 +743,25 @@ mod tests {
     fn test_conversation_info_display() {
         use chrono::Utc;
         use forge_api::ConversationId;
+        use forge_domain::{FileOperation, ToolKind};
 
         use super::{Conversation, Metrics};
 
         let conversation_id = ConversationId::generate();
-        let mut metrics = Metrics::new().with_time(Utc::now());
-        metrics.record_file_operation("src/main.rs".to_string(), 5, 2);
-        metrics.record_file_operation("tests/test.rs".to_string(), 3, 1);
+        let metrics = Metrics::new()
+            .started_at(Utc::now())
+            .insert(
+                "src/main.rs".to_string(),
+                FileOperation::new(ToolKind::Write)
+                    .lines_added(5u64)
+                    .lines_removed(2u64),
+            )
+            .insert(
+                "tests/test.rs".to_string(),
+                FileOperation::new(ToolKind::Write)
+                    .lines_added(3u64)
+                    .lines_removed(1u64),
+            );
 
         let fixture = Conversation {
             id: conversation_id,
@@ -659,7 +788,7 @@ mod tests {
         use super::{Conversation, Metrics};
 
         let conversation_id = ConversationId::generate();
-        let metrics = Metrics::new().with_time(Utc::now());
+        let metrics = Metrics::new().started_at(Utc::now());
 
         let fixture = Conversation {
             id: conversation_id,
@@ -686,28 +815,20 @@ mod tests {
         use super::{Conversation, Metrics};
 
         let conversation_id = ConversationId::generate();
-        let metrics = Metrics::new().with_time(Utc::now());
+        let metrics = Metrics::new().started_at(Utc::now());
 
         // Create a context with user messages
         let context = Context::default()
             .add_message(ContextMessage::system("System prompt"))
-            .add_message(ContextMessage::Text(forge_domain::TextMessage {
-                role: Role::User,
-                content: "First user message".to_string(),
-                raw_content: Some(EventValue::text("First user message")),
-                tool_calls: None,
-                model: None,
-                reasoning_details: None,
-            }))
+            .add_message(ContextMessage::Text(
+                forge_domain::TextMessage::new(Role::User, "First user message")
+                    .raw_content(EventValue::text("First user message")),
+            ))
             .add_message(ContextMessage::assistant("Assistant response", None, None))
-            .add_message(ContextMessage::Text(forge_domain::TextMessage {
-                role: Role::User,
-                content: "Create a new feature".to_string(),
-                raw_content: Some(EventValue::text("Create a new feature")),
-                tool_calls: None,
-                model: None,
-                reasoning_details: None,
-            }));
+            .add_message(ContextMessage::Text(
+                forge_domain::TextMessage::new(Role::User, "Create a new feature")
+                    .raw_content(EventValue::text("Create a new feature")),
+            ));
 
         let fixture = Conversation {
             id: conversation_id,

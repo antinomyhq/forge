@@ -77,6 +77,14 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         Ok(self.services.get_all_providers().await?)
     }
 
+    async fn get_provider(&self, id: &ProviderId) -> Result<AnyProvider> {
+        let providers = self.services.get_all_providers().await?;
+        Ok(providers
+            .into_iter()
+            .find(|p| p.id() == *id)
+            .ok_or_else(|| Error::provider_not_available(*id))?)
+    }
+
     async fn chat(
         &self,
         chat: ChatRequest,
@@ -260,6 +268,12 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     }
     async fn get_commands(&self) -> Result<Vec<Command>> {
         self.services.get_commands().await
+    }
+
+    async fn generate_command(&self, prompt: UserPrompt) -> Result<String> {
+        use forge_app::CommandGenerator;
+        let generator = CommandGenerator::new(self.services.clone());
+        generator.generate(prompt).await
     }
 
     async fn init_provider_auth(

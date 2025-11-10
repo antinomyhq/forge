@@ -32,8 +32,10 @@ use crate::{ToolCallArguments, ToolCallFull, ToolDefinition, ToolDescription, To
     PartialEq,
     EnumDiscriminants,
 )]
-#[strum_discriminants(derive(Display))]
+#[strum_discriminants(derive(Display, Serialize, Deserialize, Hash))]
+#[strum_discriminants(serde(rename_all = "snake_case"))]
 #[serde(tag = "name", content = "arguments", rename_all = "snake_case")]
+#[strum_discriminants(name(ToolKind))]
 #[strum(serialize_all = "snake_case")]
 pub enum ToolCatalog {
     Read(FSRead),
@@ -521,7 +523,7 @@ impl ToolCatalog {
     }
     pub fn should_yield(tool_name: &ToolName) -> bool {
         // Tools that convey that the execution should yield
-        [ToolCatalogDiscriminants::Followup]
+        [ToolKind::Followup]
             .iter()
             .any(|v| v.to_string().to_case(Case::Snake).eq(tool_name.as_str()))
     }
@@ -697,6 +699,11 @@ impl ToolCatalog {
             content: content.to_string(),
         }))
     }
+
+    /// Identifies the kind of the built-in Tools
+    pub fn kind(&self) -> ToolKind {
+        self.clone().into()
+    }
 }
 
 fn format_display_path(path: &Path, cwd: &Path) -> String {
@@ -730,7 +737,7 @@ impl TryFrom<ToolCallFull> for ToolCatalog {
     }
 }
 
-impl ToolCatalogDiscriminants {
+impl ToolKind {
     pub fn name(&self) -> ToolName {
         ToolName::new(self.to_string().to_case(Case::Snake))
     }
@@ -774,11 +781,11 @@ mod tests {
     use pretty_assertions::assert_eq;
     use strum::IntoEnumIterator;
 
-    use crate::{ToolCatalog, ToolCatalogDiscriminants, ToolName};
+    use crate::{ToolCatalog, ToolKind, ToolName};
 
     #[test]
     fn test_tool_definition() {
-        let actual = ToolCatalogDiscriminants::Remove.name();
+        let actual = ToolKind::Remove.name();
         let expected = ToolName::new("remove");
         assert_eq!(actual, expected);
     }

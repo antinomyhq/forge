@@ -3,9 +3,12 @@ mod agent_executor;
 mod app;
 mod apply_tunable_parameters;
 mod authenticator;
+mod changed_files;
+mod command_generator;
 mod compact;
 pub mod dto;
 mod error;
+mod file_tracking;
 mod fmt;
 mod infra;
 mod init_conversation_metrics;
@@ -32,12 +35,14 @@ mod walker;
 
 pub use agent::*;
 pub use app::*;
+pub use command_generator::*;
 pub use error::*;
 pub use infra::*;
 pub use services::*;
 pub use template_engine::*;
 pub use tool_resolver::*;
 pub use user::*;
+pub use utils::compute_hash;
 pub use walker::*;
 pub mod domain {
     pub use forge_domain::*;

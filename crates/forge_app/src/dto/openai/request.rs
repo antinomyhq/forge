@@ -627,14 +627,9 @@ mod tests {
 
     #[test]
     fn test_user_message_conversion() {
-        let user_message = ContextMessage::Text(TextMessage {
-            role: Role::User,
-            raw_content: None,
-            content: "Hello".to_string(),
-            tool_calls: None,
-            model: ModelId::new("gpt-3.5-turbo").into(),
-            reasoning_details: None,
-        });
+        let user_message = ContextMessage::Text(
+            TextMessage::new(Role::User, "Hello").model(ModelId::new("gpt-3.5-turbo")),
+        );
         let router_message = Message::from(user_message);
         assert_json_snapshot!(router_message);
     }
@@ -651,14 +646,9 @@ mod tests {
     </data>
 </task>"#;
 
-        let message = ContextMessage::Text(TextMessage {
-            role: Role::User,
-            raw_content: None,
-            content: xml_content.to_string(),
-            tool_calls: None,
-            model: ModelId::new("gpt-3.5-turbo").into(),
-            reasoning_details: None,
-        });
+        let message = ContextMessage::Text(
+            TextMessage::new(Role::User, xml_content).model(ModelId::new("gpt-3.5-turbo")),
+        );
         let router_message = Message::from(message);
         assert_json_snapshot!(router_message);
     }
@@ -671,14 +661,11 @@ mod tests {
             arguments: serde_json::json!({"key": "value"}).into(),
         };
 
-        let assistant_message = ContextMessage::Text(TextMessage {
-            role: Role::Assistant,
-            raw_content: None,
-            content: "Using tool".to_string(),
-            tool_calls: Some(vec![tool_call]),
-            model: ModelId::new("gpt-3.5-turbo").into(),
-            reasoning_details: None,
-        });
+        let assistant_message = ContextMessage::Text(
+            TextMessage::new(Role::Assistant, "Using tool")
+                .tool_calls(vec![tool_call])
+                .model(ModelId::new("gpt-3.5-turbo")),
+        );
         let router_message = Message::from(assistant_message);
         assert_json_snapshot!(router_message);
     }
