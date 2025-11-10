@@ -227,7 +227,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return self.handle_dispatch(dispatch_json).await;
         }
 
-        // Handle direct prompt if provided
+        // Handle direct prompt if provided (raw text messages)
         let prompt = self.cli.prompt.clone();
         if let Some(prompt) = prompt {
             self.spinner.start(None)?;
@@ -320,6 +320,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     }
                     ListCommand::Conversation => {
                         self.on_show_conversations(porcelain).await?;
+                    }
+                    ListCommand::Cmd => {
+                        self.on_show_custom_commands(porcelain).await?;
                     }
                 }
                 return Ok(());
@@ -437,6 +440,41 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
             TopLevelCommand::Suggest { prompt } => {
                 self.on_cmd(UserPrompt::from(prompt)).await?;
+                return Ok(());
+            }
+
+            TopLevelCommand::Cmd(run_group) => {
+                let porcelain = run_group.porcelain;
+                match run_group.command {
+                    crate::cli::CmdCommand::List => {
+                        // List all custom commands
+                        self.on_show_custom_commands(porcelain).await?;
+                    }
+                    crate::cli::CmdCommand::Execute(args) => {
+                        // Execute the custom command
+                        self.init_state(false).await?;
+
+                        // If conversation_id is provided, set it in CLI before initializing
+                        if let Some(ref cid) = run_group.conversation_id {
+                            self.cli.conversation_id = Some(cid.clone());
+                        }
+
+                        self.init_conversation().await?;
+                        self.spinner.start(None)?;
+
+                        // Join all args into a single command string
+                        let command_str = args.join(" ");
+
+                        // Add slash prefix if not present
+                        let command_with_slash = if command_str.starts_with('/') {
+                            command_str
+                        } else {
+                            format!("/{}", command_str)
+                        };
+                        let command = self.command.parse(&command_with_slash)?;
+                        self.on_command(command).await?;
+                    }
+                }
                 return Ok(());
             }
         }
@@ -816,59 +854,41 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_show_commands(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let mut info = Info::new();
 
-        // Define base commands with their descriptions and aliases
-        info = info
-            .add_title("info")
-            .add_key_value("type", "command")
-            .add_key_value("description", "Print session information [alias: i]")
-            .add_title("env")
-            .add_key_value("type", "command")
-            .add_key_value("description", "Display environment information [alias: e]")
-            .add_title("provider")
-            .add_key_value("type", "command")
-            .add_key_value("description", "Switch the providers [alias: p]")
-            .add_title("model")
-            .add_key_value("type", "command")
-            .add_key_value("description", "Switch the models [alias: m]")
-            .add_title("new")
-            .add_key_value("type", "command")
-            .add_key_value("description", "Start new conversation [alias: n]")
-            .add_title("dump")
-            .add_key_value("type", "command")
-            .add_key_value(
-                "description",
+        // Define base commands with their descriptions and type
+        let built_in_commands = [
+            ("info", "Print session information [alias: i]"),
+            ("env", "Display environment information [alias: e]"),
+            ("provider", "Switch the providers [alias: p]"),
+            ("model", "Switch the models [alias: m]"),
+            ("new", "Start new conversation [alias: n]"),
+            (
+                "dump",
                 "Save conversation as JSON or HTML (use /dump html for HTML format) [alias: d]",
-            )
-            .add_title("conversation")
-            .add_key_value("type", "command")
-            .add_key_value(
-                "description",
+            ),
+            (
+                "conversation",
                 "List all conversations for the active workspace [alias: c]",
-            )
-            .add_title("retry")
-            .add_key_value("type", "command")
-            .add_key_value("description", "Retry the last command [alias: r]")
-            .add_title("compact")
-            .add_key_value("type", "command")
-            .add_key_value("description", "Compact the conversation context")
-            .add_title("tools")
-            .add_key_value("type", "command")
-            .add_key_value(
-                "description",
+            ),
+            ("retry", "Retry the last command [alias: r]"),
+            ("compact", "Compact the conversation context"),
+            (
+                "tools",
                 "List all available tools with their descriptions and schema [alias: t]",
-            )
-            .add_title("suggest")
-            .add_key_value("type", "command")
-            .add_key_value(
-                "description",
+            ),
+            (
+                "suggest",
                 "Generate shell commands without executing them [alias: s]",
-            )
-            .add_title("login")
-            .add_key_value("type", "command")
-            .add_key_value("description", "Login to a provider")
-            .add_title("logout")
-            .add_key_value("type", "command")
-            .add_key_value("description", "Logout from a provider");
+            ),
+            ("login", "Login to a provider"),
+            ("logout", "Logout from a provider"),
+        ];
+
+        for (name, description) in built_in_commands {
+            info = info
+                .add_title(name)
+                .add_key_value("type", "command")
+                .add_key_value("description", description);
+        }
 
         // Add agent aliases
         info = info
@@ -901,8 +921,37 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .add_key_value("description", title);
         }
 
+        let custom_commands = self.api.get_commands().await?;
+        for command in custom_commands {
+            info = info
+                .add_title(command.name.clone())
+                .add_key_value("type", "custom")
+                .add_key_value("description", command.description.clone());
+        }
+
         if porcelain {
             let porcelain = Porcelain::from(&info).swap_cols(1, 2).skip(1);
+            self.writeln(porcelain)?;
+        } else {
+            self.writeln(info)?;
+        }
+
+        Ok(())
+    }
+
+    /// Lists only custom commands (used by `forge run`)
+    async fn on_show_custom_commands(&mut self, porcelain: bool) -> anyhow::Result<()> {
+        let custom_commands = self.api.get_commands().await?;
+        let mut info = Info::new().add_title("CUSTOM COMMANDS");
+
+        for command in custom_commands {
+            info = info
+                .add_title(command.name.clone())
+                .add_key_value("description", command.description.clone());
+        }
+
+        if porcelain {
+            let porcelain = Porcelain::from(&info).skip(2);
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;

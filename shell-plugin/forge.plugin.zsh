@@ -29,17 +29,17 @@ ZSH_HIGHLIGHT_HIGHLIGHTERS+=(pattern)
 # Style the conversation pattern with appropriate highlighting
 # Keywords in yellow, rest in default white
 
-# Highlight colon + word at the beginning in yellow
-ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z]#' 'fg=yellow,bold')
+# Highlight colon + command name (supports letters, numbers, hyphens, underscores) in yellow
+ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z0-9_-]#' 'fg=yellow,bold')
 
-# Highlight everything after that word + space in white
-ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z]# *(*|[[:graph:]]*)' 'fg=white,bold')
+# Highlight everything after the command name + space in white
+ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z0-9_-]# [[:graph:]]*' 'fg=white,bold')
 
 # Lazy loader for commands cache
 # Loads the commands list only when first needed, avoiding startup cost
 function _forge_get_commands() {
     if [[ -z "$_FORGE_COMMANDS" ]]; then
-        _FORGE_COMMANDS="$($_FORGE_BIN list commands --porcelain 2>/dev/null)"
+        _FORGE_COMMANDS="$(CLICOLOR_FORCE=0 $_FORGE_BIN list commands --porcelain 2>/dev/null)"
     fi
     echo "$_FORGE_COMMANDS"
 }
@@ -236,8 +236,8 @@ function forge-completion() {
         return 0
     fi
     
-    # Handle :command completion
-    if [[ "${LBUFFER}" =~ "^:[a-zA-Z]*$" ]]; then
+    # Handle :command completion (supports letters, numbers, hyphens, underscores)
+    if [[ "${LBUFFER}" =~ "^:([a-zA-Z][a-zA-Z0-9_-]*)?$" ]]; then
         # Extract the text after the colon for filtering
         local filter_text="${LBUFFER#:}"
         
@@ -302,7 +302,7 @@ function _forge_action_env() {
 function _forge_action_dump() {
     local input_text="$1"
     if [[ "$input_text" == "html" ]]; then
-        _forge_handle_conversation_command "dump" "html"
+        _forge_handle_conversation_command "dump" "--html"
     else
         _forge_handle_conversation_command "dump"
     fi
@@ -521,10 +521,28 @@ function _forge_action_default() {
     if [[ -n "$user_action" ]]; then
         local commands_list=$(_forge_get_commands)
         if [[ -n "$commands_list" ]]; then
-            # Check if the user_action is in the list of valid commands
-            if ! echo "$commands_list" | grep -q "^${user_action}\b"; then
+            # Check if the user_action is in the list of valid commands and extract the row
+            local command_row=$(echo "$commands_list" | grep "^${user_action}\b")
+            if [[ -z "$command_row" ]]; then
                 echo
                 echo "\033[31m⏺\033[0m \033[90m[$(date '+%H:%M:%S')]\033[0m \033[1;31mERROR:\033[0m Command '\033[1m${user_action}\033[0m' not found"
+                _forge_reset
+                return 0
+            fi
+            
+            # Extract the command type from the last field of the row
+            local command_type="${command_row##* }"
+            if [[ "$command_type" == "custom" ]]; then
+                # Generate conversation ID if needed
+                [[ -z "$_FORGE_CONVERSATION_ID" ]] && _FORGE_CONVERSATION_ID=$($_FORGE_BIN conversation new)
+                
+                echo
+                # Execute custom command with run subcommand
+                if [[ -n "$input_text" ]]; then
+                    _forge_exec cmd --cid "$_FORGE_CONVERSATION_ID" "$user_action" "$input_text"
+                else
+                    _forge_exec cmd --cid "$_FORGE_CONVERSATION_ID" "$user_action"
+                fi
                 _forge_reset
                 return 0
             fi
