@@ -8,7 +8,19 @@ use url::Url;
 
 use crate::{ApiKey, AuthCredential, AuthDetails, Model, Template};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    JsonSchema,
+    derive_more::AsRef,
+    derive_more::Deref,
+)]
 #[schemars(transparent)]
 pub struct ProviderId(&'static str);
 
@@ -140,7 +152,6 @@ impl<'de> Deserialize<'de> for ProviderId {
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        // Validate that it's a known provider
         let provider = Self::from_string(&s);
         Ok(provider)
     }
@@ -171,22 +182,6 @@ impl PartialEq<ProviderId> for &str {
 impl PartialEq<String> for ProviderId {
     fn eq(&self, other: &String) -> bool {
         self.0 == other.as_str()
-    }
-}
-
-// Enable AsRef<str> (returns snake_case for compatibility)
-impl AsRef<str> for ProviderId {
-    fn as_ref(&self) -> &str {
-        self.0
-    }
-}
-
-// Enable Deref to str (returns snake_case)
-impl std::ops::Deref for ProviderId {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        self.0
     }
 }
 
