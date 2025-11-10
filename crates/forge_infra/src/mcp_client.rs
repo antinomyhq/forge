@@ -176,7 +176,7 @@ impl ForgeMcpClient {
                 .parse()
                 .map_err(|e| anyhow::anyhow!("Failed to parse Authorization header: {}", e))?;
             headers.insert(reqwest::header::AUTHORIZATION, auth_value);
-            
+
             reqwest::Client::builder()
                 .default_headers(headers)
                 .build()
@@ -191,9 +191,10 @@ impl ForgeMcpClient {
             if key.to_lowercase() != "authorization" {
                 // Skip Authorization header as it's handled via bearer_auth()
                 if let Ok(header_value) = reqwest::header::HeaderValue::from_str(value)
-                    && let Ok(header_name) = reqwest::header::HeaderName::from_str(key) {
-                        headers.insert(header_name, header_value);
-                    }
+                    && let Ok(header_name) = reqwest::header::HeaderName::from_str(key)
+                {
+                    headers.insert(header_name, header_value);
+                }
             }
         }
 
@@ -255,19 +256,32 @@ impl ForgeMcpClient {
     }
 }
 
+#[async_trait::async_trait]
+impl McpClientInfra for ForgeMcpClient {
+    async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+        self.attempt_with_retry(|| self.list()).await
+    }
+
+    async fn call(&self, tool_name: &ToolName, input: Value) -> anyhow::Result<ToolOutput> {
+        self.attempt_with_retry(|| self.call(tool_name, &input))
+            .await
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::collections::BTreeMap;
+
+    use super::*;
 
     #[test]
     fn test_extract_auth_token_bearer_format() {
         let client = ForgeMcpClient::new(McpServerConfig::new_sse("http://test.com"));
         let mut headers = BTreeMap::new();
         headers.insert("Authorization".to_string(), "Bearer token123".to_string());
-        
+
         let result = client.extract_auth_token(&headers);
-        
+
         assert_eq!(result, Some("token123".to_string()));
     }
 
@@ -276,9 +290,9 @@ mod tests {
         let client = ForgeMcpClient::new(McpServerConfig::new_sse("http://test.com"));
         let mut headers = BTreeMap::new();
         headers.insert("Authorization".to_string(), "token123".to_string());
-        
+
         let result = client.extract_auth_token(&headers);
-        
+
         assert_eq!(result, Some("token123".to_string()));
     }
 
@@ -287,9 +301,9 @@ mod tests {
         let client = ForgeMcpClient::new(McpServerConfig::new_sse("http://test.com"));
         let mut headers = BTreeMap::new();
         headers.insert("authorization".to_string(), "Bearer token456".to_string());
-        
+
         let result = client.extract_auth_token(&headers);
-        
+
         assert_eq!(result, Some("token456".to_string()));
     }
 
@@ -299,9 +313,9 @@ mod tests {
         let mut headers = BTreeMap::new();
         headers.insert("Authorization".to_string(), "Bearer token1".to_string());
         headers.insert("authorization".to_string(), "Bearer token2".to_string());
-        
+
         let result = client.extract_auth_token(&headers);
-        
+
         // Should prefer "Authorization" (capital A)
         assert_eq!(result, Some("token1".to_string()));
     }
@@ -311,9 +325,9 @@ mod tests {
         let client = ForgeMcpClient::new(McpServerConfig::new_sse("http://test.com"));
         let mut headers = BTreeMap::new();
         headers.insert("X-Custom".to_string(), "value".to_string());
-        
+
         let result = client.extract_auth_token(&headers);
-        
+
         assert_eq!(result, None);
     }
 
@@ -322,9 +336,9 @@ mod tests {
         let client = ForgeMcpClient::new(McpServerConfig::new_sse("http://test.com"));
         let mut headers = BTreeMap::new();
         headers.insert("Authorization".to_string(), "Bearer ".to_string());
-        
+
         let result = client.extract_auth_token(&headers);
-        
+
         assert_eq!(result, Some("".to_string()));
     }
 
@@ -332,12 +346,13 @@ mod tests {
     async fn test_create_sse_transport_with_empty_headers_uses_standard() {
         let config = McpServerConfig::new_sse("http://test.com");
         let client = ForgeMcpClient::new(config);
-        
+
         if let McpServerConfig::Sse(sse) = &client.config {
             // When headers are empty, it should use the standard transport path
             assert!(sse.headers.is_empty());
-            // This would call SseClientTransport::start(sse.url.clone()) internally
-            // We can't easily mock this, but we can verify the logic path
+            // This would call SseClientTransport::start(sse.url.clone())
+            // internally We can't easily mock this, but we can
+            // verify the logic path
         } else {
             panic!("Expected SSE config");
         }
@@ -350,14 +365,14 @@ mod tests {
             ("Bearer token123", "token123"),
             ("token123", "token123"),
             ("Bearer", "Bearer"), // Edge case: just "Bearer" - no space to strip
-            ("", ""), // Edge case: empty string
+            ("", ""),             // Edge case: empty string
         ];
-        
+
         for (input, expected) in test_cases {
             let client = ForgeMcpClient::new(McpServerConfig::new_sse("http://test.com"));
             let mut headers = BTreeMap::new();
             headers.insert("Authorization".to_string(), input.to_string());
-            
+
             let result = client.extract_auth_token(&headers);
             assert_eq!(result, Some(expected.to_string()));
         }
@@ -366,30 +381,24 @@ mod tests {
     #[test]
     fn test_header_extraction_edge_cases() {
         let client = ForgeMcpClient::new(McpServerConfig::new_sse("http://test.com"));
-        
+
         // Test with special characters in token
         let mut headers = BTreeMap::new();
-        headers.insert("Authorization".to_string(), "Bearer token-with-special.chars_123".to_string());
+        headers.insert(
+            "Authorization".to_string(),
+            "Bearer token-with-special.chars_123".to_string(),
+        );
         let result = client.extract_auth_token(&headers);
         assert_eq!(result, Some("token-with-special.chars_123".to_string()));
-        
+
         // Test with whitespace
         headers.clear();
-        headers.insert("Authorization".to_string(), "Bearer   token123  ".to_string());
+        headers.insert(
+            "Authorization".to_string(),
+            "Bearer   token123  ".to_string(),
+        );
         let result = client.extract_auth_token(&headers);
         // Note: whitespace is preserved as per current implementation
         assert_eq!(result, Some("  token123  ".to_string()));
-    }
-}
-
-#[async_trait::async_trait]
-impl McpClientInfra for ForgeMcpClient {
-    async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
-        self.attempt_with_retry(|| self.list()).await
-    }
-
-    async fn call(&self, tool_name: &ToolName, input: Value) -> anyhow::Result<ToolOutput> {
-        self.attempt_with_retry(|| self.call(tool_name, &input))
-            .await
     }
 }
