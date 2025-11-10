@@ -11,7 +11,9 @@ use reqwest::header::{HeaderMap, HeaderValue};
 use url::Url;
 
 use crate::auth::error::Error as AuthError;
-use crate::auth::http::{AnthropicHttpProvider, ClaudeCodeHttpProvider, GithubHttpProvider, StandardHttpProvider};
+use crate::auth::http::{
+    AnthropicHttpProvider, ClaudeCodeHttpProvider, GithubHttpProvider, StandardHttpProvider,
+};
 use crate::auth::util::*;
 
 /// API Key Strategy - Simple static key authentication
@@ -667,11 +669,9 @@ impl StrategyFactory for ForgeAuthStrategyFactory {
             ))),
             forge_domain::AuthMethod::OAuthCode(config) => {
                 if provider_id.is_claude_code() {
-                    return Ok(AnyAuthStrategy::OAuthCodeClaudeCode(OAuthCodeStrategy::new(
-                        ClaudeCodeHttpProvider,
-                        provider_id,
-                        config,
-                    )));
+                    return Ok(AnyAuthStrategy::OAuthCodeClaudeCode(
+                        OAuthCodeStrategy::new(ClaudeCodeHttpProvider, provider_id, config),
+                    ));
                 }
 
                 if provider_id.is_anthropic() {

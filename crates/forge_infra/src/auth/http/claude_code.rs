@@ -1,8 +1,6 @@
 use forge_app::OAuthHttpProvider;
 use forge_domain::{AuthCodeParams, OAuthConfig, OAuthTokenResponse};
-use oauth2::{
-    AuthorizationCode as OAuth2AuthCode, CsrfToken, Scope,
-};
+use oauth2::{AuthorizationCode as OAuth2AuthCode, CsrfToken, Scope};
 
 use crate::auth::util::*;
 
@@ -120,7 +118,7 @@ mod tests {
         // This should work without a verifier since Claude Code doesn't use PKCE
         // In a real test, we'd need to mock the HTTP response
         let result = provider.exchange_code(&config, "test_code", None).await;
-        
+
         // We expect this to fail in test environment due to no actual server
         // but the important thing is that it doesn't fail due to missing verifier
         assert!(result.is_err() || true); // Always true in test
