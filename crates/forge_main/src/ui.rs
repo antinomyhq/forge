@@ -10,7 +10,7 @@ use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, AnyProvider, ApiKeyRequest, AuthContextRequest, AuthContextResponse, ChatRequest,
     ChatResponse, CodeRequest, Conversation, ConversationId, DeviceCodeRequest, Event,
-    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, Workflow,
+    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, UserPrompt, Workflow,
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
@@ -93,6 +93,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Some(id) => self.api.get_agent_model(id).await,
             None => self.api.get_default_model().await,
         }
+    }
+
+    /// Filters providers to return only configured ones
+    fn get_configured_providers(&self, providers: Vec<AnyProvider>) -> Vec<CliProvider> {
+        use crate::model::CliProvider;
+        providers
+            .into_iter()
+            .filter(|p| p.is_configured())
+            .map(CliProvider)
+            .collect()
     }
 
     /// Displays banner only if user is in interactive mode.
@@ -218,7 +228,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return self.handle_dispatch(dispatch_json).await;
         }
 
-        // Handle direct prompt if provided
+        // Handle direct prompt if provided (raw text messages)
         let prompt = self.cli.prompt.clone();
         if let Some(prompt) = prompt {
             self.spinner.start(None)?;
@@ -226,11 +236,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
-        // Get initial input from file or prompt
-        let mut command = match &self.cli.command {
-            Some(path) => self.console.upload(path).await,
-            None => self.prompt().await,
-        };
+        // Get initial input from prompt
+        let mut command = self.prompt().await;
 
         loop {
             match command {
@@ -314,6 +321,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     }
                     ListCommand::Conversation => {
                         self.on_show_conversations(porcelain).await?;
+                    }
+                    ListCommand::Cmd => {
+                        self.on_show_custom_commands(porcelain).await?;
                     }
                 }
                 return Ok(());
@@ -428,6 +438,46 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.handle_conversation_command(conversation_group).await?;
                 return Ok(());
             }
+
+            TopLevelCommand::Suggest { prompt } => {
+                self.on_cmd(UserPrompt::from(prompt)).await?;
+                return Ok(());
+            }
+
+            TopLevelCommand::Cmd(run_group) => {
+                let porcelain = run_group.porcelain;
+                match run_group.command {
+                    crate::cli::CmdCommand::List => {
+                        // List all custom commands
+                        self.on_show_custom_commands(porcelain).await?;
+                    }
+                    crate::cli::CmdCommand::Execute(args) => {
+                        // Execute the custom command
+                        self.init_state(false).await?;
+
+                        // If conversation_id is provided, set it in CLI before initializing
+                        if let Some(ref cid) = run_group.conversation_id {
+                            self.cli.conversation_id = Some(cid.clone());
+                        }
+
+                        self.init_conversation().await?;
+                        self.spinner.start(None)?;
+
+                        // Join all args into a single command string
+                        let command_str = args.join(" ");
+
+                        // Add slash prefix if not present
+                        let command_with_slash = if command_str.starts_with('/') {
+                            command_str
+                        } else {
+                            format!("/{}", command_str)
+                        };
+                        let command = self.command.parse(&command_with_slash)?;
+                        self.on_command(command).await?;
+                    }
+                }
+                return Ok(());
+            }
         }
         Ok(())
     }
@@ -446,7 +496,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ConversationCommand::New => {
                 self.handle_generate_conversation_id().await?;
             }
-            ConversationCommand::Dump { id, format } => {
+            ConversationCommand::Dump { id, html } => {
                 let conversation_id = ConversationId::parse(&id)
                     .context(format!("Invalid conversation ID: {}", id))?;
 
@@ -456,7 +506,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.state.conversation_id = Some(conversation_id);
 
                 self.spinner.start(Some("Dumping"))?;
-                self.on_dump(format).await?;
+                self.on_dump(html).await?;
 
                 self.state.conversation_id = original_id;
             }
@@ -502,17 +552,28 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 let conversation_id = ConversationId::parse(&id)
                     .context(format!("Invalid conversation ID: {}", id))?;
 
-                self.validate_conversation_exists(&conversation_id).await?;
+                let conversation = self.validate_conversation_exists(&conversation_id).await?;
 
-                self.on_show_last_message(&conversation_id).await?;
+                self.on_show_last_message(conversation).await?;
             }
             ConversationCommand::Info { id } => {
                 let conversation_id = ConversationId::parse(&id)
                     .context(format!("Invalid conversation ID: {}", id))?;
 
-                self.validate_conversation_exists(&conversation_id).await?;
+                let conversation = self.validate_conversation_exists(&conversation_id).await?;
 
-                self.on_show_conv_info(conversation_id).await?;
+                self.on_show_conv_info(conversation).await?;
+            }
+            ConversationCommand::Clone { id } => {
+                let conversation_id = ConversationId::parse(&id)
+                    .context(format!("Invalid conversation ID: {}", id))?;
+
+                let conversation = self.validate_conversation_exists(&conversation_id).await?;
+
+                self.spinner.start(Some("Cloning"))?;
+                self.on_clone_conversation(conversation, conversation_group.porcelain)
+                    .await?;
+                self.spinner.stop(None)?;
             }
         }
 
@@ -522,17 +583,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn validate_conversation_exists(
         &self,
         conversation_id: &ConversationId,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Conversation> {
         let conversation = self.api.conversation(conversation_id).await?;
 
-        if conversation.is_none() {
-            anyhow::bail!(
+        conversation.ok_or_else(|| {
+            anyhow::anyhow!(
                 "Conversation '{}' not found. Use 'forge conversation list' to see available conversations.",
                 conversation_id
-            );
-        }
-
-        Ok(())
+            )
+        })
     }
 
     async fn handle_provider_command(
@@ -542,11 +601,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         use crate::cli::ProviderCommand;
 
         match provider_group.command {
-            ProviderCommand::Login => {
-                self.handle_provider_login().await?;
+            ProviderCommand::Login { provider } => {
+                self.handle_provider_login(provider.as_ref()).await?;
             }
-            ProviderCommand::Logout => {
-                self.handle_provider_logout().await?;
+            ProviderCommand::Logout { provider } => {
+                self.handle_provider_logout(provider.as_ref()).await?;
             }
             ProviderCommand::List => {
                 self.on_show_providers(provider_group.porcelain).await?;
@@ -556,10 +615,21 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn handle_provider_login(&mut self) -> anyhow::Result<()> {
+    async fn handle_provider_login(
+        &mut self,
+        provider_id: Option<&ProviderId>,
+    ) -> anyhow::Result<()> {
         use crate::model::CliProvider;
 
-        // Fetch all providers (configured and unconfigured)
+        // If provider_id is specified, find and login to that specific provider
+        if let Some(id) = provider_id {
+            let provider = self.api.get_provider(id).await?;
+            self.configure_provider(provider.id(), provider.auth_methods().to_vec())
+                .await?;
+            return Ok(());
+        }
+
+        // Fetch all providers for selection
         let providers = self
             .api
             .get_providers()
@@ -578,20 +648,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .prompt()?
         {
             Some(provider) => {
-                // Handle only unconfigured providers
-                match provider.0 {
-                    AnyProvider::Template(p) => {
-                        let provider_id = p.id;
-                        let auth_methods = p.auth_methods;
-
-                        // Configure the provider
-                        self.configure_provider(provider_id, auth_methods).await?;
-                    }
-                    AnyProvider::Url(provider) => {
-                        self.configure_provider(provider.id, provider.auth_methods)
-                            .await?;
-                    }
-                }
+                self.configure_provider(provider.0.id(), provider.0.auth_methods().to_vec())
+                    .await?;
             }
             None => {
                 self.writeln_title(TitleFormat::info("Cancelled"))?;
@@ -601,20 +659,28 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn handle_provider_logout(&mut self) -> anyhow::Result<()> {
-        use crate::model::CliProvider;
+    async fn handle_provider_logout(
+        &mut self,
+        provider_id: Option<&ProviderId>,
+    ) -> anyhow::Result<()> {
+        // If provider_id is specified, logout from that specific provider
+        if let Some(id) = provider_id {
+            let provider = self.api.get_provider(id).await?;
 
-        // Fetch all providers
-        let providers = self.api.get_providers().await?;
+            if !provider.is_configured() {
+                return Err(anyhow::anyhow!("Provider '{}' is not configured", id));
+            }
 
-        // Filter only configured providers
-        let configured_providers: Vec<_> = providers
-            .into_iter()
-            .filter_map(|p| match p {
-                AnyProvider::Url(provider) => Some(CliProvider(AnyProvider::Url(provider))),
-                AnyProvider::Template(_) => None,
-            })
-            .collect();
+            self.api.remove_provider(id).await?;
+            self.writeln_title(TitleFormat::completion(format!(
+                "Successfully logged out from {}",
+                id
+            )))?;
+            return Ok(());
+        }
+
+        // Fetch and filter configured providers
+        let configured_providers = self.get_configured_providers(self.api.get_providers().await?);
 
         if configured_providers.is_empty() {
             self.writeln_title(TitleFormat::info("No configured providers found"))?;
@@ -631,13 +697,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .prompt()?
         {
             Some(provider) => {
-                if let AnyProvider::Url(p) = provider.0 {
-                    self.api.remove_provider(&p.id).await?;
-                    self.writeln_title(TitleFormat::completion(format!(
-                        "Successfully logged out from {}",
-                        p.id
-                    )))?;
-                }
+                let provider_id = provider.0.id();
+                self.api.remove_provider(&provider_id).await?;
+                self.writeln_title(TitleFormat::completion(format!(
+                    "Successfully logged out from {}",
+                    provider_id
+                )))?;
             }
             None => {
                 self.writeln_title(TitleFormat::info("Cancelled"))?;
@@ -690,13 +755,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         for provider in providers.iter() {
             let id = provider.id().to_string();
-            let (domain, configured) = match provider {
-                AnyProvider::Url(p) => (
-                    p.url.domain().map(|d| d.to_string()).unwrap_or_default(),
-                    true,
-                ),
-                AnyProvider::Template(_) => ("<unset>".to_string(), false),
+            let domain = if let Some(url) = provider.url() {
+                url.domain().map(|d| d.to_string()).unwrap_or_default()
+            } else {
+                "<unset>".to_string()
             };
+            let configured = provider.is_configured();
             info = info
                 .add_title(id.to_case(Case::UpperSnake))
                 .add_key_value("id", id)
@@ -784,34 +848,58 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     /// Lists all the commands
     async fn on_show_commands(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let mut info = Info::new().add_title("COMMANDS");
+        let mut info = Info::new();
 
-        // Define base commands with their descriptions
-        info = info
-            .add_key_value("info", "Print session information")
-            .add_key_value("env", "Display environment information")
-            .add_key_value("provider", "Switch the providers")
-            .add_key_value("model", "Switch the models")
-            .add_key_value("new", "Start new conversation")
-            .add_key_value(
+        // Define base commands with their descriptions and type
+        let built_in_commands = [
+            ("info", "Print session information [alias: i]"),
+            ("env", "Display environment information [alias: e]"),
+            ("provider", "Switch the providers [alias: p]"),
+            ("model", "Switch the models [alias: m]"),
+            ("new", "Start new conversation [alias: n]"),
+            (
                 "dump",
-                "Save conversation as JSON or HTML (use /dump html for HTML format)",
-            )
-            .add_key_value(
+                "Save conversation as JSON or HTML (use /dump html for HTML format) [alias: d]",
+            ),
+            (
                 "conversation",
-                "List all conversations for the active workspace",
-            )
-            .add_key_value("retry", "Retry the last command")
-            .add_key_value("compact", "Compact the conversation context")
-            .add_key_value(
+                "List all conversations for the active workspace [alias: c]",
+            ),
+            ("retry", "Retry the last command [alias: r]"),
+            ("compact", "Compact the conversation context"),
+            (
                 "tools",
-                "List all available tools with their descriptions and schema",
-            );
+                "List all available tools with their descriptions and schema [alias: t]",
+            ),
+            (
+                "suggest",
+                "Generate shell commands without executing them [alias: s]",
+            ),
+            ("login", "Login to a provider"),
+            ("logout", "Logout from a provider"),
+        ];
 
-        // Add alias commands
+        for (name, description) in built_in_commands {
+            info = info
+                .add_title(name)
+                .add_key_value("type", "command")
+                .add_key_value("description", description);
+        }
+
+        // Add agent aliases
         info = info
-            .add_key_value("ask", "Alias for agent SAGE")
-            .add_key_value("plan", "Alias for agent MUSE");
+            .add_title("ask")
+            .add_key_value("type", "agent")
+            .add_key_value(
+                "description",
+                "Research and investigation agent [alias for: sage]",
+            )
+            .add_title("plan")
+            .add_key_value("type", "agent")
+            .add_key_value(
+                "description",
+                "Planning and strategy agent [alias for: muse]",
+            );
 
         // Fetch agents and add them to the commands list
         let agents = self.api.get_agents().await?;
@@ -823,11 +911,43 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .lines()
                 .collect::<Vec<_>>()
                 .join(" ");
-            info = info.add_key_value(agent.id.to_string(), title);
+            info = info
+                .add_title(agent.id.to_string())
+                .add_key_value("type", "agent")
+                .add_key_value("description", title);
+        }
+
+        let custom_commands = self.api.get_commands().await?;
+        for command in custom_commands {
+            info = info
+                .add_title(command.name.clone())
+                .add_key_value("type", "custom")
+                .add_key_value("description", command.description.clone());
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).into_long().drop_col(0).skip(1);
+            let porcelain = Porcelain::from(&info).swap_cols(1, 2).skip(1);
+            self.writeln(porcelain)?;
+        } else {
+            self.writeln(info)?;
+        }
+
+        Ok(())
+    }
+
+    /// Lists only custom commands (used by `forge run`)
+    async fn on_show_custom_commands(&mut self, porcelain: bool) -> anyhow::Result<()> {
+        let custom_commands = self.api.get_commands().await?;
+        let mut info = Info::new().add_title("CUSTOM COMMANDS");
+
+        for command in custom_commands {
+            info = info
+                .add_title(command.name.clone())
+                .add_key_value("description", command.description.clone());
+        }
+
+        if porcelain {
+            let porcelain = Porcelain::from(&info).skip(2);
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -1015,6 +1135,23 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
+    /// Handle the cmd command - generates shell command from natural language
+    async fn on_cmd(&mut self, prompt: UserPrompt) -> anyhow::Result<()> {
+        self.spinner.start(Some("Generating"))?;
+
+        match self.api.generate_command(prompt).await {
+            Ok(command) => {
+                self.spinner.stop(None)?;
+                self.writeln(command)?;
+                Ok(())
+            }
+            Err(err) => {
+                self.spinner.stop(None)?;
+                Err(err)
+            }
+        }
+    }
+
     async fn list_conversations(&mut self) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Conversations"))?;
         let max_conversations = self.api.environment().max_conversations;
@@ -1035,7 +1172,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             self.state.conversation_id = Some(conversation_id);
 
             // Show conversation content
-            self.on_show_last_message(&conversation_id).await?;
+            self.on_show_last_message(conversation).await?;
 
             // Print log about conversation switching
             self.writeln_title(TitleFormat::info(format!(
@@ -1060,11 +1197,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let mut info = Info::new().add_title("SESSIONS");
 
         for conv in conversations.into_iter() {
-            if conv.title.is_none() || conv.context.is_none() {
+            if conv.context.is_none() {
                 continue;
             }
 
-            let title = conv.title.as_deref().unwrap();
+            let title = conv
+                .title
+                .as_deref()
+                .map(|t| t.to_string())
+                .unwrap_or_else(|| format!("<untitled> [{}]", conv.id));
 
             // Format time using humantime library (same as conversation_selector.rs)
             let duration = chrono::Utc::now().signed_duration_since(
@@ -1081,7 +1222,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             // Add conversation: Title=<title>, Updated=<time_ago>, with ID as section title
             info = info
                 .add_title(conv.id)
-                .add_key_value("Title", title.to_string())
+                .add_key_value("Title", title)
                 .add_key_value("Updated", time_ago);
         }
 
@@ -1105,9 +1246,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.spinner.start(Some("Compacting"))?;
                 self.on_compaction().await?;
             }
-            SlashCommand::Dump(format) => {
+            SlashCommand::Dump { html } => {
                 self.spinner.start(Some("Dumping"))?;
-                self.on_dump(format).await?;
+                self.on_dump(html).await?;
             }
             SlashCommand::New => {
                 self.on_new().await?;
@@ -1422,6 +1563,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         if should_set_active.unwrap_or(false) {
             self.api.set_default_provider(provider_id).await?;
+            self.writeln_title(TitleFormat::action(format!("Provider set {}", provider_id)))?;
         }
         Ok(())
     }
@@ -1571,8 +1713,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
+    /// Selects a provider, optionally configuring it if not already configured.
     async fn select_provider(&mut self) -> Result<Option<Provider<Url>>> {
-        // Fetch available providers
+        // Fetch and sort available providers
         let mut providers = self
             .api
             .get_providers()
@@ -1585,53 +1728,34 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Err(anyhow::anyhow!("No AI provider API keys configured"));
         }
 
-        // Sort the providers by their display names in ascending order
         providers.sort_by_key(|a| a.to_string());
 
-        // Find the index of the current provider
-        let current_provider = self
+        // Find starting cursor position
+        let starting_cursor = self
             .get_provider(self.api.get_active_agent().await)
             .await
-            .ok();
-        let starting_cursor = current_provider
-            .as_ref()
+            .ok()
             .and_then(|current| providers.iter().position(|p| p.0.id() == current.id))
             .unwrap_or(0);
 
-        // Use the centralized select module
-        match ForgeSelect::select("Select a provider:", providers)
+        // Prompt user to select a provider
+        let Some(provider) = ForgeSelect::select("Select a provider:", providers)
             .with_starting_cursor(starting_cursor)
             .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
             .prompt()?
-        {
-            Some(provider) => {
-                // Handle both configured and unconfigured providers
-                match provider.0 {
-                    AnyProvider::Url(p) => Ok(Some(p)),
-                    AnyProvider::Template(p) => {
-                        // Provider is not configured - initiate authentication flow
-                        let provider_id = p.id;
-                        let auth_methods = p.auth_methods;
+        else {
+            return Ok(None);
+        };
 
-                        // Configure the provider
-                        self.configure_provider(provider_id, auth_methods).await?;
-
-                        // After configuration, fetch the provider again
-                        let providers = self.api.get_providers().await?;
-                        let configured_provider = providers
-                            .into_iter()
-                            .find(|entry| entry.id() == provider_id)
-                            .and_then(|entry| match entry {
-                                AnyProvider::Url(p) => Some(p),
-                                AnyProvider::Template(_) => None,
-                            });
-
-                        Ok(configured_provider)
-                    }
-                }
-            }
-            None => Ok(None),
+        // If already configured, extract and return Provider<Url>
+        if provider.0.is_configured() {
+            return Ok(provider.0.into_configured());
         }
+
+        self.configure_provider(provider.0.id(), provider.0.auth_methods().to_vec())
+            .await?;
+
+        Ok(None)
     }
 
     // Helper method to handle model selection and update the conversation
@@ -1921,28 +2045,24 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     /// Modified version of handle_dump that supports HTML format
-    async fn on_dump(&mut self, format: Option<String>) -> Result<()> {
+    async fn on_dump(&mut self, html: bool) -> Result<()> {
         if let Some(conversation_id) = self.state.conversation_id {
             let conversation = self.api.conversation(&conversation_id).await?;
             if let Some(conversation) = conversation {
                 let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
-                if let Some(format) = format {
-                    if format == "html" {
-                        // Export as HTML
-                        let html_content = conversation.to_html();
-                        let path = format!("{timestamp}-dump.html");
-                        tokio::fs::write(path.as_str(), html_content).await?;
+                if html {
+                    // Export as HTML
+                    let html_content = conversation.to_html();
+                    let path = format!("{timestamp}-dump.html");
+                    tokio::fs::write(path.as_str(), html_content).await?;
 
-                        self.writeln_title(
-                            TitleFormat::action("Conversation HTML dump created".to_string())
-                                .sub_title(path.to_string()),
-                        )?;
+                    self.writeln_title(
+                        TitleFormat::action("Conversation HTML dump created".to_string())
+                            .sub_title(path.to_string()),
+                    )?;
 
-                        if self.api.environment().auto_open_dump {
-                            open::that(path.as_str()).ok();
-                        }
-
-                        return Ok(());
+                    if self.api.environment().auto_open_dump {
+                        open::that(path.as_str()).ok();
                     }
                 } else {
                     // Default: Export as JSON
@@ -2035,8 +2155,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 }
             }
             ChatResponse::TaskComplete => {
-                if let Some(conversation_id) = self.state.conversation_id {
-                    self.on_show_conv_info(conversation_id).await?;
+                if let Some(conversation_id) = self.state.conversation_id
+                    && let Ok(conversation) =
+                        self.validate_conversation_exists(&conversation_id).await
+                {
+                    self.on_show_conv_info(conversation).await?;
                 }
             }
         }
@@ -2056,17 +2179,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn on_show_conv_info(&mut self, conversation_id: ConversationId) -> anyhow::Result<()> {
+    async fn on_show_conv_info(&mut self, conversation: Conversation) -> anyhow::Result<()> {
         if !should_show_completion_prompt() {
             return Ok(());
         }
 
         self.spinner.start(Some("Loading Summary"))?;
-        let conversation = self
-            .api
-            .conversation(&conversation_id)
-            .await?
-            .ok_or(anyhow::anyhow!("Conversation not found: {conversation_id}"))?;
 
         let info = Info::default().extend(&conversation);
 
@@ -2090,6 +2208,36 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             if should_start_new_chat {
                 self.on_new().await?;
             }
+        }
+
+        Ok(())
+    }
+
+    /// Clones a conversation with a new ID
+    ///
+    /// # Arguments
+    /// * `original` - The conversation to clone
+    /// * `porcelain` - If true, output only the new conversation ID
+    async fn on_clone_conversation(
+        &mut self,
+        original: Conversation,
+        porcelain: bool,
+    ) -> anyhow::Result<()> {
+        // Create a new conversation with a new ID but same content
+        let new_id = ConversationId::generate();
+        let mut cloned = original.clone();
+        cloned.id = new_id;
+
+        // Upsert the cloned conversation
+        self.api.upsert_conversation(cloned.clone()).await?;
+
+        // Output based on format
+        if porcelain {
+            println!("{}", new_id);
+        } else {
+            self.writeln_title(
+                TitleFormat::info("Cloned").sub_title(format!("[{} → {}]", original.id, cloned.id)),
+            )?;
         }
 
         Ok(())
@@ -2267,32 +2415,23 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .find(|p| p.id() == provider_id)
             .ok_or_else(|| forge_domain::Error::provider_not_available(provider_id))?;
 
+        // If already configured, return immediately
         if provider_entry.is_configured() {
             return Ok(provider_id);
         }
 
-        match provider_entry {
-            AnyProvider::Template(p) => {
-                let auth_methods = p.auth_methods.clone();
+        // Configure the provider
+        let auth_methods = provider_entry.auth_methods().to_vec();
+        self.configure_provider(provider_id, auth_methods).await?;
 
-                // Configure the provider
-                self.configure_provider(provider_id, auth_methods).await?;
-
-                // Verify configuration succeeded
-                let providers = self.api.get_providers().await?;
-                if providers
-                    .iter()
-                    .any(|p| p.id() == provider_id && p.is_configured())
-                {
-                    Ok(provider_id)
-                } else {
-                    Err(anyhow::anyhow!(
-                        "Failed to configure provider {}",
-                        provider_id
-                    ))
-                }
-            }
-            AnyProvider::Url(_) => Ok(provider_id),
+        // Verify configuration succeeded
+        if self.api.get_provider(&provider_id).await?.is_configured() {
+            Ok(provider_id)
+        } else {
+            Err(anyhow::anyhow!(
+                "Failed to configure provider {}",
+                provider_id
+            ))
         }
     }
 
@@ -2301,13 +2440,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// # Errors
     /// - If the conversation doesn't exist
     /// - If the conversation has no messages
-    async fn on_show_last_message(&mut self, conversation_id: &ConversationId) -> Result<()> {
-        let conversation = self
-            .api
-            .conversation(conversation_id)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("Conversation not found"))?;
-
+    async fn on_show_last_message(&mut self, conversation: Conversation) -> Result<()> {
         let context = conversation
             .context
             .as_ref()

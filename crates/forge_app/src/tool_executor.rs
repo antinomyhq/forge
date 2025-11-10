@@ -276,8 +276,8 @@ impl<
         input: ToolCallFull,
         context: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
-        let tool_name = input.name.clone();
         let tool_input: ToolCatalog = ToolCatalog::try_from(input)?;
+        let tool_kind = tool_input.kind();
         let env = self.services.get_environment();
         if let Some(content) = tool_input.to_content(&env) {
             context.send(content).await?;
@@ -313,7 +313,7 @@ impl<
         let truncation_path = self.dump_operation(&operation).await?;
 
         context.with_metrics(|metrics| {
-            operation.into_tool_output(tool_name, truncation_path, &env, metrics)
+            operation.into_tool_output(tool_kind, truncation_path, &env, metrics)
         })
     }
 }

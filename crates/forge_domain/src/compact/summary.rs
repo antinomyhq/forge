@@ -295,50 +295,22 @@ mod tests {
     }
 
     fn user(content: impl Into<String>) -> ContextMessage {
-        ContextMessage::Text(TextMessage {
-            role: Role::User,
-            content: content.into(),
-            raw_content: None,
-            tool_calls: None,
-            model: None,
-            reasoning_details: None,
-        })
+        ContextMessage::Text(TextMessage::new(Role::User, content))
     }
 
     fn assistant(content: impl Into<String>) -> ContextMessage {
-        ContextMessage::Text(TextMessage {
-            role: Role::Assistant,
-            content: content.into(),
-            raw_content: None,
-            tool_calls: None,
-            model: None,
-            reasoning_details: None,
-        })
+        ContextMessage::Text(TextMessage::new(Role::Assistant, content))
     }
 
     fn assistant_with_tools(
         content: impl Into<String>,
         tool_calls: Vec<ToolCallFull>,
     ) -> ContextMessage {
-        ContextMessage::Text(TextMessage {
-            role: Role::Assistant,
-            content: content.into(),
-            raw_content: None,
-            tool_calls: Some(tool_calls),
-            model: None,
-            reasoning_details: None,
-        })
+        ContextMessage::Text(TextMessage::new(Role::Assistant, content).tool_calls(tool_calls))
     }
 
     fn system(content: impl Into<String>) -> ContextMessage {
-        ContextMessage::Text(TextMessage {
-            role: Role::System,
-            content: content.into(),
-            raw_content: None,
-            tool_calls: None,
-            model: None,
-            reasoning_details: None,
-        })
+        ContextMessage::Text(TextMessage::new(Role::System, content))
     }
 
     fn tool_result(name: &str, call_id: &str, is_error: bool) -> ContextMessage {
