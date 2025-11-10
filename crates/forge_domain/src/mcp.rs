@@ -40,7 +40,12 @@ impl McpServerConfig {
 
     /// Create a new SSE-based MCP server
     pub fn new_sse(url: impl Into<String>) -> Self {
-        Self::Sse(McpSseServer { url: url.into(), disable: false })
+        Self::Sse(McpSseServer { url: url.into(), headers: BTreeMap::new(), disable: false })
+    }
+
+    /// Create a new SSE-based MCP server with headers
+    pub fn new_sse_with_headers(url: impl Into<String>, headers: BTreeMap<String, String>) -> Self {
+        Self::Sse(McpSseServer { url: url.into(), headers, disable: false })
     }
 
     pub fn is_disabled(&self) -> bool {
@@ -58,16 +63,16 @@ pub struct McpStdioServer {
     #[serde(skip_serializing_if = "String::is_empty")]
     pub command: String,
 
-    /// Arguments to pass to the command
+    /// Arguments to pass to command
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub args: Vec<String>,
 
-    /// Environment variables to pass to the command
+    /// Environment variables to pass to command
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub env: BTreeMap<String, String>,
 
     /// Disable it temporarily without having to
-    /// remove it from the config.
+    /// remove it from config.
     #[serde(default)]
     pub disable: bool,
 }
@@ -78,8 +83,12 @@ pub struct McpSseServer {
     #[serde(skip_serializing_if = "String::is_empty")]
     pub url: String,
 
+    /// HTTP headers to send with the request
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub headers: BTreeMap<String, String>,
+
     /// Disable it temporarily without having to
-    /// remove it from the config.
+    /// remove it from config.
     #[serde(default)]
     pub disable: bool,
 }
@@ -100,6 +109,9 @@ impl Display for McpServerConfig {
             }
             McpServerConfig::Sse(sse) => {
                 output.push_str(&format!("{} ", sse.url));
+                for (key, value) in &sse.headers {
+                    output.push_str(&format!("{}:{} ", key, value));
+                }
             }
         }
 
@@ -313,5 +325,86 @@ mod tests {
         let result = serde_json::from_str::<McpConfig>(json);
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_mcp_sse_server_with_headers() {
+        let mut headers = BTreeMap::new();
+        headers.insert("Authorization".to_string(), "Bearer token123".to_string());
+
+        let server = McpSseServer {
+            url: "https://api.example.com".to_string(),
+            headers,
+            disable: false,
+        };
+
+        let config = McpServerConfig::Sse(server);
+        assert!(!config.is_disabled());
+    }
+
+    #[test]
+    fn test_mcp_sse_server_new_sse_with_headers() {
+        let mut headers = BTreeMap::new();
+        headers.insert("Authorization".to_string(), "Bearer token123".to_string());
+
+        let config =
+            McpServerConfig::new_sse_with_headers("https://api.example.com", headers.clone());
+
+        match config {
+            McpServerConfig::Sse(sse) => {
+                assert_eq!(sse.url, "https://api.example.com");
+                assert_eq!(sse.headers, headers);
+                assert!(!sse.disable);
+            }
+            _ => panic!("Expected SSE config"),
+        }
+    }
+
+    #[test]
+    fn test_mcp_config_with_headers_deserialization() {
+        use pretty_assertions::assert_eq;
+
+        let json = r#"{
+            "mcpServers": {
+                "test_server": {
+                    "url": "https://api.example.com",
+                    "headers": {
+                        "Authorization": "Bearer token123"
+                    }
+                }
+            }
+        }"#;
+
+        let result: McpConfig = serde_json::from_str(json).unwrap();
+        match result.mcp_servers.get(&"test_server".to_string().into()) {
+            Some(McpServerConfig::Sse(sse)) => {
+                assert_eq!(sse.url, "https://api.example.com");
+                assert_eq!(
+                    sse.headers.get("Authorization"),
+                    Some(&"Bearer token123".to_string())
+                );
+            }
+            _ => panic!("Expected SSE config"),
+        }
+    }
+
+    #[test]
+    fn test_mcp_sse_server_display_with_headers() {
+        let mut headers = BTreeMap::new();
+        headers.insert("Authorization".to_string(), "Bearer token123".to_string());
+        headers.insert("X-Custom".to_string(), "value".to_string());
+
+        let server = McpSseServer {
+            url: "https://api.example.com".to_string(),
+            headers,
+            disable: false,
+        };
+
+        let config = McpServerConfig::Sse(server);
+        let display = format!("{}", config);
+
+        assert!(display.contains("https://api.example.com"));
+        assert!(display.contains("Authorization:Bearer token123"));
+        assert!(display.contains("X-Custom:value"));
     }
 }
