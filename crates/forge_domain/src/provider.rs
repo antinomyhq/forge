@@ -77,12 +77,6 @@ impl ProviderId {
         Self(name)
     }
 
-    /// Returns the string representation (snake_case, used for serialization
-    /// and comparisons).
-    pub const fn as_str(&self) -> &'static str {
-        self.0
-    }
-
     /// Returns the display name (UpperCamelCase for UI).
     ///
     /// This is used by the `Display` trait for user-facing output.

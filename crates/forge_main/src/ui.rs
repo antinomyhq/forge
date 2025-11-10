@@ -757,7 +757,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             // Use display_name for human-readable display (UpperCamelCase)
             let display_name = provider_id.display_name().to_string();
             // Use as_str for machine-readable ID (snake_case)
-            let id = provider_id.as_str();
+            let id = *provider_id;
             let domain = if let Some(url) = provider.url() {
                 url.domain().map(|d| d.to_string()).unwrap_or_default()
             } else {
