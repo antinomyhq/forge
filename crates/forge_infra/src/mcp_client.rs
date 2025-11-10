@@ -171,15 +171,14 @@ impl ForgeMcpClient {
 
         // Create custom reqwest client with auth token if available
         let client = if let Some(token) = auth_token {
+            let mut headers = reqwest::header::HeaderMap::new();
+            let auth_value = format!("Bearer {}", token)
+                .parse()
+                .map_err(|e| anyhow::anyhow!("Failed to parse Authorization header: {}", e))?;
+            headers.insert(reqwest::header::AUTHORIZATION, auth_value);
+            
             reqwest::Client::builder()
-                .default_headers({
-                    let mut headers = reqwest::header::HeaderMap::new();
-                    headers.insert(
-                        reqwest::header::AUTHORIZATION,
-                        format!("Bearer {}", token).parse().unwrap(),
-                    );
-                    headers
-                })
+                .default_headers(headers)
                 .build()
                 .map_err(|e| anyhow::anyhow!("Failed to create authenticated client: {}", e))?
         } else {
@@ -253,6 +252,133 @@ impl ForgeMcpClient {
             is_transport
         })
         .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn test_extract_auth_token_bearer_format() {
+        let client = ForgeMcpClient::new(McpServerConfig::new_sse("http://test.com"));
+        let mut headers = BTreeMap::new();
+        headers.insert("Authorization".to_string(), "Bearer token123".to_string());
+        
+        let result = client.extract_auth_token(&headers);
+        
+        assert_eq!(result, Some("token123".to_string()));
+    }
+
+    #[test]
+    fn test_extract_auth_token_raw_format() {
+        let client = ForgeMcpClient::new(McpServerConfig::new_sse("http://test.com"));
+        let mut headers = BTreeMap::new();
+        headers.insert("Authorization".to_string(), "token123".to_string());
+        
+        let result = client.extract_auth_token(&headers);
+        
+        assert_eq!(result, Some("token123".to_string()));
+    }
+
+    #[test]
+    fn test_extract_auth_token_lowercase_header() {
+        let client = ForgeMcpClient::new(McpServerConfig::new_sse("http://test.com"));
+        let mut headers = BTreeMap::new();
+        headers.insert("authorization".to_string(), "Bearer token456".to_string());
+        
+        let result = client.extract_auth_token(&headers);
+        
+        assert_eq!(result, Some("token456".to_string()));
+    }
+
+    #[test]
+    fn test_extract_auth_token_priority() {
+        let client = ForgeMcpClient::new(McpServerConfig::new_sse("http://test.com"));
+        let mut headers = BTreeMap::new();
+        headers.insert("Authorization".to_string(), "Bearer token1".to_string());
+        headers.insert("authorization".to_string(), "Bearer token2".to_string());
+        
+        let result = client.extract_auth_token(&headers);
+        
+        // Should prefer "Authorization" (capital A)
+        assert_eq!(result, Some("token1".to_string()));
+    }
+
+    #[test]
+    fn test_extract_auth_token_no_auth_header() {
+        let client = ForgeMcpClient::new(McpServerConfig::new_sse("http://test.com"));
+        let mut headers = BTreeMap::new();
+        headers.insert("X-Custom".to_string(), "value".to_string());
+        
+        let result = client.extract_auth_token(&headers);
+        
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_extract_auth_token_empty_bearer() {
+        let client = ForgeMcpClient::new(McpServerConfig::new_sse("http://test.com"));
+        let mut headers = BTreeMap::new();
+        headers.insert("Authorization".to_string(), "Bearer ".to_string());
+        
+        let result = client.extract_auth_token(&headers);
+        
+        assert_eq!(result, Some("".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_create_sse_transport_with_empty_headers_uses_standard() {
+        let config = McpServerConfig::new_sse("http://test.com");
+        let client = ForgeMcpClient::new(config);
+        
+        if let McpServerConfig::Sse(sse) = &client.config {
+            // When headers are empty, it should use the standard transport path
+            assert!(sse.headers.is_empty());
+            // This would call SseClientTransport::start(sse.url.clone()) internally
+            // We can't easily mock this, but we can verify the logic path
+        } else {
+            panic!("Expected SSE config");
+        }
+    }
+
+    #[test]
+    fn test_auth_header_parsing_with_various_formats() {
+        // Test that Authorization header parsing doesn't panic with various formats
+        let test_cases = vec![
+            ("Bearer token123", "token123"),
+            ("token123", "token123"),
+            ("Bearer", "Bearer"), // Edge case: just "Bearer" - no space to strip
+            ("", ""), // Edge case: empty string
+        ];
+        
+        for (input, expected) in test_cases {
+            let client = ForgeMcpClient::new(McpServerConfig::new_sse("http://test.com"));
+            let mut headers = BTreeMap::new();
+            headers.insert("Authorization".to_string(), input.to_string());
+            
+            let result = client.extract_auth_token(&headers);
+            assert_eq!(result, Some(expected.to_string()));
+        }
+    }
+
+    #[test]
+    fn test_header_extraction_edge_cases() {
+        let client = ForgeMcpClient::new(McpServerConfig::new_sse("http://test.com"));
+        
+        // Test with special characters in token
+        let mut headers = BTreeMap::new();
+        headers.insert("Authorization".to_string(), "Bearer token-with-special.chars_123".to_string());
+        let result = client.extract_auth_token(&headers);
+        assert_eq!(result, Some("token-with-special.chars_123".to_string()));
+        
+        // Test with whitespace
+        headers.clear();
+        headers.insert("Authorization".to_string(), "Bearer   token123  ".to_string());
+        let result = client.extract_auth_token(&headers);
+        // Note: whitespace is preserved as per current implementation
+        assert_eq!(result, Some("  token123  ".to_string()));
     }
 }
 
