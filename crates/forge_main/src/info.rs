@@ -400,11 +400,18 @@ impl From<&ForgeCommandManager> for Info {
             info = info.add_key_value(command.name, command.description);
         }
 
+        // Use compile-time OS detection for keyboard shortcuts
+        #[cfg(target_os = "macos")]
+        let multiline_shortcut = "<OPT+ENTER>";
+
+        #[cfg(not(target_os = "macos"))]
+        let multiline_shortcut = "<ALT+ENTER>";
+
         info = info
             .add_title("KEYBOARD SHORTCUTS")
             .add_key_value("<CTRL+C>", "Interrupt current operation")
             .add_key_value("<CTRL+D>", "Quit Forge interactive shell")
-            .add_key_value("<OPT+ENTER>", "Insert new line (multiline input)");
+            .add_key_value(multiline_shortcut, "Insert new line (multiline input)");
 
         info
     }
@@ -933,5 +940,31 @@ mod tests {
             colon_positions[0] > colon_positions_two[0],
             "SECTION ONE should have wider padding than SECTION TWO"
         );
+    }
+
+    #[test]
+    fn test_info_from_command_manager() {
+        let command_manager = super::ForgeCommandManager::default();
+        let info = super::Info::from(&command_manager);
+        let display = info.to_string();
+
+        // Verify compile-time detection works correctly
+        #[cfg(target_os = "macos")]
+        {
+            assert!(display.contains("<OPT+ENTER>"));
+            assert!(!display.contains("<ALT+ENTER>"));
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            assert!(display.contains("<ALT+ENTER>"));
+            assert!(!display.contains("<OPT+ENTER>"));
+        }
+
+        // Should contain standard sections
+        assert!(display.contains("COMMANDS"));
+        assert!(display.contains("KEYBOARD SHORTCUTS"));
+        assert!(display.contains("<CTRL+C>"));
+        assert!(display.contains("<CTRL+D>"));
     }
 }
