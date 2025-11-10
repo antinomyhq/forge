@@ -1,12 +1,17 @@
 use std::borrow::Cow;
+use std::collections::BTreeMap;
 use std::future::Future;
+use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 
 use backon::{ExponentialBuilder, Retryable};
 use forge_app::McpClientInfra;
-use forge_domain::{Image, McpServerConfig, ToolDefinition, ToolName, ToolOutput};
+use forge_domain::{Image, McpHttpServer, McpServerConfig, ToolDefinition, ToolName, ToolOutput};
+use http::{HeaderName, HeaderValue, header};
 use rmcp::model::{CallToolRequestParam, ClientInfo, Implementation, InitializeRequestParam};
 use rmcp::service::RunningService;
+use rmcp::transport::sse_client::SseClientConfig;
+use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
 use rmcp::transport::{SseClientTransport, StreamableHttpClientTransport, TokioChildProcess};
 use rmcp::{RoleClient, ServiceExt};
 use schemars::schema::RootSchema;
@@ -29,7 +34,11 @@ pub struct ForgeMcpClient {
 }
 
 impl ForgeMcpClient {
-    pub fn new(config: McpServerConfig) -> Self {
+    pub fn new(config: McpServerConfig, env_vars: &BTreeMap<String, String>) -> Self {
+        let config = match config {
+            McpServerConfig::Http(http) => McpServerConfig::Http(http.resolve(env_vars)),
+            x => x,
+        };
         Self { client: Default::default(), config }
     }
 
@@ -89,11 +98,23 @@ impl ForgeMcpClient {
             }
             McpServerConfig::Http(http) => {
                 // Try HTTP first, fall back to SSE if it fails
-                let transport = StreamableHttpClientTransport::from_uri(http.url.clone());
+                let client = self.reqwest_client(http)?;
+                let transport = StreamableHttpClientTransport::with_client(
+                    client.clone(),
+                    StreamableHttpClientTransportConfig::with_uri(http.url.clone()),
+                );
                 match self.client_info().serve(transport).await {
                     Ok(client) => client,
-                    Err(_) => {
-                        let transport = SseClientTransport::start(http.url.clone()).await?;
+                    Err(e) => {
+                        println!("e: {}", e);
+                        let transport = SseClientTransport::start_with_client(
+                            client,
+                            SseClientConfig {
+                                sse_endpoint: http.url.clone().into(),
+                                ..Default::default()
+                            },
+                        )
+                        .await?;
                         self.client_info().serve(transport).await?
                     }
                 }
@@ -101,6 +122,16 @@ impl ForgeMcpClient {
         };
 
         Ok(Arc::new(client))
+    }
+
+    fn reqwest_client(&self, config: &McpHttpServer) -> anyhow::Result<reqwest::Client> {
+        let mut headers = header::HeaderMap::new();
+        for (key, value) in config.headers.iter() {
+            headers.insert(HeaderName::from_str(key)?, HeaderValue::from_str(value)?);
+        }
+
+        let client = reqwest::Client::builder().default_headers(headers);
+        Ok(client.build()?)
     }
 
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {

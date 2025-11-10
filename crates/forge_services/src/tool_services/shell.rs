@@ -64,6 +64,7 @@ impl<I: CommandInfra + EnvironmentInfra> ShellService for ForgeShell<I> {
 }
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
     use std::path::PathBuf;
     use std::sync::Arc;
 
@@ -116,6 +117,10 @@ mod tests {
 
         fn get_env_var(&self, _key: &str) -> Option<String> {
             Some("mock_value".to_string())
+        }
+
+        fn get_env_vars(&self) -> BTreeMap<String, String> {
+            BTreeMap::new()
         }
     }
 
