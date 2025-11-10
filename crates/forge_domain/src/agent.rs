@@ -186,6 +186,13 @@ pub struct Agent {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
     pub max_requests_per_turn: Option<usize>,
+
+    /// Flag to include AGENTS.md content in agent system prompt
+    /// Defaults to true for backward compatibility
+    #[serde(default = "default_include_agents_md")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[merge(strategy = crate::merge::option)]
+    pub include_agents_md: Option<bool>,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, Setters, JsonSchema, PartialEq)]
@@ -232,6 +239,12 @@ fn merge_opt_vec<T>(base: &mut Option<Vec<T>>, other: Option<Vec<T>>) {
     }
 }
 
+/// Default value function for include_agents_md field
+/// Returns Some(true) to maintain backward compatibility
+fn default_include_agents_md() -> Option<bool> {
+    Some(true)
+}
+
 impl Agent {
     pub fn new(id: impl Into<AgentId>) -> Self {
         Self {
@@ -254,6 +267,7 @@ impl Agent {
             reasoning: Default::default(),
             max_tool_failure_per_turn: Default::default(),
             max_requests_per_turn: Default::default(),
+            include_agents_md: Default::default(),
             provider: Default::default(),
         }
     }
@@ -626,5 +640,68 @@ mod tests {
 
         let agent: Agent = serde_json::from_value(json).unwrap();
         assert_eq!(agent.max_tokens, None);
+    }
+
+    #[test]
+    fn test_include_agents_md_validation() {
+        // Valid include_agents_md values should deserialize correctly
+        let valid_values = [Some(true), Some(false)];
+        for value in valid_values {
+            let json = json!({
+                "id": "test-agent",
+                "include_agents_md": value
+            });
+
+            let agent: std::result::Result<Agent, serde_json::Error> = serde_json::from_value(json);
+            assert!(
+                agent.is_ok(),
+                "Valid include_agents_md {value:?} should deserialize"
+            );
+            assert_eq!(agent.unwrap().include_agents_md, value);
+        }
+
+        // No include_agents_md should deserialize to Some(true) by default
+        let json = json!({
+            "id": "test-agent"
+        });
+
+        let agent: Agent = serde_json::from_value(json).unwrap();
+        assert_eq!(agent.include_agents_md, Some(true));
+
+        // Invalid include_agents_md values should fail deserialization
+        let invalid_values = ["yes", "no", "1", "0", "invalid"];
+        for value in invalid_values {
+            let json = json!({
+                "id": "test-agent",
+                "include_agents_md": value
+            });
+
+            let agent: std::result::Result<Agent, serde_json::Error> = serde_json::from_value(json);
+            assert!(
+                agent.is_err(),
+                "Invalid include_agents_md {value} should fail deserialization"
+            );
+        }
+    }
+
+    #[test]
+    fn test_merge_include_agents_md() {
+        // Base has no value, should take other's value
+        let mut base = Agent::new("Base"); // No include_agents_md set
+        let other = Agent::new("Other").include_agents_md(false);
+        base.merge(other);
+        assert_eq!(base.include_agents_md, Some(false));
+
+        // Base has a value, should be overwritten by other's value
+        let mut base = Agent::new("Base").include_agents_md(true);
+        let other = Agent::new("Other").include_agents_md(false);
+        base.merge(other);
+        assert_eq!(base.include_agents_md, Some(false));
+
+        // Base has a value, other has no value, should keep base's value
+        let mut base = Agent::new("Base").include_agents_md(false);
+        let other = Agent::new("Other"); // No include_agents_md set
+        base.merge(other);
+        assert_eq!(base.include_agents_md, Some(false));
     }
 }
