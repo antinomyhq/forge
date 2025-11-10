@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::future::Future;
+use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 
 use backon::{ExponentialBuilder, Retryable};
@@ -47,7 +48,7 @@ impl ForgeMcpClient {
         }
     }
 
-    /// Connects to the MCP server. If `force` is true, it will reconnect even
+    /// Connects to MCP server. If `force` is true, it will reconnect even
     /// if already connected.
     async fn connect(&self) -> anyhow::Result<Arc<RmcpClient>> {
         if let Some(client) = self.get_client() {
@@ -88,7 +89,7 @@ impl ForgeMcpClient {
                 self.client_info().serve(transport).await?
             }
             McpServerConfig::Sse(sse) => {
-                let transport = SseClientTransport::start(sse.url.clone()).await?;
+                let transport = self.create_sse_transport(sse).await?;
                 self.client_info().serve(transport).await?
             }
         };
@@ -154,6 +155,75 @@ impl ForgeMcpClient {
 
         Ok(ToolOutput::from(tool_contents.into_iter())
             .is_error(result.is_error.unwrap_or_default()))
+    }
+
+    async fn create_sse_transport(
+        &self,
+        sse: &forge_domain::McpSseServer,
+    ) -> anyhow::Result<rmcp::transport::SseClientTransport<reqwest::Client>> {
+        if sse.headers.is_empty() {
+            // Use standard transport when no headers configured
+            return Ok(SseClientTransport::start(sse.url.clone()).await?);
+        }
+
+        // Extract authorization token if present
+        let auth_token = self.extract_auth_token(&sse.headers);
+
+        // Create custom reqwest client with auth token if available
+        let client = if let Some(token) = auth_token {
+            reqwest::Client::builder()
+                .default_headers({
+                    let mut headers = reqwest::header::HeaderMap::new();
+                    headers.insert(
+                        reqwest::header::AUTHORIZATION,
+                        format!("Bearer {}", token).parse().unwrap(),
+                    );
+                    headers
+                })
+                .build()
+                .map_err(|e| anyhow::anyhow!("Failed to create authenticated client: {}", e))?
+        } else {
+            reqwest::Client::new()
+        };
+
+        // Create custom SSE client with all headers
+        let mut headers = reqwest::header::HeaderMap::new();
+        for (key, value) in &sse.headers {
+            if key.to_lowercase() != "authorization" {
+                // Skip Authorization header as it's handled via bearer_auth()
+                if let Ok(header_value) = reqwest::header::HeaderValue::from_str(value)
+                    && let Ok(header_name) = reqwest::header::HeaderName::from_str(key) {
+                        headers.insert(header_name, header_value);
+                    }
+            }
+        }
+
+        // Create SSE transport with custom client and config
+        use rmcp::transport::sse_client::SseClientConfig;
+
+        let config = SseClientConfig { sse_endpoint: sse.url.clone().into(), ..Default::default() };
+
+        SseClientTransport::start_with_client(client, config)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to create SSE transport: {}", e))
+    }
+
+    /// Extract authorization token from headers, supporting both
+    /// "Authorization" and "authorization"
+    fn extract_auth_token(
+        &self,
+        headers: &std::collections::BTreeMap<String, String>,
+    ) -> Option<String> {
+        headers
+            .get("Authorization")
+            .or_else(|| headers.get("authorization"))
+            .map(|h| {
+                if h.starts_with("Bearer ") {
+                    h.strip_prefix("Bearer ").unwrap().to_string()
+                } else {
+                    h.clone()
+                }
+            })
     }
 
     async fn attempt_with_retry<T, F>(&self, call: impl Fn() -> F) -> anyhow::Result<T>
