@@ -142,14 +142,7 @@ impl<'de> Deserialize<'de> for ProviderId {
         let s = String::deserialize(deserializer)?;
         // Validate that it's a known provider
         let provider = Self::from_string(&s);
-        if Self::built_in_providers()
-            .iter()
-            .any(|p| p.as_str() == provider.as_str())
-        {
-            Ok(provider)
-        } else {
-            Err(serde::de::Error::custom(format!("unknown provider: {}", s)))
-        }
+        Ok(provider)
     }
 }
 
