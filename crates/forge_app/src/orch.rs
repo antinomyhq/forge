@@ -224,23 +224,8 @@ impl<S: AgentService> Orchestrator<S> {
         // Retrieve the number of requests allowed per tick.
         let max_requests_per_turn = agent.max_requests_per_turn;
 
-        let mut tool_context =
+        let tool_context =
             ToolCallContext::new(self.conversation.metrics.clone()).sender(self.sender.clone());
-
-        // Initialize tool context with accumulated usage from conversation and token
-        // limit
-        if let Some(ref ctx) = self.conversation.context
-            && let Some(ref usage) = ctx.usage
-        {
-            let _ = tool_context.set_usage(usage.clone());
-        }
-
-        // Set token limit from compaction config
-        if let Some(ref compact) = agent.compact
-            && let Some(max_tokens) = compact.max_tokens
-        {
-            tool_context = tool_context.token_limit(Some(max_tokens));
-        }
 
         // Asynchronously generate a title for the provided task
         // FIXME: Move into app.rs
@@ -309,9 +294,6 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Send the usage information if available
             self.send(ChatResponse::Usage(usage.clone())).await?;
-
-            // Update tool context with current usage for next tool calls
-            tool_context.set_usage(usage.clone())?;
 
             context = context.usage(usage);
 

@@ -1981,7 +1981,22 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ChatResponse::TaskMessage { content } => match content {
                 ChatResponseContent::Title(title) => {
                     let env = self.api.environment();
-                    self.writeln(title.display_with_env(env))?
+                    let display = title.display_with_env(env);
+
+                    // Get usage from conversation if available
+                    let conversation = if let Some(conversation_id) = self.state.conversation_id {
+                        self.api.conversation(&conversation_id).await.ok().flatten()
+                    } else {
+                        None
+                    };
+
+                    let usage = conversation
+                        .as_ref()
+                        .and_then(|c| c.context.as_ref())
+                        .and_then(|ctx| ctx.usage.as_ref());
+
+                    let formatted = display.format_with_data(usage, None);
+                    self.writeln(formatted)?
                 }
                 ChatResponseContent::PlainText(text) => self.writeln(text)?,
                 ChatResponseContent::Markdown(text) => {

@@ -2,7 +2,7 @@ use std::fmt;
 
 use chrono::Local;
 use colored::Colorize;
-use forge_domain::{Category, Environment, TitleFormat};
+use forge_domain::{Category, Environment, TitleFormat, Usage};
 
 /// Implementation of Display for TitleFormat in the presentation layer
 pub struct TitleDisplay {
@@ -37,8 +37,44 @@ impl TitleDisplay {
         self
     }
 
+    /// Format the title with optional usage and token limit data
+    pub fn format_with_data(&self, usage: Option<&Usage>, token_limit: Option<usize>) -> String {
+        // Get format template from environment or use default
+        let format_template = self
+            .env
+            .as_ref()
+            .map(|e| e.title_format.as_str())
+            .unwrap_or("[{timestamp} {input}/{output} {cost} {cache_pct}] {title} {subtitle}");
+
+        let result = self.apply_format(format_template, self.with_colors, usage, token_limit);
+
+        // Prepend icon if not in template
+        if !format_template.contains("{icon}") {
+            if self.with_colors {
+                let icon = match self.inner.category {
+                    Category::Action => "⏺".yellow(),
+                    Category::Info => "⏺".white(),
+                    Category::Debug => "⏺".cyan(),
+                    Category::Error => "⏺".red(),
+                    Category::Completion => "⏺".yellow(),
+                };
+                format!("{} {}", icon, result.trim()).trim().to_string()
+            } else {
+                format!("⏺ {}", result.trim())
+            }
+        } else {
+            result.trim().to_string()
+        }
+    }
+
     /// Replaces all placeholders in the format template with actual values
-    fn apply_format(&self, template: &str, with_colors: bool) -> String {
+    fn apply_format(
+        &self,
+        template: &str,
+        with_colors: bool,
+        usage: Option<&Usage>,
+        token_limit: Option<usize>,
+    ) -> String {
         let mut result = template.to_string();
 
         // Replace timestamp
@@ -95,7 +131,7 @@ impl TitleDisplay {
         result = result.replace("{icon}", &icon);
 
         // Replace usage/token info based on available data
-        if let Some(ref usage) = self.inner.usage {
+        if let Some(usage) = usage {
             let input = *usage.prompt_tokens;
             let output = *usage.completion_tokens;
             let total = *usage.total_tokens;
@@ -113,7 +149,7 @@ impl TitleDisplay {
             result = result.replace("{cached}", &cached.to_string());
             result = result.replace("{cache_pct}", &format!("{}%", cache_pct));
             result = result.replace("{cost}", &cost);
-        } else if let Some(limit) = self.inner.token_limit {
+        } else if let Some(limit) = token_limit {
             // Fallback to token limit when no usage available
             result = result.replace("{total}", &limit.to_string());
             result = result.replace("{input}", "0");
@@ -144,60 +180,13 @@ impl TitleDisplay {
             .collect::<Vec<_>>()
             .join(" ");
 
-        result
-    }
-
-    fn format_with_colors(&self) -> String {
-        // Get format template from environment or use default
-        let format_template = self
-            .env
-            .as_ref()
-            .map(|e| e.title_format.as_str())
-            .unwrap_or("[{timestamp} {input}/{total} {cost} {cache_pct}] {title} {subtitle}");
-
-        let result = self.apply_format(format_template, true);
-
-        // Prepend icon if not in template
-        if !format_template.contains("{icon}") {
-            let icon = match self.inner.category {
-                Category::Action => "⏺".yellow(),
-                Category::Info => "⏺".white(),
-                Category::Debug => "⏺".cyan(),
-                Category::Error => "⏺".red(),
-                Category::Completion => "⏺".yellow(),
-            };
-            format!("{} {}", icon, result.trim())
-        } else {
-            result.trim().to_string()
-        }
-    }
-
-    fn format_plain(&self) -> String {
-        // Get format template from environment or use default
-        let format_template = self
-            .env
-            .as_ref()
-            .map(|e| e.title_format.as_str())
-            .unwrap_or("[{timestamp} {input}/{total} {cost} {cache_pct}] {title} {subtitle}");
-
-        let result = self.apply_format(format_template, false);
-
-        // Prepend icon if not in template
-        if !format_template.contains("{icon}") {
-            format!("⏺ {}", result.trim())
-        } else {
-            result.trim().to_string()
-        }
+        result.replace(" ]", "]")
     }
 }
 
 impl fmt::Display for TitleDisplay {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.with_colors {
-            write!(f, "{}", self.format_with_colors())
-        } else {
-            write!(f, "{}", self.format_plain())
-        }
+        write!(f, "{}", self.format_with_data(None, None))
     }
 }
 
@@ -224,5 +213,97 @@ impl TitleDisplayExt for TitleFormat {
 
     fn display_with_env(self, env: Environment) -> TitleDisplay {
         TitleDisplay::new(self).with_env(env)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use fake::Fake;
+    use forge_domain::{Category, TokenCount};
+
+    use super::*;
+
+    #[test]
+    fn test_title_display_without_usage_cleans_empty_brackets() {
+        let title = TitleFormat {
+            title: "Test Title".to_string(),
+            sub_title: None,
+            category: Category::Info,
+        };
+
+        let env = Environment {
+            title_format: "[{timestamp} {input}/{total} {cost}] {title}".to_string(),
+            ..fake::Faker.fake()
+        };
+
+        let display = title
+            .display_with_env(env)
+            .with_colors(false)
+            .with_timestamp(false);
+
+        let result = display.format_with_data(None, None);
+
+        // Should not have empty brackets or trailing spaces
+        assert!(!result.contains("[]"));
+        assert!(!result.contains(" ]"));
+        assert!(result.contains("Test Title"));
+    }
+
+    #[test]
+    fn test_title_display_with_usage_shows_all_fields() {
+        let title = TitleFormat {
+            title: "Test Title".to_string(),
+            sub_title: None,
+            category: Category::Info,
+        };
+
+        let usage = Usage {
+            prompt_tokens: TokenCount::Actual(100),
+            completion_tokens: TokenCount::Actual(50),
+            total_tokens: TokenCount::Actual(150),
+            cached_tokens: TokenCount::Actual(20),
+            cost: Some(0.05),
+        };
+
+        let env = Environment {
+            title_format: "[{input}/{total} {cost}] {title}".to_string(),
+            ..fake::Faker.fake()
+        };
+
+        let display = title
+            .display_with_env(env)
+            .with_colors(false)
+            .with_timestamp(false);
+
+        let result = display.format_with_data(Some(&usage), None);
+
+        assert!(result.contains("100/150"));
+        assert!(result.contains("$0.0500"));
+        assert!(result.contains("Test Title"));
+        assert!(!result.contains(" ]")); // No trailing space before bracket
+    }
+
+    #[test]
+    fn test_title_display_with_subtitle() {
+        let title = TitleFormat {
+            title: "Test Title".to_string(),
+            sub_title: Some("Subtitle".to_string()),
+            category: Category::Debug,
+        };
+
+        let env = Environment {
+            title_format: "{title} {subtitle}".to_string(),
+            ..fake::Faker.fake()
+        };
+
+        let display = title
+            .display_with_env(env)
+            .with_colors(false)
+            .with_timestamp(false);
+
+        let result = display.format_with_data(None, None);
+
+        assert!(result.contains("Test Title"));
+        assert!(result.contains("Subtitle"));
     }
 }
