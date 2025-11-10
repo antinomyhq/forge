@@ -13,11 +13,7 @@ pub struct TitleDisplay {
 
 impl TitleDisplay {
     pub fn new(title: TitleFormat) -> Self {
-        Self {
-            inner: title,
-            with_colors: true,
-            env: None,
-        }
+        Self { inner: title, with_colors: true, env: None }
     }
 
     pub fn with_colors(mut self, with_colors: bool) -> Self {
@@ -160,22 +156,26 @@ impl TitleDisplay {
         }
 
         // Clean up extra spaces, brackets, and slashes left from empty replacements
-        // First, clean up spaces within brackets
+        // First pass: clean up spaces and slashes within brackets
         result = result
             .replace("[ ", "[")
             .replace(" ]", "]")
             .replace("[/", "[")
-            .replace("/]", "]");
+            .replace("/]", "]")
+            .replace("/ ", "");
 
         // Then normalize multiple spaces and slashes to single space
-        let result = result
+        let mut result = result
             .split_whitespace()
             .filter(|s| !s.is_empty() && *s != "/")
             .collect::<Vec<_>>()
             .join(" ");
 
+        // Second pass: clean up any remaining space-bracket combinations
+        result = result.replace(" ]", "]").replace("[ ", "[");
+
         // Finally, clean up empty brackets completely
-        let result = result.replace("[]", "");
+        result = result.replace("[]", "");
 
         result
     }
