@@ -1276,7 +1276,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_agent_change(AgentId::SAGE).await?;
             }
             SlashCommand::Help => {
-                let info = Info::from(self.command.as_ref());
+                let env = self.api.environment();
+                let info = Info::from((self.command.as_ref(), Some(&env)));
                 self.writeln(info)?;
             }
             SlashCommand::Tools => {

@@ -391,22 +391,46 @@ fn get_git_branch() -> Option<String> {
     }
 }
 
+/// Returns appropriate multiline input shortcut based on operating system
+fn get_multiline_shortcut(os: &str) -> &'static str {
+    match os {
+        "macos" => "<OPT+ENTER>",
+        _ => "<ALT+ENTER>", // Windows, Linux, and others
+    }
+}
+
 /// Create an info instance for available commands from a ForgeCommandManager
-impl From<&ForgeCommandManager> for Info {
-    fn from(command_manager: &ForgeCommandManager) -> Self {
+/// Create an info instance for available commands from a ForgeCommandManager
+/// If environment is provided, will show OS-specific shortcuts
+impl From<(&ForgeCommandManager, Option<&forge_api::Environment>)> for Info {
+    fn from(
+        (command_manager, env): (&ForgeCommandManager, Option<&forge_api::Environment>),
+    ) -> Self {
         let mut info = Info::new().add_title("COMMANDS");
 
         for command in command_manager.list() {
             info = info.add_key_value(command.name, command.description);
         }
 
+        // Determine multiline shortcut based on OS
+        let multiline_shortcut = env
+            .map(|e| get_multiline_shortcut(&e.os))
+            .unwrap_or("<ALT+ENTER>"); // fallback
+
         info = info
             .add_title("KEYBOARD SHORTCUTS")
             .add_key_value("<CTRL+C>", "Interrupt current operation")
             .add_key_value("<CTRL+D>", "Quit Forge interactive shell")
-            .add_key_value("<OPT+ENTER>", "Insert new line (multiline input)");
+            .add_key_value(multiline_shortcut, "Insert new line (multiline input)");
 
         info
+    }
+}
+
+// Keep the original implementation for backward compatibility
+impl From<&ForgeCommandManager> for Info {
+    fn from(command_manager: &ForgeCommandManager) -> Self {
+        Info::from((command_manager, None))
     }
 }
 impl From<&LoginInfo> for Info {
@@ -550,6 +574,9 @@ mod tests {
 
     use forge_api::{Environment, EventValue};
     use pretty_assertions::assert_eq;
+
+    // Import the function we're testing
+    use super::get_multiline_shortcut;
 
     // Helper to create minimal test environment
     fn create_env(os: &str, home: Option<&str>) -> Environment {
@@ -933,5 +960,67 @@ mod tests {
             colon_positions[0] > colon_positions_two[0],
             "SECTION ONE should have wider padding than SECTION TWO"
         );
+    }
+
+    #[test]
+    fn test_get_multiline_shortcut() {
+        assert_eq!(get_multiline_shortcut("macos"), "<OPT+ENTER>");
+        assert_eq!(get_multiline_shortcut("windows"), "<ALT+ENTER>");
+        assert_eq!(get_multiline_shortcut("linux"), "<ALT+ENTER>");
+        assert_eq!(get_multiline_shortcut("unknown"), "<ALT+ENTER>");
+    }
+
+    #[test]
+    fn test_info_from_command_manager_with_env() {
+        use fake::{Fake, Faker};
+        use forge_domain::Environment;
+
+        let command_manager = super::ForgeCommandManager::default();
+
+        // Test macOS
+        let mut env_macos: Environment = Faker.fake();
+        env_macos.os = "macos".to_string();
+        let info = super::Info::from((&command_manager, Some(&env_macos)));
+        let display = info.to_string();
+        assert!(display.contains("<OPT+ENTER>"));
+        assert!(!display.contains("<ALT+ENTER>"));
+
+        // Test Windows
+        let mut env_windows: Environment = Faker.fake();
+        env_windows.os = "windows".to_string();
+        let info = super::Info::from((&command_manager, Some(&env_windows)));
+        let display = info.to_string();
+        assert!(display.contains("<ALT+ENTER>"));
+        assert!(!display.contains("<OPT+ENTER>"));
+
+        // Test Linux
+        let mut env_linux: Environment = Faker.fake();
+        env_linux.os = "linux".to_string();
+        let info = super::Info::from((&command_manager, Some(&env_linux)));
+        let display = info.to_string();
+        assert!(display.contains("<ALT+ENTER>"));
+        assert!(!display.contains("<OPT+ENTER>"));
+
+        // Test with None environment (fallback)
+        let info = super::Info::from((&command_manager, None));
+        let display = info.to_string();
+        assert!(display.contains("<ALT+ENTER>"));
+        assert!(!display.contains("<OPT+ENTER>"));
+    }
+
+    #[test]
+    fn test_info_from_command_manager_backward_compatibility() {
+        let command_manager = super::ForgeCommandManager::default();
+
+        // Test original implementation still works
+        let info = super::Info::from(&command_manager);
+        let display = info.to_string();
+        // Should use fallback when no environment provided
+        assert!(display.contains("<ALT+ENTER>"));
+        assert!(!display.contains("<OPT+ENTER>"));
+
+        // Should still contain commands section
+        assert!(display.contains("COMMANDS"));
+        assert!(display.contains("KEYBOARD SHORTCUTS"));
     }
 }
