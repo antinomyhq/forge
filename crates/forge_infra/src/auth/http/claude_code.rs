@@ -121,6 +121,14 @@ mod tests {
 
         // We expect this to fail in test environment due to no actual server
         // but the important thing is that it doesn't fail due to missing verifier
-        assert!(result.is_err() || true); // Always true in test
+        // The error should be a network/server error, not a verifier error
+        match result {
+            Ok(_) => panic!("Expected authentication to fail in test environment"),
+            Err(e) => {
+                // Just verify it doesn't panic due to missing verifier
+                // The actual error type doesn't matter for this test
+                assert!(!e.to_string().contains("verifier"));
+            }
+        }
     }
 }
