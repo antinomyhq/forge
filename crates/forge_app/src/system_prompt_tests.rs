@@ -39,12 +39,13 @@ impl TemplateService for MockTemplateService {
             let ctx: serde_json::Value = serde_json::from_str(&json)?;
 
             if let Some(custom_rules) = ctx.get("custom_rules").and_then(|v| v.as_str())
-                && custom_rules.contains("Custom instruction 1") {
-                    return Ok(format!(
-                        "<project_guidelines>\n{}\n</project_guidelines>\n<non_negotiable_rules>\n...\n</non_negotiable_rules>",
-                        custom_rules
-                    ));
-                }
+                && custom_rules.contains("Custom instruction 1")
+            {
+                return Ok(format!(
+                    "<project_guidelines>\n{}\n</project_guidelines>\n<non_negotiable_rules>\n...\n</non_negotiable_rules>",
+                    custom_rules
+                ));
+            }
 
             Ok("<non_negotiable_rules>\n...\n</non_negotiable_rules>".to_string())
         } else {
