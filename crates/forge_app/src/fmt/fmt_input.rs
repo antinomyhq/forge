@@ -1,16 +1,16 @@
 use std::path::{Path, PathBuf};
 
-use forge_domain::{ChatResponseContent, Environment, TitleFormat, Tools};
+use forge_domain::{ChatResponseContent, Environment, TitleFormat, ToolCatalog};
 
 use crate::fmt::content::FormatContent;
 use crate::utils::format_display_path;
 
-impl FormatContent for Tools {
+impl FormatContent for ToolCatalog {
     fn to_content(&self, env: &Environment) -> Option<ChatResponseContent> {
         let display_path_for = |path: &str| format_display_path(Path::new(path), env.cwd.as_path());
 
         match self {
-            Tools::Read(input) => {
+            ToolCatalog::Read(input) => {
                 let display_path = display_path_for(&input.path);
                 let is_explicit_range = input.start_line.is_some() || input.end_line.is_some();
                 let mut subtitle = display_path;
@@ -30,11 +30,11 @@ impl FormatContent for Tools {
                 };
                 Some(TitleFormat::debug("Read").sub_title(subtitle).into())
             }
-            Tools::ReadImage(input) => {
+            ToolCatalog::ReadImage(input) => {
                 let display_path = display_path_for(&input.path);
                 Some(TitleFormat::debug("Image").sub_title(display_path).into())
             }
-            Tools::Write(input) => {
+            ToolCatalog::Write(input) => {
                 let path = PathBuf::from(&input.path);
                 let display_path = display_path_for(&input.path);
                 let title = match (path.exists(), input.overwrite) {
@@ -48,7 +48,7 @@ impl FormatContent for Tools {
                 };
                 Some(TitleFormat::debug(title).sub_title(display_path).into())
             }
-            Tools::Search(input) => {
+            ToolCatalog::Search(input) => {
                 let formatted_dir = display_path_for(&input.path);
                 let title = match (&input.regex, &input.file_pattern) {
                     (Some(regex), Some(pattern)) => {
@@ -60,11 +60,11 @@ impl FormatContent for Tools {
                 };
                 Some(TitleFormat::debug(title).into())
             }
-            Tools::Remove(input) => {
+            ToolCatalog::Remove(input) => {
                 let display_path = display_path_for(&input.path);
                 Some(TitleFormat::debug("Remove").sub_title(display_path).into())
             }
-            Tools::Patch(input) => {
+            ToolCatalog::Patch(input) => {
                 let display_path = display_path_for(&input.path);
                 Some(
                     TitleFormat::debug(input.operation.as_ref())
@@ -72,22 +72,24 @@ impl FormatContent for Tools {
                         .into(),
                 )
             }
-            Tools::Undo(input) => {
+            ToolCatalog::Undo(input) => {
                 let display_path = display_path_for(&input.path);
                 Some(TitleFormat::debug("Undo").sub_title(display_path).into())
             }
-            Tools::Shell(input) => Some(
+            ToolCatalog::Shell(input) => Some(
                 TitleFormat::debug(format!("Execute [{}]", env.shell))
                     .sub_title(&input.command)
                     .into(),
             ),
-            Tools::Fetch(input) => Some(TitleFormat::debug("GET").sub_title(&input.url).into()),
-            Tools::Followup(input) => Some(
+            ToolCatalog::Fetch(input) => {
+                Some(TitleFormat::debug("GET").sub_title(&input.url).into())
+            }
+            ToolCatalog::Followup(input) => Some(
                 TitleFormat::debug("Follow-up")
                     .sub_title(&input.question)
                     .into(),
             ),
-            Tools::Plan(_) => None,
+            ToolCatalog::Plan(_) => None,
         }
     }
 }

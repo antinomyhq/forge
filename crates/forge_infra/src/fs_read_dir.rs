@@ -4,7 +4,7 @@ use anyhow::Result;
 use forge_app::DirectoryReaderInfra;
 use forge_fs::ForgeFS;
 use futures::future::join_all;
-use globset::{Glob, GlobSetBuilder};
+use glob::Pattern;
 
 /// Service for reading multiple files from a directory asynchronously
 pub struct ForgeDirectoryReaderService;
@@ -23,12 +23,9 @@ impl ForgeDirectoryReaderService {
             return Ok(vec![]);
         }
 
-        // Build glob matcher if filter is provided
-        let glob_set = if let Some(pattern) = pattern {
-            let glob = Glob::new(pattern)?;
-            let mut builder = GlobSetBuilder::new();
-            builder.add(glob);
-            Some(builder.build()?)
+        // Build glob pattern if filter is provided
+        let glob_pattern = if let Some(pattern) = pattern {
+            Some(Pattern::new(pattern)?)
         } else {
             None
         };
@@ -43,9 +40,9 @@ impl ForgeDirectoryReaderService {
             // Only process files (not directories)
             if ForgeFS::is_file(&path) {
                 // Apply filter if provided
-                if let Some(ref glob_set) = glob_set {
+                if let Some(ref pattern) = glob_pattern {
                     if let Some(file_name) = path.file_name().and_then(|n| n.to_str())
-                        && glob_set.is_match(file_name)
+                        && pattern.matches(file_name)
                     {
                         file_paths.push(path);
                     }

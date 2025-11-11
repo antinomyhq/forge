@@ -65,3 +65,21 @@ pub fn format_match(matched: &Match, base_dir: &Path) -> String {
         None => format_display_path(Path::new(&matched.path), base_dir),
     }
 }
+
+/// Computes SHA-256 hash of the given content
+///
+/// General-purpose utility function that computes a SHA-256 hash of string
+/// content. Returns a consistent hexadecimal representation that can be used
+/// for content comparison, caching, or change detection.
+///
+/// # Arguments
+/// * `content` - The content string to hash
+///
+/// # Returns
+/// * A hexadecimal string representation of the SHA-256 hash
+pub fn compute_hash(content: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(content.as_bytes());
+    format!("{:x}", hasher.finalize())
+}

@@ -100,11 +100,13 @@ mod tests {
     use strum::IntoEnumIterator;
 
     use super::*;
-    use crate::Tools;
+    use crate::ToolCatalog;
 
     #[test]
     fn test_tool_usage() {
-        let tools = Tools::iter().map(|v| v.definition()).collect::<Vec<_>>();
+        let tools = ToolCatalog::iter()
+            .map(|v| v.definition())
+            .collect::<Vec<_>>();
         let prompt = ToolUsagePrompt::from(&tools);
         assert_snapshot!(prompt);
     }

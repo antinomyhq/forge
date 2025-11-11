@@ -27,6 +27,7 @@ chrono = { version = "0.4", features = ["serde"] }
 diesel = { version = "2.2.12", features = ["sqlite", "r2d2", "chrono"] }
 diesel_migrations = "2.2.0"
 thiserror.workspace = true
+derive_more.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }

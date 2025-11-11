@@ -5,14 +5,18 @@ use std::sync::Arc;
 use bytes::Bytes;
 use forge_app::{
     CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
-    FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, UserInfra,
-    WalkerInfra,
+    FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, StrategyFactory,
+    UserInfra, WalkerInfra,
 };
-use forge_domain::{CommandOutput, Environment, FileInfo as FileInfoData, McpServerConfig};
+use forge_domain::{
+    AuthMethod, CommandOutput, Environment, FileInfo as FileInfoData, McpServerConfig, ProviderId,
+    URLParam,
+};
 use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
 use reqwest_eventsource::EventSource;
 
+use crate::auth::{AnyAuthStrategy, ForgeAuthStrategyFactory};
 use crate::env::ForgeEnvironmentInfra;
 use crate::executor::ForgeCommandExecutorService;
 use crate::fs_create_dirs::ForgeCreateDirsService;
@@ -42,7 +46,8 @@ pub struct ForgeInfra {
     inquire_service: Arc<ForgeInquire>,
     mcp_server: ForgeMcpServer,
     walker_service: Arc<ForgeWalkerService>,
-    http_service: Arc<ForgeHttpInfra>,
+    http_service: Arc<ForgeHttpInfra<ForgeFileWriteService>>,
+    strategy_factory: Arc<ForgeAuthStrategyFactory>,
 }
 
 impl ForgeInfra {
@@ -50,11 +55,12 @@ impl ForgeInfra {
         let environment_service = Arc::new(ForgeEnvironmentInfra::new(restricted, cwd));
         let env = environment_service.get_environment();
 
-        let http_service = Arc::new(ForgeHttpInfra::new(env.http.clone()));
+        let file_write_service = Arc::new(ForgeFileWriteService::new());
+        let http_service = Arc::new(ForgeHttpInfra::new(env.clone(), file_write_service.clone()));
 
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
-            file_write_service: Arc::new(ForgeFileWriteService::new()),
+            file_write_service,
             file_remove_service: Arc::new(ForgeFileRemoveService::new()),
             environment_service,
             file_meta_service: Arc::new(ForgeFileMetaService),
@@ -67,6 +73,7 @@ impl ForgeInfra {
             inquire_service: Arc::new(ForgeInquire::new()),
             mcp_server: ForgeMcpServer,
             walker_service: Arc::new(ForgeWalkerService::new()),
+            strategy_factory: Arc::new(ForgeAuthStrategyFactory::new()),
             http_service,
         }
     }
@@ -246,5 +253,18 @@ impl DirectoryReaderInfra for ForgeInfra {
         self.directory_reader_service
             .read_directory_files(directory, pattern)
             .await
+    }
+}
+
+impl StrategyFactory for ForgeInfra {
+    type Strategy = AnyAuthStrategy;
+    fn create_auth_strategy(
+        &self,
+        provider_id: ProviderId,
+        method: AuthMethod,
+        required_params: Vec<URLParam>,
+    ) -> anyhow::Result<Self::Strategy> {
+        self.strategy_factory
+            .create_auth_strategy(provider_id, method, required_params)
     }
 }

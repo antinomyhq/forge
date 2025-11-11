@@ -5,6 +5,7 @@ use forge_app::dto::ToolsOverview;
 use forge_app::{User, UserUsage};
 use forge_domain::{AgentId, InitAuth, ModelId};
 use forge_stream::MpscStream;
+use url::Url;
 
 use crate::*;
 
@@ -23,7 +24,10 @@ pub trait API: Sync + Send {
     /// Provides a list of agents available in the current environment
     async fn get_agents(&self) -> Result<Vec<Agent>>;
     /// Provides a list of providers available in the current environment
-    async fn get_providers(&self) -> Result<Vec<Provider>>;
+    async fn get_providers(&self) -> Result<Vec<AnyProvider>>;
+
+    /// Gets a provider by ID
+    async fn get_provider(&self, id: &ProviderId) -> Result<AnyProvider>;
 
     /// Executes a chat request and returns a stream of responses
     async fn chat(&self, chat: ChatRequest) -> Result<MpscStream<Result<ChatResponse>>>;
@@ -120,10 +124,10 @@ pub trait API: Sync + Send {
     async fn logout(&self) -> anyhow::Result<()>;
 
     /// Retrieves the provider configuration for the specified agent
-    async fn get_agent_provider(&self, agent_id: AgentId) -> anyhow::Result<Provider>;
+    async fn get_agent_provider(&self, agent_id: AgentId) -> anyhow::Result<Provider<Url>>;
 
     /// Retrieves the provider configuration for the default agent
-    async fn get_default_provider(&self) -> anyhow::Result<Provider>;
+    async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>>;
 
     /// Sets the default provider for all the agents
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()>;
@@ -158,4 +162,25 @@ pub trait API: Sync + Send {
 
     /// List of commands defined in .md file(s)
     async fn get_commands(&self) -> Result<Vec<Command>>;
+
+    /// Generate a shell command from natural language prompt
+    async fn generate_command(&self, prompt: UserPrompt) -> Result<String>;
+
+    /// Initiate provider auth flow
+    async fn init_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        method: AuthMethod,
+    ) -> Result<AuthContextRequest>;
+
+    /// Complete provider authentication and save credentials
+    async fn complete_provider_auth(
+        &self,
+        provider_id: ProviderId,
+        context: AuthContextResponse,
+        timeout: std::time::Duration,
+    ) -> Result<()>;
+
+    /// Remove provider credentials (logout)
+    async fn remove_provider(&self, provider_id: &ProviderId) -> Result<()>;
 }

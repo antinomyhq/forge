@@ -1,62 +1,60 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use forge_domain::AgentId;
+use forge_domain::{AgentId, ProviderId};
+
+/// NOTE: Always use singular names for commands and subcommands.
+/// For example: `forge provider login` instead of `forge providers login`.
+///
+/// NOTE: With every change to this CLI structure, verify that the ZSH plugin
+/// remains compatible. The plugin at `shell-plugin/forge.plugin.zsh` implements
+/// shell completion and command shortcuts that depend on the CLI structure.
 
 #[derive(Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
 pub struct Cli {
     /// Direct prompt to process without entering interactive mode.
     ///
-    /// Allows running a single command directly from the command line.
-    /// Alternatively, you can pipe content to forge: `cat prompt.txt | forge`
+    /// When provided, executes a single command and exits instead of starting
+    /// an interactive session. Content can also be piped: `cat prompt.txt |
+    /// forge`.
     #[arg(long, short = 'p')]
     pub prompt: Option<String>,
 
-    /// Path to a file containing initial commands to execute.
-    ///
-    /// The application will execute the commands from this file first,
-    /// then continue in interactive mode.
-    #[arg(long, short = 'c')]
-    pub command: Option<String>,
-
-    /// Path to a file containing the conversation to execute.
-    /// This file should be in JSON format.
+    /// Path to a JSON file containing the conversation to execute.
     #[arg(long)]
     pub conversation: Option<PathBuf>,
 
     /// Conversation ID to use for this session.
     ///
-    /// If provided, the application will use this conversation ID instead of
-    /// generating a new one. This allows resuming or continuing existing
-    /// conversations.
+    /// When provided, resumes or continues an existing conversation instead of
+    /// generating a new conversation ID.
     #[arg(long, alias = "cid")]
     pub conversation_id: Option<String>,
 
-    /// Working directory to set before starting forge.
+    /// Working directory to use before starting the session.
     ///
-    /// If provided, the application will change to this directory before
-    /// starting. This allows running forge from a different directory.
+    /// When provided, changes to this directory before starting forge.
     #[arg(long, short = 'C')]
     pub directory: Option<PathBuf>,
 
-    /// Create isolated git worktree for experimentation
+    /// Name for an isolated git worktree to create for experimentation.
     #[arg(long)]
     pub sandbox: Option<String>,
 
-    /// Enable verbose output mode.
+    /// Enable verbose logging output.
     #[arg(long, default_value_t = false)]
     pub verbose: bool,
 
-    /// Use restricted shell (rbash) for enhanced security
+    /// Use restricted shell (rbash) for enhanced security.
     #[arg(long, default_value_t = false, short = 'r')]
     pub restricted: bool,
 
-    /// Agent ID to use for this session
+    /// Agent ID to use for this session.
     #[arg(long, alias = "aid")]
     pub agent: Option<AgentId>,
 
-    /// Top-level subcommands
+    /// Top-level subcommands.
     #[command(subcommand)]
     pub subcommands: Option<TopLevelCommand>,
 
@@ -64,120 +62,157 @@ pub struct Cli {
     #[arg(long, short = 'w')]
     pub workflow: Option<PathBuf>,
 
-    /// Dispatch an event to the workflow.
-    /// For example: --event '{"name": "fix_issue", "value": "449"}'
+    /// Event to dispatch to the workflow in JSON format.
     #[arg(long, short = 'e')]
     pub event: Option<String>,
 }
 
 impl Cli {
-    /// Checks if user is in is_interactive
+    /// Determines whether the CLI should start in interactive mode.
+    ///
+    /// Returns true when no prompt or subcommand is provided, indicating
+    /// the user wants to enter interactive mode.
     pub fn is_interactive(&self) -> bool {
-        self.prompt.is_none() && self.command.is_none() && self.subcommands.is_none()
+        self.prompt.is_none() && self.subcommands.is_none()
     }
 }
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum TopLevelCommand {
-    /// Generate shell extension scripts
+    /// Generate shell extension scripts.
     #[command(hide = true)]
     Extension(ExtensionCommandGroup),
 
-    /// List resources (agents, models, providers, commands, tools, mcp)
+    /// List agents, models, providers, tools, or MCP servers.
     List(ListCommandGroup),
 
-    /// Display the banner with version and helpful information
-    ///
-    /// Example: forge banner
+    /// Display the banner with version information.
     Banner,
 
-    /// Show current configuration, active model, and environment status
+    /// Show configuration, active model, and environment status.
     Info {
-        /// Optional conversation ID to show info for a specific session
+        /// Conversation ID for session-specific information.
         #[arg(long, alias = "cid")]
         conversation_id: Option<String>,
 
-        /// Output in machine-readable format (porcelain)
+        /// Output in machine-readable format.
         #[arg(long)]
         porcelain: bool,
     },
 
-    /// Configuration management commands
+    /// Display environment information.
+    Env,
+
+    /// Get, set, or list configuration values.
     Config(ConfigCommandGroup),
 
-    /// Session management commands (dump, retry, resume, list)
-    Session(SessionCommandGroup),
+    /// Manage conversation history and state.
+    #[command(alias = "session")]
+    Conversation(ConversationCommandGroup),
 
     /// Generate and optionally commit changes with AI-generated message
     Commit(CommitCommandGroup),
 
-    /// MCP server management commands
+    /// Manage Model Context Protocol servers.
     Mcp(McpCommandGroup),
+
+    /// Suggest shell commands from natural language.
+    Suggest {
+        /// Natural language description of the desired command.
+        prompt: String,
+    },
+
+    /// Manage API provider authentication.
+    Provider(ProviderCommandGroup),
+
+    /// Run or list custom commands.
+    Cmd(CmdCommandGroup),
 }
 
-/// Group of list-related commands
+/// Command group for custom command management.
+#[derive(Parser, Debug, Clone)]
+pub struct CmdCommandGroup {
+    #[command(subcommand)]
+    pub command: CmdCommand,
+
+    /// Conversation ID to execute the command within.
+    #[arg(long, alias = "cid", global = true)]
+    pub conversation_id: Option<String>,
+
+    /// Output in machine-readable format.
+    #[arg(long, global = true)]
+    pub porcelain: bool,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum CmdCommand {
+    /// List all available custom commands.
+    List,
+
+    /// Execute a custom command.
+    #[command(external_subcommand)]
+    Execute(Vec<String>),
+}
+
+/// Command group for listing resources.
 #[derive(Parser, Debug, Clone)]
 pub struct ListCommandGroup {
     #[command(subcommand)]
     pub command: ListCommand,
 
-    /// Output in machine-readable format (porcelain)
+    /// Output in machine-readable format.
     #[arg(long, global = true)]
     pub porcelain: bool,
 }
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum ListCommand {
-    /// List all available agents
-    ///
-    /// Example: forge list agents
-    Agents,
+    /// List available agents.
+    #[command(alias = "agents")]
+    Agent,
 
-    /// List all available providers
-    ///
-    /// Example: forge list providers
-    Providers,
+    /// List available API providers.
+    #[command(alias = "providers")]
+    Provider,
 
-    /// List all available models
-    ///
-    /// Example: forge list models
-    Models,
+    /// List available models.
+    #[command(alias = "models")]
+    Model,
 
-    /// List all available commands
-    ///
-    /// Example: forge list commands
-    #[command(hide = true)]
-    Commands,
+    /// List available commands.
+    #[command(hide = true, alias = "commands")]
+    Command,
 
-    /// List current configuration values
-    ///
-    /// Example: forge list config
+    /// List configuration values.
+    #[command(alias = "configs")]
     Config,
 
-    /// List all tools for a specific agent
-    ///
-    /// Example: forge list tools sage
-    Tools {
-        /// Agent ID to show tools for
+    /// List tools for a specific agent.
+    #[command(alias = "tools")]
+    Tool {
+        /// Agent ID to list tools for.
         agent: AgentId,
     },
-    /// List all MCP servers
-    ///
-    /// Example: forge list mcp
-    Mcp,
 
-    /// List all conversations (sessions)
-    ///
-    /// Example: forge list session
-    Session,
+    /// List MCP servers.
+    #[command(alias = "mcps")]
+    Mcp,
 
     /// Generates AI-powered commit messages and commits changes.
     ///
     /// Example: forge commit --preview
     Commit(CommitCommandGroup),
+
+    /// List conversation history.
+    #[command(alias = "session")]
+    Conversation,
+
+    /// List custom commands.
+    #[command(alias = "cmds")]
+    Cmd,
 }
 
-/// Group of extension-related commands
+/// Command group for generating shell extensions.
 #[derive(Parser, Debug, Clone)]
 pub struct ExtensionCommandGroup {
     #[command(subcommand)]
@@ -186,72 +221,73 @@ pub struct ExtensionCommandGroup {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum ExtensionCommand {
-    /// Generate ZSH extension script
+    /// Generate ZSH extension script.
     Zsh,
 }
 
-/// Group of MCP-related commands
+/// Command group for MCP server management.
 #[derive(Parser, Debug, Clone)]
 pub struct McpCommandGroup {
-    /// Subcommands under `mcp`
     #[command(subcommand)]
     pub command: McpCommand,
 
-    /// Output in machine-readable format
+    /// Output in machine-readable format.
     #[arg(long, global = true)]
     pub porcelain: bool,
 }
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum McpCommand {
-    /// Import MCP servers configuration from JSON
+    /// Import server configuration from JSON.
     Import(McpImportArgs),
 
-    /// List servers
+    /// List configured servers.
     List,
 
-    /// Remove a server
+    /// Remove a configured server.
     Remove(McpRemoveArgs),
 
-    /// Show detailed configuration for a server
+    /// Show server configuration details.
     Show(McpShowArgs),
 
-    /// Reload MCP servers and rebuild caches
+    /// Reload servers and rebuild caches.
     Reload,
 }
 
 #[derive(Parser, Debug, Clone)]
 pub struct McpImportArgs {
-    /// The JSON configuration to import
+    /// JSON configuration to import.
     #[arg()]
     pub json: String,
 
-    /// Configuration scope (local or user)
+    /// Configuration scope.
     #[arg(short = 's', long = "scope", default_value = "local")]
     pub scope: Scope,
 }
 
 #[derive(Parser, Debug, Clone)]
 pub struct McpRemoveArgs {
-    /// Configuration scope (local, user, or project)
+    /// Configuration scope.
     #[arg(short = 's', long = "scope", default_value = "local")]
     pub scope: Scope,
 
-    /// Name of the server to remove
+    /// Name of the server to remove.
     pub name: String,
 }
 
 #[derive(Parser, Debug, Clone)]
 pub struct McpShowArgs {
-    /// Name of the server to show details for
+    /// Name of the server to show details for.
     pub name: String,
 }
 
-/// Configuration scope (local, user, or project)
+/// Configuration scope for settings.
 #[derive(Copy, Clone, Debug, ValueEnum, Default)]
 pub enum Scope {
+    /// Local configuration (project-specific).
     #[default]
     Local,
+    /// User configuration (global to the user).
     User,
 }
 
@@ -264,131 +300,160 @@ impl From<Scope> for forge_domain::Scope {
     }
 }
 
+/// Transport protocol for communication.
 #[derive(Copy, Clone, Debug, ValueEnum)]
 #[clap(rename_all = "lower")]
 pub enum Transport {
+    /// Standard input/output communication.
     Stdio,
+    /// Server-sent events communication.
     Sse,
 }
 
-/// Group of Config-related commands
+/// Command group for configuration management.
 #[derive(Parser, Debug, Clone)]
 pub struct ConfigCommandGroup {
-    /// Subcommands under `config`
     #[command(subcommand)]
     pub command: ConfigCommand,
 
-    /// Output in machine-readable format (tab-separated key-value pairs)
+    /// Output in machine-readable format.
     #[arg(long, global = true)]
     pub porcelain: bool,
 }
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum ConfigCommand {
-    /// Set configuration values
+    /// Set a configuration value.
     Set(ConfigSetArgs),
 
-    /// Get a specific configuration value
+    /// Get a configuration value.
     Get(ConfigGetArgs),
 
-    /// List all configuration values
+    /// List configuration values.
     List,
 }
 
 #[derive(Parser, Debug, Clone)]
 pub struct ConfigSetArgs {
-    /// Config field to set
+    /// Configuration field to set.
     pub field: ConfigField,
 
-    /// Value to set
+    /// Value to set.
     pub value: String,
 }
 
+/// Configuration fields that can be managed.
 #[derive(clap::ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConfigField {
+    /// The active model.
     Model,
+    /// The active provider.
     Provider,
 }
 
 #[derive(Parser, Debug, Clone)]
 pub struct ConfigGetArgs {
-    /// Specific config field to get
+    /// Configuration field to get.
     pub field: ConfigField,
 }
 
-/// Group of Session-related commands
+/// Command group for conversation management.
 #[derive(Parser, Debug, Clone)]
-pub struct SessionCommandGroup {
+pub struct ConversationCommandGroup {
     #[command(subcommand)]
-    pub command: SessionCommand,
+    pub command: ConversationCommand,
 
-    /// Output in machine-readable format
+    /// Output in machine-readable format.
     #[arg(long, global = true)]
     pub porcelain: bool,
 }
 
 #[derive(Subcommand, Debug, Clone)]
-pub enum SessionCommand {
-    /// List all conversations
-    ///
-    /// Example: forge session list
+pub enum ConversationCommand {
+    /// List conversation history.
     List,
 
-    /// Create a new conversation
-    ///
-    /// Example: forge session new
+    /// Create a new conversation.
     New,
 
-    /// Dump conversation as JSON or HTML
-    ///
-    /// Example: forge session dump abc123 html
+    /// Export conversation as JSON or HTML.
     Dump {
-        /// Conversation ID
+        /// Conversation ID to export.
         id: String,
 
-        /// Output format: "html" for HTML, omit for JSON (default)
-        format: Option<String>,
+        /// Export as HTML instead of JSON.
+        #[arg(long)]
+        html: bool,
     },
 
-    /// Compact the conversation context
-    ///
-    /// Example: forge session compact abc123
+    /// Compact conversation to reduce token usage.
     Compact {
-        /// Conversation ID
+        /// Conversation ID to compact.
         id: String,
     },
 
-    /// Retry the last command without modifying context
-    ///
-    /// Example: forge session retry abc123
+    /// Retry last command without modifying context.
     Retry {
-        /// Conversation ID
+        /// Conversation ID to retry.
         id: String,
     },
 
-    /// Resume a conversation
-    ///
-    /// Example: forge session resume abc123
+    /// Resume conversation in interactive mode.
     Resume {
-        /// Conversation ID
+        /// Conversation ID to resume.
         id: String,
     },
 
-    /// Show the last assistant message from a conversation
-    ///
-    /// Example: forge session show abc123
+    /// Show last assistant message.
     Show {
-        /// Conversation ID
+        /// Conversation ID.
         id: String,
     },
 
-    /// Show detailed information about a session
-    ///
-    /// Example: forge session info abc123
+    /// Show conversation details.
     Info {
-        /// Conversation ID
+        /// Conversation ID.
         id: String,
     },
+
+    /// Clone conversation with a new ID.
+    Clone {
+        /// Conversation ID to clone.
+        id: String,
+    },
+}
+
+/// Command group for provider authentication management.
+#[derive(Parser, Debug, Clone)]
+pub struct ProviderCommandGroup {
+    #[command(subcommand)]
+    pub command: ProviderCommand,
+
+    /// Output in machine-readable format.
+    #[arg(long, global = true)]
+    pub porcelain: bool,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum ProviderCommand {
+    /// Authenticate with an API provider.
+    ///
+    /// Shows an interactive menu when no provider name is specified.
+    Login {
+        /// Provider name to authenticate with.
+        provider: Option<ProviderId>,
+    },
+
+    /// Remove provider credentials.
+    ///
+    /// Shows an interactive menu when no provider name is specified.
+    Logout {
+        /// Provider name to log out from.
+        provider: Option<ProviderId>,
+    },
+
+    /// List available providers.
+    List,
 }
 
 /// Group of Commit-related commands
@@ -486,11 +551,23 @@ mod tests {
     }
 
     #[test]
-    fn test_session_list() {
+    fn test_conversation_list() {
+        let fixture = Cli::parse_from(["forge", "conversation", "list"]);
+        let is_list = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => {
+                matches!(conversation.command, ConversationCommand::List)
+            }
+            _ => false,
+        };
+        assert_eq!(is_list, true);
+    }
+
+    #[test]
+    fn test_session_alias_list() {
         let fixture = Cli::parse_from(["forge", "session", "list"]);
         let is_list = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => {
-                matches!(session.command, SessionCommand::List)
+            Some(TopLevelCommand::Conversation(conversation)) => {
+                matches!(conversation.command, ConversationCommand::List)
             }
             _ => false,
         };
@@ -523,39 +600,39 @@ mod tests {
     }
 
     #[test]
-    fn test_session_dump_json_with_id() {
-        let fixture = Cli::parse_from(["forge", "session", "dump", "abc123"]);
-        let (id, format) = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => match session.command {
-                SessionCommand::Dump { id, format } => (id, format),
-                _ => (String::new(), None),
+    fn test_conversation_dump_json_with_id() {
+        let fixture = Cli::parse_from(["forge", "conversation", "dump", "abc123"]);
+        let (id, html) = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Dump { id, html } => (id, html),
+                _ => (String::new(), true),
             },
-            _ => (String::new(), None),
+            _ => (String::new(), true),
         };
         assert_eq!(id, "abc123");
-        assert_eq!(format, None); // JSON is default
+        assert_eq!(html, false); // JSON is default
     }
 
     #[test]
-    fn test_session_dump_html_with_id() {
-        let fixture = Cli::parse_from(["forge", "session", "dump", "abc123", "html"]);
-        let (id, format) = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => match session.command {
-                SessionCommand::Dump { id, format } => (id, format),
-                _ => (String::new(), None),
+    fn test_conversation_dump_html_with_id() {
+        let fixture = Cli::parse_from(["forge", "conversation", "dump", "abc123", "--html"]);
+        let (id, html) = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Dump { id, html } => (id, html),
+                _ => (String::new(), false),
             },
-            _ => (String::new(), None),
+            _ => (String::new(), false),
         };
         assert_eq!(id, "abc123");
-        assert_eq!(format, Some("html".to_string()));
+        assert_eq!(html, true);
     }
 
     #[test]
-    fn test_session_retry_with_id() {
-        let fixture = Cli::parse_from(["forge", "session", "retry", "xyz789"]);
+    fn test_conversation_retry_with_id() {
+        let fixture = Cli::parse_from(["forge", "conversation", "retry", "xyz789"]);
         let id = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => match session.command {
-                SessionCommand::Retry { id } => id,
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Retry { id } => id,
                 _ => String::new(),
             },
             _ => String::new(),
@@ -564,11 +641,11 @@ mod tests {
     }
 
     #[test]
-    fn test_session_compact_with_id() {
-        let fixture = Cli::parse_from(["forge", "session", "compact", "abc123"]);
+    fn test_conversation_compact_with_id() {
+        let fixture = Cli::parse_from(["forge", "conversation", "compact", "abc123"]);
         let id = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => match session.command {
-                SessionCommand::Compact { id } => id,
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Compact { id } => id,
                 _ => String::new(),
             },
             _ => String::new(),
@@ -577,11 +654,11 @@ mod tests {
     }
 
     #[test]
-    fn test_session_last_with_id() {
-        let fixture = Cli::parse_from(["forge", "session", "show", "test123"]);
+    fn test_conversation_last_with_id() {
+        let fixture = Cli::parse_from(["forge", "conversation", "show", "test123"]);
         let id = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => match session.command {
-                SessionCommand::Show { id } => id,
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Show { id } => id,
                 _ => String::new(),
             },
             _ => String::new(),
@@ -590,11 +667,11 @@ mod tests {
     }
 
     #[test]
-    fn test_session_resume() {
-        let fixture = Cli::parse_from(["forge", "session", "resume", "def456"]);
+    fn test_conversation_resume() {
+        let fixture = Cli::parse_from(["forge", "conversation", "resume", "def456"]);
         let id = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => match session.command {
-                SessionCommand::Resume { id } => id,
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Resume { id } => id,
                 _ => String::new(),
             },
             _ => String::new(),
@@ -604,10 +681,10 @@ mod tests {
 
     #[test]
     fn test_list_tools_command_with_agent() {
-        let fixture = Cli::parse_from(["forge", "list", "tools", "sage"]);
+        let fixture = Cli::parse_from(["forge", "list", "tool", "sage"]);
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::List(list)) => match list.command {
-                ListCommand::Tools { agent } => agent,
+                ListCommand::Tool { agent } => agent,
                 _ => AgentId::default(),
             },
             _ => AgentId::default(),
@@ -617,13 +694,23 @@ mod tests {
     }
 
     #[test]
-    fn test_list_session_command() {
-        let fixture = Cli::parse_from(["forge", "list", "session"]);
-        let is_session_list = match fixture.subcommands {
-            Some(TopLevelCommand::List(list)) => matches!(list.command, ListCommand::Session),
+    fn test_list_conversation_command() {
+        let fixture = Cli::parse_from(["forge", "list", "conversation"]);
+        let is_conversation_list = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => matches!(list.command, ListCommand::Conversation),
             _ => false,
         };
-        assert_eq!(is_session_list, true);
+        assert_eq!(is_conversation_list, true);
+    }
+
+    #[test]
+    fn test_list_session_alias_command() {
+        let fixture = Cli::parse_from(["forge", "list", "session"]);
+        let is_conversation_list = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => matches!(list.command, ListCommand::Conversation),
+            _ => false,
+        };
+        assert_eq!(is_conversation_list, true);
     }
 
     #[test]
@@ -717,10 +804,10 @@ mod tests {
     }
 
     #[test]
-    fn test_session_list_with_porcelain() {
-        let fixture = Cli::parse_from(["forge", "session", "list", "--porcelain"]);
+    fn test_conversation_list_with_porcelain() {
+        let fixture = Cli::parse_from(["forge", "conversation", "list", "--porcelain"]);
         let actual = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => session.porcelain,
+            Some(TopLevelCommand::Conversation(conversation)) => conversation.porcelain,
             _ => false,
         };
         let expected = true;
@@ -750,11 +837,11 @@ mod tests {
     }
 
     #[test]
-    fn test_session_info_with_id() {
-        let fixture = Cli::parse_from(["forge", "session", "info", "abc123"]);
+    fn test_conversation_info_with_id() {
+        let fixture = Cli::parse_from(["forge", "conversation", "info", "abc123"]);
         let id = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => match session.command {
-                SessionCommand::Info { id } => id,
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Info { id } => id,
                 _ => String::new(),
             },
             _ => String::new(),
@@ -763,17 +850,44 @@ mod tests {
     }
 
     #[test]
-    fn test_session_info_with_porcelain() {
-        let fixture = Cli::parse_from(["forge", "session", "info", "test123", "--porcelain"]);
+    fn test_conversation_info_with_porcelain() {
+        let fixture = Cli::parse_from(["forge", "conversation", "info", "test123", "--porcelain"]);
         let (id, porcelain) = match fixture.subcommands {
-            Some(TopLevelCommand::Session(session)) => match session.command {
-                SessionCommand::Info { id } => (id, session.porcelain),
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Info { id } => (id, conversation.porcelain),
                 _ => (String::new(), false),
             },
             _ => (String::new(), false),
         };
         assert_eq!(id, "test123");
         assert_eq!(porcelain, true);
+    }
+
+    #[test]
+    fn test_session_alias_dump() {
+        let fixture = Cli::parse_from(["forge", "session", "dump", "abc123"]);
+        let (id, html) = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Dump { id, html } => (id, html),
+                _ => (String::new(), true),
+            },
+            _ => (String::new(), true),
+        };
+        assert_eq!(id, "abc123");
+        assert_eq!(html, false);
+    }
+
+    #[test]
+    fn test_session_alias_retry() {
+        let fixture = Cli::parse_from(["forge", "session", "retry", "xyz789"]);
+        let id = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Retry { id } => id,
+                _ => String::new(),
+            },
+            _ => String::new(),
+        };
+        assert_eq!(id, "xyz789");
     }
 
     #[test]
@@ -799,6 +913,55 @@ mod tests {
         ]);
         let actual = fixture.conversation_id;
         let expected = Some("550e8400-e29b-41d4-a716-446655440000".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_conversation_clone_with_id() {
+        let fixture = Cli::parse_from(["forge", "conversation", "clone", "abc123"]);
+        let id = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Clone { id } => id,
+                _ => String::new(),
+            },
+            _ => String::new(),
+        };
+        assert_eq!(id, "abc123");
+    }
+
+    #[test]
+    fn test_conversation_clone_with_porcelain() {
+        let fixture = Cli::parse_from(["forge", "conversation", "clone", "test123", "--porcelain"]);
+        let (id, porcelain) = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Clone { id } => (id, conversation.porcelain),
+                _ => (String::new(), false),
+            },
+            _ => (String::new(), false),
+        };
+        assert_eq!(id, "test123");
+        assert_eq!(porcelain, true);
+    }
+
+    #[test]
+    fn test_cmd_command_with_args() {
+        let fixture = Cli::parse_from(["forge", "cmd", "custom-command", "arg1", "arg2"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Cmd(run_group)) => match run_group.command {
+                CmdCommand::Execute(args) => args.join(" "),
+                _ => panic!("Expected Execute command"),
+            },
+            _ => panic!("Expected Cmd command"),
+        };
+        let expected = "custom-command arg1 arg2".to_string();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_is_interactive_without_flags() {
+        let fixture = Cli::parse_from(["forge"]);
+        let actual = fixture.is_interactive();
+        let expected = true;
         assert_eq!(actual, expected);
     }
 }

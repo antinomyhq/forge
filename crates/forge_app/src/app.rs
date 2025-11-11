@@ -8,10 +8,13 @@ use forge_stream::MpscStream;
 
 use crate::apply_tunable_parameters::ApplyTunableParameters;
 use crate::authenticator::Authenticator;
+use crate::changed_files::ChangedFiles;
 use crate::dto::ToolsOverview;
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
-use crate::services::{AppConfigService, CustomInstructionsService, TemplateService};
+use crate::services::{
+    AppConfigService, CustomInstructionsService, ProviderAuthService, TemplateService,
+};
 use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::tool_registry::ToolRegistry;
@@ -94,12 +97,12 @@ impl<S: Services> ForgeApp<S> {
             .get_agents()
             .await?
             .into_iter()
+            .find(|agent| agent.id == agent_id)
             .map(|agent| {
                 agent
                     .apply_workflow_config(&workflow)
                     .set_model_deeply(active_model.clone())
             })
-            .find(|agent| agent.id == agent_id)
             .ok_or(crate::Error::AgentNotFound(agent_id))?;
 
         let agent_provider = self.get_provider(Some(agent.id.clone())).await?;
@@ -133,6 +136,11 @@ impl<S: Services> ForgeApp<S> {
         )
         .add_user_prompt(conversation)
         .await?;
+
+        // Detect and render externally changed files notification
+        let conversation = ChangedFiles::new(services.clone(), agent.clone())
+            .update_file_stats(conversation)
+            .await;
 
         let conversation = InitConversationMetrics::new(current_time).apply(conversation);
         let conversation = ApplyTunableParameters::new(agent.clone(), tool_definitions.clone())
@@ -182,6 +190,7 @@ impl<S: Services> ForgeApp<S> {
     /// compacted tokens and messages).
     pub async fn compact_conversation(
         &self,
+        active_agent_id: AgentId,
         conversation_id: &ConversationId,
     ) -> Result<CompactionResult> {
         use crate::compact::Compactor;
@@ -205,15 +214,14 @@ impl<S: Services> ForgeApp<S> {
         // Calculate original metrics
         let original_messages = context.messages.len();
         let original_token_count = *context.token_count();
-        let active_agent_id = self.services.get_active_agent_id().await?;
-        let model = self.get_model(active_agent_id.clone()).await?;
+        let model = self.get_model(Some(active_agent_id.clone())).await?;
         let workflow = self.services.read_merged(None).await.unwrap_or_default();
         let Some(compact) = self
             .services
             .get_agents()
             .await?
             .into_iter()
-            .find(|agent| active_agent_id.as_ref().is_some_and(|id| agent.id == *id))
+            .find(|agent| active_agent_id == agent.id)
             .and_then(|agent| {
                 agent
                     .apply_workflow_config(&workflow)
@@ -230,9 +238,8 @@ impl<S: Services> ForgeApp<S> {
         };
 
         // Apply compaction using the Compactor
-        let compacted_context = Compactor::new(self.services.clone(), compact)
-            .compact(context, true)
-            .await?;
+        let environment = self.services.get_environment();
+        let compacted_context = Compactor::new(compact, environment).compact(context, true)?;
 
         let compacted_messages = compacted_context.messages.len();
         let compacted_tokens = *compacted_context.token_count();
@@ -274,17 +281,48 @@ impl<S: Services> ForgeApp<S> {
         self.services.write_workflow(path, workflow).await
     }
 
-    pub async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider> {
-        if let Some(agent) = agent
+    pub async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider<url::Url>> {
+        let provider = if let Some(agent) = agent
             && let Some(agent) = self.services.get_agent(&agent).await?
             && let Some(provider_id) = agent.provider
         {
-            return self.services.get_provider(provider_id).await;
+            self.services.get_provider(provider_id).await?
+        } else {
+            self.services.get_default_provider().await?
+        };
+
+        // Check if credential needs refresh (5 minute buffer before expiry)
+        if let Some(credential) = &provider.credential {
+            let buffer = chrono::Duration::minutes(5);
+
+            if credential.needs_refresh(buffer) {
+                for auth_method in &provider.auth_methods {
+                    match auth_method {
+                        forge_domain::AuthMethod::OAuthDevice(_)
+                        | forge_domain::AuthMethod::OAuthCode(_) => {
+                            match self
+                                .services
+                                .provider_auth_service()
+                                .refresh_provider_credential(&provider, auth_method.clone())
+                                .await
+                            {
+                                Ok(refreshed_credential) => {
+                                    let mut updated_provider = provider.clone();
+                                    updated_provider.credential = Some(refreshed_credential);
+                                    return Ok(updated_provider);
+                                }
+                                Err(_) => {
+                                    return Ok(provider);
+                                }
+                            }
+                        }
+                        forge_domain::AuthMethod::ApiKey => {}
+                    }
+                }
+            }
         }
 
-        // Fall back to original logic if there is no agent
-        // set yet.
-        self.services.get_default_provider().await
+        Ok(provider)
     }
 
     /// Gets the model for the specified agent, or the default model if no agent

@@ -3,9 +3,10 @@ use std::sync::Arc;
 use derive_setters::Setters;
 use forge_domain::{
     ChatCompletionMessageFull, Context, ContextMessage, ConversationId, ModelId, ProviderId,
-    ReasoningConfig, ResultStreamExt, Template, UserPrompt, extract_tag_content,
+    ReasoningConfig, ResultStreamExt, UserPrompt, extract_tag_content,
 };
 
+use crate::TemplateEngine;
 use crate::agent::AgentService as AS;
 
 /// Service for generating contextually appropriate titles
@@ -40,13 +41,10 @@ impl<S: AS> TitleGenerator<S> {
     }
 
     pub async fn generate(&self) -> anyhow::Result<Option<String>> {
-        let template = self
-            .services
-            .render(
-                Template::new("{{> forge-system-prompt-title-generation.md }}"),
-                &(),
-            )
-            .await?;
+        let template = TemplateEngine::default().render(
+            "forge-system-prompt-title-generation.md",
+            &Default::default(),
+        )?;
 
         let prompt = format!("<user_prompt>{}</user_prompt>", self.user_prompt.as_str());
         let mut ctx = Context::default()

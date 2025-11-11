@@ -33,18 +33,7 @@ async fn main() -> Result<()> {
         let mut stdin_content = String::new();
         std::io::stdin().read_to_string(&mut stdin_content)?;
         let trimmed_content = stdin_content.trim();
-
-        if !trimmed_content.is_empty() {
-            // If no explicit prompt was provided, use piped content as prompt
-            if cli.prompt.is_none() {
-                cli.prompt = Some(trimmed_content.to_string());
-            }
-
-            // If commit command is being used, populate the diff field
-            if let Some(TopLevelCommand::Commit(ref mut commit_group)) = cli.subcommands {
-                commit_group.diff = Some(trimmed_content.to_string());
-            }
-        }
+        cli.prompt = Some(trimmed_content.to_string());
     }
 
     // Handle worktree creation if specified
