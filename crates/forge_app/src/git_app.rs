@@ -5,8 +5,8 @@ use anyhow::{Context, Result};
 use forge_domain::*;
 
 use crate::{
-    AgentRegistry, AppConfigService, EnvironmentService, ProviderAuthService, ProviderService,
-    Services, ShellService, TemplateService,
+    AgentProviderResolver, AgentRegistry, EnvironmentService, ProviderService, Services,
+    ShellService, TemplateService,
 };
 
 /// Errors specific to GitApp operations
@@ -237,12 +237,13 @@ impl<S: Services> GitApp<S> {
     async fn generate_message_from_diff(&self, ctx: DiffContext) -> Result<CommitMessageDetails> {
         // Get required services and data in parallel
         let agent_id = self.services.get_active_agent_id().await?;
+        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
         let (rendered_prompt, provider, model) = tokio::try_join!(
             self.services
                 .template_service()
                 .render_template(Template::new("{{> forge-commit-message-prompt.md }}"), &()),
-            self.get_provider(agent_id.clone()),
-            self.get_model(agent_id)
+            agent_provider_resolver.get_provider(agent_id.clone()),
+            agent_provider_resolver.get_model(agent_id)
         )?;
 
         // Create an context
@@ -285,56 +286,5 @@ impl<S: Services> GitApp<S> {
             message: commit_message.to_string(),
             has_staged_files: ctx.has_staged_files,
         })
-    }
-
-    pub async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider<url::Url>> {
-        let provider = if let Some(agent) = agent
-            && let Some(agent) = self.services.get_agent(&agent).await?
-            && let Some(provider_id) = agent.provider
-        {
-            self.services.get_provider(provider_id).await?
-        } else {
-            self.services.get_default_provider().await?
-        };
-
-        // Check if credential needs refresh (5 minute buffer before expiry)
-        if let Some(credential) = &provider.credential {
-            let buffer = chrono::Duration::minutes(5);
-
-            if credential.needs_refresh(buffer) {
-                for auth_method in &provider.auth_methods {
-                    match auth_method {
-                        forge_domain::AuthMethod::OAuthDevice(_)
-                        | forge_domain::AuthMethod::OAuthCode(_) => {
-                            match self
-                                .services
-                                .provider_auth_service()
-                                .refresh_provider_credential(&provider, auth_method.clone())
-                                .await
-                            {
-                                Ok(refreshed_credential) => {
-                                    let mut updated_provider = provider.clone();
-                                    updated_provider.credential = Some(refreshed_credential);
-                                    return Ok(updated_provider);
-                                }
-                                Err(_) => {
-                                    return Ok(provider);
-                                }
-                            }
-                        }
-                        forge_domain::AuthMethod::ApiKey => {}
-                    }
-                }
-            }
-        }
-
-        Ok(provider)
-    }
-
-    /// Gets the model for the specified agent, or the default model if no agent
-    /// is provided
-    pub async fn get_model(&self, agent_id: Option<AgentId>) -> anyhow::Result<ModelId> {
-        let provider_id = self.get_provider(agent_id).await?.id;
-        self.services.get_default_model(&provider_id).await
     }
 }
