@@ -2,7 +2,25 @@ use anyhow::Context as _;
 use tokio_stream::StreamExt;
 
 use crate::reasoning::{Reasoning, ReasoningFull};
-use crate::{ChatCompletionMessage, ChatCompletionMessageFull, ToolCallFull, ToolCallPart, Usage};
+use crate::xml::remove_tag_with_prefix;
+use crate::{
+    ArcSender, ChatCompletionMessage, ChatCompletionMessageFull, ChatResponse, ChatResponseContent,
+    ToolCallFull, ToolCallPart, Usage,
+};
+
+/// Returns if the candidate could potentially contain a tool call
+fn is_potentially_tool_call(content: &str) -> bool {
+    if content.contains("<forge_") {
+        return true;
+    }
+
+    if let Some(last_lt) = content.rfind('<') {
+        let after = &content[last_lt..];
+        "<forge".starts_with(after)
+    } else {
+        false
+    }
+}
 
 /// Extension trait for ResultStream to provide additional functionality
 #[async_trait::async_trait]
@@ -13,6 +31,7 @@ pub trait ResultStreamExt<E> {
     /// # Arguments
     /// * `should_interrupt_for_xml` - Whether to interrupt the stream when XML
     ///   tool calls are detected
+    /// * `sender` - Optional sender to stream content to UI in real-time
     ///
     /// # Returns
     /// A ChatCompletionMessageFull containing the aggregated content, tool
@@ -20,6 +39,7 @@ pub trait ResultStreamExt<E> {
     async fn into_full(
         self,
         should_interrupt_for_xml: bool,
+        sender: Option<ArcSender>,
     ) -> Result<ChatCompletionMessageFull, E>;
 }
 
@@ -28,19 +48,38 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
     async fn into_full(
         mut self,
         should_interrupt_for_xml: bool,
+        sender: Option<ArcSender>,
     ) -> anyhow::Result<ChatCompletionMessageFull> {
         let mut messages = Vec::new();
         let mut usage: Usage = Default::default();
         let mut content = String::new();
+
         let mut xml_tool_calls = None;
         let mut tool_interrupted = false;
+
+        let mut content_buffered = String::new();
+        let mut buffering_started = false;
+        let mut last_was_reasoning = false;
 
         while let Some(message) = self.next().await {
             let message =
                 anyhow::Ok(message?).with_context(|| "Failed to process message stream")?;
+
             // Process usage information
             if let Some(current_usage) = message.usage.as_ref() {
                 usage = current_usage.clone();
+            }
+
+            if let Some(reasoning) = message.reasoning.as_ref()
+                && let Some(ref sender) = sender
+                && !reasoning.is_empty()
+            {
+                let _ = sender
+                    .send(Ok(ChatResponse::TaskReasoning {
+                        content: reasoning.as_str().to_string(),
+                    }))
+                    .await;
+                last_was_reasoning = true;
             }
 
             if !tool_interrupted {
@@ -49,6 +88,32 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
                 // Process content
                 if let Some(content_part) = message.content.as_ref() {
                     content.push_str(content_part.as_str());
+                    buffering_started = is_potentially_tool_call(&content);
+
+                    if buffering_started {
+                        content_buffered += content_part.as_str();
+                    }
+                    // Stream content chunk if sender is available and not buffering
+                    if let Some(ref sender) = sender
+                        && !content_part.is_empty()
+                        && !buffering_started
+                    {
+                        let cleaned_content =
+                            remove_tag_with_prefix(content_part.as_str(), "forge_");
+                        let prefixed_content = if last_was_reasoning {
+                            format!("\n{}{}", content_buffered, cleaned_content)
+                        } else {
+                            format!("{}{}", content_buffered, cleaned_content)
+                        };
+                        content_buffered.clear();
+
+                        let _ = sender
+                            .send(Ok(ChatResponse::TaskMessage {
+                                content: ChatResponseContent::Markdown(prefixed_content),
+                            }))
+                            .await;
+                        last_was_reasoning = false;
+                    }
 
                     // Check for XML tool calls in the content, but only interrupt if flag is set
                     if should_interrupt_for_xml {
@@ -65,6 +130,26 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
                     }
                 }
             }
+        }
+
+        let mut cleaned_content = String::new();
+        // If buffering occurred, send the buffered cleaned content at the end
+        if buffering_started {
+            cleaned_content += &remove_tag_with_prefix(content_buffered.as_str(), "forge_");
+        }
+
+        if last_was_reasoning {
+            cleaned_content.insert(0, '\n');
+        }
+
+        if !cleaned_content.is_empty()
+            && let Some(ref sender) = sender
+        {
+            let _ = sender
+                .send(Ok(ChatResponse::TaskMessage {
+                    content: ChatResponseContent::Markdown(cleaned_content),
+                }))
+                .await;
         }
 
         // Get the full content from all messages
@@ -170,6 +255,7 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
+    use tokio::sync::mpsc;
 
     use super::*;
     use crate::{
@@ -204,7 +290,7 @@ mod tests {
             Box::pin(tokio_stream::iter(messages));
 
         // Actual: Convert stream to full message
-        let actual = result_stream.into_full(false).await.unwrap();
+        let actual = result_stream.into_full(false, None).await.unwrap();
 
         // Expected: Combined content and latest usage
         let expected = ChatCompletionMessageFull {
@@ -242,7 +328,7 @@ mod tests {
             Box::pin(tokio_stream::iter(messages));
 
         // Actual: Convert stream to full message
-        let actual = result_stream.into_full(false).await.unwrap();
+        let actual = result_stream.into_full(false, None).await.unwrap();
 
         // Expected: Content and tool calls
         let expected = ChatCompletionMessageFull {
@@ -276,7 +362,7 @@ mod tests {
             Box::pin(tokio_stream::iter(messages));
 
         // Actual: Convert stream to full message
-        let actual = result_stream.into_full(false).await;
+        let actual = result_stream.into_full(false, None).await;
 
         // Expected: Should not fail with invalid tool calls
         assert!(actual.is_ok());
@@ -305,7 +391,7 @@ mod tests {
             Box::pin(tokio_stream::iter(messages));
 
         // Actual: Convert stream to full message
-        let actual = result_stream.into_full(false).await.unwrap();
+        let actual = result_stream.into_full(false, None).await.unwrap();
 
         // Expected: Reasoning should be aggregated from all messages
         let expected = ChatCompletionMessageFull {
@@ -348,7 +434,7 @@ mod tests {
             Box::pin(tokio_stream::iter(messages));
 
         // Actual: Convert stream to full message
-        let actual = result_stream.into_full(false).await.unwrap();
+        let actual = result_stream.into_full(false, None).await.unwrap();
 
         // Expected: Reasoning details should be collected from all messages
         let expected_reasoning_details = vec![
@@ -385,14 +471,14 @@ mod tests {
             Box::pin(tokio_stream::iter(messages));
 
         // Actual: Convert stream to full message
-        let actual = result_stream.into_full(false).await.unwrap();
+        let actual = result_stream.into_full(false, None).await.unwrap();
 
         // Expected: Empty reasoning should result in None
         let expected = ChatCompletionMessageFull {
             content: "Hello world".to_string(),
             tool_calls: vec![],
             usage: Usage::default(),
-            reasoning: None, // Empty reasoning should be None
+            reasoning: None,
             reasoning_details: None,
             finish_reason: None,
         };
@@ -425,7 +511,7 @@ mod tests {
             Box::pin(tokio_stream::iter(messages));
 
         // Actual: Convert stream to full message with XML interruption enabled
-        let actual = result_stream.into_full(true).await.unwrap();
+        let actual = result_stream.into_full(true, None).await.unwrap();
 
         // Expected: Should contain the XML tool call and final usage from last message
         let expected_final_usage = Usage {
@@ -465,7 +551,7 @@ mod tests {
             Box::pin(tokio_stream::iter(messages));
 
         // Actual: Convert stream to full message with XML interruption disabled
-        let actual = result_stream.into_full(false).await.unwrap();
+        let actual = result_stream.into_full(false, None).await.unwrap();
 
         // Expected: Should process all content without interruption
         let expected = ChatCompletionMessageFull {
@@ -507,7 +593,7 @@ mod tests {
             Box::pin(tokio_stream::iter(messages));
 
         // Actual: Convert stream to full message
-        let actual = result_stream.into_full(false).await.unwrap();
+        let actual = result_stream.into_full(false, None).await.unwrap();
 
         // Expected: Usage should be from the last message (even if it has no content)
         let expected = ChatCompletionMessageFull {
@@ -551,7 +637,7 @@ mod tests {
             Box::pin(tokio_stream::iter(messages));
 
         // Actual: Convert stream to full message
-        let actual = result_stream.into_full(false).await.unwrap();
+        let actual = result_stream.into_full(false, None).await.unwrap();
 
         // Expected: Should use the last finish reason from the stream
         let expected = ChatCompletionMessageFull {
@@ -580,7 +666,7 @@ mod tests {
             Box::pin(tokio_stream::iter(messages));
 
         // Actual: Convert stream to full message
-        let actual = result_stream.into_full(false).await.unwrap();
+        let actual = result_stream.into_full(false, None).await.unwrap();
 
         // Expected: Should have the tool_calls finish reason
         let expected = ChatCompletionMessageFull {
@@ -607,7 +693,7 @@ mod tests {
             Box::pin(tokio_stream::iter(messages));
 
         // Actual: Convert stream to full message
-        let actual = result_stream.into_full(false).await.unwrap();
+        let actual = result_stream.into_full(false, None).await.unwrap();
 
         // Expected: finish_reason should be None
         let expected = ChatCompletionMessageFull {
@@ -647,7 +733,7 @@ mod tests {
             Box::pin(tokio_stream::iter(messages));
 
         // Actual: Convert stream to full message with XML interruption enabled
-        let actual = result_stream.into_full(true).await.unwrap();
+        let actual = result_stream.into_full(true, None).await.unwrap();
 
         // Expected: Should have XML tool call, content only from before interruption,
         // but final usage
@@ -674,7 +760,7 @@ mod tests {
             Box::pin(tokio_stream::iter(messages));
 
         // Actual: Convert stream to full message
-        let actual = result_stream.into_full(false).await;
+        let actual = result_stream.into_full(false, None).await;
 
         // Expected: Should return a retryable error for empty completion
         assert!(actual.is_err());
@@ -697,7 +783,7 @@ mod tests {
             Box::pin(tokio_stream::iter(messages));
 
         // Actual: Convert stream to full message
-        let actual = result_stream.into_full(false).await.unwrap();
+        let actual = result_stream.into_full(false, None).await.unwrap();
 
         // Expected: Should succeed because finish reason is present
         let expected = ChatCompletionMessageFull {
@@ -729,7 +815,7 @@ mod tests {
             Box::pin(tokio_stream::iter(messages));
 
         // Actual: Convert stream to full message
-        let actual = result_stream.into_full(false).await.unwrap();
+        let actual = result_stream.into_full(false, None).await.unwrap();
 
         // Expected: Should succeed because tool calls are present
         let expected = ChatCompletionMessageFull {
@@ -742,5 +828,158 @@ mod tests {
         };
 
         assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_streaming_reasoning_followed_by_buffered_content() {
+        // Fixture: Reasoning message followed by content that triggers buffering
+        let (tx, mut rx) = mpsc::channel(10);
+        let messages = vec![
+            Ok(ChatCompletionMessage::default().reasoning(Content::part("Analyzing the request"))),
+            Ok(ChatCompletionMessage::default().content(Content::part("<forge_tool_call>"))),
+            Ok(ChatCompletionMessage::default().content(Content::part("tool content"))),
+        ];
+
+        let result_stream: BoxStream<ChatCompletionMessage, anyhow::Error> =
+            Box::pin(tokio_stream::iter(messages));
+
+        // Actual: Convert stream with sender
+        let _actual = result_stream.into_full(false, Some(tx)).await.unwrap();
+
+        // Collect sent messages
+        let mut sent_messages = Vec::new();
+        while let Ok(msg) = rx.try_recv() {
+            sent_messages.push(msg);
+        }
+
+        // newline prefix
+        assert_eq!(sent_messages.len(), 4);
+        assert!(matches!(
+            sent_messages[1],
+            Ok(ChatResponse::TaskReasoning { .. })
+        ));
+        if let Ok(ChatResponse::TaskMessage { content: ChatResponseContent::Markdown(content) }) =
+            &sent_messages[2]
+        {
+            assert!(content.starts_with("\n"));
+            assert!(content.contains("tool content"));
+        } else {
+            panic!("Expected TaskMessage with Markdown content");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_streaming_followed_by_buffered_content() {
+        // Fixture: Reasoning message followed by content that triggers buffering
+        let (tx, mut rx) = mpsc::channel(10);
+        let messages = vec![
+            Ok(ChatCompletionMessage::default().reasoning(Content::part("Analyzing the request"))),
+            Ok(ChatCompletionMessage::default().content(Content::part("<folse_call>"))),
+            Ok(ChatCompletionMessage::default().content(Content::part("tool content"))),
+        ];
+
+        let result_stream: BoxStream<ChatCompletionMessage, anyhow::Error> =
+            Box::pin(tokio_stream::iter(messages));
+
+        // Actual: Convert stream with sender
+        let _actual = result_stream.into_full(false, Some(tx)).await.unwrap();
+
+        // Collect sent messages
+        let mut sent_messages = Vec::new();
+        while let Ok(msg) = rx.try_recv() {
+            sent_messages.push(msg);
+        }
+
+        // newline prefix
+        assert_eq!(sent_messages.len(), 5);
+        assert!(matches!(
+            sent_messages[1],
+            Ok(ChatResponse::TaskReasoning { .. })
+        ));
+        if let Ok(ChatResponse::TaskMessage { content: ChatResponseContent::Markdown(content) }) =
+            &sent_messages[2]
+        {
+            assert!(content.starts_with("\n"));
+            assert!(content.contains("<folse_call>"));
+        } else {
+            panic!("Expected TaskMessage with Markdown content");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_streaming_reasoning_followed_by_immediate_content() {
+        // Fixture: Reasoning message followed by immediate content (no buffering)
+        let (tx, mut rx) = mpsc::channel(10);
+        let messages = vec![
+            Ok(ChatCompletionMessage::default()
+                .reasoning(Content::part("Thinking about response"))),
+            Ok(ChatCompletionMessage::default().content(Content::part("Hello world"))),
+        ];
+
+        let result_stream: BoxStream<ChatCompletionMessage, anyhow::Error> =
+            Box::pin(tokio_stream::iter(messages));
+
+        // Actual: Convert stream with sender
+        let _ = result_stream.into_full(false, Some(tx)).await.unwrap();
+
+        // Collect sent messages
+        let mut sent_messages = Vec::new();
+        while let Ok(msg) = rx.try_recv() {
+            sent_messages.push(msg);
+        }
+
+        // prefix
+        assert_eq!(sent_messages.len(), 4);
+        assert!(matches!(
+            sent_messages[1],
+            Ok(ChatResponse::TaskReasoning { .. })
+        ));
+        if let Ok(ChatResponse::TaskMessage { content: ChatResponseContent::Markdown(content) }) =
+            &sent_messages[2]
+        {
+            assert_eq!(content, "\nHello world");
+        } else {
+            panic!("Expected TaskMessage with Markdown content");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_streaming_buffering_logic_with_reasoning_state() {
+        // Fixture: Reasoning, then content that triggers buffering, then more content
+        // during buffering
+        let (tx, mut rx) = mpsc::channel(10);
+        let messages = vec![
+            Ok(ChatCompletionMessage::default().reasoning(Content::part("Planning tool use"))),
+            Ok(ChatCompletionMessage::default().content(Content::part("<forge_"))), /* Triggers buffering */
+            Ok(ChatCompletionMessage::default().content(Content::part("tool>content"))), /* Still buffering */
+            Ok(ChatCompletionMessage::default().content(Content::part(" and more"))), /* Still buffering */
+        ];
+
+        let result_stream: BoxStream<ChatCompletionMessage, anyhow::Error> =
+            Box::pin(tokio_stream::iter(messages));
+
+        // Actual: Convert stream with sender
+        let _ = result_stream.into_full(false, Some(tx)).await.unwrap();
+
+        // Collect sent messages
+        let mut sent_messages = Vec::new();
+        while let Ok(msg) = rx.try_recv() {
+            sent_messages.push(msg);
+        }
+
+        // with newline prefix
+        assert_eq!(sent_messages.len(), 4);
+        assert!(matches!(
+            sent_messages[1],
+            Ok(ChatResponse::TaskReasoning { .. })
+        ));
+        if let Ok(ChatResponse::TaskMessage { content: ChatResponseContent::Markdown(content) }) =
+            &sent_messages[2]
+        {
+            assert!(content.starts_with("\n"));
+            assert!(content.contains("<forge_tool>content and more"));
+        } else {
+            panic!("Expected TaskMessage for buffered content");
+        }
     }
 }

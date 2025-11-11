@@ -167,8 +167,9 @@ impl<S: AgentService> Orchestrator<S> {
                 self.agent.provider,
             )
             .await?;
-
-        response.into_full(!tool_supported).await
+        response
+            .into_full(!tool_supported, self.sender.clone())
+            .await
     }
     /// Checks if compaction is needed and performs it if necessary
     async fn check_and_compact(&self, context: &Context) -> anyhow::Result<Option<Context>> {
@@ -263,7 +264,7 @@ impl<S: AgentService> Orchestrator<S> {
                     tool_calls,
                     content,
                     usage,
-                    reasoning,
+                    reasoning: _,
                     reasoning_details,
                     finish_reason,
                 },
@@ -308,19 +309,19 @@ impl<S: AgentService> Orchestrator<S> {
                     .iter()
                     .any(|call| ToolCatalog::should_yield(&call.name));
 
-            if let Some(reasoning) = reasoning.as_ref()
-                && context.is_reasoning_supported()
-            {
-                // If reasoning is present, send it as a separate message
-                self.send(ChatResponse::TaskReasoning { content: reasoning.to_string() })
-                    .await?;
-            }
+            // if let Some(reasoning) = reasoning.as_ref()
+            //     && context.is_reasoning_supported()
+            // {
+            //     // If reasoning is present, send it as a separate message
+            //     self.send(ChatResponse::TaskReasoning { content: reasoning.to_string() })
+            //         .await?;
+            // }
 
-            // Send the content message
-            self.send(ChatResponse::TaskMessage {
-                content: ChatResponseContent::Markdown(content.clone()),
-            })
-            .await?;
+            // // Send the content message
+            // self.send(ChatResponse::TaskMessage {
+            //     content: ChatResponseContent::Markdown(content.clone()),
+            // })
+            // .await?;
 
             // Process tool calls and update context
             let mut tool_call_records = self.execute_tool_calls(&tool_calls, &tool_context).await?;

@@ -14,7 +14,7 @@ use forge_api::{
 };
 use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
-use forge_display::MarkdownFormat;
+use forge_display::MarkdownWriter;
 use forge_domain::{
     AuthMethod, ChatResponseContent, ContextMessage, Role, TitleFormat, UserCommand,
 };
@@ -45,7 +45,7 @@ use crate::update::on_update;
 use crate::{TRACKER, banner, tracker};
 
 pub struct UI<A, F: Fn() -> A> {
-    markdown: MarkdownFormat,
+    markdown: MarkdownWriter,
     state: UIState,
     api: Arc<F::Output>,
     new_api: Arc<F>,
@@ -172,7 +172,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             cli,
             command,
             spinner: SpinnerManager::new(),
-            markdown: MarkdownFormat::new(),
+            markdown: MarkdownWriter::new(),
             _guard: forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?,
         })
     }
@@ -2039,6 +2039,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         }
 
+        self.markdown.reset();
         self.spinner.stop(None)?;
 
         Ok(())
@@ -2101,8 +2102,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 ChatResponseContent::Title(title) => self.writeln(title.display())?,
                 ChatResponseContent::PlainText(text) => self.writeln(text)?,
                 ChatResponseContent::Markdown(text) => {
-                    tracing::info!(message = %text, "Agent Response");
-                    self.writeln(self.markdown.render(&text))?;
+                    self.markdown.add_chunk(&text, &mut self.spinner);
                 }
             },
             ChatResponse::ToolCallStart(_) => {
@@ -2150,8 +2150,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
             ChatResponse::TaskReasoning { content } => {
                 if !content.trim().is_empty() {
-                    let rendered_content = self.markdown.render(&content);
-                    self.writeln(rendered_content.dimmed())?;
+                    self.markdown.add_chunk_dimmed(&content, &mut self.spinner);
                 }
             }
             ChatResponse::TaskComplete => {
@@ -2188,9 +2187,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         let info = Info::default().extend(&conversation);
 
-        self.writeln(info)?;
-
         self.spinner.stop(None)?;
+        self.writeln(info)?;
 
         // Only prompt for new conversation if in interactive mode and prompt is enabled
         if self.cli.is_interactive() {
@@ -2456,7 +2454,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Format and display the message using the message_display module
         if let Some(message) = message {
-            self.writeln(self.markdown.render(message))?;
+            self.markdown.add_chunk(message, &mut self.spinner);
         }
 
         Ok(())
