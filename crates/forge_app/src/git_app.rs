@@ -5,7 +5,8 @@ use anyhow::{Context, Result};
 use forge_domain::*;
 
 use crate::{
-    AgentRegistry, AppConfigService, EnvironmentService, ProviderAuthService, ProviderService, Services, ShellService, TemplateService
+    AgentRegistry, AppConfigService, EnvironmentService, ProviderAuthService, ProviderService,
+    Services, ShellService, TemplateService,
 };
 
 /// Errors specific to GitApp operations
