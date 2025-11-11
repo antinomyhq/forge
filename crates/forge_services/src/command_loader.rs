@@ -43,7 +43,9 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
 
     async fn init(&self) -> anyhow::Result<Vec<Command>> {
         // Load built-in commands
-        let mut commands = vec![];
+        let builtin_commands = [("init", include_str!("../../../.forge/commands/init.md"))];
+
+        let mut commands = parse_command_iter(builtin_commands.into_iter())?;
 
         // Load custom commands from global directory
         let dir = self.infra.get_environment().command_path();
