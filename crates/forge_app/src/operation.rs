@@ -634,8 +634,12 @@ mod tests {
         let truncation_path =
             TempContentFiles::default().stdout(PathBuf::from("/tmp/truncated_content.txt"));
 
-        let actual =
-            fixture.into_tool_output(ToolKind::Read, truncation_path, &env, &mut Metrics::default());
+        let actual = fixture.into_tool_output(
+            ToolKind::Read,
+            truncation_path,
+            &env,
+            &mut Metrics::default(),
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -742,8 +746,12 @@ mod tests {
         let env = fixture_environment();
         let truncation_path =
             TempContentFiles::default().stdout(PathBuf::from("/tmp/stdout_content.txt"));
-        let actual =
-            fixture.into_tool_output(ToolKind::Shell, truncation_path, &env, &mut Metrics::default());
+        let actual = fixture.into_tool_output(
+            ToolKind::Shell,
+            truncation_path,
+            &env,
+            &mut Metrics::default(),
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -772,8 +780,12 @@ mod tests {
         let env = fixture_environment();
         let truncation_path =
             TempContentFiles::default().stderr(PathBuf::from("/tmp/stderr_content.txt"));
-        let actual =
-            fixture.into_tool_output(ToolKind::Shell, truncation_path, &env, &mut Metrics::default());
+        let actual = fixture.into_tool_output(
+            ToolKind::Shell,
+            truncation_path,
+            &env,
+            &mut Metrics::default(),
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -809,8 +821,12 @@ mod tests {
         let truncation_path = TempContentFiles::default()
             .stdout(PathBuf::from("/tmp/stdout_content.txt"))
             .stderr(PathBuf::from("/tmp/stderr_content.txt"));
-        let actual =
-            fixture.into_tool_output(ToolKind::Shell, truncation_path, &env, &mut Metrics::default());
+        let actual = fixture.into_tool_output(
+            ToolKind::Shell,
+            truncation_path,
+            &env,
+            &mut Metrics::default(),
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -928,8 +944,12 @@ mod tests {
         let truncation_path = TempContentFiles::default()
             .stdout(PathBuf::from("/tmp/stdout_content.txt"))
             .stderr(PathBuf::from("/tmp/stderr_content.txt"));
-        let actual =
-            fixture.into_tool_output(ToolKind::Shell, truncation_path, &env, &mut Metrics::default());
+        let actual = fixture.into_tool_output(
+            ToolKind::Shell,
+            truncation_path,
+            &env,
+            &mut Metrics::default(),
+        );
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -1454,8 +1474,12 @@ mod tests {
         let truncation_path =
             TempContentFiles::default().stdout(PathBuf::from("/tmp/forge_fetch_abc123.txt"));
 
-        let actual =
-            fixture.into_tool_output(ToolKind::Fetch, truncation_path, &env, &mut Metrics::default());
+        let actual = fixture.into_tool_output(
+            ToolKind::Fetch,
+            truncation_path,
+            &env,
+            &mut Metrics::default(),
+        );
 
         // make sure that the content is truncated
         assert!(
