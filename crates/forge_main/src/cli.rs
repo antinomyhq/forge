@@ -198,11 +198,6 @@ pub enum ListCommand {
     #[command(alias = "mcps")]
     Mcp,
 
-    /// Generates AI-powered commit messages and commits changes.
-    ///
-    /// Example: forge commit --preview
-    Commit(CommitCommandGroup),
-
     /// List conversation history.
     #[command(alias = "session")]
     Conversation,

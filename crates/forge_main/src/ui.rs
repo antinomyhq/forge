@@ -330,9 +330,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     ListCommand::Conversation => {
                         self.on_show_conversations(porcelain).await?;
                     }
-                    ListCommand::Commit(commit_group) => {
-                        self.handle_commit_command(commit_group).await?;
-                    }
                     ListCommand::Cmd => {
                         self.on_show_custom_commands(porcelain).await?;
                     }
