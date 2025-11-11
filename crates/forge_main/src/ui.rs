@@ -1353,7 +1353,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 let result = self.handle_commit_command(args).await?;
                 let flags = if result.has_staged_files { "" } else { " -a" };
                 let commit_command =
-                    format!("!git commit{flags} -F -<<'EOF'\n{}\nEOF", result.message);
+                    format!("!git commit{flags} -m '{}'", result.message);
                 self.console.set_buffer(commit_command);
             }
             SlashCommand::Agent => {
