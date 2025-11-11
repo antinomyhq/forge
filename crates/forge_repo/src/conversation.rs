@@ -84,7 +84,7 @@ impl From<&Metrics> for MetricsRecord {
 
 impl From<MetricsRecord> for Metrics {
     fn from(record: MetricsRecord) -> Self {
-        let mut metrics = Self::new();
+        let mut metrics = Self::default();
         metrics.started_at = record.started_at;
         metrics.file_operations = record
             .files_changed
@@ -157,7 +157,7 @@ impl TryFrom<ConversationRecord> for Conversation {
             .metrics
             .and_then(|m| serde_json::from_str::<MetricsRecord>(&m).ok())
             .map(Metrics::from)
-            .unwrap_or_else(|| Metrics::new().started_at(record.created_at.and_utc()));
+            .unwrap_or_else(|| Metrics::default().started_at(record.created_at.and_utc()));
 
         Ok(Conversation::new(id)
             .context(context)
@@ -507,7 +507,7 @@ mod tests {
         let repo = repository()?;
 
         // Create a conversation with metrics
-        let metrics = Metrics::new()
+        let metrics = Metrics::default()
             .started_at(Utc::now())
             .insert(
                 "src/main.rs".to_string(),
@@ -554,7 +554,7 @@ mod tests {
     fn test_metrics_record_conversion_preserves_all_fields() {
         // This test ensures compile-time safety: if Metrics schema changes,
         // this test will fail to compile, alerting us to update MetricsRecord
-        let fixture = Metrics::new().started_at(Utc::now()).insert(
+        let fixture = Metrics::default().started_at(Utc::now()).insert(
             "test.rs".to_string(),
             FileOperation::new(ToolKind::Write)
                 .lines_added(5u64)
@@ -785,7 +785,7 @@ mod tests {
     #[test]
     fn test_serialize_current_format() {
         // Test that we always serialize in the current format (single object)
-        let fixture = Metrics::new().started_at(Utc::now()).insert(
+        let fixture = Metrics::default().started_at(Utc::now()).insert(
             "src/main.rs".to_string(),
             FileOperation::new(ToolKind::Patch)
                 .lines_added(10u64)

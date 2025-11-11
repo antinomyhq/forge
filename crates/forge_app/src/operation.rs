@@ -550,7 +550,7 @@ mod tests {
             ToolKind::Read,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -578,7 +578,7 @@ mod tests {
             ToolKind::Read,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -607,7 +607,7 @@ mod tests {
             ToolKind::Read,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -635,7 +635,7 @@ mod tests {
             TempContentFiles::default().stdout(PathBuf::from("/tmp/truncated_content.txt"));
 
         let actual =
-            fixture.into_tool_output(ToolKind::Read, truncation_path, &env, &mut Metrics::new());
+            fixture.into_tool_output(ToolKind::Read, truncation_path, &env, &mut Metrics::default());
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -661,7 +661,7 @@ mod tests {
             ToolKind::Write,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -687,7 +687,7 @@ mod tests {
             ToolKind::Write,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -712,7 +712,7 @@ mod tests {
             ToolKind::Write,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -743,7 +743,7 @@ mod tests {
         let truncation_path =
             TempContentFiles::default().stdout(PathBuf::from("/tmp/stdout_content.txt"));
         let actual =
-            fixture.into_tool_output(ToolKind::Shell, truncation_path, &env, &mut Metrics::new());
+            fixture.into_tool_output(ToolKind::Shell, truncation_path, &env, &mut Metrics::default());
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -773,7 +773,7 @@ mod tests {
         let truncation_path =
             TempContentFiles::default().stderr(PathBuf::from("/tmp/stderr_content.txt"));
         let actual =
-            fixture.into_tool_output(ToolKind::Shell, truncation_path, &env, &mut Metrics::new());
+            fixture.into_tool_output(ToolKind::Shell, truncation_path, &env, &mut Metrics::default());
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -810,7 +810,7 @@ mod tests {
             .stdout(PathBuf::from("/tmp/stdout_content.txt"))
             .stderr(PathBuf::from("/tmp/stderr_content.txt"));
         let actual =
-            fixture.into_tool_output(ToolKind::Shell, truncation_path, &env, &mut Metrics::new());
+            fixture.into_tool_output(ToolKind::Shell, truncation_path, &env, &mut Metrics::default());
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -841,7 +841,7 @@ mod tests {
             ToolKind::Shell,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -866,7 +866,7 @@ mod tests {
             ToolKind::Shell,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -891,7 +891,7 @@ mod tests {
             ToolKind::Shell,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -929,7 +929,7 @@ mod tests {
             .stdout(PathBuf::from("/tmp/stdout_content.txt"))
             .stderr(PathBuf::from("/tmp/stderr_content.txt"));
         let actual =
-            fixture.into_tool_output(ToolKind::Shell, truncation_path, &env, &mut Metrics::new());
+            fixture.into_tool_output(ToolKind::Shell, truncation_path, &env, &mut Metrics::default());
 
         insta::assert_snapshot!(to_value(actual));
     }
@@ -966,7 +966,7 @@ mod tests {
             ToolKind::Search,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1006,7 +1006,7 @@ mod tests {
             ToolKind::Search,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1048,7 +1048,7 @@ mod tests {
             ToolKind::Search,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1093,7 +1093,7 @@ mod tests {
             ToolKind::Search,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1118,7 +1118,7 @@ mod tests {
             ToolKind::Search,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1145,7 +1145,7 @@ mod tests {
             ToolKind::Write,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1164,7 +1164,7 @@ mod tests {
             ToolKind::Remove,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1206,7 +1206,7 @@ mod tests {
             ToolKind::Search,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1231,7 +1231,7 @@ mod tests {
             ToolKind::Search,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1259,7 +1259,7 @@ mod tests {
             ToolKind::Patch,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1287,7 +1287,7 @@ mod tests {
             ToolKind::Patch,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1306,7 +1306,7 @@ mod tests {
             ToolKind::Undo,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1328,7 +1328,7 @@ mod tests {
             ToolKind::Undo,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1352,7 +1352,7 @@ mod tests {
             ToolKind::Undo,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1374,7 +1374,7 @@ mod tests {
             ToolKind::Undo,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1396,7 +1396,7 @@ mod tests {
             ToolKind::Undo,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1423,7 +1423,7 @@ mod tests {
             ToolKind::Fetch,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1455,7 +1455,7 @@ mod tests {
             TempContentFiles::default().stdout(PathBuf::from("/tmp/forge_fetch_abc123.txt"));
 
         let actual =
-            fixture.into_tool_output(ToolKind::Fetch, truncation_path, &env, &mut Metrics::new());
+            fixture.into_tool_output(ToolKind::Fetch, truncation_path, &env, &mut Metrics::default());
 
         // make sure that the content is truncated
         assert!(
@@ -1490,7 +1490,7 @@ mod tests {
             ToolKind::Shell,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1508,7 +1508,7 @@ mod tests {
             ToolKind::Followup,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1524,7 +1524,7 @@ mod tests {
             ToolKind::Followup,
             TempContentFiles::default(),
             &env,
-            &mut Metrics::new(),
+            &mut Metrics::default(),
         );
 
         insta::assert_snapshot!(to_value(actual));
