@@ -488,7 +488,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
 
             TopLevelCommand::Commit(commit_group) => {
-                self.handle_commit_command(commit_group).await?;
+                let preview = commit_group.preview;
+                let result = self.handle_commit_command(commit_group).await?;
+                if preview {
+                    self.writeln(&result.message)?;
+                }
                 return Ok(());
             }
         }
@@ -744,9 +748,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         match result {
             Ok(result) => {
                 self.spinner.stop(None)?;
-                if commit_group.preview {
-                    self.writeln(&result.message)?;
-                }
                 Ok(result)
             }
             Err(e) => {
@@ -1352,8 +1353,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 let args = CommitCommandGroup { preview: true, max_diff_size, diff: None };
                 let result = self.handle_commit_command(args).await?;
                 let flags = if result.has_staged_files { "" } else { " -a" };
-                let commit_command =
-                    format!("!git commit{flags} -m '{}'", result.message);
+                let commit_command = format!("!git commit{flags} -m '{}'", result.message);
                 self.console.set_buffer(commit_command);
             }
             SlashCommand::Agent => {
