@@ -5,8 +5,8 @@ use anyhow::{Context, Result};
 use forge_domain::*;
 
 use crate::{
-    AgentProviderResolver, AgentRegistry, EnvironmentService, ProviderService, Services,
-    ShellService, TemplateService,
+    AgentProviderResolver, AgentRegistry, AppConfigService, EnvironmentService,
+    ProviderAuthService, ProviderService, ShellService, TemplateService,
 };
 
 /// Errors specific to GitApp operations
@@ -53,12 +53,44 @@ struct DiffContext {
     has_staged_files: bool,
 }
 
-impl<S: Services> GitApp<S> {
+impl<S> GitApp<S> {
     /// Creates a new GitApp instance with the provided services.
     pub fn new(services: Arc<S>) -> Self {
         Self { services }
     }
 
+    /// Truncates diff content if it exceeds the maximum size
+    fn truncate_diff(
+        &self,
+        diff_content: String,
+        max_diff_size: Option<usize>,
+        original_size: usize,
+    ) -> (String, bool) {
+        match max_diff_size {
+            Some(max_size) if original_size > max_size => {
+                // Safely truncate at a char boundary
+                let truncated = diff_content
+                    .char_indices()
+                    .take_while(|(idx, _)| *idx < max_size)
+                    .map(|(_, c)| c)
+                    .collect::<String>();
+                (truncated, true)
+            }
+            _ => (diff_content, false),
+        }
+    }
+}
+
+impl<S> GitApp<S>
+where
+    S: EnvironmentService
+        + ShellService
+        + AgentRegistry
+        + TemplateService
+        + ProviderService
+        + AppConfigService
+        + ProviderAuthService,
+{
     /// Generates a commit message without committing
     ///
     /// # Arguments
@@ -93,14 +125,13 @@ impl<S: Services> GitApp<S> {
     ///
     /// Returns an error if git commit fails
     pub async fn commit(&self, message: String, has_staged_files: bool) -> Result<CommitResult> {
-        let cwd = self.services.environment_service().get_environment().cwd;
+        let cwd = self.services.get_environment().cwd;
 
         let flags = if has_staged_files { "" } else { " -a" };
         let commit_command = format!("git commit {flags} -m '{message}'");
 
         let commit_result = self
             .services
-            .shell_service()
             .execute(commit_command, cwd, false, false, None)
             .await
             .context("Failed to commit changes")?;
@@ -120,7 +151,7 @@ impl<S: Services> GitApp<S> {
         diff: Option<String>,
     ) -> Result<CommitMessageDetails> {
         // Get current working directory
-        let cwd = self.services.environment_service().get_environment().cwd;
+        let cwd = self.services.get_environment().cwd;
 
         // Fetch git context (always needed for commit message generation)
         let (recent_commits, branch_name) = self.fetch_git_context(&cwd).await?;
@@ -154,14 +185,14 @@ impl<S: Services> GitApp<S> {
     /// Fetches git context (branch name and recent commits)
     async fn fetch_git_context(&self, cwd: &Path) -> Result<(String, String)> {
         let (recent_commits, branch_name) = tokio::join!(
-            self.services.shell_service().execute(
+            self.services.execute(
                 "git log --pretty=format:%s --abbrev-commit --max-count=20".into(),
                 cwd.to_path_buf(),
                 false,
                 true,
                 None,
             ),
-            self.services.shell_service().execute(
+            self.services.execute(
                 "git rev-parse --abbrev-ref HEAD".into(),
                 cwd.to_path_buf(),
                 false,
@@ -179,20 +210,15 @@ impl<S: Services> GitApp<S> {
     /// Fetches diff from git (staged or unstaged)
     async fn fetch_git_diff(&self, cwd: &Path) -> Result<(String, usize, bool)> {
         let (staged_diff, unstaged_diff) = tokio::join!(
-            self.services.shell_service().execute(
+            self.services.execute(
                 "git diff --staged".into(),
                 cwd.to_path_buf(),
                 false,
                 true,
                 None,
             ),
-            self.services.shell_service().execute(
-                "git diff".into(),
-                cwd.to_path_buf(),
-                false,
-                true,
-                None,
-            )
+            self.services
+                .execute("git diff".into(), cwd.to_path_buf(), false, true, None,)
         );
 
         let staged_diff = staged_diff.context("Failed to get staged changes")?;
@@ -212,27 +238,6 @@ impl<S: Services> GitApp<S> {
         Ok((diff_output.output.stdout, size, has_staged_files))
     }
 
-    /// Truncates diff content if it exceeds the maximum size
-    fn truncate_diff(
-        &self,
-        diff_content: String,
-        max_diff_size: Option<usize>,
-        original_size: usize,
-    ) -> (String, bool) {
-        match max_diff_size {
-            Some(max_size) if original_size > max_size => {
-                // Safely truncate at a char boundary
-                let truncated = diff_content
-                    .char_indices()
-                    .take_while(|(idx, _)| *idx < max_size)
-                    .map(|(_, c)| c)
-                    .collect::<String>();
-                (truncated, true)
-            }
-            _ => (diff_content, false),
-        }
-    }
-
     /// Generates a commit message from the provided diff and git context
     async fn generate_message_from_diff(&self, ctx: DiffContext) -> Result<CommitMessageDetails> {
         // Get required services and data in parallel
@@ -240,7 +245,6 @@ impl<S: Services> GitApp<S> {
         let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
         let (rendered_prompt, provider, model) = tokio::try_join!(
             self.services
-                .template_service()
                 .render_template(Template::new("{{> forge-commit-message-prompt.md }}"), &()),
             agent_provider_resolver.get_provider(agent_id.clone()),
             agent_provider_resolver.get_model(agent_id)
@@ -271,11 +275,7 @@ impl<S: Services> GitApp<S> {
             ));
 
         // Send message to LLM
-        let stream = self
-            .services
-            .provider_service()
-            .chat(&model, context, provider)
-            .await?;
+        let stream = self.services.chat(&model, context, provider).await?;
         let message = stream.into_full(false).await?;
 
         // Extract the command from the <shell_command> tag

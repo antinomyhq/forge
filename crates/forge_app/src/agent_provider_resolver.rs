@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use forge_domain::{AgentId, ModelId, Provider};
 
-use crate::{AgentRegistry, AppConfigService, ProviderAuthService, ProviderService, Services};
+use crate::{AgentRegistry, AppConfigService, ProviderAuthService, ProviderService};
 
 /// Resolver for agent providers and models.
 /// Handles provider resolution, credential refresh, and model lookup.
@@ -16,7 +16,10 @@ impl<S> AgentProviderResolver<S> {
     }
 }
 
-impl<S: Services> AgentProviderResolver<S> {
+impl<S> AgentProviderResolver<S>
+where
+    S: AgentRegistry + ProviderService + AppConfigService + ProviderAuthService,
+{
     /// Gets the provider for the specified agent, or the default provider if no
     /// agent is provided. Automatically refreshes OAuth credentials if they're
     /// about to expire.
@@ -41,7 +44,6 @@ impl<S: Services> AgentProviderResolver<S> {
                         | forge_domain::AuthMethod::OAuthCode(_) => {
                             match self
                                 .0
-                                .provider_auth_service()
                                 .refresh_provider_credential(&provider, auth_method.clone())
                                 .await
                             {
