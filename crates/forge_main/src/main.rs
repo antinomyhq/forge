@@ -61,6 +61,7 @@ async fn main() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use forge_main::TopLevelCommand;
     use pretty_assertions::assert_eq;
 
     use super::*;
