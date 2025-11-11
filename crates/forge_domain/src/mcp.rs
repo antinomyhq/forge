@@ -75,7 +75,7 @@ pub struct McpStdioServer {
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
 pub struct McpSseServer {
     /// Url of the MCP server
-    #[serde(skip_serializing_if = "String::is_empty")]
+    #[serde(skip_serializing_if = "String::is_empty", alias = "serverUrl")]
     pub url: String,
 
     /// Disable it temporarily without having to
