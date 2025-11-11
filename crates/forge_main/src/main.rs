@@ -29,7 +29,7 @@ async fn main() -> Result<()> {
     let mut cli = Cli::parse();
 
     // Check if there's piped input
-    if  cli.prompt.is_none() && !atty::is(atty::Stream::Stdin) {
+    if cli.prompt.is_none() && !atty::is(atty::Stream::Stdin) {
         let mut stdin_content = String::new();
         std::io::stdin().read_to_string(&mut stdin_content)?;
         let trimmed_content = stdin_content.trim();
