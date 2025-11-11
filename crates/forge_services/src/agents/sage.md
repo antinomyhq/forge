@@ -7,6 +7,7 @@ reasoning:
 tools:
   - read
   - fetch
+  - read_image
   - search
 user_prompt: |-
   {{#if (eq event.name 'sage/user_task_update')}}
