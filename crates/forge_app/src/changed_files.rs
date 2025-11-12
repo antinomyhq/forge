@@ -3,7 +3,8 @@ use std::sync::Arc;
 use forge_domain::{Agent, ContextMessage, Conversation};
 use forge_template::Element;
 
-use crate::FsReadService;
+use crate::utils::format_display_path;
+use crate::{EnvironmentService, FsReadService};
 
 /// Service responsible for detecting externally changed files and rendering
 /// notifications
@@ -19,7 +20,7 @@ impl<S> ChangedFiles<S> {
     }
 }
 
-impl<S: FsReadService> ChangedFiles<S> {
+impl<S: FsReadService + EnvironmentService> ChangedFiles<S> {
     /// Detects externally changed files and renders a notification if changes
     /// are found. Updates file hashes in conversation metrics to prevent
     /// duplicate notifications.
@@ -45,9 +46,13 @@ impl<S: FsReadService> ChangedFiles<S> {
         }
         conversation.metrics = updated_metrics;
 
+        let cwd = self.services.get_environment().cwd;
         let file_elements: Vec<Element> = changes
             .iter()
-            .map(|change| Element::new("file").text(change.path.display().to_string()))
+            .map(|change| {
+                let display_path = format_display_path(&change.path, &cwd);
+                Element::new("file").text(display_path)
+            })
             .collect();
 
         let notification = Element::new("information")
@@ -70,20 +75,22 @@ impl<S: FsReadService> ChangedFiles<S> {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::path::PathBuf;
 
     use forge_domain::{
-        Agent, AgentId, Context, Conversation, ConversationId, FileOperation, Metrics, ModelId,
-        ToolKind,
+        Agent, AgentId, Context, Conversation, ConversationId, Environment, FileOperation, Metrics,
+        ModelId, ToolKind,
     };
     use pretty_assertions::assert_eq;
 
     use super::*;
     use crate::services::Content;
-    use crate::{FsReadService, ReadOutput};
+    use crate::{EnvironmentService, FsReadService, ReadOutput};
 
     #[derive(Clone, Default)]
     struct TestServices {
         files: HashMap<String, String>,
+        cwd: Option<PathBuf>,
     }
 
     #[async_trait::async_trait]
@@ -106,11 +113,30 @@ mod tests {
         }
     }
 
+    impl EnvironmentService for TestServices {
+        fn get_environment(&self) -> Environment {
+            use fake::{Fake, Faker};
+            let mut env: Environment = Faker.fake();
+            if let Some(cwd) = &self.cwd {
+                env.cwd = cwd.clone();
+            }
+            env
+        }
+    }
+
     fn fixture(
         files: HashMap<String, String>,
         tracked_files: HashMap<String, Option<String>>,
     ) -> (ChangedFiles<TestServices>, Conversation) {
-        let services = Arc::new(TestServices { files });
+        fixture_with_cwd(files, tracked_files, None)
+    }
+
+    fn fixture_with_cwd(
+        files: HashMap<String, String>,
+        tracked_files: HashMap<String, Option<String>>,
+        cwd: Option<PathBuf>,
+    ) -> (ChangedFiles<TestServices>, Conversation) {
+        let services = Arc::new(TestServices { files, cwd });
         let agent = Agent::new(AgentId::new("test")).model(ModelId::new("test-model"));
         let changed_files = ChangedFiles::new(services, agent);
 
@@ -211,5 +237,30 @@ mod tests {
             .to_string();
         assert!(message.contains("/test/file1.txt"));
         assert!(message.contains("/test/file2.txt"));
+    }
+
+    #[tokio::test]
+    async fn test_uses_relative_paths_within_cwd() {
+        let old_hash = crate::compute_hash("old content");
+        let new_content = "new content";
+        let cwd = PathBuf::from("/home/user/project");
+        let absolute_path = "/home/user/project/src/main.rs";
+
+        let (service, conversation) = fixture_with_cwd(
+            [(absolute_path.into(), new_content.into())].into(),
+            [(absolute_path.into(), Some(old_hash))].into(),
+            Some(cwd),
+        );
+
+        let actual = service.update_file_stats(conversation).await;
+
+        let message = actual.context.unwrap().messages[0]
+            .content()
+            .unwrap()
+            .to_string();
+
+        let expected = "<information>\n<critical>The following files have been modified externally. Please re-read them if its relevant for the task.</critical>\n<files>\n<file>src/main.rs</file>\n</files>\n</information>";
+
+        assert_eq!(message, expected);
     }
 }
