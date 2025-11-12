@@ -12,17 +12,15 @@ use crate::changed_files::ChangedFiles;
 use crate::dto::ToolsOverview;
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
-use crate::services::{
-    AppConfigService, CustomInstructionsService, ProviderAuthService, TemplateService,
-};
+use crate::services::{CustomInstructionsService, TemplateService};
 use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
 use crate::user_prompt::UserPromptGenerator;
 use crate::{
-    AgentRegistry, ConversationService, EnvironmentService, FileDiscoveryService, ProviderService,
-    Services, Walker, WorkflowService,
+    AgentProviderResolver, AgentRegistry, ConversationService, EnvironmentService,
+    FileDiscoveryService, ProviderService, Services, Walker, WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -92,7 +90,10 @@ impl<S: Services> ForgeApp<S> {
         let custom_instructions = services.get_custom_instructions().await;
 
         // Prepare agents with user configuration
-        let active_model = self.get_model(Some(agent_id.clone())).await?;
+        let agent_provider_resolver = AgentProviderResolver::new(services.clone());
+        let active_model = agent_provider_resolver
+            .get_model(Some(agent_id.clone()))
+            .await?;
         let agent = services
             .get_agents()
             .await?
@@ -105,7 +106,9 @@ impl<S: Services> ForgeApp<S> {
             })
             .ok_or(crate::Error::AgentNotFound(agent_id))?;
 
-        let agent_provider = self.get_provider(Some(agent.id.clone())).await?;
+        let agent_provider = agent_provider_resolver
+            .get_provider(Some(agent.id.clone()))
+            .await?;
         let models = services.models(agent_provider).await?;
 
         // Get system and mcp tool definitions and resolve them for the agent
@@ -214,7 +217,10 @@ impl<S: Services> ForgeApp<S> {
         // Calculate original metrics
         let original_messages = context.messages.len();
         let original_token_count = *context.token_count();
-        let model = self.get_model(Some(active_agent_id.clone())).await?;
+        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
+        let model = agent_provider_resolver
+            .get_model(Some(active_agent_id.clone()))
+            .await?;
         let workflow = self.services.read_merged(None).await.unwrap_or_default();
         let Some(compact) = self
             .services
@@ -281,63 +287,14 @@ impl<S: Services> ForgeApp<S> {
         self.services.write_workflow(path, workflow).await
     }
 
-    pub async fn get_provider(&self, agent: Option<AgentId>) -> anyhow::Result<Provider<url::Url>> {
-        let provider = if let Some(agent) = agent
-            && let Some(agent) = self.services.get_agent(&agent).await?
-            && let Some(provider_id) = agent.provider
-        {
-            self.services.get_provider(provider_id).await?
-        } else {
-            self.services.get_default_provider().await?
-        };
-
-        // Check if credential needs refresh (5 minute buffer before expiry)
-        if let Some(credential) = &provider.credential {
-            let buffer = chrono::Duration::minutes(5);
-
-            if credential.needs_refresh(buffer) {
-                for auth_method in &provider.auth_methods {
-                    match auth_method {
-                        forge_domain::AuthMethod::OAuthDevice(_)
-                        | forge_domain::AuthMethod::OAuthCode(_) => {
-                            match self
-                                .services
-                                .provider_auth_service()
-                                .refresh_provider_credential(&provider, auth_method.clone())
-                                .await
-                            {
-                                Ok(refreshed_credential) => {
-                                    let mut updated_provider = provider.clone();
-                                    updated_provider.credential = Some(refreshed_credential);
-                                    return Ok(updated_provider);
-                                }
-                                Err(_) => {
-                                    return Ok(provider);
-                                }
-                            }
-                        }
-                        forge_domain::AuthMethod::ApiKey => {}
-                    }
-                }
-            }
-        }
-
-        Ok(provider)
-    }
-
-    /// Gets the model for the specified agent, or the default model if no agent
-    /// is provided
-    pub async fn get_model(&self, agent_id: Option<AgentId>) -> anyhow::Result<ModelId> {
-        let provider_id = self.get_provider(agent_id).await?.id;
-        self.services.get_default_model(&provider_id).await
-    }
-
     pub async fn set_default_model(
         &self,
         agent_id: Option<AgentId>,
         model: ModelId,
     ) -> anyhow::Result<()> {
-        let provider_id = self.get_provider(agent_id).await?.id;
-        self.services.set_default_model(model, provider_id).await
+        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
+        agent_provider_resolver
+            .set_default_model(agent_id, model)
+            .await
     }
 }

@@ -110,6 +110,9 @@ pub enum TopLevelCommand {
     #[command(alias = "session")]
     Conversation(ConversationCommandGroup),
 
+    /// Generate and optionally commit changes with AI-generated message
+    Commit(CommitCommandGroup),
+
     /// Manage Model Context Protocol servers.
     Mcp(McpCommandGroup),
 
@@ -446,6 +449,30 @@ pub enum ProviderCommand {
 
     /// List available providers.
     List,
+}
+
+/// Group of Commit-related commands
+#[derive(Parser, Debug, Clone)]
+pub struct CommitCommandGroup {
+    /// Preview the commit message without committing
+    #[arg(long)]
+    pub preview: bool,
+
+    /// Maximum git diff size in bytes (unlimited by default)
+    ///
+    /// Limits the size of the git diff sent to the AI model. Large diffs are
+    /// truncated to save tokens and reduce API costs. Omit for unlimited size.
+    /// Minimum value is 5000 bytes.
+    #[arg(long = "max-diff", value_parser = clap::builder::RangedI64ValueParser::<usize>::new().range(5000..))]
+    pub max_diff_size: Option<usize>,
+
+    /// Git diff content (used internally for piped input)
+    ///
+    /// This field is populated when diff content is piped to the commit
+    /// command. Users typically don't set this directly; instead, they pipe
+    /// diff content: `git diff | forge commit --preview`
+    #[arg(skip)]
+    pub diff: Option<String>,
 }
 
 #[cfg(test)]
