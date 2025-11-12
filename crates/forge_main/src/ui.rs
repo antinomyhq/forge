@@ -2558,10 +2558,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 "   2. You can now remove the environment variables if desired".to_string(),
             )?;
             self.writeln("   3. Future credential changes should be made via:".to_string())?;
-            self.writeln(format!(
-                "      {}",
-                "forge provider login".bright_white()
-            ))?;
+            self.writeln(format!("      {}", "forge provider login".bright_white()))?;
         }
         Ok(())
     }
