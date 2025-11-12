@@ -710,7 +710,7 @@ mod tests {
         use forge_api::Metrics;
         use forge_domain::{FileOperation, ToolKind};
 
-        let fixture = Metrics::new()
+        let fixture = Metrics::default()
             .started_at(chrono::Utc::now())
             .insert(
                 "src/main.rs".to_string(),
@@ -755,7 +755,7 @@ mod tests {
         use super::{Conversation, Metrics};
 
         let conversation_id = ConversationId::generate();
-        let metrics = Metrics::new()
+        let metrics = Metrics::default()
             .started_at(Utc::now())
             .insert(
                 "src/main.rs".to_string(),
@@ -795,7 +795,7 @@ mod tests {
         use super::{Conversation, Metrics};
 
         let conversation_id = ConversationId::generate();
-        let metrics = Metrics::new().started_at(Utc::now());
+        let metrics = Metrics::default().started_at(Utc::now());
 
         let fixture = Conversation {
             id: conversation_id,
@@ -822,7 +822,7 @@ mod tests {
         use super::{Conversation, Metrics};
 
         let conversation_id = ConversationId::generate();
-        let metrics = Metrics::new().started_at(Utc::now());
+        let metrics = Metrics::default().started_at(Utc::now());
 
         // Create a context with user messages
         let context = Context::default()
