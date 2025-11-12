@@ -84,26 +84,26 @@ impl From<&Metrics> for MetricsRecord {
 
 impl From<MetricsRecord> for Metrics {
     fn from(record: MetricsRecord) -> Self {
-        let mut metrics = Self::default();
-        metrics.started_at = record.started_at;
-        metrics.file_operations = record
-            .files_changed
-            .into_iter()
-            .filter_map(|(path, file_record)| {
-                let operation = match file_record {
-                    // If it's an array, take the last operation (most recent)
-                    FileOperationOrArray::Array(mut arr) if !arr.is_empty() => {
-                        arr.pop().unwrap().into()
-                    }
-                    // If it's a single object, use it directly
-                    FileOperationOrArray::Single(record) => record.into(),
-                    // If it's an empty array, skip this file
-                    FileOperationOrArray::Array(_) => return None,
-                };
-                Some((path, operation))
-            })
-            .collect();
-        metrics
+        Self {
+            started_at: record.started_at,
+            file_operations: record
+                .files_changed
+                .into_iter()
+                .filter_map(|(path, file_record)| {
+                    let operation = match file_record {
+                        // If it's an array, take the last operation (most recent)
+                        FileOperationOrArray::Array(mut arr) if !arr.is_empty() => {
+                            arr.pop().unwrap().into()
+                        }
+                        // If it's a single object, use it directly
+                        FileOperationOrArray::Single(record) => record.into(),
+                        // If it's an empty array, skip this file
+                        FileOperationOrArray::Array(_) => return None,
+                    };
+                    Some((path, operation))
+                })
+                .collect(),
+        }
     }
 }
 
