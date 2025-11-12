@@ -59,7 +59,7 @@ impl MetaData {
 impl Conversation {
     pub fn new(id: ConversationId) -> Self {
         let created_at = Utc::now();
-        let metrics = Metrics::new().started_at(created_at);
+        let metrics = Metrics::default().started_at(created_at);
         Self {
             id,
             metrics,

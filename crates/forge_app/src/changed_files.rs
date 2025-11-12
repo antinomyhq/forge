@@ -114,7 +114,7 @@ mod tests {
         let agent = Agent::new(AgentId::new("test")).model(ModelId::new("test-model"));
         let changed_files = ChangedFiles::new(services, agent);
 
-        let mut metrics = Metrics::new();
+        let mut metrics = Metrics::default();
         for (path, hash) in tracked_files {
             metrics
                 .file_operations

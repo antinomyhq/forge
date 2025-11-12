@@ -1300,7 +1300,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_new().await?;
             }
             SlashCommand::Info => {
-                self.on_info(false, None).await?;
+                self.on_info(false, self.state.conversation_id).await?;
             }
             SlashCommand::Env => {
                 self.on_env().await?;
