@@ -1980,6 +1980,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Run the independent initialization tasks in parallel for better performance
         let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
 
+        let _ = self.handle_migrate_credentials().await;
+
         // Ensure we have a model selected before proceeding with initialization
         if self
             .get_agent_model(self.api.get_active_agent().await)
@@ -2512,6 +2514,55 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             self.writeln(self.markdown.render(message))?;
         }
 
+        Ok(())
+    }
+
+    /// Handle credential migration
+    async fn handle_migrate_credentials(&mut self) -> Result<()> {
+        // Perform the migration
+        self.spinner.start(Some("Migrating credentials"))?;
+        let result = self.api.migrate_env_credentials().await?;
+        self.spinner.stop(None)?;
+
+        // Display results based on whether migration occurred
+        if let Some(result) = result {
+            // Show the warning message
+            self.writeln_title(
+                TitleFormat::action("Credential Migration").sub_title("Environment → Credentials"),
+            )?;
+            self.writeln(format!("{}", "⚠️  IMPORTANT NOTICE".bright_yellow().bold()))?;
+            self.writeln("   This is a ONE-TIME  operation, NOT a sync.".to_string())?;
+            self.writeln("   Now, changes to environment variables will NOT".to_string())?;
+            self.writeln("   automatically update the credentials file.".to_string())?;
+
+            self.writeln(format!(
+                "✅ Migrated {} provider(s):",
+                result
+                    .migrated_providers
+                    .len()
+                    .to_string()
+                    .bright_green()
+                    .bold()
+            ))?;
+
+            for provider in &result.migrated_providers {
+                self.writeln(format!("   • {}", provider.to_string().bright_white()))?;
+            }
+
+            self.writeln(format!("{}", "Next steps:".bright_cyan().bold()))?;
+            self.writeln(format!(
+                "   1. Credentials saved to: {}",
+                result.credentials_path.display().to_string().bright_white()
+            ))?;
+            self.writeln(
+                "   2. You can now remove the environment variables if desired".to_string(),
+            )?;
+            self.writeln("   3. Future credential changes should be made via:".to_string())?;
+            self.writeln(format!(
+                "      {}",
+                "forge provider login".bright_white()
+            ))?;
+        }
         Ok(())
     }
 }

@@ -92,7 +92,8 @@ mod tests {
     use std::sync::Mutex;
 
     use forge_domain::{
-        AnyProvider, AppConfig, Model, Models, Provider, ProviderId, ProviderResponse,
+        AnyProvider, AppConfig, MigrationResult, Model, Models, Provider, ProviderId,
+        ProviderResponse,
     };
     use pretty_assertions::assert_eq;
     use url::Url;
@@ -207,6 +208,10 @@ mod tests {
 
         async fn remove_credential(&self, _id: &ProviderId) -> anyhow::Result<()> {
             Ok(())
+        }
+
+        async fn migrate_env_credentials(&self) -> anyhow::Result<Option<MigrationResult>> {
+            Ok(None)
         }
     }
 
