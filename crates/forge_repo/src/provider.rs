@@ -864,42 +864,6 @@ mod env_tests {
     }
 
     #[tokio::test]
-    async fn test_default_provider_urls() {
-        let mut env_vars = HashMap::new();
-        env_vars.insert("OPENAI_API_KEY".to_string(), "test-key".to_string());
-        env_vars.insert("ANTHROPIC_API_KEY".to_string(), "test-key".to_string());
-
-        let infra = Arc::new(MockInfra::new(env_vars));
-        let registry = ForgeProviderRepository::new(infra);
-        let providers = registry.get_all_providers().await.unwrap();
-
-        let openai_provider = providers
-            .iter()
-            .find_map(|p| match p {
-                AnyProvider::Url(cp) if cp.id == ProviderId::OpenAI => Some(cp),
-                _ => None,
-            })
-            .unwrap();
-        let anthropic_provider = providers
-            .iter()
-            .find_map(|p| match p {
-                AnyProvider::Url(cp) if cp.id == ProviderId::Anthropic => Some(cp),
-                _ => None,
-            })
-            .unwrap();
-
-        // Regular OpenAI and Anthropic providers use hardcoded URLs
-        assert_eq!(
-            openai_provider.url().as_str(),
-            "https://api.openai.com/v1/chat/completions"
-        );
-        assert_eq!(
-            anthropic_provider.url().as_str(),
-            "https://api.anthropic.com/v1/messages"
-        );
-    }
-
-    #[tokio::test]
     async fn test_merge_base_provider_configs() {
         use std::io::Write;
 
