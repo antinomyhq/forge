@@ -10,9 +10,7 @@ use forge_domain::{IndexStats, IndexingRepository, UserId};
 use futures::future::join_all;
 use tracing::warn;
 
-
 const DEFAULT_BATCH_SIZE: usize = 20;
-
 
 pub struct ForgeIndexingService<F> {
     infra: Arc<F>,
@@ -39,13 +37,8 @@ impl<F> ForgeIndexingService<F> {
 }
 
 #[async_trait]
-impl<
-        F: IndexingRepository
-            + IndexingClientInfra
-            + WalkerInfra
-            + FileReaderInfra
-            + EnvironmentInfra,
-    > IndexingService for ForgeIndexingService<F>
+impl<F: IndexingRepository + IndexingClientInfra + WalkerInfra + FileReaderInfra + EnvironmentInfra>
+    IndexingService for ForgeIndexingService<F>
 {
     async fn index(&self, path: PathBuf) -> Result<IndexStats> {
         // Canonicalize the path
@@ -181,6 +174,28 @@ impl<
 
         Ok(results)
     }
+
+    /// Lists all indexed workspaces.
+    ///
+    /// Gets the user_id from any indexed workspace in the local database.
+    /// If no workspaces exist locally, returns an empty list.
+    ///
+    /// # Errors
+    /// Returns error if the request to forge-ce fails.
+    async fn list_indexes(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
+        // Get user_id from any indexed workspace
+        let user_id =
+            self.infra.as_ref().get_user_id().await?.ok_or_else(|| {
+                anyhow::anyhow!("No workspaces indexed. Run `forge index` first.")
+            })?;
+
+        // List all workspaces for this user from forge-ce
+        self.infra
+            .as_ref()
+            .list_workspaces(&user_id)
+            .await
+            .context("Failed to list workspaces from forge-ce")
+    }
 }
 
 #[cfg(test)]
@@ -191,7 +206,7 @@ mod tests {
     use forge_app::WalkedFile;
     use forge_domain::{
         CodeSearchResult, Environment, FileInfo, IndexWorkspaceId, IndexedWorkspace, UploadStats,
-        UserId,
+        UserId, WorkspaceInfo,
     };
 
     use super::*;
@@ -226,6 +241,10 @@ mod tests {
         async fn find_by_path(&self, _path: &std::path::Path) -> Result<Option<IndexedWorkspace>> {
             Ok(self.existing_workspace.clone())
         }
+
+        async fn get_user_id(&self) -> Result<Option<UserId>> {
+            Ok(self.existing_workspace.as_ref().map(|w| w.user_id.clone()))
+        }
     }
 
     #[async_trait]
@@ -254,6 +273,10 @@ mod tests {
             _query: &str,
             _limit: usize,
         ) -> Result<Vec<CodeSearchResult>> {
+            Ok(vec![])
+        }
+
+        async fn list_workspaces(&self, _user_id: &UserId) -> Result<Vec<WorkspaceInfo>> {
             Ok(vec![])
         }
     }

@@ -3,7 +3,9 @@ use std::path::PathBuf;
 use anyhow::Result;
 use async_trait::async_trait;
 use forge_app::IndexingClientInfra;
-use forge_domain::{CodeSearchResult, IndexWorkspaceId, UploadStats, UserId as DomainUserId};
+use forge_domain::{
+    CodeSearchResult, IndexWorkspaceId, UploadStats, UserId as DomainUserId, WorkspaceInfo,
+};
 use tonic::transport::Channel;
 
 // Include the generated proto code at module level
@@ -154,6 +156,29 @@ impl IndexingClientInfra for IndexingClient {
             .collect();
 
         Ok(results)
+    }
+
+    /// List all workspaces for a user
+    async fn list_workspaces(&self, user_id: &DomainUserId) -> Result<Vec<WorkspaceInfo>> {
+        let request = tonic::Request::new(ListWorkspacesRequest {
+            user_id: Some(UserId { id: user_id.to_string() }),
+        });
+
+        let mut client = self.client.clone();
+        let response = client.list_workspaces(request).await?;
+
+        let workspaces = response
+            .into_inner()
+            .workspaces
+            .into_iter()
+            .filter_map(|workspace| {
+                let id_msg = workspace.id?;
+                let workspace_id = IndexWorkspaceId::from_string(&id_msg.id).ok()?;
+                Some(WorkspaceInfo { workspace_id, working_dir: workspace.working_dir })
+            })
+            .collect();
+
+        Ok(workspaces)
     }
 }
 

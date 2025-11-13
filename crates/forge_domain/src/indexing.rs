@@ -62,6 +62,15 @@ pub struct GitInfo {
     pub branch: String,
 }
 
+/// Information about a workspace from the server
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkspaceInfo {
+    /// Workspace ID
+    pub workspace_id: IndexWorkspaceId,
+    /// Working directory path
+    pub working_dir: String,
+}
+
 /// Result of an indexing operation
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]

@@ -96,6 +96,18 @@ impl IndexingRepository for IndexingRepositoryImpl {
 
         record.map(IndexedWorkspace::try_from).transpose()
     }
+
+    async fn get_user_id(&self) -> anyhow::Result<Option<UserId>> {
+        let mut connection = self.pool.get_connection()?;
+
+        // Efficiently get just one user_id
+        let user_id: Option<String> = indexing::table
+            .select(indexing::user_id)
+            .first(&mut connection)
+            .optional()?;
+
+        Ok(user_id.map(|id| UserId::from_string(&id)).transpose()?)
+    }
 }
 
 #[cfg(test)]

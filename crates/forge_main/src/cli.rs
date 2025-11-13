@@ -170,6 +170,13 @@ pub struct IndexCommandGroup {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum IndexCommand {
+    /// List all indexed workspaces.
+    List {
+        /// Output in machine-readable format
+        #[arg(short, long)]
+        porcelain: bool,
+    },
+
     /// Query the indexed codebase.
     Query {
         /// Search query.

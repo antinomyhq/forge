@@ -490,6 +490,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
             TopLevelCommand::Index(index_group) => {
                 match index_group.command {
+                    Some(crate::cli::IndexCommand::List { porcelain }) => {
+                        self.on_list_workspaces(porcelain).await?;
+                    }
                     Some(crate::cli::IndexCommand::Query { query, limit }) => {
                         self.on_query(query, index_group.path, limit).await?;
                     }
@@ -2630,6 +2633,62 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Err(e) => {
                 self.spinner.stop(Some("❌ Search failed".to_string()))?;
                 self.writeln_to_stderr(format!("Query failed: {}", e))?;
+                Err(e)
+            }
+        }
+    }
+
+    async fn on_list_workspaces(&mut self, porcelain: bool) -> anyhow::Result<()> {
+        if !porcelain {
+            self.spinner.start(Some("Fetching indexed workspaces..."))?;
+        }
+
+        match self.api.list_indexes().await {
+            Ok(workspaces) => {
+                if !porcelain {
+                    self.spinner.stop(None)?;
+                }
+
+                // Build Info object once
+                let mut info = if porcelain {
+                    Info::new()
+                } else {
+                    Info::new().add_title("INDEXED WORKSPACES")
+                };
+
+                if workspaces.is_empty() {
+                    if !porcelain {
+                        info = info.add_value("No indexed workspaces found");
+                    }
+                } else {
+                    for workspace in workspaces {
+                        if porcelain {
+                            // In porcelain mode, title becomes first column value
+                            info = info
+                                .add_title(&workspace.workspace_id.to_string())
+                                .add_key_value("Path", workspace.working_dir);
+                        } else {
+                            // In human-readable mode, show both ID and Path as key-values
+                            info = info
+                                .add_key_value("ID", workspace.workspace_id.to_string())
+                                .add_key_value("Path", workspace.working_dir);
+                        }
+                    }
+                }
+
+                // Output based on mode
+                if porcelain {
+                    self.writeln(Porcelain::from(info))?;
+                } else {
+                    self.writeln(info)?;
+                }
+
+                Ok(())
+            }
+            Err(e) => {
+                self.spinner
+                    .stop(Some("Failed to list workspaces".to_string()))?;
+                self.writeln_to_stderr(format!("Failed to list workspaces: {}", e))?;
                 Err(e)
             }
         }

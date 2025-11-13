@@ -6,7 +6,7 @@ use bytes::Bytes;
 use forge_domain::{
     AuthCodeParams, CodeSearchResult, CommandOutput, Environment, FileInfo, IndexWorkspaceId,
     McpServerConfig, OAuthConfig, OAuthTokenResponse, ToolDefinition, ToolName, ToolOutput,
-    UploadStats, UserId,
+    UploadStats, UserId, WorkspaceInfo,
 };
 use reqwest::Response;
 use reqwest::header::HeaderMap;
@@ -240,6 +240,10 @@ pub trait IndexingClientInfra: Send + Sync {
         query: &str,
         limit: usize,
     ) -> anyhow::Result<Vec<CodeSearchResult>>;
+
+    /// List all workspaces for a user
+    /// Returns a list of workspaces from the server
+    async fn list_workspaces(&self, user_id: &UserId) -> anyhow::Result<Vec<WorkspaceInfo>>;
 }
 
 /// Generic cache repository for content-addressable storage.

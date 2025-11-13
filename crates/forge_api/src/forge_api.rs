@@ -342,4 +342,8 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
             .query(path, query, limit)
             .await?)
     }
+
+    async fn list_indexes(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
+        Ok(self.services.indexing_service().list_indexes().await?)
+    }
 }

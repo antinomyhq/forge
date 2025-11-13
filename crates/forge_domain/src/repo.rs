@@ -134,4 +134,13 @@ pub trait IndexingRepository: Send + Sync {
     /// # Errors
     /// Returns an error if the operation fails
     async fn find_by_path(&self, path: &std::path::Path) -> Result<Option<IndexedWorkspace>>;
+
+    /// Get user ID from any indexed workspace
+    ///
+    /// Returns the user_id from the first indexed workspace found.
+    /// Used when we just need a user_id but don't care which workspace.
+    ///
+    /// # Errors
+    /// Returns an error if the database operation fails
+    async fn get_user_id(&self) -> Result<Option<UserId>>;
 }

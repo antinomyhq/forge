@@ -8,7 +8,7 @@ use forge_domain::{
     AuthCredential, AuthMethod, ChatCompletionMessage, CodeSearchResult, CommandOutput, Context,
     Conversation, ConversationId, Environment, File, Image, IndexStats, InitAuth, LoginInfo,
     McpConfig, McpServers, Model, ModelId, PatchOperation, Provider, ProviderId, ResultStream,
-    Scope, Template, ToolCallFull, ToolOutput, Workflow,
+    Scope, Template, ToolCallFull, ToolOutput, Workflow, WorkspaceInfo,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -255,6 +255,13 @@ pub trait IndexingService: Send + Sync {
         query: &str,
         limit: usize,
     ) -> anyhow::Result<Vec<CodeSearchResult>>;
+
+    /// List all workspaces indexed by the user
+    ///
+    /// # Errors
+    /// Returns error if forge-ce server is unreachable
+    /// List all indexed workspaces (gets user_id internally)
+    async fn list_indexes(&self) -> anyhow::Result<Vec<WorkspaceInfo>>;
 }
 
 #[async_trait::async_trait]

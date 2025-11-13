@@ -416,6 +416,10 @@ impl<F: Send + Sync> forge_domain::IndexingRepository for ForgeRepo<F> {
     ) -> anyhow::Result<Option<forge_domain::IndexedWorkspace>> {
         self.indexing_repository.find_by_path(path).await
     }
+
+    async fn get_user_id(&self) -> anyhow::Result<Option<forge_domain::UserId>> {
+        self.indexing_repository.get_user_id().await
+    }
 }
 
 #[async_trait::async_trait]
@@ -445,5 +449,12 @@ impl<F: forge_app::IndexingClientInfra> forge_app::IndexingClientInfra for Forge
         limit: usize,
     ) -> anyhow::Result<Vec<forge_domain::CodeSearchResult>> {
         self.infra.search(user_id, workspace_id, query, limit).await
+    }
+
+    async fn list_workspaces(
+        &self,
+        user_id: &forge_domain::UserId,
+    ) -> anyhow::Result<Vec<forge_domain::WorkspaceInfo>> {
+        self.infra.list_workspaces(user_id).await
     }
 }
