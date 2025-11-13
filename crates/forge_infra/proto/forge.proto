@@ -22,12 +22,14 @@ service ForgeService {
   // Deletes a relation between two nodes
   rpc DeleteRelation(DeleteRelationRequest) returns (DeleteRelationResponse);
   
-  // Gets nodes related to a specific node
-  rpc GetRelatedNodes(GetRelatedNodesRequest) returns (GetRelatedNodesResponse);
+  // Lists nodes related to a specific node
+  rpc ListRelatedNodes(ListRelatedNodesRequest) returns (ListRelatedNodesResponse);
   
   // Uploads files to the context engine
   rpc UploadFiles(UploadFilesRequest) returns (UploadFilesResponse);
 
+  // Deletes files from the context engine
+  rpc DeleteFiles(DeleteFilesRequest) returns (DeleteFilesResponse);
   
   // Splits files into chunks without uploading them
   rpc ChunkFiles(ChunkFilesRequest) returns (ChunkFilesResponse);
@@ -88,9 +90,11 @@ message UserId {
 }
 
 message Workspace {
-  WorkspaceId id = 1;
+  WorkspaceId workspace_id = 1;
   UserId user_id = 2;
   string working_dir = 3;
+  uint64 node_count = 4;
+  uint64 relation_count = 5;
 }
 
 message WorkspaceDefinition {
@@ -116,6 +120,7 @@ message FileChunk {
 
 message FileRef {
   string path = 1;
+  string file_hash = 2;
 }
 
 message Note {
@@ -169,6 +174,14 @@ message RelationDefinition {
   Relation relation_type = 3;
 }
 
+message RelationInfo {
+  RelationId relation_id = 1;
+  NodeId source_node_id = 2;
+  NodeId target_node_id = 3;
+  Relation relation_type = 4;
+}
+
+
 message QueryItem {
   Node node = 1;
   optional float distance = 2;
@@ -182,7 +195,7 @@ message QueryResult {
 }
 
 message Query {
-  optional string query = 1;
+  optional string prompt = 1;
   optional float max_distance = 2;
   optional uint32 limit = 3;
   repeated NodeKind kinds = 4;
@@ -210,9 +223,13 @@ message FileUploadContent {
   optional GitInfo git = 2;
 }
 
+message RelationCreateResult {
+  RelationId relation_id = 1;
+}
+
 message UploadResult {
   repeated Node nodes = 1;
-  repeated RelationDefinition relations = 2;
+  repeated RelationCreateResult relations = 2;
 }
 
 // Request/Response messages
@@ -239,17 +256,17 @@ message GetNodeResponse {
 message DeleteNodeRequest {
   UserId user_id = 1;
   WorkspaceId workspace_id = 2;
-  NodeId node_id = 3;
+  repeated NodeId node_ids = 3;
 }
 
 message DeleteNodeResponse {
-  NodeId node_id = 1;
+  uint32 deleted_count = 1;
 }
 
 message SearchRequest {
   UserId user_id = 1;
   WorkspaceId workspace_id = 2;
-  Query query = 3;
+  optional Query query = 3;
 }
 
 message SearchResponse {
@@ -269,20 +286,20 @@ message CreateRelationResponse {
 message DeleteRelationRequest {
   UserId user_id = 1;
   WorkspaceId workspace_id = 2;
-  RelationDefinition relation = 3;
+  repeated RelationId relation_ids = 3;
 }
 
 message DeleteRelationResponse {
-  repeated RelationId relation_ids = 1;
+  uint64 deleted_count = 1;
 }
 
-message GetRelatedNodesRequest {
+message ListRelatedNodesRequest {
   UserId user_id = 1;
   WorkspaceId workspace_id = 2;
-  RelatedNodesQuery query = 3;
+  optional RelatedNodesQuery query = 3;
 }
 
-message GetRelatedNodesResponse {
+message ListRelatedNodesResponse {
   RelatedNodesResult result = 1;
 }
 
@@ -294,6 +311,17 @@ message UploadFilesRequest {
 
 message UploadFilesResponse {
   UploadResult result = 1;
+}
+
+message DeleteFilesRequest {
+  UserId user_id = 1;
+  WorkspaceId workspace_id = 2;
+  repeated string file_paths = 3;
+}
+
+message DeleteFilesResponse {
+  uint32 deleted_nodes = 1;
+  uint32 deleted_relations = 2;
 }
 
 

@@ -55,7 +55,7 @@ impl IndexingClientInfra for IndexingClient {
             .ok_or_else(|| anyhow::anyhow!("No workspace in response"))?;
 
         let workspace_id = workspace
-            .id
+            .workspace_id
             .ok_or_else(|| {
                 anyhow::anyhow!("Server did not return workspace ID in CreateWorkspace response")
             })?
@@ -103,7 +103,7 @@ impl IndexingClientInfra for IndexingClient {
             user_id: Some(UserId { id: user_id.to_string() }),
             workspace_id: Some(WorkspaceId { id: workspace_id.to_string() }),
             query: Some(Query {
-                query: Some(query.to_string()),
+                prompt: Some(query.to_string()),
                 limit: Some(limit as u32),
                 ..Default::default()
             }),
@@ -172,7 +172,7 @@ impl IndexingClientInfra for IndexingClient {
             .workspaces
             .into_iter()
             .filter_map(|workspace| {
-                let id_msg = workspace.id?;
+                let id_msg = workspace.workspace_id?;
                 let workspace_id = IndexWorkspaceId::from_string(&id_msg.id).ok()?;
                 Some(WorkspaceInfo { workspace_id, working_dir: workspace.working_dir })
             })
