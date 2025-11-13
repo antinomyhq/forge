@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use nom::Parser;
 use nom::bytes::complete::tag;
 
@@ -18,6 +20,7 @@ pub enum AttachmentContent {
         end_line: u64,
         total_lines: u64,
     },
+    Files(PathBuf, Vec<PathBuf>),
 }
 
 impl AttachmentContent {
@@ -32,6 +35,7 @@ impl AttachmentContent {
         match self {
             AttachmentContent::Image(_) => false,
             AttachmentContent::FileContent { content, .. } => content.contains(text),
+            AttachmentContent::Files(_, _) => false,
         }
     }
 

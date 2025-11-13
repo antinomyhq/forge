@@ -382,9 +382,10 @@ impl Context {
     }
 
     pub fn add_attachments(self, attachments: Vec<Attachment>, model_id: Option<ModelId>) -> Self {
-        attachments.into_iter().fold(self, |ctx, attachment| {
-            ctx.add_message(match attachment.content {
-                AttachmentContent::Image(image) => ContextMessage::Image(image),
+        attachments
+            .into_iter()
+            .fold(self, |ctx, attachment| match attachment.content {
+                AttachmentContent::Image(image) => ctx.add_message(ContextMessage::Image(image)),
                 AttachmentContent::FileContent { content, start_line, end_line, total_lines } => {
                     let elm = Element::new("file_content")
                         .attr("path", attachment.path)
@@ -399,10 +400,25 @@ impl Context {
                         message = message.model(model);
                     }
 
-                    message.into()
+                    ctx.add_message(message)
+                }
+                AttachmentContent::Files(path, files) => {
+                    let file_elements: Vec<Element> = files
+                        .iter()
+                        .map(|file| Element::new("file").text(file.display()))
+                        .collect();
+
+                    let elm = Element::new("directory")
+                        .attr("path", path.display())
+                        .append(Element::new("files").append(file_elements));
+
+                    let mut message = TextMessage::new(Role::User, elm.to_string()).droppable(true);
+                    if let Some(model) = model_id.clone() {
+                        message = message.model(model);
+                    }
+                    ctx.add_message(message)
                 }
             })
-        })
     }
 
     pub fn add_tool_results(mut self, results: Vec<ToolResult>) -> Self {

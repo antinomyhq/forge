@@ -1,7 +1,10 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use forge_app::domain::{Attachment, AttachmentContent, FileTag, Image, LineNumbers};
-use forge_app::{AttachmentService, EnvironmentInfra, FileReaderInfra};
+use forge_app::{
+    AttachmentService, EnvironmentInfra, FileInfoInfra, FileReaderInfra, Walker, WalkerInfra,
+};
 
 use crate::range::resolve_range;
 
@@ -10,7 +13,7 @@ pub struct ForgeChatRequest<F> {
     infra: Arc<F>,
 }
 
-impl<F: FileReaderInfra + EnvironmentInfra> ForgeChatRequest<F> {
+impl<F: FileReaderInfra + WalkerInfra + FileInfoInfra + EnvironmentInfra> ForgeChatRequest<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
     }
@@ -44,22 +47,42 @@ impl<F: FileReaderInfra + EnvironmentInfra> ForgeChatRequest<F> {
                 AttachmentContent::Image(Image::new_bytes(self.infra.read(&path).await?, mime_type))
             }
             None => {
-                let env = self.infra.get_environment();
+                if !self.infra.exists(&path).await? {
+                    anyhow::bail!("File not found: {}", path.display());
+                }
 
-                let start = tag.loc.as_ref().and_then(|loc| loc.start);
-                let end = tag.loc.as_ref().and_then(|loc| loc.end);
-                let (start_line, end_line) = resolve_range(start, end, env.max_read_size);
+                if self.infra.is_file(&path).await? {
+                    let env = self.infra.get_environment();
+                    let start = tag.loc.as_ref().and_then(|loc| loc.start);
+                    let end = tag.loc.as_ref().and_then(|loc| loc.end);
+                    let (start_line, end_line) = resolve_range(start, end, env.max_read_size);
 
-                let (file_content, file_info) = self
-                    .infra
-                    .range_read_utf8(&path, start_line, end_line)
-                    .await?;
+                    let (file_content, file_info) = self
+                        .infra
+                        .range_read_utf8(&path, start_line, end_line)
+                        .await?;
 
-                AttachmentContent::FileContent {
-                    content: file_content.numbered_from(file_info.start_line as usize),
-                    start_line: file_info.start_line,
-                    end_line: file_info.end_line,
-                    total_lines: file_info.total_lines,
+                    AttachmentContent::FileContent {
+                        content: file_content.numbered_from(file_info.start_line as usize),
+                        start_line: file_info.start_line,
+                        end_line: file_info.end_line,
+                        total_lines: file_info.total_lines,
+                    }
+                } else {
+                    // It's a directory, walk it
+                    let files = self
+                        .infra
+                        .walk(Walker::conservative().cwd(&path).max_depth(1usize))
+                        .await?;
+
+                    AttachmentContent::Files(
+                        path.clone(),
+                        files
+                            .into_iter()
+                            .filter(|f| !f.is_dir())
+                            .map(|f| PathBuf::from(f.path))
+                            .collect::<Vec<_>>(),
+                    )
                 }
             }
         };
@@ -69,7 +92,9 @@ impl<F: FileReaderInfra + EnvironmentInfra> ForgeChatRequest<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: FileReaderInfra + EnvironmentInfra> AttachmentService for ForgeChatRequest<F> {
+impl<F: FileReaderInfra + WalkerInfra + FileInfoInfra + EnvironmentInfra> AttachmentService
+    for ForgeChatRequest<F>
+{
     async fn attachments(&self, url: &str) -> anyhow::Result<Vec<Attachment>> {
         self.prepare_attachments(Attachment::parse_all(url)).await
     }
@@ -89,7 +114,7 @@ pub mod tests {
     use forge_app::{
         AttachmentService, CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
         FileReaderInfra, FileRemoverInfra, FileWriterInfra, McpClientInfra, McpServerInfra,
-        UserInfra,
+        UserInfra, WalkedFile, Walker, WalkerInfra,
     };
     use forge_domain::FileInfo;
     use serde_json::Value;
@@ -505,6 +530,7 @@ pub mod tests {
     #[derive(Debug, Clone)]
     pub struct MockCompositeService {
         file_service: Arc<MockFileService>,
+        dir_to_file_map: HashMap<PathBuf, Vec<WalkedFile>>,
         env_service: Arc<MockEnvironmentInfra>,
     }
 
@@ -513,11 +539,16 @@ pub mod tests {
             Self {
                 file_service: Arc::new(MockFileService::new()),
                 env_service: Arc::new(MockEnvironmentInfra {}),
+                dir_to_file_map: HashMap::default(),
             }
         }
 
         pub fn add_file(&self, path: PathBuf, content: String) {
             self.file_service.add_file(path, content);
+        }
+
+        pub fn add_directory(&mut self, dir_path: PathBuf, files: Vec<WalkedFile>) {
+            self.dir_to_file_map.insert(dir_path, files);
         }
     }
 
@@ -565,11 +596,22 @@ pub mod tests {
         }
 
         async fn exists(&self, path: &Path) -> anyhow::Result<bool> {
-            self.file_service.exists(path).await
+            Ok(self.file_service.exists(path).await? || self.dir_to_file_map.contains_key(path))
         }
 
         async fn file_size(&self, path: &Path) -> anyhow::Result<u64> {
             self.file_service.file_size(path).await
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl WalkerInfra for MockCompositeService {
+        async fn walk(&self, _config: Walker) -> anyhow::Result<Vec<WalkedFile>> {
+            Ok(self
+                .dir_to_file_map
+                .get(&_config.cwd)
+                .cloned()
+                .unwrap_or_default())
         }
     }
 
@@ -704,6 +746,53 @@ pub mod tests {
         // Assert - we expect an error for nonexistent files
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("File not found"));
+    }
+
+    #[tokio::test]
+    async fn test_add_url_with_directory() {
+        // Setup
+        let mut infra = MockCompositeService::new();
+        let dir_path = PathBuf::from("/test/my_directory");
+
+        let mk_file = |name: &str| WalkedFile {
+            path: name.to_string(),
+            file_name: Some(name.to_string()),
+            size: 100,
+        };
+
+        infra.add_directory(
+            dir_path.clone(),
+            vec![
+                mk_file("file1.rs"),
+                mk_file("file2.rs"),
+                mk_file("file3.txt"),
+            ],
+        );
+
+        let chat_request = ForgeChatRequest::new(Arc::new(infra));
+
+        // Execute
+        let actual = chat_request
+            .attachments("@[/test/my_directory]")
+            .await
+            .unwrap();
+
+        // Assert
+        assert_eq!(actual.len(), 1);
+        let attachment = actual.first().unwrap();
+
+        let AttachmentContent::Files(path, files) = &attachment.content else {
+            panic!("Expected AttachmentContent::Files");
+        };
+
+        assert_eq!(path, &dir_path);
+        assert_eq!(files.len(), 3);
+        assert_eq!(
+            files,
+            &["file1.rs", "file2.rs", "file3.txt"]
+                .map(PathBuf::from)
+                .to_vec()
+        );
     }
 
     #[tokio::test]
