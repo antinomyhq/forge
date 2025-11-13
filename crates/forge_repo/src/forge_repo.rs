@@ -447,8 +447,11 @@ impl<F: forge_app::IndexingClientInfra> forge_app::IndexingClientInfra for Forge
         workspace_id: &forge_domain::IndexWorkspaceId,
         query: &str,
         limit: usize,
+        top_k: Option<u32>,
     ) -> anyhow::Result<Vec<forge_domain::CodeSearchResult>> {
-        self.infra.search(user_id, workspace_id, query, limit).await
+        self.infra
+            .search(user_id, workspace_id, query, limit, top_k)
+            .await
     }
 
     async fn list_workspaces(

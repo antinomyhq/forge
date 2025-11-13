@@ -239,6 +239,7 @@ pub trait IndexingClientInfra: Send + Sync {
         workspace_id: &IndexWorkspaceId,
         query: &str,
         limit: usize,
+        top_k: Option<u32>,
     ) -> anyhow::Result<Vec<CodeSearchResult>>;
 
     /// List all workspaces for a user

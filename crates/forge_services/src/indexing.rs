@@ -140,6 +140,7 @@ impl<F: IndexingRepository + IndexingClientInfra + WalkerInfra + FileReaderInfra
     /// * `path` - Workspace directory path (must be previously indexed)
     /// * `query` - Natural language search query
     /// * `limit` - Maximum number of results to return
+    /// * `top_k` - Number of highest probability tokens to consider (1-1000)
     ///
     /// # Errors
     /// Returns error if:
@@ -151,6 +152,7 @@ impl<F: IndexingRepository + IndexingClientInfra + WalkerInfra + FileReaderInfra
         path: PathBuf,
         query: &str,
         limit: usize,
+        top_k: Option<u32>,
     ) -> Result<Vec<forge_domain::CodeSearchResult>> {
         // Step 1: Canonicalize path
         let canonical_path = path
@@ -168,7 +170,13 @@ impl<F: IndexingRepository + IndexingClientInfra + WalkerInfra + FileReaderInfra
         // Step 3: Search via forge-ce
         let results = self
             .infra
-            .search(&workspace.user_id, &workspace.workspace_id, query, limit)
+            .search(
+                &workspace.user_id,
+                &workspace.workspace_id,
+                query,
+                limit,
+                top_k,
+            )
             .await
             .context("Failed to search")?;
 
@@ -272,6 +280,7 @@ mod tests {
             _workspace_id: &IndexWorkspaceId,
             _query: &str,
             _limit: usize,
+            _top_k: Option<u32>,
         ) -> Result<Vec<CodeSearchResult>> {
             Ok(vec![])
         }

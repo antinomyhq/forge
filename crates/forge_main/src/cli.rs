@@ -167,7 +167,8 @@ pub struct IndexCommandGroup {
 #[derive(Subcommand, Debug, Clone)]
 pub enum IndexCommand {
     Sync {
-        /// Path to the directory to index (used when no subcommand is provided).
+        /// Path to the directory to index (used when no subcommand is
+        /// provided).
         #[arg(default_value = ".")]
         path: PathBuf,
     },
@@ -183,13 +184,18 @@ pub enum IndexCommand {
         /// Search query.
         query: String,
 
-        /// Path to the directory to index (used when no subcommand is provided).
+        /// Path to the directory to index (used when no subcommand is
+        /// provided).
         #[arg(default_value = ".")]
         path: PathBuf,
 
         /// Maximum number of results to return.
         #[arg(short, long, default_value = "10")]
         limit: usize,
+
+        /// Number of highest probability tokens to consider (1-1000).
+        #[arg(long)]
+        top_k: Option<u32>,
     },
 }
 

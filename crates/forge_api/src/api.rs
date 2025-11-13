@@ -193,6 +193,7 @@ pub trait API: Sync + Send {
         path: PathBuf,
         query: &str,
         limit: usize,
+        top_k: Option<u32>,
     ) -> Result<Vec<forge_domain::CodeSearchResult>>;
 
     /// List all indexed workspaces (gets user_id internally)

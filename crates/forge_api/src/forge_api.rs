@@ -335,11 +335,12 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         path: PathBuf,
         query: &str,
         limit: usize,
+        top_k: Option<u32>,
     ) -> Result<Vec<forge_domain::CodeSearchResult>> {
         Ok(self
             .services
             .indexing_service()
-            .query(path, query, limit)
+            .query(path, query, limit, top_k)
             .await?)
     }
 

@@ -254,6 +254,7 @@ pub trait IndexingService: Send + Sync {
         path: PathBuf,
         query: &str,
         limit: usize,
+        top_k: Option<u32>,
     ) -> anyhow::Result<Vec<CodeSearchResult>>;
 
     /// List all workspaces indexed by the user

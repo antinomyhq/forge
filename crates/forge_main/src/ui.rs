@@ -496,8 +496,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     crate::cli::IndexCommand::List { porcelain } => {
                         self.on_list_workspaces(porcelain).await?;
                     }
-                    crate::cli::IndexCommand::Query { query, path, limit } => {
-                        self.on_query(query, path, limit).await?;
+                    crate::cli::IndexCommand::Query { query, path, limit, top_k } => {
+                        self.on_query(query, path, limit, top_k).await?;
                     }
                 }
                 return Ok(());
@@ -2551,10 +2551,20 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
     }
 
-    async fn on_query(&mut self, query: String, path: PathBuf, limit: usize) -> anyhow::Result<()> {
+    async fn on_query(
+        &mut self,
+        query: String,
+        path: PathBuf,
+        limit: usize,
+        top_k: Option<u32>,
+    ) -> anyhow::Result<()> {
         self.spinner.start(Some("Searching codebase..."))?;
 
-        match self.api.query_codebase(path.clone(), &query, limit).await {
+        match self
+            .api
+            .query_codebase(path.clone(), &query, limit, top_k)
+            .await
+        {
             Ok(results) => {
                 self.spinner.stop(Some("🔍 Search complete".to_string()))?;
                 self.writeln("")?;

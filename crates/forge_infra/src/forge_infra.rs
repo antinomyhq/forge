@@ -298,9 +298,12 @@ impl forge_app::IndexingClientInfra for ForgeInfra {
         workspace_id: &forge_domain::IndexWorkspaceId,
         query: &str,
         limit: usize,
+        top_k: Option<u32>,
     ) -> anyhow::Result<Vec<forge_domain::CodeSearchResult>> {
         let client = crate::proto::IndexingClient::new(FORGE_CE_URL).await?;
-        client.search(user_id, workspace_id, query, limit).await
+        client
+            .search(user_id, workspace_id, query, limit, top_k)
+            .await
     }
 
     async fn list_workspaces(

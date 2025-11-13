@@ -98,6 +98,7 @@ impl IndexingClientInfra for IndexingClient {
         workspace_id: &IndexWorkspaceId,
         query: &str,
         limit: usize,
+        top_k: Option<u32>,
     ) -> Result<Vec<CodeSearchResult>> {
         let request = tonic::Request::new(SearchRequest {
             user_id: Some(UserId { id: user_id.to_string() }),
@@ -105,6 +106,7 @@ impl IndexingClientInfra for IndexingClient {
             query: Some(Query {
                 prompt: Some(query.to_string()),
                 limit: Some(limit as u32),
+                top_k,
                 ..Default::default()
             }),
         });
