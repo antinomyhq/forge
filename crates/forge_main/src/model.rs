@@ -335,7 +335,7 @@ impl ForgeCommandManager {
             "/exit" => Ok(SlashCommand::Exit),
             "/update" => Ok(SlashCommand::Update),
             "/dump" => {
-                let html = !parameters.is_empty() && parameters[0] == "--html";
+                let html = !parameters.is_empty() && (parameters[0] == "--html" || parameters[0] == "html");
                 Ok(SlashCommand::Dump { html })
             }
             "/act" | "/forge" => Ok(SlashCommand::Forge),
