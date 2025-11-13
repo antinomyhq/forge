@@ -1440,6 +1440,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.spinner.start(None)?;
                 self.on_message(None).await?;
             }
+            SlashCommand::Index => {
+                let working_dir = self.state.cwd.clone();
+                self.on_index(working_dir).await?;
+            }
             SlashCommand::AgentSwitch(agent_id) => {
                 // Validate that the agent exists by checking against loaded agents
                 let agents = self.api.get_agents().await?;
@@ -2536,20 +2540,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.spinner.start(Some("Indexing codebase..."))?;
 
         match self.api.index_codebase(path.clone()).await {
-            Ok(stats) => {
-                self.spinner
-                    .stop(Some("✅ Indexing complete".to_string()))?;
+            Ok(_) => {
+                self.spinner.stop(None)?;
                 self.writeln(format!("Successfully indexed: {}", path.display()))?;
-                self.writeln(format!("  Workspace ID: {}", stats.workspace_id))?;
-                self.writeln(format!("  Files processed: {}", stats.files_processed))?;
-                self.writeln(format!(
-                    "  Nodes created: {}",
-                    stats.upload_stats.nodes_created
-                ))?;
-                self.writeln(format!(
-                    "  Relations created: {}",
-                    stats.upload_stats.relations_created
-                ))?;
                 Ok(())
             }
             Err(e) => {
@@ -2663,7 +2656,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         if porcelain {
                             // In porcelain mode, title becomes first column value
                             info = info
-                                .add_title(&workspace.workspace_id.to_string())
+                                .add_title(workspace.workspace_id.to_string())
                                 .add_key_value("Path", workspace.working_dir);
                         } else {
                             // In human-readable mode, show both ID and Path as key-values

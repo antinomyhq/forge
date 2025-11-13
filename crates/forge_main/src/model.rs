@@ -357,6 +357,7 @@ impl ForgeCommandManager {
                 let max_diff_size = parameters.iter().find_map(|&p| p.parse::<usize>().ok());
                 Ok(SlashCommand::Commit { max_diff_size })
             }
+            "/index" => Ok(SlashCommand::Index),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -504,6 +505,10 @@ pub enum SlashCommand {
         usage = "Generate AI commit message and commit changes. Format: /commit <max-diff|preview>"
     ))]
     Commit { max_diff_size: Option<usize> },
+
+    /// Index the current workspace for semantic code search
+    #[strum(props(usage = "Index the current workspace for semantic search"))]
+    Index,
 }
 
 impl SlashCommand {
@@ -534,6 +539,7 @@ impl SlashCommand {
             SlashCommand::Retry => "retry",
             SlashCommand::Conversations => "conversation",
             SlashCommand::AgentSwitch(agent_id) => agent_id,
+            SlashCommand::Index => "index",
         }
     }
 
