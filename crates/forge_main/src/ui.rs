@@ -2553,8 +2553,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 Ok(())
             }
             Err(e) => {
-                self.spinner.stop(Some("❌ Indexing failed".to_string()))?;
-                self.writeln_to_stderr(format!("Failed to index: {}", e))?;
+                self.spinner.stop(None)?;
                 Err(e)
             }
         }
@@ -2631,8 +2630,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 Ok(())
             }
             Err(e) => {
-                self.spinner.stop(Some("❌ Search failed".to_string()))?;
-                self.writeln_to_stderr(format!("Query failed: {}", e))?;
+                self.spinner.stop(None)?;
                 Err(e)
             }
         }
