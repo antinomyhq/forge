@@ -173,6 +173,7 @@ impl ForgeCommandManager {
                 | "retry"
                 | "conversations"
                 | "list"
+                | "commit"
         )
     }
 
@@ -349,6 +350,13 @@ impl ForgeCommandManager {
             "/logout" => Ok(SlashCommand::Logout),
             "/retry" => Ok(SlashCommand::Retry),
             "/conversation" | "/conversations" => Ok(SlashCommand::Conversations),
+            "/commit" => {
+                // Support flexible syntax:
+                // /commit              -> commit with AI message
+                // /commit 5000         -> commit with max-diff of 5000 bytes
+                let max_diff_size = parameters.iter().find_map(|&p| p.parse::<usize>().ok());
+                Ok(SlashCommand::Commit { max_diff_size })
+            }
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -486,6 +494,16 @@ pub enum SlashCommand {
     /// Switch directly to a specific agent by ID
     #[strum(props(usage = "Switch directly to a specific agent"))]
     AgentSwitch(String),
+
+    /// Generate and optionally commit changes with AI-generated message
+    ///
+    /// Examples:
+    /// - `/commit` - Generate message and commit
+    /// - `/commit 5000` - Commit with max diff of 5000 bytes
+    #[strum(props(
+        usage = "Generate AI commit message and commit changes. Format: /commit <max-diff|preview>"
+    ))]
+    Commit { max_diff_size: Option<usize> },
 }
 
 impl SlashCommand {
@@ -503,6 +521,7 @@ impl SlashCommand {
             SlashCommand::Muse => "muse",
             SlashCommand::Sage => "sage",
             SlashCommand::Help => "help",
+            SlashCommand::Commit { .. } => "commit",
             SlashCommand::Dump { .. } => "dump",
             SlashCommand::Model => "model",
             SlashCommand::Provider => "provider",
@@ -1057,6 +1076,65 @@ mod tests {
         let actual = strip_ansi_codes(&formatted);
         let expected = "✓ Forge               [unavailable]";
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_commit_command() {
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture.parse("/commit").unwrap();
+        match actual {
+            SlashCommand::Commit { max_diff_size } => {
+                assert_eq!(max_diff_size, None);
+            }
+            _ => panic!("Expected Commit command, got {actual:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_commit_command_with_preview() {
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture.parse("/commit preview").unwrap();
+        match actual {
+            SlashCommand::Commit { max_diff_size } => {
+                assert_eq!(max_diff_size, None);
+            }
+            _ => panic!("Expected Commit command with preview, got {actual:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_commit_command_with_max_diff() {
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture.parse("/commit 5000").unwrap();
+        match actual {
+            SlashCommand::Commit { max_diff_size } => {
+                assert_eq!(max_diff_size, Some(5000));
+            }
+            _ => panic!("Expected Commit command with max_diff_size, got {actual:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_commit_command_with_all_flags() {
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture.parse("/commit preview 10000").unwrap();
+        match actual {
+            SlashCommand::Commit { max_diff_size } => {
+                assert_eq!(max_diff_size, Some(10000));
+            }
+            _ => panic!("Expected Commit command with all flags, got {actual:?}"),
+        }
+    }
+
+    #[test]
+    fn test_commit_command_in_default_commands() {
+        let manager = ForgeCommandManager::default();
+        let commands = manager.list();
+        let contains_commit = commands.iter().any(|cmd| cmd.name == "commit");
+        assert!(
+            contains_commit,
+            "Commit command should be in default commands"
+        );
     }
 
     #[test]

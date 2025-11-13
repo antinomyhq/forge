@@ -12,8 +12,8 @@ use forge_api::{
     ChatResponse, CodeRequest, Conversation, ConversationId, DeviceCodeRequest, Event,
     InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, UserPrompt, Workflow,
 };
-use forge_app::ToolResolver;
 use forge_app::utils::truncate_key;
+use forge_app::{CommitResult, ToolResolver};
 use forge_display::MarkdownFormat;
 use forge_domain::{
     AuthMethod, ChatResponseContent, ContextMessage, Role, TitleFormat, UserCommand,
@@ -29,7 +29,8 @@ use tracing::debug;
 use url::Url;
 
 use crate::cli::{
-    Cli, ConversationCommand, ExtensionCommand, ListCommand, McpCommand, TopLevelCommand,
+    Cli, CommitCommandGroup, ConversationCommand, ExtensionCommand, ListCommand, McpCommand,
+    TopLevelCommand,
 };
 use crate::conversation_selector::ConversationSelector;
 use crate::env::should_show_completion_prompt;
@@ -68,6 +69,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     fn writeln_title(&mut self, title: TitleFormat) -> anyhow::Result<()> {
         let env = self.api.environment();
         self.spinner.write_ln(title.display_with_env(env))
+    }
+
+    fn writeln_to_stderr(&mut self, title: String) -> anyhow::Result<()> {
+        self.spinner.ewrite_ln(title)
     }
 
     /// Retrieve available models
@@ -206,7 +211,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Ok(_) => {}
             Err(error) => {
                 tracing::error!(error = ?error);
-                let _ = self.writeln_title(TitleFormat::error(format!("{error:?}")));
+                let _ = self
+                    .writeln_to_stderr(TitleFormat::error(error.to_string()).display().to_string());
             }
         }
     }
@@ -258,7 +264,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                                     tracker::error(&error);
                                     tracing::error!(error = ?error);
                                     self.spinner.stop(None)?;
-                                    self.writeln_title(TitleFormat::error(format!("{error:?}")))?;
+                                    self.writeln_to_stderr(TitleFormat::error(error.to_string()).display().to_string())?;
                                 },
                             }
                         }
@@ -270,7 +276,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     tracker::error(&error);
                     tracing::error!(error = ?error);
                     self.spinner.stop(None)?;
-                    self.writeln_title(TitleFormat::error(format!("{error:?}")))?;
+                    self.writeln_to_stderr(
+                        TitleFormat::error(error.to_string()).display().to_string(),
+                    )?;
                 }
             }
             // Centralized prompt call at the end of the loop
@@ -476,6 +484,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         let command = self.command.parse(&command_with_slash)?;
                         self.on_command(command).await?;
                     }
+                }
+                return Ok(());
+            }
+
+            TopLevelCommand::Commit(commit_group) => {
+                let preview = commit_group.preview;
+                let result = self.handle_commit_command(commit_group).await?;
+                if preview {
+                    self.writeln(&result.message)?;
                 }
                 return Ok(());
             }
@@ -713,6 +730,34 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
+    async fn handle_commit_command(
+        &mut self,
+        commit_group: CommitCommandGroup,
+    ) -> anyhow::Result<CommitResult> {
+        self.spinner.start(Some("Generating commit message"))?;
+
+        // Handle the commit command
+        let result = self
+            .api
+            .commit(
+                commit_group.preview,
+                commit_group.max_diff_size,
+                commit_group.diff,
+            )
+            .await;
+
+        match result {
+            Ok(result) => {
+                self.spinner.stop(None)?;
+                Ok(result)
+            }
+            Err(e) => {
+                self.spinner.stop(None)?;
+                Err(e)
+            }
+        }
+    }
+
     async fn on_show_agents(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let agents = self.api.get_agents().await?;
 
@@ -872,6 +917,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 "tools",
                 "List all available tools with their descriptions and schema [alias: t]",
             ),
+            ("commit", "Generate AI commit message and commit changes."),
             (
                 "suggest",
                 "Generate shell commands without executing them [alias: s]",
@@ -1255,7 +1301,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_new().await?;
             }
             SlashCommand::Info => {
-                self.on_info(false, None).await?;
+                self.on_info(false, self.state.conversation_id).await?;
             }
             SlashCommand::Env => {
                 self.on_env().await?;
@@ -1303,6 +1349,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
             SlashCommand::Shell(ref command) => {
                 self.api.execute_shell_command_raw(command).await?;
+            }
+            SlashCommand::Commit { max_diff_size } => {
+                let args = CommitCommandGroup { preview: true, max_diff_size, diff: None };
+                let result = self.handle_commit_command(args).await?;
+                let flags = if result.has_staged_files { "" } else { " -a" };
+                let commit_command = format!("!git commit{flags} -m '{}'", result.message);
+                self.console.set_buffer(commit_command);
             }
             SlashCommand::Agent => {
                 #[derive(Clone)]

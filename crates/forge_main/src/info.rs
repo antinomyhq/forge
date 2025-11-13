@@ -220,11 +220,20 @@ impl From<&Metrics> for Info {
             info = info.add_title("TASK COMPLETED".to_string())
         }
 
-        // Add file changes section
-        if metrics.file_operations.is_empty() {
+        // Add file changes section, filtering out files with minimal changes
+        let meaningful_changes: Vec<_> = metrics
+            .file_operations
+            .iter()
+            .filter(|(_, file_metrics)| {
+                // Only show files with actual changes
+                file_metrics.lines_added > 0 || file_metrics.lines_removed > 0
+            })
+            .collect();
+
+        if meaningful_changes.is_empty() {
             info = info.add_value("[No Changes Produced]");
         } else {
-            for (path, file_metrics) in &metrics.file_operations {
+            for (path, file_metrics) in meaningful_changes {
                 // Extract just the filename from the path
                 let filename = std::path::Path::new(path)
                     .file_name()
@@ -400,11 +409,18 @@ impl From<&ForgeCommandManager> for Info {
             info = info.add_key_value(command.name, command.description);
         }
 
+        // Use compile-time OS detection for keyboard shortcuts
+        #[cfg(target_os = "macos")]
+        let multiline_shortcut = "<OPT+ENTER>";
+
+        #[cfg(not(target_os = "macos"))]
+        let multiline_shortcut = "<ALT+ENTER>";
+
         info = info
             .add_title("KEYBOARD SHORTCUTS")
             .add_key_value("<CTRL+C>", "Interrupt current operation")
             .add_key_value("<CTRL+D>", "Quit Forge interactive shell")
-            .add_key_value("<OPT+ENTER>", "Insert new line (multiline input)");
+            .add_key_value(multiline_shortcut, "Insert new line (multiline input)");
 
         info
     }
@@ -703,7 +719,7 @@ mod tests {
         use forge_api::Metrics;
         use forge_domain::{FileOperation, ToolKind};
 
-        let fixture = Metrics::new()
+        let fixture = Metrics::default()
             .started_at(chrono::Utc::now())
             .insert(
                 "src/main.rs".to_string(),
@@ -748,7 +764,7 @@ mod tests {
         use super::{Conversation, Metrics};
 
         let conversation_id = ConversationId::generate();
-        let metrics = Metrics::new()
+        let metrics = Metrics::default()
             .started_at(Utc::now())
             .insert(
                 "src/main.rs".to_string(),
@@ -788,7 +804,7 @@ mod tests {
         use super::{Conversation, Metrics};
 
         let conversation_id = ConversationId::generate();
-        let metrics = Metrics::new().started_at(Utc::now());
+        let metrics = Metrics::default().started_at(Utc::now());
 
         let fixture = Conversation {
             id: conversation_id,
@@ -815,7 +831,7 @@ mod tests {
         use super::{Conversation, Metrics};
 
         let conversation_id = ConversationId::generate();
-        let metrics = Metrics::new().started_at(Utc::now());
+        let metrics = Metrics::default().started_at(Utc::now());
 
         // Create a context with user messages
         let context = Context::default()
@@ -933,5 +949,102 @@ mod tests {
             colon_positions[0] > colon_positions_two[0],
             "SECTION ONE should have wider padding than SECTION TWO"
         );
+    }
+
+    #[test]
+    fn test_info_from_command_manager() {
+        let command_manager = super::ForgeCommandManager::default();
+        let info = super::Info::from(&command_manager);
+        let display = info.to_string();
+
+        // Verify compile-time detection works correctly
+        #[cfg(target_os = "macos")]
+        {
+            assert!(display.contains("<OPT+ENTER>"));
+            assert!(!display.contains("<ALT+ENTER>"));
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            assert!(display.contains("<ALT+ENTER>"));
+            assert!(!display.contains("<OPT+ENTER>"));
+        }
+
+        // Should contain standard sections
+        assert!(display.contains("COMMANDS"));
+        assert!(display.contains("KEYBOARD SHORTCUTS"));
+        assert!(display.contains("<CTRL+C>"));
+        assert!(display.contains("<CTRL+D>"));
+    }
+
+    #[test]
+    fn test_metrics_info_filters_zero_changes() {
+        use forge_api::Metrics;
+        use forge_domain::{FileOperation, ToolKind};
+
+        let fixture = Metrics::default()
+            .started_at(chrono::Utc::now())
+            .insert(
+                "src/main.rs".to_string(),
+                FileOperation::new(ToolKind::Write)
+                    .lines_added(12u64)
+                    .lines_removed(3u64),
+            )
+            .insert(
+                "src/no_changes.rs".to_string(),
+                FileOperation::new(ToolKind::Write)
+                    .lines_added(0u64)
+                    .lines_removed(0u64),
+            )
+            .insert(
+                "src/agent/mod.rs".to_string(),
+                FileOperation::new(ToolKind::Write)
+                    .lines_added(8u64)
+                    .lines_removed(2u64),
+            );
+
+        let actual = super::Info::from(&fixture);
+        let expected_display = actual.to_string();
+
+        // Verify it contains the task completed section
+        assert!(expected_display.contains("TASK COMPLETED"));
+
+        // Verify it contains files with changes
+        assert!(expected_display.contains("⦿ main.rs"));
+        assert!(expected_display.contains("−3 +12"));
+        assert!(expected_display.contains("mod.rs"));
+        assert!(expected_display.contains("−2 +8"));
+
+        // Verify it does NOT contain the file with zero changes
+        assert!(!expected_display.contains("no_changes.rs"));
+    }
+
+    #[test]
+    fn test_metrics_info_all_zero_changes_shows_no_changes() {
+        use forge_api::Metrics;
+        use forge_domain::{FileOperation, ToolKind};
+
+        let fixture = Metrics::default()
+            .started_at(chrono::Utc::now())
+            .insert(
+                "src/file1.rs".to_string(),
+                FileOperation::new(ToolKind::Write)
+                    .lines_added(0u64)
+                    .lines_removed(0u64),
+            )
+            .insert(
+                "src/file2.rs".to_string(),
+                FileOperation::new(ToolKind::Write)
+                    .lines_added(0u64)
+                    .lines_removed(0u64),
+            );
+
+        let actual = super::Info::from(&fixture);
+        let expected_display = actual.to_string();
+
+        // Verify it shows "No Changes Produced" when all files have zero changes
+        assert!(expected_display.contains("[No Changes Produced]"));
+        assert!(!expected_display.contains("file1.rs"));
+        assert!(!expected_display.contains("file2.rs"));
     }
 }

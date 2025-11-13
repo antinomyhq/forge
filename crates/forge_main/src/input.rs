@@ -8,25 +8,23 @@ use crate::prompt::ForgePrompt;
 use crate::tracker;
 
 /// Console implementation for handling user input via command line.
-#[derive(Debug)]
 pub struct Console {
-    env: Environment,
     command: Arc<ForgeCommandManager>,
+    editor: Mutex<ForgeEditor>,
 }
 
 impl Console {
     /// Creates a new instance of `Console`.
     pub fn new(env: Environment, command: Arc<ForgeCommandManager>) -> Self {
-        Self { env, command }
+        let editor = Mutex::new(ForgeEditor::new(env, command.clone()));
+        Self { command, editor }
     }
 }
 
 impl Console {
     pub async fn prompt(&self, prompt: ForgePrompt) -> anyhow::Result<SlashCommand> {
-        let engine = Mutex::new(ForgeEditor::new(self.env.clone(), self.command.clone()));
-
         loop {
-            let mut forge_editor = engine.lock().unwrap();
+            let mut forge_editor = self.editor.lock().unwrap();
             let user_input = forge_editor.prompt(&prompt)?;
             drop(forge_editor);
             match user_input {
@@ -39,5 +37,11 @@ impl Console {
                 }
             }
         }
+    }
+
+    /// Sets the buffer content for the next prompt
+    pub fn set_buffer(&self, content: String) {
+        let mut editor = self.editor.lock().unwrap();
+        editor.set_buffer(content);
     }
 }
