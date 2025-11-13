@@ -268,3 +268,38 @@ impl StrategyFactory for ForgeInfra {
             .create_auth_strategy(provider_id, method, required_params)
     }
 }
+
+const FORGE_CE_URL: &str = "http://localhost:8080";
+
+#[async_trait::async_trait]
+impl forge_app::IndexingClientInfra for ForgeInfra {
+    async fn create_workspace(
+        &self,
+        user_id: &forge_domain::UserId,
+        working_dir: &std::path::Path,
+    ) -> anyhow::Result<forge_domain::IndexWorkspaceId> {
+        let client = crate::proto::IndexingClient::new(FORGE_CE_URL).await?;
+        client.create_workspace(user_id, working_dir).await
+    }
+
+    async fn upload_files(
+        &self,
+        user_id: &forge_domain::UserId,
+        workspace_id: &forge_domain::IndexWorkspaceId,
+        files: Vec<(PathBuf, String)>,
+    ) -> anyhow::Result<forge_domain::UploadStats> {
+        let client = crate::proto::IndexingClient::new(FORGE_CE_URL).await?;
+        client.upload_files(user_id, workspace_id, files).await
+    }
+
+    async fn search(
+        &self,
+        user_id: &forge_domain::UserId,
+        workspace_id: &forge_domain::IndexWorkspaceId,
+        query: &str,
+        limit: usize,
+    ) -> anyhow::Result<Vec<forge_domain::CodeSearchResult>> {
+        let client = crate::proto::IndexingClient::new(FORGE_CE_URL).await?;
+        client.search(user_id, workspace_id, query, limit).await
+    }
+}

@@ -34,6 +34,7 @@ pub struct ForgeRepo<F> {
     app_config_repository: Arc<AppConfigRepositoryImpl<F>>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
+    indexing_repository: Arc<crate::indexing::IndexingRepositoryImpl>,
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
@@ -42,8 +43,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
         let db_pool =
             Arc::new(DatabasePool::try_from(PoolConfig::new(env.database_path())).unwrap());
-        let conversation_repository =
-            Arc::new(ConversationRepositoryImpl::new(db_pool, env.workspace_id()));
+        let conversation_repository = Arc::new(ConversationRepositoryImpl::new(
+            db_pool.clone(),
+            env.workspace_id(),
+        ));
 
         let app_config_repository = Arc::new(AppConfigRepositoryImpl::new(infra.clone()));
 
@@ -54,6 +57,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
 
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
 
+        let indexing_repository = Arc::new(crate::indexing::IndexingRepositoryImpl::new(
+            db_pool.clone(),
+        ));
+
         Self {
             infra,
             file_snapshot_service,
@@ -61,6 +68,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
             app_config_repository,
             mcp_cache_repository,
             provider_repository,
+            indexing_repository,
         }
     }
 }
@@ -386,5 +394,56 @@ impl<F: StrategyFactory> StrategyFactory for ForgeRepo<F> {
     ) -> anyhow::Result<Self::Strategy> {
         self.infra
             .create_auth_strategy(provider_id, auth_method, required_params)
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: Send + Sync> forge_domain::IndexingRepository for ForgeRepo<F> {
+    async fn upsert(
+        &self,
+        workspace_id: &forge_domain::IndexWorkspaceId,
+        user_id: &forge_domain::UserId,
+        path: &std::path::Path,
+    ) -> anyhow::Result<()> {
+        self.indexing_repository
+            .upsert(workspace_id, user_id, path)
+            .await
+    }
+
+    async fn find_by_path(
+        &self,
+        path: &std::path::Path,
+    ) -> anyhow::Result<Option<forge_domain::IndexedWorkspace>> {
+        self.indexing_repository.find_by_path(path).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: forge_app::IndexingClientInfra> forge_app::IndexingClientInfra for ForgeRepo<F> {
+    async fn create_workspace(
+        &self,
+        user_id: &forge_domain::UserId,
+        working_dir: &std::path::Path,
+    ) -> anyhow::Result<forge_domain::IndexWorkspaceId> {
+        self.infra.create_workspace(user_id, working_dir).await
+    }
+
+    async fn upload_files(
+        &self,
+        user_id: &forge_domain::UserId,
+        workspace_id: &forge_domain::IndexWorkspaceId,
+        files: Vec<(std::path::PathBuf, String)>,
+    ) -> anyhow::Result<forge_domain::UploadStats> {
+        self.infra.upload_files(user_id, workspace_id, files).await
+    }
+
+    async fn search(
+        &self,
+        user_id: &forge_domain::UserId,
+        workspace_id: &forge_domain::IndexWorkspaceId,
+        query: &str,
+        limit: usize,
+    ) -> anyhow::Result<Vec<forge_domain::CodeSearchResult>> {
+        self.infra.search(user_id, workspace_id, query, limit).await
     }
 }

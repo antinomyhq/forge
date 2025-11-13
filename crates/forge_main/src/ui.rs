@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -482,6 +483,19 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         };
                         let command = self.command.parse(&command_with_slash)?;
                         self.on_command(command).await?;
+                    }
+                }
+                return Ok(());
+            }
+
+            TopLevelCommand::Index(index_group) => {
+                match index_group.command {
+                    Some(crate::cli::IndexCommand::Query { query, limit }) => {
+                        self.on_query(query, index_group.path, limit).await?;
+                    }
+                    None => {
+                        // Default action: index the specified path
+                        self.on_index(index_group.path).await?;
                     }
                 }
                 return Ok(());
@@ -2513,6 +2527,112 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         Ok(())
+    }
+
+    async fn on_index(&mut self, path: std::path::PathBuf) -> anyhow::Result<()> {
+        self.spinner.start(Some("Indexing codebase..."))?;
+
+        match self.api.index_codebase(path.clone()).await {
+            Ok(stats) => {
+                self.spinner
+                    .stop(Some("✅ Indexing complete".to_string()))?;
+                self.writeln(format!("Successfully indexed: {}", path.display()))?;
+                self.writeln(format!("  Workspace ID: {}", stats.workspace_id))?;
+                self.writeln(format!("  Files processed: {}", stats.files_processed))?;
+                self.writeln(format!(
+                    "  Nodes created: {}",
+                    stats.upload_stats.nodes_created
+                ))?;
+                self.writeln(format!(
+                    "  Relations created: {}",
+                    stats.upload_stats.relations_created
+                ))?;
+                Ok(())
+            }
+            Err(e) => {
+                self.spinner.stop(Some("❌ Indexing failed".to_string()))?;
+                self.writeln_to_stderr(format!("Failed to index: {}", e))?;
+                Err(e)
+            }
+        }
+    }
+
+    async fn on_query(&mut self, query: String, path: PathBuf, limit: usize) -> anyhow::Result<()> {
+        self.spinner.start(Some("Searching codebase..."))?;
+
+        match self.api.query_codebase(path.clone(), &query, limit).await {
+            Ok(results) => {
+                self.spinner.stop(Some("🔍 Search complete".to_string()))?;
+                self.writeln("")?;
+                self.writeln(format!("📁 Workspace: {}", path.display()))?;
+                self.writeln(format!("🔍 Query: {}", query))?;
+                self.writeln(format!("✨ Found {} results:", results.len()))?;
+                self.writeln("")?;
+
+                for (i, result) in results.iter().enumerate() {
+                    match result {
+                        forge_domain::CodeSearchResult::FileChunk {
+                            file_path,
+                            content,
+                            start_line,
+                            end_line,
+                            ..
+                        } => {
+                            self.writeln(format!(
+                                "{}. {} (lines {}-{})",
+                                i + 1,
+                                file_path,
+                                start_line,
+                                end_line
+                            ))?;
+                            self.writeln(format!(
+                                "   Similarity: {:.2}%",
+                                result.similarity() * 100.0
+                            ))?;
+                            self.writeln(format!("   ```\n   {}\n   ```", content))?;
+                        }
+                        forge_domain::CodeSearchResult::File { file_path, content, .. } => {
+                            self.writeln(format!("{}. {} (full file)", i + 1, file_path))?;
+                            self.writeln(format!(
+                                "   Similarity: {:.2}%",
+                                result.similarity() * 100.0
+                            ))?;
+                            self.writeln(format!("   ```\n   {}\n   ```", content))?;
+                        }
+                        forge_domain::CodeSearchResult::FileRef { file_path, .. } => {
+                            self.writeln(format!("{}. {} (reference)", i + 1, file_path))?;
+                            self.writeln(format!(
+                                "   Similarity: {:.2}%",
+                                result.similarity() * 100.0
+                            ))?;
+                        }
+                        forge_domain::CodeSearchResult::Note { content, .. } => {
+                            self.writeln(format!("{}. Note", i + 1))?;
+                            self.writeln(format!(
+                                "   Similarity: {:.2}%",
+                                result.similarity() * 100.0
+                            ))?;
+                            self.writeln(format!("   {}", content))?;
+                        }
+                        forge_domain::CodeSearchResult::Task { task, .. } => {
+                            self.writeln(format!("{}. Task", i + 1))?;
+                            self.writeln(format!(
+                                "   Similarity: {:.2}%",
+                                result.similarity() * 100.0
+                            ))?;
+                            self.writeln(format!("   {}", task))?;
+                        }
+                    }
+                    self.writeln("")?;
+                }
+                Ok(())
+            }
+            Err(e) => {
+                self.spinner.stop(Some("❌ Search failed".to_string()))?;
+                self.writeln_to_stderr(format!("Query failed: {}", e))?;
+                Err(e)
+            }
+        }
     }
 }
 

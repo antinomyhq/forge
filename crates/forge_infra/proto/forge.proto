@@ -1,0 +1,340 @@
+syntax = "proto3";
+
+package forge.v1;
+
+// Main service for interacting with Forge's context engine
+service ForgeService {
+  // Creates or updates multiple nodes in the context engine
+  rpc UpsertNodes(UpsertNodesRequest) returns (UpsertNodesResponse);
+  
+  // Retrieves a node by its ID
+  rpc GetNode(GetNodeRequest) returns (GetNodeResponse);
+  
+  // Deletes a node from the context engine
+  rpc DeleteNode(DeleteNodeRequest) returns (DeleteNodeResponse);
+  
+  // Searches for nodes matching a query
+  rpc Search(SearchRequest) returns (SearchResponse);
+  
+  // Creates a relation between two nodes
+  rpc CreateRelation(CreateRelationRequest) returns (CreateRelationResponse);
+  
+  // Deletes a relation between two nodes
+  rpc DeleteRelation(DeleteRelationRequest) returns (DeleteRelationResponse);
+  
+  // Gets nodes related to a specific node
+  rpc GetRelatedNodes(GetRelatedNodesRequest) returns (GetRelatedNodesResponse);
+  
+  // Uploads files to the context engine
+  rpc UploadFiles(UploadFilesRequest) returns (UploadFilesResponse);
+
+  
+  // Splits files into chunks without uploading them
+  rpc ChunkFiles(ChunkFilesRequest) returns (ChunkFilesResponse);
+  
+  // Health check endpoint
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+  
+  // Creates a new workspace
+  rpc CreateWorkspace(CreateWorkspaceRequest) returns (CreateWorkspaceResponse);
+  
+  // Lists all workspaces for a user
+  rpc ListWorkspaces(ListWorkspacesRequest) returns (ListWorkspacesResponse);
+  
+  // Deletes a workspace
+  rpc DeleteWorkspace(DeleteWorkspaceRequest) returns (DeleteWorkspaceResponse);
+}
+
+// Node types
+enum NodeKind {
+  NODE_KIND_UNSPECIFIED = 0;
+  NODE_KIND_FILE = 1;
+  NODE_KIND_FILE_CHUNK = 2;
+  NODE_KIND_FILE_REF = 3;
+  NODE_KIND_NOTE = 4;
+  NODE_KIND_TASK = 5;
+}
+
+// Relation types
+enum RelationType {
+  RELATION_TYPE_UNSPECIFIED = 0;
+  RELATION_TYPE_CALLS = 1;
+  RELATION_TYPE_EXTENDS = 2;
+  RELATION_TYPE_IMPLEMENTS = 3;
+  RELATION_TYPE_USES = 4;
+  RELATION_TYPE_DEFINES = 5;
+  RELATION_TYPE_REFERENCES = 6;
+  RELATION_TYPE_CONTAINS = 7;
+  RELATION_TYPE_DEPENDS_ON = 8;
+  RELATION_TYPE_RELATED_TO = 9;
+  RELATION_TYPE_INVERSE = 10;
+}
+
+// Messages
+message NodeId {
+  string id = 1;
+}
+
+message WorkspaceId {
+  string id = 1;
+}
+
+message RelationId {
+  string id = 1;
+}
+
+message UserId {
+  string id = 1;
+}
+
+message Workspace {
+  WorkspaceId id = 1;
+  UserId user_id = 2;
+  string working_dir = 3;
+}
+
+message WorkspaceDefinition {
+  string working_dir = 1;
+}
+
+message GitInfo {
+  optional string commit = 1;
+  optional string branch = 2;
+}
+
+message File {
+  string path = 1;
+  string content = 2;
+}
+
+message FileChunk {
+  string path = 1;
+  string content = 2;
+  uint32 start_line = 3;
+  uint32 end_line = 4;
+}
+
+message FileRef {
+  string path = 1;
+}
+
+message Note {
+  string content = 1;
+}
+
+message Task {
+  string task = 1;
+}
+
+message NodeData {
+  oneof kind {
+    File file = 1;
+    FileChunk file_chunk = 2;
+    FileRef file_ref = 3;
+    Note note = 4;
+    Task task = 5;
+  }
+}
+
+message Node {
+  NodeId node_id = 1;
+  WorkspaceId workspace_id = 2;
+  string hash = 3;
+  optional GitInfo git = 4;
+  repeated NodeRelation relations = 5;
+  NodeData data = 6;
+}
+
+message NodeRelation {
+  Relation relation_type = 1;
+  Node target_node = 2;
+}
+
+message Relation {
+  oneof kind {
+    RelationType relation_type = 1;
+    Relation inverse = 2;
+  }
+}
+
+message NodeDefinition {
+  optional NodeId node_id = 1;
+  optional GitInfo git = 2;
+  NodeData data = 3;
+}
+
+message RelationDefinition {
+  NodeId source_node_id = 1;
+  NodeId target_node_id = 2;
+  Relation relation_type = 3;
+}
+
+message QueryItem {
+  Node node = 1;
+  optional float distance = 2;
+  optional float similarity = 3;
+  optional uint64 rank = 4;
+  optional float relevance = 5;
+}
+
+message QueryResult {
+  repeated QueryItem data = 1;
+}
+
+message Query {
+  optional string query = 1;
+  optional float max_distance = 2;
+  optional uint32 limit = 3;
+  repeated NodeKind kinds = 4;
+  optional uint32 top_k = 5;
+}
+
+message RelatedNodesQuery {
+  NodeId source_node_id = 1;
+  repeated Relation relation_types = 2;
+  optional uint32 limit = 3;
+}
+
+message RelatedNode {
+  Node node = 1;
+  Relation relation_type = 2;
+  NodeId source_node_id = 3;
+}
+
+message RelatedNodesResult {
+  repeated RelatedNode data = 1;
+}
+
+message FileUploadContent {
+  repeated File files = 1;
+  optional GitInfo git = 2;
+}
+
+message UploadResult {
+  repeated Node nodes = 1;
+  repeated RelationDefinition relations = 2;
+}
+
+// Request/Response messages
+message UpsertNodesRequest {
+  UserId user_id = 1;
+  WorkspaceId workspace_id = 2;
+  repeated NodeDefinition nodes = 3;
+}
+
+message UpsertNodesResponse {
+  repeated Node nodes = 1;
+}
+
+message GetNodeRequest {
+  UserId user_id = 1;
+  WorkspaceId workspace_id = 2;
+  NodeId node_id = 3;
+}
+
+message GetNodeResponse {
+  optional Node node = 1;
+}
+
+message DeleteNodeRequest {
+  UserId user_id = 1;
+  WorkspaceId workspace_id = 2;
+  NodeId node_id = 3;
+}
+
+message DeleteNodeResponse {
+  NodeId node_id = 1;
+}
+
+message SearchRequest {
+  UserId user_id = 1;
+  WorkspaceId workspace_id = 2;
+  Query query = 3;
+}
+
+message SearchResponse {
+  QueryResult result = 1;
+}
+
+message CreateRelationRequest {
+  UserId user_id = 1;
+  WorkspaceId workspace_id = 2;
+  RelationDefinition relation = 3;
+}
+
+message CreateRelationResponse {
+  RelationId relation_id = 1;
+}
+
+message DeleteRelationRequest {
+  UserId user_id = 1;
+  WorkspaceId workspace_id = 2;
+  RelationDefinition relation = 3;
+}
+
+message DeleteRelationResponse {
+  repeated RelationId relation_ids = 1;
+}
+
+message GetRelatedNodesRequest {
+  UserId user_id = 1;
+  WorkspaceId workspace_id = 2;
+  RelatedNodesQuery query = 3;
+}
+
+message GetRelatedNodesResponse {
+  RelatedNodesResult result = 1;
+}
+
+message UploadFilesRequest {
+  UserId user_id = 1;
+  WorkspaceId workspace_id = 2;
+  FileUploadContent content = 3;
+}
+
+message UploadFilesResponse {
+  UploadResult result = 1;
+}
+
+
+message ChunkFilesRequest {
+  repeated File files = 1;
+  optional uint32 min_chunk_size = 2;
+  optional uint32 max_chunk_size = 3;
+}
+
+message ChunkFilesResponse {
+  repeated FileChunk chunks = 1;
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  string status = 1;
+}
+
+message CreateWorkspaceRequest {
+  UserId user_id = 1;
+  WorkspaceDefinition workspace = 2;
+}
+
+message CreateWorkspaceResponse {
+  Workspace workspace = 1;
+}
+
+message ListWorkspacesRequest {
+  UserId user_id = 1;
+}
+
+message ListWorkspacesResponse {
+  repeated Workspace workspaces = 1;
+}
+
+message DeleteWorkspaceRequest {
+  UserId user_id = 1;
+  WorkspaceId workspace_id = 2;
+}
+
+message DeleteWorkspaceResponse {
+  WorkspaceId workspace_id = 1;
+}

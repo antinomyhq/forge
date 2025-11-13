@@ -4,8 +4,8 @@ use anyhow::Result;
 use url::Url;
 
 use crate::{
-    AnyProvider, AppConfig, AuthCredential, Conversation, ConversationId, Provider, ProviderId,
-    Snapshot,
+    AnyProvider, AppConfig, AuthCredential, Conversation, ConversationId, IndexWorkspaceId,
+    Provider, ProviderId, Snapshot, UserId,
 };
 
 /// Repository for managing file snapshots
@@ -92,4 +92,46 @@ pub trait ProviderRepository: Send + Sync {
     async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()>;
     async fn get_credential(&self, id: &ProviderId) -> anyhow::Result<Option<AuthCredential>>;
     async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()>;
+}
+
+/// Domain entity for indexed workspace
+#[derive(Debug, Clone)]
+pub struct IndexedWorkspace {
+    pub workspace_id: IndexWorkspaceId,
+    pub user_id: UserId,
+    pub path: std::path::PathBuf,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+/// Repository for managing indexed workspaces
+///
+/// This repository provides operations for tracking workspaces indexed
+/// by the forge-ce server.
+#[async_trait::async_trait]
+pub trait IndexingRepository: Send + Sync {
+    /// Save or update an indexed workspace
+    ///
+    /// # Arguments
+    /// * `workspace_id` - The workspace ID from forge-ce
+    /// * `user_id` - The user ID
+    /// * `path` - Local directory path
+    ///
+    /// # Errors
+    /// Returns an error if the operation fails
+    async fn upsert(
+        &self,
+        workspace_id: &IndexWorkspaceId,
+        user_id: &UserId,
+        path: &std::path::Path,
+    ) -> Result<()>;
+
+    /// Find indexed workspace by path
+    ///
+    /// # Arguments
+    /// * `path` - Local directory path
+    ///
+    /// # Errors
+    /// Returns an error if the operation fails
+    async fn find_by_path(&self, path: &std::path::Path) -> Result<Option<IndexedWorkspace>>;
 }

@@ -5,10 +5,10 @@ use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse,
-    AuthCredential, AuthMethod, ChatCompletionMessage, CommandOutput, Context, Conversation,
-    ConversationId, Environment, File, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model,
-    ModelId, PatchOperation, Provider, ProviderId, ResultStream, Scope, Template, ToolCallFull,
-    ToolOutput, Workflow,
+    AuthCredential, AuthMethod, ChatCompletionMessage, CodeSearchResult, CommandOutput, Context,
+    Conversation, ConversationId, Environment, File, Image, IndexStats, InitAuth, LoginInfo,
+    McpConfig, McpServers, Model, ModelId, PatchOperation, Provider, ProviderId, ResultStream,
+    Scope, Template, ToolCallFull, ToolOutput, Workflow,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -229,6 +229,32 @@ pub trait EnvironmentService: Send + Sync {
 #[async_trait::async_trait]
 pub trait CustomInstructionsService: Send + Sync {
     async fn get_custom_instructions(&self) -> Vec<String>;
+}
+
+/// Service for indexing codebases via forge-ce
+#[async_trait::async_trait]
+pub trait IndexingService: Send + Sync {
+    /// Index the codebase at the given path
+    ///
+    /// # Errors
+    /// Returns error if:
+    /// - Path is invalid
+    /// - forge-ce server is unreachable
+    /// - Database operations fail
+    async fn index(&self, path: PathBuf) -> anyhow::Result<IndexStats>;
+
+    /// Query the indexed codebase with semantic search
+    ///
+    /// # Errors
+    /// Returns error if:
+    /// - Workspace is not indexed
+    /// - forge-ce server is unreachable
+    async fn query(
+        &self,
+        path: PathBuf,
+        query: &str,
+        limit: usize,
+    ) -> anyhow::Result<Vec<CodeSearchResult>>;
 }
 
 #[async_trait::async_trait]
@@ -478,6 +504,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type CommandLoaderService: CommandLoaderService;
     type PolicyService: PolicyService;
     type ProviderAuthService: ProviderAuthService;
+    type IndexingService: IndexingService;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn config_service(&self) -> &Self::AppConfigService;
@@ -506,6 +533,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn command_loader_service(&self) -> &Self::CommandLoaderService;
     fn policy_service(&self) -> &Self::PolicyService;
     fn provider_auth_service(&self) -> &Self::ProviderAuthService;
+    fn indexing_service(&self) -> &Self::IndexingService;
 }
 
 #[async_trait::async_trait]

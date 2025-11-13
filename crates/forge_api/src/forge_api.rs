@@ -7,8 +7,8 @@ use forge_app::dto::ToolsOverview;
 use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
     CommandLoaderService, ConversationService, EnvironmentInfra, EnvironmentService,
-    FileDiscoveryService, ForgeApp, GitApp, McpConfigManager, McpService, ProviderAuthService,
-    ProviderService, Services, User, UserUsage, Walker, WorkflowService,
+    FileDiscoveryService, ForgeApp, GitApp, IndexingService, McpConfigManager, McpService,
+    ProviderAuthService, ProviderService, Services, User, UserUsage, Walker, WorkflowService,
 };
 use forge_domain::{InitAuth, LoginInfo, *};
 use forge_infra::ForgeInfra;
@@ -323,5 +323,23 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
 
     async fn remove_provider(&self, provider_id: &ProviderId) -> Result<()> {
         Ok(self.services.remove_credential(provider_id).await?)
+    }
+
+    async fn index_codebase(&self, path: PathBuf) -> Result<forge_domain::IndexStats> {
+        use forge_app::IndexingService;
+        Ok(self.services.indexing_service().index(path).await?)
+    }
+
+    async fn query_codebase(
+        &self,
+        path: PathBuf,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<forge_domain::CodeSearchResult>> {
+        Ok(self
+            .services
+            .indexing_service()
+            .query(path, query, limit)
+            .await?)
     }
 }

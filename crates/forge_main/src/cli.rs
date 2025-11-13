@@ -127,6 +127,9 @@ pub enum TopLevelCommand {
 
     /// Run or list custom commands.
     Cmd(CmdCommandGroup),
+
+    /// Manage codebase indexing with forge-ce.
+    Index(IndexCommandGroup),
 }
 
 /// Command group for custom command management.
@@ -152,6 +155,30 @@ pub enum CmdCommand {
     /// Execute a custom command.
     #[command(external_subcommand)]
     Execute(Vec<String>),
+}
+
+/// Command group for indexing management.
+#[derive(Parser, Debug, Clone)]
+pub struct IndexCommandGroup {
+    #[command(subcommand)]
+    pub command: Option<IndexCommand>,
+
+    /// Path to the directory to index (used when no subcommand is provided).
+    #[arg(default_value = ".")]
+    pub path: PathBuf,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum IndexCommand {
+    /// Query the indexed codebase.
+    Query {
+        /// Search query.
+        query: String,
+
+        /// Maximum number of results to return.
+        #[arg(short, long, default_value = "10")]
+        limit: usize,
+    },
 }
 
 /// Command group for listing resources.

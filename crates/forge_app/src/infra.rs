@@ -4,8 +4,9 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_domain::{
-    AuthCodeParams, CommandOutput, Environment, FileInfo, McpServerConfig, OAuthConfig,
-    OAuthTokenResponse, ToolDefinition, ToolName, ToolOutput,
+    AuthCodeParams, CodeSearchResult, CommandOutput, Environment, FileInfo, IndexWorkspaceId,
+    McpServerConfig, OAuthConfig, OAuthTokenResponse, ToolDefinition, ToolName, ToolOutput,
+    UploadStats, UserId,
 };
 use reqwest::Response;
 use reqwest::header::HeaderMap;
@@ -207,6 +208,38 @@ pub trait DirectoryReaderInfra: Send + Sync {
         directory: &Path,
         pattern: Option<&str>, // Optional glob pattern like "*.md"
     ) -> anyhow::Result<Vec<(PathBuf, String)>>;
+}
+
+/// Infrastructure trait for indexing operations with forge-ce
+#[async_trait::async_trait]
+pub trait IndexingClientInfra: Send + Sync {
+    /// Create a new workspace on the indexing server
+    /// Returns the remote workspace ID assigned by the server
+    /// If workspace already exists for this path, returns existing ID
+    async fn create_workspace(
+        &self,
+        user_id: &UserId,
+        working_dir: &std::path::Path,
+    ) -> anyhow::Result<IndexWorkspaceId>;
+
+    /// Upload files to be indexed
+    /// Files should be batched (recommended: 20 files per batch)
+    async fn upload_files(
+        &self,
+        user_id: &UserId,
+        workspace_id: &IndexWorkspaceId,
+        files: Vec<(PathBuf, String)>,
+    ) -> anyhow::Result<UploadStats>;
+
+    /// Search the indexed codebase using semantic search
+    /// Returns a list of search results ordered by relevance
+    async fn search(
+        &self,
+        user_id: &UserId,
+        workspace_id: &IndexWorkspaceId,
+        query: &str,
+        limit: usize,
+    ) -> anyhow::Result<Vec<CodeSearchResult>>;
 }
 
 /// Generic cache repository for content-addressable storage.
