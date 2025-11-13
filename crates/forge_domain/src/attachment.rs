@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use nom::Parser;
 use nom::bytes::complete::tag;
 
@@ -83,6 +85,8 @@ impl Attachment {
             }
         }
 
+        // Keep only files 
+        tags = tags.into_iter().filter(|t| t.path.is_file()).collect::<Vec<_>>();
         let mut seen = std::collections::HashSet::new();
         tags.retain(|tag| seen.insert((tag.path.clone(), tag.loc.clone(), tag.symbol.clone())));
 
@@ -98,7 +102,7 @@ pub struct Location {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FileTag {
-    pub path: String,
+    pub path: PathBuf,
     pub loc: Option<Location>,
     pub symbol: Option<String>,
 }
@@ -145,7 +149,7 @@ impl FileTag {
         Ok((
             remaining,
             FileTag {
-                path: path.to_string(),
+                path: PathBuf::from(path),
                 loc,
                 symbol: symbol.map(|s| s.to_string()),
             },
@@ -537,5 +541,18 @@ mod tests {
 
         assert!(paths.contains(&expected_unix));
         assert!(paths.contains(&expected_windows));
+    }
+
+
+    #[test]
+    fn test_attachment_parse_filters_directories() {
+        let text = String::from("Check @[Cargo.toml] and @[crates]");
+        let paths = Attachment::parse_all(text);
+        
+        // Only Cargo.toml should be included (it's a file), crates is a directory and should be filtered out
+        assert_eq!(paths.len(), 1);
+        
+        let actual = paths.first().unwrap();
+        assert_eq!(actual.path, PathBuf::from("Cargo.toml"));
     }
 }
