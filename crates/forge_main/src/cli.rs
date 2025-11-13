@@ -161,15 +161,16 @@ pub enum CmdCommand {
 #[derive(Parser, Debug, Clone)]
 pub struct IndexCommandGroup {
     #[command(subcommand)]
-    pub command: Option<IndexCommand>,
-
-    /// Path to the directory to index (used when no subcommand is provided).
-    #[arg(default_value = ".")]
-    pub path: PathBuf,
+    pub command: IndexCommand,
 }
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum IndexCommand {
+    Sync {
+        /// Path to the directory to index (used when no subcommand is provided).
+        #[arg(default_value = ".")]
+        path: PathBuf,
+    },
     /// List all indexed workspaces.
     List {
         /// Output in machine-readable format
@@ -181,6 +182,10 @@ pub enum IndexCommand {
     Query {
         /// Search query.
         query: String,
+
+        /// Path to the directory to index (used when no subcommand is provided).
+        #[arg(default_value = ".")]
+        path: PathBuf,
 
         /// Maximum number of results to return.
         #[arg(short, long, default_value = "10")]

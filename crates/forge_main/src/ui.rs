@@ -490,15 +490,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
             TopLevelCommand::Index(index_group) => {
                 match index_group.command {
-                    Some(crate::cli::IndexCommand::List { porcelain }) => {
+                    crate::cli::IndexCommand::Sync { path } => {
+                        self.on_index(path).await?;
+                    }
+                    crate::cli::IndexCommand::List { porcelain } => {
                         self.on_list_workspaces(porcelain).await?;
                     }
-                    Some(crate::cli::IndexCommand::Query { query, limit }) => {
-                        self.on_query(query, index_group.path, limit).await?;
-                    }
-                    None => {
-                        // Default action: index the specified path
-                        self.on_index(index_group.path).await?;
+                    crate::cli::IndexCommand::Query { query, path, limit } => {
+                        self.on_query(query, path, limit).await?;
                     }
                 }
                 return Ok(());
