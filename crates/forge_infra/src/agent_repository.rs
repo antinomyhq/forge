@@ -2,9 +2,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::domain::{AgentDefinition, Template};
-use forge_app::{
-    AgentRepository, DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra,
-};
+use forge_app::{AgentRepository, DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra};
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
 
@@ -42,11 +40,7 @@ pub struct ForgeAgentRepository<I, E, D> {
 }
 
 impl<I, E, D> ForgeAgentRepository<I, E, D> {
-    pub fn new(
-        file_info: Arc<I>,
-        environment: Arc<E>,
-        directory_reader: Arc<D>,
-    ) -> Self {
+    pub fn new(file_info: Arc<I>, environment: Arc<E>, directory_reader: Arc<D>) -> Self {
         Self {
             file_info,
             environment,
@@ -57,11 +51,8 @@ impl<I, E, D> ForgeAgentRepository<I, E, D> {
 }
 
 #[async_trait::async_trait]
-impl<
-    I: FileInfoInfra,
-    E: EnvironmentInfra,
-    D: DirectoryReaderInfra,
-> AgentRepository for ForgeAgentRepository<I, E, D>
+impl<I: FileInfoInfra, E: EnvironmentInfra, D: DirectoryReaderInfra> AgentRepository
+    for ForgeAgentRepository<I, E, D>
 {
     /// Load all agent definitions from all available sources with conflict
     /// resolution.
@@ -70,12 +61,7 @@ impl<
     }
 }
 
-impl<
-    I: FileInfoInfra,
-    E: EnvironmentInfra,
-    D: DirectoryReaderInfra,
-> ForgeAgentRepository<I, E, D>
-{
+impl<I: FileInfoInfra, E: EnvironmentInfra, D: DirectoryReaderInfra> ForgeAgentRepository<I, E, D> {
     /// Load all agent definitions with caching support
     async fn cache_or_init(&self) -> anyhow::Result<Vec<AgentDefinition>> {
         self.cache.get_or_try_init(|| self.init()).await.cloned()

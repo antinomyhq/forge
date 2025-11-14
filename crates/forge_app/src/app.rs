@@ -288,8 +288,14 @@ impl<S: Services> ForgeApp<S> {
         self.services.write_workflow(path, workflow).await
     }
 
-    pub async fn set_default_model(&self, agent_id: Option<AgentId>, model: ModelId) -> anyhow::Result<()> {
+    pub async fn set_default_model(
+        &self,
+        agent_id: Option<AgentId>,
+        model: ModelId,
+    ) -> anyhow::Result<()> {
         let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
-        agent_provider_resolver.set_default_model(agent_id, model).await
+        agent_provider_resolver
+            .set_default_model(agent_id, model)
+            .await
     }
 }
