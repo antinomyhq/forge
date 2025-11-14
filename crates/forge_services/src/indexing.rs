@@ -1,9 +1,11 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::usize;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
+use forge_app::utils::format_display_path;
 use forge_app::{
     EnvironmentInfra, FileReaderInfra, IndexingClientInfra, IndexingService, Walker, WalkerInfra,
     compute_hash,
@@ -13,6 +15,22 @@ use futures::future::join_all;
 use tracing::{info, warn};
 
 const DEFAULT_BATCH_SIZE: usize = 20;
+
+/// Represents a file with its content and computed hash
+struct IndexedFile {
+    /// Relative path from the workspace root
+    path: String,
+    /// File content
+    content: String,
+    /// SHA-256 hash of the content
+    hash: String,
+}
+
+impl IndexedFile {
+    fn new(path: String, content: String, hash: String) -> Self {
+        Self { path, content, hash }
+    }
+}
 
 pub struct ForgeIndexingService<F> {
     infra: Arc<F>,
@@ -59,6 +77,7 @@ impl<F> ForgeIndexingService<F> {
         user_id: &UserId,
         workspace_id: &IndexWorkspaceId,
         local_file_map: &HashMap<String, String>,
+        workspace_root: &Path,
     ) -> Result<HashMap<String, String>>
     where
         F: IndexingClientInfra,
@@ -69,7 +88,15 @@ impl<F> ForgeIndexingService<F> {
             .list_workspace_files(user_id, workspace_id)
             .await
             .map(|files| {
-                let hashes: HashMap<_, _> = files.into_iter().map(|f| (f.path, f.hash)).collect();
+                let hashes: HashMap<_, _> = files
+                    .into_iter()
+                    .map(|f| {
+                        // Normalize path to handle legacy absolute paths
+                        let normalized_path =
+                            format_display_path(&PathBuf::from(&f.path), workspace_root);
+                        (normalized_path, f.hash)
+                    })
+                    .collect();
                 info!("Found {} files on server", hashes.len());
                 hashes
             })
@@ -102,96 +129,42 @@ impl<F> ForgeIndexingService<F> {
 
         Ok(server_hashes)
     }
-}
 
-#[async_trait]
-impl<F: IndexingRepository + IndexingClientInfra + WalkerInfra + FileReaderInfra + EnvironmentInfra>
-    IndexingService for ForgeIndexingService<F>
-{
-    async fn index(&self, path: PathBuf) -> Result<IndexStats> {
-        let canonical_path = path
-            .canonicalize()
-            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
-
-        let existing_workspace = self.infra.find_by_path(&canonical_path).await?;
-
-        let (workspace_id, user_id, is_new_workspace) = existing_workspace
-            .map(|workspace| (workspace.workspace_id, workspace.user_id, false))
-            .unwrap_or_else(|| {
-                let user_id = UserId::generate();
-                (IndexWorkspaceId::generate(), user_id, true)
-            });
-
-        // Create workspace on server if new
-        let workspace_id = if is_new_workspace {
-            self.infra
-                .create_workspace(&user_id, &canonical_path)
-                .await
-                .context("Failed to create workspace on server")?
-        } else {
-            workspace_id
-        };
-
-        // Walk directory
-        let walker_config = Walker::conservative().cwd(canonical_path.clone());
-        let walked_files = self
-            .infra
-            .walk(walker_config)
-            .await
-            .context("Failed to walk directory")?
-            .into_iter()
-            .filter(|f| !f.is_dir())
-            .collect::<Vec<_>>();
-
-        anyhow::ensure!(!walked_files.is_empty(), "No files found to index");
-
-        // Read all files and compute hashes
-        let infra = self.infra.clone();
-        let read_tasks = walked_files.into_iter().map(|walked| {
-            let infra = infra.clone();
-            let file_path = canonical_path.join(&walked.path);
-            let relative_path = walked.path.clone();
-
-            async move {
-                infra
-                    .read_utf8(&file_path)
-                    .await
-                    .map(|content| {
-                        let hash = compute_hash(&content);
-                        (PathBuf::from(relative_path.clone()), content, hash)
-                    })
-                    .map_err(|e| {
-                        warn!(path = %relative_path, error = %e, "Failed to read file");
-                        e
-                    })
-                    .ok()
-            }
-        });
-
-        let all_files: Vec<_> = join_all(read_tasks).await.into_iter().flatten().collect();
+    /// Determines which files need to be uploaded by comparing local and server
+    /// state.
+    async fn find_files_to_upload(
+        &self,
+        all_files: Vec<IndexedFile>,
+        is_new_workspace: bool,
+        user_id: &UserId,
+        workspace_id: &IndexWorkspaceId,
+        workspace_root: &Path,
+    ) -> Result<Vec<(String, String)>>
+    where
+        F: IndexingRepository + IndexingClientInfra,
+    {
         let total_file_count = all_files.len();
 
         // Build map of local files for comparison
         let local_file_map: HashMap<String, String> = all_files
             .iter()
-            .map(|(path, _, hash)| (path.display().to_string(), hash.clone()))
+            .map(|file| (file.path.clone(), file.hash.clone()))
             .collect();
 
         // Sync server files (fetch, delete outdated, return current state)
         let server_hashes = if is_new_workspace {
             HashMap::new()
         } else {
-            self.sync_server_files(&user_id, &workspace_id, &local_file_map)
+            self.sync_server_files(user_id, workspace_id, &local_file_map, workspace_root)
                 .await?
         };
 
         // Identify files that need to be uploaded (new or changed)
         let files_to_upload: Vec<_> = all_files
             .into_iter()
-            .filter_map(|(path, content, local_hash)| {
-                let path_str = path.display().to_string();
-                let needs_upload = server_hashes.get(&path_str) != Some(&local_hash);
-                needs_upload.then_some((path, content))
+            .filter_map(|file| {
+                let needs_upload = server_hashes.get(&file.path) != Some(&file.hash);
+                needs_upload.then_some((file.path, file.content))
             })
             .collect();
 
@@ -204,6 +177,115 @@ impl<F: IndexingRepository + IndexingClientInfra + WalkerInfra + FileReaderInfra
                 skipped
             );
         }
+
+        Ok(files_to_upload)
+    }
+
+    /// Walks the directory, reads all files, and computes their hashes.
+    ///
+    /// # Arguments
+    /// * `dir_path` - The directory path to index
+    ///
+    /// # Returns
+    /// A vector of indexed files with their content and hashes
+    ///
+    /// # Errors
+    /// Returns error if walking fails or no files are found
+    async fn read_files(&self, dir_path: &Path) -> Result<Vec<IndexedFile>>
+    where
+        F: WalkerInfra + FileReaderInfra,
+    {
+        // Walk directory
+        info!("Walking directory to discover files");
+        let walker_config = Walker::conservative().cwd(dir_path.to_path_buf()).max_depth(usize::MAX).max_breadth(usize::MAX);
+        let walked_files = self
+            .infra
+            .walk(walker_config)
+            .await
+            .context("Failed to walk directory")?
+            .into_iter()
+            .filter(|f| !f.is_dir())
+            .collect::<Vec<_>>();
+
+        info!(file_count = walked_files.len(), "Discovered files");
+        anyhow::ensure!(!walked_files.is_empty(), "No files found to index");
+
+        // Read all files and compute hashes
+        let infra = self.infra.clone();
+        let read_tasks = walked_files.into_iter().map(|walked| {
+            let infra = infra.clone();
+            let file_path = dir_path.join(&walked.path);
+            let relative_path = walked.path.clone();
+
+            async move {
+                infra
+                    .read_utf8(&file_path)
+                    .await
+                    .map(|content| {
+                        let hash = compute_hash(&content);
+                        IndexedFile::new(relative_path.clone(), content, hash)
+                    })
+                    .map_err(|e| {
+                        warn!(path = %relative_path, error = %e, "Failed to read file");
+                        e
+                    })
+                    .ok()
+            }
+        });
+
+        let all_files: Vec<_> = join_all(read_tasks).await.into_iter().flatten().collect();
+        Ok(all_files)
+    }
+}
+
+#[async_trait]
+impl<F: IndexingRepository + IndexingClientInfra + WalkerInfra + FileReaderInfra + EnvironmentInfra>
+    IndexingService for ForgeIndexingService<F>
+{
+    async fn index(&self, path: PathBuf) -> Result<IndexStats> {
+        info!(path = %path.display(), "Starting codebase indexing");
+
+        let canonical_path = path
+            .canonicalize()
+            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
+
+        info!(canonical_path = %canonical_path.display(), "Resolved canonical path");
+
+        let existing_workspace = self.infra.find_by_path(&canonical_path).await?;
+
+        let (workspace_id, user_id, is_new_workspace) = existing_workspace
+            .map(|workspace| (workspace.workspace_id, workspace.user_id, false))
+            .unwrap_or_else(|| {
+                let user_id = UserId::generate();
+                (IndexWorkspaceId::generate(), user_id, true)
+            });
+
+        // Create workspace on server if new
+        let workspace_id = if is_new_workspace {
+            info!("Creating new workspace on server");
+            self.infra
+                .create_workspace(&user_id, &canonical_path)
+                .await
+                .context("Failed to create workspace on server")?
+        } else {
+            info!(workspace_id = %workspace_id, "Using existing workspace");
+            workspace_id
+        };
+
+        // Read all files and compute hashes
+        let all_files = self.read_files(&canonical_path).await?;
+        let total_file_count = all_files.len();
+
+        // Determine which files need to be uploaded
+        let files_to_upload = self
+            .find_files_to_upload(
+                all_files,
+                is_new_workspace,
+                &user_id,
+                &workspace_id,
+                &canonical_path,
+            )
+            .await?;
 
         // Early exit if nothing to upload
         if files_to_upload.is_empty() {
@@ -240,6 +322,13 @@ impl<F: IndexingRepository + IndexingClientInfra + WalkerInfra + FileReaderInfra
             .upsert(&workspace_id, &user_id, &canonical_path)
             .await
             .context("Failed to save workspace")?;
+
+        info!(
+            workspace_id = %workspace_id,
+            total_files = total_file_count,
+            uploaded = files_to_upload.len(),
+            "Indexing completed successfully"
+        );
 
         Ok(IndexStats::new(workspace_id, total_file_count, total_stats))
     }
@@ -379,7 +468,7 @@ mod tests {
             &self,
             _user_id: &UserId,
             _workspace_id: &IndexWorkspaceId,
-            _files: Vec<(PathBuf, String)>,
+            _files: Vec<(String, String)>,
         ) -> Result<UploadStats> {
             Ok(UploadStats::new(10, 5))
         }

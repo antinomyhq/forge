@@ -228,7 +228,7 @@ pub trait IndexingClientInfra: Send + Sync {
         &self,
         user_id: &UserId,
         workspace_id: &IndexWorkspaceId,
-        files: Vec<(PathBuf, String)>,
+        files: Vec<(String, String)>,
     ) -> anyhow::Result<UploadStats>;
 
     /// Search the indexed codebase using semantic search

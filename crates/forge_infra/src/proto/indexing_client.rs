@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use anyhow::Result;
 use async_trait::async_trait;
 use forge_app::IndexingClientInfra;
@@ -68,11 +66,11 @@ impl IndexingClientInfra for IndexingClient {
         &self,
         user_id: &DomainUserId,
         workspace_id: &IndexWorkspaceId,
-        files: Vec<(PathBuf, String)>,
+        files: Vec<(String, String)>,
     ) -> Result<UploadStats> {
         let proto_files: Vec<File> = files
             .into_iter()
-            .map(|(path, content)| File { path: path.to_string_lossy().to_string(), content })
+            .map(|(path, content)| File { path, content })
             .collect();
 
         let request = UploadFilesRequest {
