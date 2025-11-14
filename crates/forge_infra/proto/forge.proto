@@ -31,6 +31,9 @@ service ForgeService {
   // Deletes files from the context engine
   rpc DeleteFiles(DeleteFilesRequest) returns (DeleteFilesResponse);
   
+  // Lists all files in a workspace
+  rpc ListFiles(ListFilesRequest) returns (ListFilesResponse);
+  
   // Splits files into chunks without uploading them
   rpc ChunkFiles(ChunkFilesRequest) returns (ChunkFilesResponse);
   
@@ -324,6 +327,21 @@ message DeleteFilesResponse {
   uint32 deleted_relations = 2;
 }
 
+message ListFilesRequest {
+  UserId user_id = 1;
+  WorkspaceId workspace_id = 2;
+}
+
+message ListFilesResponse {
+  repeated FileRefNode files = 1;
+}
+
+message FileRefNode {
+  NodeId node_id = 1;
+  string hash = 2;
+  optional GitInfo git = 3;
+  FileRef data = 4;
+}
 
 message ChunkFilesRequest {
   repeated File files = 1;

@@ -191,41 +191,22 @@ impl IndexingClientInfra for IndexingClient {
         user_id: &DomainUserId,
         workspace_id: &IndexWorkspaceId,
     ) -> Result<Vec<forge_domain::FileHash>> {
-        let request = tonic::Request::new(SearchRequest {
+        let request = tonic::Request::new(ListFilesRequest {
             user_id: Some(UserId { id: user_id.to_string() }),
             workspace_id: Some(WorkspaceId { id: workspace_id.to_string() }),
-            query: Some(Query {
-                prompt: None,          // No semantic search, just list all
-                limit: Some(u32::MAX), // Get all files
-                top_k: None,
-                kinds: vec![3], // NODE_KIND_FILE_REF = 3
-                ..Default::default()
-            }),
         });
 
         let mut client = self.client.clone();
-        let response = client.search(request).await?;
+        let response = client.list_files(request).await?;
 
-        // Extract file paths and hashes from FileRef nodes
+        // Extract file paths and hashes from FileRefNode
         let files = response
             .into_inner()
-            .result
-            .unwrap_or_default()
-            .data
+            .files
             .into_iter()
-            .filter_map(|query_item| {
-                // Chain Options: node -> data -> kind
-                query_item
-                    .node
-                    .and_then(|node| node.data)
-                    .and_then(|data| data.kind)
-                    .and_then(|kind| match kind {
-                        node_data::Kind::FileRef(file_ref) => Some(forge_domain::FileHash {
-                            path: file_ref.path,
-                            hash: file_ref.file_hash,
-                        }),
-                        _ => None,
-                    })
+            .filter_map(|file_ref_node| {
+                let data = file_ref_node.data?;
+                Some(forge_domain::FileHash { path: data.path, hash: file_ref_node.hash })
             })
             .collect();
 
