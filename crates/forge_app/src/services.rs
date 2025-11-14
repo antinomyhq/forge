@@ -235,20 +235,9 @@ pub trait CustomInstructionsService: Send + Sync {
 #[async_trait::async_trait]
 pub trait IndexingService: Send + Sync {
     /// Index the codebase at the given path
-    ///
-    /// # Errors
-    /// Returns error if:
-    /// - Path is invalid
-    /// - Indexing server is unreachable
-    /// - Database operations fail
     async fn index(&self, path: PathBuf) -> anyhow::Result<IndexStats>;
 
     /// Query the indexed codebase with semantic search
-    ///
-    /// # Errors
-    /// Returns error if:
-    /// - Workspace is not indexed
-    /// - Indexing server is unreachable
     async fn query(
         &self,
         path: PathBuf,
@@ -258,10 +247,6 @@ pub trait IndexingService: Send + Sync {
     ) -> anyhow::Result<Vec<CodeSearchResult>>;
 
     /// List all workspaces indexed by the user
-    ///
-    /// # Errors
-    /// Returns error if indexing server is unreachable
-    /// List all indexed workspaces (gets user_id internally)
     async fn list_indexes(&self) -> anyhow::Result<Vec<WorkspaceInfo>>;
 }
 
