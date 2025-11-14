@@ -772,11 +772,26 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .lines()
                 .collect::<Vec<_>>()
                 .join(" ");
-            info = info.add_key_value(id, title);
+
+            // Get provider and model for this agent
+            let provider_name = self
+                .get_provider(Some(agent.id.clone()))
+                .await
+                .ok()
+                .map(|p| p.id.to_string())
+                .unwrap_or_else(|| "<unset>".to_string());
+
+            let model_name = agent.model.as_str().to_string();
+
+            info = info
+                .add_title(id.to_case(Case::UpperSnake))
+                .add_key_value("title", title)
+                .add_key_value("provider", provider_name)
+                .add_key_value("model", model_name);
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).into_long().skip(1).drop_col(0);
+            let porcelain = Porcelain::from(&info).skip(1).drop_col(0);
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
