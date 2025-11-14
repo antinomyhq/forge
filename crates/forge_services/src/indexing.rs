@@ -39,9 +39,6 @@ pub struct ForgeIndexingService<F> {
 
 impl<F> ForgeIndexingService<F> {
     /// Creates a new indexing service with the provided infrastructure.
-    ///
-    /// # Arguments
-    /// * `infra` - Composed infrastructure implementing all required traits
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
     }
@@ -65,14 +62,6 @@ impl<F> ForgeIndexingService<F> {
     ///    (deleted locally)
     /// 3. Deletes those files from the server
     /// 4. Returns the server hashes for upload comparison
-    ///
-    /// # Arguments
-    /// * `user_id` - The user ID
-    /// * `workspace_id` - The workspace ID
-    /// * `local_file_map` - Map of local file paths to their hashes
-    ///
-    /// # Errors
-    /// Returns an error if deletion fails
     async fn sync_server_files(
         &self,
         user_id: &UserId,
@@ -101,13 +90,7 @@ impl<F> ForgeIndexingService<F> {
                 info!("Found {} files on server", hashes.len());
                 hashes
             })
-            .unwrap_or_else(|e| {
-                warn!(
-                    "Failed to fetch existing files: {}. Will upload all files.",
-                    e
-                );
-                HashMap::new()
-            });
+            .unwrap_or_default();
 
         // Identify outdated/orphaned files
         let files_to_delete: Vec<String> = server_hashes
