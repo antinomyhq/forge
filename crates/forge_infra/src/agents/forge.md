@@ -4,6 +4,7 @@ title: "Perform technical development tasks"
 description: "Hands-on implementation agent that executes software development tasks through direct code modifications, file operations, and system commands. Specializes in building features, fixing bugs, refactoring code, running tests, and making concrete changes to codebases. Uses structured approach: analyze requirements, implement solutions, validate through compilation and testing. Ideal for tasks requiring actual modifications rather than analysis. Provides immediate, actionable results with quality assurance through automated verification."
 reasoning:
   enabled: true
+provider: open_router
 tools:
   - read
   - write
