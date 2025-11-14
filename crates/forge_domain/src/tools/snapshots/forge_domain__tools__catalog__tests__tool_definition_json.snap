@@ -108,14 +108,14 @@ expression: tools
 }
 {
   "title": "CodebaseSearch",
-  "description": "Searches code by meaning using AI-powered semantic search. Use this tool to understand HOW code works or WHAT it does by describing concepts in natural language. Perfect for queries like \"where is authentication logic\", \"show me error handling implementation\", \"how does streaming work\", \"explain retry mechanism\", or \"what is the purpose of X\". DO NOT use this tool when looking for specific names, patterns, or structural elements - for example, \"find all functions named execute\", \"locate struct Error\", or \"list files with test\" should use the `search` tool with regex patterns instead. This tool understands code semantics and finds conceptually related code even with different terminology. Use `search` for exact patterns/names/structures; use this for understanding concepts and functionality.",
+  "description": "Searches code by meaning using AI-powered semantic search to quickly locate specific code implementations. Use when you need to FIND WHERE code is located by describing what it does. Examples: \\\"where is authentication logic\\\", \\\"find retry mechanism\\\", \\\"locate error handling code\\\". Returns code locations with snippets. DO NOT use for finding specific names/patterns like \\\"all functions named execute\\\" - use search tool with regex instead. This tool understands concepts and finds semantically related code.",
   "type": "object",
   "required": [
     "query"
   ],
   "properties": {
     "query": {
-      "description": "Describe the concept or functionality you want to understand (e.g., \"authentication logic\", \"retry mechanism\", \"error handling\")",
+      "description": "Describe WHAT the code does or its purpose. Include domain-specific terms and technical context. Good: \"retry mechanism with exponential backoff\", \"streaming responses from LLM API\", \"OAuth token refresh flow\". Bad: generic terms like \"retry\" or \"auth\" without context. Think about the behavior and functionality you're looking for.",
       "type": "string"
     }
   }

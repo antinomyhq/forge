@@ -994,7 +994,6 @@ impl<I: Services> IndexingService for I {
         self.indexing_service().is_indexed(path).await
     }
 
-
     async fn list_indexes(&self) -> anyhow::Result<Vec<WorkspaceInfo>> {
         self.indexing_service().list_indexes().await
     }

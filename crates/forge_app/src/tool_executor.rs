@@ -201,7 +201,10 @@ impl<
             }
             ToolCatalog::CodebaseSearch(input) => {
                 let cwd = self.services.get_environment().cwd;
-                let output = self.services.query(cwd, &input.query, 100, Some(10)).await?;
+                let output = self
+                    .services
+                    .query(cwd, &input.query, 100, Some(10))
+                    .await?;
                 (input, output).into()
             }
             ToolCatalog::Remove(input) => {
