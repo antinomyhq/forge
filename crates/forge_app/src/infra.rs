@@ -4,9 +4,9 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_domain::{
-    AuthCodeParams, CodeSearchResult, CommandOutput, Environment, FileInfo, IndexWorkspaceId,
-    McpServerConfig, OAuthConfig, OAuthTokenResponse, ToolDefinition, ToolName, ToolOutput,
-    UploadStats, UserId, WorkspaceInfo,
+    AuthCodeParams, CodeSearchResult, CommandOutput, Environment, FileHash, FileInfo,
+    IndexWorkspaceId, McpServerConfig, OAuthConfig, OAuthTokenResponse, ToolDefinition, ToolName,
+    ToolOutput, UploadStats, UserId, WorkspaceInfo,
 };
 use reqwest::Response;
 use reqwest::header::HeaderMap;
@@ -245,6 +245,23 @@ pub trait IndexingClientInfra: Send + Sync {
     /// List all workspaces for a user
     /// Returns a list of workspaces from the server
     async fn list_workspaces(&self, user_id: &UserId) -> anyhow::Result<Vec<WorkspaceInfo>>;
+
+    /// List all files in a workspace with their hashes
+    ///
+    /// Retrieves file references (path and hash only, no content) for all files
+    /// in the workspace. Used to detect which files have changed during sync.
+    ///
+    /// # Arguments
+    /// * `user_id` - The user ID
+    /// * `workspace_id` - The workspace ID
+    ///
+    /// # Errors
+    /// Returns an error if the request fails
+    async fn list_workspace_files(
+        &self,
+        user_id: &UserId,
+        workspace_id: &IndexWorkspaceId,
+    ) -> anyhow::Result<Vec<FileHash>>;
 }
 
 /// Generic cache repository for content-addressable storage.

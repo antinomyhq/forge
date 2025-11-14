@@ -331,4 +331,16 @@ impl forge_app::IndexingClientInfra for ForgeInfra {
         })?;
         client.list_workspaces(user_id).await
     }
+
+    async fn list_workspace_files(
+        &self,
+        user_id: &forge_domain::UserId,
+        workspace_id: &forge_domain::IndexWorkspaceId,
+    ) -> anyhow::Result<Vec<forge_domain::FileHash>> {
+        let url = self.get_indexing_server_url();
+        let client = crate::proto::IndexingClient::new(&url).await.map_err(|e| {
+            anyhow::anyhow!("Failed to connect to indexing server at {}: {}", url, e)
+        })?;
+        client.list_workspace_files(user_id, workspace_id).await
+    }
 }

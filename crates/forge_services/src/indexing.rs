@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -5,10 +6,11 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{
     EnvironmentInfra, FileReaderInfra, IndexingClientInfra, IndexingService, Walker, WalkerInfra,
+    compute_hash,
 };
-use forge_domain::{IndexStats, IndexingRepository, UserId};
+use forge_domain::{IndexStats, IndexWorkspaceId, IndexingRepository, UserId};
 use futures::future::join_all;
-use tracing::warn;
+use tracing::{info, warn};
 
 const DEFAULT_BATCH_SIZE: usize = 20;
 
@@ -41,29 +43,53 @@ impl<F: IndexingRepository + IndexingClientInfra + WalkerInfra + FileReaderInfra
     IndexingService for ForgeIndexingService<F>
 {
     async fn index(&self, path: PathBuf) -> Result<IndexStats> {
-        // Canonicalize the path
         let canonical_path = path
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
 
-        // Step 2: Get or create workspace and user_id
         let existing_workspace = self.infra.find_by_path(&canonical_path).await?;
 
-        let (workspace_id, user_id) = if let Some(existing) = existing_workspace {
-            // Already indexed locally, use existing workspace_id and user_id
-            (existing.workspace_id, existing.user_id)
-        } else {
-            // Not indexed yet, generate new user_id and create workspace on server
-            let user_id = UserId::generate();
-            let workspace_id = self
-                .infra
+        let (workspace_id, user_id, is_new_workspace) = existing_workspace
+            .map(|workspace| (workspace.workspace_id, workspace.user_id, false))
+            .unwrap_or_else(|| {
+                let user_id = UserId::generate();
+                (IndexWorkspaceId::generate(), user_id, true)
+            });
+
+        // Create workspace on server if new
+        let workspace_id = if is_new_workspace {
+            self.infra
                 .create_workspace(&user_id, &canonical_path)
                 .await
-                .context("Failed to create workspace on server")?;
-            (workspace_id, user_id)
+                .context("Failed to create workspace on server")?
+        } else {
+            workspace_id
         };
 
-        // Step 3: Walk directory to collect files
+        // Fetch existing file hashes from server (skip for new workspaces)
+        let server_hashes: HashMap<String, String> = if !is_new_workspace {
+            info!("Fetching existing file hashes from server to detect changes...");
+            self.infra
+                .list_workspace_files(&user_id, &workspace_id)
+                .await
+                .map(|files| {
+                    let hashes: HashMap<_, _> =
+                        files.into_iter().map(|f| (f.path, f.hash)).collect();
+                    info!("Found {} files on server", hashes.len());
+                    hashes
+                })
+                .unwrap_or_else(|e| {
+                    warn!(
+                        "Failed to fetch existing files: {}. Will upload all files.",
+                        e
+                    );
+                    HashMap::new()
+                })
+        } else {
+            HashMap::new()
+        };
+
+        // Walk directory
         let walker_config = Walker::conservative().cwd(canonical_path.clone());
         let walked_files = self
             .infra
@@ -74,64 +100,91 @@ impl<F: IndexingRepository + IndexingClientInfra + WalkerInfra + FileReaderInfra
             .filter(|f| !f.is_dir())
             .collect::<Vec<_>>();
 
-        if walked_files.is_empty() {
-            anyhow::bail!("No files found to index");
-        }
+        anyhow::ensure!(!walked_files.is_empty(), "No files found to index");
 
-        let file_count = walked_files.len();
-
-        // Step 4: Read file contents in parallel using infrastructure
+        // Read all files and compute hashes
         let infra = self.infra.clone();
         let read_tasks = walked_files.into_iter().map(|walked| {
             let infra = infra.clone();
             let file_path = canonical_path.join(&walked.path);
-            let path_for_error = walked.path.clone();
+            let relative_path = walked.path.clone();
 
             async move {
-                match infra.read_utf8(&file_path).await {
-                    Ok(content) => Some((PathBuf::from(path_for_error), content)),
-                    Err(e) => {
-                        // Log error but continue with other files
-                        warn!(
-                            path = %path_for_error,
-                            error = %e,
-                            "Failed to read file during indexing"
-                        );
-                        None
-                    }
-                }
+                infra
+                    .read_utf8(&file_path)
+                    .await
+                    .map(|content| {
+                        let hash = compute_hash(&content);
+                        (PathBuf::from(relative_path.clone()), content, hash)
+                    })
+                    .map_err(|e| {
+                        warn!(path = %relative_path, error = %e, "Failed to read file");
+                        e
+                    })
+                    .ok()
             }
         });
 
-        let results = join_all(read_tasks).await;
-        let files_with_content: Vec<_> = results.into_iter().flatten().collect();
+        let all_files: Vec<_> = join_all(read_tasks).await.into_iter().flatten().collect();
+        let total_file_count = all_files.len();
 
-        if files_with_content.is_empty() {
-            anyhow::bail!("No readable files found to index");
+        // Filter to only changed files
+        let files_to_upload: Vec<_> = all_files
+            .into_iter()
+            .filter_map(|(path, content, local_hash)| {
+                let path_str = path.to_string_lossy().to_string();
+                let needs_upload = server_hashes.get(&path_str) != Some(&local_hash);
+                needs_upload.then_some((path, content))
+            })
+            .collect();
+
+        // Log optimization stats
+        if !server_hashes.is_empty() {
+            let skipped = total_file_count - files_to_upload.len();
+            info!(
+                "Uploading {} changed files (skipping {} unchanged)",
+                files_to_upload.len(),
+                skipped
+            );
         }
 
-        // Step 5: Upload files in batches
+        // Early exit if nothing to upload
+        if files_to_upload.is_empty() {
+            info!(
+                "All {} files are up to date - nothing to upload",
+                total_file_count
+            );
+            self.infra
+                .upsert(&workspace_id, &user_id, &canonical_path)
+                .await
+                .context("Failed to save workspace")?;
+            return Ok(IndexStats::new(
+                workspace_id,
+                total_file_count,
+                forge_domain::UploadStats::default(),
+            ));
+        }
+
+        // Upload in batches
         let batch_size = self.get_batch_size();
         let mut total_stats = forge_domain::UploadStats::default();
 
-        for batch in files_with_content.chunks(batch_size) {
-            let upload_stats = self
+        for batch in files_to_upload.chunks(batch_size) {
+            let stats = self
                 .infra
                 .upload_files(&user_id, &workspace_id, batch.to_vec())
                 .await
                 .context("Failed to upload files")?;
-
-            total_stats = total_stats + upload_stats;
+            total_stats = total_stats + stats;
         }
 
-        // Step 6: Save or update workspace in local database
+        // Save workspace metadata
         self.infra
             .upsert(&workspace_id, &user_id, &canonical_path)
             .await
-            .context("Failed to save workspace to database")?;
+            .context("Failed to save workspace")?;
 
-        // Step 7: Return stats
-        Ok(IndexStats::new(workspace_id, file_count, total_stats))
+        Ok(IndexStats::new(workspace_id, total_file_count, total_stats))
     }
 
     /// Performs semantic code search on an indexed workspace.
@@ -288,6 +341,14 @@ mod tests {
         async fn list_workspaces(&self, _user_id: &UserId) -> Result<Vec<WorkspaceInfo>> {
             Ok(vec![])
         }
+
+        async fn list_workspace_files(
+            &self,
+            _user_id: &UserId,
+            _workspace_id: &IndexWorkspaceId,
+        ) -> Result<Vec<forge_domain::FileHash>> {
+            Ok(vec![])
+        }
     }
 
     #[async_trait]
@@ -377,6 +438,7 @@ mod tests {
         let actual = service.index(PathBuf::from("/tmp/forge-test-index")).await;
 
         assert!(actual.is_err());
-        assert!(actual.unwrap_err().to_string().contains("No files found"));
+        let error_msg = actual.unwrap_err().to_string();
+        assert!(error_msg.contains("No files found"));
     }
 }

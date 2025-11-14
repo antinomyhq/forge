@@ -71,6 +71,17 @@ pub struct WorkspaceInfo {
     pub working_dir: String,
 }
 
+/// File hash information from the server
+///
+/// Contains the relative file path and its SHA-256 hash
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FileHash {
+    /// Relative file path from workspace root
+    pub path: String,
+    /// SHA-256 hash of the file content
+    pub hash: String,
+}
+
 /// Result of an indexing operation
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
@@ -158,6 +169,8 @@ pub enum CodeSearchResult {
         file_path: String,
         /// File content
         content: String,
+        /// SHA-256 hash of the file content
+        hash: String,
         /// Similarity score (0.0 - 1.0)
         similarity: f32,
     },
@@ -167,6 +180,8 @@ pub enum CodeSearchResult {
         node_id: String,
         /// File path
         file_path: String,
+        /// SHA-256 hash of the file content
+        file_hash: String,
         /// Similarity score (0.0 - 1.0)
         similarity: f32,
     },

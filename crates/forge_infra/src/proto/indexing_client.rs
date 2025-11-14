@@ -137,14 +137,18 @@ impl IndexingClientInfra for IndexingClient {
                         similarity,
                     },
                     node_data::Kind::File(file) => CodeSearchResult::File {
-                        node_id,
+                        node_id: node_id.clone(),
                         file_path: file.path,
                         content: file.content,
+                        hash: node.hash,
                         similarity,
                     },
-                    node_data::Kind::FileRef(file_ref) => {
-                        CodeSearchResult::FileRef { node_id, file_path: file_ref.path, similarity }
-                    }
+                    node_data::Kind::FileRef(file_ref) => CodeSearchResult::FileRef {
+                        node_id,
+                        file_path: file_ref.path,
+                        file_hash: file_ref.file_hash,
+                        similarity,
+                    },
                     node_data::Kind::Note(note) => {
                         CodeSearchResult::Note { node_id, content: note.content, similarity }
                     }
@@ -181,5 +185,52 @@ impl IndexingClientInfra for IndexingClient {
             .collect();
 
         Ok(workspaces)
+    }
+
+    /// List all files in a workspace with their hashes
+    async fn list_workspace_files(
+        &self,
+        user_id: &DomainUserId,
+        workspace_id: &IndexWorkspaceId,
+    ) -> Result<Vec<forge_domain::FileHash>> {
+        let request = tonic::Request::new(SearchRequest {
+            user_id: Some(UserId { id: user_id.to_string() }),
+            workspace_id: Some(WorkspaceId { id: workspace_id.to_string() }),
+            query: Some(Query {
+                prompt: None,          // No semantic search, just list all
+                limit: Some(u32::MAX), // Get all files
+                top_k: None,
+                kinds: vec![3], // NODE_KIND_FILE_REF = 3
+                ..Default::default()
+            }),
+        });
+
+        let mut client = self.client.clone();
+        let response = client.search(request).await?;
+
+        // Extract file paths and hashes from FileRef nodes
+        let files = response
+            .into_inner()
+            .result
+            .unwrap_or_default()
+            .data
+            .into_iter()
+            .filter_map(|query_item| {
+                // Chain Options: node -> data -> kind
+                query_item
+                    .node
+                    .and_then(|node| node.data)
+                    .and_then(|data| data.kind)
+                    .and_then(|kind| match kind {
+                        node_data::Kind::FileRef(file_ref) => Some(forge_domain::FileHash {
+                            path: file_ref.path,
+                            hash: file_ref.file_hash,
+                        }),
+                        _ => None,
+                    })
+            })
+            .collect();
+
+        Ok(files)
     }
 }
