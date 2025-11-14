@@ -2560,82 +2560,55 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     ) -> anyhow::Result<()> {
         self.spinner.start(Some("Searching codebase..."))?;
 
-        match self
-            .api
-            .query_codebase(path.clone(), &query, limit, top_k)
-            .await
-        {
-            Ok(results) => {
-                self.spinner.stop(Some("🔍 Search complete".to_string()))?;
-                self.writeln("")?;
-                self.writeln(format!("📁 Workspace: {}", path.display()))?;
-                self.writeln(format!("🔍 Query: {}", query))?;
-                self.writeln(format!("✨ Found {} results:", results.len()))?;
-                self.writeln("")?;
-
-                for (i, result) in results.iter().enumerate() {
-                    match result {
-                        forge_domain::CodeSearchResult::FileChunk {
-                            file_path,
-                            content,
-                            start_line,
-                            end_line,
-                            ..
-                        } => {
-                            self.writeln(format!(
-                                "{}. {} (lines {}-{})",
-                                i + 1,
-                                file_path,
-                                start_line,
-                                end_line
-                            ))?;
-                            self.writeln(format!(
-                                "   Similarity: {:.2}%",
-                                result.similarity() * 100.0
-                            ))?;
-                            self.writeln(format!("   ```\n   {}\n   ```", content))?;
-                        }
-                        forge_domain::CodeSearchResult::File { file_path, content, .. } => {
-                            self.writeln(format!("{}. {} (full file)", i + 1, file_path))?;
-                            self.writeln(format!(
-                                "   Similarity: {:.2}%",
-                                result.similarity() * 100.0
-                            ))?;
-                            self.writeln(format!("   ```\n   {}\n   ```", content))?;
-                        }
-                        forge_domain::CodeSearchResult::FileRef { file_path, .. } => {
-                            self.writeln(format!("{}. {} (reference)", i + 1, file_path))?;
-                            self.writeln(format!(
-                                "   Similarity: {:.2}%",
-                                result.similarity() * 100.0
-                            ))?;
-                        }
-                        forge_domain::CodeSearchResult::Note { content, .. } => {
-                            self.writeln(format!("{}. Note", i + 1))?;
-                            self.writeln(format!(
-                                "   Similarity: {:.2}%",
-                                result.similarity() * 100.0
-                            ))?;
-                            self.writeln(format!("   {}", content))?;
-                        }
-                        forge_domain::CodeSearchResult::Task { task, .. } => {
-                            self.writeln(format!("{}. Task", i + 1))?;
-                            self.writeln(format!(
-                                "   Similarity: {:.2}%",
-                                result.similarity() * 100.0
-                            ))?;
-                            self.writeln(format!("   {}", task))?;
-                        }
-                    }
-                    self.writeln("")?;
-                }
-                Ok(())
-            }
+        let results = match self.api.query_codebase(path.clone(), &query, limit, top_k).await {
+            Ok(results) => results,
             Err(e) => {
                 self.spinner.stop(None)?;
-                Err(e)
+                return Err(e);
             }
+        };
+
+        self.spinner.stop(None)?;
+        self.writeln(format!("✨ Found {} results:", results.len()))?;
+
+        for (i, result) in results.iter().enumerate() {
+            let similarity = format!("   Similarity: {:.2}%", result.similarity() * 100.0);
+            
+            match result {
+                forge_domain::CodeSearchResult::FileChunk {
+                    file_path,
+                    content,
+                    start_line,
+                    end_line,
+                    ..
+                } => {
+                    self.writeln(format!("{}. {} (lines {}-{})", i + 1, file_path, start_line, end_line))?;
+                    self.writeln(similarity)?;
+                    self.writeln(format!("   ```\n   {}\n   ```", content))?;
+                }
+                forge_domain::CodeSearchResult::File { file_path, .. } => {
+                    self.writeln(format!("{}. {} (full file)", i + 1, file_path))?;
+                    self.writeln(similarity)?;
+                }
+                forge_domain::CodeSearchResult::FileRef { file_path, .. } => {
+                    self.writeln(format!("{}. {} (reference)", i + 1, file_path))?;
+                    self.writeln(similarity)?;
+                }
+                forge_domain::CodeSearchResult::Note { content, .. } => {
+                    self.writeln(format!("{}. Note", i + 1))?;
+                    self.writeln(similarity)?;
+                    self.writeln(format!("   {}", content))?;
+                }
+                forge_domain::CodeSearchResult::Task { task, .. } => {
+                    self.writeln(format!("{}. Task", i + 1))?;
+                    self.writeln(similarity)?;
+                    self.writeln(format!("   {}", task))?;
+                }
+            }
+            self.writeln("")?;
         }
+
+        Ok(())
     }
 
     async fn on_list_workspaces(&mut self, porcelain: bool) -> anyhow::Result<()> {
