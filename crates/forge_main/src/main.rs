@@ -28,7 +28,7 @@ async fn main() -> Result<()> {
     // Initialize and run the UI
     let mut cli = Cli::parse();
 
-    // Check if there's piped input and no explicit prompt was provided
+    // Check if there's piped input
     if cli.prompt.is_none() && !atty::is(atty::Stream::Stdin) {
         let mut stdin_content = String::new();
         std::io::stdin().read_to_string(&mut stdin_content)?;
@@ -61,6 +61,7 @@ async fn main() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use forge_main::TopLevelCommand;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -100,5 +101,17 @@ mod tests {
         assert_eq!(cli_with_flags.prompt, None);
         assert_eq!(cli_with_flags.verbose, true);
         assert_eq!(cli_with_flags.restricted, true);
+    }
+
+    #[test]
+    fn test_commit_command_diff_field_initially_none() {
+        // Test that the diff field in CommitCommandGroup starts as None
+        let cli = Cli::parse_from(["forge", "commit", "--preview"]);
+        if let Some(TopLevelCommand::Commit(commit_group)) = cli.subcommands {
+            assert_eq!(commit_group.preview, true);
+            assert_eq!(commit_group.diff, None);
+        } else {
+            panic!("Expected Commit command");
+        }
     }
 }
