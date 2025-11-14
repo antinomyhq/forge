@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::usize;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -17,6 +16,7 @@ use tracing::{info, warn};
 const DEFAULT_BATCH_SIZE: usize = 20;
 
 /// Represents a file with its content and computed hash
+#[derive(Debug)]
 struct IndexedFile {
     /// Relative path from the workspace root
     path: String,
@@ -32,6 +32,7 @@ impl IndexedFile {
     }
 }
 
+/// Service for indexing codebases and performing semantic search
 pub struct ForgeIndexingService<F> {
     infra: Arc<F>,
 }
@@ -45,6 +46,7 @@ impl<F> ForgeIndexingService<F> {
         Self { infra }
     }
 
+    /// Gets the batch size for file uploads from environment or default.
     fn get_batch_size(&self) -> usize
     where
         F: EnvironmentInfra,
@@ -197,7 +199,10 @@ impl<F> ForgeIndexingService<F> {
     {
         // Walk directory
         info!("Walking directory to discover files");
-        let walker_config = Walker::conservative().cwd(dir_path.to_path_buf()).max_depth(usize::MAX).max_breadth(usize::MAX);
+        let walker_config = Walker::conservative()
+            .cwd(dir_path.to_path_buf())
+            .max_depth(usize::MAX)
+            .max_breadth(usize::MAX);
         let walked_files = self
             .infra
             .walk(walker_config)
@@ -407,20 +412,106 @@ impl<F: IndexingRepository + IndexingClientInfra + WalkerInfra + FileReaderInfra
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::path::PathBuf;
     use std::sync::Arc;
 
     use forge_app::WalkedFile;
     use forge_domain::{
-        CodeSearchResult, Environment, FileInfo, IndexWorkspaceId, IndexedWorkspace, UploadStats,
-        UserId, WorkspaceInfo,
+        CodeSearchResult, Environment, FileHash, FileInfo, IndexWorkspaceId, IndexedWorkspace,
+        UploadStats, UserId, WorkspaceInfo,
     };
+    use pretty_assertions::assert_eq;
 
     use super::*;
 
+    #[derive(Default, Clone)]
     struct MockInfra {
-        existing_workspace: Option<IndexedWorkspace>,
-        walked_files: Vec<WalkedFile>,
+        files: HashMap<String, String>,
+        workspace: Option<IndexedWorkspace>,
+        search_results: Vec<CodeSearchResult>,
+        workspaces: Vec<WorkspaceInfo>,
+        server_files: Vec<FileHash>,
+        deleted_files: Arc<tokio::sync::Mutex<Vec<String>>>,
+        uploaded_files: Arc<tokio::sync::Mutex<Vec<String>>>,
+    }
+
+    impl MockInfra {
+        /// New workspace that hasn't been indexed yet
+        fn new(files: &[&str]) -> Self {
+            Self {
+                files: files
+                    .iter()
+                    .map(|p| (p.to_string(), format!("content of {}", p)))
+                    .collect(),
+                ..Default::default()
+            }
+        }
+
+        /// Indexed workspace where local and server are in sync (no changes)
+        fn synced(files: &[&str]) -> Self {
+            let files_map: HashMap<_, _> = files
+                .iter()
+                .map(|p| (p.to_string(), format!("content of {}", p)))
+                .collect();
+            let server_files = files
+                .iter()
+                .map(|p| FileHash {
+                    path: p.to_string(),
+                    hash: compute_hash(&format!("content of {}", p)),
+                })
+                .collect();
+
+            Self {
+                files: files_map,
+                workspace: Some(workspace()),
+                server_files,
+                ..Default::default()
+            }
+        }
+
+        /// Indexed workspace where local and server are out of sync
+        fn out_of_sync(local_files: &[&str], server_files: &[&str]) -> Self {
+            let files_map: HashMap<_, _> = local_files
+                .iter()
+                .map(|p| (p.to_string(), format!("content of {}", p)))
+                .collect();
+            let server = server_files
+                .iter()
+                .map(|p| FileHash {
+                    path: p.to_string(),
+                    hash: compute_hash(&format!("content of {}", p)),
+                })
+                .collect();
+
+            Self {
+                files: files_map,
+                workspace: Some(workspace()),
+                server_files: server,
+                ..Default::default()
+            }
+        }
+    }
+
+    fn workspace() -> IndexedWorkspace {
+        IndexedWorkspace {
+            workspace_id: IndexWorkspaceId::generate(),
+            user_id: UserId::generate(),
+            path: PathBuf::from("."),
+            created_at: chrono::Utc::now(),
+            updated_at: None,
+        }
+    }
+
+    fn search_result() -> CodeSearchResult {
+        CodeSearchResult::FileChunk {
+            node_id: "n1".into(),
+            file_path: "main.rs".into(),
+            content: "fn main() {}".into(),
+            start_line: 1,
+            end_line: 1,
+            similarity: 0.95,
+        }
     }
 
     impl EnvironmentInfra for MockInfra {
@@ -428,109 +519,97 @@ mod tests {
             use fake::{Fake, Faker};
             Faker.fake()
         }
-
-        fn get_env_var(&self, _key: &str) -> Option<String> {
+        fn get_env_var(&self, _: &str) -> Option<String> {
             None
         }
     }
 
     #[async_trait]
     impl IndexingRepository for MockInfra {
-        async fn upsert(
-            &self,
-            _workspace_id: &IndexWorkspaceId,
-            _user_id: &UserId,
-            _path: &std::path::Path,
-        ) -> Result<()> {
+        async fn upsert(&self, _: &IndexWorkspaceId, _: &UserId, _: &Path) -> Result<()> {
             Ok(())
         }
-
-        async fn find_by_path(&self, _path: &std::path::Path) -> Result<Option<IndexedWorkspace>> {
-            Ok(self.existing_workspace.clone())
+        async fn find_by_path(&self, _: &Path) -> Result<Option<IndexedWorkspace>> {
+            Ok(self.workspace.clone())
         }
-
         async fn get_user_id(&self) -> Result<Option<UserId>> {
-            Ok(self.existing_workspace.as_ref().map(|w| w.user_id.clone()))
+            Ok(self.workspace.as_ref().map(|w| w.user_id.clone()))
         }
     }
 
     #[async_trait]
     impl IndexingClientInfra for MockInfra {
-        async fn create_workspace(
-            &self,
-            _user_id: &UserId,
-            _working_dir: &std::path::Path,
-        ) -> Result<IndexWorkspaceId> {
+        async fn create_workspace(&self, _: &UserId, _: &Path) -> Result<IndexWorkspaceId> {
             Ok(IndexWorkspaceId::generate())
         }
-
         async fn upload_files(
             &self,
-            _user_id: &UserId,
-            _workspace_id: &IndexWorkspaceId,
-            _files: Vec<(String, String)>,
+            _: &UserId,
+            _: &IndexWorkspaceId,
+            files: Vec<(String, String)>,
         ) -> Result<UploadStats> {
-            Ok(UploadStats::new(10, 5))
+            self.uploaded_files
+                .lock()
+                .await
+                .extend(files.iter().map(|(p, _)| p.clone()));
+            Ok(UploadStats::new(files.len(), files.len()))
         }
-
         async fn search(
             &self,
-            _user_id: &UserId,
-            _workspace_id: &IndexWorkspaceId,
-            _query: &str,
-            _limit: usize,
-            _top_k: Option<u32>,
+            _: &UserId,
+            _: &IndexWorkspaceId,
+            _: &str,
+            _: usize,
+            _: Option<u32>,
         ) -> Result<Vec<CodeSearchResult>> {
-            Ok(vec![])
+            Ok(self.search_results.clone())
         }
-
-        async fn list_workspaces(&self, _user_id: &UserId) -> Result<Vec<WorkspaceInfo>> {
-            Ok(vec![])
+        async fn list_workspaces(&self, _: &UserId) -> Result<Vec<WorkspaceInfo>> {
+            Ok(self.workspaces.clone())
         }
-
         async fn list_workspace_files(
             &self,
-            _user_id: &UserId,
-            _workspace_id: &IndexWorkspaceId,
-        ) -> Result<Vec<forge_domain::FileHash>> {
-            Ok(vec![])
+            _: &UserId,
+            _: &IndexWorkspaceId,
+        ) -> Result<Vec<FileHash>> {
+            Ok(self.server_files.clone())
         }
-
         async fn delete_files(
             &self,
-            _user_id: &UserId,
-            _workspace_id: &IndexWorkspaceId,
-            _file_paths: Vec<String>,
+            _: &UserId,
+            _: &IndexWorkspaceId,
+            paths: Vec<String>,
         ) -> Result<()> {
+            self.deleted_files.lock().await.extend(paths);
             Ok(())
         }
     }
 
     #[async_trait]
     impl WalkerInfra for MockInfra {
-        async fn walk(&self, _config: Walker) -> Result<Vec<WalkedFile>> {
-            Ok(self.walked_files.clone())
+        async fn walk(&self, _: Walker) -> Result<Vec<WalkedFile>> {
+            Ok(self
+                .files
+                .keys()
+                .map(|p| WalkedFile { path: p.clone(), file_name: Some(p.clone()), size: 100 })
+                .collect())
         }
     }
 
     #[async_trait]
     impl FileReaderInfra for MockInfra {
-        async fn read_utf8(&self, _path: &std::path::Path) -> Result<String> {
-            Ok("fn main() {}".to_string())
+        async fn read_utf8(&self, path: &Path) -> Result<String> {
+            self.files
+                .get(path.file_name().unwrap().to_str().unwrap())
+                .cloned()
+                .ok_or_else(|| anyhow::anyhow!("File not found"))
         }
-
-        async fn read(&self, _path: &std::path::Path) -> Result<Vec<u8>> {
-            Ok(b"fn main() {}".to_vec())
+        async fn read(&self, _: &Path) -> Result<Vec<u8>> {
+            Ok(vec![])
         }
-
-        async fn range_read_utf8(
-            &self,
-            _path: &std::path::Path,
-            _start_line: u64,
-            _end_line: u64,
-        ) -> Result<(String, FileInfo)> {
+        async fn range_read_utf8(&self, _: &Path, _: u64, _: u64) -> Result<(String, FileInfo)> {
             Ok((
-                "fn main() {}".to_string(),
+                String::new(),
                 FileInfo { total_lines: 1, start_line: 1, end_line: 1 },
             ))
         }
@@ -538,62 +617,109 @@ mod tests {
 
     #[tokio::test]
     async fn test_index_new_workspace() {
-        let fixture = Arc::new(MockInfra {
-            existing_workspace: None,
-            walked_files: vec![WalkedFile {
-                path: "test.rs".to_string(),
-                file_name: Some("test.rs".to_string()),
-                size: 100,
-            }],
-        });
+        let service = ForgeIndexingService::new(Arc::new(MockInfra::new(&["main.rs", "lib.rs"])));
 
-        let service = ForgeIndexingService::new(fixture);
-        let actual = service.index(PathBuf::from("/tmp/forge-test-index")).await;
+        let actual = service.index(PathBuf::from(".")).await.unwrap();
 
-        assert!(actual.is_ok());
-        let stats = actual.unwrap();
-        assert_eq!(stats.files_processed, 1);
-        assert_eq!(stats.upload_stats.nodes_created, 10);
-        assert_eq!(stats.upload_stats.relations_created, 5);
+        assert_eq!(actual.files_processed, 2);
+        assert_eq!(actual.upload_stats.nodes_created, 2);
     }
 
     #[tokio::test]
-    async fn test_index_existing_workspace() {
-        let workspace_id = IndexWorkspaceId::generate();
-        let user_id = UserId::generate();
+    async fn test_query_returns_results() {
+        let mut mock = MockInfra::synced(&["test.rs"]);
+        mock.search_results = vec![search_result()];
+        let service = ForgeIndexingService::new(Arc::new(mock));
 
-        let fixture = Arc::new(MockInfra {
-            existing_workspace: Some(IndexedWorkspace {
-                workspace_id: workspace_id.clone(),
-                user_id: user_id.clone(),
-                path: PathBuf::from("/tmp/forge-test-index"),
-                created_at: chrono::Utc::now(),
-                updated_at: None,
-            }),
-            walked_files: vec![WalkedFile {
-                path: "test.rs".to_string(),
-                file_name: Some("test.rs".to_string()),
-                size: 100,
-            }],
-        });
+        let actual = service
+            .query(PathBuf::from("."), "test", 10, None)
+            .await
+            .unwrap();
 
-        let service = ForgeIndexingService::new(fixture);
-        let actual = service.index(PathBuf::from("/tmp/forge-test-index")).await;
-
-        assert!(actual.is_ok());
-        let stats = actual.unwrap();
-        assert_eq!(stats.workspace_id, workspace_id);
+        assert_eq!(actual.len(), 1);
     }
 
     #[tokio::test]
-    async fn test_index_no_files() {
-        let fixture = Arc::new(MockInfra { existing_workspace: None, walked_files: vec![] });
+    async fn test_query_error_when_not_indexed() {
+        let service = ForgeIndexingService::new(Arc::new(MockInfra::default()));
 
-        let service = ForgeIndexingService::new(fixture);
-        let actual = service.index(PathBuf::from("/tmp/forge-test-index")).await;
+        let actual = service.query(PathBuf::from("."), "test", 10, None).await;
 
         assert!(actual.is_err());
-        let error_msg = actual.unwrap_err().to_string();
-        assert!(error_msg.contains("No files found"));
+        assert!(actual.unwrap_err().to_string().contains("not indexed"));
+    }
+
+    #[tokio::test]
+    async fn test_list_indexes() {
+        let ws = workspace();
+        let mut mock = MockInfra::synced(&["test.rs"]);
+        mock.workspaces = vec![WorkspaceInfo {
+            workspace_id: ws.workspace_id,
+            working_dir: "/project".into(),
+        }];
+        let service = ForgeIndexingService::new(Arc::new(mock));
+
+        let actual = service.list_indexes().await.unwrap();
+
+        assert_eq!(actual.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_list_indexes_error_when_none() {
+        let service = ForgeIndexingService::new(Arc::new(MockInfra::default()));
+
+        let actual = service.list_indexes().await;
+
+        assert!(actual.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_stale_files_deleted_and_changed_uploaded() {
+        let mut mock = MockInfra::out_of_sync(
+            &["changed.rs", "unchanged.rs", "new.rs"],
+            &["deleted.rs", "unchanged.rs"],
+        );
+        mock.server_files
+            .push(FileHash { path: "changed.rs".into(), hash: "old".into() });
+        let service = ForgeIndexingService::new(Arc::new(mock.clone()));
+
+        service.index(PathBuf::from(".")).await.unwrap();
+
+        let deleted = mock.deleted_files.lock().await;
+        assert_eq!(deleted.len(), 2);
+        assert!(deleted.contains(&"deleted.rs".into()));
+        assert!(deleted.contains(&"changed.rs".into()));
+
+        let uploaded = mock.uploaded_files.lock().await;
+        assert_eq!(uploaded.len(), 2);
+        assert!(uploaded.contains(&"changed.rs".into()));
+        assert!(uploaded.contains(&"new.rs".into()));
+    }
+
+    #[tokio::test]
+    async fn test_no_upload_when_unchanged() {
+        let mock = MockInfra::synced(&["main.rs"]);
+        let service = ForgeIndexingService::new(Arc::new(mock.clone()));
+
+        let actual = service.index(PathBuf::from(".")).await.unwrap();
+
+        assert_eq!(mock.deleted_files.lock().await.len(), 0);
+        assert_eq!(mock.uploaded_files.lock().await.len(), 0);
+        assert_eq!(actual.upload_stats.nodes_created, 0);
+    }
+
+    #[tokio::test]
+    async fn test_orphaned_files_deleted() {
+        let mut mock = MockInfra::out_of_sync(&["main.rs"], &["main.rs"]);
+        mock.server_files
+            .push(FileHash { path: "old.rs".into(), hash: "x".into() });
+        let service = ForgeIndexingService::new(Arc::new(mock.clone()));
+
+        service.index(PathBuf::from(".")).await.unwrap();
+
+        let deleted = mock.deleted_files.lock().await;
+        assert_eq!(deleted.len(), 1);
+        assert!(deleted.contains(&"old.rs".into()));
+        assert_eq!(mock.uploaded_files.lock().await.len(), 0);
     }
 }
