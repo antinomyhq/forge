@@ -2533,12 +2533,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     ),
             )?;
 
-            self.writeln_title(
-                TitleFormat::info(format!(
-                    "Migrated {} provider(s) from environment variables",
-                    result.migrated_providers.len()
-                )),
-            )?;
+            self.writeln_title(TitleFormat::info(format!(
+                "Migrated {} provider(s) from environment variables",
+                result.migrated_providers.len()
+            )))?;
         }
         Ok(())
     }
