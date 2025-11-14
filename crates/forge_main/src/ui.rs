@@ -1389,6 +1389,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .max()
                     .unwrap_or_default();
 
+                // Fetch all models to get their names
+                let models = self.get_models().await?;
+
                 // Collect agents with their provider and model information
                 let mut display_agents = Vec::new();
                 for agent in agents {
@@ -1406,17 +1409,25 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         .unwrap_or_else(|| "<unset>".to_string());
 
                     // Get model for this agent
-                    let model_name = self
-                        .get_agent_model(Some(agent.id.clone()))
-                        .await
-                        .map(|m| m.as_str().to_string())
-                        .unwrap_or_else(|| "<unset>".to_string());
+                    let model_display = if let Some(model_id) =
+                        self.get_agent_model(Some(agent.id.clone())).await
+                    {
+                        // Find the model in the models list to get its name
+                        models
+                            .iter()
+                            .find(|m| m.id == model_id)
+                            .and_then(|m| m.name.as_ref())
+                            .map(|name| name.to_string())
+                            .unwrap_or_else(|| model_id.as_str().to_string())
+                    } else {
+                        "<unset>".to_string()
+                    };
 
                     let label = format!(
-                        "{:<n$} {} {}",
+                        "{:<n$} {} ∙ {}",
                         agent.id.as_str().bold(),
                         title.lines().collect::<Vec<_>>().join(" ").dimmed(),
-                        format!("[{}/{}]", provider_name, model_name).dimmed()
+                        format!("{}: {}", provider_name, model_display).dimmed()
                     );
                     display_agents.push(Agent { label, id: agent.id.clone() });
                 }
