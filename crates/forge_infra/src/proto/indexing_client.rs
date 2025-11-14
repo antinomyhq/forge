@@ -7,7 +7,13 @@ use forge_domain::{
 use tonic::transport::Channel;
 
 // Include the generated proto code at module level
-tonic::include_proto!("forge.v1");
+// Allow dead code since protobuf generates code that may not be fully used
+#[allow(dead_code)]
+mod proto_generated {
+    tonic::include_proto!("forge.v1");
+}
+
+use proto_generated::*;
 
 use forge_service_client::ForgeServiceClient;
 
