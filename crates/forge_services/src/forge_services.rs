@@ -10,7 +10,8 @@ use forge_domain::{
 };
 
 use crate::ForgeProviderAuthService;
-use crate::agent_registry::AgentLoaderService as ForgeAgentLoaderService;
+use crate::agent_loader::ForgeAgentLoaderService;
+use crate::agent_registry::ForgeAgentRegistryService;
 use crate::attachment::ForgeChatRequest;
 use crate::auth::ForgeAuthService;
 use crate::command_loader::CommandLoaderService as ForgeCommandLoaderService;
@@ -75,6 +76,7 @@ pub struct ForgeServices<
     custom_instructions_service: Arc<ForgeCustomInstructionsService<F>>,
     auth_service: Arc<AuthService<F>>,
     agent_loader_service: Arc<ForgeAgentLoaderService<F>>,
+    agent_registry_service: Arc<ForgeAgentRegistryService>,
     command_loader_service: Arc<ForgeCommandLoaderService<F>>,
     policy_service: ForgePolicyService<F>,
     provider_auth_service: ForgeProviderAuthService<F>,
@@ -124,6 +126,7 @@ impl<
         let custom_instructions_service =
             Arc::new(ForgeCustomInstructionsService::new(infra.clone()));
         let agent_loader_service = Arc::new(ForgeAgentLoaderService::new(infra.clone()));
+        let agent_registry_service = Arc::new(crate::agent_registry::ForgeAgentRegistryService::new());
         let command_loader_service = Arc::new(ForgeCommandLoaderService::new(infra.clone()));
         let policy_service = ForgePolicyService::new(infra.clone());
         let provider_auth_service = ForgeProviderAuthService::new(infra.clone());
@@ -153,6 +156,7 @@ impl<
             chat_service,
             config_service,
             agent_loader_service,
+            agent_registry_service,
             command_loader_service,
             policy_service,
             provider_auth_service,
@@ -212,7 +216,8 @@ impl<
     type ShellService = ForgeShell<F>;
     type McpService = McpService<F>;
     type AuthService = AuthService<F>;
-    type AgentRegistry = ForgeAgentLoaderService<F>;
+    type AgentLoader = ForgeAgentLoaderService<F>;
+    type AgentRegistry = ForgeAgentRegistryService;
     type CommandLoaderService = ForgeCommandLoaderService<F>;
     type PolicyService = ForgePolicyService<F>;
 
@@ -303,8 +308,12 @@ impl<
         self.auth_service.as_ref()
     }
 
-    fn agent_registry(&self) -> &Self::AgentRegistry {
+    fn agent_loader(&self) -> &Self::AgentLoader {
         &self.agent_loader_service
+    }
+
+    fn agent_registry(&self) -> &Self::AgentRegistry {
+        &self.agent_registry_service
     }
 
     fn command_loader_service(&self) -> &Self::CommandLoaderService {

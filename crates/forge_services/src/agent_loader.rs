@@ -29,7 +29,7 @@ use gray_matter::engine::YAML;
 ///
 /// Missing directories are handled gracefully and don't prevent loading from
 /// other sources.
-pub struct AgentLoaderService<F> {
+pub struct ForgeAgentLoaderService<F> {
     infra: Arc<F>,
 
     // Cache is used to maintain the loaded agent definitions
@@ -38,7 +38,7 @@ pub struct AgentLoaderService<F> {
     cache: tokio::sync::OnceCell<Vec<AgentDefinition>>,
 }
 
-impl<F> AgentLoaderService<F> {
+impl<F> ForgeAgentLoaderService<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra, cache: Default::default() }
     }
@@ -46,44 +46,17 @@ impl<F> AgentLoaderService<F> {
 
 #[async_trait::async_trait]
 impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
-    forge_app::AgentLoader for AgentLoaderService<F>
+    forge_app::AgentLoader for ForgeAgentLoaderService<F>
 {
     /// Load all agent definitions from all available sources with conflict
     /// resolution.
-    ///
-    /// This method loads agents from three sources in order:
-    /// 1. Built-in agents (always available)
-    /// 2. Global custom agents (from ~/.forge/agents/ if directory exists)
-    /// 3. Project-local agents (from ./.forge/agents/ if directory exists)
-    ///
-    /// Duplicate agent IDs are resolved using last-wins strategy, giving
-    /// precedence to project-local agents over global agents, and both over
-    /// built-in agents.
-    ///
-    /// Note: Returns AgentDefinition which should be converted to Agent
-    /// at the application layer with appropriate default provider and model.
     async fn get_agents(&self) -> anyhow::Result<Vec<forge_app::domain::AgentDefinition>> {
         self.cache_or_init().await
-    }
-
-    async fn get_agent(
-        &self,
-        agent_id: &forge_app::domain::AgentId,
-    ) -> anyhow::Result<Option<forge_app::domain::AgentDefinition>> {
-        let definitions = self.cache_or_init().await?;
-        Ok(definitions.into_iter().find(|def| &def.id == agent_id))
-    }
-
-    async fn get_active_agent(&self) -> anyhow::Result<Option<forge_app::domain::AgentDefinition>> {
-        // AgentLoader does not own active_agent_id; this method can be left
-        // as a convenience by returning None here. The active agent id is
-        // managed by AgentRegistry.
-        Ok(None)
     }
 }
 
 impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
-    AgentLoaderService<F>
+    ForgeAgentLoaderService<F>
 {
     /// Load all agent definitions with caching support
     async fn cache_or_init(&self) -> anyhow::Result<Vec<AgentDefinition>> {
