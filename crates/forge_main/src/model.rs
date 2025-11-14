@@ -76,7 +76,7 @@ impl Display for CliProvider {
                 }
             }
             AnyProvider::Template(_) => {
-                write!(f, "  {:<width$} [unavailable]", name, width = name_width)?;
+                write!(f, "  {name:<name_width$} [unavailable]")?;
             }
         }
         Ok(())
@@ -827,13 +827,23 @@ mod tests {
 
     #[test]
     fn test_register_agent_commands() {
-        use forge_domain::Agent;
+        use forge_domain::{Agent, ModelId, ProviderId};
 
         // Setup
         let fixture = ForgeCommandManager::default();
         let agents = vec![
-            Agent::new("test-agent").title("Test Agent".to_string()),
-            Agent::new("another").title("Another Agent".to_string()),
+            Agent::new(
+                "test-agent",
+                ProviderId::Anthropic,
+                ModelId::new("claude-3-5-sonnet-20241022"),
+            )
+            .title("Test Agent".to_string()),
+            Agent::new(
+                "another",
+                ProviderId::Anthropic,
+                ModelId::new("claude-3-5-sonnet-20241022"),
+            )
+            .title("Another Agent".to_string()),
         ];
 
         // Execute
@@ -861,11 +871,18 @@ mod tests {
 
     #[test]
     fn test_parse_agent_switch_command() {
-        use forge_domain::Agent;
+        use forge_domain::{Agent, ModelId, ProviderId};
 
         // Setup
         let fixture = ForgeCommandManager::default();
-        let agents = vec![Agent::new("test-agent").title("Test Agent".to_string())];
+        let agents = vec![
+            Agent::new(
+                "test-agent",
+                ProviderId::Anthropic,
+                ModelId::new("claude-3-5-sonnet-20241022"),
+            )
+            .title("Test Agent".to_string()),
+        ];
         let _result = fixture.register_agent_commands(agents);
 
         // Execute

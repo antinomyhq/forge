@@ -48,9 +48,12 @@ impl Default for AgentId {
     }
 }
 
+/// Agent definition - used for deserialization from configuration files
+/// Fields like model and provider are optional to support defaults
 #[derive(Debug, Clone, Serialize, Deserialize, Merge, Setters, JsonSchema)]
 #[setters(strip_option, into)]
-pub struct Agent {
+#[serde(rename = "Agent")]
+pub struct AgentDefinition {
     /// Flag to enable/disable tool support for this agent.
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -232,7 +235,73 @@ fn merge_opt_vec<T>(base: &mut Option<Vec<T>>, other: Option<Vec<T>>) {
     }
 }
 
-impl Agent {
+/// Runtime agent representation with required model and provider
+/// Created by converting AgentDefinition with resolved defaults
+#[derive(Debug, Clone, Setters)]
+#[setters(strip_option, into)]
+pub struct Agent {
+    /// Flag to enable/disable tool support for this agent.
+    pub tool_supported: Option<bool>,
+
+    // Unique identifier for the agent
+    pub id: AgentId,
+
+    /// Human-readable title for the agent
+    pub title: Option<String>,
+
+    // Required provider for the agent
+    pub provider: ProviderId,
+
+    // Required language model ID to be used by this agent
+    pub model: ModelId,
+
+    // Human-readable description of the agent's purpose
+    pub description: Option<String>,
+
+    // Template for the system prompt provided to the agent
+    pub system_prompt: Option<Template<SystemContext>>,
+
+    // Template for the user prompt provided to the agent
+    pub user_prompt: Option<Template<EventContext>>,
+
+    /// Tools that the agent can use
+    pub tools: Option<Vec<ToolName>>,
+
+    /// Maximum number of turns the agent can take
+    pub max_turns: Option<u64>,
+
+    /// Maximum depth to which the file walker should traverse for this agent
+    pub max_walker_depth: Option<usize>,
+
+    /// Configuration for automatic context compaction
+    pub compact: Option<Compact>,
+
+    /// A set of custom rules that the agent should follow
+    pub custom_rules: Option<String>,
+
+    /// Temperature used for agent
+    pub temperature: Option<Temperature>,
+
+    /// Top-p (nucleus sampling) used for agent
+    pub top_p: Option<TopP>,
+
+    /// Top-k used for agent
+    pub top_k: Option<TopK>,
+
+    /// Maximum number of tokens the model can generate
+    pub max_tokens: Option<MaxTokens>,
+
+    /// Reasoning configuration for the agent.
+    pub reasoning: Option<ReasoningConfig>,
+
+    /// Maximum number of times a tool can fail before sending the response back
+    pub max_tool_failure_per_turn: Option<usize>,
+
+    /// Maximum number of requests that can be made in a single turn
+    pub max_requests_per_turn: Option<usize>,
+}
+
+impl AgentDefinition {
     pub fn new(id: impl Into<AgentId>) -> Self {
         Self {
             id: id.into(),
@@ -255,6 +324,64 @@ impl Agent {
             max_tool_failure_per_turn: Default::default(),
             max_requests_per_turn: Default::default(),
             provider: Default::default(),
+        }
+    }
+
+    /// Convert AgentDefinition to Agent with required provider and model
+    /// Falls back to provided defaults if not specified in definition
+    pub fn into_agent(self, default_provider: ProviderId, default_model: ModelId) -> Agent {
+        let provider = self.provider.unwrap_or(default_provider);
+        let model = self.model.unwrap_or(default_model);
+
+        Agent {
+            tool_supported: self.tool_supported,
+            id: self.id,
+            title: self.title,
+            provider,
+            model,
+            description: self.description,
+            system_prompt: self.system_prompt,
+            user_prompt: self.user_prompt,
+            tools: self.tools,
+            max_turns: self.max_turns,
+            max_walker_depth: self.max_walker_depth,
+            compact: self.compact,
+            custom_rules: self.custom_rules,
+            temperature: self.temperature,
+            top_p: self.top_p,
+            top_k: self.top_k,
+            max_tokens: self.max_tokens,
+            reasoning: self.reasoning,
+            max_tool_failure_per_turn: self.max_tool_failure_per_turn,
+            max_requests_per_turn: self.max_requests_per_turn,
+        }
+    }
+}
+
+impl Agent {
+    /// Create a new Agent with required provider and model
+    pub fn new(id: impl Into<AgentId>, provider: ProviderId, model: ModelId) -> Self {
+        Self {
+            id: id.into(),
+            provider,
+            model,
+            title: Default::default(),
+            tool_supported: Default::default(),
+            description: Default::default(),
+            system_prompt: Default::default(),
+            user_prompt: Default::default(),
+            tools: Default::default(),
+            max_turns: Default::default(),
+            max_walker_depth: Default::default(),
+            compact: Default::default(),
+            custom_rules: Default::default(),
+            temperature: Default::default(),
+            top_p: Default::default(),
+            top_k: Default::default(),
+            max_tokens: Default::default(),
+            reasoning: Default::default(),
+            max_tool_failure_per_turn: Default::default(),
+            max_requests_per_turn: Default::default(),
         }
     }
 
@@ -338,15 +465,12 @@ impl Agent {
         agent
     }
 
-    pub fn set_model_deeply(mut self, model: ModelId) -> Self {
-        // Set model for agent
-        if self.model.is_none() {
-            self.model = Some(model.clone());
-        }
+    /// Sets the model in compaction config if not already set
+    pub fn set_compact_model_if_none(mut self) -> Self {
         if let Some(ref mut compact) = self.compact
             && compact.model.is_none()
         {
-            compact.model = Some(model.clone());
+            compact.model = Some(self.model.clone());
         }
         self
     }
@@ -397,14 +521,14 @@ mod tests {
     #[test]
     fn test_merge_model() {
         // Base has a value, should not be overwritten
-        let mut base = Agent::new("Base").model(ModelId::new("base"));
-        let other = Agent::new("Other").model(ModelId::new("other"));
+        let mut base = AgentDefinition::new("Base").model(ModelId::new("base"));
+        let other = AgentDefinition::new("Other").model(ModelId::new("other"));
         base.merge(other);
         assert_eq!(base.model.unwrap(), ModelId::new("other"));
 
         // Base has no value, should take the other value
-        let mut base = Agent::new("Base"); // No model
-        let other = Agent::new("Other").model(ModelId::new("other"));
+        let mut base = AgentDefinition::new("Base"); // No model
+        let other = AgentDefinition::new("Other").model(ModelId::new("other"));
         base.merge(other);
         assert_eq!(base.model.unwrap(), ModelId::new("other"));
     }
@@ -412,14 +536,14 @@ mod tests {
     #[test]
     fn test_merge_tool_supported() {
         // Base has no value, should use other's value
-        let mut base = Agent::new("Base"); // No tool_supported set
-        let other = Agent::new("Other").tool_supported(true);
+        let mut base = AgentDefinition::new("Base"); // No tool_supported set
+        let other = AgentDefinition::new("Other").tool_supported(true);
         base.merge(other);
         assert_eq!(base.tool_supported, Some(true));
 
         // Base has a value, should not be overwritten
-        let mut base = Agent::new("Base").tool_supported(false);
-        let other = Agent::new("Other").tool_supported(true);
+        let mut base = AgentDefinition::new("Base").tool_supported(false);
+        let other = AgentDefinition::new("Other").tool_supported(true);
         base.merge(other);
         assert_eq!(base.tool_supported, Some(true));
     }
@@ -427,8 +551,9 @@ mod tests {
     #[test]
     fn test_merge_tools() {
         // Base has no value, should take other's values
-        let mut base = Agent::new("Base"); // no tools
-        let other = Agent::new("Other").tools(vec![ToolName::new("tool2"), ToolName::new("tool3")]);
+        let mut base = AgentDefinition::new("Base"); // no tools
+        let other = AgentDefinition::new("Other")
+            .tools(vec![ToolName::new("tool2"), ToolName::new("tool3")]);
         base.merge(other);
 
         // Should contain all tools from the other agent
@@ -438,9 +563,10 @@ mod tests {
         assert!(tools.contains(&ToolName::new("tool3")));
 
         // Base has a value, should merge with other's tools
-        let mut base =
-            Agent::new("Base").tools(vec![ToolName::new("tool1"), ToolName::new("tool2")]);
-        let other = Agent::new("Other").tools(vec![ToolName::new("tool3"), ToolName::new("tool4")]);
+        let mut base = AgentDefinition::new("Base")
+            .tools(vec![ToolName::new("tool1"), ToolName::new("tool2")]);
+        let other = AgentDefinition::new("Other")
+            .tools(vec![ToolName::new("tool3"), ToolName::new("tool4")]);
         base.merge(other);
 
         // Should have other's tools
@@ -462,7 +588,8 @@ mod tests {
                 "temperature": temp
             });
 
-            let agent: std::result::Result<Agent, serde_json::Error> = serde_json::from_value(json);
+            let agent: std::result::Result<AgentDefinition, serde_json::Error> =
+                serde_json::from_value(json);
             assert!(agent.is_ok(), "Valid temperature {temp} should deserialize");
             assert_eq!(agent.unwrap().temperature.unwrap().value(), temp);
         }
@@ -475,7 +602,8 @@ mod tests {
                 "temperature": temp
             });
 
-            let agent: std::result::Result<Agent, serde_json::Error> = serde_json::from_value(json);
+            let agent: std::result::Result<AgentDefinition, serde_json::Error> =
+                serde_json::from_value(json);
             assert!(
                 agent.is_err(),
                 "Invalid temperature {temp} should fail deserialization"
@@ -492,7 +620,7 @@ mod tests {
             "id": "test-agent"
         });
 
-        let agent: Agent = serde_json::from_value(json).unwrap();
+        let agent: AgentDefinition = serde_json::from_value(json).unwrap();
         assert_eq!(agent.temperature, None);
     }
 
@@ -506,7 +634,8 @@ mod tests {
                 "top_p": value
             });
 
-            let agent: std::result::Result<Agent, serde_json::Error> = serde_json::from_value(json);
+            let agent: std::result::Result<AgentDefinition, serde_json::Error> =
+                serde_json::from_value(json);
             assert!(agent.is_ok(), "Valid top_p {value} should deserialize");
             assert_eq!(agent.unwrap().top_p.unwrap().value(), value);
         }
@@ -519,7 +648,8 @@ mod tests {
                 "top_p": value
             });
 
-            let agent: std::result::Result<Agent, serde_json::Error> = serde_json::from_value(json);
+            let agent: std::result::Result<AgentDefinition, serde_json::Error> =
+                serde_json::from_value(json);
             assert!(
                 agent.is_err(),
                 "Invalid top_p {value} should fail deserialization"
@@ -536,7 +666,7 @@ mod tests {
             "id": "test-agent"
         });
 
-        let agent: Agent = serde_json::from_value(json).unwrap();
+        let agent: AgentDefinition = serde_json::from_value(json).unwrap();
         assert_eq!(agent.top_p, None);
     }
 
@@ -550,7 +680,8 @@ mod tests {
                 "top_k": value
             });
 
-            let agent: std::result::Result<Agent, serde_json::Error> = serde_json::from_value(json);
+            let agent: std::result::Result<AgentDefinition, serde_json::Error> =
+                serde_json::from_value(json);
             assert!(agent.is_ok(), "Valid top_k {value} should deserialize");
             assert_eq!(agent.unwrap().top_k.unwrap().value(), value);
         }
@@ -563,7 +694,8 @@ mod tests {
                 "top_k": value
             });
 
-            let agent: std::result::Result<Agent, serde_json::Error> = serde_json::from_value(json);
+            let agent: std::result::Result<AgentDefinition, serde_json::Error> =
+                serde_json::from_value(json);
             assert!(
                 agent.is_err(),
                 "Invalid top_k {value} should fail deserialization"
@@ -580,7 +712,7 @@ mod tests {
             "id": "test-agent"
         });
 
-        let agent: Agent = serde_json::from_value(json).unwrap();
+        let agent: AgentDefinition = serde_json::from_value(json).unwrap();
         assert_eq!(agent.top_k, None);
     }
 
@@ -594,7 +726,8 @@ mod tests {
                 "max_tokens": value
             });
 
-            let agent: std::result::Result<Agent, serde_json::Error> = serde_json::from_value(json);
+            let agent: std::result::Result<AgentDefinition, serde_json::Error> =
+                serde_json::from_value(json);
             assert!(agent.is_ok(), "Valid max_tokens {value} should deserialize");
             assert_eq!(agent.unwrap().max_tokens.unwrap().value(), value);
         }
@@ -607,7 +740,8 @@ mod tests {
                 "max_tokens": value
             });
 
-            let agent: std::result::Result<Agent, serde_json::Error> = serde_json::from_value(json);
+            let agent: std::result::Result<AgentDefinition, serde_json::Error> =
+                serde_json::from_value(json);
             assert!(
                 agent.is_err(),
                 "Invalid max_tokens {value} should fail deserialization"
@@ -624,7 +758,30 @@ mod tests {
             "id": "test-agent"
         });
 
-        let agent: Agent = serde_json::from_value(json).unwrap();
+        let agent: AgentDefinition = serde_json::from_value(json).unwrap();
         assert_eq!(agent.max_tokens, None);
+    }
+
+    #[test]
+    fn test_agent_definition_to_agent_conversion() {
+        let default_provider = ProviderId::OpenAI;
+        let default_model = ModelId::new("gpt-4");
+
+        // Test with explicit provider and model
+        let definition = AgentDefinition::new("test")
+            .provider(ProviderId::Anthropic)
+            .model(ModelId::new("claude-3-opus"));
+
+        let agent = definition.into_agent(default_provider.clone(), default_model.clone());
+
+        assert_eq!(agent.provider, ProviderId::Anthropic);
+        assert_eq!(agent.model, ModelId::new("claude-3-opus"));
+
+        // Test with defaults
+        let definition = AgentDefinition::new("test");
+        let agent = definition.into_agent(default_provider.clone(), default_model.clone());
+
+        assert_eq!(agent.provider, default_provider);
+        assert_eq!(agent.model, default_model);
     }
 }

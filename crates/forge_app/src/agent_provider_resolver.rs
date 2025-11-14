@@ -26,9 +26,8 @@ where
     pub async fn get_provider(&self, agent_id: Option<AgentId>) -> Result<Provider<url::Url>> {
         let provider = if let Some(agent) = agent_id
             && let Some(agent) = self.0.get_agent(&agent).await?
-            && let Some(provider_id) = agent.provider
         {
-            self.0.get_provider(provider_id).await?
+            self.0.get_provider(agent.provider).await?
         } else {
             self.0.get_default_provider().await?
         };

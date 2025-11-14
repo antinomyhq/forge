@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::domain::{Agent, Template};
+use forge_app::domain::{
+    Agent, AgentDefinition, AppConfigRepository, ModelId, ProviderId, ProviderRepository, Template,
+};
 use forge_app::{
     DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
 };
@@ -53,8 +55,15 @@ impl<F> AgentLoaderService<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
-    forge_app::AgentRegistry for AgentLoaderService<F>
+impl<
+    F: FileReaderInfra
+        + FileWriterInfra
+        + FileInfoInfra
+        + EnvironmentInfra
+        + DirectoryReaderInfra
+        + AppConfigRepository
+        + ProviderRepository,
+> forge_app::AgentRegistry for AgentLoaderService<F>
 {
     /// Load all agent definitions from all available sources with conflict
     /// resolution.
@@ -68,7 +77,19 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
     /// precedence to project-local agents over global agents, and both over
     /// built-in agents.
     async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
-        self.cache_or_init().await
+        // Get default provider using repository
+        let app_config = self.infra.get_app_config().await?;
+        let default_provider_id = app_config.provider.unwrap_or(ProviderId::Anthropic);
+
+        // Get default model for the provider
+        let default_model = app_config
+            .model
+            .get(&default_provider_id)
+            .cloned()
+            .unwrap_or_else(|| ModelId::new("claude-3-5-sonnet-20241022"));
+
+        self.cache_or_init(&default_provider_id, &default_model)
+            .await
     }
 
     async fn get_agent(
@@ -109,31 +130,58 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
     AgentLoaderService<F>
 {
     /// Load all agent definitions with caching support
-    async fn cache_or_init(&self) -> anyhow::Result<Vec<Agent>> {
-        self.cache.get_or_try_init(|| self.init()).await.cloned()
+    async fn cache_or_init(
+        &self,
+        default_provider: &ProviderId,
+        default_model: &ModelId,
+    ) -> anyhow::Result<Vec<Agent>> {
+        // Check if cache exists first
+        if let Some(cached) = self.cache.get() {
+            return Ok(cached.clone());
+        }
+
+        // Initialize and cache
+        let agents = self.init(default_provider, default_model).await?;
+        let cached = self.cache.get_or_init(|| async { agents.clone() }).await;
+        Ok(cached.clone())
     }
 
-    async fn init(&self) -> anyhow::Result<Vec<Agent>> {
-        // Load built-in agents
-        let mut agents = self.init_default().await?;
+    async fn init(
+        &self,
+        default_provider: &ProviderId,
+        default_model: &ModelId,
+    ) -> anyhow::Result<Vec<Agent>> {
+        // Load built-in agent definitions
+        let mut definitions = self.init_default().await?;
 
-        // Load custom agents from global directory
+        // Load custom agent definitions from global directory
         let dir = self.infra.get_environment().agent_path();
-        let custom_agents = self.init_agent_dir(&dir).await?;
-        agents.extend(custom_agents);
+        let custom_definitions = self.init_agent_dir(&dir).await?;
+        definitions.extend(custom_definitions);
 
-        // Load custom agents from CWD
+        // Load custom agent definitions from CWD
         let dir = self.infra.get_environment().agent_cwd_path();
-        let cwd_agents = self.init_agent_dir(&dir).await?;
+        let cwd_definitions = self.init_agent_dir(&dir).await?;
+        definitions.extend(cwd_definitions);
 
-        agents.extend(cwd_agents);
-
-        // Handle agent ID conflicts by keeping the last occurrence
+        // Resolve definition conflicts by keeping the last occurrence
         // This gives precedence order: CWD > Global Custom > Built-in
-        Ok(resolve_agent_conflicts(agents))
+        let definitions = resolve_definition_conflicts(definitions);
+
+        // Convert definitions to agents with default provider/model
+        let agents: Vec<Agent> = definitions
+            .into_iter()
+            .map(|def| {
+                let agent_provider = def.provider.unwrap_or(*default_provider);
+                let agent_model = def.model.clone().unwrap_or_else(|| default_model.clone());
+                def.into_agent(agent_provider, agent_model)
+            })
+            .collect();
+
+        Ok(agents)
     }
 
-    async fn init_default(&self) -> anyhow::Result<Vec<Agent>> {
+    async fn init_default(&self) -> anyhow::Result<Vec<AgentDefinition>> {
         parse_agent_iter(
             [
                 ("forge", include_str!("agents/forge.md")),
@@ -145,7 +193,7 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
         )
     }
 
-    async fn init_agent_dir(&self, dir: &std::path::Path) -> anyhow::Result<Vec<Agent>> {
+    async fn init_agent_dir(&self, dir: &std::path::Path) -> anyhow::Result<Vec<AgentDefinition>> {
         if !self.infra.exists(dir).await? {
             return Ok(vec![]);
         }
@@ -168,55 +216,55 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
     }
 }
 
-/// Implementation function for resolving agent ID conflicts by keeping the last
-/// occurrence. This implements the precedence order: CWD Custom > Global Custom
-/// > Built-in
-fn resolve_agent_conflicts(agents: Vec<Agent>) -> Vec<Agent> {
+/// Implementation function for resolving agent definition ID conflicts by
+/// keeping the last occurrence. This implements the precedence order: CWD
+/// Custom > Global Custom > Built-in
+fn resolve_definition_conflicts(definitions: Vec<AgentDefinition>) -> Vec<AgentDefinition> {
     use std::collections::HashMap;
 
     // Use HashMap to deduplicate by agent ID, keeping the last occurrence
-    let mut agent_map: HashMap<String, Agent> = HashMap::new();
+    let mut definition_map: HashMap<String, AgentDefinition> = HashMap::new();
 
-    for agent in agents {
-        agent_map.insert(agent.id.to_string(), agent);
+    for definition in definitions {
+        definition_map.insert(definition.id.to_string(), definition);
     }
 
     // Convert back to vector (order is not guaranteed but doesn't matter for the
     // service)
-    agent_map.into_values().collect()
+    definition_map.into_values().collect()
 }
 
 fn parse_agent_iter<I, Path: AsRef<str>, Content: AsRef<str>>(
     contents: I,
-) -> anyhow::Result<Vec<Agent>>
+) -> anyhow::Result<Vec<AgentDefinition>>
 where
     I: Iterator<Item = (Path, Content)>,
 {
-    let mut agents = vec![];
+    let mut definitions = vec![];
 
     for (name, content) in contents {
-        let agent = parse_agent_file(content.as_ref())
+        let definition = parse_agent_file(content.as_ref())
             .with_context(|| format!("Failed to parse agent: {}", name.as_ref()))?;
 
-        agents.push(agent);
+        definitions.push(definition);
     }
 
-    Ok(agents)
+    Ok(definitions)
 }
 
-/// Parse raw content into an Agent with YAML frontmatter
-fn parse_agent_file(content: &str) -> Result<Agent> {
+/// Parse raw content into an AgentDefinition with YAML frontmatter
+fn parse_agent_file(content: &str) -> Result<AgentDefinition> {
     // Parse the frontmatter using gray_matter with type-safe deserialization
     let gray_matter = Matter::<YAML>::new();
-    let result = gray_matter.parse::<Agent>(content)?;
+    let result = gray_matter.parse::<AgentDefinition>(content)?;
 
     // Extract the frontmatter
-    let agent = result
+    let definition = result
         .data
         .context("Empty system prompt content")?
         .system_prompt(Template::new(result.content));
 
-    Ok(agent)
+    Ok(definition)
 }
 
 #[cfg(test)]
@@ -298,16 +346,16 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_agent_conflicts_no_duplicates() {
+    fn test_resolve_definition_conflicts_no_duplicates() {
         let fixture = vec![
-            Agent::new("agent1").title("Agent 1"),
-            Agent::new("agent2").title("Agent 2"),
-            Agent::new("agent3").title("Agent 3"),
+            AgentDefinition::new("agent1").title("Agent 1"),
+            AgentDefinition::new("agent2").title("Agent 2"),
+            AgentDefinition::new("agent3").title("Agent 3"),
         ];
 
-        let actual = resolve_agent_conflicts(fixture.clone());
+        let actual = resolve_definition_conflicts(fixture.clone());
 
-        // Should return all agents when no conflicts
+        // Should return all definitions when no conflicts
         assert_eq!(actual.len(), 3);
 
         let ids: std::collections::HashSet<_> = actual.iter().map(|a| a.id.as_str()).collect();
@@ -317,17 +365,18 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_agent_conflicts_with_duplicates() {
+    fn test_resolve_definition_conflicts_with_duplicates() {
         let fixture = vec![
-            Agent::new("agent1").title("Global Agent 1"),
-            Agent::new("agent2").title("Global Agent 2"),
-            Agent::new("agent1").title("CWD Agent 1 - Override"), // Duplicate ID, should override
-            Agent::new("agent3").title("CWD Agent 3"),
+            AgentDefinition::new("agent1").title("Global Agent 1"),
+            AgentDefinition::new("agent2").title("Global Agent 2"),
+            AgentDefinition::new("agent1").title("CWD Agent 1 - Override"), /* Duplicate ID, should override */
+            AgentDefinition::new("agent3").title("CWD Agent 3"),
         ];
 
-        let actual = resolve_agent_conflicts(fixture);
+        let actual = resolve_definition_conflicts(fixture);
 
-        // Should have 3 agents: agent1 (CWD version), agent2 (global), agent3 (CWD)
+        // Should have 3 definitions: agent1 (CWD version), agent2 (global), agent3
+        // (CWD)
         assert_eq!(actual.len(), 3);
 
         let agent1 = actual
@@ -339,20 +388,20 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_agent_conflicts_multiple_duplicates() {
+    fn test_resolve_definition_conflicts_multiple_duplicates() {
         // Test scenario: Built-in -> Global -> CWD (CWD should win)
         let fixture = vec![
-            Agent::new("common").title("Built-in Common Agent"),
-            Agent::new("unique1").title("Built-in Unique 1"),
-            Agent::new("common").title("Global Common Agent"), // Override built-in
-            Agent::new("unique2").title("Global Unique 2"),
-            Agent::new("common").title("CWD Common Agent"), // Override global
-            Agent::new("unique3").title("CWD Unique 3"),
+            AgentDefinition::new("common").title("Built-in Common Agent"),
+            AgentDefinition::new("unique1").title("Built-in Unique 1"),
+            AgentDefinition::new("common").title("Global Common Agent"), // Override built-in
+            AgentDefinition::new("unique2").title("Global Unique 2"),
+            AgentDefinition::new("common").title("CWD Common Agent"), // Override global
+            AgentDefinition::new("unique3").title("CWD Unique 3"),
         ];
 
-        let actual = resolve_agent_conflicts(fixture);
+        let actual = resolve_definition_conflicts(fixture);
 
-        // Should have 4 agents: common (CWD version), unique1, unique2, unique3
+        // Should have 4 definitions: common (CWD version), unique1, unique2, unique3
         assert_eq!(actual.len(), 4);
 
         let common = actual
@@ -362,7 +411,7 @@ mod tests {
         let expected_title = "CWD Common Agent";
         assert_eq!(common.title.as_ref().unwrap(), expected_title);
 
-        // Verify all unique agents are present
+        // Verify all unique definitions are present
         let ids: std::collections::HashSet<_> = actual.iter().map(|a| a.id.as_str()).collect();
         assert!(ids.contains("common"));
         assert!(ids.contains("unique1"));
@@ -371,10 +420,10 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_agent_conflicts_empty_input() {
-        let fixture: Vec<Agent> = vec![];
+    fn test_resolve_definition_conflicts_empty_input() {
+        let fixture: Vec<AgentDefinition> = vec![];
 
-        let actual = resolve_agent_conflicts(fixture);
+        let actual = resolve_definition_conflicts(fixture);
 
         assert_eq!(actual.len(), 0);
     }

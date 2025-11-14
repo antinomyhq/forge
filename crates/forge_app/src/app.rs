@@ -91,9 +91,6 @@ impl<S: Services> ForgeApp<S> {
 
         // Prepare agents with user configuration
         let agent_provider_resolver = AgentProviderResolver::new(services.clone());
-        let active_model = agent_provider_resolver
-            .get_model(Some(agent_id.clone()))
-            .await?;
         let agent = services
             .get_agents()
             .await?
@@ -102,7 +99,7 @@ impl<S: Services> ForgeApp<S> {
             .map(|agent| {
                 agent
                     .apply_workflow_config(&workflow)
-                    .set_model_deeply(active_model.clone())
+                    .set_compact_model_if_none()
             })
             .ok_or(crate::Error::AgentNotFound(agent_id))?;
 
@@ -218,7 +215,7 @@ impl<S: Services> ForgeApp<S> {
         let original_messages = context.messages.len();
         let original_token_count = *context.token_count();
         let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
-        let model = agent_provider_resolver
+        let _model = agent_provider_resolver
             .get_model(Some(active_agent_id.clone()))
             .await?;
         let workflow = self.services.read_merged(None).await.unwrap_or_default();
@@ -231,7 +228,7 @@ impl<S: Services> ForgeApp<S> {
             .and_then(|agent| {
                 agent
                     .apply_workflow_config(&workflow)
-                    .set_model_deeply(model.clone())
+                    .set_compact_model_if_none()
                     .compact
             })
         else {

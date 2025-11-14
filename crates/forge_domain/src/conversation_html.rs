@@ -269,7 +269,7 @@ fn create_reasoning_config_section(conversation: &Conversation) -> Element {
                 .append(reasoning_config.max_tokens.map(|max_tokens| {
                     Element::new("p")
                         .append(Element::new("strong").text("Max Tokens: "))
-                        .text(format!("{:?}", max_tokens))
+                        .text(format!("{max_tokens:?}"))
                 }))
         } else {
             section.append(Element::new("p").text("No reasoning configuration found"))

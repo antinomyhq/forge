@@ -76,7 +76,7 @@ impl ToolResolver {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Agent, AgentId, ToolDefinition, ToolName};
+    use forge_domain::{Agent, AgentId, ModelId, ProviderId, ToolDefinition, ToolName};
     use pretty_assertions::assert_eq;
 
     use super::ToolResolver;
@@ -91,8 +91,12 @@ mod tests {
 
         let tool_resolver = ToolResolver::new(all_tool_definitions);
 
-        let fixture = Agent::new(AgentId::new("test-agent"))
-            .tools(vec![ToolName::new("read"), ToolName::new("search")]);
+        let fixture = Agent::new(
+            AgentId::new("test-agent"),
+            ProviderId::Anthropic,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .tools(vec![ToolName::new("read"), ToolName::new("search")]);
 
         let actual = tool_resolver.resolve(&fixture);
         let expected = vec![
@@ -112,7 +116,11 @@ mod tests {
 
         let tool_resolver = ToolResolver::new(all_tool_definitions);
 
-        let fixture = Agent::new(AgentId::new("test-agent"));
+        let fixture = Agent::new(
+            AgentId::new("test-agent"),
+            ProviderId::Anthropic,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        );
 
         let actual = tool_resolver.resolve(&fixture);
         let expected: Vec<&ToolDefinition> = vec![];
@@ -129,7 +137,12 @@ mod tests {
 
         let tool_resolver = ToolResolver::new(all_tool_definitions);
 
-        let fixture = Agent::new(AgentId::new("test-agent")).tools(vec![
+        let fixture = Agent::new(
+            AgentId::new("test-agent"),
+            ProviderId::Anthropic,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .tools(vec![
             ToolName::new("nonexistent1"),
             ToolName::new("nonexistent2"),
         ]);
@@ -149,7 +162,12 @@ mod tests {
 
         let tool_resolver = ToolResolver::new(all_tool_definitions);
 
-        let fixture = Agent::new(AgentId::new("test-agent")).tools(vec![
+        let fixture = Agent::new(
+            AgentId::new("test-agent"),
+            ProviderId::Anthropic,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .tools(vec![
             ToolName::new("read"),
             ToolName::new("read"), // Duplicate
             ToolName::new("write"),
@@ -175,7 +193,12 @@ mod tests {
 
         let tool_resolver = ToolResolver::new(all_tool_definitions);
 
-        let fixture = Agent::new(AgentId::new("test-agent")).tools(vec![ToolName::new("fs_*")]);
+        let fixture = Agent::new(
+            AgentId::new("test-agent"),
+            ProviderId::Anthropic,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .tools(vec![ToolName::new("fs_*")]);
 
         let actual = tool_resolver.resolve(&fixture);
         let expected = vec![
@@ -196,7 +219,12 @@ mod tests {
 
         let tool_resolver = ToolResolver::new(all_tool_definitions);
 
-        let fixture = Agent::new(AgentId::new("test-agent")).tools(vec![ToolName::new("fs_*")]);
+        let fixture = Agent::new(
+            AgentId::new("test-agent"),
+            ProviderId::Anthropic,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .tools(vec![ToolName::new("fs_*")]);
 
         let actual = tool_resolver.resolve(&fixture);
         let expected: Vec<&ToolDefinition> = vec![];
@@ -215,8 +243,12 @@ mod tests {
 
         let tool_resolver = ToolResolver::new(all_tool_definitions);
 
-        let fixture = Agent::new(AgentId::new("test-agent"))
-            .tools(vec![ToolName::new("fs_*"), ToolName::new("shell")]);
+        let fixture = Agent::new(
+            AgentId::new("test-agent"),
+            ProviderId::Anthropic,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .tools(vec![ToolName::new("fs_*"), ToolName::new("shell")]);
 
         let actual = tool_resolver.resolve(&fixture);
         let expected = vec![
@@ -238,7 +270,12 @@ mod tests {
 
         let tool_resolver = ToolResolver::new(all_tool_definitions);
 
-        let fixture = Agent::new(AgentId::new("test-agent")).tools(vec![ToolName::new("read?")]);
+        let fixture = Agent::new(
+            AgentId::new("test-agent"),
+            ProviderId::Anthropic,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .tools(vec![ToolName::new("read?")]);
 
         let actual = tool_resolver.resolve(&fixture);
         let expected = vec![
@@ -258,7 +295,12 @@ mod tests {
 
         let tool_resolver = ToolResolver::new(all_tool_definitions);
 
-        let fixture = Agent::new(AgentId::new("test-agent")).tools(vec![
+        let fixture = Agent::new(
+            AgentId::new("test-agent"),
+            ProviderId::Anthropic,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .tools(vec![
             ToolName::new("fs_*"),
             ToolName::new("fs_read"),
             ToolName::new("*_read"),
