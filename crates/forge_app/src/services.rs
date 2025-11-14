@@ -983,3 +983,26 @@ impl<I: Services> ProviderAuthService for I {
             .await
     }
 }
+
+#[async_trait::async_trait]
+impl<I: Services> IndexingService for I {
+    async fn index(&self, path: PathBuf) -> anyhow::Result<IndexStats> {
+        self.indexing_service().index(path).await
+    }
+
+    async fn query(
+        &self,
+        path: PathBuf,
+        query: &str,
+        limit: usize,
+        top_k: Option<u32>,
+    ) -> anyhow::Result<Vec<CodeSearchResult>> {
+        self.indexing_service()
+            .query(path, query, limit, top_k)
+            .await
+    }
+
+    async fn list_indexes(&self) -> anyhow::Result<Vec<WorkspaceInfo>> {
+        self.indexing_service().list_indexes().await
+    }
+}

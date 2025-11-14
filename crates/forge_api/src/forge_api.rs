@@ -322,11 +322,11 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     }
 
     async fn remove_provider(&self, provider_id: &ProviderId) -> Result<()> {
-        Ok(self.services.remove_credential(provider_id).await?)
+        self.services.remove_credential(provider_id).await
     }
 
     async fn index_codebase(&self, path: PathBuf) -> Result<forge_domain::IndexStats> {
-        Ok(self.services.indexing_service().index(path).await?)
+        self.services.index(path).await
     }
 
     async fn query_codebase(
@@ -336,14 +336,10 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         limit: usize,
         top_k: Option<u32>,
     ) -> Result<Vec<forge_domain::CodeSearchResult>> {
-        Ok(self
-            .services
-            .indexing_service()
-            .query(path, query, limit, top_k)
-            .await?)
+        self.services.query(path, query, limit, top_k).await
     }
 
     async fn list_indexes(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
-        Ok(self.services.indexing_service().list_indexes().await?)
+        self.services.list_indexes().await
     }
 }

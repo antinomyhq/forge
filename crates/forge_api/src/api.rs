@@ -196,6 +196,6 @@ pub trait API: Sync + Send {
         top_k: Option<u32>,
     ) -> Result<Vec<forge_domain::CodeSearchResult>>;
 
-    /// List all indexed workspaces (gets user_id internally)
+    /// List all indexed workspaces
     async fn list_indexes(&self) -> Result<Vec<forge_domain::WorkspaceInfo>>;
 }
