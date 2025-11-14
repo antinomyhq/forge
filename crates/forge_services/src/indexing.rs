@@ -59,7 +59,6 @@ impl<F> ForgeIndexingService<F> {
 
     /// Fetches server files, deletes outdated/orphaned ones, and returns
     /// current state.
-    ///
     /// This method:
     /// 1. Fetches existing files from the server
     /// 2. Identifies files that are outdated (changed hash) or orphaned
@@ -184,15 +183,6 @@ impl<F> ForgeIndexingService<F> {
     }
 
     /// Walks the directory, reads all files, and computes their hashes.
-    ///
-    /// # Arguments
-    /// * `dir_path` - The directory path to index
-    ///
-    /// # Returns
-    /// A vector of indexed files with their content and hashes
-    ///
-    /// # Errors
-    /// Returns error if walking fails or no files are found
     async fn read_files(&self, dir_path: &Path) -> Result<Vec<IndexedFile>>
     where
         F: WalkerInfra + FileReaderInfra,
@@ -221,7 +211,6 @@ impl<F> ForgeIndexingService<F> {
             let infra = infra.clone();
             let file_path = dir_path.join(&walked.path);
             let relative_path = walked.path.clone();
-
             async move {
                 infra
                     .read_utf8(&file_path)
@@ -260,10 +249,7 @@ impl<F: IndexingRepository + IndexingClientInfra + WalkerInfra + FileReaderInfra
 
         let (workspace_id, user_id, is_new_workspace) = existing_workspace
             .map(|workspace| (workspace.workspace_id, workspace.user_id, false))
-            .unwrap_or_else(|| {
-                let user_id = UserId::generate();
-                (IndexWorkspaceId::generate(), user_id, true)
-            });
+            .unwrap_or_else(|| (IndexWorkspaceId::generate(), UserId::generate(), true));
 
         // Create workspace on server if new
         let workspace_id = if is_new_workspace {
@@ -344,18 +330,6 @@ impl<F: IndexingRepository + IndexingClientInfra + WalkerInfra + FileReaderInfra
     }
 
     /// Performs semantic code search on an indexed workspace.
-    ///
-    /// # Arguments
-    /// * `path` - Workspace directory path (must be previously indexed)
-    /// * `query` - Natural language search query
-    /// * `limit` - Maximum number of results to return
-    /// * `top_k` - Number of highest probability tokens to consider (1-1000)
-    ///
-    /// # Errors
-    /// Returns error if:
-    /// - Path is invalid or cannot be canonicalized
-    /// - Workspace has not been indexed (suggests running `forge index .`)
-    /// - Search request to indexing server fails
     async fn query(
         &self,
         path: PathBuf,
@@ -393,14 +367,7 @@ impl<F: IndexingRepository + IndexingClientInfra + WalkerInfra + FileReaderInfra
     }
 
     /// Lists all indexed workspaces.
-    ///
-    /// Gets the user_id from any indexed workspace in the local database.
-    /// If no workspaces exist locally, returns an empty list.
-    ///
-    /// # Errors
-    /// Returns error if the request to indexing server fails.
     async fn list_indexes(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
-        // Get user_id from any indexed workspace
         let user_id =
             self.infra.as_ref().get_user_id().await?.ok_or_else(|| {
                 anyhow::anyhow!("No workspaces indexed. Run `forge index` first.")
@@ -708,8 +675,8 @@ mod tests {
 
         let actual = service.index(PathBuf::from(".")).await.unwrap();
 
-        assert_eq!(mock.deleted_files.lock().await.len(), 0);
-        assert_eq!(mock.uploaded_files.lock().await.len(), 0);
+        assert!(mock.deleted_files.lock().await.is_empty());
+        assert!(mock.uploaded_files.lock().await.is_empty());
         assert_eq!(actual.upload_stats.nodes_created, 0);
     }
 
@@ -725,6 +692,6 @@ mod tests {
         let deleted = mock.deleted_files.lock().await;
         assert_eq!(deleted.len(), 1);
         assert!(deleted.contains(&"old.rs".into()));
-        assert_eq!(mock.uploaded_files.lock().await.len(), 0);
+        assert!(mock.uploaded_files.lock().await.is_empty());
     }
 }
