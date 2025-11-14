@@ -113,52 +113,49 @@ mod tests {
     use super::*;
     use crate::database::DatabasePool;
 
-    fn test_pool() -> anyhow::Result<Arc<DatabasePool>> {
-        Ok(Arc::new(DatabasePool::in_memory()?))
+    fn repo_impl() -> IndexingRepositoryImpl {
+        let pool = Arc::new(DatabasePool::in_memory().unwrap());
+        IndexingRepositoryImpl::new(pool)
     }
 
     #[tokio::test]
     async fn test_upsert_and_find_by_path() {
-        let pool = test_pool().unwrap();
-        let repo = IndexingRepositoryImpl::new(pool);
-
+        let fixture = repo_impl();
         let workspace_id = IndexWorkspaceId::generate();
         let user_id = UserId::generate();
         let path = PathBuf::from("/test/project");
 
-        // Insert
-        repo.upsert(&workspace_id, &user_id, &path).await.unwrap();
+        fixture
+            .upsert(&workspace_id, &user_id, &path)
+            .await
+            .unwrap();
 
-        // Find by path
-        let found = repo.find_by_path(&path).await.unwrap();
-        assert!(found.is_some());
+        let actual = fixture.find_by_path(&path).await.unwrap().unwrap();
 
-        let workspace = found.unwrap();
-        assert_eq!(workspace.workspace_id, workspace_id);
-        assert_eq!(workspace.user_id, user_id);
-        assert_eq!(workspace.path, path);
-        assert!(workspace.updated_at.is_none());
+        assert_eq!(actual.workspace_id, workspace_id);
+        assert_eq!(actual.user_id, user_id);
+        assert_eq!(actual.path, path);
+        assert!(actual.updated_at.is_none());
     }
 
     #[tokio::test]
-    async fn test_upsert_updates_existing() {
-        let pool = test_pool().unwrap();
-        let repo = IndexingRepositoryImpl::new(pool);
-
+    async fn test_upsert_updates_timestamp() {
+        let fixture = repo_impl();
         let workspace_id = IndexWorkspaceId::generate();
         let user_id = UserId::generate();
         let path = PathBuf::from("/test/project");
 
-        // First insert
-        repo.upsert(&workspace_id, &user_id, &path).await.unwrap();
+        fixture
+            .upsert(&workspace_id, &user_id, &path)
+            .await
+            .unwrap();
+        fixture
+            .upsert(&workspace_id, &user_id, &path)
+            .await
+            .unwrap();
 
-        let first = repo.find_by_path(&path).await.unwrap().unwrap();
-        assert!(first.updated_at.is_none());
+        let actual = fixture.find_by_path(&path).await.unwrap().unwrap();
 
-        // Second upsert should update timestamp
-        repo.upsert(&workspace_id, &user_id, &path).await.unwrap();
-
-        let second = repo.find_by_path(&path).await.unwrap().unwrap();
-        assert!(second.updated_at.is_some());
+        assert!(actual.updated_at.is_some());
     }
 }
