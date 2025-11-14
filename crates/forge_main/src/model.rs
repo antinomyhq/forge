@@ -335,7 +335,7 @@ impl ForgeCommandManager {
             "/exit" => Ok(SlashCommand::Exit),
             "/update" => Ok(SlashCommand::Update),
             "/dump" => {
-                let html = !parameters.is_empty() && parameters[0] == "--html";
+                let html = !parameters.is_empty() && parameters[0] == "html";
                 Ok(SlashCommand::Dump { html })
             }
             "/act" | "/forge" => Ok(SlashCommand::Forge),
@@ -1170,5 +1170,31 @@ mod tests {
             }
             _ => panic!("Expected Tool command, got {result:?}"),
         }
+    }
+
+    #[test]
+    fn test_parse_dump_command_json() {
+        // Setup
+        let fixture = ForgeCommandManager::default();
+
+        // Execute
+        let actual = fixture.parse("/dump").unwrap();
+
+        // Verify
+        let expected = SlashCommand::Dump { html: false };
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_dump_command_html_without_dashes() {
+        // Setup
+        let fixture = ForgeCommandManager::default();
+
+        // Execute
+        let actual = fixture.parse("/dump html").unwrap();
+
+        // Verify
+        let expected = SlashCommand::Dump { html: true };
+        assert_eq!(actual, expected);
     }
 }
