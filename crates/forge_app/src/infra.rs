@@ -262,6 +262,26 @@ pub trait IndexingClientInfra: Send + Sync {
         user_id: &UserId,
         workspace_id: &IndexWorkspaceId,
     ) -> anyhow::Result<Vec<FileHash>>;
+
+    /// Delete files from a workspace
+    ///
+    /// Removes file nodes and their associated chunks from the indexing
+    /// service. Used to clean up files that no longer exist in the local
+    /// workspace.
+    ///
+    /// # Arguments
+    /// * `user_id` - The user ID
+    /// * `workspace_id` - The workspace ID
+    /// * `file_paths` - Relative paths of files to delete
+    ///
+    /// # Errors
+    /// Returns an error if the request fails
+    async fn delete_files(
+        &self,
+        user_id: &UserId,
+        workspace_id: &IndexWorkspaceId,
+        file_paths: Vec<String>,
+    ) -> anyhow::Result<()>;
 }
 
 /// Generic cache repository for content-addressable storage.

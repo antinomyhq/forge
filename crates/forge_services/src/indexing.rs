@@ -36,6 +36,72 @@ impl<F> ForgeIndexingService<F> {
             .and_then(|v| v.parse().ok())
             .unwrap_or(DEFAULT_BATCH_SIZE)
     }
+
+    /// Fetches server files, deletes outdated/orphaned ones, and returns
+    /// current state.
+    ///
+    /// This method:
+    /// 1. Fetches existing files from the server
+    /// 2. Identifies files that are outdated (changed hash) or orphaned
+    ///    (deleted locally)
+    /// 3. Deletes those files from the server
+    /// 4. Returns the server hashes for upload comparison
+    ///
+    /// # Arguments
+    /// * `user_id` - The user ID
+    /// * `workspace_id` - The workspace ID
+    /// * `local_file_map` - Map of local file paths to their hashes
+    ///
+    /// # Errors
+    /// Returns an error if deletion fails
+    async fn sync_server_files(
+        &self,
+        user_id: &UserId,
+        workspace_id: &IndexWorkspaceId,
+        local_file_map: &HashMap<String, String>,
+    ) -> Result<HashMap<String, String>>
+    where
+        F: IndexingClientInfra,
+    {
+        info!("Fetching existing file hashes from server to detect changes...");
+        let server_hashes = self
+            .infra
+            .list_workspace_files(user_id, workspace_id)
+            .await
+            .map(|files| {
+                let hashes: HashMap<_, _> = files.into_iter().map(|f| (f.path, f.hash)).collect();
+                info!("Found {} files on server", hashes.len());
+                hashes
+            })
+            .unwrap_or_else(|e| {
+                warn!(
+                    "Failed to fetch existing files: {}. Will upload all files.",
+                    e
+                );
+                HashMap::new()
+            });
+
+        // Identify outdated/orphaned files
+        let files_to_delete: Vec<String> = server_hashes
+            .iter()
+            .filter(|(path, hash)| local_file_map.get(*path) != Some(*hash))
+            .map(|(path, _)| path.clone())
+            .collect();
+
+        // Delete outdated/orphaned files from server
+        if !files_to_delete.is_empty() {
+            info!(
+                "Deleting {} old/orphaned files from server before re-indexing",
+                files_to_delete.len()
+            );
+            self.infra
+                .delete_files(user_id, workspace_id, files_to_delete)
+                .await
+                .context("Failed to delete old/orphaned files")?;
+        }
+
+        Ok(server_hashes)
+    }
 }
 
 #[async_trait]
@@ -64,29 +130,6 @@ impl<F: IndexingRepository + IndexingClientInfra + WalkerInfra + FileReaderInfra
                 .context("Failed to create workspace on server")?
         } else {
             workspace_id
-        };
-
-        // Fetch existing file hashes from server (skip for new workspaces)
-        let server_hashes: HashMap<String, String> = if !is_new_workspace {
-            info!("Fetching existing file hashes from server to detect changes...");
-            self.infra
-                .list_workspace_files(&user_id, &workspace_id)
-                .await
-                .map(|files| {
-                    let hashes: HashMap<_, _> =
-                        files.into_iter().map(|f| (f.path, f.hash)).collect();
-                    info!("Found {} files on server", hashes.len());
-                    hashes
-                })
-                .unwrap_or_else(|e| {
-                    warn!(
-                        "Failed to fetch existing files: {}. Will upload all files.",
-                        e
-                    );
-                    HashMap::new()
-                })
-        } else {
-            HashMap::new()
         };
 
         // Walk directory
@@ -128,11 +171,25 @@ impl<F: IndexingRepository + IndexingClientInfra + WalkerInfra + FileReaderInfra
         let all_files: Vec<_> = join_all(read_tasks).await.into_iter().flatten().collect();
         let total_file_count = all_files.len();
 
-        // Filter to only changed files
+        // Build map of local files for comparison
+        let local_file_map: HashMap<String, String> = all_files
+            .iter()
+            .map(|(path, _, hash)| (path.display().to_string(), hash.clone()))
+            .collect();
+
+        // Sync server files (fetch, delete outdated, return current state)
+        let server_hashes = if is_new_workspace {
+            HashMap::new()
+        } else {
+            self.sync_server_files(&user_id, &workspace_id, &local_file_map)
+                .await?
+        };
+
+        // Identify files that need to be uploaded (new or changed)
         let files_to_upload: Vec<_> = all_files
             .into_iter()
             .filter_map(|(path, content, local_hash)| {
-                let path_str = path.to_string_lossy().to_string();
+                let path_str = path.display().to_string();
                 let needs_upload = server_hashes.get(&path_str) != Some(&local_hash);
                 needs_upload.then_some((path, content))
             })
@@ -348,6 +405,15 @@ mod tests {
             _workspace_id: &IndexWorkspaceId,
         ) -> Result<Vec<forge_domain::FileHash>> {
             Ok(vec![])
+        }
+
+        async fn delete_files(
+            &self,
+            _user_id: &UserId,
+            _workspace_id: &IndexWorkspaceId,
+            _file_paths: Vec<String>,
+        ) -> Result<()> {
+            Ok(())
         }
     }
 

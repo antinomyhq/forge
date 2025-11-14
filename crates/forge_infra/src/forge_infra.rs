@@ -343,4 +343,17 @@ impl forge_app::IndexingClientInfra for ForgeInfra {
         })?;
         client.list_workspace_files(user_id, workspace_id).await
     }
+
+    async fn delete_files(
+        &self,
+        user_id: &forge_domain::UserId,
+        workspace_id: &forge_domain::IndexWorkspaceId,
+        file_paths: Vec<String>,
+    ) -> anyhow::Result<()> {
+        let url = self.get_indexing_server_url();
+        let client = crate::proto::IndexingClient::new(&url).await.map_err(|e| {
+            anyhow::anyhow!("Failed to connect to indexing server at {}: {}", url, e)
+        })?;
+        client.delete_files(user_id, workspace_id, file_paths).await
+    }
 }

@@ -233,4 +233,27 @@ impl IndexingClientInfra for IndexingClient {
 
         Ok(files)
     }
+
+    /// Delete files from a workspace
+    async fn delete_files(
+        &self,
+        user_id: &DomainUserId,
+        workspace_id: &IndexWorkspaceId,
+        file_paths: Vec<String>,
+    ) -> Result<()> {
+        if file_paths.is_empty() {
+            return Ok(());
+        }
+
+        let request = tonic::Request::new(DeleteFilesRequest {
+            user_id: Some(UserId { id: user_id.to_string() }),
+            workspace_id: Some(WorkspaceId { id: workspace_id.to_string() }),
+            file_paths,
+        });
+
+        let mut client = self.client.clone();
+        client.delete_files(request).await?;
+
+        Ok(())
+    }
 }

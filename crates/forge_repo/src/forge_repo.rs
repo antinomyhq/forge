@@ -468,4 +468,15 @@ impl<F: forge_app::IndexingClientInfra> forge_app::IndexingClientInfra for Forge
     ) -> anyhow::Result<Vec<forge_domain::FileHash>> {
         self.infra.list_workspace_files(user_id, workspace_id).await
     }
+
+    async fn delete_files(
+        &self,
+        user_id: &forge_domain::UserId,
+        workspace_id: &forge_domain::IndexWorkspaceId,
+        file_paths: Vec<String>,
+    ) -> anyhow::Result<()> {
+        self.infra
+            .delete_files(user_id, workspace_id, file_paths)
+            .await
+    }
 }
