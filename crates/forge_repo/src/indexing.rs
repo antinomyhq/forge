@@ -69,16 +69,13 @@ impl IndexingRepository for IndexingRepositoryImpl {
         path: &std::path::Path,
     ) -> anyhow::Result<()> {
         let mut connection = self.pool.get_connection()?;
-
         let record = IndexingRecord::new(workspace_id, user_id, path);
-
         diesel::insert_into(indexing::table)
             .values(&record)
             .on_conflict(indexing::remote_workspace_id)
             .do_update()
             .set(indexing::updated_at.eq(Utc::now().naive_utc()))
             .execute(&mut connection)?;
-
         Ok(())
     }
 
@@ -88,24 +85,20 @@ impl IndexingRepository for IndexingRepositoryImpl {
     ) -> anyhow::Result<Option<IndexedWorkspace>> {
         let mut connection = self.pool.get_connection()?;
         let path_str = path.to_string_lossy().into_owned();
-
         let record = indexing::table
             .filter(indexing::path.eq(path_str))
             .first::<IndexingRecord>(&mut connection)
             .optional()?;
-
         record.map(IndexedWorkspace::try_from).transpose()
     }
 
     async fn get_user_id(&self) -> anyhow::Result<Option<UserId>> {
         let mut connection = self.pool.get_connection()?;
-
         // Efficiently get just one user_id
         let user_id: Option<String> = indexing::table
             .select(indexing::user_id)
             .first(&mut connection)
             .optional()?;
-
         Ok(user_id.map(|id| UserId::from_string(&id)).transpose()?)
     }
 }

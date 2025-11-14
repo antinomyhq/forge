@@ -18,14 +18,9 @@ pub struct IndexingClient {
 
 impl IndexingClient {
     /// Create a new gRPC client connected to the given server URL
-    ///
-    /// # Errors
-    /// Returns an error if connection fails
     pub async fn new(server_url: impl Into<String>) -> Result<Self> {
         let channel = Channel::from_shared(server_url.into())?.connect().await?;
-
         let client = ForgeServiceClient::new(channel);
-
         Ok(Self { client })
     }
 }
