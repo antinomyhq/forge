@@ -1383,11 +1383,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 }
 
                 let agents = self.api.get_agents().await?;
-                let n = agents
-                    .iter()
-                    .map(|a| a.id.as_str().len())
-                    .max()
-                    .unwrap_or_default();
 
                 // Fetch all models to get their names
                 let models = self.get_models().await?;
@@ -1423,12 +1418,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         "<unset>".to_string()
                     };
 
-                    let label = format!(
-                        "{:<n$} {} ∙ {}",
+                    // Left side: agent id and title
+                    let left_side = format!(
+                        "{} {}",
                         agent.id.as_str().bold(),
-                        title.lines().collect::<Vec<_>>().join(" ").dimmed(),
-                        format!("{}: {}", provider_name, model_display).dimmed()
+                        title.lines().collect::<Vec<_>>().join(" ").dimmed()
                     );
+
+                    // Right side: provider and model
+                    let right_side = format!("{}: {}", provider_name, model_display).dimmed();
+
+                    let label = format!("{:<70} {}", left_side, right_side);
                     display_agents.push(Agent { label, id: agent.id.clone() });
                 }
 
