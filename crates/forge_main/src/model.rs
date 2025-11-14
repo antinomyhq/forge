@@ -2,8 +2,8 @@ use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
 use colored::Colorize;
-use forge_api::{AnyProvider, Model, ProviderId, Template};
-use forge_domain::{Agent, UserCommand};
+use forge_api::{Agent, AnyProvider, Model, ProviderId, Template};
+use forge_domain::UserCommand;
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumProperty};
 
@@ -827,7 +827,8 @@ mod tests {
 
     #[test]
     fn test_register_agent_commands() {
-        use forge_domain::{Agent, ModelId, ProviderId};
+        use forge_api::Agent;
+        use forge_domain::{ModelId, ProviderId};
 
         // Setup
         let fixture = ForgeCommandManager::default();
@@ -871,7 +872,8 @@ mod tests {
 
     #[test]
     fn test_parse_agent_switch_command() {
-        use forge_domain::{Agent, ModelId, ProviderId};
+        use forge_api::Agent;
+        use forge_domain::{ModelId, ProviderId};
 
         // Setup
         let fixture = ForgeCommandManager::default();

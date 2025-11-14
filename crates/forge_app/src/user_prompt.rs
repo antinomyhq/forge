@@ -5,7 +5,7 @@ use forge_domain::*;
 use serde_json::json;
 use tracing::debug;
 
-use crate::{AttachmentService, TemplateService};
+use crate::{Agent, AttachmentService, TemplateService};
 
 /// Service responsible for setting user prompts in the conversation context
 #[derive(Clone)]

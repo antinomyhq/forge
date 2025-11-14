@@ -127,7 +127,7 @@ impl<
             Arc::new(ForgeCustomInstructionsService::new(infra.clone()));
         let agent_loader_service = Arc::new(ForgeAgentLoaderService::new(infra.clone()));
         let agent_registry_service =
-            Arc::new(crate::agent_registry::ForgeAgentRegistryService::new());
+            Arc::new(ForgeAgentRegistryService::new());
         let command_loader_service = Arc::new(ForgeCommandLoaderService::new(infra.clone()));
         let policy_service = ForgePolicyService::new(infra.clone());
         let provider_auth_service = ForgeProviderAuthService::new(infra.clone());

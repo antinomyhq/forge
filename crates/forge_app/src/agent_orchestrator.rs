@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use forge_domain::{Agent, AgentId};
+use forge_domain::AgentId;
 
-use crate::Services;
 use crate::services::{AgentLoader, AgentRegistry, AppConfigService};
+use crate::{Agent, Services};
 
 /// Orchestrates agent operations including loading definitions, converting to
 /// runtime agents, and managing the agent registry.
@@ -38,7 +38,7 @@ impl<S: Services> AgentOrchestrator<S> {
 
         let agents: Vec<Agent> = agent_defs
             .into_iter()
-            .map(|def| def.into_agent(default_provider.id, default_model.clone()))
+            .map(|def| Agent::from_agent_def(def, default_provider.id, default_model.clone()))
             .collect();
 
         // Populate the runtime registry so other parts of the app can query

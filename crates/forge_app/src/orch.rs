@@ -10,10 +10,10 @@ use forge_template::Element;
 use tokio::task::JoinHandle;
 use tracing::{debug, info, warn};
 
-use crate::TemplateEngine;
 use crate::agent::AgentService;
 use crate::compact::Compactor;
 use crate::title_generator::TitleGenerator;
+use crate::{Agent, TemplateEngine};
 
 #[derive(Clone, Setters)]
 #[setters(into)]

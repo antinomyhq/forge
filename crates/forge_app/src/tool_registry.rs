@@ -4,7 +4,7 @@ use std::time::Duration;
 use anyhow::Context;
 use console::style;
 use forge_domain::{
-    Agent, AgentId, AgentInput, ChatResponse, ChatResponseContent, ToolCallContext, ToolCallFull,
+    AgentId, AgentInput, ChatResponse, ChatResponseContent, ToolCallContext, ToolCallFull,
     ToolCatalog, ToolDefinition, ToolName, ToolOutput, ToolResult,
 };
 use futures::future::join_all;
@@ -16,7 +16,7 @@ use crate::dto::ToolsOverview;
 use crate::error::Error;
 use crate::mcp_executor::McpExecutor;
 use crate::tool_executor::ToolExecutor;
-use crate::{EnvironmentService, McpService, Services, ToolResolver};
+use crate::{Agent, EnvironmentService, McpService, Services, ToolResolver};
 
 pub struct ToolRegistry<S> {
     tool_executor: ToolExecutor<S>,
@@ -165,9 +165,10 @@ impl<S> ToolRegistry<S> {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Agent, AgentId, ModelId, ProviderId, ToolCatalog, ToolName};
+    use forge_domain::{AgentId, ModelId, ProviderId, ToolCatalog, ToolName};
     use pretty_assertions::assert_eq;
 
+    use crate::Agent;
     use crate::error::Error;
     use crate::tool_registry::ToolRegistry;
 

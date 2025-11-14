@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use forge_domain::{Agent, ContextMessage, Conversation};
+use forge_domain::{ContextMessage, Conversation};
 use forge_template::Element;
 
 use crate::utils::format_display_path;
-use crate::{EnvironmentService, FsReadService};
+use crate::{Agent, EnvironmentService, FsReadService};
 
 /// Service responsible for detecting externally changed files and rendering
 /// notifications
@@ -79,14 +79,14 @@ mod tests {
     use std::path::PathBuf;
 
     use forge_domain::{
-        Agent, AgentId, Context, Conversation, ConversationId, Environment, FileOperation, Metrics,
+        AgentId, Context, Conversation, ConversationId, Environment, FileOperation, Metrics,
         ModelId, ProviderId, ToolKind,
     };
     use pretty_assertions::assert_eq;
 
     use super::*;
     use crate::services::Content;
-    use crate::{EnvironmentService, FsReadService, ReadOutput};
+    use crate::{Agent, EnvironmentService, FsReadService, ReadOutput};
 
     #[derive(Clone, Default)]
     struct TestServices {

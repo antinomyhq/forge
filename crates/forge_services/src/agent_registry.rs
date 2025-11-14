@@ -1,6 +1,6 @@
 use dashmap::DashMap;
+use forge_app::Agent;
 use forge_app::domain::AgentId;
-use forge_domain::Agent;
 
 /// AgentRegistryService manages the active-agent ID and a registry of runtime
 /// Agents in-memory.

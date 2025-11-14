@@ -1,4 +1,6 @@
-use forge_domain::{Agent, Conversation, ToolDefinition};
+use forge_domain::{Conversation, ToolDefinition};
+
+use crate::Agent;
 
 /// Applies tunable parameters from agent to conversation context
 #[derive(Debug, Clone)]
