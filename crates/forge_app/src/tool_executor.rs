@@ -200,10 +200,16 @@ impl<
                 (input, output).into()
             }
             ToolCatalog::CodebaseSearch(input) => {
-                let cwd = self.services.get_environment().cwd;
+                let env = self.services.get_environment();
+
                 let output = self
                     .services
-                    .query(cwd, &input.query, 100, Some(10))
+                    .query(
+                        env.cwd,
+                        &input.query,
+                        env.codebase_search_limit,
+                        env.codebase_search_top_k,
+                    )
                     .await?;
                 (input, output).into()
             }
