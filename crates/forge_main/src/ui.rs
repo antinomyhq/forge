@@ -1939,6 +1939,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Always set the conversation id in state
         self.state.conversation_id = Some(id);
+        // Clear accumulated usage when starting/switching to a conversation
+        self.state.current_usage = None;
 
         Ok(id)
     }
@@ -2156,17 +2158,27 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     let env = self.api.environment();
                     let display = title.display_with_env(env);
 
-                    // Get usage from conversation if available
-                    let conversation = if let Some(conversation_id) = self.state.conversation_id {
-                        self.api.conversation(&conversation_id).await.ok().flatten()
+                    // Use locally tracked usage (includes nested agents) or fall back to
+                    // conversation
+                    let fallback_usage = if self.state.current_usage.is_none()
+                        && let Some(conversation_id) = self.state.conversation_id
+                    {
+                        self.api
+                            .conversation(&conversation_id)
+                            .await
+                            .ok()
+                            .flatten()
+                            .and_then(|c| c.context)
+                            .and_then(|ctx| ctx.usage)
                     } else {
                         None
                     };
 
-                    let usage = conversation
+                    let usage = self
+                        .state
+                        .current_usage
                         .as_ref()
-                        .and_then(|c| c.context.as_ref())
-                        .and_then(|ctx| ctx.usage.as_ref());
+                        .or(fallback_usage.as_ref());
 
                     let formatted = display.format_with_data(usage, None);
                     self.writeln(formatted)?
@@ -2198,7 +2210,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     return Ok(());
                 }
             }
-            ChatResponse::Usage(_) => {}
+            ChatResponse::Usage(usage) => {
+                // Track usage locally for accurate title display
+                self.state.current_usage = Some(usage);
+            }
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 if !self.api.environment().retry_config.suppress_retry_errors {
                     self.spinner.start(Some("Retrying"))?;
