@@ -66,11 +66,11 @@ impl IndexingClientInfra for IndexingClient {
         &self,
         user_id: &DomainUserId,
         workspace_id: &IndexWorkspaceId,
-        files: Vec<(String, String)>,
+        files: Vec<forge_domain::FileRead>,
     ) -> Result<UploadStats> {
         let proto_files: Vec<File> = files
             .into_iter()
-            .map(|(path, content)| File { path, content })
+            .map(|file_read| File { path: file_read.path, content: file_read.content })
             .collect();
 
         let request = UploadFilesRequest {

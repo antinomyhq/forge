@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_domain::{
-    AuthCodeParams, CodeSearchResult, CommandOutput, Environment, FileHash, FileInfo,
+    AuthCodeParams, CodeSearchResult, CommandOutput, Environment, FileHash, FileInfo, FileRead,
     IndexWorkspaceId, McpServerConfig, OAuthConfig, OAuthTokenResponse, ToolDefinition, ToolName,
     ToolOutput, UploadStats, UserId, WorkspaceInfo,
 };
@@ -214,8 +214,6 @@ pub trait DirectoryReaderInfra: Send + Sync {
 #[async_trait::async_trait]
 pub trait IndexingClientInfra: Send + Sync {
     /// Create a new workspace on the indexing server
-    /// Returns the remote workspace ID assigned by the server
-    /// If workspace already exists for this path, returns existing ID
     async fn create_workspace(
         &self,
         user_id: &UserId,
@@ -223,16 +221,14 @@ pub trait IndexingClientInfra: Send + Sync {
     ) -> anyhow::Result<IndexWorkspaceId>;
 
     /// Upload files to be indexed
-    /// Files should be batched (recommended: 20 files per batch)
     async fn upload_files(
         &self,
         user_id: &UserId,
         workspace_id: &IndexWorkspaceId,
-        files: Vec<(String, String)>,
+        files: Vec<FileRead>,
     ) -> anyhow::Result<UploadStats>;
 
     /// Search the indexed codebase using semantic search
-    /// Returns a list of search results ordered by relevance
     async fn search(
         &self,
         user_id: &UserId,
@@ -243,20 +239,9 @@ pub trait IndexingClientInfra: Send + Sync {
     ) -> anyhow::Result<Vec<CodeSearchResult>>;
 
     /// List all workspaces for a user
-    /// Returns a list of workspaces from the server
     async fn list_workspaces(&self, user_id: &UserId) -> anyhow::Result<Vec<WorkspaceInfo>>;
 
     /// List all files in a workspace with their hashes
-    ///
-    /// Retrieves file references (path and hash only, no content) for all files
-    /// in the workspace. Used to detect which files have changed during sync.
-    ///
-    /// # Arguments
-    /// * `user_id` - The user ID
-    /// * `workspace_id` - The workspace ID
-    ///
-    /// # Errors
-    /// Returns an error if the request fails
     async fn list_workspace_files(
         &self,
         user_id: &UserId,
@@ -264,18 +249,6 @@ pub trait IndexingClientInfra: Send + Sync {
     ) -> anyhow::Result<Vec<FileHash>>;
 
     /// Delete files from a workspace
-    ///
-    /// Removes file nodes and their associated chunks from the indexing
-    /// service. Used to clean up files that no longer exist in the local
-    /// workspace.
-    ///
-    /// # Arguments
-    /// * `user_id` - The user ID
-    /// * `workspace_id` - The workspace ID
-    /// * `file_paths` - Relative paths of files to delete
-    ///
-    /// # Errors
-    /// Returns an error if the request fails
     async fn delete_files(
         &self,
         user_id: &UserId,

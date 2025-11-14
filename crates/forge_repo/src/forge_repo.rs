@@ -436,7 +436,7 @@ impl<F: forge_app::IndexingClientInfra> forge_app::IndexingClientInfra for Forge
         &self,
         user_id: &forge_domain::UserId,
         workspace_id: &forge_domain::IndexWorkspaceId,
-        files: Vec<(String, String)>,
+        files: Vec<forge_domain::FileRead>,
     ) -> anyhow::Result<forge_domain::UploadStats> {
         self.infra.upload_files(user_id, workspace_id, files).await
     }

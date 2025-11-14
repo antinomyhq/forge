@@ -314,9 +314,14 @@ impl<F: IndexingRepository + IndexingClientInfra + WalkerInfra + FileReaderInfra
         let mut total_stats = forge_domain::UploadStats::default();
 
         for batch in files_to_upload.chunks(batch_size) {
+            let file_reads: Vec<forge_domain::FileRead> = batch
+                .iter()
+                .map(|(path, content)| forge_domain::FileRead::new(path.clone(), content.clone()))
+                .collect();
+
             let stats = self
                 .infra
-                .upload_files(&user_id, &workspace_id, batch.to_vec())
+                .upload_files(&user_id, &workspace_id, file_reads)
                 .await
                 .context("Failed to upload files")?;
             total_stats = total_stats + stats;
@@ -546,12 +551,12 @@ mod tests {
             &self,
             _: &UserId,
             _: &IndexWorkspaceId,
-            files: Vec<(String, String)>,
+            files: Vec<forge_domain::FileRead>,
         ) -> Result<UploadStats> {
             self.uploaded_files
                 .lock()
                 .await
-                .extend(files.iter().map(|(p, _)| p.clone()));
+                .extend(files.iter().map(|f| f.path.clone()));
             Ok(UploadStats::new(files.len(), files.len()))
         }
         async fn search(

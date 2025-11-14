@@ -295,7 +295,7 @@ impl forge_app::IndexingClientInfra for ForgeInfra {
         &self,
         user_id: &forge_domain::UserId,
         workspace_id: &forge_domain::IndexWorkspaceId,
-        files: Vec<(String, String)>,
+        files: Vec<forge_domain::FileRead>,
     ) -> anyhow::Result<forge_domain::UploadStats> {
         let url = self.get_indexing_server_url();
         let client = crate::proto::IndexingClient::new(&url).await.map_err(|e| {

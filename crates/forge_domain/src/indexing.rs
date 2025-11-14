@@ -2,6 +2,24 @@ use derive_more::Display;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// File content for upload to indexing server
+///
+/// Contains the file path (relative to workspace root) and its textual content
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FileRead {
+    /// File path (relative to workspace root)
+    pub path: String,
+    /// File content as UTF-8 text
+    pub content: String,
+}
+
+impl FileRead {
+    /// Create a new file read entry
+    pub fn new(path: String, content: String) -> Self {
+        Self { path, content }
+    }
+}
+
 /// User identifier for indexing operations.
 ///
 /// Unique per machine, generated once and stored in database.
