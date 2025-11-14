@@ -2560,7 +2560,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     ) -> anyhow::Result<()> {
         self.spinner.start(Some("Searching codebase..."))?;
 
-        let results = match self.api.query_codebase(path.clone(), &query, limit, top_k).await {
+        let results = match self
+            .api
+            .query_codebase(path.clone(), &query, limit, top_k)
+            .await
+        {
             Ok(results) => results,
             Err(e) => {
                 self.spinner.stop(None)?;
@@ -2573,7 +2577,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         for (i, result) in results.iter().enumerate() {
             let similarity = format!("   Similarity: {:.2}%", result.similarity() * 100.0);
-            
+
             match result {
                 forge_domain::CodeSearchResult::FileChunk {
                     file_path,
@@ -2582,7 +2586,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     end_line,
                     ..
                 } => {
-                    self.writeln(format!("{}. {} (lines {}-{})", i + 1, file_path, start_line, end_line))?;
+                    self.writeln(format!(
+                        "{}. {} (lines {}-{})",
+                        i + 1,
+                        file_path,
+                        start_line,
+                        end_line
+                    ))?;
                     self.writeln(similarity)?;
                     self.writeln(format!("   ```\n   {}\n   ```", content))?;
                 }
