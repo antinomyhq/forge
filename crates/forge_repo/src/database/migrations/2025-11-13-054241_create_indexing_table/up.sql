@@ -1,4 +1,4 @@
--- Create indexing table to track workspaces indexed by forge-ce
+-- Create indexing table to track workspaces indexed by the indexing server
 CREATE TABLE IF NOT EXISTS indexing (
     remote_workspace_id TEXT PRIMARY KEY NOT NULL,
     user_id TEXT NOT NULL,

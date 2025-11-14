@@ -184,7 +184,7 @@ pub trait API: Sync + Send {
     /// Remove provider credentials (logout)
     async fn remove_provider(&self, provider_id: &ProviderId) -> Result<()>;
 
-    /// Index a codebase directory with forge-ce
+    /// Index a codebase directory for semantic search
     async fn index_codebase(&self, path: PathBuf) -> Result<forge_domain::IndexStats>;
 
     /// Query the indexed codebase

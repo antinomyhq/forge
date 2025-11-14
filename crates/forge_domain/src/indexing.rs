@@ -24,7 +24,7 @@ impl UserId {
     }
 }
 
-/// Workspace identifier (UUID) from forge-ce server.
+/// Workspace identifier (UUID) from indexing server.
 ///
 /// Generated locally and sent to server during CreateWorkspace.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Display)]

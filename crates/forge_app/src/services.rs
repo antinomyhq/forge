@@ -231,7 +231,7 @@ pub trait CustomInstructionsService: Send + Sync {
     async fn get_custom_instructions(&self) -> Vec<String>;
 }
 
-/// Service for indexing codebases via forge-ce
+/// Service for indexing codebases for semantic search
 #[async_trait::async_trait]
 pub trait IndexingService: Send + Sync {
     /// Index the codebase at the given path
@@ -239,7 +239,7 @@ pub trait IndexingService: Send + Sync {
     /// # Errors
     /// Returns error if:
     /// - Path is invalid
-    /// - forge-ce server is unreachable
+    /// - Indexing server is unreachable
     /// - Database operations fail
     async fn index(&self, path: PathBuf) -> anyhow::Result<IndexStats>;
 
@@ -248,7 +248,7 @@ pub trait IndexingService: Send + Sync {
     /// # Errors
     /// Returns error if:
     /// - Workspace is not indexed
-    /// - forge-ce server is unreachable
+    /// - Indexing server is unreachable
     async fn query(
         &self,
         path: PathBuf,
@@ -260,7 +260,7 @@ pub trait IndexingService: Send + Sync {
     /// List all workspaces indexed by the user
     ///
     /// # Errors
-    /// Returns error if forge-ce server is unreachable
+    /// Returns error if indexing server is unreachable
     /// List all indexed workspaces (gets user_id internally)
     async fn list_indexes(&self) -> anyhow::Result<Vec<WorkspaceInfo>>;
 }

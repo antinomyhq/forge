@@ -107,13 +107,13 @@ pub struct IndexedWorkspace {
 /// Repository for managing indexed workspaces
 ///
 /// This repository provides operations for tracking workspaces indexed
-/// by the forge-ce server.
+/// by the indexing server.
 #[async_trait::async_trait]
 pub trait IndexingRepository: Send + Sync {
     /// Save or update an indexed workspace
     ///
     /// # Arguments
-    /// * `workspace_id` - The workspace ID from forge-ce
+    /// * `workspace_id` - The workspace ID from the indexing server
     /// * `user_id` - The user ID
     /// * `path` - Local directory path
     ///

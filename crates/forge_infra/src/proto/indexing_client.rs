@@ -183,27 +183,3 @@ impl IndexingClientInfra for IndexingClient {
         Ok(workspaces)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    #[ignore] // Requires running forge-ce server
-    async fn test_create_workspace_and_upload() {
-        let client = IndexingClient::new("http://localhost:8080").await.unwrap();
-
-        let user_id = DomainUserId::generate();
-        let path = PathBuf::from("/tmp/test");
-
-        // Server returns the workspace_id
-        let workspace_id = client.create_workspace(&user_id, &path).await.unwrap();
-
-        let files = vec![(PathBuf::from("test.rs"), "fn main() {}".to_string())];
-
-        client
-            .upload_files(&user_id, &workspace_id, files)
-            .await
-            .unwrap();
-    }
-}

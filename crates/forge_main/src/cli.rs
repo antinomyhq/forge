@@ -128,7 +128,7 @@ pub enum TopLevelCommand {
     /// Run or list custom commands.
     Cmd(CmdCommandGroup),
 
-    /// Manage codebase indexing with forge-ce.
+    /// Manage codebase indexing for semantic search.
     Index(IndexCommandGroup),
 }
 

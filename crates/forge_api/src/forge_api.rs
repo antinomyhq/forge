@@ -326,7 +326,6 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     }
 
     async fn index_codebase(&self, path: PathBuf) -> Result<forge_domain::IndexStats> {
-        use forge_app::IndexingService;
         Ok(self.services.indexing_service().index(path).await?)
     }
 

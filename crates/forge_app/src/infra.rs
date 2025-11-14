@@ -210,7 +210,7 @@ pub trait DirectoryReaderInfra: Send + Sync {
     ) -> anyhow::Result<Vec<(PathBuf, String)>>;
 }
 
-/// Infrastructure trait for indexing operations with forge-ce
+/// Infrastructure trait for indexing operations
 #[async_trait::async_trait]
 pub trait IndexingClientInfra: Send + Sync {
     /// Create a new workspace on the indexing server

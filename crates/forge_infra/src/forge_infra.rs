@@ -269,7 +269,13 @@ impl StrategyFactory for ForgeInfra {
     }
 }
 
-const FORGE_CE_URL: &str = "http://localhost:8080";
+impl ForgeInfra {
+    fn get_indexing_server_url(&self) -> String {
+        self.environment_service
+            .get_env_var("FORGE_INDEX_SERVER_URL")
+            .unwrap_or_else(|| "http://localhost:8080".to_string())
+    }
+}
 
 #[async_trait::async_trait]
 impl forge_app::IndexingClientInfra for ForgeInfra {
@@ -278,7 +284,10 @@ impl forge_app::IndexingClientInfra for ForgeInfra {
         user_id: &forge_domain::UserId,
         working_dir: &std::path::Path,
     ) -> anyhow::Result<forge_domain::IndexWorkspaceId> {
-        let client = crate::proto::IndexingClient::new(FORGE_CE_URL).await?;
+        let url = self.get_indexing_server_url();
+        let client = crate::proto::IndexingClient::new(&url).await.map_err(|e| {
+            anyhow::anyhow!("Failed to connect to indexing server at {}: {}", url, e)
+        })?;
         client.create_workspace(user_id, working_dir).await
     }
 
@@ -288,7 +297,10 @@ impl forge_app::IndexingClientInfra for ForgeInfra {
         workspace_id: &forge_domain::IndexWorkspaceId,
         files: Vec<(PathBuf, String)>,
     ) -> anyhow::Result<forge_domain::UploadStats> {
-        let client = crate::proto::IndexingClient::new(FORGE_CE_URL).await?;
+        let url = self.get_indexing_server_url();
+        let client = crate::proto::IndexingClient::new(&url).await.map_err(|e| {
+            anyhow::anyhow!("Failed to connect to indexing server at {}: {}", url, e)
+        })?;
         client.upload_files(user_id, workspace_id, files).await
     }
 
@@ -300,7 +312,10 @@ impl forge_app::IndexingClientInfra for ForgeInfra {
         limit: usize,
         top_k: Option<u32>,
     ) -> anyhow::Result<Vec<forge_domain::CodeSearchResult>> {
-        let client = crate::proto::IndexingClient::new(FORGE_CE_URL).await?;
+        let url = self.get_indexing_server_url();
+        let client = crate::proto::IndexingClient::new(&url).await.map_err(|e| {
+            anyhow::anyhow!("Failed to connect to indexing server at {}: {}", url, e)
+        })?;
         client
             .search(user_id, workspace_id, query, limit, top_k)
             .await
@@ -310,7 +325,10 @@ impl forge_app::IndexingClientInfra for ForgeInfra {
         &self,
         user_id: &forge_domain::UserId,
     ) -> anyhow::Result<Vec<forge_domain::WorkspaceInfo>> {
-        let client = crate::proto::IndexingClient::new(FORGE_CE_URL).await?;
+        let url = self.get_indexing_server_url();
+        let client = crate::proto::IndexingClient::new(&url).await.map_err(|e| {
+            anyhow::anyhow!("Failed to connect to indexing server at {}: {}", url, e)
+        })?;
         client.list_workspaces(user_id).await
     }
 }

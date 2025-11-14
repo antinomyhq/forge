@@ -146,7 +146,7 @@ impl<F: IndexingRepository + IndexingClientInfra + WalkerInfra + FileReaderInfra
     /// Returns error if:
     /// - Path is invalid or cannot be canonicalized
     /// - Workspace has not been indexed (suggests running `forge index .`)
-    /// - Search request to forge-ce fails
+    /// - Search request to indexing server fails
     async fn query(
         &self,
         path: PathBuf,
@@ -167,7 +167,7 @@ impl<F: IndexingRepository + IndexingClientInfra + WalkerInfra + FileReaderInfra
             .context("Failed to query database")?
             .ok_or_else(|| anyhow::anyhow!("Workspace not indexed. Run `forge index .` first."))?;
 
-        // Step 3: Search via forge-ce
+        // Step 3: Search via indexing server
         let results = self
             .infra
             .search(
@@ -189,7 +189,7 @@ impl<F: IndexingRepository + IndexingClientInfra + WalkerInfra + FileReaderInfra
     /// If no workspaces exist locally, returns an empty list.
     ///
     /// # Errors
-    /// Returns error if the request to forge-ce fails.
+    /// Returns error if the request to indexing server fails.
     async fn list_indexes(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
         // Get user_id from any indexed workspace
         let user_id =
@@ -197,12 +197,12 @@ impl<F: IndexingRepository + IndexingClientInfra + WalkerInfra + FileReaderInfra
                 anyhow::anyhow!("No workspaces indexed. Run `forge index` first.")
             })?;
 
-        // List all workspaces for this user from forge-ce
+        // List all workspaces for this user from indexing server
         self.infra
             .as_ref()
             .list_workspaces(&user_id)
             .await
-            .context("Failed to list workspaces from forge-ce")
+            .context("Failed to list workspaces from indexing server")
     }
 }
 
