@@ -785,6 +785,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
             info = info
                 .add_title(id.to_case(Case::UpperSnake))
+                .add_key_value("id", id)
                 .add_key_value("title", title)
                 .add_key_value("provider", provider_name)
                 .add_key_value("model", model_name);
@@ -1388,7 +1389,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .max()
                     .unwrap_or_default();
 
-                // Collect agents with their provider information
+                // Collect agents with their provider and model information
                 let mut display_agents = Vec::new();
                 for agent in agents {
                     let title = &agent
@@ -1404,11 +1405,18 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         .map(|p| p.id.to_string())
                         .unwrap_or_else(|| "<unset>".to_string());
 
+                    // Get model for this agent
+                    let model_name = self
+                        .get_agent_model(Some(agent.id.clone()))
+                        .await
+                        .map(|m| m.as_str().to_string())
+                        .unwrap_or_else(|| "<unset>".to_string());
+
                     let label = format!(
                         "{:<n$} {} {}",
                         agent.id.as_str().bold(),
                         title.lines().collect::<Vec<_>>().join(" ").dimmed(),
-                        format!("[{}]", provider_name).dimmed()
+                        format!("[{}/{}]", provider_name, model_name).dimmed()
                     );
                     display_agents.push(Agent { label, id: agent.id.clone() });
                 }
