@@ -9,6 +9,10 @@ pub fn generate_autofix_workflow() {
     let lint_fix_job = Job::new("Lint Fix")
         .permissions(Permissions::default().contents(Level::Read))
         .add_step(Step::new("Install SQLite").run("sudo apt-get install -y libsqlite3-dev"))
+        .add_step(
+            Step::new("Install Protobuf Compiler")
+                .run("sudo apt-get update && sudo apt-get install -y protobuf-compiler"),
+        )
         .add_step(Step::checkout())
         .add_step(
             Step::toolchain()

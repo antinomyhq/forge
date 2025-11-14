@@ -38,6 +38,8 @@ jobs:
     steps:
     - name: Install SQLite
       run: sudo apt-get install -y libsqlite3-dev
+    - name: Install Protobuf Compiler
+      run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
     - name: Checkout Code
       uses: actions/checkout@v5
     - name: Setup Rust Toolchain
