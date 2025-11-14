@@ -2526,39 +2526,19 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Display results based on whether migration occurred
         if let Some(result) = result {
-            // Show the warning message
             self.writeln_title(
-                TitleFormat::action("Credential Migration").sub_title("Environment → Credentials"),
+                TitleFormat::warning("Credentials migrated from environment variables")
+                    .sub_title(
+                        "Forge no longer reads API keys from env vars. Learn more: https://forgecode.dev/docs/custom-providers/",
+                    ),
             )?;
-            self.writeln(format!("{}", "⚠️  IMPORTANT NOTICE".bright_yellow().bold()))?;
-            self.writeln("   This is a ONE-TIME  operation, NOT a sync.".to_string())?;
-            self.writeln("   Now, changes to environment variables will NOT".to_string())?;
-            self.writeln("   automatically update the credentials file.".to_string())?;
 
-            self.writeln(format!(
-                "✅ Migrated {} provider(s):",
-                result
-                    .migrated_providers
-                    .len()
-                    .to_string()
-                    .bright_green()
-                    .bold()
-            ))?;
-
-            for provider in &result.migrated_providers {
-                self.writeln(format!("   • {}", provider.to_string().bright_white()))?;
-            }
-
-            self.writeln(format!("{}", "Next steps:".bright_cyan().bold()))?;
-            self.writeln(format!(
-                "   1. Credentials saved to: {}",
-                result.credentials_path.display().to_string().bright_white()
-            ))?;
-            self.writeln(
-                "   2. You can now remove the environment variables if desired".to_string(),
+            self.writeln_title(
+                TitleFormat::info(format!(
+                    "Migrated {} provider(s) from environment variables",
+                    result.migrated_providers.len()
+                )),
             )?;
-            self.writeln("   3. Future credential changes should be made via:".to_string())?;
-            self.writeln(format!("      {}", "forge provider login".bright_white()))?;
         }
         Ok(())
     }
