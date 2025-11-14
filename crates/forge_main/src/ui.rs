@@ -761,16 +761,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
-        // Get all models for name lookup
-        let models = self.get_models().await?;
-        let model_map: HashMap<_, _> = models
-            .iter()
-            .map(|m| {
-                let name = m.name.as_deref().unwrap_or_else(|| m.id.as_str());
-                (m.id.as_str(), name)
-            })
-            .collect();
-
         let mut info = Info::new().add_title("AGENTS");
 
         for agent in agents.iter() {
@@ -791,18 +781,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .map(|p| p.id.to_string())
                 .unwrap_or_else(|| "<unset>".to_string());
 
-            // Get model name, fallback to model ID if name not available
-            let model_display = model_map
-                .get(agent.model.as_str())
-                .copied()
-                .unwrap_or_else(|| agent.model.as_str());
+            let model_name = agent.model.as_str().to_string();
 
             info = info
                 .add_title(id.to_case(Case::UpperSnake))
                 .add_key_value("id", id)
                 .add_key_value("title", title)
                 .add_key_value("provider", provider_name)
-                .add_key_value("model", model_display);
+                .add_key_value("model", model_name);
         }
 
         if porcelain {
@@ -1403,9 +1389,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .max()
                     .unwrap_or_default();
 
-                // Fetch all models to get their names
-                let models = self.get_models().await?;
-
                 // Collect agents with their provider and model information
                 let mut display_agents = Vec::new();
                 for agent in agents {
@@ -1423,25 +1406,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         .unwrap_or_else(|| "<unset>".to_string());
 
                     // Get model for this agent
-                    let model_display = if let Some(model_id) =
-                        self.get_agent_model(Some(agent.id.clone())).await
-                    {
-                        // Find the model in the models list to get its name
-                        models
-                            .iter()
-                            .find(|m| m.id == model_id)
-                            .and_then(|m| m.name.as_ref())
-                            .map(|name| name.to_string())
-                            .unwrap_or_else(|| model_id.as_str().to_string())
-                    } else {
-                        "<unset>".to_string()
-                    };
+                    let model_name = self
+                        .get_agent_model(Some(agent.id.clone()))
+                        .await
+                        .map(|m| m.as_str().to_string())
+                        .unwrap_or_else(|| "<unset>".to_string());
 
                     let label = format!(
                         "{:<n$} {} {}",
                         agent.id.as_str().bold(),
                         title.lines().collect::<Vec<_>>().join(" ").dimmed(),
-                        format!("[{}/{}]", provider_name, model_display).dimmed()
+                        format!("[{}/{}]", provider_name, model_name).dimmed()
                     );
                     display_agents.push(Agent { label, id: agent.id.clone() });
                 }
