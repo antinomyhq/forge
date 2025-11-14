@@ -772,14 +772,14 @@ mod tests {
             .provider(ProviderId::Anthropic)
             .model(ModelId::new("claude-3-opus"));
 
-        let agent = definition.into_agent(default_provider.clone(), default_model.clone());
+        let agent = definition.into_agent(default_provider, default_model.clone());
 
         assert_eq!(agent.provider, ProviderId::Anthropic);
         assert_eq!(agent.model, ModelId::new("claude-3-opus"));
 
         // Test with defaults
         let definition = AgentDefinition::new("test");
-        let agent = definition.into_agent(default_provider.clone(), default_model.clone());
+        let agent = definition.into_agent(default_provider, default_model.clone());
 
         assert_eq!(agent.provider, default_provider);
         assert_eq!(agent.model, default_model);
