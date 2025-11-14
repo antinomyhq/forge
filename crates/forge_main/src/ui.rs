@@ -478,7 +478,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         let command_with_slash = if command_str.starts_with('/') {
                             command_str
                         } else {
-                            format!("/{command_str}")
+                            format!("/{}", command_str)
                         };
                         let command = self.command.parse(&command_with_slash)?;
                         self.on_command(command).await?;
@@ -514,8 +514,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.handle_generate_conversation_id().await?;
             }
             ConversationCommand::Dump { id, html } => {
-                let conversation_id =
-                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
+                let conversation_id = ConversationId::parse(&id)
+                    .context(format!("Invalid conversation ID: {}", id))?;
 
                 self.validate_conversation_exists(&conversation_id).await?;
 
@@ -528,8 +528,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.state.conversation_id = original_id;
             }
             ConversationCommand::Compact { id } => {
-                let conversation_id =
-                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
+                let conversation_id = ConversationId::parse(&id)
+                    .context(format!("Invalid conversation ID: {}", id))?;
 
                 self.validate_conversation_exists(&conversation_id).await?;
 
@@ -542,8 +542,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.state.conversation_id = original_id;
             }
             ConversationCommand::Retry { id } => {
-                let conversation_id =
-                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
+                let conversation_id = ConversationId::parse(&id)
+                    .context(format!("Invalid conversation ID: {}", id))?;
 
                 self.validate_conversation_exists(&conversation_id).await?;
 
@@ -556,34 +556,34 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.state.conversation_id = original_id;
             }
             ConversationCommand::Resume { id } => {
-                let conversation_id =
-                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
+                let conversation_id = ConversationId::parse(&id)
+                    .context(format!("Invalid conversation ID: {}", id))?;
 
                 self.validate_conversation_exists(&conversation_id).await?;
 
                 self.state.conversation_id = Some(conversation_id);
-                self.writeln_title(TitleFormat::info(format!("Resumed conversation: {id}")))?;
+                self.writeln_title(TitleFormat::info(format!("Resumed conversation: {}", id)))?;
                 // Interactive mode will be handled by the main loop
             }
             ConversationCommand::Show { id } => {
-                let conversation_id =
-                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
+                let conversation_id = ConversationId::parse(&id)
+                    .context(format!("Invalid conversation ID: {}", id))?;
 
                 let conversation = self.validate_conversation_exists(&conversation_id).await?;
 
                 self.on_show_last_message(conversation).await?;
             }
             ConversationCommand::Info { id } => {
-                let conversation_id =
-                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
+                let conversation_id = ConversationId::parse(&id)
+                    .context(format!("Invalid conversation ID: {}", id))?;
 
                 let conversation = self.validate_conversation_exists(&conversation_id).await?;
 
                 self.on_show_conv_info(conversation).await?;
             }
             ConversationCommand::Clone { id } => {
-                let conversation_id =
-                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
+                let conversation_id = ConversationId::parse(&id)
+                    .context(format!("Invalid conversation ID: {}", id))?;
 
                 let conversation = self.validate_conversation_exists(&conversation_id).await?;
 
@@ -605,7 +605,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         conversation.ok_or_else(|| {
             anyhow::anyhow!(
-                "Conversation '{conversation_id}' not found. Use 'forge conversation list' to see available conversations."
+                "Conversation '{}' not found. Use 'forge conversation list' to see available conversations.",
+                conversation_id
             )
         })
     }
@@ -684,12 +685,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             let provider = self.api.get_provider(id).await?;
 
             if !provider.is_configured() {
-                return Err(anyhow::anyhow!("Provider '{id}' is not configured"));
+                return Err(anyhow::anyhow!("Provider '{}' is not configured", id));
             }
 
             self.api.remove_provider(id).await?;
             self.writeln_title(TitleFormat::completion(format!(
-                "Successfully logged out from {id}"
+                "Successfully logged out from {}",
+                id
             )))?;
             return Ok(());
         }
@@ -715,7 +717,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 let provider_id = provider.0.id();
                 self.api.remove_provider(&provider_id).await?;
                 self.writeln_title(TitleFormat::completion(format!(
-                    "Successfully logged out from {provider_id}"
+                    "Successfully logged out from {}",
+                    provider_id
                 )))?;
             }
             None => {
@@ -1429,7 +1432,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     self.on_agent_change(AgentId::new(agent_id)).await?;
                 } else {
                     return Err(anyhow::anyhow!(
-                        "Agent '{agent_id}' not found or unavailable"
+                        "Agent '{}' not found or unavailable",
+                        agent_id
                     ));
                 }
             }
@@ -1495,17 +1499,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .required_params
             .iter()
             .map(|param| {
-                let param_value = ForgeSelect::input(format!("Enter {param}:"))
+                let param_value = ForgeSelect::input(format!("Enter {}:", param))
                     .prompt()?
                     .context("Parameter input cancelled")?;
 
-                anyhow::ensure!(!param_value.trim().is_empty(), "{param} cannot be empty");
+                anyhow::ensure!(!param_value.trim().is_empty(), "{} cannot be empty", param);
 
                 Ok((param.to_string(), param_value))
             })
             .collect::<anyhow::Result<HashMap<_, _>>>()?;
 
-        let api_key = ForgeSelect::input(format!("Enter your {provider_id} API key:"))
+        let api_key = ForgeSelect::input(format!("Enter your {} API key:", provider_id))
             .prompt()?
             .context("API key input cancelled")?;
 
@@ -1554,7 +1558,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Try to open browser automatically
         if let Err(e) = open::that(display_uri) {
             self.writeln_title(TitleFormat::error(format!(
-                "Failed to open browser automatically: {e}"
+                "Failed to open browser automatically: {}",
+                e
             )))?;
         }
 
@@ -1597,19 +1602,21 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn display_credential_success(&mut self, provider_id: ProviderId) -> anyhow::Result<()> {
         self.writeln_title(TitleFormat::info(format!(
-            "{provider_id} configured successfully!"
+            "{} configured successfully!",
+            provider_id
         )))?;
 
         // Prompt user to set as active provider
         let should_set_active = ForgeSelect::confirm(format!(
-            "Would you like to set {provider_id} as the active provider?"
+            "Would you like to set {} as the active provider?",
+            provider_id
         ))
         .with_default(true)
         .prompt()?;
 
         if should_set_active.unwrap_or(false) {
             self.api.set_default_provider(provider_id).await?;
-            self.writeln_title(TitleFormat::action(format!("Provider set {provider_id}")))?;
+            self.writeln_title(TitleFormat::action(format!("Provider set {}", provider_id)))?;
         }
         Ok(())
     }
@@ -1625,7 +1632,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         self.writeln(format!(
             "{}",
-            format!("Authenticate using your {provider_id} account").dimmed()
+            format!("Authenticate using your {} account", provider_id).dimmed()
         ))?;
 
         // Display authorization URL
@@ -1638,7 +1645,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Try to open browser automatically
         if let Err(e) = open::that(request.authorization_url.as_str()) {
             self.writeln_title(TitleFormat::error(format!(
-                "Failed to open browser automatically: {e}"
+                "Failed to open browser automatically: {}",
+                e
             )))?;
         }
 
@@ -1680,7 +1688,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         use colored::Colorize;
 
         if auth_methods.is_empty() {
-            anyhow::bail!("No authentication methods available for provider {provider_id}");
+            anyhow::bail!(
+                "No authentication methods available for provider {}",
+                provider_id
+            );
         }
 
         // If only one auth method, use it directly
@@ -1691,7 +1702,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Multiple auth methods - ask user to choose
         self.spinner.stop(None)?;
 
-        self.writeln_title(TitleFormat::action(format!("Configure {provider_id}")))?;
+        self.writeln_title(TitleFormat::action(format!("Configure {}", provider_id)))?;
         self.writeln("Multiple authentication methods available".dimmed())?;
 
         let method_names: Vec<String> = auth_methods
@@ -1948,7 +1959,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         sub_title.push('[');
 
         if let Some(ref agent) = self.api.get_active_agent().await {
-            sub_title.push_str(format!("via {agent}").as_str());
+            sub_title.push_str(format!("via {}", agent).as_str());
         }
 
         if let Some(ref model) = self
@@ -2275,7 +2286,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Output based on format
         if porcelain {
-            println!("{new_id}");
+            println!("{}", new_id);
         } else {
             self.writeln_title(
                 TitleFormat::info("Cloned").sub_title(format!("[{} → {}]", original.id, cloned.id)),
@@ -2432,7 +2443,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             };
 
             Err(anyhow::anyhow!(
-                "Model '{model_str}' not found. Available models: {suggestion}"
+                "Model '{}' not found. Available models: {}",
+                model_str,
+                suggestion
             ))
         }
     }
@@ -2469,7 +2482,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Ok(provider_id)
         } else {
             Err(anyhow::anyhow!(
-                "Failed to configure provider {provider_id}"
+                "Failed to configure provider {}",
+                provider_id
             ))
         }
     }
