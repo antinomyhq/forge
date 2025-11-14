@@ -248,6 +248,9 @@ pub trait IndexingService: Send + Sync {
 
     /// List all workspaces indexed by the user
     async fn list_indexes(&self) -> anyhow::Result<Vec<WorkspaceInfo>>;
+
+    /// Check if a path is indexed
+    async fn is_indexed(&self, path: &Path) -> anyhow::Result<bool>;
 }
 
 #[async_trait::async_trait]
@@ -986,6 +989,11 @@ impl<I: Services> IndexingService for I {
             .query(path, query, limit, top_k)
             .await
     }
+
+    async fn is_indexed(&self, path: &Path) -> anyhow::Result<bool> {
+        self.indexing_service().is_indexed(path).await
+    }
+
 
     async fn list_indexes(&self) -> anyhow::Result<Vec<WorkspaceInfo>> {
         self.indexing_service().list_indexes().await

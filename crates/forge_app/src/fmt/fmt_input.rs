@@ -60,6 +60,11 @@ impl FormatContent for ToolCatalog {
                 };
                 Some(TitleFormat::debug(title).into())
             }
+            ToolCatalog::CodebaseSearch(input) => Some(
+                TitleFormat::debug("Semantic Search")
+                    .sub_title(format!("'{}'", input.query))
+                    .into(),
+            ),
             ToolCatalog::Remove(input) => {
                 let display_path = display_path_for(&input.path);
                 Some(TitleFormat::debug("Remove").sub_title(display_path).into())

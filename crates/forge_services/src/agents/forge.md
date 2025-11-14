@@ -16,6 +16,7 @@ tools:
   - sage
   - mcp_*
   - read_image
+  - codebase_search
 user_prompt: |-
   {{#if (eq event.name 'forge/user_task_update')}}
   <feedback>{{event.value}}</feedback>

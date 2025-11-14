@@ -5,8 +5,8 @@ use console::strip_ansi_codes;
 use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
-    Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite, FileOperation, Metrics,
-    NetFetch, PlanCreate, ToolKind,
+    CodeSearchResult, CodebaseSearch, Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo,
+    FSWrite, FileOperation, Metrics, NetFetch, PlanCreate, ToolKind,
 };
 use forge_template::Element;
 
@@ -47,6 +47,10 @@ pub enum ToolOperation {
     FsSearch {
         input: FSSearch,
         output: Option<SearchResult>,
+    },
+    CodebaseSearch {
+        input: CodebaseSearch,
+        output: Vec<CodeSearchResult>,
     },
     FsPatch {
         input: FSPatch,
@@ -324,6 +328,68 @@ impl ToolOperation {
                     forge_domain::ToolOutput::text(elm)
                 }
             },
+            ToolOperation::CodebaseSearch { input, output } => {
+                if output.is_empty() {
+                    let elm = Element::new("codebase_search_results")
+                        .attr("query", &input.query)
+                        .attr("total_results", 0)
+                        .text("No results found. try again with better query.");
+
+                    forge_domain::ToolOutput::text(elm)
+                } else {
+                    let mut results_elm = Element::new("results");
+
+                    for (idx, result) in output.iter().enumerate() {
+                        let result_elm = match result {
+                            CodeSearchResult::FileChunk {
+                                file_path,
+                                content,
+                                start_line,
+                                end_line,
+                                similarity,
+                                ..
+                            } => Element::new("file_chunk")
+                                .attr("index", idx + 1)
+                                .attr("file_path", file_path)
+                                .attr("start_line", *start_line)
+                                .attr("end_line", *end_line)
+                                .attr("similarity", format!("{:.3}", similarity))
+                                .cdata(content),
+                            CodeSearchResult::File { file_path, content, similarity, .. } => {
+                                Element::new("file")
+                                    .attr("index", idx + 1)
+                                    .attr("file_path", file_path)
+                                    .attr("similarity", format!("{:.3}", similarity))
+                                    .cdata(content)
+                            }
+                            CodeSearchResult::FileRef { file_path, similarity, .. } => {
+                                Element::new("file_ref")
+                                    .attr("index", idx + 1)
+                                    .attr("file_path", file_path)
+                                    .attr("similarity", format!("{:.3}", similarity))
+                            }
+                            CodeSearchResult::Note { content, similarity, .. } => {
+                                Element::new("note")
+                                    .attr("index", idx + 1)
+                                    .attr("similarity", format!("{:.3}", similarity))
+                                    .cdata(content)
+                            }
+                            CodeSearchResult::Task { task, similarity, .. } => Element::new("task")
+                                .attr("index", idx + 1)
+                                .attr("similarity", format!("{:.3}", similarity))
+                                .text(task),
+                        };
+                        results_elm = results_elm.append(result_elm);
+                    }
+
+                    let elm = Element::new("codebase_search_results")
+                        .attr("query", &input.query)
+                        .attr("total_results", output.len())
+                        .append(results_elm);
+
+                    forge_domain::ToolOutput::text(elm)
+                }
+            }
             ToolOperation::FsPatch { input, output } => {
                 let diff_result = DiffFormat::format(&output.before, &output.after);
                 let diff = console::strip_ansi_codes(diff_result.diff()).to_string();

@@ -42,6 +42,7 @@ pub enum ToolCatalog {
     ReadImage(ReadImage),
     Write(FSWrite),
     Search(FSSearch),
+    CodebaseSearch(CodebaseSearch),
     Remove(FSRemove),
     Patch(FSPatch),
     Undo(FSUndo),
@@ -169,6 +170,23 @@ pub struct FSSearch {
     /// If not provided, it will search all files (*).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_pattern: Option<String>,
+}
+
+/// Performs semantic search across an indexed codebase using natural language
+/// queries. Unlike the regex-based `search` tool, this tool understands code
+/// semantics and can find conceptually related code even with different
+/// terminology. Best for exploratory searches like "find authentication logic",
+/// "locate database connection setup", or "find error handling code". Requires
+/// the workspace to be indexed first using `forge index .` command. Returns
+/// ranked results by semantic similarity with file paths, code snippets, and
+/// precise line numbers. Use the `search` tool for exact pattern matching; use
+/// this tool for concept-based discovery.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct CodebaseSearch {
+    /// Natural language query describing what you're looking for in the
+    /// codebase (e.g., "authentication logic", "database queries",
+    /// "error handling")
+    pub query: String,
 }
 
 /// Request to remove a file at the specified path. Use this when you need to
@@ -469,6 +487,7 @@ impl ToolDescription for ToolCatalog {
             ToolCatalog::Followup(v) => v.description(),
             ToolCatalog::Fetch(v) => v.description(),
             ToolCatalog::Search(v) => v.description(),
+            ToolCatalog::CodebaseSearch(v) => v.description(),
             ToolCatalog::Read(v) => v.description(),
             ToolCatalog::ReadImage(v) => v.description(),
             ToolCatalog::Remove(v) => v.description(),
@@ -504,6 +523,7 @@ impl ToolCatalog {
             ToolCatalog::Followup(_) => r#gen.into_root_schema_for::<Followup>(),
             ToolCatalog::Fetch(_) => r#gen.into_root_schema_for::<NetFetch>(),
             ToolCatalog::Search(_) => r#gen.into_root_schema_for::<FSSearch>(),
+            ToolCatalog::CodebaseSearch(_) => r#gen.into_root_schema_for::<CodebaseSearch>(),
             ToolCatalog::Read(_) => r#gen.into_root_schema_for::<FSRead>(),
             ToolCatalog::ReadImage(_) => r#gen.into_root_schema_for::<ReadImage>(),
             ToolCatalog::Remove(_) => r#gen.into_root_schema_for::<FSRemove>(),
@@ -581,6 +601,13 @@ impl ToolCatalog {
                     path: std::path::PathBuf::from(&input.path),
                     cwd,
                     message,
+                })
+            }
+            ToolCatalog::CodebaseSearch(input) => {
+                Some(crate::policies::PermissionOperation::Read {
+                    path: cwd.clone(),
+                    cwd,
+                    message: format!("Semantic search in indexed codebase for: '{}'", input.query),
                 })
             }
             ToolCatalog::Remove(input) => Some(crate::policies::PermissionOperation::Write {

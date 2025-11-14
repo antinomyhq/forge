@@ -107,6 +107,27 @@ expression: tools
   }
 }
 {
+  "title": "CodebaseSearch",
+  "description": "Performs semantic search across an indexed codebase using natural language queries. Unlike the regex-based `search` tool, this tool understands code semantics and can find conceptually related code even with different terminology. Best for exploratory searches like \"find authentication logic\", \"locate database connection setup\", or \"find error handling code\". Requires the workspace to be indexed first using `forge index .` command. Returns ranked results by semantic similarity with file paths, code snippets, and precise line numbers. Use the `search` tool for exact pattern matching; use this tool for concept-based discovery.",
+  "type": "object",
+  "required": [
+    "query"
+  ],
+  "properties": {
+    "limit": {
+      "description": "Maximum number of results to return (default: 10)",
+      "default": 10,
+      "type": "integer",
+      "format": "uint",
+      "minimum": 0.0
+    },
+    "query": {
+      "description": "Natural language query describing what you're looking for in the codebase (e.g., \"authentication logic\", \"database queries\", \"error handling\")",
+      "type": "string"
+    }
+  }
+}
+{
   "title": "FSRemove",
   "description": "Request to remove a file at the specified path. Use this when you need to delete an existing file. The path must be absolute. This operation cannot be undone, so use it carefully.",
   "type": "object",

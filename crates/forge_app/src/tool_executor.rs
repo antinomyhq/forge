@@ -12,7 +12,7 @@ use crate::utils::format_display_path;
 use crate::{
     ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
     FsReadService, FsRemoveService, FsSearchService, FsUndoService, ImageReadService,
-    NetFetchService, PlanCreateService, PolicyService,
+    IndexingService, NetFetchService, PlanCreateService, PolicyService,
 };
 
 pub struct ToolExecutor<S> {
@@ -24,6 +24,7 @@ impl<
         + ImageReadService
         + FsCreateService
         + FsSearchService
+        + IndexingService
         + NetFetchService
         + FsRemoveService
         + FsPatchService
@@ -196,6 +197,11 @@ impl<
                         input.file_pattern.clone(),
                     )
                     .await?;
+                (input, output).into()
+            }
+            ToolCatalog::CodebaseSearch(input) => {
+                let cwd = self.services.get_environment().cwd;
+                let output = self.services.query(cwd, &input.query, 100, Some(10)).await?;
                 (input, output).into()
             }
             ToolCatalog::Remove(input) => {
