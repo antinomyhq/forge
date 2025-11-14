@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::{
-    CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
-    FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, KVStore, McpServerInfra,
-    StrategyFactory, UserInfra, WalkedFile, Walker, WalkerInfra,
+    AgentRepository, CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
+    FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, KVStore,
+    McpServerInfra, StrategyFactory, UserInfra, WalkedFile, Walker, WalkerInfra,
 };
 use forge_domain::{
     AnyProvider, AppConfig, AppConfigRepository, AuthCredential, CommandOutput, Conversation,
@@ -372,6 +372,13 @@ where
         self.infra
             .execute_command_raw(command, working_dir, env_vars)
             .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: AgentRepository + Send + Sync> AgentRepository for ForgeRepo<F> {
+    async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::AgentDefinition>> {
+        self.infra.get_agents().await
     }
 }
 

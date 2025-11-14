@@ -70,7 +70,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
             .await?)
     }
     async fn get_agents(&self) -> Result<Vec<Agent>> {
-        self.app().get_agents().await
+        self.services.get_agents().await
     }
 
     async fn get_providers(&self) -> Result<Vec<AnyProvider>> {
@@ -269,8 +269,8 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
         agent_provider_resolver.get_model(None).await.ok()
     }
-    async fn set_model(&self, agent_id: Option<AgentId>, model_id: ModelId) -> anyhow::Result<()> {
-        self.app().set_model(agent_id, model_id).await
+    async fn set_default_model(&self, agent_id: Option<AgentId>, model_id: ModelId) -> anyhow::Result<()> {
+        self.app().set_default_model(agent_id, model_id).await
     }
 
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {

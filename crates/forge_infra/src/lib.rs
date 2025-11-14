@@ -1,5 +1,6 @@
 pub mod executor;
 
+mod agent_repository;
 mod auth;
 mod env;
 mod error;
@@ -17,6 +18,7 @@ mod mcp_client;
 mod mcp_server;
 mod walker;
 
+pub use agent_repository::ForgeAgentRepository;
 pub use executor::ForgeCommandExecutorService;
 pub use forge_infra::*;
 pub use kv_storage::CacacheStorage;

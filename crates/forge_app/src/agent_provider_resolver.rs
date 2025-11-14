@@ -91,13 +91,10 @@ where
     }
 
     /// Sets the model for the agent's provider
-    pub async fn set_model(&self, agent_id: Option<AgentId>, model: ModelId) -> Result<()> {
+    pub async fn set_default_model(&self, agent_id: Option<AgentId>, model: ModelId) -> Result<()> {
         if let Some(agent_id) = agent_id {
             if let Some(agent) = self.0.get_agent(&agent_id).await? {
-                let agent = agent.model(model.clone());
-                self.0.insert_agent(agent).await?;
-
-                let provider_id = self.get_provider(Some(agent_id)).await?.id;
+                let provider_id = agent.provider;
                 self.0.set_default_model(model, provider_id).await
             } else {
                 // TODO: Needs review, should we throw an err here?

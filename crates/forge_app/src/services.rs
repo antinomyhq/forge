@@ -392,12 +392,6 @@ pub trait AuthService: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait AgentLoader: Send + Sync {
-    /// Load all agent definitions from the forge/agent directory
-    async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::AgentDefinition>>;
-}
-
-#[async_trait::async_trait]
 pub trait AgentRegistry: Send + Sync {
     /// Get the active agent ID
     async fn get_active_agent_id(&self) -> anyhow::Result<Option<AgentId>>;
@@ -410,12 +404,6 @@ pub trait AgentRegistry: Send + Sync {
 
     /// Get agent by ID (from registry store)
     async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<crate::Agent>>;
-
-    /// Set or replace agents in the registry store
-    async fn set_agents(&self, agents: Vec<crate::Agent>) -> anyhow::Result<()>;
-
-    /// Insert or update a single agent in the registry store
-    async fn insert_agent(&self, agent: crate::Agent) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -483,7 +471,6 @@ pub trait Services: Send + Sync + 'static + Clone {
     type ShellService: ShellService;
     type McpService: McpService;
     type AuthService: AuthService;
-    type AgentLoader: AgentLoader;
     type AgentRegistry: AgentRegistry;
     type CommandLoaderService: CommandLoaderService;
     type PolicyService: PolicyService;
@@ -512,7 +499,6 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn environment_service(&self) -> &Self::EnvironmentService;
     fn custom_instructions_service(&self) -> &Self::CustomInstructionsService;
     fn auth_service(&self) -> &Self::AuthService;
-    fn agent_loader(&self) -> &Self::AgentLoader;
     fn agent_registry(&self) -> &Self::AgentRegistry;
     fn command_loader_service(&self) -> &Self::CommandLoaderService;
     fn policy_service(&self) -> &Self::PolicyService;
@@ -853,13 +839,6 @@ pub trait HttpClientService: Send + Sync + 'static {
 }
 
 #[async_trait::async_trait]
-impl<I: Services> AgentLoader for I {
-    async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::AgentDefinition>> {
-        self.agent_loader().get_agents().await
-    }
-}
-
-#[async_trait::async_trait]
 impl<I: Services> AgentRegistry for I {
     async fn get_active_agent_id(&self) -> anyhow::Result<Option<AgentId>> {
         self.agent_registry().get_active_agent_id().await
@@ -875,14 +854,6 @@ impl<I: Services> AgentRegistry for I {
 
     async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<crate::Agent>> {
         self.agent_registry().get_agent(agent_id).await
-    }
-
-    async fn set_agents(&self, agents: Vec<crate::Agent>) -> anyhow::Result<()> {
-        self.agent_registry().set_agents(agents).await
-    }
-
-    async fn insert_agent(&self, agent: crate::Agent) -> anyhow::Result<()> {
-        self.agent_registry().insert_agent(agent).await
     }
 }
 

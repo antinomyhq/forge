@@ -1,4 +1,3 @@
-mod agent_loader;
 mod agent_registry;
 mod attachment;
 mod auth;

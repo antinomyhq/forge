@@ -6,21 +6,20 @@ use chrono::Local;
 use forge_domain::{InitAuth, *};
 use forge_stream::MpscStream;
 
-use crate::agent_orchestrator::AgentOrchestrator;
 use crate::apply_tunable_parameters::ApplyTunableParameters;
 use crate::authenticator::Authenticator;
 use crate::changed_files::ChangedFiles;
 use crate::dto::ToolsOverview;
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
-use crate::services::{CustomInstructionsService, TemplateService};
+use crate::services::{AgentRegistry, CustomInstructionsService, TemplateService};
 use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
 use crate::user_prompt::UserPromptGenerator;
 use crate::{
-    Agent, AgentProviderResolver, ConversationService, EnvironmentService, FileDiscoveryService,
+    AgentProviderResolver, ConversationService, EnvironmentService, FileDiscoveryService,
     ProviderService, Services, Walker, WorkflowService,
 };
 
@@ -30,7 +29,6 @@ use crate::{
 pub struct ForgeApp<S> {
     services: Arc<S>,
     tool_registry: ToolRegistry<S>,
-    agent_orchestrator: AgentOrchestrator<S>,
     authenticator: Authenticator<S>,
 }
 
@@ -39,16 +37,9 @@ impl<S: Services> ForgeApp<S> {
     pub fn new(services: Arc<S>) -> Self {
         Self {
             tool_registry: ToolRegistry::new(services.clone()),
-            agent_orchestrator: AgentOrchestrator::new(services.clone()),
             authenticator: Authenticator::new(services.clone()),
             services,
         }
-    }
-
-    /// Gets all agents, converting AgentDefinitions to Agents with default
-    /// provider and model
-    pub async fn get_agents(&self) -> Result<Vec<Agent>> {
-        self.agent_orchestrator.get_agents().await
     }
 
     /// Executes a chat request and returns a stream of responses.
@@ -103,7 +94,7 @@ impl<S: Services> ForgeApp<S> {
 
         // Get agent and apply workflow config
         let agent = self
-            .agent_orchestrator
+            .services
             .get_agent(&agent_id)
             .await?
             .ok_or(crate::Error::AgentNotFound(agent_id.clone()))?
@@ -228,7 +219,7 @@ impl<S: Services> ForgeApp<S> {
         let workflow = self.services.read_merged(None).await.unwrap_or_default();
 
         // Get agent and apply workflow config
-        let agent = self.agent_orchestrator.get_agent(&active_agent_id).await?;
+        let agent = self.services.get_agent(&active_agent_id).await?;
 
         let Some(agent) = agent else {
             return Ok(CompactionResult::new(
@@ -297,8 +288,8 @@ impl<S: Services> ForgeApp<S> {
         self.services.write_workflow(path, workflow).await
     }
 
-    pub async fn set_model(&self, agent_id: Option<AgentId>, model: ModelId) -> anyhow::Result<()> {
+    pub async fn set_default_model(&self, agent_id: Option<AgentId>, model: ModelId) -> anyhow::Result<()> {
         let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
-        agent_provider_resolver.set_model(agent_id, model).await
+        agent_provider_resolver.set_default_model(agent_id, model).await
     }
 }

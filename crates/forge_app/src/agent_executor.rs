@@ -10,7 +10,7 @@ use futures::StreamExt;
 use tokio::sync::RwLock;
 
 use crate::error::Error;
-use crate::{ConversationService, Services};
+use crate::{AgentRegistry, ConversationService, Services};
 
 #[derive(Clone)]
 pub struct AgentExecutor<S> {
@@ -28,8 +28,7 @@ impl<S: Services> AgentExecutor<S> {
         if let Some(tool_agents) = self.tool_agents.read().await.clone() {
             return Ok(tool_agents);
         }
-        let app = crate::ForgeApp::new(self.services.clone());
-        let agents = app.get_agents().await?;
+        let agents = self.services.get_agents().await?;
         let tools: Vec<ToolDefinition> = agents.into_iter().map(Into::into).collect();
         *self.tool_agents.write().await = Some(tools.clone());
         Ok(tools)

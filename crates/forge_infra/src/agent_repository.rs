@@ -3,12 +3,13 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use forge_app::domain::{AgentDefinition, Template};
 use forge_app::{
-    DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
+    AgentRepository, DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra,
 };
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
 
-/// A service for loading agent definitions from multiple sources:
+/// Infrastructure implementation for loading agent definitions from multiple
+/// sources:
 /// 1. Built-in agents (embedded in the application)
 /// 2. Global custom agents (from ~/.forge/agents/ directory)
 /// 3. Project-local agents (from .forge/agents/ directory in current working
@@ -29,8 +30,10 @@ use gray_matter::engine::YAML;
 ///
 /// Missing directories are handled gracefully and don't prevent loading from
 /// other sources.
-pub struct ForgeAgentLoaderService<F> {
-    infra: Arc<F>,
+pub struct ForgeAgentRepository<I, E, D> {
+    file_info: Arc<I>,
+    environment: Arc<E>,
+    directory_reader: Arc<D>,
 
     // Cache is used to maintain the loaded agent definitions
     // for this service instance.
@@ -38,15 +41,27 @@ pub struct ForgeAgentLoaderService<F> {
     cache: tokio::sync::OnceCell<Vec<AgentDefinition>>,
 }
 
-impl<F> ForgeAgentLoaderService<F> {
-    pub fn new(infra: Arc<F>) -> Self {
-        Self { infra, cache: Default::default() }
+impl<I, E, D> ForgeAgentRepository<I, E, D> {
+    pub fn new(
+        file_info: Arc<I>,
+        environment: Arc<E>,
+        directory_reader: Arc<D>,
+    ) -> Self {
+        Self {
+            file_info,
+            environment,
+            directory_reader,
+            cache: Default::default(),
+        }
     }
 }
 
 #[async_trait::async_trait]
-impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
-    forge_app::AgentLoader for ForgeAgentLoaderService<F>
+impl<
+    I: FileInfoInfra,
+    E: EnvironmentInfra,
+    D: DirectoryReaderInfra,
+> AgentRepository for ForgeAgentRepository<I, E, D>
 {
     /// Load all agent definitions from all available sources with conflict
     /// resolution.
@@ -55,8 +70,11 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
     }
 }
 
-impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
-    ForgeAgentLoaderService<F>
+impl<
+    I: FileInfoInfra,
+    E: EnvironmentInfra,
+    D: DirectoryReaderInfra,
+> ForgeAgentRepository<I, E, D>
 {
     /// Load all agent definitions with caching support
     async fn cache_or_init(&self) -> anyhow::Result<Vec<AgentDefinition>> {
@@ -68,12 +86,12 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
         let mut agents = self.init_default().await?;
 
         // Load custom agents from global directory
-        let dir = self.infra.get_environment().agent_path();
+        let dir = self.environment.get_environment().agent_path();
         let custom_agents = self.init_agent_dir(&dir).await?;
         agents.extend(custom_agents);
 
         // Load custom agents from CWD
-        let dir = self.infra.get_environment().agent_cwd_path();
+        let dir = self.environment.get_environment().agent_cwd_path();
         let cwd_agents = self.init_agent_dir(&dir).await?;
 
         agents.extend(cwd_agents);
@@ -96,13 +114,13 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
     }
 
     async fn init_agent_dir(&self, dir: &std::path::Path) -> anyhow::Result<Vec<AgentDefinition>> {
-        if !self.infra.exists(dir).await? {
+        if !self.file_info.exists(dir).await? {
             return Ok(vec![]);
         }
 
         // Use DirectoryReaderInfra to read all .md files in parallel
         let files = self
-            .infra
+            .directory_reader
             .read_directory_files(dir, Some("*.md"))
             .await
             .with_context(|| format!("Failed to read agents from: {}", dir.display()))?;
