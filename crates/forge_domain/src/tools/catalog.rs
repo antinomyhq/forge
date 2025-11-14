@@ -172,20 +172,21 @@ pub struct FSSearch {
     pub file_pattern: Option<String>,
 }
 
-/// Performs semantic search across an indexed codebase using natural language
-/// queries. Unlike the regex-based `search` tool, this tool understands code
-/// semantics and can find conceptually related code even with different
-/// terminology. Best for exploratory searches like "find authentication logic",
-/// "locate database connection setup", or "find error handling code". Requires
-/// the workspace to be indexed first using `forge index .` command. Returns
-/// ranked results by semantic similarity with file paths, code snippets, and
-/// precise line numbers. Use the `search` tool for exact pattern matching; use
-/// this tool for concept-based discovery.
+/// Searches code by meaning using AI-powered semantic search. Use this tool to 
+/// understand HOW code works or WHAT it does by describing concepts in natural 
+/// language. Perfect for queries like "where is authentication logic", "show me 
+/// error handling implementation", "how does streaming work", "explain retry 
+/// mechanism", or "what is the purpose of X". DO NOT use this tool when looking 
+/// for specific names, patterns, or structural elements - for example, "find all 
+/// functions named execute", "locate struct Error", or "list files with test" 
+/// should use the `search` tool with regex patterns instead. This tool 
+/// understands code semantics and finds conceptually related code even with 
+/// different terminology. Use `search` for exact patterns/names/structures; use 
+/// this for understanding concepts and functionality.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct CodebaseSearch {
-    /// Natural language query describing what you're looking for in the
-    /// codebase (e.g., "authentication logic", "database queries",
-    /// "error handling")
+    /// Describe the concept or functionality you want to understand
+    /// (e.g., "authentication logic", "retry mechanism", "error handling")
     pub query: String,
 }
 
