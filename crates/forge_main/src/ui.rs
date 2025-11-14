@@ -85,13 +85,19 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Helper to get provider for an optional agent, defaulting to the current
     /// active agent's provider
     async fn get_provider(&self, agent_id: Option<AgentId>) -> Result<Provider<Url>> {
-        self.api.get_agent_provider(agent_id).await
+        match agent_id {
+            Some(agent_id) => self.api.get_agent_provider(agent_id).await,
+            None => self.api.get_default_provider().await,
+        }
     }
 
     /// Helper to get model for an optional agent, defaulting to the current
     /// active agent's model
     async fn get_agent_model(&self, agent_id: Option<AgentId>) -> Option<ModelId> {
-        self.api.get_agent_model(agent_id).await
+        match agent_id {
+            Some(agent_id) => self.api.get_agent_model(agent_id).await,
+            None => self.api.get_default_model().await,
+        }
     }
 
     /// Filters providers to return only configured ones
@@ -1096,7 +1102,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let agent_provider = self.get_provider(agent.clone()).await.ok();
 
         // Fetch default provider (could be different from the set provider)
-        let default_provider = self.api.get_agent_provider(None).await.ok();
+        let default_provider = self.api.get_default_provider().await.ok();
 
         // Add agent information
         info = info.add_title("AGENT");
@@ -2401,7 +2407,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ConfigField::Provider => {
                 let provider = self
                     .api
-                    .get_agent_provider(None)
+                    .get_default_provider()
                     .await
                     .ok()
                     .map(|p| p.id.to_string());

@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use forge_app::dto::ToolsOverview;
-use forge_app::{Agent, User, UserUsage};
+use forge_app::{User, UserUsage};
 use forge_domain::{AgentId, InitAuth, ModelId};
 use forge_stream::MpscStream;
 use url::Url;
@@ -123,9 +123,11 @@ pub trait API: Sync + Send {
     /// Logs out the current user and clears authentication data
     async fn logout(&self) -> anyhow::Result<()>;
 
-    /// Retrieves the provider configuration for the specified agent.
-    /// If agent_id is None, returns the default provider.
-    async fn get_agent_provider(&self, agent_id: Option<AgentId>) -> anyhow::Result<Provider<Url>>;
+    /// Retrieves the provider configuration for the specified agent
+    async fn get_agent_provider(&self, agent_id: AgentId) -> anyhow::Result<Provider<Url>>;
+
+    /// Retrieves the provider configuration for the default agent
+    async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>>;
 
     /// Sets the default provider for all the agents
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()>;
@@ -143,7 +145,7 @@ pub trait API: Sync + Send {
     async fn set_active_agent(&self, agent_id: AgentId) -> anyhow::Result<()>;
 
     /// Gets the model for the specified agent
-    async fn get_agent_model(&self, agent_id: Option<AgentId>) -> Option<ModelId>;
+    async fn get_agent_model(&self, agent_id: AgentId) -> Option<ModelId>;
 
     /// Gets the default model
     async fn get_default_model(&self) -> Option<ModelId>;
