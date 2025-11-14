@@ -1387,20 +1387,31 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .map(|a| a.id.as_str().len())
                     .max()
                     .unwrap_or_default();
-                let display_agents = agents
-                    .into_iter()
-                    .map(|agent| {
-                        let title = &agent.title.unwrap_or("<Missing agent.title>".to_string());
-                        {
-                            let label = format!(
-                                "{:<n$} {}",
-                                agent.id.as_str().bold(),
-                                title.lines().collect::<Vec<_>>().join(" ").dimmed()
-                            );
-                            Agent { label, id: agent.id.clone() }
-                        }
-                    })
-                    .collect::<Vec<_>>();
+
+                // Collect agents with their provider information
+                let mut display_agents = Vec::new();
+                for agent in agents {
+                    let title = &agent
+                        .title
+                        .clone()
+                        .unwrap_or("<Missing agent.title>".to_string());
+
+                    // Get provider for this agent
+                    let provider_name = self
+                        .get_provider(Some(agent.id.clone()))
+                        .await
+                        .ok()
+                        .map(|p| p.id.to_string())
+                        .unwrap_or_else(|| "<unset>".to_string());
+
+                    let label = format!(
+                        "{:<n$} {} {}",
+                        agent.id.as_str().bold(),
+                        title.lines().collect::<Vec<_>>().join(" ").dimmed(),
+                        format!("[{}]", provider_name).dimmed()
+                    );
+                    display_agents.push(Agent { label, id: agent.id.clone() });
+                }
 
                 if let Some(selected_agent) = ForgeSelect::select(
                     "select the agent from following list",

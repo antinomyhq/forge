@@ -32,21 +32,11 @@ pub struct ForgeAgentRepository<I, E, D> {
     file_info: Arc<I>,
     environment: Arc<E>,
     directory_reader: Arc<D>,
-
-    // Cache is used to maintain the loaded agent definitions
-    // for this service instance.
-    // So that they could live till user starts a new session.
-    cache: tokio::sync::OnceCell<Vec<AgentDefinition>>,
 }
 
 impl<I, E, D> ForgeAgentRepository<I, E, D> {
     pub fn new(file_info: Arc<I>, environment: Arc<E>, directory_reader: Arc<D>) -> Self {
-        Self {
-            file_info,
-            environment,
-            directory_reader,
-            cache: Default::default(),
-        }
+        Self { file_info, environment, directory_reader }
     }
 }
 
@@ -57,17 +47,13 @@ impl<I: FileInfoInfra, E: EnvironmentInfra, D: DirectoryReaderInfra> AgentReposi
     /// Load all agent definitions from all available sources with conflict
     /// resolution.
     async fn get_agents(&self) -> anyhow::Result<Vec<forge_app::domain::AgentDefinition>> {
-        self.cache_or_init().await
+        self.load_agents().await
     }
 }
 
 impl<I: FileInfoInfra, E: EnvironmentInfra, D: DirectoryReaderInfra> ForgeAgentRepository<I, E, D> {
-    /// Load all agent definitions with caching support
-    async fn cache_or_init(&self) -> anyhow::Result<Vec<AgentDefinition>> {
-        self.cache.get_or_try_init(|| self.init()).await.cloned()
-    }
-
-    async fn init(&self) -> anyhow::Result<Vec<AgentDefinition>> {
+    /// Load all agent definitions from all available sources
+    async fn load_agents(&self) -> anyhow::Result<Vec<AgentDefinition>> {
         // Load built-in agents
         let mut agents = self.init_default().await?;
 

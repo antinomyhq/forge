@@ -212,10 +212,7 @@ impl<S: Services> ForgeApp<S> {
         // Calculate original metrics
         let original_messages = context.messages.len();
         let original_token_count = *context.token_count();
-        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
-        let _model = agent_provider_resolver
-            .get_model(Some(active_agent_id.clone()))
-            .await?;
+
         let workflow = self.services.read_merged(None).await.unwrap_or_default();
 
         // Get agent and apply workflow config
