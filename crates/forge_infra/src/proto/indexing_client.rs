@@ -13,9 +13,8 @@ mod proto_generated {
     tonic::include_proto!("forge.v1");
 }
 
-use proto_generated::*;
-
 use forge_service_client::ForgeServiceClient;
+use proto_generated::*;
 
 /// gRPC implementation of IndexingClientInfra
 pub struct IndexingClient {

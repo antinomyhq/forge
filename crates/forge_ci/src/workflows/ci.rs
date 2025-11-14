@@ -22,6 +22,10 @@ pub fn generate_ci_workflow() {
         .permissions(Permissions::default().contents(Level::Read))
         .add_step(Step::checkout())
         .add_step(
+            Step::new("Install Protobuf Compiler")
+                .run("sudo apt-get update && sudo apt-get install -y protobuf-compiler"),
+        )
+        .add_step(
             Step::toolchain()
                 .add_nightly()
                 .add_component(Component::Clippy)
