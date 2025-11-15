@@ -211,8 +211,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Ok(_) => {}
             Err(error) => {
                 tracing::error!(error = ?error);
-                let _ = self
-                    .writeln_to_stderr(TitleFormat::error(error.to_string()).display().to_string());
+
+                // Display the full error chain for better debugging
+                let mut error_message = error.to_string();
+                let mut source = error.source();
+                while let Some(err) = source {
+                    error_message.push_str(&format!("\n    Caused by: {}", err));
+                    source = err.source();
+                }
+
+                let _ =
+                    self.writeln_to_stderr(TitleFormat::error(error_message).display().to_string());
             }
         }
     }
@@ -490,8 +499,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
             TopLevelCommand::Index(index_group) => {
                 match index_group.command {
-                    crate::cli::IndexCommand::Sync { path } => {
-                        self.on_index(path).await?;
+                    crate::cli::IndexCommand::Sync { path, batch_size } => {
+                        self.on_index(path, batch_size).await?;
                     }
                     crate::cli::IndexCommand::List { porcelain } => {
                         self.on_list_workspaces(porcelain).await?;
@@ -1441,7 +1450,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
             SlashCommand::Index => {
                 let working_dir = self.state.cwd.clone();
-                self.on_index(working_dir).await?;
+                // Use default batch size of 10 for slash command
+                self.on_index(working_dir, 10).await?;
             }
             SlashCommand::AgentSwitch(agent_id) => {
                 // Validate that the agent exists by checking against loaded agents
@@ -2535,10 +2545,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn on_index(&mut self, path: std::path::PathBuf) -> anyhow::Result<()> {
+    async fn on_index(
+        &mut self,
+        path: std::path::PathBuf,
+        batch_size: usize,
+    ) -> anyhow::Result<()> {
         self.spinner.start(Some("Indexing codebase..."))?;
 
-        match self.api.index_codebase(path.clone()).await {
+        match self.api.index_codebase(path.clone(), batch_size).await {
             Ok(_) => {
                 self.spinner.stop(None)?;
                 self.writeln(format!("Successfully indexed: {}", path.display()))?;
@@ -2581,20 +2595,19 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             match result {
                 forge_domain::CodeSearchResult::FileChunk {
                     file_path,
-                    content,
                     start_line,
                     end_line,
                     ..
                 } => {
                     self.writeln(format!(
-                        "{}. {} (lines {}-{})",
+                        "{}. {}:{}-{}",
                         i + 1,
                         file_path,
                         start_line,
                         end_line
                     ))?;
                     self.writeln(similarity)?;
-                    self.writeln(format!("   ```\n   {}\n   ```", content))?;
+                    // self.writeln(format!("   ```\n   {}\n   ```", content))?;
                 }
                 forge_domain::CodeSearchResult::File { file_path, .. } => {
                     self.writeln(format!("{}. {} (full file)", i + 1, file_path))?;

@@ -325,8 +325,12 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         self.services.remove_credential(provider_id).await
     }
 
-    async fn index_codebase(&self, path: PathBuf) -> Result<forge_domain::IndexStats> {
-        self.services.index(path).await
+    async fn index_codebase(
+        &self,
+        path: PathBuf,
+        batch_size: usize,
+    ) -> Result<forge_domain::IndexStats> {
+        self.services.index(path, batch_size).await
     }
 
     async fn query_codebase(

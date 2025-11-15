@@ -235,7 +235,7 @@ pub trait CustomInstructionsService: Send + Sync {
 #[async_trait::async_trait]
 pub trait IndexingService: Send + Sync {
     /// Index the codebase at the given path
-    async fn index(&self, path: PathBuf) -> anyhow::Result<IndexStats>;
+    async fn index(&self, path: PathBuf, batch_size: usize) -> anyhow::Result<IndexStats>;
 
     /// Query the indexed codebase with semantic search
     async fn query(
@@ -971,8 +971,8 @@ impl<I: Services> ProviderAuthService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> IndexingService for I {
-    async fn index(&self, path: PathBuf) -> anyhow::Result<IndexStats> {
-        self.indexing_service().index(path).await
+    async fn index(&self, path: PathBuf, batch_size: usize) -> anyhow::Result<IndexStats> {
+        self.indexing_service().index(path, batch_size).await
     }
 
     async fn query(

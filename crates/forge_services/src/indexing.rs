@@ -5,14 +5,10 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::utils::format_display_path;
-use forge_app::{
-    EnvironmentInfra, FileReaderInfra, IndexingService, Walker, WalkerInfra, compute_hash,
-};
+use forge_app::{FileReaderInfra, IndexingService, Walker, WalkerInfra, compute_hash};
 use forge_domain::{CodebaseRepository, IndexStats, IndexWorkspaceId, UserId, WorkspaceRepository};
 use futures::future::join_all;
 use tracing::{info, warn};
-
-const DEFAULT_BATCH_SIZE: usize = 20;
 
 /// Represents a file with its content and computed hash
 #[derive(Debug)]
@@ -40,17 +36,6 @@ impl<F> ForgeIndexingService<F> {
     /// Creates a new indexing service with the provided infrastructure.
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
-    }
-
-    /// Gets the batch size for file uploads from environment or default.
-    fn get_batch_size(&self) -> usize
-    where
-        F: EnvironmentInfra,
-    {
-        self.infra
-            .get_env_var("FORGE_INDEX_BATCH_SIZE")
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(DEFAULT_BATCH_SIZE)
     }
 
     /// Fetches server files, deletes outdated/orphaned ones, and returns
@@ -215,10 +200,10 @@ impl<F> ForgeIndexingService<F> {
 }
 
 #[async_trait]
-impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra + EnvironmentInfra>
-    IndexingService for ForgeIndexingService<F>
+impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra> IndexingService
+    for ForgeIndexingService<F>
 {
-    async fn index(&self, path: PathBuf) -> Result<IndexStats> {
+    async fn index(&self, path: PathBuf, batch_size: usize) -> Result<IndexStats> {
         info!(path = %path.display(), "Starting codebase indexing");
 
         let canonical_path = path
@@ -278,7 +263,6 @@ impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra
         }
 
         // Upload in batches
-        let batch_size = self.get_batch_size();
         let mut total_stats = forge_domain::UploadStats::default();
 
         for batch in files_to_upload.chunks(batch_size) {
@@ -372,8 +356,8 @@ mod tests {
 
     use forge_app::WalkedFile;
     use forge_domain::{
-        CodeSearchResult, Environment, FileHash, FileInfo, IndexWorkspaceId, UploadStats, UserId,
-        Workspace, WorkspaceInfo,
+        CodeSearchResult, FileHash, FileInfo, IndexWorkspaceId, UploadStats, UserId, Workspace,
+        WorkspaceInfo,
     };
     use pretty_assertions::assert_eq;
 
@@ -465,16 +449,6 @@ mod tests {
             start_line: 1,
             end_line: 1,
             similarity: 0.95,
-        }
-    }
-
-    impl EnvironmentInfra for MockInfra {
-        fn get_environment(&self) -> Environment {
-            use fake::{Fake, Faker};
-            Faker.fake()
-        }
-        fn get_env_var(&self, _: &str) -> Option<String> {
-            None
         }
     }
 
@@ -573,7 +547,7 @@ mod tests {
     async fn test_index_new_workspace() {
         let service = ForgeIndexingService::new(Arc::new(MockInfra::new(&["main.rs", "lib.rs"])));
 
-        let actual = service.index(PathBuf::from(".")).await.unwrap();
+        let actual = service.index(PathBuf::from("."), 20).await.unwrap();
 
         assert_eq!(actual.files_processed, 2);
         assert_eq!(actual.upload_stats.nodes_created, 2);
@@ -637,7 +611,7 @@ mod tests {
             .push(FileHash { path: "changed.rs".into(), hash: "old".into() });
         let service = ForgeIndexingService::new(Arc::new(mock.clone()));
 
-        service.index(PathBuf::from(".")).await.unwrap();
+        service.index(PathBuf::from("."), 20).await.unwrap();
 
         let deleted = mock.deleted_files.lock().await;
         assert_eq!(deleted.len(), 2);
@@ -655,7 +629,7 @@ mod tests {
         let mock = MockInfra::synced(&["main.rs"]);
         let service = ForgeIndexingService::new(Arc::new(mock.clone()));
 
-        let actual = service.index(PathBuf::from(".")).await.unwrap();
+        let actual = service.index(PathBuf::from("."), 20).await.unwrap();
 
         assert!(mock.deleted_files.lock().await.is_empty());
         assert!(mock.uploaded_files.lock().await.is_empty());
@@ -669,7 +643,7 @@ mod tests {
             .push(FileHash { path: "old.rs".into(), hash: "x".into() });
         let service = ForgeIndexingService::new(Arc::new(mock.clone()));
 
-        service.index(PathBuf::from(".")).await.unwrap();
+        service.index(PathBuf::from("."), 20).await.unwrap();
 
         let deleted = mock.deleted_files.lock().await;
         assert_eq!(deleted.len(), 1);

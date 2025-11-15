@@ -172,6 +172,11 @@ pub enum IndexCommand {
         /// provided).
         #[arg(default_value = ".")]
         path: PathBuf,
+
+        /// Number of files to upload per batch. Reduce this if you encounter
+        /// token limit errors.
+        #[arg(long, default_value = "10")]
+        batch_size: usize,
     },
     /// List all indexed workspaces.
     List {
