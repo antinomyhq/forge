@@ -62,7 +62,7 @@ impl FormatContent for ToolCatalog {
             }
             ToolCatalog::CodebaseSearch(input) => Some(
                 TitleFormat::debug("Semantic Search")
-                    .sub_title(format!("'{}'", input.query))
+                    .sub_title(format!("'{}'", input.queries.join(", ")))
                     .into(),
             ),
             ToolCatalog::Remove(input) => {

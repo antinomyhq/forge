@@ -603,13 +603,6 @@ impl ToolCatalog {
                     message,
                 })
             }
-            ToolCatalog::CodebaseSearch(input) => {
-                Some(crate::policies::PermissionOperation::Read {
-                    path: cwd.clone(),
-                    cwd,
-                    message: format!("Semantic search in indexed codebase for: '{}'", input.query),
-                })
-            }
             ToolCatalog::Remove(input) => Some(crate::policies::PermissionOperation::Write {
                 path: std::path::PathBuf::from(&input.path),
                 cwd,
@@ -631,7 +624,10 @@ impl ToolCatalog {
                 message: format!("Fetch content from URL: {}", input.url),
             }),
             // Operations that don't require permission checks
-            ToolCatalog::Undo(_) | ToolCatalog::Followup(_) | ToolCatalog::Plan(_) => None,
+            ToolCatalog::CodebaseSearch(_)
+            | ToolCatalog::Undo(_)
+            | ToolCatalog::Followup(_)
+            | ToolCatalog::Plan(_) => None,
         }
     }
 

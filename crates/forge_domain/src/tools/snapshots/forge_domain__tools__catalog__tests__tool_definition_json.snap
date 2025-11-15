@@ -111,12 +111,15 @@ expression: tools
   "description": "Searches code by meaning using AI-powered semantic search to quickly locate specific code implementations. Use when you need to FIND WHERE code is located by describing what it does. Examples: \\\"where is authentication logic\\\", \\\"find retry mechanism\\\", \\\"locate error handling code\\\". Returns code locations with snippets. DO NOT use for finding specific names/patterns like \\\"all functions named execute\\\" - use search tool with regex instead. This tool understands concepts and finds semantically related code.",
   "type": "object",
   "required": [
-    "query"
+    "queries"
   ],
   "properties": {
-    "query": {
+    "queries": {
       "description": "Describe WHAT the code does or its purpose. Include domain-specific terms and technical context. Good: \"retry mechanism with exponential backoff\", \"streaming responses from LLM API\", \"OAuth token refresh flow\". Bad: generic terms like \"retry\" or \"auth\" without context. Think about the behavior and functionality you're looking for.",
-      "type": "string"
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     }
   }
 }

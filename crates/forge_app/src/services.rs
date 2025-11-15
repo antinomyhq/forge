@@ -998,6 +998,6 @@ impl<I: Services> CodebaseService for I {
     }
 
     async fn is_indexed(&self, path: &Path) -> anyhow::Result<bool> {
-        self.indexing_service().is_indexed(path).await
+        self.codebase_service().is_indexed(path).await
     }
 }

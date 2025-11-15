@@ -271,7 +271,9 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
             .file_pattern
             .or(input.regex)
             .map(|pattern| SummaryTool::Search { pattern }),
-        ToolCatalog::CodebaseSearch(input) => Some(SummaryTool::Search { pattern: input.query }),
+        ToolCatalog::CodebaseSearch(input) => {
+            Some(SummaryTool::Search { pattern: input.queries.join(", ") })
+        }
         ToolCatalog::Undo(input) => Some(SummaryTool::Undo { path: input.path }),
         ToolCatalog::Fetch(input) => Some(SummaryTool::Fetch { url: input.url }),
         ToolCatalog::Followup(input) => Some(SummaryTool::Followup { question: input.question }),

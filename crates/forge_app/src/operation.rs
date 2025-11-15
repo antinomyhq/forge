@@ -5,8 +5,8 @@ use console::strip_ansi_codes;
 use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
-    CodeSearchResult, CodebaseSearch, Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo,
-    FSWrite, FileOperation, Metrics, NetFetch, PlanCreate, ToolKind,
+    CodebaseQueryResult, Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
+    FileOperation, Metrics, NetFetch, PlanCreate, ToolKind,
 };
 use forge_template::Element;
 
@@ -49,8 +49,7 @@ pub enum ToolOperation {
         output: Option<SearchResult>,
     },
     CodebaseSearch {
-        input: CodebaseSearch,
-        output: Vec<CodeSearchResult>,
+        output: Vec<CodebaseQueryResult>,
     },
     FsPatch {
         input: FSPatch,
@@ -328,67 +327,20 @@ impl ToolOperation {
                     forge_domain::ToolOutput::text(elm)
                 }
             },
-            ToolOperation::CodebaseSearch { input, output } => {
-                if output.is_empty() {
-                    let elm = Element::new("codebase_search_results")
-                        .attr("query", &input.query)
-                        .attr("total_results", 0)
-                        .text("No results found. try again with better query.");
-
-                    forge_domain::ToolOutput::text(elm)
-                } else {
-                    let mut results_elm = Element::new("results");
-
-                    for (idx, result) in output.iter().enumerate() {
-                        let result_elm = match result {
-                            CodeSearchResult::FileChunk {
-                                file_path,
-                                content,
-                                start_line,
-                                end_line,
-                                similarity,
-                                ..
-                            } => Element::new("file_chunk")
-                                .attr("index", idx + 1)
-                                .attr("file_path", file_path)
-                                .attr("start_line", *start_line)
-                                .attr("end_line", *end_line)
-                                .attr("similarity", format!("{:.3}", similarity))
-                                .cdata(content),
-                            CodeSearchResult::File { file_path, content, similarity, .. } => {
-                                Element::new("file")
-                                    .attr("index", idx + 1)
-                                    .attr("file_path", file_path)
-                                    .attr("similarity", format!("{:.3}", similarity))
-                                    .cdata(content)
-                            }
-                            CodeSearchResult::FileRef { file_path, similarity, .. } => {
-                                Element::new("file_ref")
-                                    .attr("index", idx + 1)
-                                    .attr("file_path", file_path)
-                                    .attr("similarity", format!("{:.3}", similarity))
-                            }
-                            CodeSearchResult::Note { content, similarity, .. } => {
-                                Element::new("note")
-                                    .attr("index", idx + 1)
-                                    .attr("similarity", format!("{:.3}", similarity))
-                                    .cdata(content)
-                            }
-                            CodeSearchResult::Task { task, similarity, .. } => Element::new("task")
-                                .attr("index", idx + 1)
-                                .attr("similarity", format!("{:.3}", similarity))
-                                .text(task),
-                        };
-                        results_elm = results_elm.append(result_elm);
+            ToolOperation::CodebaseSearch { output } => {
+                let mut root = Element::new("codebase_search_results");
+                for query_result in output {
+                    let mut query_elem = Element::new("query").attr("value", &query_result.query);
+                    if query_result.results.is_empty() {
+                        query_elem = query_elem.text("No results found for query. Try refining your search with more specific terms or different keywords.")
+                    } else {
+                        for result in &query_result.results {
+                            query_elem = query_elem.append(result.to_element());
+                        }
                     }
-
-                    let elm = Element::new("codebase_search_results")
-                        .attr("query", &input.query)
-                        .attr("total_results", output.len())
-                        .append(results_elm);
-
-                    forge_domain::ToolOutput::text(elm)
+                    root = root.append(query_elem);
                 }
+                forge_domain::ToolOutput::text(root)
             }
             ToolOperation::FsPatch { input, output } => {
                 let diff_result = DiffFormat::format(&output.before, &output.after);
@@ -1596,6 +1548,66 @@ mod tests {
 
         let actual = fixture.into_tool_output(
             ToolKind::Followup,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_codebase_search_with_results() {
+        use forge_domain::{CodeSearchResult, CodebaseQueryResult};
+
+        let fixture = ToolOperation::CodebaseSearch {
+            output: vec![
+                CodebaseQueryResult {
+                    query: "retry mechanism with exponential backoff".to_string(),
+                    results: vec![
+                        CodeSearchResult::FileChunk {
+                            node_id: "node1".to_string(),
+                            file_path: "src/retry.rs".to_string(),
+                            content: "fn retry_with_backoff(max_attempts: u32) {\n    let mut delay = 100;\n    for attempt in 0..max_attempts {\n        if try_operation().is_ok() {\n            return;\n        }\n        thread::sleep(Duration::from_millis(delay));\n        delay *= 2;\n    }\n}".to_string(),
+                            start_line: 10,
+                            end_line: 19,
+                            similarity: 0.9534,
+                        },
+                        CodeSearchResult::FileChunk {
+                            node_id: "node2".to_string(),
+                            file_path: "src/http/client.rs".to_string(),
+                            content: "async fn request_with_retry(&self, url: &str) -> Result<Response> {\n    const MAX_RETRIES: usize = 3;\n    let mut backoff = ExponentialBackoff::default();\n    // Implementation...\n}".to_string(),
+                            start_line: 45,
+                            end_line: 50,
+                            similarity: 0.9201,
+                        },
+                    ],
+                },
+                CodebaseQueryResult {
+                    query: "OAuth token refresh flow".to_string(),
+                    results: vec![
+                        CodeSearchResult::FileChunk {
+                            node_id: "node3".to_string(),
+                            file_path: "src/auth/oauth.rs".to_string(),
+                            content: "async fn refresh_token(&self) -> Result<Token> {\n    let refresh_token = self.get_refresh_token()?;\n    let response = self.client.post(&self.token_url)\n        .form(&[(\"grant_type\", \"refresh_token\"),\n                (\"refresh_token\", &refresh_token)])\n        .send()\n        .await?;\n    response.json().await\n}".to_string(),
+                            start_line: 100,
+                            end_line: 108,
+                            similarity: 0.8876,
+                        },
+                    ],
+                },
+                CodebaseQueryResult {
+                    query: "Test".to_string(),
+                    results: vec![
+                    ],
+                },
+            ],
+        };
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(
+            ToolKind::CodebaseSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),

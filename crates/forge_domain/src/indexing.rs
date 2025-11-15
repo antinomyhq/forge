@@ -163,6 +163,15 @@ impl UploadStats {
     }
 }
 
+/// Results for a single codebase search query
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CodebaseQueryResult {
+    /// The query string that was executed
+    pub query: String,
+    /// The search results for this query
+    pub results: Vec<CodeSearchResult>,
+}
+
 /// Result of a semantic search query
 ///
 /// Represents different types of nodes returned from the codebase service.
@@ -249,6 +258,33 @@ impl CodeSearchResult {
             | Self::FileRef { similarity, .. }
             | Self::Note { similarity, .. }
             | Self::Task { similarity, .. } => *similarity,
+        }
+    }
+
+    pub fn to_element(&self) -> forge_template::Element {
+        use forge_template::Element;
+
+        match self {
+            Self::FileChunk { file_path, content, start_line, end_line, similarity, .. } => {
+                Element::new("file_chunk")
+                    .attr("file_path", file_path)
+                    .attr("lines", format!("{}-{}", start_line, end_line))
+                    .attr("similarity", format!("{:.2}", similarity))
+                    .cdata(content)
+            }
+            Self::File { file_path, content, similarity, .. } => Element::new("file")
+                .attr("file_path", file_path)
+                .attr("similarity", format!("{:.2}", similarity))
+                .cdata(content),
+            Self::FileRef { file_path, similarity, .. } => Element::new("file_ref")
+                .attr("file_path", file_path)
+                .attr("similarity", format!("{:.2}", similarity)),
+            Self::Note { content, similarity, .. } => {
+                Element::new("note").attr("similarity", format!("{:.2}", similarity)).cdata(content)
+            }
+            Self::Task { task, similarity, .. } => {
+                Element::new("task").attr("similarity", format!("{:.2}", similarity)).text(task)
+            }
         }
     }
 }
