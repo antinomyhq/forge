@@ -121,3 +121,99 @@ pub trait WorkspaceRepository: Send + Sync {
     /// Get user ID from any indexed workspace
     async fn get_user_id(&self) -> Result<Option<UserId>>;
 }
+
+/// Repository for managing codebase indexing and search operations
+///
+/// This repository provides operations for creating workspaces, uploading
+/// files, searching indexed codebases, and managing workspace files.
+#[async_trait::async_trait]
+pub trait CodebaseRepository: Send + Sync {
+    /// Create a new workspace on the indexing server
+    ///
+    /// # Arguments
+    /// * `user_id` - The user ID owning the workspace
+    /// * `working_dir` - The working directory path
+    ///
+    /// # Errors
+    /// Returns an error if workspace creation fails
+    async fn create_workspace(
+        &self,
+        user_id: &UserId,
+        working_dir: &std::path::Path,
+    ) -> anyhow::Result<IndexWorkspaceId>;
+
+    /// Upload files to be indexed
+    ///
+    /// # Arguments
+    /// * `user_id` - The user ID owning the workspace
+    /// * `workspace_id` - The workspace ID to upload files to
+    /// * `files` - Vector of files to upload
+    ///
+    /// # Errors
+    /// Returns an error if file upload fails
+    async fn upload_files(
+        &self,
+        user_id: &UserId,
+        workspace_id: &IndexWorkspaceId,
+        files: Vec<crate::FileRead>,
+    ) -> anyhow::Result<crate::UploadStats>;
+
+    /// Search the indexed codebase using semantic search
+    ///
+    /// # Arguments
+    /// * `user_id` - The user ID owning the workspace
+    /// * `workspace_id` - The workspace ID to search in
+    /// * `query` - The search query string
+    /// * `limit` - Maximum number of results to return
+    /// * `top_k` - Optional top-k parameter for search ranking
+    ///
+    /// # Errors
+    /// Returns an error if the search operation fails
+    async fn search(
+        &self,
+        user_id: &UserId,
+        workspace_id: &IndexWorkspaceId,
+        query: &str,
+        limit: usize,
+        top_k: Option<u32>,
+    ) -> anyhow::Result<Vec<crate::CodeSearchResult>>;
+
+    /// List all workspaces for a user
+    ///
+    /// # Arguments
+    /// * `user_id` - The user ID to list workspaces for
+    ///
+    /// # Errors
+    /// Returns an error if the operation fails
+    async fn list_workspaces(&self, user_id: &UserId) -> anyhow::Result<Vec<crate::WorkspaceInfo>>;
+
+    /// List all files in a workspace with their hashes
+    ///
+    /// # Arguments
+    /// * `user_id` - The user ID owning the workspace
+    /// * `workspace_id` - The workspace ID to list files from
+    ///
+    /// # Errors
+    /// Returns an error if the operation fails
+    async fn list_workspace_files(
+        &self,
+        user_id: &UserId,
+        workspace_id: &IndexWorkspaceId,
+    ) -> anyhow::Result<Vec<crate::FileHash>>;
+
+    /// Delete files from a workspace
+    ///
+    /// # Arguments
+    /// * `user_id` - The user ID owning the workspace
+    /// * `workspace_id` - The workspace ID to delete files from
+    /// * `file_paths` - Vector of file paths to delete
+    ///
+    /// # Errors
+    /// Returns an error if the deletion fails
+    async fn delete_files(
+        &self,
+        user_id: &UserId,
+        workspace_id: &IndexWorkspaceId,
+        file_paths: Vec<String>,
+    ) -> anyhow::Result<()>;
+}

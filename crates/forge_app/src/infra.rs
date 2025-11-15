@@ -4,9 +4,8 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_domain::{
-    AuthCodeParams, CodeSearchResult, CommandOutput, Environment, FileHash, FileInfo, FileRead,
-    IndexWorkspaceId, McpServerConfig, OAuthConfig, OAuthTokenResponse, ToolDefinition, ToolName,
-    ToolOutput, UploadStats, UserId, WorkspaceInfo,
+    AuthCodeParams, CommandOutput, Environment, FileInfo, McpServerConfig, OAuthConfig,
+    OAuthTokenResponse, ToolDefinition, ToolName, ToolOutput,
 };
 use reqwest::Response;
 use reqwest::header::HeaderMap;
@@ -208,53 +207,6 @@ pub trait DirectoryReaderInfra: Send + Sync {
         directory: &Path,
         pattern: Option<&str>, // Optional glob pattern like "*.md"
     ) -> anyhow::Result<Vec<(PathBuf, String)>>;
-}
-
-/// Infrastructure trait for indexing operations
-#[async_trait::async_trait]
-pub trait CodebaseRepository: Send + Sync {
-    /// Create a new workspace on the indexing server
-    async fn create_workspace(
-        &self,
-        user_id: &UserId,
-        working_dir: &std::path::Path,
-    ) -> anyhow::Result<IndexWorkspaceId>;
-
-    /// Upload files to be indexed
-    async fn upload_files(
-        &self,
-        user_id: &UserId,
-        workspace_id: &IndexWorkspaceId,
-        files: Vec<FileRead>,
-    ) -> anyhow::Result<UploadStats>;
-
-    /// Search the indexed codebase using semantic search
-    async fn search(
-        &self,
-        user_id: &UserId,
-        workspace_id: &IndexWorkspaceId,
-        query: &str,
-        limit: usize,
-        top_k: Option<u32>,
-    ) -> anyhow::Result<Vec<CodeSearchResult>>;
-
-    /// List all workspaces for a user
-    async fn list_workspaces(&self, user_id: &UserId) -> anyhow::Result<Vec<WorkspaceInfo>>;
-
-    /// List all files in a workspace with their hashes
-    async fn list_workspace_files(
-        &self,
-        user_id: &UserId,
-        workspace_id: &IndexWorkspaceId,
-    ) -> anyhow::Result<Vec<FileHash>>;
-
-    /// Delete files from a workspace
-    async fn delete_files(
-        &self,
-        user_id: &UserId,
-        workspace_id: &IndexWorkspaceId,
-        file_paths: Vec<String>,
-    ) -> anyhow::Result<()>;
 }
 
 /// Generic cache repository for content-addressable storage.

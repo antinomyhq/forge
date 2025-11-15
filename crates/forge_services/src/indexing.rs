@@ -6,10 +6,9 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::utils::format_display_path;
 use forge_app::{
-    EnvironmentInfra, FileReaderInfra, CodebaseRepository, IndexingService, Walker, WalkerInfra,
-    compute_hash,
+    EnvironmentInfra, FileReaderInfra, IndexingService, Walker, WalkerInfra, compute_hash,
 };
-use forge_domain::{IndexStats, IndexWorkspaceId, WorkspaceRepository, UserId};
+use forge_domain::{CodebaseRepository, IndexStats, IndexWorkspaceId, UserId, WorkspaceRepository};
 use futures::future::join_all;
 use tracing::{info, warn};
 
@@ -373,8 +372,8 @@ mod tests {
 
     use forge_app::WalkedFile;
     use forge_domain::{
-        CodeSearchResult, Environment, FileHash, FileInfo, IndexWorkspaceId, Workspace,
-        UploadStats, UserId, WorkspaceInfo,
+        CodeSearchResult, Environment, FileHash, FileInfo, IndexWorkspaceId, UploadStats, UserId,
+        Workspace, WorkspaceInfo,
     };
     use pretty_assertions::assert_eq;
 

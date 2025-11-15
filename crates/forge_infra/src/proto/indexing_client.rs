@@ -1,8 +1,8 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use forge_app::CodebaseRepository;
 use forge_domain::{
-    CodeSearchResult, IndexWorkspaceId, UploadStats, UserId as DomainUserId, WorkspaceInfo,
+    CodeSearchResult, CodebaseRepository, IndexWorkspaceId, UploadStats, UserId as DomainUserId,
+    WorkspaceInfo,
 };
 use tonic::transport::Channel;
 

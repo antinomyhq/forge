@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use chrono::{NaiveDateTime, Utc};
 use diesel::prelude::*;
-use forge_domain::{IndexWorkspaceId, Workspace, WorkspaceRepository, UserId};
+use forge_domain::{IndexWorkspaceId, UserId, Workspace, WorkspaceRepository};
 
 use crate::database::schema::indexing;
 use crate::database::DatabasePool;
@@ -79,10 +79,7 @@ impl WorkspaceRepository for IndexingRepositoryImpl {
         Ok(())
     }
 
-    async fn find_by_path(
-        &self,
-        path: &std::path::Path,
-    ) -> anyhow::Result<Option<Workspace>> {
+    async fn find_by_path(&self, path: &std::path::Path) -> anyhow::Result<Option<Workspace>> {
         let mut connection = self.pool.get_connection()?;
         let path_str = path.to_string_lossy().into_owned();
         let record = indexing::table

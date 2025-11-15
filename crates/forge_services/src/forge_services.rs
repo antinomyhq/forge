@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use forge_app::{
     CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
-    FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, CodebaseRepository, KVStore,
-    McpServerInfra, Services, StrategyFactory, UserInfra, WalkerInfra,
+    FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, KVStore, McpServerInfra,
+    Services, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    AppConfigRepository, ConversationRepository, WorkspaceRepository, ProviderRepository,
-    SnapshotRepository,
+    AppConfigRepository, CodebaseRepository, ConversationRepository, ProviderRepository,
+    SnapshotRepository, WorkspaceRepository,
 };
 
 use crate::ForgeProviderAuthService;
@@ -52,7 +52,7 @@ pub struct ForgeServices<
         + KVStore
         + ProviderRepository
         + forge_domain::WorkspaceRepository
-        + forge_app::CodebaseRepository,
+        + CodebaseRepository,
 > {
     chat_service: Arc<ForgeProviderService<F>>,
     config_service: Arc<ForgeAppConfigService<F>>,
@@ -101,7 +101,7 @@ impl<
         + ProviderRepository
         + KVStore
         + forge_domain::WorkspaceRepository
-        + forge_app::CodebaseRepository,
+        + CodebaseRepository,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
