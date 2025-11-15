@@ -157,7 +157,6 @@ impl<F> ForgeIndexingService<F> {
         walker_config.max_file_size = None;
         walker_config.max_total_size = None;
 
-
         let walked_files = self
             .infra
             .walk(walker_config)
