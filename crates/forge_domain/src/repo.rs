@@ -94,21 +94,10 @@ pub trait ProviderRepository: Send + Sync {
     async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()>;
 }
 
-/// Repository for managing workspaces
-///
-/// This repository provides local database operations for workspace metadata,
-/// tracking which workspaces have been synced with the codebase server.
+/// Repository for managing workspace metadata in local database
 #[async_trait::async_trait]
 pub trait WorkspaceRepository: Send + Sync {
     /// Save or update a workspace
-    ///
-    /// # Arguments
-    /// * `workspace_id` - The workspace ID from the codebase server
-    /// * `user_id` - The user ID owning the workspace
-    /// * `path` - The local filesystem path of the workspace
-    ///
-    /// # Errors
-    /// Returns an error if the database operation fails
     async fn upsert(
         &self,
         workspace_id: &WorkspaceId,
@@ -117,47 +106,19 @@ pub trait WorkspaceRepository: Send + Sync {
     ) -> anyhow::Result<()>;
 
     /// Find workspace by path
-    ///
-    /// # Arguments
-    /// * `path` - The local filesystem path to search for
-    ///
-    /// # Errors
-    /// Returns an error if the database query fails
     async fn find_by_path(&self, path: &std::path::Path) -> anyhow::Result<Option<Workspace>>;
 
-    /// Get user ID from any workspace
-    ///
-    /// Returns the user ID from any existing workspace record,
-    /// or None if no workspaces exist.
-    ///
-    /// # Errors
-    /// Returns an error if the database query fails
+    /// Get user ID from any workspace, or None if no workspaces exist
     async fn get_user_id(&self) -> anyhow::Result<Option<UserId>>;
 
     /// Delete workspace from local database
-    ///
-    /// # Arguments
-    /// * `workspace_id` - The workspace ID to delete
-    ///
-    /// # Errors
-    /// Returns an error if the database operation fails
     async fn delete(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()>;
 }
 
 /// Repository for managing codebase indexing and search operations
-///
-/// This repository provides operations for creating workspaces, uploading
-/// files, searching indexed codebases, and managing workspace files.
 #[async_trait::async_trait]
 pub trait CodebaseRepository: Send + Sync {
     /// Create a new workspace on the indexing server
-    ///
-    /// # Arguments
-    /// * `user_id` - The user ID owning the workspace
-    /// * `working_dir` - The working directory path
-    ///
-    /// # Errors
-    /// Returns an error if workspace creation fails
     async fn create_workspace(
         &self,
         user_id: &UserId,
@@ -165,66 +126,27 @@ pub trait CodebaseRepository: Send + Sync {
     ) -> anyhow::Result<WorkspaceId>;
 
     /// Upload files to be indexed
-    ///
-    /// # Arguments
-    /// * `upload` - File upload parameters containing user_id, workspace_id,
-    ///   and files
-    ///
-    /// # Errors
-    /// Returns an error if file upload fails
     async fn upload_files(&self, upload: &crate::FileUpload) -> anyhow::Result<crate::UploadStats>;
 
     /// Search the indexed codebase using semantic search
-    ///
-    /// # Arguments
-    /// * `query` - The search query parameters
-    ///
-    /// # Errors
-    /// Returns an error if the search operation fails
     async fn search(
         &self,
         query: &crate::CodeSearchQuery<'_>,
     ) -> anyhow::Result<Vec<crate::CodeSearchResult>>;
 
     /// List all workspaces for a user
-    ///
-    /// # Arguments
-    /// * `user_id` - The user ID to list workspaces for
-    ///
-    /// # Errors
-    /// Returns an error if the operation fails
     async fn list_workspaces(&self, user_id: &UserId) -> anyhow::Result<Vec<crate::WorkspaceInfo>>;
 
     /// List all files in a workspace with their hashes
-    ///
-    /// # Arguments
-    /// * `workspace` - Workspace parameters containing user_id and workspace_id
-    ///
-    /// # Errors
-    /// Returns an error if the operation fails
     async fn list_workspace_files(
         &self,
         workspace: &crate::WorkspaceFiles,
     ) -> anyhow::Result<Vec<crate::FileHash>>;
 
     /// Delete files from a workspace
-    ///
-    /// # Arguments
-    /// * `deletion` - Deletion parameters containing user_id, workspace_id, and
-    ///   file paths
-    ///
-    /// # Errors
-    /// Returns an error if the deletion fails
     async fn delete_files(&self, deletion: &crate::FileDeletion) -> anyhow::Result<()>;
 
     /// Delete a workspace and all its indexed data
-    ///
-    /// # Arguments
-    /// * `user_id` - The user ID owning the workspace
-    /// * `workspace_id` - The workspace ID to delete
-    ///
-    /// # Errors
-    /// Returns an error if the deletion fails
     async fn delete_workspace(
         &self,
         user_id: &UserId,
