@@ -996,7 +996,7 @@ mod tests {
     #[test]
     fn test_cli_provider_display_minimal() {
         let fixture = AnyProvider::Url(Provider {
-            id: ProviderId::OpenAI,
+            id: ProviderId::openai(),
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
@@ -1006,14 +1006,14 @@ mod tests {
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "✓ OpenAI              [api.openai.com]";
+        let expected = "✓ openai               [api.openai.com]";
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_cli_provider_display_with_subdomain() {
         let fixture = AnyProvider::Url(Provider {
-            id: ProviderId::OpenRouter,
+            id: ProviderId::open_router(),
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://openrouter.ai/api/v1/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
@@ -1023,14 +1023,14 @@ mod tests {
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "✓ OpenRouter          [openrouter.ai]";
+        let expected = "✓ open_router          [openrouter.ai]";
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_cli_provider_display_no_domain() {
         let fixture = AnyProvider::Url(Provider {
-            id: ProviderId::Forge,
+            id: ProviderId::forge(),
             response: ProviderResponse::OpenAI,
             url: Url::parse("http://localhost:8080/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
@@ -1040,14 +1040,14 @@ mod tests {
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "✓ Forge               [localhost]";
+        let expected = "✓ forge                [localhost]";
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_cli_provider_display_template() {
         let fixture = AnyProvider::Template(Provider {
-            id: ProviderId::Anthropic,
+            id: ProviderId::anthropic(),
             response: ProviderResponse::Anthropic,
             url: Template::new("https://api.anthropic.com/v1/messages"),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
@@ -1057,14 +1057,14 @@ mod tests {
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "  Anthropic           [unavailable]";
+        let expected = "  anthropic            [unavailable]";
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_cli_provider_display_ip_address() {
         let fixture = AnyProvider::Url(Provider {
-            id: ProviderId::Forge,
+            id: ProviderId::forge(),
             response: ProviderResponse::OpenAI,
             url: Url::parse("http://192.168.1.1:8080/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
@@ -1074,7 +1074,7 @@ mod tests {
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "✓ Forge               [unavailable]";
+        let expected = "✓ forge                [unavailable]";
         assert_eq!(actual, expected);
     }
 

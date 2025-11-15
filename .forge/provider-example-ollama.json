@@ -1,0 +1,39 @@
+{
+  "_comment": "Ollama Local Provider with hardcoded models - Ready to use configuration",
+  "_description": "Copy this file to ~/.forge/provider.json and modify as needed for your Ollama setup",
+  
+  "id": "ollama_local",
+  "api_key_vars": "OLLAMA_API_KEY",
+  "url_param_vars": ["OLLAMA_URL"],
+  "response_type": "OpenAI",
+  "url": "{{OLLAMA_URL}}/v1/chat/completions",
+  "models": [
+    {
+      "id": "llama2:7b",
+      "name": "Llama 2 7B (Ollama Local)",
+      "description": "Llama 2 7B parameter model running locally via Ollama",
+      "context_length": 4096,
+      "tools_supported": true,
+      "supports_parallel_tool_calls": false,
+      "supports_reasoning": false
+    },
+    {
+      "id": "codellama:7b",
+      "name": "CodeLlama 7B (Ollama Local)",
+      "description": "CodeLlama 7B parameter model optimized for code generation",
+      "context_length": 16384,
+      "tools_supported": true,
+      "supports_parallel_tool_calls": false,
+      "supports_reasoning": false
+    },
+    {
+      "id": "mistral:7b",
+      "name": "Mistral 7B (Ollama Local)",
+      "description": "Mistral 7B parameter model for general tasks",
+      "context_length": 8192,
+      "tools_supported": true,
+      "supports_parallel_tool_calls": false,
+      "supports_reasoning": false
+    }
+  ]
+}
