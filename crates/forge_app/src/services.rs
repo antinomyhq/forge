@@ -8,7 +8,7 @@ use forge_domain::{
     AuthCredential, AuthMethod, ChatCompletionMessage, CodeSearchResult, CommandOutput, Context,
     Conversation, ConversationId, Environment, File, Image, IndexStats, InitAuth, LoginInfo,
     McpConfig, McpServers, Model, ModelId, PatchOperation, Provider, ProviderId, ResultStream,
-    Scope, Template, ToolCallFull, ToolOutput, Workflow, WorkspaceInfo,
+    Scope, SearchParams, Template, ToolCallFull, ToolOutput, Workflow, WorkspaceInfo,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -241,9 +241,7 @@ pub trait CodebaseService: Send + Sync {
     async fn query_codebase(
         &self,
         path: PathBuf,
-        query: &str,
-        limit: usize,
-        top_k: Option<u32>,
+        params: SearchParams<'_>,
     ) -> anyhow::Result<Vec<CodeSearchResult>>;
 
     /// List all workspaces indexed by the user
@@ -980,13 +978,9 @@ impl<I: Services> CodebaseService for I {
     async fn query_codebase(
         &self,
         path: PathBuf,
-        query: &str,
-        limit: usize,
-        top_k: Option<u32>,
+        params: SearchParams<'_>,
     ) -> anyhow::Result<Vec<CodeSearchResult>> {
-        self.codebase_service()
-            .query_codebase(path, query, limit, top_k)
-            .await
+        self.codebase_service().query_codebase(path, params).await
     }
 
     async fn list_codebase(&self) -> anyhow::Result<Vec<WorkspaceInfo>> {

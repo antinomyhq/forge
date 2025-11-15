@@ -336,13 +336,9 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     async fn query_codebase(
         &self,
         path: PathBuf,
-        query: &str,
-        limit: usize,
-        top_k: Option<u32>,
+        params: forge_domain::SearchParams<'_>,
     ) -> Result<Vec<forge_domain::CodeSearchResult>> {
-        self.services
-            .query_codebase(path, query, limit, top_k)
-            .await
+        self.services.query_codebase(path, params).await
     }
 
     async fn list_codebases(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {

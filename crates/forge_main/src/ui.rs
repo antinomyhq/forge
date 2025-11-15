@@ -2574,11 +2574,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     ) -> anyhow::Result<()> {
         self.spinner.start(Some("Searching codebase..."))?;
 
-        let results = match self
-            .api
-            .query_codebase(path.clone(), &query, limit, top_k)
-            .await
-        {
+        let mut params = forge_domain::SearchParams::new(&query, limit);
+        if let Some(k) = top_k {
+            params = params.with_top_k(k);
+        }
+
+        let results = match self.api.query_codebase(path.clone(), params).await {
             Ok(results) => results,
             Err(e) => {
                 self.spinner.stop(None)?;

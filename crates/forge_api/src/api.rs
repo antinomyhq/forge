@@ -195,9 +195,7 @@ pub trait API: Sync + Send {
     async fn query_codebase(
         &self,
         path: PathBuf,
-        query: &str,
-        limit: usize,
-        top_k: Option<u32>,
+        params: forge_domain::SearchParams<'_>,
     ) -> Result<Vec<forge_domain::CodeSearchResult>>;
 
     /// List all workspaces

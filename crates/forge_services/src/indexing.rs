@@ -306,9 +306,7 @@ impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra
     async fn query_codebase(
         &self,
         path: PathBuf,
-        query: &str,
-        limit: usize,
-        top_k: Option<u32>,
+        params: forge_domain::SearchParams<'_>,
     ) -> Result<Vec<forge_domain::CodeSearchResult>> {
         // Step 1: Canonicalize path
         let canonical_path = path
@@ -326,13 +324,6 @@ impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra
             })?;
 
         // Step 3: Search the codebase
-        let params = forge_domain::SearchParams::new(query, limit);
-        let params = if let Some(k) = top_k {
-            params.with_top_k(k)
-        } else {
-            params
-        };
-
         let search_query = forge_domain::CodeBase::new(
             workspace.user_id.clone(),
             workspace.workspace_id.clone(),
@@ -557,8 +548,9 @@ mod tests {
         mock.search_results = vec![search_result()];
         let service = ForgeIndexingService::new(Arc::new(mock));
 
+        let params = forge_domain::SearchParams::new("test", 10);
         let actual = service
-            .query_codebase(PathBuf::from("."), "test", 10, None)
+            .query_codebase(PathBuf::from("."), params)
             .await
             .unwrap();
 
@@ -569,9 +561,8 @@ mod tests {
     async fn test_query_error_when_not_found() {
         let service = ForgeIndexingService::new(Arc::new(MockInfra::default()));
 
-        let actual = service
-            .query_codebase(PathBuf::from("."), "test", 10, None)
-            .await;
+        let params = forge_domain::SearchParams::new("test", 10);
+        let actual = service.query_codebase(PathBuf::from("."), params).await;
 
         assert!(actual.is_err());
         assert!(actual.unwrap_err().to_string().contains("not found"));
