@@ -378,4 +378,84 @@ mod tests {
 
         assert_eq!(actual.len(), 0);
     }
+
+    #[tokio::test]
+    async fn test_parse_agent_include_agents_md_true() {
+        let content = include_str!("fixtures/agents/include_agents_md_true.md");
+
+        let actual = parse_agent_file(content).unwrap();
+
+        assert_eq!(actual.id.as_str(), "test-include-agents-md-true");
+        assert_eq!(
+            actual.title.as_ref().unwrap(),
+            "Include AGENTS.md Test Agent"
+        );
+        assert_eq!(actual.include_agents_md, Some(true));
+    }
+
+    #[tokio::test]
+    async fn test_parse_agent_include_agents_md_false() {
+        let content = include_str!("fixtures/agents/include_agents_md_false.md");
+
+        let actual = parse_agent_file(content).unwrap();
+
+        assert_eq!(actual.id.as_str(), "test-include-agents-md-false");
+        assert_eq!(
+            actual.title.as_ref().unwrap(),
+            "Exclude AGENTS.md Test Agent"
+        );
+        assert_eq!(actual.include_agents_md, Some(false));
+    }
+
+    #[tokio::test]
+    async fn test_parse_agent_include_agents_md_missing() {
+        let content = include_str!("fixtures/agents/include_agents_md_missing.md");
+
+        let actual = parse_agent_file(content).unwrap();
+
+        assert_eq!(actual.id.as_str(), "test-include-agents-md-missing");
+        assert_eq!(
+            actual.title.as_ref().unwrap(),
+            "Missing include_agents_md Test Agent"
+        );
+        // Should default to Some(true) when field is missing
+        assert_eq!(actual.include_agents_md, Some(true));
+    }
+
+    #[test]
+    fn test_resolve_agent_conflicts_with_include_agents_md() {
+        let fixture = vec![
+            Agent::new("agent1")
+                .include_agents_md(true)
+                .title("Global Agent 1"),
+            Agent::new("agent2")
+                .include_agents_md(false)
+                .title("Global Agent 2"),
+            Agent::new("agent1")
+                .include_agents_md(false)
+                .title("CWD Agent 1 - Override"), /* Duplicate ID, should override
+                                                   * include_agents_md */
+            Agent::new("agent3").title("CWD Agent 3"),
+        ];
+
+        let actual = resolve_agent_conflicts(fixture);
+
+        // Should have 3 agents: agent1 (CWD version with include_agents_md: false),
+        // agent2 (global), agent3 (CWD)
+        assert_eq!(actual.len(), 3);
+
+        let agent1 = actual
+            .iter()
+            .find(|a| a.id.as_str() == "agent1")
+            .expect("Should have agent1");
+        assert_eq!(agent1.include_agents_md, Some(false)); // Should preserve CWD value
+        assert_eq!(agent1.title.as_ref().unwrap(), "CWD Agent 1 - Override");
+
+        let agent2 = actual
+            .iter()
+            .find(|a| a.id.as_str() == "agent2")
+            .expect("Should have agent2");
+        assert_eq!(agent2.include_agents_md, Some(false)); // Should preserve global value
+        assert_eq!(agent2.title.as_ref().unwrap(), "Global Agent 2");
+    }
 }
