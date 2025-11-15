@@ -372,8 +372,8 @@ mod tests {
 
     use forge_app::WalkedFile;
     use forge_domain::{
-        CodeSearchResult, FileHash, FileInfo, UploadStats, UserId, Workspace, WorkspaceId,
-        WorkspaceInfo,
+        CodeSearchQuery, CodeSearchResult, FileDeletion, FileHash, FileInfo, FileUpload,
+        UploadStats, UserId, Workspace, WorkspaceFiles, WorkspaceId, WorkspaceInfo,
     };
     use pretty_assertions::assert_eq;
 
@@ -486,41 +486,27 @@ mod tests {
         async fn create_workspace(&self, _: &UserId, _: &Path) -> Result<WorkspaceId> {
             Ok(WorkspaceId::generate())
         }
-        async fn upload_files(
-            &self,
-            _: &UserId,
-            _: &WorkspaceId,
-            files: Vec<forge_domain::FileRead>,
-        ) -> Result<UploadStats> {
+        async fn upload_files(&self, upload: &FileUpload) -> Result<UploadStats> {
             self.uploaded_files
                 .lock()
                 .await
-                .extend(files.iter().map(|f| f.path.clone()));
-            Ok(UploadStats::new(files.len(), files.len()))
+                .extend(upload.data.iter().map(|f| f.path.clone()));
+            Ok(UploadStats::new(upload.data.len(), upload.data.len()))
         }
-        async fn search(
-            &self,
-            _: &UserId,
-            _: &WorkspaceId,
-            _: &str,
-            _: usize,
-            _: Option<u32>,
-        ) -> Result<Vec<CodeSearchResult>> {
+        async fn search(&self, _: &CodeSearchQuery<'_>) -> Result<Vec<CodeSearchResult>> {
             Ok(self.search_results.clone())
         }
         async fn list_workspaces(&self, _: &UserId) -> Result<Vec<WorkspaceInfo>> {
             Ok(self.workspaces.clone())
         }
-        async fn list_workspace_files(&self, _: &UserId, _: &WorkspaceId) -> Result<Vec<FileHash>> {
+        async fn list_workspace_files(&self, _: &WorkspaceFiles) -> Result<Vec<FileHash>> {
             Ok(self.server_files.clone())
         }
-        async fn delete_files(
-            &self,
-            _: &UserId,
-            _: &WorkspaceId,
-            paths: Vec<String>,
-        ) -> Result<()> {
-            self.deleted_files.lock().await.extend(paths);
+        async fn delete_files(&self, deletion: &FileDeletion) -> Result<()> {
+            self.deleted_files
+                .lock()
+                .await
+                .extend(deletion.data.clone());
             Ok(())
         }
     }
