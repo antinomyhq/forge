@@ -1097,14 +1097,12 @@ mod tests {
             .collect();
 
         // Verify directories come first, then files, all sorted alphabetically
-        let expected_order = vec![
-            "dir&gt;apple_dir",
+        let expected_order = ["dir&gt;apple_dir",
             "dir&gt;berry_dir",
             "dir&gt;zoo_dir",
             "file&gt;banana.txt",
             "file&gt;cherry.txt",
-            "file&gt;zebra.txt",
-        ];
+            "file&gt;zebra.txt"];
 
         for (i, expected) in expected_order.iter().enumerate() {
             assert!(

@@ -315,13 +315,12 @@ pub mod tests {
 
             for (path, content) in files.iter() {
                 // Check if this entry is a direct child of the directory
-                if let Some(parent) = path.parent() {
-                    if parent == directory {
+                if let Some(parent) = path.parent()
+                    && parent == directory {
                         // Check if it's a directory (empty bytes)
                         let is_dir = content.is_empty();
                         results.push((path.clone(), is_dir));
                     }
-                }
             }
 
             Ok(results)
@@ -337,12 +336,11 @@ pub mod tests {
 
             for (path, content) in files.iter() {
                 // Check if this entry is a direct child of the directory
-                if let Some(parent) = path.parent() {
-                    if parent == directory {
+                if let Some(parent) = path.parent()
+                    && parent == directory {
                         let content_str = String::from_utf8(content.to_vec()).unwrap_or_default();
                         results.push((path.clone(), content_str));
                     }
-                }
             }
 
             Ok(results)
@@ -1214,17 +1212,17 @@ pub mod tests {
                     .iter()
                     .find(|e| e.path == "mydir/file1.txt")
                     .unwrap();
-                assert_eq!(file1.is_dir, false);
+                assert!(!file1.is_dir);
 
                 let file2 = entries
                     .iter()
                     .find(|e| e.path == "mydir/file2.txt")
                     .unwrap();
-                assert_eq!(file2.is_dir, false);
+                assert!(!file2.is_dir);
 
                 // Check for subdirectory (is_dir = true)
                 let subdir = entries.iter().find(|e| e.path == "mydir/subdir").unwrap();
-                assert_eq!(subdir.is_dir, true);
+                assert!(subdir.is_dir);
             }
             _ => panic!("Expected DirectoryListing attachment"),
         }
@@ -1300,7 +1298,7 @@ pub mod tests {
                     .iter()
                     .find(|e| e.path == "mixdir/dir_file.txt")
                     .unwrap();
-                assert_eq!(dir_file.is_dir, false);
+                assert!(!dir_file.is_dir);
             }
             _ => panic!("Expected DirectoryListing attachment"),
         }
