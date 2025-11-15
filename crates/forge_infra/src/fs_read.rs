@@ -2,6 +2,7 @@ use std::path::Path;
 
 use anyhow::Result;
 use forge_app::FileReaderInfra;
+use forge_fs::DEFAULT_MAX_LINES;
 
 pub struct ForgeFileReadService;
 
@@ -33,6 +34,6 @@ impl FileReaderInfra for ForgeFileReadService {
         start_line: u64,
         end_line: u64,
     ) -> Result<(String, forge_domain::FileInfo)> {
-        forge_fs::ForgeFS::read_range_utf8(path, start_line, end_line).await
+        forge_fs::ForgeFS::read_range_utf8(path, start_line, end_line, DEFAULT_MAX_LINES).await
     }
 }
