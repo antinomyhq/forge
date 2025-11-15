@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use forge_app::{
     CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
-    FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, IndexingClientInfra, KVStore,
-    McpServerInfra, Services, StrategyFactory, UserInfra, WalkerInfra,
+    FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, KVStore, McpServerInfra,
+    Services, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    AppConfigRepository, ConversationRepository, IndexingRepository, ProviderRepository,
-    SnapshotRepository,
+    AppConfigRepository, CodebaseRepository, ConversationRepository, ProviderRepository,
+    SnapshotRepository, WorkspaceRepository,
 };
 
 use crate::ForgeProviderAuthService;
@@ -51,8 +51,8 @@ pub struct ForgeServices<
         + AppConfigRepository
         + KVStore
         + ProviderRepository
-        + forge_domain::IndexingRepository
-        + forge_app::IndexingClientInfra,
+        + forge_domain::WorkspaceRepository
+        + CodebaseRepository,
 > {
     chat_service: Arc<ForgeProviderService<F>>,
     config_service: Arc<ForgeAppConfigService<F>>,
@@ -81,7 +81,7 @@ pub struct ForgeServices<
     command_loader_service: Arc<ForgeCommandLoaderService<F>>,
     policy_service: ForgePolicyService<F>,
     provider_auth_service: ForgeProviderAuthService<F>,
-    indexing_service: Arc<crate::indexing::ForgeIndexingService<F>>,
+    codebase_service: Arc<crate::indexing::ForgeIndexingService<F>>,
 }
 
 impl<
@@ -100,8 +100,8 @@ impl<
         + AppConfigRepository
         + ProviderRepository
         + KVStore
-        + forge_domain::IndexingRepository
-        + forge_app::IndexingClientInfra,
+        + forge_domain::WorkspaceRepository
+        + CodebaseRepository,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -133,7 +133,7 @@ impl<
         let command_loader_service = Arc::new(ForgeCommandLoaderService::new(infra.clone()));
         let policy_service = ForgePolicyService::new(infra.clone());
         let provider_auth_service = ForgeProviderAuthService::new(infra.clone());
-        let indexing_service = Arc::new(crate::indexing::ForgeIndexingService::new(infra.clone()));
+        let codebase_service = Arc::new(crate::indexing::ForgeIndexingService::new(infra.clone()));
 
         Self {
             conversation_service,
@@ -163,7 +163,7 @@ impl<
             command_loader_service,
             policy_service,
             provider_auth_service,
-            indexing_service,
+            codebase_service,
         }
     }
 }
@@ -188,8 +188,8 @@ impl<
         + KVStore
         + ProviderRepository
         + StrategyFactory
-        + IndexingRepository
-        + IndexingClientInfra
+        + WorkspaceRepository
+        + CodebaseRepository
         + Clone
         + 'static,
 > Services for ForgeServices<F>
@@ -225,7 +225,7 @@ impl<
     type AgentRegistry = ForgeAgentLoaderService<F>;
     type CommandLoaderService = ForgeCommandLoaderService<F>;
     type PolicyService = ForgePolicyService<F>;
-    type IndexingService = crate::indexing::ForgeIndexingService<F>;
+    type CodebaseService = crate::indexing::ForgeIndexingService<F>;
 
     fn provider_service(&self) -> &Self::ProviderService {
         &self.chat_service
@@ -326,8 +326,8 @@ impl<
         &self.policy_service
     }
 
-    fn indexing_service(&self) -> &Self::IndexingService {
-        &self.indexing_service
+    fn codebase_service(&self) -> &Self::CodebaseService {
+        &self.codebase_service
     }
 
     fn image_read_service(&self) -> &Self::ImageReadService {

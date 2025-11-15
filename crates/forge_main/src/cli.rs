@@ -128,7 +128,7 @@ pub enum TopLevelCommand {
     /// Run or list custom commands.
     Cmd(CmdCommandGroup),
 
-    /// Manage codebase indexing for semantic search.
+    /// Manage codebases for semantic search.
     Index(IndexCommandGroup),
 }
 
@@ -157,7 +157,7 @@ pub enum CmdCommand {
     Execute(Vec<String>),
 }
 
-/// Command group for indexing management.
+/// Command group for codebase management.
 #[derive(Parser, Debug, Clone)]
 pub struct IndexCommandGroup {
     #[command(subcommand)]
@@ -166,20 +166,25 @@ pub struct IndexCommandGroup {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum IndexCommand {
+    /// Synchronize a directory for semantic search.
     Sync {
-        /// Path to the directory to index (used when no subcommand is
-        /// provided).
+        /// Path to the directory to sync
         #[arg(default_value = ".")]
         path: PathBuf,
+
+        /// Number of files to upload per batch. Reduce this if you encounter
+        /// token limit errors.
+        #[arg(long, default_value = "10")]
+        batch_size: usize,
     },
-    /// List all indexed workspaces.
+    /// List all workspaces.
     List {
         /// Output in machine-readable format
         #[arg(short, long)]
         porcelain: bool,
     },
 
-    /// Query the indexed codebase.
+    /// Query the codebase.
     Query {
         /// Search query.
         query: String,
@@ -196,6 +201,17 @@ pub enum IndexCommand {
         /// Number of highest probability tokens to consider (1-1000).
         #[arg(long)]
         top_k: Option<u32>,
+    },
+
+    /// Delete a workspace.
+    Delete {
+        /// Workspace ID to delete
+        #[arg(short = 'w', long)]
+        workspace_id: String,
+
+        /// Skip confirmation prompt
+        #[arg(short = 'y', long)]
+        yes: bool,
     },
 }
 

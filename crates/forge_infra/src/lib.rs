@@ -15,10 +15,8 @@ mod inquire;
 mod kv_storage;
 mod mcp_client;
 mod mcp_server;
-mod proto;
 mod walker;
 
 pub use executor::ForgeCommandExecutorService;
 pub use forge_infra::*;
 pub use kv_storage::CacacheStorage;
-pub use proto::IndexingClient;

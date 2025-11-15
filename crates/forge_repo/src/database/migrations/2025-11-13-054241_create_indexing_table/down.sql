@@ -1,5 +1,5 @@
 -- Drop index first
-DROP INDEX IF EXISTS idx_indexing_path;
-DROP INDEX IF EXISTS idx_indexing_user_id;
--- Drop indexing table
-DROP TABLE IF EXISTS indexing;
+DROP INDEX IF EXISTS idx_workspace_path;
+DROP INDEX IF EXISTS idx_workspace_user_id;
+-- Drop workspace table
+DROP TABLE IF EXISTS workspace;

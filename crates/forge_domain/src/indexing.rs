@@ -2,7 +2,9 @@ use derive_more::Display;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// File content for upload to indexing server
+use crate::WorkspaceId;
+
+/// File content for upload to codebase server
 ///
 /// Contains the file path (relative to workspace root) and its textual content
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -20,7 +22,44 @@ impl FileRead {
     }
 }
 
-/// User identifier for indexing operations.
+/// Generic wrapper for codebase operations
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CodeBase<T> {
+    pub user_id: UserId,
+    pub workspace_id: WorkspaceId,
+    pub data: T,
+}
+
+impl<T> CodeBase<T> {
+    pub fn new(user_id: UserId, workspace_id: WorkspaceId, data: T) -> Self {
+        Self { user_id, workspace_id, data }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SearchParams<'a> {
+    pub query: &'a str,
+    pub limit: usize,
+    pub top_k: Option<u32>,
+}
+
+impl<'a> SearchParams<'a> {
+    pub fn new(query: &'a str, limit: usize) -> Self {
+        Self { query, limit, top_k: None }
+    }
+
+    pub fn with_top_k(mut self, top_k: u32) -> Self {
+        self.top_k = Some(top_k);
+        self
+    }
+}
+
+pub type CodeSearchQuery<'a> = CodeBase<SearchParams<'a>>;
+pub type FileUpload = CodeBase<Vec<FileRead>>;
+pub type FileDeletion = CodeBase<Vec<String>>;
+pub type WorkspaceFiles = CodeBase<()>;
+
+/// User identifier for codebase operations.
 ///
 /// Unique per machine, generated once and stored in database.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Display)]
@@ -42,33 +81,6 @@ impl UserId {
     }
 }
 
-/// Workspace identifier (UUID) from indexing server.
-///
-/// Generated locally and sent to server during CreateWorkspace.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Display)]
-#[display("{}", _0)]
-pub struct IndexWorkspaceId(Uuid);
-
-impl IndexWorkspaceId {
-    /// Generate a new random workspace ID
-    pub fn generate() -> Self {
-        Self(Uuid::new_v4())
-    }
-
-    /// Parse a workspace ID from a string
-    ///
-    /// # Errors
-    /// Returns an error if the string is not a valid UUID
-    pub fn from_string(s: &str) -> anyhow::Result<Self> {
-        Ok(Self(Uuid::parse_str(s)?))
-    }
-
-    /// Get the inner UUID
-    pub fn inner(&self) -> Uuid {
-        self.0
-    }
-}
-
 /// Git repository information for a workspace
 ///
 /// Contains commit hash and branch name for version tracking
@@ -84,7 +96,7 @@ pub struct GitInfo {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkspaceInfo {
     /// Workspace ID
-    pub workspace_id: IndexWorkspaceId,
+    pub workspace_id: WorkspaceId,
     /// Working directory path
     pub working_dir: String,
 }
@@ -100,12 +112,12 @@ pub struct FileHash {
     pub hash: String,
 }
 
-/// Result of an indexing operation
+/// Result of a codebase sync operation
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct IndexStats {
-    /// Workspace ID that was indexed
-    pub workspace_id: IndexWorkspaceId,
+    /// Workspace ID that was synced
+    pub workspace_id: WorkspaceId,
     /// Number of files processed
     pub files_processed: usize,
     /// Upload statistics
@@ -113,9 +125,9 @@ pub struct IndexStats {
 }
 
 impl IndexStats {
-    /// Create new index statistics
+    /// Create new sync statistics
     pub fn new(
-        workspace_id: IndexWorkspaceId,
+        workspace_id: WorkspaceId,
         files_processed: usize,
         upload_stats: UploadStats,
     ) -> Self {
@@ -123,20 +135,14 @@ impl IndexStats {
     }
 }
 
-/// Statistics from uploading files to the indexing server
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Statistics from uploading files to the codebase server
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct UploadStats {
     /// Number of code nodes created
     pub nodes_created: usize,
     /// Number of relations created
     pub relations_created: usize,
-}
-
-impl Default for UploadStats {
-    fn default() -> Self {
-        Self::new(0, 0)
-    }
 }
 
 impl std::ops::Add for UploadStats {
@@ -159,7 +165,7 @@ impl UploadStats {
 
 /// Result of a semantic search query
 ///
-/// Represents different types of nodes returned from the indexing service.
+/// Represents different types of nodes returned from the codebase service.
 /// Each variant contains only the fields relevant to that node type.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -263,9 +269,9 @@ mod tests {
 
     #[test]
     fn test_workspace_id_roundtrip() {
-        let workspace_id = IndexWorkspaceId::generate();
+        let workspace_id = WorkspaceId::generate();
         let s = workspace_id.to_string();
-        let parsed = IndexWorkspaceId::from_string(&s).unwrap();
+        let parsed = WorkspaceId::from_string(&s).unwrap();
         assert_eq!(workspace_id, parsed);
     }
 }

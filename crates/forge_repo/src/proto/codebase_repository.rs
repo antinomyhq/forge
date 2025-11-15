@@ -1,8 +1,8 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use async_trait::async_trait;
-use forge_app::IndexingClientInfra;
 use forge_domain::{
-    CodeSearchResult, IndexWorkspaceId, UploadStats, UserId as DomainUserId, WorkspaceInfo,
+    CodeSearchResult, CodebaseRepository, UploadStats, UserId as DomainUserId, WorkspaceId,
+    WorkspaceInfo,
 };
 use tonic::transport::Channel;
 
@@ -16,12 +16,12 @@ mod proto_generated {
 use forge_service_client::ForgeServiceClient;
 use proto_generated::*;
 
-/// gRPC implementation of IndexingClientInfra
-pub struct IndexingClient {
+/// gRPC implementation of CodebaseRepository
+pub struct CodebaseRepositoryImpl {
     client: ForgeServiceClient<Channel>,
 }
 
-impl IndexingClient {
+impl CodebaseRepositoryImpl {
     /// Create a new gRPC client with lazy connection
     pub fn new(server_url: impl Into<String>) -> Result<Self> {
         let channel = Channel::from_shared(server_url.into())?.connect_lazy();
@@ -31,12 +31,12 @@ impl IndexingClient {
 }
 
 #[async_trait]
-impl IndexingClientInfra for IndexingClient {
+impl CodebaseRepository for CodebaseRepositoryImpl {
     async fn create_workspace(
         &self,
         user_id: &DomainUserId,
         working_dir: &std::path::Path,
-    ) -> Result<IndexWorkspaceId> {
+    ) -> Result<WorkspaceId> {
         let request = CreateWorkspaceRequest {
             user_id: Some(UserId { id: user_id.to_string() }),
             workspace: Some(WorkspaceDefinition {
@@ -50,41 +50,42 @@ impl IndexingClientInfra for IndexingClient {
         let workspace = response
             .into_inner()
             .workspace
-            .ok_or_else(|| anyhow::anyhow!("No workspace in response"))?;
+            .context("No workspace in response")?;
 
         let workspace_id = workspace
             .workspace_id
-            .ok_or_else(|| {
-                anyhow::anyhow!("Server did not return workspace ID in CreateWorkspace response")
-            })?
+            .context("Server did not return workspace ID in CreateWorkspace response")?
             .id;
 
-        IndexWorkspaceId::from_string(&workspace_id)
+        WorkspaceId::from_string(&workspace_id)
+            .context("Failed to parse workspace ID from server response")
     }
 
-    async fn upload_files(
-        &self,
-        user_id: &DomainUserId,
-        workspace_id: &IndexWorkspaceId,
-        files: Vec<forge_domain::FileRead>,
-    ) -> Result<UploadStats> {
-        let proto_files: Vec<File> = files
-            .into_iter()
-            .map(|file_read| File { path: file_read.path, content: file_read.content })
+    async fn upload_files(&self, upload: &forge_domain::FileUpload) -> Result<UploadStats> {
+        let files: Vec<File> = upload
+            .data
+            .iter()
+            .map(|file_read| File {
+                path: file_read.path.clone(),
+                content: file_read.content.clone(),
+            })
             .collect();
 
         let request = UploadFilesRequest {
-            user_id: Some(UserId { id: user_id.to_string() }),
-            workspace_id: Some(WorkspaceId { id: workspace_id.to_string() }),
-            content: Some(FileUploadContent { files: proto_files, git: None }),
+            user_id: Some(UserId { id: upload.user_id.to_string() }),
+            workspace_id: Some(proto_generated::WorkspaceId {
+                id: upload.workspace_id.to_string(),
+            }),
+            content: Some(FileUploadContent { files, git: None }),
         };
 
         let mut client = self.client.clone();
         let response = client.upload_files(request).await?;
 
-        let result = response.into_inner().result.ok_or_else(|| {
-            anyhow::anyhow!("Server did not return upload result in UploadFiles response")
-        })?;
+        let result = response
+            .into_inner()
+            .result
+            .context("Server did not return upload result in UploadFiles response")?;
 
         Ok(UploadStats::new(result.nodes.len(), result.relations.len()))
     }
@@ -92,19 +93,17 @@ impl IndexingClientInfra for IndexingClient {
     /// Search for code using semantic search
     async fn search(
         &self,
-        user_id: &DomainUserId,
-        workspace_id: &IndexWorkspaceId,
-        query: &str,
-        limit: usize,
-        top_k: Option<u32>,
+        search_query: &forge_domain::CodeSearchQuery<'_>,
     ) -> Result<Vec<CodeSearchResult>> {
         let request = tonic::Request::new(SearchRequest {
-            user_id: Some(UserId { id: user_id.to_string() }),
-            workspace_id: Some(WorkspaceId { id: workspace_id.to_string() }),
+            user_id: Some(UserId { id: search_query.user_id.to_string() }),
+            workspace_id: Some(proto_generated::WorkspaceId {
+                id: search_query.workspace_id.to_string(),
+            }),
             query: Some(Query {
-                prompt: Some(query.to_string()),
-                limit: Some(limit as u32),
-                top_k,
+                prompt: Some(search_query.data.query.to_string()),
+                limit: Some(search_query.data.limit as u32),
+                top_k: search_query.data.top_k,
                 ..Default::default()
             }),
         });
@@ -177,7 +176,7 @@ impl IndexingClientInfra for IndexingClient {
             .into_iter()
             .filter_map(|workspace| {
                 let id_msg = workspace.workspace_id?;
-                let workspace_id = IndexWorkspaceId::from_string(&id_msg.id).ok()?;
+                let workspace_id = WorkspaceId::from_string(&id_msg.id).ok()?;
                 Some(WorkspaceInfo { workspace_id, working_dir: workspace.working_dir })
             })
             .collect();
@@ -188,44 +187,26 @@ impl IndexingClientInfra for IndexingClient {
     /// List all files in a workspace with their hashes
     async fn list_workspace_files(
         &self,
-        user_id: &DomainUserId,
-        workspace_id: &IndexWorkspaceId,
+        workspace: &forge_domain::WorkspaceFiles,
     ) -> Result<Vec<forge_domain::FileHash>> {
-        let request = tonic::Request::new(SearchRequest {
-            user_id: Some(UserId { id: user_id.to_string() }),
-            workspace_id: Some(WorkspaceId { id: workspace_id.to_string() }),
-            query: Some(Query {
-                prompt: None,          // No semantic search, just list all
-                limit: Some(u32::MAX), // Get all files
-                top_k: None,
-                kinds: vec![3], // NODE_KIND_FILE_REF = 3
-                ..Default::default()
+        let request = tonic::Request::new(ListFilesRequest {
+            user_id: Some(UserId { id: workspace.user_id.to_string() }),
+            workspace_id: Some(proto_generated::WorkspaceId {
+                id: workspace.workspace_id.to_string(),
             }),
         });
 
         let mut client = self.client.clone();
-        let response = client.search(request).await?;
+        let response = client.list_files(request).await?;
 
-        // Extract file paths and hashes from FileRef nodes
+        // Extract file paths and hashes from FileRefNode
         let files = response
             .into_inner()
-            .result
-            .unwrap_or_default()
-            .data
+            .files
             .into_iter()
-            .filter_map(|query_item| {
-                // Chain Options: node -> data -> kind
-                query_item
-                    .node
-                    .and_then(|node| node.data)
-                    .and_then(|data| data.kind)
-                    .and_then(|kind| match kind {
-                        node_data::Kind::FileRef(file_ref) => Some(forge_domain::FileHash {
-                            path: file_ref.path,
-                            hash: file_ref.file_hash,
-                        }),
-                        _ => None,
-                    })
+            .filter_map(|file_ref_node| {
+                let data = file_ref_node.data?;
+                Some(forge_domain::FileHash { path: data.path, hash: data.file_hash })
             })
             .collect();
 
@@ -233,24 +214,37 @@ impl IndexingClientInfra for IndexingClient {
     }
 
     /// Delete files from a workspace
-    async fn delete_files(
-        &self,
-        user_id: &DomainUserId,
-        workspace_id: &IndexWorkspaceId,
-        file_paths: Vec<String>,
-    ) -> Result<()> {
-        if file_paths.is_empty() {
+    async fn delete_files(&self, deletion: &forge_domain::FileDeletion) -> Result<()> {
+        if deletion.data.is_empty() {
             return Ok(());
         }
 
         let request = tonic::Request::new(DeleteFilesRequest {
-            user_id: Some(UserId { id: user_id.to_string() }),
-            workspace_id: Some(WorkspaceId { id: workspace_id.to_string() }),
-            file_paths,
+            user_id: Some(UserId { id: deletion.user_id.to_string() }),
+            workspace_id: Some(proto_generated::WorkspaceId {
+                id: deletion.workspace_id.to_string(),
+            }),
+            file_paths: deletion.data.clone(),
         });
 
         let mut client = self.client.clone();
         client.delete_files(request).await?;
+
+        Ok(())
+    }
+
+    async fn delete_workspace(
+        &self,
+        user_id: &forge_domain::UserId,
+        workspace_id: &forge_domain::WorkspaceId,
+    ) -> Result<()> {
+        let request = tonic::Request::new(DeleteWorkspaceRequest {
+            user_id: Some(UserId { id: user_id.to_string() }),
+            workspace_id: Some(proto_generated::WorkspaceId { id: workspace_id.to_string() }),
+        });
+
+        let mut client = self.client.clone();
+        client.delete_workspace(request).await?;
 
         Ok(())
     }

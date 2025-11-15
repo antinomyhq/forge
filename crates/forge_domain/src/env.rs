@@ -137,19 +137,19 @@ impl Environment {
         self.base_path.join("cache")
     }
 
-    pub fn workspace_id(&self) -> WorkspaceId {
+    pub fn workspace_hash(&self) -> WorkspaceHash {
         let mut hasher = DefaultHasher::default();
         self.cwd.hash(&mut hasher);
 
-        WorkspaceId(hasher.finish())
+        WorkspaceHash(hasher.finish())
     }
 }
 
 #[derive(Clone, Copy, Display)]
-pub struct WorkspaceId(u64);
-impl WorkspaceId {
+pub struct WorkspaceHash(u64);
+impl WorkspaceHash {
     pub fn new(id: u64) -> Self {
-        WorkspaceId(id)
+        WorkspaceHash(id)
     }
 
     pub fn id(&self) -> u64 {

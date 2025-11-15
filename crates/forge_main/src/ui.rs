@@ -211,8 +211,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Ok(_) => {}
             Err(error) => {
                 tracing::error!(error = ?error);
-                let _ = self
-                    .writeln_to_stderr(TitleFormat::error(error.to_string()).display().to_string());
+
+                // Display the full error chain for better debugging
+                let mut error_message = error.to_string();
+                let mut source = error.source();
+                while let Some(err) = source {
+                    error_message.push_str(&format!("\n    Caused by: {}", err));
+                    source = err.source();
+                }
+
+                let _ =
+                    self.writeln_to_stderr(TitleFormat::error(error_message).display().to_string());
             }
         }
     }
@@ -490,14 +499,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
             TopLevelCommand::Index(index_group) => {
                 match index_group.command {
-                    crate::cli::IndexCommand::Sync { path } => {
-                        self.on_index(path).await?;
+                    crate::cli::IndexCommand::Sync { path, batch_size } => {
+                        self.on_index(path, batch_size).await?;
                     }
                     crate::cli::IndexCommand::List { porcelain } => {
                         self.on_list_workspaces(porcelain).await?;
                     }
                     crate::cli::IndexCommand::Query { query, path, limit, top_k } => {
                         self.on_query(query, path, limit, top_k).await?;
+                    }
+                    crate::cli::IndexCommand::Delete { workspace_id, yes } => {
+                        self.on_delete_workspace(workspace_id, yes).await?;
                     }
                 }
                 return Ok(());
@@ -1441,7 +1453,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
             SlashCommand::Index => {
                 let working_dir = self.state.cwd.clone();
-                self.on_index(working_dir).await?;
+                // Use default batch size of 10 for slash command
+                self.on_index(working_dir, 10).await?;
             }
             SlashCommand::AgentSwitch(agent_id) => {
                 // Validate that the agent exists by checking against loaded agents
@@ -2535,13 +2548,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn on_index(&mut self, path: std::path::PathBuf) -> anyhow::Result<()> {
-        self.spinner.start(Some("Indexing codebase..."))?;
+    async fn on_index(
+        &mut self,
+        path: std::path::PathBuf,
+        batch_size: usize,
+    ) -> anyhow::Result<()> {
+        self.spinner.start(Some("Syncing codebase..."))?;
 
-        match self.api.index_codebase(path.clone()).await {
+        match self.api.sync_codebase(path.clone(), batch_size).await {
             Ok(_) => {
                 self.spinner.stop(None)?;
-                self.writeln(format!("Successfully indexed: {}", path.display()))?;
+                self.writeln(format!("Successfully synced: {}", path.display()))?;
                 Ok(())
             }
             Err(e) => {
@@ -2560,11 +2577,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     ) -> anyhow::Result<()> {
         self.spinner.start(Some("Searching codebase..."))?;
 
-        let results = match self
-            .api
-            .query_codebase(path.clone(), &query, limit, top_k)
-            .await
-        {
+        let mut params = forge_domain::SearchParams::new(&query, limit);
+        if let Some(k) = top_k {
+            params = params.with_top_k(k);
+        }
+
+        let results = match self.api.query_codebase(path.clone(), params).await {
             Ok(results) => results,
             Err(e) => {
                 self.spinner.stop(None)?;
@@ -2581,20 +2599,19 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             match result {
                 forge_domain::CodeSearchResult::FileChunk {
                     file_path,
-                    content,
                     start_line,
                     end_line,
                     ..
                 } => {
                     self.writeln(format!(
-                        "{}. {} (lines {}-{})",
+                        "{}. {}:{}-{}",
                         i + 1,
                         file_path,
                         start_line,
                         end_line
                     ))?;
                     self.writeln(similarity)?;
-                    self.writeln(format!("   ```\n   {}\n   ```", content))?;
+                    // self.writeln(format!("   ```\n   {}\n   ```", content))?;
                 }
                 forge_domain::CodeSearchResult::File { file_path, .. } => {
                     self.writeln(format!("{}. {} (full file)", i + 1, file_path))?;
@@ -2623,10 +2640,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn on_list_workspaces(&mut self, porcelain: bool) -> anyhow::Result<()> {
         if !porcelain {
-            self.spinner.start(Some("Fetching indexed workspaces..."))?;
+            self.spinner.start(Some("Fetching workspaces..."))?;
         }
 
-        match self.api.list_indexes().await {
+        match self.api.list_codebases().await {
             Ok(workspaces) => {
                 if !porcelain {
                     self.spinner.stop(None)?;
@@ -2636,12 +2653,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 let mut info = if porcelain {
                     Info::new()
                 } else {
-                    Info::new().add_title("INDEXED WORKSPACES")
+                    Info::new().add_title("WORKSPACES")
                 };
 
                 if workspaces.is_empty() {
                     if !porcelain {
-                        info = info.add_value("No indexed workspaces found");
+                        info = info.add_value("No workspaces found");
                     }
                 } else {
                     for workspace in workspaces {
@@ -2669,9 +2686,42 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 Ok(())
             }
             Err(e) => {
-                self.spinner
-                    .stop(Some("Failed to list workspaces".to_string()))?;
-                self.writeln_to_stderr(format!("Failed to list workspaces: {}", e))?;
+                self.spinner.stop(None)?;
+                Err(e)
+            }
+        }
+    }
+
+    async fn on_delete_workspace(&mut self, workspace_id: String, yes: bool) -> anyhow::Result<()> {
+        // Parse workspace ID
+        let workspace_id = forge_domain::WorkspaceId::from_string(&workspace_id)
+            .context("Invalid workspace ID format")?;
+
+        // Confirmation prompt unless --yes flag is provided
+        if !yes {
+            let confirmed = ForgeSelect::confirm(format!(
+                "Warning: This will permanently delete workspace {} and all its indexed data. Continue?",
+                workspace_id
+            ))
+            .with_default(false)
+            .prompt()?;
+
+            if !confirmed.unwrap_or(false) {
+                self.writeln("Deletion cancelled.")?;
+                return Ok(());
+            }
+        }
+
+        self.spinner.start(Some("Deleting workspace..."))?;
+
+        match self.api.delete_codebase(workspace_id.clone()).await {
+            Ok(()) => {
+                self.spinner.stop(None)?;
+                self.writeln(format!("Successfully deleted workspace {}", workspace_id))?;
+                Ok(())
+            }
+            Err(e) => {
+                self.spinner.stop(None)?;
                 Err(e)
             }
         }

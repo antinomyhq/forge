@@ -3,14 +3,14 @@ use std::sync::Arc;
 
 use chrono::{NaiveDateTime, Utc};
 use diesel::prelude::*;
-use forge_domain::{IndexWorkspaceId, IndexedWorkspace, IndexingRepository, UserId};
+use forge_domain::{UserId, Workspace, WorkspaceId, WorkspaceRepository};
 
-use crate::database::schema::indexing;
+use crate::database::schema::workspace;
 use crate::database::DatabasePool;
 
-/// Database model for indexing table
+/// Database model for workspace table
 #[derive(Debug, Queryable, Selectable, Insertable, AsChangeset)]
-#[diesel(table_name = indexing)]
+#[diesel(table_name = workspace)]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 struct IndexingRecord {
     remote_workspace_id: String,
@@ -21,7 +21,7 @@ struct IndexingRecord {
 }
 
 impl IndexingRecord {
-    fn new(workspace_id: &IndexWorkspaceId, user_id: &UserId, path: &std::path::Path) -> Self {
+    fn new(workspace_id: &WorkspaceId, user_id: &UserId, path: &std::path::Path) -> Self {
         Self {
             remote_workspace_id: workspace_id.to_string(),
             user_id: user_id.to_string(),
@@ -32,11 +32,11 @@ impl IndexingRecord {
     }
 }
 
-impl TryFrom<IndexingRecord> for IndexedWorkspace {
+impl TryFrom<IndexingRecord> for Workspace {
     type Error = anyhow::Error;
 
     fn try_from(record: IndexingRecord) -> anyhow::Result<Self> {
-        let workspace_id = IndexWorkspaceId::from_string(&record.remote_workspace_id)?;
+        let workspace_id = WorkspaceId::from_string(&record.remote_workspace_id)?;
         let user_id = UserId::from_string(&record.user_id)?;
         let path = PathBuf::from(record.path);
 
@@ -61,45 +61,51 @@ impl IndexingRepositoryImpl {
 }
 
 #[async_trait::async_trait]
-impl IndexingRepository for IndexingRepositoryImpl {
+impl WorkspaceRepository for IndexingRepositoryImpl {
     async fn upsert(
         &self,
-        workspace_id: &IndexWorkspaceId,
+        workspace_id: &WorkspaceId,
         user_id: &UserId,
         path: &std::path::Path,
     ) -> anyhow::Result<()> {
         let mut connection = self.pool.get_connection()?;
         let record = IndexingRecord::new(workspace_id, user_id, path);
-        diesel::insert_into(indexing::table)
+        diesel::insert_into(workspace::table)
             .values(&record)
-            .on_conflict(indexing::remote_workspace_id)
+            .on_conflict(workspace::remote_workspace_id)
             .do_update()
-            .set(indexing::updated_at.eq(Utc::now().naive_utc()))
+            .set(workspace::updated_at.eq(Utc::now().naive_utc()))
             .execute(&mut connection)?;
         Ok(())
     }
 
-    async fn find_by_path(
-        &self,
-        path: &std::path::Path,
-    ) -> anyhow::Result<Option<IndexedWorkspace>> {
+    async fn find_by_path(&self, path: &std::path::Path) -> anyhow::Result<Option<Workspace>> {
         let mut connection = self.pool.get_connection()?;
         let path_str = path.to_string_lossy().into_owned();
-        let record = indexing::table
-            .filter(indexing::path.eq(path_str))
+        let record = workspace::table
+            .filter(workspace::path.eq(path_str))
             .first::<IndexingRecord>(&mut connection)
             .optional()?;
-        record.map(IndexedWorkspace::try_from).transpose()
+        record.map(Workspace::try_from).transpose()
     }
 
     async fn get_user_id(&self) -> anyhow::Result<Option<UserId>> {
         let mut connection = self.pool.get_connection()?;
         // Efficiently get just one user_id
-        let user_id: Option<String> = indexing::table
-            .select(indexing::user_id)
+        let user_id: Option<String> = workspace::table
+            .select(workspace::user_id)
             .first(&mut connection)
             .optional()?;
         Ok(user_id.map(|id| UserId::from_string(&id)).transpose()?)
+    }
+
+    async fn delete(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()> {
+        let mut connection = self.pool.get_connection()?;
+        diesel::delete(
+            workspace::table.filter(workspace::remote_workspace_id.eq(workspace_id.to_string())),
+        )
+        .execute(&mut connection)?;
+        Ok(())
     }
 }
 
@@ -121,7 +127,7 @@ mod tests {
     #[tokio::test]
     async fn test_upsert_and_find_by_path() {
         let fixture = repo_impl();
-        let workspace_id = IndexWorkspaceId::generate();
+        let workspace_id = WorkspaceId::generate();
         let user_id = UserId::generate();
         let path = PathBuf::from("/test/project");
 
@@ -141,7 +147,7 @@ mod tests {
     #[tokio::test]
     async fn test_upsert_updates_timestamp() {
         let fixture = repo_impl();
-        let workspace_id = IndexWorkspaceId::generate();
+        let workspace_id = WorkspaceId::generate();
         let user_id = UserId::generate();
         let path = PathBuf::from("/test/project");
 

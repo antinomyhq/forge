@@ -16,7 +16,6 @@ use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
 use reqwest_eventsource::EventSource;
 
-use crate::IndexingClient;
 use crate::auth::{AnyAuthStrategy, ForgeAuthStrategyFactory};
 use crate::env::ForgeEnvironmentInfra;
 use crate::executor::ForgeCommandExecutorService;
@@ -49,7 +48,6 @@ pub struct ForgeInfra {
     walker_service: Arc<ForgeWalkerService>,
     http_service: Arc<ForgeHttpInfra<ForgeFileWriteService>>,
     strategy_factory: Arc<ForgeAuthStrategyFactory>,
-    indexing_client: Arc<IndexingClient>,
 }
 
 impl ForgeInfra {
@@ -59,15 +57,6 @@ impl ForgeInfra {
 
         let file_write_service = Arc::new(ForgeFileWriteService::new());
         let http_service = Arc::new(ForgeHttpInfra::new(env.clone(), file_write_service.clone()));
-
-        let indexing_server_url = environment_service
-            .get_env_var("FORGE_INDEX_SERVER_URL")
-            .unwrap_or_else(|| "http://localhost:8080".to_string());
-
-        let indexing_client = Arc::new(
-            crate::proto::IndexingClient::new(&indexing_server_url)
-                .expect("Failed to create indexing client"),
-        );
 
         Self {
             file_read_service: Arc::new(ForgeFileReadService::new()),
@@ -86,7 +75,6 @@ impl ForgeInfra {
             walker_service: Arc::new(ForgeWalkerService::new()),
             strategy_factory: Arc::new(ForgeAuthStrategyFactory::new()),
             http_service,
-            indexing_client,
         }
     }
 }
@@ -278,70 +266,5 @@ impl StrategyFactory for ForgeInfra {
     ) -> anyhow::Result<Self::Strategy> {
         self.strategy_factory
             .create_auth_strategy(provider_id, method, required_params)
-    }
-}
-
-#[async_trait::async_trait]
-impl forge_app::IndexingClientInfra for ForgeInfra {
-    async fn create_workspace(
-        &self,
-        user_id: &forge_domain::UserId,
-        working_dir: &std::path::Path,
-    ) -> anyhow::Result<forge_domain::IndexWorkspaceId> {
-        self.indexing_client
-            .create_workspace(user_id, working_dir)
-            .await
-    }
-
-    async fn upload_files(
-        &self,
-        user_id: &forge_domain::UserId,
-        workspace_id: &forge_domain::IndexWorkspaceId,
-        files: Vec<forge_domain::FileRead>,
-    ) -> anyhow::Result<forge_domain::UploadStats> {
-        self.indexing_client
-            .upload_files(user_id, workspace_id, files)
-            .await
-    }
-
-    async fn search(
-        &self,
-        user_id: &forge_domain::UserId,
-        workspace_id: &forge_domain::IndexWorkspaceId,
-        query: &str,
-        limit: usize,
-        top_k: Option<u32>,
-    ) -> anyhow::Result<Vec<forge_domain::CodeSearchResult>> {
-        self.indexing_client
-            .search(user_id, workspace_id, query, limit, top_k)
-            .await
-    }
-
-    async fn list_workspaces(
-        &self,
-        user_id: &forge_domain::UserId,
-    ) -> anyhow::Result<Vec<forge_domain::WorkspaceInfo>> {
-        self.indexing_client.list_workspaces(user_id).await
-    }
-
-    async fn list_workspace_files(
-        &self,
-        user_id: &forge_domain::UserId,
-        workspace_id: &forge_domain::IndexWorkspaceId,
-    ) -> anyhow::Result<Vec<forge_domain::FileHash>> {
-        self.indexing_client
-            .list_workspace_files(user_id, workspace_id)
-            .await
-    }
-
-    async fn delete_files(
-        &self,
-        user_id: &forge_domain::UserId,
-        workspace_id: &forge_domain::IndexWorkspaceId,
-        file_paths: Vec<String>,
-    ) -> anyhow::Result<()> {
-        self.indexing_client
-            .delete_files(user_id, workspace_id, file_paths)
-            .await
     }
 }
