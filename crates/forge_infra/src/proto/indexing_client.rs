@@ -76,7 +76,7 @@ impl CodebaseRepository for IndexingClient {
         let request = UploadFilesRequest {
             user_id: Some(UserId { id: user_id.to_string() }),
             workspace_id: Some(WorkspaceId { id: workspace_id.to_string() }),
-            content: Some(FileUploadContent { files: files, git: None }),
+            content: Some(FileUploadContent { files, git: None }),
         };
 
         let mut client = self.client.clone();
