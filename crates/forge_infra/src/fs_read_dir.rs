@@ -54,41 +54,33 @@ impl ForgeDirectoryReaderService {
 
         // Read directory entries
         let mut dir = ForgeFS::read_dir(directory).await?;
-        let mut entries = Vec::new();
+        let mut file_paths = Vec::new();
 
         while let Some(entry) = dir.next_entry().await? {
             let path = entry.path();
 
-            // Process both files and directories
+            // Only process files (not directories)
             if ForgeFS::is_file(&path) {
-                // Apply filter if provided (only to files)
+                // Apply filter if provided
                 if let Some(ref pattern) = glob_pattern {
                     if let Some(file_name) = path.file_name().and_then(|n| n.to_str())
                         && pattern.matches(file_name)
                     {
-                        entries.push(path);
+                        file_paths.push(path);
                     }
                 } else {
-                    entries.push(path);
+                    file_paths.push(path);
                 }
-            } else if path.is_dir() {
-                // Always include directories (don't apply pattern filter to them)
-                entries.push(path);
             }
         }
 
-        // Read only files in parallel (directories don't need content)
-        let read_tasks = entries.into_iter().map(|path| {
+        // Read all files in parallel
+        let read_tasks = file_paths.into_iter().map(|path| {
             let path_clone = path.clone();
             async move {
-                if ForgeFS::is_file(&path) {
-                    match ForgeFS::read_to_string(&path).await {
-                        Ok(content) => Some((path_clone, content)),
-                        Err(_) => None, // Skip files that can't be read
-                    }
-                } else {
-                    // For directories, return empty string as content
-                    Some((path_clone, String::new()))
+                match ForgeFS::read_to_string(&path).await {
+                    Ok(content) => Some((path_clone, content)),
+                    Err(_) => None, // Skip files that can't be read
                 }
             }
         });
@@ -180,6 +172,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_read_directory_files_ignores_subdirectories() {
+        let fixture = tempdir().unwrap();
+        write_file(&fixture.path().join("test.txt"), "File content");
+
+        let subdir = fixture.path().join("subdir");
+        fs::create_dir(&subdir).unwrap();
+        write_file(&subdir.join("subfile.txt"), "Sub content");
+
+        let actual = ForgeDirectoryReaderService
+            .read_directory_files(fixture.path(), None)
+            .await
+            .unwrap();
+
+        let expected = vec![(fixture.path().join("test.txt"), "File content".to_string())];
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
     async fn test_list_directory_entries() {
         let fixture = tempdir().unwrap();
         write_file(&fixture.path().join("file1.txt"), "Content 1");
@@ -210,28 +220,6 @@ mod tests {
             .unwrap();
 
         let expected: Vec<(PathBuf, bool)> = vec![];
-        assert_eq!(actual, expected);
-    }
-
-    #[tokio::test]
-    async fn test_read_directory_files_includes_subdirectories() {
-        let fixture = tempdir().unwrap();
-        write_file(&fixture.path().join("test.txt"), "File content");
-
-        let subdir = fixture.path().join("subdir");
-        fs::create_dir(&subdir).unwrap();
-        write_file(&subdir.join("subfile.txt"), "Sub content");
-
-        let mut actual = ForgeDirectoryReaderService
-            .read_directory_files(fixture.path(), None)
-            .await
-            .unwrap();
-        actual.sort_by(|(a, _), (b, _)| a.file_name().cmp(&b.file_name()));
-
-        let expected = vec![
-            (fixture.path().join("subdir"), String::new()),
-            (fixture.path().join("test.txt"), "File content".to_string()),
-        ];
         assert_eq!(actual, expected);
     }
 }
