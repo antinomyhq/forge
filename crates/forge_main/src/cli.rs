@@ -166,6 +166,7 @@ pub struct IndexCommandGroup {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum IndexCommand {
+    /// Synchronize and index a directory for semantic search.
     Sync {
         /// Path to the directory to index (used when no subcommand is
         /// provided).
