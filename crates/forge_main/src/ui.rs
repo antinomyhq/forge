@@ -2686,9 +2686,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 Ok(())
             }
             Err(e) => {
-                self.spinner
-                    .stop(Some("Failed to list workspaces".to_string()))?;
-                self.writeln_to_stderr(format!("Failed to list workspaces: {}", e))?;
+                self.spinner.stop(None)?;
                 Err(e)
             }
         }
