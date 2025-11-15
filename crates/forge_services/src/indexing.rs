@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use forge_app::utils::format_display_path;
 use forge_app::{CodebaseService, FileReaderInfra, Walker, WalkerInfra, compute_hash};
 use forge_domain::{CodebaseRepository, IndexStats, UserId, WorkspaceId, WorkspaceRepository};
 use futures::future::join_all;
@@ -51,7 +50,6 @@ impl<F> ForgeIndexingService<F> {
         user_id: &UserId,
         workspace_id: &WorkspaceId,
         local_file_map: &HashMap<String, String>,
-        workspace_root: &Path,
     ) -> Result<HashMap<String, String>>
     where
         F: CodebaseRepository,
@@ -64,15 +62,7 @@ impl<F> ForgeIndexingService<F> {
             .list_workspace_files(&workspace_files)
             .await
             .map(|files| {
-                let hashes: HashMap<_, _> = files
-                    .into_iter()
-                    .map(|f| {
-                        // Normalize path to handle legacy absolute paths
-                        let normalized_path =
-                            format_display_path(&PathBuf::from(&f.path), workspace_root);
-                        (normalized_path, f.hash)
-                    })
-                    .collect();
+                let hashes: HashMap<_, _> = files.into_iter().map(|f| (f.path, f.hash)).collect();
                 info!("Found {} files on server", hashes.len());
                 hashes
             })
@@ -110,7 +100,6 @@ impl<F> ForgeIndexingService<F> {
         is_new_workspace: bool,
         user_id: &UserId,
         workspace_id: &WorkspaceId,
-        workspace_root: &Path,
     ) -> Result<Vec<(String, String)>>
     where
         F: WorkspaceRepository + CodebaseRepository,
@@ -127,7 +116,7 @@ impl<F> ForgeIndexingService<F> {
         let server_hashes = if is_new_workspace {
             HashMap::new()
         } else {
-            self.sync_server_files(user_id, workspace_id, &local_file_map, workspace_root)
+            self.sync_server_files(user_id, workspace_id, &local_file_map)
                 .await?
         };
 
@@ -240,13 +229,7 @@ impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra
 
         // Determine which files need to be uploaded
         let files_to_upload = self
-            .find_files_to_upload(
-                all_files,
-                is_new_workspace,
-                &user_id,
-                &workspace_id,
-                &canonical_path,
-            )
+            .find_files_to_upload(all_files, is_new_workspace, &user_id, &workspace_id)
             .await?;
 
         // Early exit if nothing to upload
@@ -399,7 +382,7 @@ mod tests {
         files: HashMap<String, String>,
         workspace: Option<Workspace>,
         search_results: Vec<CodeSearchResult>,
-        workspaces: Vec<WorkspaceInfo>,
+        workspaces: Arc<tokio::sync::Mutex<Vec<WorkspaceInfo>>>,
         server_files: Vec<FileHash>,
         deleted_files: Arc<tokio::sync::Mutex<Vec<String>>>,
         uploaded_files: Arc<tokio::sync::Mutex<Vec<String>>>,
@@ -494,6 +477,9 @@ mod tests {
         async fn get_user_id(&self) -> Result<Option<UserId>> {
             Ok(self.workspace.as_ref().map(|w| w.user_id.clone()))
         }
+        async fn delete(&self, _: &WorkspaceId) -> Result<()> {
+            Ok(())
+        }
     }
 
     #[async_trait]
@@ -512,7 +498,7 @@ mod tests {
             Ok(self.search_results.clone())
         }
         async fn list_workspaces(&self, _: &UserId) -> Result<Vec<WorkspaceInfo>> {
-            Ok(self.workspaces.clone())
+            Ok(self.workspaces.lock().await.clone())
         }
         async fn list_workspace_files(&self, _: &WorkspaceFiles) -> Result<Vec<FileHash>> {
             Ok(self.server_files.clone())
@@ -522,6 +508,13 @@ mod tests {
                 .lock()
                 .await
                 .extend(deletion.data.clone());
+            Ok(())
+        }
+        async fn delete_workspace(&self, _: &UserId, workspace_id: &WorkspaceId) -> Result<()> {
+            self.workspaces
+                .lock()
+                .await
+                .retain(|w| w.workspace_id != *workspace_id);
             Ok(())
         }
     }
@@ -595,11 +588,11 @@ mod tests {
     #[tokio::test]
     async fn test_list_codebases() {
         let ws = workspace();
-        let mut mock = MockInfra::synced(&["test.rs"]);
-        mock.workspaces = vec![WorkspaceInfo {
+        let mock = MockInfra::synced(&["test.rs"]);
+        mock.workspaces.lock().await.push(WorkspaceInfo {
             workspace_id: ws.workspace_id,
             working_dir: "/project".into(),
-        }];
+        });
         let service = ForgeIndexingService::new(Arc::new(mock));
 
         let actual = service.list_codebase().await.unwrap();
@@ -664,5 +657,21 @@ mod tests {
         assert_eq!(deleted.len(), 1);
         assert!(deleted.contains(&"old.rs".into()));
         assert!(mock.uploaded_files.lock().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_delete_codebase() {
+        let ws = workspace();
+        let mock = MockInfra::synced(&["main.rs"]);
+        mock.workspaces.lock().await.push(WorkspaceInfo {
+            workspace_id: ws.workspace_id.clone(),
+            working_dir: "/project".into(),
+        });
+        let service = ForgeIndexingService::new(Arc::new(mock));
+
+        service.delete_codebase(&ws.workspace_id).await.unwrap();
+
+        let actual = service.list_codebase().await.unwrap();
+        assert!(!actual.iter().any(|w| w.workspace_id == ws.workspace_id));
     }
 }
