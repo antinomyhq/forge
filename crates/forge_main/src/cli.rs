@@ -206,6 +206,7 @@ pub enum IndexCommand {
     /// Delete a workspace.
     Delete {
         /// Workspace ID to delete
+        #[arg(short = 'w', long)]
         workspace_id: String,
 
         /// Skip confirmation prompt
