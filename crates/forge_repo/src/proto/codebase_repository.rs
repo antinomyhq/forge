@@ -206,7 +206,7 @@ impl CodebaseRepository for CodebaseRepositoryImpl {
             .into_iter()
             .filter_map(|file_ref_node| {
                 let data = file_ref_node.data?;
-                Some(forge_domain::FileHash { path: data.path, hash: file_ref_node.hash })
+                Some(forge_domain::FileHash { path: data.path, hash: data.file_hash })
             })
             .collect();
 
