@@ -5,10 +5,10 @@ use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse,
-    AuthCredential, AuthMethod, ChatCompletionMessage, CommandOutput, Context, Conversation,
-    ConversationId, Environment, File, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model,
-    ModelId, PatchOperation, Provider, ProviderId, ResultStream, Scope, Template, ToolCallFull,
-    ToolOutput, Workflow,
+    AuthCredential, AuthMethod, ChatCompletionMessage, CodeSearchResult, CommandOutput, Context,
+    Conversation, ConversationId, Environment, File, Image, IndexStats, InitAuth, LoginInfo,
+    McpConfig, McpServers, Model, ModelId, PatchOperation, Provider, ProviderId, ResultStream,
+    Scope, SearchParams, Template, ToolCallFull, ToolOutput, Workflow, WorkspaceId, WorkspaceInfo,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -229,6 +229,26 @@ pub trait EnvironmentService: Send + Sync {
 #[async_trait::async_trait]
 pub trait CustomInstructionsService: Send + Sync {
     async fn get_custom_instructions(&self) -> Vec<String>;
+}
+
+/// Service for indexing codebases for semantic search
+#[async_trait::async_trait]
+pub trait CodebaseService: Send + Sync {
+    /// Index the codebase at the given path
+    async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> anyhow::Result<IndexStats>;
+
+    /// Query the indexed codebase with semantic search
+    async fn query_codebase(
+        &self,
+        path: PathBuf,
+        params: SearchParams<'_>,
+    ) -> anyhow::Result<Vec<CodeSearchResult>>;
+
+    /// List all workspaces indexed by the user
+    async fn list_codebase(&self) -> anyhow::Result<Vec<WorkspaceInfo>>;
+
+    /// Delete a workspace and all its indexed data
+    async fn delete_codebase(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -478,6 +498,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type CommandLoaderService: CommandLoaderService;
     type PolicyService: PolicyService;
     type ProviderAuthService: ProviderAuthService;
+    type CodebaseService: CodebaseService;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn config_service(&self) -> &Self::AppConfigService;
@@ -506,6 +527,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn command_loader_service(&self) -> &Self::CommandLoaderService;
     fn policy_service(&self) -> &Self::PolicyService;
     fn provider_auth_service(&self) -> &Self::ProviderAuthService;
+    fn codebase_service(&self) -> &Self::CodebaseService;
 }
 
 #[async_trait::async_trait]
@@ -945,5 +967,30 @@ impl<I: Services> ProviderAuthService for I {
         self.provider_auth_service()
             .refresh_provider_credential(provider, method)
             .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> CodebaseService for I {
+    async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> anyhow::Result<IndexStats> {
+        self.codebase_service()
+            .sync_codebase(path, batch_size)
+            .await
+    }
+
+    async fn query_codebase(
+        &self,
+        path: PathBuf,
+        params: SearchParams<'_>,
+    ) -> anyhow::Result<Vec<CodeSearchResult>> {
+        self.codebase_service().query_codebase(path, params).await
+    }
+
+    async fn list_codebase(&self) -> anyhow::Result<Vec<WorkspaceInfo>> {
+        self.codebase_service().list_codebase().await
+    }
+
+    async fn delete_codebase(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()> {
+        self.codebase_service().delete_codebase(workspace_id).await
     }
 }

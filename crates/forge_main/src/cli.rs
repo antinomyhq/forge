@@ -127,6 +127,9 @@ pub enum TopLevelCommand {
 
     /// Run or list custom commands.
     Cmd(CmdCommandGroup),
+
+    /// Manage codebases for semantic search.
+    Index(IndexCommandGroup),
 }
 
 /// Command group for custom command management.
@@ -152,6 +155,64 @@ pub enum CmdCommand {
     /// Execute a custom command.
     #[command(external_subcommand)]
     Execute(Vec<String>),
+}
+
+/// Command group for codebase management.
+#[derive(Parser, Debug, Clone)]
+pub struct IndexCommandGroup {
+    #[command(subcommand)]
+    pub command: IndexCommand,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum IndexCommand {
+    /// Synchronize a directory for semantic search.
+    Sync {
+        /// Path to the directory to sync
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Number of files to upload per batch. Reduce this if you encounter
+        /// token limit errors.
+        #[arg(long, default_value = "10")]
+        batch_size: usize,
+    },
+    /// List all workspaces.
+    List {
+        /// Output in machine-readable format
+        #[arg(short, long)]
+        porcelain: bool,
+    },
+
+    /// Query the codebase.
+    Query {
+        /// Search query.
+        query: String,
+
+        /// Path to the directory to index (used when no subcommand is
+        /// provided).
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Maximum number of results to return.
+        #[arg(short, long, default_value = "10")]
+        limit: usize,
+
+        /// Number of highest probability tokens to consider (1-1000).
+        #[arg(long)]
+        top_k: Option<u32>,
+    },
+
+    /// Delete a workspace.
+    Delete {
+        /// Workspace ID to delete
+        #[arg(short = 'w', long)]
+        workspace_id: String,
+
+        /// Skip confirmation prompt
+        #[arg(short = 'y', long)]
+        yes: bool,
+    },
 }
 
 /// Command group for listing resources.

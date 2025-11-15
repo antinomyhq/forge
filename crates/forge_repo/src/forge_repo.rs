@@ -34,6 +34,8 @@ pub struct ForgeRepo<F> {
     app_config_repository: Arc<AppConfigRepositoryImpl<F>>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
+    indexing_repository: Arc<crate::indexing::IndexingRepositoryImpl>,
+    codebase_repo: Arc<crate::CodebaseRepositoryImpl>,
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
@@ -42,8 +44,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
         let db_pool =
             Arc::new(DatabasePool::try_from(PoolConfig::new(env.database_path())).unwrap());
-        let conversation_repository =
-            Arc::new(ConversationRepositoryImpl::new(db_pool, env.workspace_id()));
+        let conversation_repository = Arc::new(ConversationRepositoryImpl::new(
+            db_pool.clone(),
+            env.workspace_hash(),
+        ));
 
         let app_config_repository = Arc::new(AppConfigRepositoryImpl::new(infra.clone()));
 
@@ -54,6 +58,21 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
 
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
 
+        let indexing_repository = Arc::new(crate::indexing::IndexingRepositoryImpl::new(
+            db_pool.clone(),
+        ));
+
+        // Create codebase repository - requires FORGE_INDEX_SERVER_URL environment
+        // variable
+        let indexing_server_url = infra
+            .get_env_var("FORGE_INDEX_SERVER_URL")
+            .unwrap_or_else(|| "http://localhost:8080".to_string());
+
+        let codebase_repo = Arc::new(
+            crate::CodebaseRepositoryImpl::new(indexing_server_url)
+                .expect("Failed to create codebase repository"),
+        );
+
         Self {
             infra,
             file_snapshot_service,
@@ -61,6 +80,8 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
             app_config_repository,
             mcp_cache_repository,
             provider_repository,
+            indexing_repository,
+            codebase_repo,
         }
     }
 }
@@ -386,5 +407,89 @@ impl<F: StrategyFactory> StrategyFactory for ForgeRepo<F> {
     ) -> anyhow::Result<Self::Strategy> {
         self.infra
             .create_auth_strategy(provider_id, auth_method, required_params)
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
+    async fn upsert(
+        &self,
+        workspace_id: &forge_domain::WorkspaceId,
+        user_id: &forge_domain::UserId,
+        path: &std::path::Path,
+    ) -> anyhow::Result<()> {
+        self.indexing_repository
+            .upsert(workspace_id, user_id, path)
+            .await
+    }
+
+    async fn find_by_path(
+        &self,
+        path: &std::path::Path,
+    ) -> anyhow::Result<Option<forge_domain::Workspace>> {
+        self.indexing_repository.find_by_path(path).await
+    }
+
+    async fn get_user_id(&self) -> anyhow::Result<Option<forge_domain::UserId>> {
+        self.indexing_repository.get_user_id().await
+    }
+
+    async fn delete(&self, workspace_id: &forge_domain::WorkspaceId) -> anyhow::Result<()> {
+        self.indexing_repository.delete(workspace_id).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: Send + Sync> forge_domain::CodebaseRepository for ForgeRepo<F> {
+    async fn create_workspace(
+        &self,
+        user_id: &forge_domain::UserId,
+        working_dir: &std::path::Path,
+    ) -> anyhow::Result<forge_domain::WorkspaceId> {
+        self.codebase_repo
+            .create_workspace(user_id, working_dir)
+            .await
+    }
+
+    async fn upload_files(
+        &self,
+        upload: &forge_domain::FileUpload,
+    ) -> anyhow::Result<forge_domain::UploadStats> {
+        self.codebase_repo.upload_files(upload).await
+    }
+
+    async fn search(
+        &self,
+        query: &forge_domain::CodeSearchQuery<'_>,
+    ) -> anyhow::Result<Vec<forge_domain::CodeSearchResult>> {
+        self.codebase_repo.search(query).await
+    }
+
+    async fn list_workspaces(
+        &self,
+        user_id: &forge_domain::UserId,
+    ) -> anyhow::Result<Vec<forge_domain::WorkspaceInfo>> {
+        self.codebase_repo.list_workspaces(user_id).await
+    }
+
+    async fn list_workspace_files(
+        &self,
+        workspace: &forge_domain::WorkspaceFiles,
+    ) -> anyhow::Result<Vec<forge_domain::FileHash>> {
+        self.codebase_repo.list_workspace_files(workspace).await
+    }
+
+    async fn delete_files(&self, deletion: &forge_domain::FileDeletion) -> anyhow::Result<()> {
+        self.codebase_repo.delete_files(deletion).await
+    }
+
+    async fn delete_workspace(
+        &self,
+        user_id: &forge_domain::UserId,
+        workspace_id: &forge_domain::WorkspaceId,
+    ) -> anyhow::Result<()> {
+        self.codebase_repo
+            .delete_workspace(user_id, workspace_id)
+            .await
     }
 }

@@ -5,7 +5,7 @@ use url::Url;
 
 use crate::{
     AnyProvider, AppConfig, AuthCredential, Conversation, ConversationId, Provider, ProviderId,
-    Snapshot,
+    Snapshot, UserId, Workspace, WorkspaceId,
 };
 
 /// Repository for managing file snapshots
@@ -92,4 +92,64 @@ pub trait ProviderRepository: Send + Sync {
     async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()>;
     async fn get_credential(&self, id: &ProviderId) -> anyhow::Result<Option<AuthCredential>>;
     async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()>;
+}
+
+/// Repository for managing workspace metadata in local database
+#[async_trait::async_trait]
+pub trait WorkspaceRepository: Send + Sync {
+    /// Save or update a workspace
+    async fn upsert(
+        &self,
+        workspace_id: &WorkspaceId,
+        user_id: &UserId,
+        path: &std::path::Path,
+    ) -> anyhow::Result<()>;
+
+    /// Find workspace by path
+    async fn find_by_path(&self, path: &std::path::Path) -> anyhow::Result<Option<Workspace>>;
+
+    /// Get user ID from any workspace, or None if no workspaces exist
+    async fn get_user_id(&self) -> anyhow::Result<Option<UserId>>;
+
+    /// Delete workspace from local database
+    async fn delete(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()>;
+}
+
+/// Repository for managing codebase indexing and search operations
+#[async_trait::async_trait]
+pub trait CodebaseRepository: Send + Sync {
+    /// Create a new workspace on the indexing server
+    async fn create_workspace(
+        &self,
+        user_id: &UserId,
+        working_dir: &std::path::Path,
+    ) -> anyhow::Result<WorkspaceId>;
+
+    /// Upload files to be indexed
+    async fn upload_files(&self, upload: &crate::FileUpload) -> anyhow::Result<crate::UploadStats>;
+
+    /// Search the indexed codebase using semantic search
+    async fn search(
+        &self,
+        query: &crate::CodeSearchQuery<'_>,
+    ) -> anyhow::Result<Vec<crate::CodeSearchResult>>;
+
+    /// List all workspaces for a user
+    async fn list_workspaces(&self, user_id: &UserId) -> anyhow::Result<Vec<crate::WorkspaceInfo>>;
+
+    /// List all files in a workspace with their hashes
+    async fn list_workspace_files(
+        &self,
+        workspace: &crate::WorkspaceFiles,
+    ) -> anyhow::Result<Vec<crate::FileHash>>;
+
+    /// Delete files from a workspace
+    async fn delete_files(&self, deletion: &crate::FileDeletion) -> anyhow::Result<()>;
+
+    /// Delete a workspace and all its indexed data
+    async fn delete_workspace(
+        &self,
+        user_id: &UserId,
+        workspace_id: &WorkspaceId,
+    ) -> anyhow::Result<()>;
 }
