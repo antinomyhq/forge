@@ -136,19 +136,13 @@ impl IndexStats {
 }
 
 /// Statistics from uploading files to the codebase server
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct UploadStats {
     /// Number of code nodes created
     pub nodes_created: usize,
     /// Number of relations created
     pub relations_created: usize,
-}
-
-impl Default for UploadStats {
-    fn default() -> Self {
-        Self::new(0, 0)
-    }
 }
 
 impl std::ops::Add for UploadStats {
