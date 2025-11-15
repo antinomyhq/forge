@@ -14,10 +14,6 @@ impl FileInfoInfra for ForgeFileMetaService {
         forge_fs::ForgeFS::is_binary_file(path).await
     }
 
-    async fn is_dir(&self, path: &Path) -> Result<bool> {
-        Ok(path.is_dir())
-    }
-
     async fn exists(&self, path: &Path) -> Result<bool> {
         Ok(forge_fs::ForgeFS::exists(path))
     }

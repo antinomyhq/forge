@@ -134,10 +134,6 @@ impl FileInfoInfra for ForgeInfra {
         self.file_meta_service.is_file(path).await
     }
 
-    async fn is_dir(&self, path: &Path) -> anyhow::Result<bool> {
-        self.file_meta_service.is_dir(path).await
-    }
-
     async fn exists(&self, path: &Path) -> anyhow::Result<bool> {
         self.file_meta_service.exists(path).await
     }

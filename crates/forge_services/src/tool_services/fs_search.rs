@@ -261,10 +261,6 @@ mod test {
             Ok(self.binary_exts.contains(ext.unwrap_or("")))
         }
 
-        async fn is_dir(&self, path: &Path) -> anyhow::Result<bool> {
-            Ok(path.is_dir())
-        }
-
         async fn exists(&self, _path: &Path) -> anyhow::Result<bool> {
             unreachable!()
         }

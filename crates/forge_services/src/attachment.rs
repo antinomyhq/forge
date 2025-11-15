@@ -45,8 +45,8 @@ impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfr
             path = self.infra.get_environment().cwd.join(path);
         }
 
-        // Check if path is a directory
-        if self.infra.is_dir(&path).await? {
+        // Check if path is a directory (exists but is not a file)
+        if self.infra.exists(&path).await? && !self.infra.is_file(&path).await? {
             // List all entries (files and directories) efficiently without reading file
             // contents
             let dir_entries = self.infra.list_directory_entries(&path).await?;
@@ -393,16 +393,6 @@ pub mod tests {
             Ok(ext.map(|e| self.binary_exts.contains(&e)).unwrap_or(false))
         }
 
-        async fn is_dir(&self, path: &Path) -> anyhow::Result<bool> {
-            Ok(self
-                .files
-                .lock()
-                .unwrap()
-                .iter()
-                .filter(|v| v.0.extension().is_none())
-                .any(|(p, _)| p == path))
-        }
-
         async fn exists(&self, path: &Path) -> anyhow::Result<bool> {
             Ok(self.files.lock().unwrap().iter().any(|(p, _)| p == path))
         }
@@ -669,10 +659,6 @@ pub mod tests {
 
         async fn is_file(&self, path: &Path) -> anyhow::Result<bool> {
             self.file_service.is_file(path).await
-        }
-
-        async fn is_dir(&self, path: &Path) -> anyhow::Result<bool> {
-            self.file_service.is_dir(path).await
         }
 
         async fn exists(&self, path: &Path) -> anyhow::Result<bool> {

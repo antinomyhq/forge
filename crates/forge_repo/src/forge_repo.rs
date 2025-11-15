@@ -258,9 +258,6 @@ where
     async fn is_file(&self, path: &Path) -> anyhow::Result<bool> {
         self.infra.is_file(path).await
     }
-    async fn is_dir(&self, path: &Path) -> anyhow::Result<bool> {
-        self.infra.is_dir(path).await
-    }
     async fn exists(&self, path: &Path) -> anyhow::Result<bool> {
         self.infra.exists(path).await
     }
