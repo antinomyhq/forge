@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::utils::format_display_path;
 use forge_app::{
-    EnvironmentInfra, FileReaderInfra, IndexingClientInfra, IndexingService, Walker, WalkerInfra,
+    EnvironmentInfra, FileReaderInfra, CodebaseRepository, IndexingService, Walker, WalkerInfra,
     compute_hash,
 };
 use forge_domain::{IndexStats, IndexWorkspaceId, WorkspaceRepository, UserId};
@@ -70,7 +70,7 @@ impl<F> ForgeIndexingService<F> {
         workspace_root: &Path,
     ) -> Result<HashMap<String, String>>
     where
-        F: IndexingClientInfra,
+        F: CodebaseRepository,
     {
         info!("Fetching existing file hashes from server to detect changes...");
         let server_hashes = self
@@ -125,7 +125,7 @@ impl<F> ForgeIndexingService<F> {
         workspace_root: &Path,
     ) -> Result<Vec<(String, String)>>
     where
-        F: WorkspaceRepository + IndexingClientInfra,
+        F: WorkspaceRepository + CodebaseRepository,
     {
         let total_file_count = all_files.len();
 
@@ -216,7 +216,7 @@ impl<F> ForgeIndexingService<F> {
 }
 
 #[async_trait]
-impl<F: WorkspaceRepository + IndexingClientInfra + WalkerInfra + FileReaderInfra + EnvironmentInfra>
+impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra + EnvironmentInfra>
     IndexingService for ForgeIndexingService<F>
 {
     async fn index(&self, path: PathBuf) -> Result<IndexStats> {
@@ -493,7 +493,7 @@ mod tests {
     }
 
     #[async_trait]
-    impl IndexingClientInfra for MockInfra {
+    impl CodebaseRepository for MockInfra {
         async fn create_workspace(&self, _: &UserId, _: &Path) -> Result<IndexWorkspaceId> {
             Ok(IndexWorkspaceId::generate())
         }

@@ -423,7 +423,7 @@ impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: forge_app::IndexingClientInfra> forge_app::IndexingClientInfra for ForgeRepo<F> {
+impl<F: forge_app::CodebaseRepository> forge_app::CodebaseRepository for ForgeRepo<F> {
     async fn create_workspace(
         &self,
         user_id: &forge_domain::UserId,

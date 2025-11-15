@@ -282,7 +282,7 @@ impl StrategyFactory for ForgeInfra {
 }
 
 #[async_trait::async_trait]
-impl forge_app::IndexingClientInfra for ForgeInfra {
+impl forge_app::CodebaseRepository for ForgeInfra {
     async fn create_workspace(
         &self,
         user_id: &forge_domain::UserId,

@@ -212,7 +212,7 @@ pub trait DirectoryReaderInfra: Send + Sync {
 
 /// Infrastructure trait for indexing operations
 #[async_trait::async_trait]
-pub trait IndexingClientInfra: Send + Sync {
+pub trait CodebaseRepository: Send + Sync {
     /// Create a new workspace on the indexing server
     async fn create_workspace(
         &self,

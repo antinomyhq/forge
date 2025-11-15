@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use forge_app::{
     CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
-    FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, IndexingClientInfra, KVStore,
+    FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, CodebaseRepository, KVStore,
     McpServerInfra, Services, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
@@ -52,7 +52,7 @@ pub struct ForgeServices<
         + KVStore
         + ProviderRepository
         + forge_domain::WorkspaceRepository
-        + forge_app::IndexingClientInfra,
+        + forge_app::CodebaseRepository,
 > {
     chat_service: Arc<ForgeProviderService<F>>,
     config_service: Arc<ForgeAppConfigService<F>>,
@@ -101,7 +101,7 @@ impl<
         + ProviderRepository
         + KVStore
         + forge_domain::WorkspaceRepository
-        + forge_app::IndexingClientInfra,
+        + forge_app::CodebaseRepository,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -189,7 +189,7 @@ impl<
         + ProviderRepository
         + StrategyFactory
         + WorkspaceRepository
-        + IndexingClientInfra
+        + CodebaseRepository
         + Clone
         + 'static,
 > Services for ForgeServices<F>

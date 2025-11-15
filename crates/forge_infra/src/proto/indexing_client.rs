@@ -1,6 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use forge_app::IndexingClientInfra;
+use forge_app::CodebaseRepository;
 use forge_domain::{
     CodeSearchResult, IndexWorkspaceId, UploadStats, UserId as DomainUserId, WorkspaceInfo,
 };
@@ -31,7 +31,7 @@ impl IndexingClient {
 }
 
 #[async_trait]
-impl IndexingClientInfra for IndexingClient {
+impl CodebaseRepository for IndexingClient {
     async fn create_workspace(
         &self,
         user_id: &DomainUserId,
