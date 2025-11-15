@@ -316,11 +316,12 @@ pub mod tests {
             for (path, content) in files.iter() {
                 // Check if this entry is a direct child of the directory
                 if let Some(parent) = path.parent()
-                    && parent == directory {
-                        // Check if it's a directory (empty bytes)
-                        let is_dir = content.is_empty();
-                        results.push((path.clone(), is_dir));
-                    }
+                    && parent == directory
+                {
+                    // Check if it's a directory (empty bytes)
+                    let is_dir = content.is_empty();
+                    results.push((path.clone(), is_dir));
+                }
             }
 
             Ok(results)
@@ -337,10 +338,11 @@ pub mod tests {
             for (path, content) in files.iter() {
                 // Check if this entry is a direct child of the directory
                 if let Some(parent) = path.parent()
-                    && parent == directory {
-                        let content_str = String::from_utf8(content.to_vec()).unwrap_or_default();
-                        results.push((path.clone(), content_str));
-                    }
+                    && parent == directory
+                {
+                    let content_str = String::from_utf8(content.to_vec()).unwrap_or_default();
+                    results.push((path.clone(), content_str));
+                }
             }
 
             Ok(results)
