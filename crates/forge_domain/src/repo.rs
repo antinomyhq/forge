@@ -4,8 +4,8 @@ use anyhow::Result;
 use url::Url;
 
 use crate::{
-    AnyProvider, AppConfig, AuthCredential, Conversation, ConversationId, Provider, ProviderId,
-    Snapshot, UserId, Workspace, WorkspaceId,
+    AnyProvider, AppConfig, AuthCredential, Conversation, ConversationId, IndexingAuth, Provider,
+    ProviderId, Snapshot, UserId, Workspace, WorkspaceId,
 };
 
 /// Repository for managing file snapshots
@@ -115,6 +115,23 @@ pub trait WorkspaceRepository: Send + Sync {
     async fn delete(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()>;
 }
 
+/// Repository for managing indexing service authentication
+
+#[async_trait::async_trait]
+pub trait IndexingAuthRepository: Send + Sync {
+    /// Authenticate with the indexing service via HTTP API
+    async fn authenticate(&self) -> anyhow::Result<IndexingAuth>;
+
+    /// Get stored authentication token for the current user
+    async fn get_key(&self) -> anyhow::Result<Option<crate::ApiKey>>;
+
+    /// Get the stored user_id
+    async fn get_user_id(&self) -> anyhow::Result<Option<UserId>>;
+
+    /// Delete stored authentication (both user_id and token)
+    async fn logout(&self) -> anyhow::Result<()>;
+}
+
 /// Repository for managing codebase indexing and search operations
 #[async_trait::async_trait]
 pub trait CodebaseRepository: Send + Sync {
@@ -123,33 +140,49 @@ pub trait CodebaseRepository: Send + Sync {
         &self,
         user_id: &UserId,
         working_dir: &std::path::Path,
+        auth_token: &crate::ApiKey,
     ) -> anyhow::Result<WorkspaceId>;
 
     /// Upload files to be indexed
-    async fn upload_files(&self, upload: &crate::FileUpload) -> anyhow::Result<crate::UploadStats>;
+    async fn upload_files(
+        &self,
+        upload: &crate::FileUpload,
+        auth_token: &crate::ApiKey,
+    ) -> anyhow::Result<crate::UploadStats>;
 
     /// Search the indexed codebase using semantic search
     async fn search(
         &self,
         query: &crate::CodeSearchQuery<'_>,
+        auth_token: &crate::ApiKey,
     ) -> anyhow::Result<Vec<crate::CodeSearchResult>>;
 
     /// List all workspaces for a user
-    async fn list_workspaces(&self, user_id: &UserId) -> anyhow::Result<Vec<crate::WorkspaceInfo>>;
+    async fn list_workspaces(
+        &self,
+        user_id: &UserId,
+        auth_token: &crate::ApiKey,
+    ) -> anyhow::Result<Vec<crate::WorkspaceInfo>>;
 
     /// List all files in a workspace with their hashes
     async fn list_workspace_files(
         &self,
         workspace: &crate::WorkspaceFiles,
+        auth_token: &crate::ApiKey,
     ) -> anyhow::Result<Vec<crate::FileHash>>;
 
     /// Delete files from a workspace
-    async fn delete_files(&self, deletion: &crate::FileDeletion) -> anyhow::Result<()>;
+    async fn delete_files(
+        &self,
+        deletion: &crate::FileDeletion,
+        auth_token: &crate::ApiKey,
+    ) -> anyhow::Result<()>;
 
     /// Delete a workspace and all its indexed data
     async fn delete_workspace(
         &self,
         user_id: &UserId,
         workspace_id: &WorkspaceId,
+        auth_token: &crate::ApiKey,
     ) -> anyhow::Result<()>;
 }

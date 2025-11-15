@@ -4,6 +4,27 @@ use uuid::Uuid;
 
 use crate::WorkspaceId;
 
+/// Stored authentication token for the indexing service (no expiry)
+///
+/// Associates a user with their indexing service authentication token
+/// obtained from the remote authentication API.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IndexingAuth {
+    /// User ID that owns this authentication
+    pub user_id: UserId,
+    /// Authentication token (obtained from HTTP API)
+    pub token: crate::ApiKey,
+    /// When this token was stored locally
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl IndexingAuth {
+    /// Create a new indexing auth record
+    pub fn new(user_id: UserId, token: crate::ApiKey) -> Self {
+        Self { user_id, token, created_at: chrono::Utc::now() }
+    }
+}
+
 /// File content for upload to codebase server
 ///
 /// Contains the file path (relative to workspace root) and its textual content
