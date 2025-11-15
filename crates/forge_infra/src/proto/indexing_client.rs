@@ -68,7 +68,7 @@ impl CodebaseRepository for IndexingClient {
         workspace_id: &IndexWorkspaceId,
         files: Vec<forge_domain::FileRead>,
     ) -> Result<UploadStats> {
-        let proto_files: Vec<File> = files
+        let files: Vec<File> = files
             .into_iter()
             .map(|file_read| File { path: file_read.path, content: file_read.content })
             .collect();
@@ -76,7 +76,7 @@ impl CodebaseRepository for IndexingClient {
         let request = UploadFilesRequest {
             user_id: Some(UserId { id: user_id.to_string() }),
             workspace_id: Some(WorkspaceId { id: workspace_id.to_string() }),
-            content: Some(FileUploadContent { files: proto_files, git: None }),
+            content: Some(FileUploadContent { files: files, git: None }),
         };
 
         let mut client = self.client.clone();
