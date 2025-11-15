@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use chrono::{NaiveDateTime, Utc};
 use diesel::prelude::*;
-use forge_domain::{IndexWorkspaceId, IndexedWorkspace, IndexingRepository, UserId};
+use forge_domain::{IndexWorkspaceId, Workspace, WorkspaceRepository, UserId};
 
 use crate::database::schema::indexing;
 use crate::database::DatabasePool;
@@ -32,7 +32,7 @@ impl IndexingRecord {
     }
 }
 
-impl TryFrom<IndexingRecord> for IndexedWorkspace {
+impl TryFrom<IndexingRecord> for Workspace {
     type Error = anyhow::Error;
 
     fn try_from(record: IndexingRecord) -> anyhow::Result<Self> {
@@ -61,7 +61,7 @@ impl IndexingRepositoryImpl {
 }
 
 #[async_trait::async_trait]
-impl IndexingRepository for IndexingRepositoryImpl {
+impl WorkspaceRepository for IndexingRepositoryImpl {
     async fn upsert(
         &self,
         workspace_id: &IndexWorkspaceId,
@@ -82,14 +82,14 @@ impl IndexingRepository for IndexingRepositoryImpl {
     async fn find_by_path(
         &self,
         path: &std::path::Path,
-    ) -> anyhow::Result<Option<IndexedWorkspace>> {
+    ) -> anyhow::Result<Option<Workspace>> {
         let mut connection = self.pool.get_connection()?;
         let path_str = path.to_string_lossy().into_owned();
         let record = indexing::table
             .filter(indexing::path.eq(path_str))
             .first::<IndexingRecord>(&mut connection)
             .optional()?;
-        record.map(IndexedWorkspace::try_from).transpose()
+        record.map(Workspace::try_from).transpose()
     }
 
     async fn get_user_id(&self) -> anyhow::Result<Option<UserId>> {

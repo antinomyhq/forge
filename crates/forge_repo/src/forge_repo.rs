@@ -398,7 +398,7 @@ impl<F: StrategyFactory> StrategyFactory for ForgeRepo<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: Send + Sync> forge_domain::IndexingRepository for ForgeRepo<F> {
+impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
     async fn upsert(
         &self,
         workspace_id: &forge_domain::IndexWorkspaceId,
@@ -413,7 +413,7 @@ impl<F: Send + Sync> forge_domain::IndexingRepository for ForgeRepo<F> {
     async fn find_by_path(
         &self,
         path: &std::path::Path,
-    ) -> anyhow::Result<Option<forge_domain::IndexedWorkspace>> {
+    ) -> anyhow::Result<Option<forge_domain::Workspace>> {
         self.indexing_repository.find_by_path(path).await
     }
 

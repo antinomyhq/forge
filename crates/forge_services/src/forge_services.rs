@@ -6,7 +6,7 @@ use forge_app::{
     McpServerInfra, Services, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    AppConfigRepository, ConversationRepository, IndexingRepository, ProviderRepository,
+    AppConfigRepository, ConversationRepository, WorkspaceRepository, ProviderRepository,
     SnapshotRepository,
 };
 
@@ -51,7 +51,7 @@ pub struct ForgeServices<
         + AppConfigRepository
         + KVStore
         + ProviderRepository
-        + forge_domain::IndexingRepository
+        + forge_domain::WorkspaceRepository
         + forge_app::IndexingClientInfra,
 > {
     chat_service: Arc<ForgeProviderService<F>>,
@@ -100,7 +100,7 @@ impl<
         + AppConfigRepository
         + ProviderRepository
         + KVStore
-        + forge_domain::IndexingRepository
+        + forge_domain::WorkspaceRepository
         + forge_app::IndexingClientInfra,
 > ForgeServices<F>
 {
@@ -188,7 +188,7 @@ impl<
         + KVStore
         + ProviderRepository
         + StrategyFactory
-        + IndexingRepository
+        + WorkspaceRepository
         + IndexingClientInfra
         + Clone
         + 'static,

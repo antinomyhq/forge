@@ -96,7 +96,7 @@ pub trait ProviderRepository: Send + Sync {
 
 /// Domain entity for indexed workspace
 #[derive(Debug, Clone)]
-pub struct IndexedWorkspace {
+pub struct Workspace {
     pub workspace_id: IndexWorkspaceId,
     pub user_id: UserId,
     pub path: std::path::PathBuf,
@@ -106,7 +106,7 @@ pub struct IndexedWorkspace {
 
 /// Repository for managing indexed workspaces
 #[async_trait::async_trait]
-pub trait IndexingRepository: Send + Sync {
+pub trait WorkspaceRepository: Send + Sync {
     /// Save or update an indexed workspace
     async fn upsert(
         &self,
@@ -116,7 +116,7 @@ pub trait IndexingRepository: Send + Sync {
     ) -> Result<()>;
 
     /// Find indexed workspace by path
-    async fn find_by_path(&self, path: &std::path::Path) -> Result<Option<IndexedWorkspace>>;
+    async fn find_by_path(&self, path: &std::path::Path) -> Result<Option<Workspace>>;
 
     /// Get user ID from any indexed workspace
     async fn get_user_id(&self) -> Result<Option<UserId>>;

@@ -9,7 +9,7 @@ use forge_app::{
     EnvironmentInfra, FileReaderInfra, IndexingClientInfra, IndexingService, Walker, WalkerInfra,
     compute_hash,
 };
-use forge_domain::{IndexStats, IndexWorkspaceId, IndexingRepository, UserId};
+use forge_domain::{IndexStats, IndexWorkspaceId, WorkspaceRepository, UserId};
 use futures::future::join_all;
 use tracing::{info, warn};
 
@@ -125,7 +125,7 @@ impl<F> ForgeIndexingService<F> {
         workspace_root: &Path,
     ) -> Result<Vec<(String, String)>>
     where
-        F: IndexingRepository + IndexingClientInfra,
+        F: WorkspaceRepository + IndexingClientInfra,
     {
         let total_file_count = all_files.len();
 
@@ -216,7 +216,7 @@ impl<F> ForgeIndexingService<F> {
 }
 
 #[async_trait]
-impl<F: IndexingRepository + IndexingClientInfra + WalkerInfra + FileReaderInfra + EnvironmentInfra>
+impl<F: WorkspaceRepository + IndexingClientInfra + WalkerInfra + FileReaderInfra + EnvironmentInfra>
     IndexingService for ForgeIndexingService<F>
 {
     async fn index(&self, path: PathBuf) -> Result<IndexStats> {
@@ -373,7 +373,7 @@ mod tests {
 
     use forge_app::WalkedFile;
     use forge_domain::{
-        CodeSearchResult, Environment, FileHash, FileInfo, IndexWorkspaceId, IndexedWorkspace,
+        CodeSearchResult, Environment, FileHash, FileInfo, IndexWorkspaceId, Workspace,
         UploadStats, UserId, WorkspaceInfo,
     };
     use pretty_assertions::assert_eq;
@@ -383,7 +383,7 @@ mod tests {
     #[derive(Default, Clone)]
     struct MockInfra {
         files: HashMap<String, String>,
-        workspace: Option<IndexedWorkspace>,
+        workspace: Option<Workspace>,
         search_results: Vec<CodeSearchResult>,
         workspaces: Vec<WorkspaceInfo>,
         server_files: Vec<FileHash>,
@@ -448,8 +448,8 @@ mod tests {
         }
     }
 
-    fn workspace() -> IndexedWorkspace {
-        IndexedWorkspace {
+    fn workspace() -> Workspace {
+        Workspace {
             workspace_id: IndexWorkspaceId::generate(),
             user_id: UserId::generate(),
             path: PathBuf::from("."),
@@ -480,11 +480,11 @@ mod tests {
     }
 
     #[async_trait]
-    impl IndexingRepository for MockInfra {
+    impl WorkspaceRepository for MockInfra {
         async fn upsert(&self, _: &IndexWorkspaceId, _: &UserId, _: &Path) -> Result<()> {
             Ok(())
         }
-        async fn find_by_path(&self, _: &Path) -> Result<Option<IndexedWorkspace>> {
+        async fn find_by_path(&self, _: &Path) -> Result<Option<Workspace>> {
             Ok(self.workspace.clone())
         }
         async fn get_user_id(&self) -> Result<Option<UserId>> {
