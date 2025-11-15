@@ -57,9 +57,11 @@ impl<F> ForgeIndexingService<F> {
         F: CodebaseRepository,
     {
         info!("Fetching existing file hashes from server to detect changes...");
+        let workspace_files =
+            forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), ());
         let server_hashes = self
             .infra
-            .list_workspace_files(user_id, workspace_id)
+            .list_workspace_files(&workspace_files)
             .await
             .map(|files| {
                 let hashes: HashMap<_, _> = files
@@ -89,8 +91,10 @@ impl<F> ForgeIndexingService<F> {
                 "Deleting {} old/orphaned files from server before syncing",
                 files_to_delete.len()
             );
+            let deletion =
+                forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), files_to_delete);
             self.infra
-                .delete_files(user_id, workspace_id, files_to_delete)
+                .delete_files(&deletion)
                 .await
                 .context("Failed to delete old/orphaned files")?;
         }
@@ -271,9 +275,12 @@ impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra
                 .map(|(path, content)| forge_domain::FileRead::new(path.clone(), content.clone()))
                 .collect();
 
+            let upload =
+                forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), file_reads);
+
             let stats = self
                 .infra
-                .upload_files(&user_id, &workspace_id, file_reads)
+                .upload_files(&upload)
                 .await
                 .context("Failed to upload files")?;
             total_stats = total_stats + stats;
@@ -319,15 +326,22 @@ impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra
             })?;
 
         // Step 3: Search the codebase
+        let params = forge_domain::SearchParams::new(query, limit);
+        let params = if let Some(k) = top_k {
+            params.with_top_k(k)
+        } else {
+            params
+        };
+
+        let search_query = forge_domain::CodeBase::new(
+            workspace.user_id.clone(),
+            workspace.workspace_id.clone(),
+            params,
+        );
+
         let results = self
             .infra
-            .search(
-                &workspace.user_id,
-                &workspace.workspace_id,
-                query,
-                limit,
-                top_k,
-            )
+            .search(&search_query)
             .await
             .context("Failed to search")?;
 

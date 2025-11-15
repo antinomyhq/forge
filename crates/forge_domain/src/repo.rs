@@ -158,37 +158,23 @@ pub trait CodebaseRepository: Send + Sync {
     /// Upload files to be indexed
     ///
     /// # Arguments
-    /// * `user_id` - The user ID owning the workspace
-    /// * `workspace_id` - The workspace ID to upload files to
-    /// * `files` - Vector of files to upload
+    /// * `upload` - File upload parameters containing user_id, workspace_id,
+    ///   and files
     ///
     /// # Errors
     /// Returns an error if file upload fails
-    async fn upload_files(
-        &self,
-        user_id: &UserId,
-        workspace_id: &WorkspaceId,
-        files: Vec<crate::FileRead>,
-    ) -> anyhow::Result<crate::UploadStats>;
+    async fn upload_files(&self, upload: &crate::FileUpload) -> anyhow::Result<crate::UploadStats>;
 
     /// Search the indexed codebase using semantic search
     ///
     /// # Arguments
-    /// * `user_id` - The user ID owning the workspace
-    /// * `workspace_id` - The workspace ID to search in
-    /// * `query` - The search query string
-    /// * `limit` - Maximum number of results to return
-    /// * `top_k` - Optional top-k parameter for search ranking
+    /// * `query` - The search query parameters
     ///
     /// # Errors
     /// Returns an error if the search operation fails
     async fn search(
         &self,
-        user_id: &UserId,
-        workspace_id: &WorkspaceId,
-        query: &str,
-        limit: usize,
-        top_k: Option<u32>,
+        query: &crate::CodeSearchQuery<'_>,
     ) -> anyhow::Result<Vec<crate::CodeSearchResult>>;
 
     /// List all workspaces for a user
@@ -203,30 +189,22 @@ pub trait CodebaseRepository: Send + Sync {
     /// List all files in a workspace with their hashes
     ///
     /// # Arguments
-    /// * `user_id` - The user ID owning the workspace
-    /// * `workspace_id` - The workspace ID to list files from
+    /// * `workspace` - Workspace parameters containing user_id and workspace_id
     ///
     /// # Errors
     /// Returns an error if the operation fails
     async fn list_workspace_files(
         &self,
-        user_id: &UserId,
-        workspace_id: &WorkspaceId,
+        workspace: &crate::WorkspaceFiles,
     ) -> anyhow::Result<Vec<crate::FileHash>>;
 
     /// Delete files from a workspace
     ///
     /// # Arguments
-    /// * `user_id` - The user ID owning the workspace
-    /// * `workspace_id` - The workspace ID to delete files from
-    /// * `file_paths` - Vector of file paths to delete
+    /// * `deletion` - Deletion parameters containing user_id, workspace_id, and
+    ///   file paths
     ///
     /// # Errors
     /// Returns an error if the deletion fails
-    async fn delete_files(
-        &self,
-        user_id: &UserId,
-        workspace_id: &WorkspaceId,
-        file_paths: Vec<String>,
-    ) -> anyhow::Result<()>;
+    async fn delete_files(&self, deletion: &crate::FileDeletion) -> anyhow::Result<()>;
 }

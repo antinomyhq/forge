@@ -61,20 +61,21 @@ impl CodebaseRepository for CodebaseRepositoryImpl {
             .context("Failed to parse workspace ID from server response")
     }
 
-    async fn upload_files(
-        &self,
-        user_id: &DomainUserId,
-        workspace_id: &WorkspaceId,
-        files: Vec<forge_domain::FileRead>,
-    ) -> Result<UploadStats> {
-        let files: Vec<File> = files
-            .into_iter()
-            .map(|file_read| File { path: file_read.path, content: file_read.content })
+    async fn upload_files(&self, upload: &forge_domain::FileUpload) -> Result<UploadStats> {
+        let files: Vec<File> = upload
+            .data
+            .iter()
+            .map(|file_read| File {
+                path: file_read.path.clone(),
+                content: file_read.content.clone(),
+            })
             .collect();
 
         let request = UploadFilesRequest {
-            user_id: Some(UserId { id: user_id.to_string() }),
-            workspace_id: Some(proto_generated::WorkspaceId { id: workspace_id.to_string() }),
+            user_id: Some(UserId { id: upload.user_id.to_string() }),
+            workspace_id: Some(proto_generated::WorkspaceId {
+                id: upload.workspace_id.to_string(),
+            }),
             content: Some(FileUploadContent { files, git: None }),
         };
 
@@ -92,19 +93,17 @@ impl CodebaseRepository for CodebaseRepositoryImpl {
     /// Search for code using semantic search
     async fn search(
         &self,
-        user_id: &DomainUserId,
-        workspace_id: &WorkspaceId,
-        query: &str,
-        limit: usize,
-        top_k: Option<u32>,
+        search_query: &forge_domain::CodeSearchQuery<'_>,
     ) -> Result<Vec<CodeSearchResult>> {
         let request = tonic::Request::new(SearchRequest {
-            user_id: Some(UserId { id: user_id.to_string() }),
-            workspace_id: Some(proto_generated::WorkspaceId { id: workspace_id.to_string() }),
+            user_id: Some(UserId { id: search_query.user_id.to_string() }),
+            workspace_id: Some(proto_generated::WorkspaceId {
+                id: search_query.workspace_id.to_string(),
+            }),
             query: Some(Query {
-                prompt: Some(query.to_string()),
-                limit: Some(limit as u32),
-                top_k,
+                prompt: Some(search_query.data.query.to_string()),
+                limit: Some(search_query.data.limit as u32),
+                top_k: search_query.data.top_k,
                 ..Default::default()
             }),
         });
@@ -188,12 +187,13 @@ impl CodebaseRepository for CodebaseRepositoryImpl {
     /// List all files in a workspace with their hashes
     async fn list_workspace_files(
         &self,
-        user_id: &DomainUserId,
-        workspace_id: &WorkspaceId,
+        workspace: &forge_domain::WorkspaceFiles,
     ) -> Result<Vec<forge_domain::FileHash>> {
         let request = tonic::Request::new(ListFilesRequest {
-            user_id: Some(UserId { id: user_id.to_string() }),
-            workspace_id: Some(proto_generated::WorkspaceId { id: workspace_id.to_string() }),
+            user_id: Some(UserId { id: workspace.user_id.to_string() }),
+            workspace_id: Some(proto_generated::WorkspaceId {
+                id: workspace.workspace_id.to_string(),
+            }),
         });
 
         let mut client = self.client.clone();
@@ -214,20 +214,17 @@ impl CodebaseRepository for CodebaseRepositoryImpl {
     }
 
     /// Delete files from a workspace
-    async fn delete_files(
-        &self,
-        user_id: &DomainUserId,
-        workspace_id: &WorkspaceId,
-        file_paths: Vec<String>,
-    ) -> Result<()> {
-        if file_paths.is_empty() {
+    async fn delete_files(&self, deletion: &forge_domain::FileDeletion) -> Result<()> {
+        if deletion.data.is_empty() {
             return Ok(());
         }
 
         let request = tonic::Request::new(DeleteFilesRequest {
-            user_id: Some(UserId { id: user_id.to_string() }),
-            workspace_id: Some(proto_generated::WorkspaceId { id: workspace_id.to_string() }),
-            file_paths,
+            user_id: Some(UserId { id: deletion.user_id.to_string() }),
+            workspace_id: Some(proto_generated::WorkspaceId {
+                id: deletion.workspace_id.to_string(),
+            }),
+            file_paths: deletion.data.clone(),
         });
 
         let mut client = self.client.clone();

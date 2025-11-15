@@ -449,26 +449,16 @@ impl<F: Send + Sync> forge_domain::CodebaseRepository for ForgeRepo<F> {
 
     async fn upload_files(
         &self,
-        user_id: &forge_domain::UserId,
-        workspace_id: &forge_domain::WorkspaceId,
-        files: Vec<forge_domain::FileRead>,
+        upload: &forge_domain::FileUpload,
     ) -> anyhow::Result<forge_domain::UploadStats> {
-        self.codebase_repo
-            .upload_files(user_id, workspace_id, files)
-            .await
+        self.codebase_repo.upload_files(upload).await
     }
 
     async fn search(
         &self,
-        user_id: &forge_domain::UserId,
-        workspace_id: &forge_domain::WorkspaceId,
-        query: &str,
-        limit: usize,
-        top_k: Option<u32>,
+        query: &forge_domain::CodeSearchQuery<'_>,
     ) -> anyhow::Result<Vec<forge_domain::CodeSearchResult>> {
-        self.codebase_repo
-            .search(user_id, workspace_id, query, limit, top_k)
-            .await
+        self.codebase_repo.search(query).await
     }
 
     async fn list_workspaces(
@@ -480,22 +470,12 @@ impl<F: Send + Sync> forge_domain::CodebaseRepository for ForgeRepo<F> {
 
     async fn list_workspace_files(
         &self,
-        user_id: &forge_domain::UserId,
-        workspace_id: &forge_domain::WorkspaceId,
+        workspace: &forge_domain::WorkspaceFiles,
     ) -> anyhow::Result<Vec<forge_domain::FileHash>> {
-        self.codebase_repo
-            .list_workspace_files(user_id, workspace_id)
-            .await
+        self.codebase_repo.list_workspace_files(workspace).await
     }
 
-    async fn delete_files(
-        &self,
-        user_id: &forge_domain::UserId,
-        workspace_id: &forge_domain::WorkspaceId,
-        file_paths: Vec<String>,
-    ) -> anyhow::Result<()> {
-        self.codebase_repo
-            .delete_files(user_id, workspace_id, file_paths)
-            .await
+    async fn delete_files(&self, deletion: &forge_domain::FileDeletion) -> anyhow::Result<()> {
+        self.codebase_repo.delete_files(deletion).await
     }
 }

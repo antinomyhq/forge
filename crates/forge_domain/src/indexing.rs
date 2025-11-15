@@ -22,6 +22,43 @@ impl FileRead {
     }
 }
 
+/// Generic wrapper for codebase operations
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CodeBase<T> {
+    pub user_id: UserId,
+    pub workspace_id: WorkspaceId,
+    pub data: T,
+}
+
+impl<T> CodeBase<T> {
+    pub fn new(user_id: UserId, workspace_id: WorkspaceId, data: T) -> Self {
+        Self { user_id, workspace_id, data }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SearchParams<'a> {
+    pub query: &'a str,
+    pub limit: usize,
+    pub top_k: Option<u32>,
+}
+
+impl<'a> SearchParams<'a> {
+    pub fn new(query: &'a str, limit: usize) -> Self {
+        Self { query, limit, top_k: None }
+    }
+
+    pub fn with_top_k(mut self, top_k: u32) -> Self {
+        self.top_k = Some(top_k);
+        self
+    }
+}
+
+pub type CodeSearchQuery<'a> = CodeBase<SearchParams<'a>>;
+pub type FileUpload = CodeBase<Vec<FileRead>>;
+pub type FileDeletion = CodeBase<Vec<String>>;
+pub type WorkspaceFiles = CodeBase<()>;
+
 /// User identifier for codebase operations.
 ///
 /// Unique per machine, generated once and stored in database.
