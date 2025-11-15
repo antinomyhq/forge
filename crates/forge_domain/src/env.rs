@@ -70,6 +70,12 @@ pub struct Environment {
     /// Maximum number of conversations to show in list.
     /// Controlled by FORGE_MAX_CONVERSATIONS environment variable.
     pub max_conversations: usize,
+    /// Maximum number of results to return from codebase search.
+    /// Controlled by FORGE_CODEBASE_SEARCH_LIMIT environment variable.
+    pub codebase_search_limit: usize,
+    /// Top-k parameter for codebase search relevance.
+    /// Controlled by FORGE_CODEBASE_SEARCH_TOP_K environment variable.
+    pub codebase_search_top_k: Option<u32>,
 }
 
 impl Environment {
@@ -218,6 +224,8 @@ fn test_command_path() {
         custom_history_path: None,
         max_conversations: 100,
         max_image_size: 262144,
+        codebase_search_limit: 100,
+        codebase_search_top_k: Some(10),
     };
 
     let actual = fixture.command_path();
@@ -252,6 +260,8 @@ fn test_command_cwd_path() {
         custom_history_path: None,
         max_conversations: 100,
         max_image_size: 262144,
+        codebase_search_limit: 100,
+        codebase_search_top_k: Some(10),
     };
 
     let actual = fixture.command_cwd_path();
@@ -286,6 +296,8 @@ fn test_command_cwd_path_independent_from_command_path() {
         custom_history_path: None,
         max_conversations: 100,
         max_image_size: 262144,
+        codebase_search_limit: 100,
+        codebase_search_top_k: Some(10),
     };
 
     let command_path = fixture.command_path();

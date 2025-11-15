@@ -42,6 +42,7 @@ pub enum ToolCatalog {
     ReadImage(ReadImage),
     Write(FSWrite),
     Search(FSSearch),
+    CodebaseSearch(CodebaseSearch),
     Remove(FSRemove),
     Patch(FSPatch),
     Undo(FSUndo),
@@ -169,6 +170,23 @@ pub struct FSSearch {
     /// If not provided, it will search all files (*).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_pattern: Option<String>,
+}
+
+/// Searches code by meaning using AI-powered semantic search to quickly locate
+/// specific code implementations. Use when you need to FIND WHERE code is
+/// located by describing what it does. Examples: \"where is authentication
+/// logic\", \"find retry mechanism\", \"locate error handling code\". Returns
+/// code locations with snippets. DO NOT use for finding specific names/patterns
+/// like \"all functions named execute\" - use search tool with regex instead.
+/// This tool understands concepts and finds semantically related code.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct CodebaseSearch {
+    /// Describe WHAT the code does or its purpose. Include domain-specific
+    /// terms and technical context. Good: "retry mechanism with exponential
+    /// backoff", "streaming responses from LLM API", "OAuth token refresh
+    /// flow". Bad: generic terms like "retry" or "auth" without context. Think
+    /// about the behavior and functionality you're looking for.
+    pub queries: Vec<String>,
 }
 
 /// Request to remove a file at the specified path. Use this when you need to
@@ -469,6 +487,7 @@ impl ToolDescription for ToolCatalog {
             ToolCatalog::Followup(v) => v.description(),
             ToolCatalog::Fetch(v) => v.description(),
             ToolCatalog::Search(v) => v.description(),
+            ToolCatalog::CodebaseSearch(v) => v.description(),
             ToolCatalog::Read(v) => v.description(),
             ToolCatalog::ReadImage(v) => v.description(),
             ToolCatalog::Remove(v) => v.description(),
@@ -504,6 +523,7 @@ impl ToolCatalog {
             ToolCatalog::Followup(_) => r#gen.into_root_schema_for::<Followup>(),
             ToolCatalog::Fetch(_) => r#gen.into_root_schema_for::<NetFetch>(),
             ToolCatalog::Search(_) => r#gen.into_root_schema_for::<FSSearch>(),
+            ToolCatalog::CodebaseSearch(_) => r#gen.into_root_schema_for::<CodebaseSearch>(),
             ToolCatalog::Read(_) => r#gen.into_root_schema_for::<FSRead>(),
             ToolCatalog::ReadImage(_) => r#gen.into_root_schema_for::<ReadImage>(),
             ToolCatalog::Remove(_) => r#gen.into_root_schema_for::<FSRemove>(),
@@ -604,7 +624,10 @@ impl ToolCatalog {
                 message: format!("Fetch content from URL: {}", input.url),
             }),
             // Operations that don't require permission checks
-            ToolCatalog::Undo(_) | ToolCatalog::Followup(_) | ToolCatalog::Plan(_) => None,
+            ToolCatalog::CodebaseSearch(_)
+            | ToolCatalog::Undo(_)
+            | ToolCatalog::Followup(_)
+            | ToolCatalog::Plan(_) => None,
         }
     }
 

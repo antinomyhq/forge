@@ -249,6 +249,9 @@ pub trait CodebaseService: Send + Sync {
 
     /// Delete a workspace and all its indexed data
     async fn delete_codebase(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()>;
+
+    /// Checks if workspace is indexed.
+    async fn is_indexed(&self, path: &Path) -> anyhow::Result<bool>;
 }
 
 #[async_trait::async_trait]
@@ -992,5 +995,9 @@ impl<I: Services> CodebaseService for I {
 
     async fn delete_codebase(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()> {
         self.codebase_service().delete_codebase(workspace_id).await
+    }
+
+    async fn is_indexed(&self, path: &Path) -> anyhow::Result<bool> {
+        self.codebase_service().is_indexed(path).await
     }
 }

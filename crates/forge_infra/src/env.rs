@@ -81,6 +81,8 @@ impl ForgeEnvironmentInfra {
             forge_api_url,
             custom_history_path,
             max_conversations: parse_env::<usize>("FORGE_MAX_CONVERSATIONS").unwrap_or(100),
+            codebase_search_limit: parse_env::<usize>("FORGE_CODEBASE_SEARCH_LIMIT").unwrap_or(100),
+            codebase_search_top_k: parse_env::<u32>("FORGE_CODEBASE_SEARCH_TOP_K").or(Some(10)),
         }
     }
 
