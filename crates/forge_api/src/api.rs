@@ -183,4 +183,9 @@ pub trait API: Sync + Send {
 
     /// Remove provider credentials (logout)
     async fn remove_provider(&self, provider_id: &ProviderId) -> Result<()>;
+
+    /// Migrate environment variable-based credentials to file-based
+    /// credentials. This is a one-time migration that runs only if the
+    /// credentials file doesn't exist.
+    async fn migrate_env_credentials(&self) -> Result<Option<forge_domain::MigrationResult>>;
 }

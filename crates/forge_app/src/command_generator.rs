@@ -184,6 +184,10 @@ mod tests {
         async fn remove_credential(&self, _id: &ProviderId) -> Result<()> {
             Ok(())
         }
+
+        async fn migrate_env_credentials(&self) -> anyhow::Result<Option<MigrationResult>> {
+            Ok(None)
+        }
     }
 
     #[async_trait::async_trait]

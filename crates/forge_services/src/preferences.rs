@@ -50,11 +50,15 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
 {
     async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>> {
         let app_config = self.infra.get_app_config().await?;
-        if let Some(provider_id) = app_config.provider {
-            return self.infra.get_provider(provider_id).await;
+        if let Some(provider_id) = app_config.provider
+            && let Ok(provider) = self.infra.get_provider(provider_id).await
+            && provider.is_configured()
+        {
+            return Ok(provider);
         }
 
-        // No active provider set, try to find the first available one
+        // No active provider set or configured provider not found, try to find the
+        // first available one
         self.get_first_available_provider().await
     }
 
@@ -92,7 +96,8 @@ mod tests {
     use std::sync::Mutex;
 
     use forge_domain::{
-        AnyProvider, AppConfig, Model, Models, Provider, ProviderId, ProviderResponse,
+        AnyProvider, AppConfig, MigrationResult, Model, Models, Provider, ProviderId,
+        ProviderResponse,
     };
     use pretty_assertions::assert_eq;
     use url::Url;
@@ -208,6 +213,10 @@ mod tests {
         async fn remove_credential(&self, _id: &ProviderId) -> anyhow::Result<()> {
             Ok(())
         }
+
+        async fn migrate_env_credentials(&self) -> anyhow::Result<Option<MigrationResult>> {
+            Ok(None)
+        }
     }
 
     #[tokio::test]
@@ -228,6 +237,26 @@ mod tests {
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
         service.set_default_provider(ProviderId::Anthropic).await?;
+        let actual = service.get_default_provider().await?;
+        let expected = ProviderId::Anthropic;
+
+        assert_eq!(actual.id, expected);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_default_provider_when_configured_provider_not_available() -> anyhow::Result<()>
+    {
+        let mut fixture = MockInfra::new();
+        // Remove OpenAI from available providers but keep it in config
+        fixture.providers.retain(|p| p.id != ProviderId::OpenAI);
+        let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
+
+        // Set OpenAI as the default provider in config
+        service.set_default_provider(ProviderId::OpenAI).await?;
+
+        // Should fall back to first available provider (Anthropic) since OpenAI is not
+        // available
         let actual = service.get_default_provider().await?;
         let expected = ProviderId::Anthropic;
 

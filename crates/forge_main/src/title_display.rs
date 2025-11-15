@@ -29,6 +29,7 @@ impl TitleDisplay {
             Category::Debug => "⏺".cyan(),
             Category::Error => "⏺".red(),
             Category::Completion => "⏺".yellow(),
+            Category::Warning => "⏺".bright_yellow(),
         };
 
         buf.push_str(format!("{icon} ").as_str());
@@ -43,6 +44,9 @@ impl TitleDisplay {
             Category::Debug => self.inner.title.dimmed(),
             Category::Error => format!("{} {}", "ERROR:".bold(), self.inner.title).red(),
             Category::Completion => self.inner.title.white().bold(),
+            Category::Warning => {
+                format!("{} {}", "WARNING:".bold(), self.inner.title).bright_yellow()
+            }
         };
 
         buf.push_str(title.to_string().as_str());
