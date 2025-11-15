@@ -137,7 +137,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
         let mut providers: Vec<AnyProvider> = Vec::new();
         for config in configs {
             // Skip Forge provider as it's handled specially
-            if config.id == ProviderId::Forge {
+            if config.id == ProviderId::FORGE {
                 continue;
             }
 
@@ -185,20 +185,20 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
 
         for config in configs {
             // Skip Forge provider
-            if config.id == ProviderId::Forge {
+            if config.id == ProviderId::FORGE {
                 continue;
             }
 
-            if config.id == ProviderId::OpenAI && has_openai_url {
+            if config.id == ProviderId::OPENAI && has_openai_url {
                 continue;
             }
-            if config.id == ProviderId::OpenAICompatible && !has_openai_url {
+            if config.id == ProviderId::OPENAI_COMPATIBLE && !has_openai_url {
                 continue;
             }
-            if config.id == ProviderId::Anthropic && has_anthropic_url {
+            if config.id == ProviderId::ANTHROPIC && has_anthropic_url {
                 continue;
             }
-            if config.id == ProviderId::AnthropicCompatible && !has_anthropic_url {
+            if config.id == ProviderId::ANTHROPIC_COMPATIBLE && !has_anthropic_url {
                 continue;
             }
 
@@ -321,9 +321,9 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
 
     async fn provider_from_id(&self, id: ProviderId) -> anyhow::Result<Provider<Url>> {
         // Handle special cases first
-        if id == ProviderId::Forge {
+        if id == ProviderId::FORGE {
             // Forge provider isn't typically configured via env vars in the registry
-            return Err(Error::provider_not_available(ProviderId::Forge).into());
+            return Err(Error::provider_not_available(ProviderId::FORGE).into());
         }
 
         // Look up provider from cached providers - only return configured ones
@@ -430,7 +430,7 @@ mod tests {
         // Test that OpenRouter config is loaded correctly
         let openrouter_config = configs
             .iter()
-            .find(|c| c.id == ProviderId::OpenRouter)
+            .find(|c| c.id == ProviderId::OPEN_ROUTER)
             .unwrap();
         assert_eq!(openrouter_config.api_key_vars, "OPENROUTER_API_KEY");
         assert_eq!(openrouter_config.url_param_vars, Vec::<String>::new());
@@ -446,9 +446,9 @@ mod tests {
         let configs = get_provider_configs();
         let config = configs
             .iter()
-            .find(|c| c.id == ProviderId::VertexAi)
+            .find(|c| c.id == ProviderId::VERTEX_AI)
             .unwrap();
-        assert_eq!(config.id, ProviderId::VertexAi);
+        assert_eq!(config.id, ProviderId::VERTEX_AI);
         assert_eq!(config.api_key_vars, "VERTEX_AI_AUTH_TOKEN");
         assert_eq!(
             config.url_param_vars,
@@ -462,8 +462,8 @@ mod tests {
     #[test]
     fn test_azure_config() {
         let configs = get_provider_configs();
-        let config = configs.iter().find(|c| c.id == ProviderId::Azure).unwrap();
-        assert_eq!(config.id, ProviderId::Azure);
+        let config = configs.iter().find(|c| c.id == ProviderId::AZURE).unwrap();
+        assert_eq!(config.id, ProviderId::AZURE);
         assert_eq!(config.api_key_vars, "AZURE_API_KEY");
         assert_eq!(
             config.url_param_vars,
@@ -498,9 +498,9 @@ mod tests {
         let configs = get_provider_configs();
         let config = configs
             .iter()
-            .find(|c| c.id == ProviderId::OpenAICompatible)
+            .find(|c| c.id == ProviderId::OPENAI_COMPATIBLE)
             .unwrap();
-        assert_eq!(config.id, ProviderId::OpenAICompatible);
+        assert_eq!(config.id, ProviderId::OPENAI_COMPATIBLE);
         assert_eq!(config.api_key_vars, "OPENAI_API_KEY");
         assert_eq!(config.url_param_vars, vec!["OPENAI_URL".to_string()]);
         assert_eq!(config.response_type, ProviderResponse::OpenAI);
@@ -512,9 +512,9 @@ mod tests {
         let configs = get_provider_configs();
         let config = configs
             .iter()
-            .find(|c| c.id == ProviderId::AnthropicCompatible)
+            .find(|c| c.id == ProviderId::ANTHROPIC_COMPATIBLE)
             .unwrap();
-        assert_eq!(config.id, ProviderId::AnthropicCompatible);
+        assert_eq!(config.id, ProviderId::ANTHROPIC_COMPATIBLE);
         assert_eq!(config.api_key_vars, "ANTHROPIC_API_KEY");
         assert_eq!(config.url_param_vars, vec!["ANTHROPIC_URL".to_string()]);
         assert_eq!(config.response_type, ProviderResponse::Anthropic);
@@ -670,30 +670,30 @@ mod env_tests {
         // Should have migrated OpenAICompatible (not OpenAI) and Anthropic (not
         // AnthropicCompatible)
         assert!(
-            !credentials.iter().any(|c| c.id == ProviderId::OpenAI),
+            !credentials.iter().any(|c| c.id == ProviderId::OPENAI),
             "Should NOT create OpenAI credential when OPENAI_URL is set"
         );
         assert!(
             credentials
                 .iter()
-                .any(|c| c.id == ProviderId::OpenAICompatible),
+                .any(|c| c.id == ProviderId::OPENAI_COMPATIBLE),
             "Should create OpenAICompatible credential when OPENAI_URL is set"
         );
         assert!(
-            credentials.iter().any(|c| c.id == ProviderId::Anthropic),
+            credentials.iter().any(|c| c.id == ProviderId::ANTHROPIC),
             "Should create Anthropic credential when ANTHROPIC_URL is NOT set"
         );
         assert!(
             !credentials
                 .iter()
-                .any(|c| c.id == ProviderId::AnthropicCompatible),
+                .any(|c| c.id == ProviderId::ANTHROPIC_COMPATIBLE),
             "Should NOT create AnthropicCompatible credential when ANTHROPIC_URL is NOT set"
         );
 
         // Verify OpenAICompatible credential
         let openai_compat_cred = credentials
             .iter()
-            .find(|c| c.id == ProviderId::OpenAICompatible)
+            .find(|c| c.id == ProviderId::OPENAI_COMPATIBLE)
             .unwrap();
         match &openai_compat_cred.auth_details {
             AuthDetails::ApiKey(key) => assert_eq!(key.as_str(), "test-openai-key"),
@@ -713,7 +713,7 @@ mod env_tests {
         // Verify Anthropic credential
         let anthropic_cred = credentials
             .iter()
-            .find(|c| c.id == ProviderId::Anthropic)
+            .find(|c| c.id == ProviderId::ANTHROPIC)
             .unwrap();
         match &anthropic_cred.auth_details {
             AuthDetails::ApiKey(key) => assert_eq!(key.as_str(), "test-anthropic-key"),
@@ -750,30 +750,30 @@ mod env_tests {
 
         // Should have migrated only compatible versions
         assert!(
-            !credentials.iter().any(|c| c.id == ProviderId::OpenAI),
+            !credentials.iter().any(|c| c.id == ProviderId::OPENAI),
             "Should NOT create OpenAI credential when OPENAI_URL is set"
         );
         assert!(
             credentials
                 .iter()
-                .any(|c| c.id == ProviderId::OpenAICompatible),
+                .any(|c| c.id == ProviderId::OPENAI_COMPATIBLE),
             "Should create OpenAICompatible credential when OPENAI_URL is set"
         );
         assert!(
-            !credentials.iter().any(|c| c.id == ProviderId::Anthropic),
+            !credentials.iter().any(|c| c.id == ProviderId::ANTHROPIC),
             "Should NOT create Anthropic credential when ANTHROPIC_URL is set"
         );
         assert!(
             credentials
                 .iter()
-                .any(|c| c.id == ProviderId::AnthropicCompatible),
+                .any(|c| c.id == ProviderId::ANTHROPIC_COMPATIBLE),
             "Should create AnthropicCompatible credential when ANTHROPIC_URL is set"
         );
 
         // Verify AnthropicCompatible has URL param
         let anthropic_compat_cred = credentials
             .iter()
-            .find(|c| c.id == ProviderId::AnthropicCompatible)
+            .find(|c| c.id == ProviderId::ANTHROPIC_COMPATIBLE)
             .unwrap();
         assert!(!anthropic_compat_cred.url_params.is_empty());
         let url_params = &anthropic_compat_cred.url_params;
@@ -812,7 +812,7 @@ mod env_tests {
         let configs = get_provider_configs();
         let azure_config = configs
             .iter()
-            .find(|c| c.id == ProviderId::Azure)
+            .find(|c| c.id == ProviderId::AZURE)
             .expect("Azure config should exist");
 
         // Create provider using the registry's create_provider method
@@ -822,7 +822,7 @@ mod env_tests {
             .expect("Should create Azure provider");
 
         // Verify all URLs are correctly rendered
-        assert_eq!(provider.id, ProviderId::Azure);
+        assert_eq!(provider.id, ProviderId::AZURE);
         assert_eq!(
             provider
                 .credential
@@ -866,14 +866,14 @@ mod env_tests {
         let openai_provider = providers
             .iter()
             .find_map(|p| match p {
-                AnyProvider::Url(cp) if cp.id == ProviderId::OpenAI => Some(cp),
+                AnyProvider::Url(cp) if cp.id == ProviderId::OPENAI => Some(cp),
                 _ => None,
             })
             .unwrap();
         let anthropic_provider = providers
             .iter()
             .find_map(|p| match p {
-                AnyProvider::Url(cp) if cp.id == ProviderId::Anthropic => Some(cp),
+                AnyProvider::Url(cp) if cp.id == ProviderId::ANTHROPIC => Some(cp),
                 _ => None,
             })
             .unwrap();
@@ -1013,7 +1013,7 @@ mod env_tests {
         // Verify OpenAI config was overridden
         let openai_config = merged_configs
             .iter()
-            .find(|c| c.id == ProviderId::OpenAI)
+            .find(|c| c.id == ProviderId::OPENAI)
             .expect("OpenAI config should exist");
         assert_eq!(openai_config.api_key_vars, "CUSTOM_OPENAI_KEY");
         assert_eq!(
@@ -1024,7 +1024,7 @@ mod env_tests {
         // Verify other embedded configs still exist
         let openrouter_config = merged_configs
             .iter()
-            .find(|c| c.id == ProviderId::OpenRouter);
+            .find(|c| c.id == ProviderId::OPEN_ROUTER);
         assert!(openrouter_config.is_some());
     }
 }

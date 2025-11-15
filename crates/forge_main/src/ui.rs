@@ -23,7 +23,6 @@ use forge_select::ForgeSelect;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
 use merge::Merge;
-use strum::IntoEnumIterator;
 use tokio_stream::StreamExt;
 use tracing::debug;
 use url::Url;
@@ -799,7 +798,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let mut info = Info::new();
 
         for provider in providers.iter() {
-            let id = provider.id().to_string();
+            let provider_id = provider.id();
+            // Use display_name for human-readable display (UpperCamelCase)
+            let display_name = provider_id.display_name().to_string();
+            // Use as_str for machine-readable ID (snake_case)
+            let id = *provider_id;
             let domain = if let Some(url) = provider.url() {
                 url.domain().map(|d| d.to_string()).unwrap_or_default()
             } else {
@@ -807,7 +810,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             };
             let configured = provider.is_configured();
             info = info
-                .add_title(id.to_case(Case::UpperSnake))
+                .add_title(display_name.to_case(Case::UpperSnake))
+                .add_key_value("name", display_name)
                 .add_key_value("id", id)
                 .add_key_value("host", domain);
             if configured {
@@ -2375,7 +2379,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ConfigField::Provider => {
                 let provider_id = self.validate_provider(&args.value).await?;
                 self.api.set_default_provider(provider_id).await?;
-                self.writeln_title(TitleFormat::action("Provider set").sub_title(&args.value))?;
+                self.writeln_title(
+                    TitleFormat::action("Provider set").sub_title(provider_id.display_name()),
+                )?;
             }
             ConfigField::Model => {
                 let model_id = self.validate_model(&args.value).await?;
@@ -2518,5 +2524,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
 /// Get list of valid provider names
 fn get_valid_provider_names() -> Vec<String> {
-    ProviderId::iter().map(|p| p.to_string()).collect()
+    ProviderId::built_in_providers()
+        .iter()
+        .map(|p| p.to_string())
+        .collect()
 }
