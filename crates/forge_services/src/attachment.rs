@@ -3,6 +3,7 @@ use std::sync::Arc;
 use forge_app::domain::{
     Attachment, AttachmentContent, DirectoryEntry, FileTag, Image, LineNumbers,
 };
+use forge_app::utils::format_display_path;
 use forge_app::{
     AttachmentService, DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra,
 };
@@ -19,15 +20,6 @@ impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfr
 {
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
-    }
-
-    /// Normalizes a path to be relative to the current working directory
-    /// Returns the path as-is if it cannot be made relative
-    fn normalize_path(&self, path: &std::path::Path, cwd: &std::path::Path) -> String {
-        path.strip_prefix(cwd)
-            .unwrap_or(path)
-            .to_string_lossy()
-            .to_string()
     }
 
     async fn prepare_attachments(&self, paths: Vec<FileTag>) -> anyhow::Result<Vec<Attachment>> {
@@ -56,7 +48,7 @@ impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfr
             let mut entries: Vec<DirectoryEntry> = dir_entries
                 .into_iter()
                 .map(|(entry_path, is_dir)| {
-                    let normalized_path = self.normalize_path(&entry_path, cwd);
+                    let normalized_path = format_display_path(&entry_path, cwd);
                     DirectoryEntry { path: normalized_path, is_dir }
                 })
                 .collect();
