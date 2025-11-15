@@ -132,8 +132,10 @@ impl Walker {
                 continue;
             }
 
-            // Handle breadth limit
-            if let Some(parent) = path.parent() {
+            let is_dir = path.is_dir();
+
+            // Handle breadth limit (only count files, not directories)
+            if !is_dir && let Some(parent) = path.parent() {
                 let parent_path = parent.to_string_lossy().to_string();
                 let entry_count = dir_entries.entry(parent_path).or_insert(0);
                 *entry_count += 1;
@@ -142,8 +144,6 @@ impl Walker {
                     continue;
                 }
             }
-
-            let is_dir = path.is_dir();
 
             // Skip binary files if configured
             if self.skip_binary && !is_dir && Self::is_likely_binary(path) {
@@ -351,6 +351,36 @@ mod tests {
         assert_eq!(
             actual_file_count, expected,
             "Walker should respect the configured max_breadth limit"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_walker_includes_directories_despite_breadth_limit() {
+        let fixture = fixtures::Fixture::default();
+        // Create more than max_breadth directories at the same level
+        for i in 0..(DEFAULT_MAX_BREADTH + 5) {
+            fixture
+                .add_file(&format!("dir{}/test.txt", i), "test content")
+                .unwrap();
+        }
+
+        let actual = Walker::min_all()
+            .cwd(fixture.as_path().to_path_buf())
+            .get()
+            .await
+            .unwrap();
+
+        // We expect 15 directories (dir0/ through dir14/)
+        // The walker should include all directories regardless of breadth limit
+        let expected = DEFAULT_MAX_BREADTH + 5;
+        let actual_dir_count = actual
+            .iter()
+            .filter(|f| f.is_dir() && f.path.starts_with("dir"))
+            .count();
+
+        assert_eq!(
+            actual_dir_count, expected,
+            "Walker should include all directories even when they exceed breadth limit"
         );
     }
 

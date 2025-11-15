@@ -258,6 +258,9 @@ where
     async fn is_file(&self, path: &Path) -> anyhow::Result<bool> {
         self.infra.is_file(path).await
     }
+    async fn is_dir(&self, path: &Path) -> anyhow::Result<bool> {
+        self.infra.is_dir(path).await
+    }
     async fn exists(&self, path: &Path) -> anyhow::Result<bool> {
         self.infra.exists(path).await
     }
@@ -291,6 +294,13 @@ impl<F> DirectoryReaderInfra for ForgeRepo<F>
 where
     F: DirectoryReaderInfra + Send + Sync,
 {
+    async fn list_directory_entries(
+        &self,
+        directory: &Path,
+    ) -> anyhow::Result<Vec<(PathBuf, bool)>> {
+        self.infra.list_directory_entries(directory).await
+    }
+
     async fn read_directory_files(
         &self,
         directory: &Path,

@@ -253,16 +253,16 @@ mod test {
     #[async_trait::async_trait]
     impl FileInfoInfra for MockInfra {
         async fn is_file(&self, path: &Path) -> anyhow::Result<bool> {
-            let metadata = tokio::fs::metadata(path).await;
-            match metadata {
-                Ok(meta) => Ok(meta.is_file()),
-                Err(_) => Ok(false), // If the file doesn't exist, return false
-            }
+            Ok(path.is_file())
         }
 
         async fn is_binary(&self, _path: &Path) -> anyhow::Result<bool> {
             let ext = _path.extension().and_then(|s| s.to_str());
             Ok(self.binary_exts.contains(ext.unwrap_or("")))
+        }
+
+        async fn is_dir(&self, path: &Path) -> anyhow::Result<bool> {
+            Ok(path.is_dir())
         }
 
         async fn exists(&self, _path: &Path) -> anyhow::Result<bool> {
