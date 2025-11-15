@@ -508,6 +508,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     crate::cli::IndexCommand::Query { query, path, limit, top_k } => {
                         self.on_query(query, path, limit, top_k).await?;
                     }
+                    crate::cli::IndexCommand::Delete { workspace_id, yes } => {
+                        self.on_delete_workspace(workspace_id, yes).await?;
+                    }
                 }
                 return Ok(());
             }
@@ -2686,6 +2689,41 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.spinner
                     .stop(Some("Failed to list workspaces".to_string()))?;
                 self.writeln_to_stderr(format!("Failed to list workspaces: {}", e))?;
+                Err(e)
+            }
+        }
+    }
+
+    async fn on_delete_workspace(&mut self, workspace_id: String, yes: bool) -> anyhow::Result<()> {
+        // Parse workspace ID
+        let workspace_id = forge_domain::WorkspaceId::from_string(&workspace_id)
+            .context("Invalid workspace ID format")?;
+
+        // Confirmation prompt unless --yes flag is provided
+        if !yes {
+            let confirmed = ForgeSelect::confirm(format!(
+                "Warning: This will permanently delete workspace {} and all its indexed data. Continue?",
+                workspace_id
+            ))
+            .with_default(false)
+            .prompt()?;
+
+            if !confirmed.unwrap_or(false) {
+                self.writeln("Deletion cancelled.")?;
+                return Ok(());
+            }
+        }
+
+        self.spinner.start(Some("Deleting workspace..."))?;
+
+        match self.api.delete_codebase(workspace_id.clone()).await {
+            Ok(()) => {
+                self.spinner.stop(None)?;
+                self.writeln(format!("Successfully deleted workspace {}", workspace_id))?;
+                Ok(())
+            }
+            Err(e) => {
+                self.spinner.stop(None)?;
                 Err(e)
             }
         }

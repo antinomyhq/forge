@@ -353,6 +353,30 @@ impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra
             .await
             .context("Failed to list workspaces")
     }
+
+    /// Deletes a workspace from both the server and local database.
+    async fn delete_codebase(&self, workspace_id: &forge_domain::WorkspaceId) -> Result<()> {
+        let user_id =
+            self.infra.as_ref().get_user_id().await?.ok_or_else(|| {
+                anyhow::anyhow!("No workspaces found. Run `forge index sync` first.")
+            })?;
+
+        // Delete from server
+        self.infra
+            .as_ref()
+            .delete_workspace(&user_id, workspace_id)
+            .await
+            .context("Failed to delete workspace from server")?;
+
+        // Delete from local database
+        self.infra
+            .as_ref()
+            .delete(workspace_id)
+            .await
+            .context("Failed to delete workspace from local database")?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

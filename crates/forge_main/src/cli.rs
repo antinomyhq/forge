@@ -202,6 +202,16 @@ pub enum IndexCommand {
         #[arg(long)]
         top_k: Option<u32>,
     },
+
+    /// Delete a workspace.
+    Delete {
+        /// Workspace ID to delete
+        workspace_id: String,
+
+        /// Skip confirmation prompt
+        #[arg(short = 'y', long)]
+        yes: bool,
+    },
 }
 
 /// Command group for listing resources.

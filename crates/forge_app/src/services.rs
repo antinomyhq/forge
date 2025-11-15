@@ -8,7 +8,7 @@ use forge_domain::{
     AuthCredential, AuthMethod, ChatCompletionMessage, CodeSearchResult, CommandOutput, Context,
     Conversation, ConversationId, Environment, File, Image, IndexStats, InitAuth, LoginInfo,
     McpConfig, McpServers, Model, ModelId, PatchOperation, Provider, ProviderId, ResultStream,
-    Scope, SearchParams, Template, ToolCallFull, ToolOutput, Workflow, WorkspaceInfo,
+    Scope, SearchParams, Template, ToolCallFull, ToolOutput, Workflow, WorkspaceId, WorkspaceInfo,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -246,6 +246,9 @@ pub trait CodebaseService: Send + Sync {
 
     /// List all workspaces indexed by the user
     async fn list_codebase(&self) -> anyhow::Result<Vec<WorkspaceInfo>>;
+
+    /// Delete a workspace and all its indexed data
+    async fn delete_codebase(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -985,5 +988,9 @@ impl<I: Services> CodebaseService for I {
 
     async fn list_codebase(&self) -> anyhow::Result<Vec<WorkspaceInfo>> {
         self.codebase_service().list_codebase().await
+    }
+
+    async fn delete_codebase(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()> {
+        self.codebase_service().delete_codebase(workspace_id).await
     }
 }

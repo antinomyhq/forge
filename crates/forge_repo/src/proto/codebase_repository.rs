@@ -232,4 +232,20 @@ impl CodebaseRepository for CodebaseRepositoryImpl {
 
         Ok(())
     }
+
+    async fn delete_workspace(
+        &self,
+        user_id: &forge_domain::UserId,
+        workspace_id: &forge_domain::WorkspaceId,
+    ) -> Result<()> {
+        let request = tonic::Request::new(DeleteWorkspaceRequest {
+            user_id: Some(UserId { id: user_id.to_string() }),
+            workspace_id: Some(proto_generated::WorkspaceId { id: workspace_id.to_string() }),
+        });
+
+        let mut client = self.client.clone();
+        client.delete_workspace(request).await?;
+
+        Ok(())
+    }
 }

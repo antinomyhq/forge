@@ -98,6 +98,15 @@ impl WorkspaceRepository for IndexingRepositoryImpl {
             .optional()?;
         Ok(user_id.map(|id| UserId::from_string(&id)).transpose()?)
     }
+
+    async fn delete(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()> {
+        let mut connection = self.pool.get_connection()?;
+        diesel::delete(
+            workspace::table.filter(workspace::remote_workspace_id.eq(workspace_id.to_string())),
+        )
+        .execute(&mut connection)?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

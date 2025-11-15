@@ -133,6 +133,15 @@ pub trait WorkspaceRepository: Send + Sync {
     /// # Errors
     /// Returns an error if the database query fails
     async fn get_user_id(&self) -> anyhow::Result<Option<UserId>>;
+
+    /// Delete workspace from local database
+    ///
+    /// # Arguments
+    /// * `workspace_id` - The workspace ID to delete
+    ///
+    /// # Errors
+    /// Returns an error if the database operation fails
+    async fn delete(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()>;
 }
 
 /// Repository for managing codebase indexing and search operations
@@ -207,4 +216,18 @@ pub trait CodebaseRepository: Send + Sync {
     /// # Errors
     /// Returns an error if the deletion fails
     async fn delete_files(&self, deletion: &crate::FileDeletion) -> anyhow::Result<()>;
+
+    /// Delete a workspace and all its indexed data
+    ///
+    /// # Arguments
+    /// * `user_id` - The user ID owning the workspace
+    /// * `workspace_id` - The workspace ID to delete
+    ///
+    /// # Errors
+    /// Returns an error if the deletion fails
+    async fn delete_workspace(
+        &self,
+        user_id: &UserId,
+        workspace_id: &WorkspaceId,
+    ) -> anyhow::Result<()>;
 }
