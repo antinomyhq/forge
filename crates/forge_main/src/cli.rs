@@ -128,7 +128,7 @@ pub enum TopLevelCommand {
     /// Run or list custom commands.
     Cmd(CmdCommandGroup),
 
-    /// Manage codebase indexing for semantic search.
+    /// Manage codebases for semantic search.
     Index(IndexCommandGroup),
 }
 
@@ -157,7 +157,7 @@ pub enum CmdCommand {
     Execute(Vec<String>),
 }
 
-/// Command group for indexing management.
+/// Command group for codebase management.
 #[derive(Parser, Debug, Clone)]
 pub struct IndexCommandGroup {
     #[command(subcommand)]
@@ -166,10 +166,9 @@ pub struct IndexCommandGroup {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum IndexCommand {
-    /// Synchronize and index a directory for semantic search.
+    /// Synchronize a directory for semantic search.
     Sync {
-        /// Path to the directory to index (used when no subcommand is
-        /// provided).
+        /// Path to the directory to sync
         #[arg(default_value = ".")]
         path: PathBuf,
 
@@ -178,14 +177,14 @@ pub enum IndexCommand {
         #[arg(long, default_value = "10")]
         batch_size: usize,
     },
-    /// List all indexed workspaces.
+    /// List all workspaces.
     List {
         /// Output in machine-readable format
         #[arg(short, long)]
         porcelain: bool,
     },
 
-    /// Query the indexed codebase.
+    /// Query the codebase.
     Query {
         /// Search query.
         query: String,

@@ -5,8 +5,8 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::utils::format_display_path;
-use forge_app::{FileReaderInfra, IndexingService, Walker, WalkerInfra, compute_hash};
-use forge_domain::{CodebaseRepository, IndexStats, IndexWorkspaceId, UserId, WorkspaceRepository};
+use forge_app::{CodebaseService, FileReaderInfra, Walker, WalkerInfra, compute_hash};
+use forge_domain::{CodebaseRepository, IndexStats, WorkspaceId, UserId, WorkspaceRepository};
 use futures::future::join_all;
 use tracing::{info, warn};
 
@@ -49,7 +49,7 @@ impl<F> ForgeIndexingService<F> {
     async fn sync_server_files(
         &self,
         user_id: &UserId,
-        workspace_id: &IndexWorkspaceId,
+        workspace_id: &WorkspaceId,
         local_file_map: &HashMap<String, String>,
         workspace_root: &Path,
     ) -> Result<HashMap<String, String>>
@@ -86,7 +86,7 @@ impl<F> ForgeIndexingService<F> {
         // Delete outdated/orphaned files from server
         if !files_to_delete.is_empty() {
             info!(
-                "Deleting {} old/orphaned files from server before re-indexing",
+                "Deleting {} old/orphaned files from server before syncing",
                 files_to_delete.len()
             );
             self.infra
@@ -105,7 +105,7 @@ impl<F> ForgeIndexingService<F> {
         all_files: Vec<IndexedFile>,
         is_new_workspace: bool,
         user_id: &UserId,
-        workspace_id: &IndexWorkspaceId,
+        workspace_id: &WorkspaceId,
         workspace_root: &Path,
     ) -> Result<Vec<(String, String)>>
     where
@@ -200,11 +200,11 @@ impl<F> ForgeIndexingService<F> {
 }
 
 #[async_trait]
-impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra> IndexingService
+impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra> CodebaseService
     for ForgeIndexingService<F>
 {
-    async fn index(&self, path: PathBuf, batch_size: usize) -> Result<IndexStats> {
-        info!(path = %path.display(), "Starting codebase indexing");
+    async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> Result<IndexStats> {
+        info!(path = %path.display(), "Starting codebase sync");
 
         let canonical_path = path
             .canonicalize()
@@ -216,7 +216,7 @@ impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra
 
         let (workspace_id, user_id, is_new_workspace) = existing_workspace
             .map(|workspace| (workspace.workspace_id, workspace.user_id, false))
-            .unwrap_or_else(|| (IndexWorkspaceId::generate(), UserId::generate(), true));
+            .unwrap_or_else(|| (WorkspaceId::generate(), UserId::generate(), true));
 
         // Create workspace on server if new
         let workspace_id = if is_new_workspace {
@@ -289,14 +289,14 @@ impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra
             workspace_id = %workspace_id,
             total_files = total_file_count,
             uploaded = files_to_upload.len(),
-            "Indexing completed successfully"
+            "Sync completed successfully"
         );
 
         Ok(IndexStats::new(workspace_id, total_file_count, total_stats))
     }
 
-    /// Performs semantic code search on an indexed workspace.
-    async fn query(
+    /// Performs semantic code search on a workspace.
+    async fn query_codebase(
         &self,
         path: PathBuf,
         query: &str,
@@ -308,15 +308,15 @@ impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
 
-        // Step 2: Check if workspace is indexed
+        // Step 2: Check if workspace exists
         let workspace = self
             .infra
             .find_by_path(&canonical_path)
             .await
             .context("Failed to query database")?
-            .ok_or_else(|| anyhow::anyhow!("Workspace not indexed. Run `forge index .` first."))?;
+            .ok_or_else(|| anyhow::anyhow!("Workspace not found. Run `forge index sync .` first."))?;
 
-        // Step 3: Search via indexing server
+        // Step 3: Search the codebase
         let results = self
             .infra
             .search(
@@ -332,19 +332,19 @@ impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra
         Ok(results)
     }
 
-    /// Lists all indexed workspaces.
-    async fn list_indexes(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
+    /// Lists all workspaces.
+    async fn list_codebase(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
         let user_id =
             self.infra.as_ref().get_user_id().await?.ok_or_else(|| {
-                anyhow::anyhow!("No workspaces indexed. Run `forge index` first.")
+                anyhow::anyhow!("No workspaces found. Run `forge index sync` first.")
             })?;
 
-        // List all workspaces for this user from indexing server
+        // List all workspaces for this user
         self.infra
             .as_ref()
             .list_workspaces(&user_id)
             .await
-            .context("Failed to list workspaces from indexing server")
+            .context("Failed to list workspaces")
     }
 }
 
@@ -356,7 +356,7 @@ mod tests {
 
     use forge_app::WalkedFile;
     use forge_domain::{
-        CodeSearchResult, FileHash, FileInfo, IndexWorkspaceId, UploadStats, UserId, Workspace,
+        CodeSearchResult, FileHash, FileInfo, WorkspaceId, UploadStats, UserId, Workspace,
         WorkspaceInfo,
     };
     use pretty_assertions::assert_eq;
@@ -433,7 +433,7 @@ mod tests {
 
     fn workspace() -> Workspace {
         Workspace {
-            workspace_id: IndexWorkspaceId::generate(),
+            workspace_id: WorkspaceId::generate(),
             user_id: UserId::generate(),
             path: PathBuf::from("."),
             created_at: chrono::Utc::now(),
@@ -454,7 +454,7 @@ mod tests {
 
     #[async_trait]
     impl WorkspaceRepository for MockInfra {
-        async fn upsert(&self, _: &IndexWorkspaceId, _: &UserId, _: &Path) -> Result<()> {
+        async fn upsert(&self, _: &WorkspaceId, _: &UserId, _: &Path) -> Result<()> {
             Ok(())
         }
         async fn find_by_path(&self, _: &Path) -> Result<Option<Workspace>> {
@@ -467,13 +467,13 @@ mod tests {
 
     #[async_trait]
     impl CodebaseRepository for MockInfra {
-        async fn create_workspace(&self, _: &UserId, _: &Path) -> Result<IndexWorkspaceId> {
-            Ok(IndexWorkspaceId::generate())
+        async fn create_workspace(&self, _: &UserId, _: &Path) -> Result<WorkspaceId> {
+            Ok(WorkspaceId::generate())
         }
         async fn upload_files(
             &self,
             _: &UserId,
-            _: &IndexWorkspaceId,
+            _: &WorkspaceId,
             files: Vec<forge_domain::FileRead>,
         ) -> Result<UploadStats> {
             self.uploaded_files
@@ -485,7 +485,7 @@ mod tests {
         async fn search(
             &self,
             _: &UserId,
-            _: &IndexWorkspaceId,
+            _: &WorkspaceId,
             _: &str,
             _: usize,
             _: Option<u32>,
@@ -498,14 +498,14 @@ mod tests {
         async fn list_workspace_files(
             &self,
             _: &UserId,
-            _: &IndexWorkspaceId,
+            _: &WorkspaceId,
         ) -> Result<Vec<FileHash>> {
             Ok(self.server_files.clone())
         }
         async fn delete_files(
             &self,
             _: &UserId,
-            _: &IndexWorkspaceId,
+            _: &WorkspaceId,
             paths: Vec<String>,
         ) -> Result<()> {
             self.deleted_files.lock().await.extend(paths);
@@ -544,10 +544,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_index_new_workspace() {
+    async fn test_sync_new_workspace() {
         let service = ForgeIndexingService::new(Arc::new(MockInfra::new(&["main.rs", "lib.rs"])));
 
-        let actual = service.index(PathBuf::from("."), 20).await.unwrap();
+        let actual = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
 
         assert_eq!(actual.files_processed, 2);
         assert_eq!(actual.upload_stats.nodes_created, 2);
@@ -560,7 +560,7 @@ mod tests {
         let service = ForgeIndexingService::new(Arc::new(mock));
 
         let actual = service
-            .query(PathBuf::from("."), "test", 10, None)
+            .query_codebase(PathBuf::from("."), "test", 10, None)
             .await
             .unwrap();
 
@@ -568,17 +568,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_query_error_when_not_indexed() {
+    async fn test_query_error_when_not_found() {
         let service = ForgeIndexingService::new(Arc::new(MockInfra::default()));
 
-        let actual = service.query(PathBuf::from("."), "test", 10, None).await;
+        let actual = service.query_codebase(PathBuf::from("."), "test", 10, None).await;
 
         assert!(actual.is_err());
-        assert!(actual.unwrap_err().to_string().contains("not indexed"));
+        assert!(actual.unwrap_err().to_string().contains("not found"));
     }
 
     #[tokio::test]
-    async fn test_list_indexes() {
+    async fn test_list_codebases() {
         let ws = workspace();
         let mut mock = MockInfra::synced(&["test.rs"]);
         mock.workspaces = vec![WorkspaceInfo {
@@ -587,16 +587,16 @@ mod tests {
         }];
         let service = ForgeIndexingService::new(Arc::new(mock));
 
-        let actual = service.list_indexes().await.unwrap();
+        let actual = service.list_codebase().await.unwrap();
 
         assert_eq!(actual.len(), 1);
     }
 
     #[tokio::test]
-    async fn test_list_indexes_error_when_none() {
+    async fn test_list_codebases_error_when_none() {
         let service = ForgeIndexingService::new(Arc::new(MockInfra::default()));
 
-        let actual = service.list_indexes().await;
+        let actual = service.list_codebase().await;
 
         assert!(actual.is_err());
     }
@@ -611,7 +611,7 @@ mod tests {
             .push(FileHash { path: "changed.rs".into(), hash: "old".into() });
         let service = ForgeIndexingService::new(Arc::new(mock.clone()));
 
-        service.index(PathBuf::from("."), 20).await.unwrap();
+        service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
 
         let deleted = mock.deleted_files.lock().await;
         assert_eq!(deleted.len(), 2);
@@ -629,7 +629,7 @@ mod tests {
         let mock = MockInfra::synced(&["main.rs"]);
         let service = ForgeIndexingService::new(Arc::new(mock.clone()));
 
-        let actual = service.index(PathBuf::from("."), 20).await.unwrap();
+        let actual = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
 
         assert!(mock.deleted_files.lock().await.is_empty());
         assert!(mock.uploaded_files.lock().await.is_empty());
@@ -643,7 +643,7 @@ mod tests {
             .push(FileHash { path: "old.rs".into(), hash: "x".into() });
         let service = ForgeIndexingService::new(Arc::new(mock.clone()));
 
-        service.index(PathBuf::from("."), 20).await.unwrap();
+        service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
 
         let deleted = mock.deleted_files.lock().await;
         assert_eq!(deleted.len(), 1);

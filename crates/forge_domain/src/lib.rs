@@ -43,6 +43,7 @@ mod top_p;
 mod transformer;
 mod update;
 mod workflow;
+mod workspace;
 mod xml;
 
 pub use agent::*;
@@ -87,6 +88,7 @@ pub use top_p::*;
 pub use transformer::*;
 pub use update::*;
 pub use workflow::*;
+pub use workspace::*;
 pub use xml::*;
 pub mod line_numbers;
 pub use app_config::*;

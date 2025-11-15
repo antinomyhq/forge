@@ -287,7 +287,7 @@ impl forge_domain::CodebaseRepository for ForgeInfra {
         &self,
         user_id: &forge_domain::UserId,
         working_dir: &std::path::Path,
-    ) -> anyhow::Result<forge_domain::IndexWorkspaceId> {
+    ) -> anyhow::Result<forge_domain::WorkspaceId> {
         self.indexing_client
             .create_workspace(user_id, working_dir)
             .await
@@ -296,7 +296,7 @@ impl forge_domain::CodebaseRepository for ForgeInfra {
     async fn upload_files(
         &self,
         user_id: &forge_domain::UserId,
-        workspace_id: &forge_domain::IndexWorkspaceId,
+        workspace_id: &forge_domain::WorkspaceId,
         files: Vec<forge_domain::FileRead>,
     ) -> anyhow::Result<forge_domain::UploadStats> {
         self.indexing_client
@@ -307,7 +307,7 @@ impl forge_domain::CodebaseRepository for ForgeInfra {
     async fn search(
         &self,
         user_id: &forge_domain::UserId,
-        workspace_id: &forge_domain::IndexWorkspaceId,
+        workspace_id: &forge_domain::WorkspaceId,
         query: &str,
         limit: usize,
         top_k: Option<u32>,
@@ -327,7 +327,7 @@ impl forge_domain::CodebaseRepository for ForgeInfra {
     async fn list_workspace_files(
         &self,
         user_id: &forge_domain::UserId,
-        workspace_id: &forge_domain::IndexWorkspaceId,
+        workspace_id: &forge_domain::WorkspaceId,
     ) -> anyhow::Result<Vec<forge_domain::FileHash>> {
         self.indexing_client
             .list_workspace_files(user_id, workspace_id)
@@ -337,7 +337,7 @@ impl forge_domain::CodebaseRepository for ForgeInfra {
     async fn delete_files(
         &self,
         user_id: &forge_domain::UserId,
-        workspace_id: &forge_domain::IndexWorkspaceId,
+        workspace_id: &forge_domain::WorkspaceId,
         file_paths: Vec<String>,
     ) -> anyhow::Result<()> {
         self.indexing_client

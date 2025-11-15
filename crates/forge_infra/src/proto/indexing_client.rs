@@ -1,7 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use forge_domain::{
-    CodeSearchResult, CodebaseRepository, IndexWorkspaceId, UploadStats, UserId as DomainUserId,
+    CodeSearchResult, CodebaseRepository, WorkspaceId, UploadStats, UserId as DomainUserId,
     WorkspaceInfo,
 };
 use tonic::transport::Channel;
@@ -36,7 +36,7 @@ impl CodebaseRepository for IndexingClient {
         &self,
         user_id: &DomainUserId,
         working_dir: &std::path::Path,
-    ) -> Result<IndexWorkspaceId> {
+    ) -> Result<WorkspaceId> {
         let request = CreateWorkspaceRequest {
             user_id: Some(UserId { id: user_id.to_string() }),
             workspace: Some(WorkspaceDefinition {
@@ -59,13 +59,13 @@ impl CodebaseRepository for IndexingClient {
             })?
             .id;
 
-        IndexWorkspaceId::from_string(&workspace_id)
+        WorkspaceId::from_string(&workspace_id)
     }
 
     async fn upload_files(
         &self,
         user_id: &DomainUserId,
-        workspace_id: &IndexWorkspaceId,
+        workspace_id: &WorkspaceId,
         files: Vec<forge_domain::FileRead>,
     ) -> Result<UploadStats> {
         let files: Vec<File> = files
@@ -75,7 +75,7 @@ impl CodebaseRepository for IndexingClient {
 
         let request = UploadFilesRequest {
             user_id: Some(UserId { id: user_id.to_string() }),
-            workspace_id: Some(WorkspaceId { id: workspace_id.to_string() }),
+            workspace_id: Some(proto_generated::WorkspaceId { id: workspace_id.to_string() }),
             content: Some(FileUploadContent { files, git: None }),
         };
 
@@ -93,14 +93,14 @@ impl CodebaseRepository for IndexingClient {
     async fn search(
         &self,
         user_id: &DomainUserId,
-        workspace_id: &IndexWorkspaceId,
+        workspace_id: &WorkspaceId,
         query: &str,
         limit: usize,
         top_k: Option<u32>,
     ) -> Result<Vec<CodeSearchResult>> {
         let request = tonic::Request::new(SearchRequest {
             user_id: Some(UserId { id: user_id.to_string() }),
-            workspace_id: Some(WorkspaceId { id: workspace_id.to_string() }),
+            workspace_id: Some(proto_generated::WorkspaceId { id: workspace_id.to_string() }),
             query: Some(Query {
                 prompt: Some(query.to_string()),
                 limit: Some(limit as u32),
@@ -177,7 +177,7 @@ impl CodebaseRepository for IndexingClient {
             .into_iter()
             .filter_map(|workspace| {
                 let id_msg = workspace.workspace_id?;
-                let workspace_id = IndexWorkspaceId::from_string(&id_msg.id).ok()?;
+                let workspace_id = WorkspaceId::from_string(&id_msg.id).ok()?;
                 Some(WorkspaceInfo { workspace_id, working_dir: workspace.working_dir })
             })
             .collect();
@@ -189,11 +189,11 @@ impl CodebaseRepository for IndexingClient {
     async fn list_workspace_files(
         &self,
         user_id: &DomainUserId,
-        workspace_id: &IndexWorkspaceId,
+        workspace_id: &WorkspaceId,
     ) -> Result<Vec<forge_domain::FileHash>> {
         let request = tonic::Request::new(ListFilesRequest {
             user_id: Some(UserId { id: user_id.to_string() }),
-            workspace_id: Some(WorkspaceId { id: workspace_id.to_string() }),
+            workspace_id: Some(proto_generated::WorkspaceId { id: workspace_id.to_string() }),
         });
 
         let mut client = self.client.clone();
@@ -217,7 +217,7 @@ impl CodebaseRepository for IndexingClient {
     async fn delete_files(
         &self,
         user_id: &DomainUserId,
-        workspace_id: &IndexWorkspaceId,
+        workspace_id: &WorkspaceId,
         file_paths: Vec<String>,
     ) -> Result<()> {
         if file_paths.is_empty() {
@@ -226,7 +226,7 @@ impl CodebaseRepository for IndexingClient {
 
         let request = tonic::Request::new(DeleteFilesRequest {
             user_id: Some(UserId { id: user_id.to_string() }),
-            workspace_id: Some(WorkspaceId { id: workspace_id.to_string() }),
+            workspace_id: Some(proto_generated::WorkspaceId { id: workspace_id.to_string() }),
             file_paths,
         });
 

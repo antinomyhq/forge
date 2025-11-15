@@ -2550,12 +2550,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         path: std::path::PathBuf,
         batch_size: usize,
     ) -> anyhow::Result<()> {
-        self.spinner.start(Some("Indexing codebase..."))?;
+        self.spinner.start(Some("Syncing codebase..."))?;
 
-        match self.api.index_codebase(path.clone(), batch_size).await {
+        match self.api.sync_codebase(path.clone(), batch_size).await {
             Ok(_) => {
                 self.spinner.stop(None)?;
-                self.writeln(format!("Successfully indexed: {}", path.display()))?;
+                self.writeln(format!("Successfully synced: {}", path.display()))?;
                 Ok(())
             }
             Err(e) => {
@@ -2636,10 +2636,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn on_list_workspaces(&mut self, porcelain: bool) -> anyhow::Result<()> {
         if !porcelain {
-            self.spinner.start(Some("Fetching indexed workspaces..."))?;
+            self.spinner.start(Some("Fetching workspaces..."))?;
         }
 
-        match self.api.list_indexes().await {
+        match self.api.list_codebases().await {
             Ok(workspaces) => {
                 if !porcelain {
                     self.spinner.stop(None)?;
@@ -2649,12 +2649,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 let mut info = if porcelain {
                     Info::new()
                 } else {
-                    Info::new().add_title("INDEXED WORKSPACES")
+                    Info::new().add_title("WORKSPACES")
                 };
 
                 if workspaces.is_empty() {
                     if !porcelain {
-                        info = info.add_value("No indexed workspaces found");
+                        info = info.add_value("No workspaces found");
                     }
                 } else {
                     for workspace in workspaces {

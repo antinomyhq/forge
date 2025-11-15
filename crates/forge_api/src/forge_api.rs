@@ -7,7 +7,7 @@ use forge_app::dto::ToolsOverview;
 use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
     CommandLoaderService, ConversationService, EnvironmentInfra, EnvironmentService,
-    FileDiscoveryService, ForgeApp, GitApp, IndexingService, McpConfigManager, McpService,
+    FileDiscoveryService, ForgeApp, GitApp, CodebaseService, McpConfigManager, McpService,
     ProviderAuthService, ProviderService, Services, User, UserUsage, Walker, WorkflowService,
 };
 use forge_domain::{InitAuth, LoginInfo, *};
@@ -325,12 +325,12 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         self.services.remove_credential(provider_id).await
     }
 
-    async fn index_codebase(
+    async fn sync_codebase(
         &self,
         path: PathBuf,
         batch_size: usize,
     ) -> Result<forge_domain::IndexStats> {
-        self.services.index(path, batch_size).await
+        self.services.sync_codebase(path, batch_size).await
     }
 
     async fn query_codebase(
@@ -340,10 +340,10 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         limit: usize,
         top_k: Option<u32>,
     ) -> Result<Vec<forge_domain::CodeSearchResult>> {
-        self.services.query(path, query, limit, top_k).await
+        self.services.query_codebase(path, query, limit, top_k).await
     }
 
-    async fn list_indexes(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
-        self.services.list_indexes().await
+    async fn list_codebases(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
+        self.services.list_codebase().await
     }
 }

@@ -45,7 +45,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
             Arc::new(DatabasePool::try_from(PoolConfig::new(env.database_path())).unwrap());
         let conversation_repository = Arc::new(ConversationRepositoryImpl::new(
             db_pool.clone(),
-            env.workspace_id(),
+            env.workspace_hash(),
         ));
 
         let app_config_repository = Arc::new(AppConfigRepositoryImpl::new(infra.clone()));
@@ -401,7 +401,7 @@ impl<F: StrategyFactory> StrategyFactory for ForgeRepo<F> {
 impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
     async fn upsert(
         &self,
-        workspace_id: &forge_domain::IndexWorkspaceId,
+        workspace_id: &forge_domain::WorkspaceId,
         user_id: &forge_domain::UserId,
         path: &std::path::Path,
     ) -> anyhow::Result<()> {
@@ -428,14 +428,14 @@ impl<F: forge_domain::CodebaseRepository> forge_domain::CodebaseRepository for F
         &self,
         user_id: &forge_domain::UserId,
         working_dir: &std::path::Path,
-    ) -> anyhow::Result<forge_domain::IndexWorkspaceId> {
+    ) -> anyhow::Result<forge_domain::WorkspaceId> {
         self.infra.create_workspace(user_id, working_dir).await
     }
 
     async fn upload_files(
         &self,
         user_id: &forge_domain::UserId,
-        workspace_id: &forge_domain::IndexWorkspaceId,
+        workspace_id: &forge_domain::WorkspaceId,
         files: Vec<forge_domain::FileRead>,
     ) -> anyhow::Result<forge_domain::UploadStats> {
         self.infra.upload_files(user_id, workspace_id, files).await
@@ -444,7 +444,7 @@ impl<F: forge_domain::CodebaseRepository> forge_domain::CodebaseRepository for F
     async fn search(
         &self,
         user_id: &forge_domain::UserId,
-        workspace_id: &forge_domain::IndexWorkspaceId,
+        workspace_id: &forge_domain::WorkspaceId,
         query: &str,
         limit: usize,
         top_k: Option<u32>,
@@ -464,7 +464,7 @@ impl<F: forge_domain::CodebaseRepository> forge_domain::CodebaseRepository for F
     async fn list_workspace_files(
         &self,
         user_id: &forge_domain::UserId,
-        workspace_id: &forge_domain::IndexWorkspaceId,
+        workspace_id: &forge_domain::WorkspaceId,
     ) -> anyhow::Result<Vec<forge_domain::FileHash>> {
         self.infra.list_workspace_files(user_id, workspace_id).await
     }
@@ -472,7 +472,7 @@ impl<F: forge_domain::CodebaseRepository> forge_domain::CodebaseRepository for F
     async fn delete_files(
         &self,
         user_id: &forge_domain::UserId,
-        workspace_id: &forge_domain::IndexWorkspaceId,
+        workspace_id: &forge_domain::WorkspaceId,
         file_paths: Vec<String>,
     ) -> anyhow::Result<()> {
         self.infra

@@ -184,8 +184,8 @@ pub trait API: Sync + Send {
     /// Remove provider credentials (logout)
     async fn remove_provider(&self, provider_id: &ProviderId) -> Result<()>;
 
-    /// Index a codebase directory for semantic search
-    async fn index_codebase(
+    /// Sync a codebase directory for semantic search
+    async fn sync_codebase(
         &self,
         path: PathBuf,
         batch_size: usize,
@@ -200,6 +200,6 @@ pub trait API: Sync + Send {
         top_k: Option<u32>,
     ) -> Result<Vec<forge_domain::CodeSearchResult>>;
 
-    /// List all indexed workspaces
-    async fn list_indexes(&self) -> Result<Vec<forge_domain::WorkspaceInfo>>;
+    /// List all workspaces
+    async fn list_codebases(&self) -> Result<Vec<forge_domain::WorkspaceInfo>>;
 }

@@ -13,7 +13,7 @@ diesel::table! {
 }
 
 diesel::table! {
-    indexing (remote_workspace_id) {
+    workspace (remote_workspace_id) {
         remote_workspace_id -> Text,
         user_id -> Text,
         path -> Text,
@@ -22,4 +22,4 @@ diesel::table! {
     }
 }
 
-diesel::allow_tables_to_appear_in_same_query!(conversations, indexing,);
+diesel::allow_tables_to_appear_in_same_query!(conversations, workspace,);

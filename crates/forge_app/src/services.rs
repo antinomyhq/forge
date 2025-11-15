@@ -233,12 +233,12 @@ pub trait CustomInstructionsService: Send + Sync {
 
 /// Service for indexing codebases for semantic search
 #[async_trait::async_trait]
-pub trait IndexingService: Send + Sync {
+pub trait CodebaseService: Send + Sync {
     /// Index the codebase at the given path
-    async fn index(&self, path: PathBuf, batch_size: usize) -> anyhow::Result<IndexStats>;
+    async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> anyhow::Result<IndexStats>;
 
     /// Query the indexed codebase with semantic search
-    async fn query(
+    async fn query_codebase(
         &self,
         path: PathBuf,
         query: &str,
@@ -247,7 +247,7 @@ pub trait IndexingService: Send + Sync {
     ) -> anyhow::Result<Vec<CodeSearchResult>>;
 
     /// List all workspaces indexed by the user
-    async fn list_indexes(&self) -> anyhow::Result<Vec<WorkspaceInfo>>;
+    async fn list_codebase(&self) -> anyhow::Result<Vec<WorkspaceInfo>>;
 }
 
 #[async_trait::async_trait]
@@ -497,7 +497,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type CommandLoaderService: CommandLoaderService;
     type PolicyService: PolicyService;
     type ProviderAuthService: ProviderAuthService;
-    type IndexingService: IndexingService;
+    type CodebaseService: CodebaseService;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn config_service(&self) -> &Self::AppConfigService;
@@ -526,7 +526,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn command_loader_service(&self) -> &Self::CommandLoaderService;
     fn policy_service(&self) -> &Self::PolicyService;
     fn provider_auth_service(&self) -> &Self::ProviderAuthService;
-    fn indexing_service(&self) -> &Self::IndexingService;
+    fn codebase_service(&self) -> &Self::CodebaseService;
 }
 
 #[async_trait::async_trait]
@@ -970,24 +970,24 @@ impl<I: Services> ProviderAuthService for I {
 }
 
 #[async_trait::async_trait]
-impl<I: Services> IndexingService for I {
-    async fn index(&self, path: PathBuf, batch_size: usize) -> anyhow::Result<IndexStats> {
-        self.indexing_service().index(path, batch_size).await
+impl<I: Services> CodebaseService for I {
+    async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> anyhow::Result<IndexStats> {
+        self.codebase_service().sync_codebase(path, batch_size).await
     }
 
-    async fn query(
+    async fn query_codebase(
         &self,
         path: PathBuf,
         query: &str,
         limit: usize,
         top_k: Option<u32>,
     ) -> anyhow::Result<Vec<CodeSearchResult>> {
-        self.indexing_service()
-            .query(path, query, limit, top_k)
+        self.codebase_service()
+            .query_codebase(path, query, limit, top_k)
             .await
     }
 
-    async fn list_indexes(&self) -> anyhow::Result<Vec<WorkspaceInfo>> {
-        self.indexing_service().list_indexes().await
+    async fn list_codebase(&self) -> anyhow::Result<Vec<WorkspaceInfo>> {
+        self.codebase_service().list_codebase().await
     }
 }
