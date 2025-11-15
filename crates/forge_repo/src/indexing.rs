@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use chrono::{NaiveDateTime, Utc};
 use diesel::prelude::*;
-use forge_domain::{WorkspaceId, UserId, Workspace, WorkspaceRepository};
+use forge_domain::{UserId, Workspace, WorkspaceId, WorkspaceRepository};
 
 use crate::database::schema::workspace;
 use crate::database::DatabasePool;

@@ -1,7 +1,7 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_domain::{
-    CodeSearchResult, CodebaseRepository, WorkspaceId, UploadStats, UserId as DomainUserId,
+    CodeSearchResult, CodebaseRepository, UploadStats, UserId as DomainUserId, WorkspaceId,
     WorkspaceInfo,
 };
 use tonic::transport::Channel;
@@ -16,12 +16,12 @@ mod proto_generated {
 use forge_service_client::ForgeServiceClient;
 use proto_generated::*;
 
-/// gRPC implementation of IndexingClientInfra
-pub struct IndexingClient {
+/// gRPC implementation of CodebaseRepository
+pub struct CodebaseRepositoryImpl {
     client: ForgeServiceClient<Channel>,
 }
 
-impl IndexingClient {
+impl CodebaseRepositoryImpl {
     /// Create a new gRPC client with lazy connection
     pub fn new(server_url: impl Into<String>) -> Result<Self> {
         let channel = Channel::from_shared(server_url.into())?.connect_lazy();
@@ -31,7 +31,7 @@ impl IndexingClient {
 }
 
 #[async_trait]
-impl CodebaseRepository for IndexingClient {
+impl CodebaseRepository for CodebaseRepositoryImpl {
     async fn create_workspace(
         &self,
         user_id: &DomainUserId,
@@ -50,16 +50,15 @@ impl CodebaseRepository for IndexingClient {
         let workspace = response
             .into_inner()
             .workspace
-            .ok_or_else(|| anyhow::anyhow!("No workspace in response"))?;
+            .context("No workspace in response")?;
 
         let workspace_id = workspace
             .workspace_id
-            .ok_or_else(|| {
-                anyhow::anyhow!("Server did not return workspace ID in CreateWorkspace response")
-            })?
+            .context("Server did not return workspace ID in CreateWorkspace response")?
             .id;
 
         WorkspaceId::from_string(&workspace_id)
+            .context("Failed to parse workspace ID from server response")
     }
 
     async fn upload_files(
@@ -82,9 +81,10 @@ impl CodebaseRepository for IndexingClient {
         let mut client = self.client.clone();
         let response = client.upload_files(request).await?;
 
-        let result = response.into_inner().result.ok_or_else(|| {
-            anyhow::anyhow!("Server did not return upload result in UploadFiles response")
-        })?;
+        let result = response
+            .into_inner()
+            .result
+            .context("Server did not return upload result in UploadFiles response")?;
 
         Ok(UploadStats::new(result.nodes.len(), result.relations.len()))
     }

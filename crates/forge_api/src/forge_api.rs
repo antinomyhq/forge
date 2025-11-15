@@ -5,10 +5,10 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use forge_app::dto::ToolsOverview;
 use forge_app::{
-    AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
-    CommandLoaderService, ConversationService, EnvironmentInfra, EnvironmentService,
-    FileDiscoveryService, ForgeApp, GitApp, CodebaseService, McpConfigManager, McpService,
-    ProviderAuthService, ProviderService, Services, User, UserUsage, Walker, WorkflowService,
+    AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CodebaseService,
+    CommandInfra, CommandLoaderService, ConversationService, EnvironmentInfra, EnvironmentService,
+    FileDiscoveryService, ForgeApp, GitApp, McpConfigManager, McpService, ProviderAuthService,
+    ProviderService, Services, User, UserUsage, Walker, WorkflowService,
 };
 use forge_domain::{InitAuth, LoginInfo, *};
 use forge_infra::ForgeInfra;
@@ -340,7 +340,9 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         limit: usize,
         top_k: Option<u32>,
     ) -> Result<Vec<forge_domain::CodeSearchResult>> {
-        self.services.query_codebase(path, query, limit, top_k).await
+        self.services
+            .query_codebase(path, query, limit, top_k)
+            .await
     }
 
     async fn list_codebases(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {

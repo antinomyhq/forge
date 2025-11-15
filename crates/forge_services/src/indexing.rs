@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::utils::format_display_path;
 use forge_app::{CodebaseService, FileReaderInfra, Walker, WalkerInfra, compute_hash};
-use forge_domain::{CodebaseRepository, IndexStats, WorkspaceId, UserId, WorkspaceRepository};
+use forge_domain::{CodebaseRepository, IndexStats, UserId, WorkspaceId, WorkspaceRepository};
 use futures::future::join_all;
 use tracing::{info, warn};
 
@@ -314,7 +314,9 @@ impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra
             .find_by_path(&canonical_path)
             .await
             .context("Failed to query database")?
-            .ok_or_else(|| anyhow::anyhow!("Workspace not found. Run `forge index sync .` first."))?;
+            .ok_or_else(|| {
+                anyhow::anyhow!("Workspace not found. Run `forge index sync .` first.")
+            })?;
 
         // Step 3: Search the codebase
         let results = self
@@ -356,7 +358,7 @@ mod tests {
 
     use forge_app::WalkedFile;
     use forge_domain::{
-        CodeSearchResult, FileHash, FileInfo, WorkspaceId, UploadStats, UserId, Workspace,
+        CodeSearchResult, FileHash, FileInfo, UploadStats, UserId, Workspace, WorkspaceId,
         WorkspaceInfo,
     };
     use pretty_assertions::assert_eq;
@@ -495,11 +497,7 @@ mod tests {
         async fn list_workspaces(&self, _: &UserId) -> Result<Vec<WorkspaceInfo>> {
             Ok(self.workspaces.clone())
         }
-        async fn list_workspace_files(
-            &self,
-            _: &UserId,
-            _: &WorkspaceId,
-        ) -> Result<Vec<FileHash>> {
+        async fn list_workspace_files(&self, _: &UserId, _: &WorkspaceId) -> Result<Vec<FileHash>> {
             Ok(self.server_files.clone())
         }
         async fn delete_files(
@@ -571,7 +569,9 @@ mod tests {
     async fn test_query_error_when_not_found() {
         let service = ForgeIndexingService::new(Arc::new(MockInfra::default()));
 
-        let actual = service.query_codebase(PathBuf::from("."), "test", 10, None).await;
+        let actual = service
+            .query_codebase(PathBuf::from("."), "test", 10, None)
+            .await;
 
         assert!(actual.is_err());
         assert!(actual.unwrap_err().to_string().contains("not found"));

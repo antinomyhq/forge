@@ -972,7 +972,9 @@ impl<I: Services> ProviderAuthService for I {
 #[async_trait::async_trait]
 impl<I: Services> CodebaseService for I {
     async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> anyhow::Result<IndexStats> {
-        self.codebase_service().sync_codebase(path, batch_size).await
+        self.codebase_service()
+            .sync_codebase(path, batch_size)
+            .await
     }
 
     async fn query_codebase(

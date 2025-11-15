@@ -4,8 +4,8 @@ use anyhow::Result;
 use url::Url;
 
 use crate::{
-    AnyProvider, AppConfig, AuthCredential, Conversation, ConversationId, WorkspaceId,
-    Provider, ProviderId, Snapshot, UserId, Workspace,
+    AnyProvider, AppConfig, AuthCredential, Conversation, ConversationId, Provider, ProviderId,
+    Snapshot, UserId, Workspace, WorkspaceId,
 };
 
 /// Repository for managing file snapshots
@@ -123,10 +123,7 @@ pub trait WorkspaceRepository: Send + Sync {
     ///
     /// # Errors
     /// Returns an error if the database query fails
-    async fn find_by_path(
-        &self,
-        path: &std::path::Path,
-    ) -> anyhow::Result<Option<Workspace>>;
+    async fn find_by_path(&self, path: &std::path::Path) -> anyhow::Result<Option<Workspace>>;
 
     /// Get user ID from any workspace
     ///
