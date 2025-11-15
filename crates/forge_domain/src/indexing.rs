@@ -279,12 +279,12 @@ impl CodeSearchResult {
             Self::FileRef { file_path, similarity, .. } => Element::new("file_ref")
                 .attr("file_path", file_path)
                 .attr("similarity", format!("{:.2}", similarity)),
-            Self::Note { content, similarity, .. } => {
-                Element::new("note").attr("similarity", format!("{:.2}", similarity)).cdata(content)
-            }
-            Self::Task { task, similarity, .. } => {
-                Element::new("task").attr("similarity", format!("{:.2}", similarity)).text(task)
-            }
+            Self::Note { content, similarity, .. } => Element::new("note")
+                .attr("similarity", format!("{:.2}", similarity))
+                .cdata(content),
+            Self::Task { task, similarity, .. } => Element::new("task")
+                .attr("similarity", format!("{:.2}", similarity))
+                .text(task),
         }
     }
 }
