@@ -199,6 +199,15 @@ pub trait HttpInfra: Send + Sync + 'static {
 /// Service for reading multiple files from a directory asynchronously
 #[async_trait::async_trait]
 pub trait DirectoryReaderInfra: Send + Sync {
+    /// Lists all entries (files and directories) in a directory without reading
+    /// file contents Returns a vector of tuples containing (entry_path,
+    /// is_directory) This is much more efficient than read_directory_files
+    /// when you only need to list entries
+    async fn list_directory_entries(
+        &self,
+        directory: &Path,
+    ) -> anyhow::Result<Vec<(PathBuf, bool)>>;
+
     /// Reads all files in a directory that match the given filter pattern
     /// Returns a vector of tuples containing (file_path, file_content)
     /// Files are read asynchronously/in parallel for better performance

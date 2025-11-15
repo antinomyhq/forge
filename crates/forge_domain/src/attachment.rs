@@ -18,6 +18,15 @@ pub enum AttachmentContent {
         end_line: u64,
         total_lines: u64,
     },
+    DirectoryListing {
+        entries: Vec<DirectoryEntry>,
+    },
+}
+
+#[derive(Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
+pub struct DirectoryEntry {
+    pub path: String,
+    pub is_dir: bool,
 }
 
 impl AttachmentContent {
@@ -32,6 +41,7 @@ impl AttachmentContent {
         match self {
             AttachmentContent::Image(_) => false,
             AttachmentContent::FileContent { content, .. } => content.contains(text),
+            AttachmentContent::DirectoryListing { .. } => false,
         }
     }
 

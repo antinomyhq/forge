@@ -291,6 +291,13 @@ impl<F> DirectoryReaderInfra for ForgeRepo<F>
 where
     F: DirectoryReaderInfra + Send + Sync,
 {
+    async fn list_directory_entries(
+        &self,
+        directory: &Path,
+    ) -> anyhow::Result<Vec<(PathBuf, bool)>> {
+        self.infra.list_directory_entries(directory).await
+    }
+
     async fn read_directory_files(
         &self,
         directory: &Path,

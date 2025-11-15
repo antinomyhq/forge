@@ -1,7 +1,12 @@
 use std::sync::Arc;
 
-use forge_app::domain::{Attachment, AttachmentContent, FileTag, Image, LineNumbers};
-use forge_app::{AttachmentService, EnvironmentInfra, FileReaderInfra};
+use forge_app::domain::{
+    Attachment, AttachmentContent, DirectoryEntry, FileTag, Image, LineNumbers,
+};
+use forge_app::utils::format_display_path;
+use forge_app::{
+    AttachmentService, DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra,
+};
 
 use crate::range::resolve_range;
 
@@ -10,7 +15,9 @@ pub struct ForgeChatRequest<F> {
     infra: Arc<F>,
 }
 
-impl<F: FileReaderInfra + EnvironmentInfra> ForgeChatRequest<F> {
+impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfra>
+    ForgeChatRequest<F>
+{
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
     }
@@ -28,6 +35,31 @@ impl<F: FileReaderInfra + EnvironmentInfra> ForgeChatRequest<F> {
 
         if !path.is_absolute() {
             path = self.infra.get_environment().cwd.join(path);
+        }
+
+        // Check if path is a directory (exists but is not a file)
+        if self.infra.exists(&path).await? && !self.infra.is_file(&path).await? {
+            // List all entries (files and directories) efficiently without reading file
+            // contents
+            let dir_entries = self.infra.list_directory_entries(&path).await?;
+            let cwd = &self.infra.get_environment().cwd;
+
+            // Create DirectoryEntry for each entry
+            let mut entries: Vec<DirectoryEntry> = dir_entries
+                .into_iter()
+                .map(|(entry_path, is_dir)| {
+                    let normalized_path = format_display_path(&entry_path, cwd);
+                    DirectoryEntry { path: normalized_path, is_dir }
+                })
+                .collect();
+
+            // Sort for consistent ordering
+            entries.sort_by(|a, b| a.path.cmp(&b.path));
+
+            return Ok(Attachment {
+                content: AttachmentContent::DirectoryListing { entries },
+                path: path.to_string_lossy().to_string(), // Keep root path absolute
+            });
         }
 
         // Determine file type (text or image with format)
@@ -64,12 +96,17 @@ impl<F: FileReaderInfra + EnvironmentInfra> ForgeChatRequest<F> {
             }
         };
 
-        Ok(Attachment { content, path: path.to_string_lossy().to_string() })
+        Ok(Attachment {
+            content,
+            path: path.to_string_lossy().to_string(), // Keep root path absolute
+        })
     }
 }
 
 #[async_trait::async_trait]
-impl<F: FileReaderInfra + EnvironmentInfra> AttachmentService for ForgeChatRequest<F> {
+impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfra> AttachmentService
+    for ForgeChatRequest<F>
+{
     async fn attachments(&self, url: &str) -> anyhow::Result<Vec<Attachment>> {
         self.prepare_attachments(Attachment::parse_all(url)).await
     }
@@ -87,9 +124,9 @@ pub mod tests {
         AttachmentContent, CommandOutput, Environment, ToolDefinition, ToolName, ToolOutput,
     };
     use forge_app::{
-        AttachmentService, CommandInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
-        FileReaderInfra, FileRemoverInfra, FileWriterInfra, McpClientInfra, McpServerInfra,
-        UserInfra,
+        AttachmentService, CommandInfra, DirectoryReaderInfra, EnvironmentInfra,
+        FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
+        McpClientInfra, McpServerInfra, UserInfra,
     };
     use forge_domain::FileInfo;
     use serde_json::Value;
@@ -110,6 +147,7 @@ pub mod tests {
                 .max_search_result_bytes(max_bytes.ceil() as usize)
                 .max_read_size(2000)
                 .max_file_size(256 << 10)
+                .cwd(PathBuf::from("/test")) // Set fixed CWD for predictable tests
         }
 
         fn get_env_var(&self, _key: &str) -> Option<String> {
@@ -156,6 +194,11 @@ pub mod tests {
         pub fn add_file(&self, path: PathBuf, content: String) {
             let mut files = self.files.lock().unwrap();
             files.push((path, Bytes::from_owner(content)));
+        }
+
+        pub fn add_dir(&self, path: PathBuf) {
+            let mut files = self.files.lock().unwrap();
+            files.push((path, Bytes::new()));
         }
     }
 
@@ -249,6 +292,51 @@ pub mod tests {
                 .unwrap()
                 .push((path.to_path_buf(), Bytes::new()));
             Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl DirectoryReaderInfra for MockFileService {
+        async fn list_directory_entries(
+            &self,
+            directory: &Path,
+        ) -> anyhow::Result<Vec<(PathBuf, bool)>> {
+            let files = self.files.lock().unwrap();
+            let mut results = Vec::new();
+
+            for (path, content) in files.iter() {
+                // Check if this entry is a direct child of the directory
+                if let Some(parent) = path.parent()
+                    && parent == directory
+                {
+                    // Check if it's a directory (empty bytes)
+                    let is_dir = content.is_empty();
+                    results.push((path.clone(), is_dir));
+                }
+            }
+
+            Ok(results)
+        }
+
+        async fn read_directory_files(
+            &self,
+            directory: &Path,
+            _pattern: Option<&str>,
+        ) -> anyhow::Result<Vec<(PathBuf, String)>> {
+            let files = self.files.lock().unwrap();
+            let mut results = Vec::new();
+
+            for (path, content) in files.iter() {
+                // Check if this entry is a direct child of the directory
+                if let Some(parent) = path.parent()
+                    && parent == directory
+                {
+                    let content_str = String::from_utf8(content.to_vec()).unwrap_or_default();
+                    results.push((path.clone(), content_str));
+                }
+            }
+
+            Ok(results)
         }
     }
 
@@ -570,6 +658,26 @@ pub mod tests {
 
         async fn file_size(&self, path: &Path) -> anyhow::Result<u64> {
             self.file_service.file_size(path).await
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl DirectoryReaderInfra for MockCompositeService {
+        async fn list_directory_entries(
+            &self,
+            directory: &Path,
+        ) -> anyhow::Result<Vec<(PathBuf, bool)>> {
+            self.file_service.list_directory_entries(directory).await
+        }
+
+        async fn read_directory_files(
+            &self,
+            directory: &Path,
+            pattern: Option<&str>,
+        ) -> anyhow::Result<Vec<(PathBuf, String)>> {
+            self.file_service
+                .read_directory_files(directory, pattern)
+                .await
         }
     }
 
@@ -1042,5 +1150,146 @@ pub mod tests {
                 total_lines: 5,
             }
         );
+    }
+
+    #[tokio::test]
+    async fn test_add_url_with_directory() {
+        let infra = Arc::new(MockCompositeService::new());
+
+        // Add directory, files, and subdirectory
+        infra.file_service.add_dir(PathBuf::from("/test/mydir"));
+        infra.add_file(
+            PathBuf::from("/test/mydir/file1.txt"),
+            "Content of file1".to_string(),
+        );
+        infra.add_file(
+            PathBuf::from("/test/mydir/file2.txt"),
+            "Content of file2".to_string(),
+        );
+        infra
+            .file_service
+            .add_dir(PathBuf::from("/test/mydir/subdir"));
+
+        let chat_request = ForgeChatRequest::new(infra.clone());
+
+        // Test with directory path
+        let url = "@[/test/mydir]";
+        let attachments = chat_request.attachments(url).await.unwrap();
+
+        // Should return a single DirectoryListing attachment
+        assert_eq!(attachments.len(), 1);
+        let attachment = attachments.first().unwrap();
+
+        // Verify it's a directory listing with relative paths
+        match &attachment.content {
+            AttachmentContent::DirectoryListing { entries } => {
+                // Should contain 2 files and 1 subdirectory (3 total)
+                assert_eq!(entries.len(), 3);
+
+                // Check for files (is_dir = false)
+                let file1 = entries
+                    .iter()
+                    .find(|e| e.path == "mydir/file1.txt")
+                    .unwrap();
+                assert!(!file1.is_dir);
+
+                let file2 = entries
+                    .iter()
+                    .find(|e| e.path == "mydir/file2.txt")
+                    .unwrap();
+                assert!(!file2.is_dir);
+
+                // Check for subdirectory (is_dir = true)
+                let subdir = entries.iter().find(|e| e.path == "mydir/subdir").unwrap();
+                assert!(subdir.is_dir);
+            }
+            _ => panic!("Expected DirectoryListing attachment"),
+        }
+
+        // Path should be absolute (root level)
+        assert_eq!(attachment.path, "/test/mydir");
+    }
+
+    #[tokio::test]
+    async fn test_add_url_with_empty_directory() {
+        let infra = Arc::new(MockCompositeService::new());
+
+        // Add empty directory
+        infra.file_service.add_dir(PathBuf::from("/test/emptydir"));
+
+        let chat_request = ForgeChatRequest::new(infra.clone());
+
+        // Test with empty directory path
+        let url = "@[/test/emptydir]";
+        let attachments = chat_request.attachments(url).await.unwrap();
+
+        // Should return a single DirectoryListing attachment with empty files list
+        assert_eq!(attachments.len(), 1);
+        let attachment = attachments.first().unwrap();
+
+        match &attachment.content {
+            AttachmentContent::DirectoryListing { entries } => {
+                assert_eq!(entries.len(), 0);
+            }
+            _ => panic!("Expected DirectoryListing attachment"),
+        }
+
+        // Path should be absolute (root level)
+        assert_eq!(attachment.path, "/test/emptydir");
+    }
+
+    #[tokio::test]
+    async fn test_add_url_with_mixed_files_and_directory() {
+        let infra = Arc::new(MockCompositeService::new());
+
+        // Add directory with files
+        infra.file_service.add_dir(PathBuf::from("/test/mixdir"));
+        infra.add_file(
+            PathBuf::from("/test/mixdir/dir_file.txt"),
+            "File in directory".to_string(),
+        );
+
+        // Add standalone file
+        infra.add_file(
+            PathBuf::from("/test/standalone.txt"),
+            "Standalone file".to_string(),
+        );
+
+        let chat_request = ForgeChatRequest::new(infra.clone());
+
+        // Test with both file and directory
+        let url = "@[/test/mixdir] @[/test/standalone.txt]";
+        let attachments = chat_request.attachments(url).await.unwrap();
+
+        // Should include both the directory listing and the standalone file
+        assert_eq!(attachments.len(), 2);
+
+        // Find directory listing (absolute path at root level)
+        let dir_attachment = attachments
+            .iter()
+            .find(|a| a.path == "/test/mixdir")
+            .unwrap();
+        match &dir_attachment.content {
+            AttachmentContent::DirectoryListing { entries } => {
+                assert_eq!(entries.len(), 1);
+                // File path should be relative (inside the listing)
+                let dir_file = entries
+                    .iter()
+                    .find(|e| e.path == "mixdir/dir_file.txt")
+                    .unwrap();
+                assert!(!dir_file.is_dir);
+            }
+            _ => panic!("Expected DirectoryListing attachment"),
+        }
+
+        // Find file attachment (absolute path at root level)
+        let file_attachment = attachments
+            .iter()
+            .find(|a| a.path == "/test/standalone.txt")
+            .unwrap();
+        assert!(matches!(
+            &file_attachment.content,
+            AttachmentContent::FileContent { .. }
+        ));
     }
 }

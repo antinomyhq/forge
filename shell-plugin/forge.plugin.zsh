@@ -13,6 +13,13 @@ typeset -h _FORGE_DELIMITER='\s\s+'
 # Detect fd command - Ubuntu/Debian use 'fdfind', others use 'fd'
 typeset -h _FORGE_FD_CMD="$(command -v fdfind 2>/dev/null || command -v fd 2>/dev/null || echo 'fd')"
 
+# Detect bat command - use bat if available, otherwise fall back to cat
+if command -v bat &>/dev/null; then
+    typeset -h _FORGE_CAT_CMD="bat --color=always --style=numbers,changes --line-range=:500"
+else
+    typeset -h _FORGE_CAT_CMD="cat"
+fi
+
 # Commands cache - loaded lazily on first use
 typeset -h _FORGE_COMMANDS=""
 
@@ -209,19 +216,19 @@ function _forge_handle_conversation_command() {
 function forge-completion() {
     local current_word="${LBUFFER##* }"
     
-    # Handle @ completion (existing functionality)
+    # Handle @ completion (files and directories)
     if [[ "$current_word" =~ ^@.*$ ]]; then
         local filter_text="${current_word#@}"
         local selected
         local fzf_args=(
-            --preview="bat --color=always --style=numbers,changes --line-range=:500 {} 2>/dev/null || cat {}"
+            --preview="if [ -d {} ]; then ls -la --color=always {} 2>/dev/null || ls -la {}; else $_FORGE_CAT_CMD {}; fi"
             --preview-window=right:60%:wrap:border-sharp
         )
         
         if [[ -n "$filter_text" ]]; then
-            selected=$($_FORGE_FD_CMD --type f --hidden --exclude .git | _forge_fzf --query "$filter_text" "${fzf_args[@]}")
+            selected=$($_FORGE_FD_CMD --type f --type d --hidden --exclude .git | _forge_fzf --query "$filter_text" "${fzf_args[@]}")
         else
-            selected=$($_FORGE_FD_CMD --type f --hidden --exclude .git | _forge_fzf "${fzf_args[@]}")
+            selected=$($_FORGE_FD_CMD --type f --type d --hidden --exclude .git | _forge_fzf "${fzf_args[@]}")
         fi
         
         if [[ -n "$selected" ]]; then
