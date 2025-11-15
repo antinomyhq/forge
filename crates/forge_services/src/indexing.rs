@@ -149,10 +149,15 @@ impl<F> ForgeIndexingService<F> {
     {
         // Walk directory
         info!("Walking directory to discover files");
-        let walker_config = Walker::conservative()
+        let mut walker_config = Walker::conservative()
             .cwd(dir_path.to_path_buf())
             .max_depth(usize::MAX)
-            .max_breadth(usize::MAX);
+            .max_breadth(usize::MAX)
+            .max_files(usize::MAX);
+        walker_config.max_file_size = None;
+        walker_config.max_total_size = None;
+
+
         let walked_files = self
             .infra
             .walk(walker_config)
