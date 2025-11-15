@@ -96,7 +96,6 @@ impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfr
             }
         };
 
-        let _cwd = &self.infra.get_environment().cwd;
         Ok(Attachment {
             content,
             path: path.to_string_lossy().to_string(), // Keep root path absolute
