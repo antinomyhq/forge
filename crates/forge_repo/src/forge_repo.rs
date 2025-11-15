@@ -8,9 +8,10 @@ use forge_app::{
     StrategyFactory, UserInfra, WalkedFile, Walker, WalkerInfra,
 };
 use forge_domain::{
-    AnyProvider, AppConfig, AppConfigRepository, AuthCredential, CommandOutput, Conversation,
-    ConversationId, ConversationRepository, Environment, FileInfo, McpServerConfig, Provider,
-    ProviderId, ProviderRepository, Snapshot, SnapshotRepository,
+    AnyProvider, ApiKey, AppConfig, AppConfigRepository, AuthCredential, CommandOutput,
+    Conversation, ConversationId, ConversationRepository, CredentialRepository, Environment,
+    FileInfo, McpServerConfig, Provider, ProviderId, ProviderRepository, Snapshot,
+    SnapshotRepository,
 };
 use forge_infra::CacacheStorage;
 use reqwest::header::HeaderMap;
@@ -18,6 +19,7 @@ use reqwest::Response;
 use reqwest_eventsource::EventSource;
 use url::Url;
 
+use crate::credential::ForgeCredentialRepository;
 use crate::fs_snap::ForgeFileSnapshotService;
 use crate::provider::ForgeProviderRepository;
 use crate::{AppConfigRepositoryImpl, ConversationRepositoryImpl, DatabasePool, PoolConfig};
@@ -34,6 +36,7 @@ pub struct ForgeRepo<F> {
     app_config_repository: Arc<AppConfigRepositoryImpl<F>>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
+    credential_repository: Arc<ForgeCredentialRepository<F>>,
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
@@ -42,8 +45,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
         let db_pool =
             Arc::new(DatabasePool::try_from(PoolConfig::new(env.database_path())).unwrap());
-        let conversation_repository =
-            Arc::new(ConversationRepositoryImpl::new(db_pool, env.workspace_id()));
+        let conversation_repository = Arc::new(ConversationRepositoryImpl::new(
+            db_pool.clone(),
+            env.workspace_id(),
+        ));
 
         let app_config_repository = Arc::new(AppConfigRepositoryImpl::new(infra.clone()));
 
@@ -54,6 +59,12 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
 
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
 
+        let credential_repository = Arc::new(ForgeCredentialRepository::new(
+            infra.clone(),
+            db_pool.clone(),
+            env.workspace_id(),
+        ));
+
         Self {
             infra,
             file_snapshot_service,
@@ -61,6 +72,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
             app_config_repository,
             mcp_cache_repository,
             provider_repository,
+            credential_repository,
         }
     }
 }
@@ -142,6 +154,17 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> AppC
 
     async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
         self.app_config_repository.set_app_config(config).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: HttpInfra + EnvironmentInfra + Send + Sync> CredentialRepository for ForgeRepo<F> {
+    async fn create(&self) -> anyhow::Result<ApiKey> {
+        self.credential_repository.create().await
+    }
+
+    async fn read(&self) -> anyhow::Result<ApiKey> {
+        self.credential_repository.read().await
     }
 }
 

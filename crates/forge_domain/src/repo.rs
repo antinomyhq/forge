@@ -4,8 +4,8 @@ use anyhow::Result;
 use url::Url;
 
 use crate::{
-    AnyProvider, AppConfig, AuthCredential, Conversation, ConversationId, Provider, ProviderId,
-    Snapshot,
+    AnyProvider, ApiKey, AppConfig, AuthCredential, Conversation, ConversationId, Provider,
+    ProviderId, Snapshot,
 };
 
 /// Repository for managing file snapshots
@@ -92,4 +92,26 @@ pub trait ProviderRepository: Send + Sync {
     async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()>;
     async fn get_credential(&self, id: &ProviderId) -> anyhow::Result<Option<AuthCredential>>;
     async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()>;
+}
+
+/// Repository for managing tool authentication API keys
+///
+/// This repository provides operations for creating/upserting and retrieving
+/// API keys used for tool authentication.
+#[async_trait::async_trait]
+pub trait CredentialRepository: Send + Sync {
+    /// Creates or updates an API key in the database
+    ///
+    /// This method performs an upsert operation, creating a new API key if one
+    /// doesn't exist or updating the existing one.
+    ///
+    /// # Errors
+    /// Returns an error if the database operation fails
+    async fn create(&self) -> anyhow::Result<ApiKey>;
+
+    /// Retrieves the current API key from the database
+    ///
+    /// # Errors
+    /// Returns an error if the database operation fails or if no API key exists
+    async fn read(&self) -> anyhow::Result<ApiKey>;
 }

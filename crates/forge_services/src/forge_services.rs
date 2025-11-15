@@ -6,7 +6,8 @@ use forge_app::{
     Services, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    AppConfigRepository, ConversationRepository, ProviderRepository, SnapshotRepository,
+    AppConfigRepository, ConversationRepository, CredentialRepository, ProviderRepository,
+    SnapshotRepository,
 };
 
 use crate::ForgeProviderAuthService;
@@ -48,6 +49,7 @@ pub struct ForgeServices<
         + SnapshotRepository
         + ConversationRepository
         + AppConfigRepository
+        + CredentialRepository
         + KVStore
         + ProviderRepository,
 > {
@@ -94,6 +96,7 @@ impl<
         + SnapshotRepository
         + ConversationRepository
         + AppConfigRepository
+        + CredentialRepository
         + ProviderRepository
         + KVStore,
 > ForgeServices<F>
@@ -177,6 +180,7 @@ impl<
         + SnapshotRepository
         + ConversationRepository
         + AppConfigRepository
+        + CredentialRepository
         + KVStore
         + ProviderRepository
         + StrategyFactory

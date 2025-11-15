@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS credentials (
+    project_id TEXT NOT NULL,
+    api_key TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (project_id)
+);
+
