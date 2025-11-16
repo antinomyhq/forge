@@ -138,7 +138,6 @@ pub trait CodebaseRepository: Send + Sync {
     /// Create a new workspace on the indexing server
     async fn create_workspace(
         &self,
-        user_id: &UserId,
         working_dir: &std::path::Path,
         auth_token: &crate::ApiKey,
     ) -> anyhow::Result<WorkspaceId>;
@@ -160,7 +159,6 @@ pub trait CodebaseRepository: Send + Sync {
     /// List all workspaces for a user
     async fn list_workspaces(
         &self,
-        user_id: &UserId,
         auth_token: &crate::ApiKey,
     ) -> anyhow::Result<Vec<crate::WorkspaceInfo>>;
 
@@ -181,7 +179,6 @@ pub trait CodebaseRepository: Send + Sync {
     /// Delete a workspace and all its indexed data
     async fn delete_workspace(
         &self,
-        user_id: &UserId,
         workspace_id: &WorkspaceId,
         auth_token: &crate::ApiKey,
     ) -> anyhow::Result<()>;

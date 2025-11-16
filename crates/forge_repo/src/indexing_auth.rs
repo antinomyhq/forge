@@ -3,22 +3,21 @@ use std::sync::Arc;
 use anyhow::Context;
 use chrono::Utc;
 use diesel::prelude::*;
-use forge_app::{EnvironmentInfra, HttpInfra};
+use forge_app::EnvironmentInfra;
 use forge_domain::{ApiKey, IndexingAuth, IndexingAuthRepository, UserId};
-use serde::Deserialize;
+use tonic::transport::Channel;
 
 use crate::database::schema::indexing_auth;
 use crate::DatabasePool;
 
-/// Default indexing server URL
-const DEFAULT_INDEXING_SERVER_URL: &str = "https://forgecode.dev";
-
-/// Response from the indexing authentication API
-#[derive(Debug, Deserialize)]
-struct AuthResponse {
-    user_id: String,
-    token: String,
+// Re-use the proto generated code from codebase_repository module
+#[allow(dead_code)]
+mod proto_generated {
+    tonic::include_proto!("forge.v1");
 }
+
+use proto_generated::forge_service_client::ForgeServiceClient;
+use proto_generated::CreateApiKeyRequest;
 
 /// Diesel model for indexing_auth table
 #[derive(Debug, Queryable, Insertable, AsChangeset)]
@@ -42,48 +41,40 @@ impl From<&IndexingAuth> for IndexingAuthModel {
 /// Repository implementation for indexing service authentication
 pub struct ForgeIndexingAuthRepository<F> {
     pool: Arc<DatabasePool>,
+    #[allow(dead_code)]
     infra: Arc<F>,
+    client: ForgeServiceClient<Channel>,
 }
 
-impl<E: EnvironmentInfra + HttpInfra> ForgeIndexingAuthRepository<E> {
+impl<E: EnvironmentInfra> ForgeIndexingAuthRepository<E> {
     /// Create a new indexing auth repository
-    pub fn new(pool: Arc<DatabasePool>, infra: Arc<E>) -> Self {
-        Self { pool, infra }
+    pub fn new(pool: Arc<DatabasePool>, infra: Arc<E>, server_url: impl Into<String>) -> Self {
+        let channel = Channel::from_shared(server_url.into())
+            .expect("Invalid server URL")
+            .connect_lazy();
+        let client = ForgeServiceClient::new(channel);
+
+        Self { pool, infra, client }
     }
 
-    /// Call HTTP API to authenticate and get user_id and token
-    ///
-    /// Gets server URL from FORGE_INDEXING_SERVER_URL environment variable,
-    /// or falls back to https://forgecode.dev
-    async fn call_auth_api(&self) -> anyhow::Result<AuthResponse> {
-        let server_url_opt = self.infra.get_env_var("FORGE_INDEXING_SERVER_URL");
-        let server_url = server_url_opt
-            .as_deref()
-            .unwrap_or(DEFAULT_INDEXING_SERVER_URL);
-        let auth_endpoint = format!("{}/auth/login", server_url);
+    /// Call gRPC API to create API key and get user_id and token
+    async fn call_create_api_key(&self) -> anyhow::Result<(UserId, ApiKey)> {
+        let mut client = self.client.clone();
 
-        // Parse URL
-        let url = auth_endpoint
-            .parse::<reqwest::Url>()
-            .context("Failed to parse authentication endpoint URL")?;
+        let request = tonic::Request::new(CreateApiKeyRequest { user_id: None });
 
-        // Call HTTP API with empty body
-        let response = self
-            .infra
-            .post(&url, bytes::Bytes::new())
+        let response = client
+            .create_api_key(request)
             .await
-            .context("Failed to call authentication API")?;
+            .context("Failed to call CreateApiKey gRPC")?
+            .into_inner();
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().await.unwrap_or_default();
-            anyhow::bail!("Authentication failed with status {}: {}", status, body);
-        }
+        let user_id = response.user_id.context("Missing user_id in response")?.id;
+        let user_id = UserId::from_string(&user_id).context("Invalid user_id returned from API")?;
 
-        response
-            .json::<AuthResponse>()
-            .await
-            .context("Failed to parse authentication response")
+        let token: ApiKey = response.key.into();
+
+        Ok((user_id, token))
     }
 
     /// Store auth in database
@@ -108,22 +99,13 @@ impl<E: EnvironmentInfra + HttpInfra> ForgeIndexingAuthRepository<E> {
 }
 
 #[async_trait::async_trait]
-impl<E: EnvironmentInfra + HttpInfra> IndexingAuthRepository for ForgeIndexingAuthRepository<E> {
+impl<E: EnvironmentInfra> IndexingAuthRepository for ForgeIndexingAuthRepository<E> {
     async fn authenticate(&self) -> anyhow::Result<IndexingAuth> {
-        // Call HTTP API to get user_id and token (no credentials needed - API doesn't
-        // take any input)
-        let response = self.call_auth_api().await?;
-
-        // Parse user_id
-        let user_id = UserId::from_string(&response.user_id)
-            .context("Invalid user_id returned from auth API")?;
+        // Call gRPC API to get user_id and token
+        let (user_id, token) = self.call_create_api_key().await?;
 
         // Create auth record
-        let auth = IndexingAuth {
-            user_id,
-            token: response.token.into(), // Convert String to ApiKey
-            created_at: Utc::now(),
-        };
+        let auth = IndexingAuth { user_id, token, created_at: Utc::now() };
 
         // Store in database
         self.store_auth(&auth).await?;
@@ -198,43 +180,15 @@ mod tests {
         }
     }
 
-    #[async_trait::async_trait]
-    impl HttpInfra for MockEnvironment {
-        async fn get(
-            &self,
-            _url: &reqwest::Url,
-            _headers: Option<reqwest::header::HeaderMap>,
-        ) -> anyhow::Result<reqwest::Response> {
-            unimplemented!("HTTP GET not needed for tests")
-        }
-
-        async fn post(
-            &self,
-            _url: &reqwest::Url,
-            _body: bytes::Bytes,
-        ) -> anyhow::Result<reqwest::Response> {
-            // Tests don't call authenticate(), they use store_auth() directly
-            unimplemented!("HTTP POST not needed for tests")
-        }
-
-        async fn delete(&self, _url: &reqwest::Url) -> anyhow::Result<reqwest::Response> {
-            unimplemented!("HTTP DELETE not needed for tests")
-        }
-
-        async fn eventsource(
-            &self,
-            _url: &reqwest::Url,
-            _headers: Option<reqwest::header::HeaderMap>,
-            _body: bytes::Bytes,
-        ) -> anyhow::Result<reqwest_eventsource::EventSource> {
-            unimplemented!("EventSource not needed for tests")
-        }
-    }
-
     fn repository() -> anyhow::Result<ForgeIndexingAuthRepository<MockEnvironment>> {
         let pool = Arc::new(DatabasePool::in_memory()?);
         let environment = Arc::new(MockEnvironment);
-        Ok(ForgeIndexingAuthRepository::new(pool, environment))
+        let server_url = "http://localhost:8080";
+        Ok(ForgeIndexingAuthRepository::new(
+            pool,
+            environment,
+            server_url,
+        ))
     }
 
     #[tokio::test]

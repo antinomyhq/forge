@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_domain::{
-    CodeSearchResult, CodebaseRepository, UploadStats, UserId as DomainUserId, WorkspaceId,
+    CodeSearchResult, CodebaseRepository, UploadStats, WorkspaceId,
     WorkspaceInfo,
 };
 use tonic::transport::Channel;
@@ -34,12 +34,10 @@ impl CodebaseRepositoryImpl {
 impl CodebaseRepository for CodebaseRepositoryImpl {
     async fn create_workspace(
         &self,
-        user_id: &DomainUserId,
         working_dir: &std::path::Path,
         auth_token: &forge_domain::ApiKey,
     ) -> Result<WorkspaceId> {
         let mut request = tonic::Request::new(CreateWorkspaceRequest {
-            user_id: Some(UserId { id: user_id.to_string() }),
             workspace: Some(WorkspaceDefinition {
                 working_dir: working_dir.to_string_lossy().to_string(),
             }),
@@ -83,7 +81,6 @@ impl CodebaseRepository for CodebaseRepositoryImpl {
             .collect();
 
         let mut request = tonic::Request::new(UploadFilesRequest {
-            user_id: Some(UserId { id: upload.user_id.to_string() }),
             workspace_id: Some(proto_generated::WorkspaceId {
                 id: upload.workspace_id.to_string(),
             }),
@@ -114,7 +111,6 @@ impl CodebaseRepository for CodebaseRepositoryImpl {
         auth_token: &forge_domain::ApiKey,
     ) -> Result<Vec<CodeSearchResult>> {
         let mut request = tonic::Request::new(SearchRequest {
-            user_id: Some(UserId { id: search_query.user_id.to_string() }),
             workspace_id: Some(proto_generated::WorkspaceId {
                 id: search_query.workspace_id.to_string(),
             }),
@@ -188,12 +184,9 @@ impl CodebaseRepository for CodebaseRepositoryImpl {
     /// List all workspaces for a user
     async fn list_workspaces(
         &self,
-        user_id: &DomainUserId,
         auth_token: &forge_domain::ApiKey,
     ) -> Result<Vec<WorkspaceInfo>> {
-        let mut request = tonic::Request::new(ListWorkspacesRequest {
-            user_id: Some(UserId { id: user_id.to_string() }),
-        });
+        let mut request = tonic::Request::new(ListWorkspacesRequest {});
 
         // Add authorization header
         request.metadata_mut().insert(
@@ -225,7 +218,6 @@ impl CodebaseRepository for CodebaseRepositoryImpl {
         auth_token: &forge_domain::ApiKey,
     ) -> Result<Vec<forge_domain::FileHash>> {
         let mut request = tonic::Request::new(ListFilesRequest {
-            user_id: Some(UserId { id: workspace.user_id.to_string() }),
             workspace_id: Some(proto_generated::WorkspaceId {
                 id: workspace.workspace_id.to_string(),
             }),
@@ -265,7 +257,6 @@ impl CodebaseRepository for CodebaseRepositoryImpl {
         }
 
         let mut request = tonic::Request::new(DeleteFilesRequest {
-            user_id: Some(UserId { id: deletion.user_id.to_string() }),
             workspace_id: Some(proto_generated::WorkspaceId {
                 id: deletion.workspace_id.to_string(),
             }),
@@ -286,12 +277,10 @@ impl CodebaseRepository for CodebaseRepositoryImpl {
 
     async fn delete_workspace(
         &self,
-        user_id: &forge_domain::UserId,
         workspace_id: &forge_domain::WorkspaceId,
         auth_token: &forge_domain::ApiKey,
     ) -> Result<()> {
         let mut request = tonic::Request::new(DeleteWorkspaceRequest {
-            user_id: Some(UserId { id: user_id.to_string() }),
             workspace_id: Some(proto_generated::WorkspaceId { id: workspace_id.to_string() }),
         });
 

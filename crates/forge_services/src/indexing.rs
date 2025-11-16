@@ -219,14 +219,22 @@ impl<
 
         info!(canonical_path = %canonical_path.display(), "Resolved canonical path");
 
-        // Get auth token - must be authenticated first
-        let token = self.infra.get_key().await?.context(
-            "No indexing authentication found. Please run `forge index login <API_KEY>` first.",
-        )?;
+        // Get auth token - if not authenticated, create API key automatically
+        let token = match self.infra.get_key().await? {
+            Some(token) => {
+                token
+            }
+            None => {
+                let auth = self.infra.authenticate().await.context(
+                    "Failed to authenticate with indexing server. Please check server connectivity.",
+                )?;
+                auth.token
+            }
+        };
 
         let user_id = IndexingAuthRepository::get_user_id(self.infra.as_ref())
             .await?
-            .context("No user_id found. Please login again.")?;
+            .context("No user_id found after authentication")?;
 
         let existing_workspace = self.infra.find_by_path(&canonical_path).await?;
 
@@ -238,7 +246,7 @@ impl<
         let workspace_id = if is_new_workspace {
             info!("Creating new workspace on server");
             self.infra
-                .create_workspace(&user_id, &canonical_path, &token)
+                .create_workspace(&canonical_path, &token)
                 .await
                 .context("Failed to create workspace on server")?
         } else {
@@ -352,11 +360,6 @@ impl<
 
     /// Lists all workspaces.
     async fn list_codebase(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
-        let user_id = IndexingAuthRepository::get_user_id(self.infra.as_ref())
-            .await?
-            .ok_or_else(|| {
-                anyhow::anyhow!("No authentication found. Run `forge index login <API_KEY>` first.")
-            })?;
 
         // Get auth token
         let token = self.infra.get_key().await?.context(
@@ -366,19 +369,13 @@ impl<
         // List all workspaces for this user
         self.infra
             .as_ref()
-            .list_workspaces(&user_id, &token)
+            .list_workspaces(&token)
             .await
             .context("Failed to list workspaces")
     }
 
     /// Deletes a workspace from both the server and local database.
     async fn delete_codebase(&self, workspace_id: &forge_domain::WorkspaceId) -> Result<()> {
-        let user_id = IndexingAuthRepository::get_user_id(self.infra.as_ref())
-            .await?
-            .ok_or_else(|| {
-                anyhow::anyhow!("No authentication found. Run `forge index login <API_KEY>` first.")
-            })?;
-
         // Get auth token
         let token = self.infra.get_key().await?.context(
             "No indexing authentication found. Please run `forge index login <API_KEY>` first.",
@@ -387,7 +384,7 @@ impl<
         // Delete from server
         self.infra
             .as_ref()
-            .delete_workspace(&user_id, workspace_id, &token)
+            .delete_workspace(workspace_id, &token)
             .await
             .context("Failed to delete workspace from server")?;
 
@@ -618,7 +615,7 @@ mod tests {
 
     #[async_trait]
     impl CodebaseRepository for MockInfra {
-        async fn create_workspace(&self, _: &UserId, _: &Path, _: &ApiKey) -> Result<WorkspaceId> {
+        async fn create_workspace(&self, _: &Path, _: &ApiKey) -> Result<WorkspaceId> {
             Ok(WorkspaceId::generate())
         }
         async fn upload_files(&self, upload: &FileUpload, _: &ApiKey) -> Result<UploadStats> {
@@ -635,7 +632,7 @@ mod tests {
         ) -> Result<Vec<CodeSearchResult>> {
             Ok(self.search_results.clone())
         }
-        async fn list_workspaces(&self, _: &UserId, _: &ApiKey) -> Result<Vec<WorkspaceInfo>> {
+        async fn list_workspaces(&self, _: &ApiKey) -> Result<Vec<WorkspaceInfo>> {
             Ok(self.workspaces.lock().await.clone())
         }
         async fn list_workspace_files(
@@ -654,7 +651,6 @@ mod tests {
         }
         async fn delete_workspace(
             &self,
-            _: &UserId,
             workspace_id: &WorkspaceId,
             _: &ApiKey,
         ) -> Result<()> {

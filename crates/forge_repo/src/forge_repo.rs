@@ -40,7 +40,7 @@ pub struct ForgeRepo<F> {
     codebase_repo: Arc<crate::CodebaseRepositoryImpl>,
 }
 
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra> ForgeRepo<F> {
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
     pub fn new(infra: Arc<F>) -> Self {
         let env = infra.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
@@ -64,16 +64,17 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra> ForgeR
             db_pool.clone(),
         ));
 
-        let indexing_auth_repository = Arc::new(crate::ForgeIndexingAuthRepository::new(
-            db_pool.clone(),
-            infra.clone(),
-        ));
-
-        // Create codebase repository - requires FORGE_INDEX_SERVER_URL environment
-        // variable
+        // Get indexing server URL from environment
         let indexing_server_url = infra
             .get_env_var("FORGE_INDEX_SERVER_URL")
             .unwrap_or_else(|| "http://localhost:8080".to_string());
+
+        // Create indexing auth repository - uses same server URL as codebase repo
+        let indexing_auth_repository = Arc::new(crate::ForgeIndexingAuthRepository::new(
+            db_pool.clone(),
+            infra.clone(),
+            indexing_server_url.clone(),
+        ));
 
         let codebase_repo = Arc::new(
             crate::CodebaseRepositoryImpl::new(indexing_server_url)
@@ -448,7 +449,7 @@ impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + HttpInfra + Send + Sync> IndexingAuthRepository for ForgeRepo<F> {
+impl<F: EnvironmentInfra + Send + Sync> IndexingAuthRepository for ForgeRepo<F> {
     async fn authenticate(&self) -> anyhow::Result<IndexingAuth> {
         self.indexing_auth_repository.authenticate().await
     }
@@ -470,12 +471,11 @@ impl<F: EnvironmentInfra + HttpInfra + Send + Sync> IndexingAuthRepository for F
 impl<F: Send + Sync> forge_domain::CodebaseRepository for ForgeRepo<F> {
     async fn create_workspace(
         &self,
-        user_id: &forge_domain::UserId,
         working_dir: &std::path::Path,
         auth_token: &forge_domain::ApiKey,
     ) -> anyhow::Result<forge_domain::WorkspaceId> {
         self.codebase_repo
-            .create_workspace(user_id, working_dir, auth_token)
+            .create_workspace(working_dir, auth_token)
             .await
     }
 
@@ -497,11 +497,10 @@ impl<F: Send + Sync> forge_domain::CodebaseRepository for ForgeRepo<F> {
 
     async fn list_workspaces(
         &self,
-        user_id: &forge_domain::UserId,
         auth_token: &forge_domain::ApiKey,
     ) -> anyhow::Result<Vec<forge_domain::WorkspaceInfo>> {
         self.codebase_repo
-            .list_workspaces(user_id, auth_token)
+            .list_workspaces(auth_token)
             .await
     }
 
@@ -525,12 +524,11 @@ impl<F: Send + Sync> forge_domain::CodebaseRepository for ForgeRepo<F> {
 
     async fn delete_workspace(
         &self,
-        user_id: &forge_domain::UserId,
         workspace_id: &forge_domain::WorkspaceId,
         auth_token: &forge_domain::ApiKey,
     ) -> anyhow::Result<()> {
         self.codebase_repo
-            .delete_workspace(user_id, workspace_id, auth_token)
+            .delete_workspace(workspace_id, auth_token)
             .await
     }
 }
