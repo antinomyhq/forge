@@ -89,8 +89,7 @@ impl<S: TemplateService> SystemPrompt<S> {
                     // Execute inline shell commands and replace with their results
                     let cwd = &self.environment.cwd;
                     let restricted = false; // Allow execution in system prompts
-                    let commands: Vec<InlineShellCommand> =
-                        parsed_content.commands_found.to_vec();
+                    let commands: Vec<InlineShellCommand> = parsed_content.commands_found.to_vec();
 
                     match self
                         .inline_shell_executor
