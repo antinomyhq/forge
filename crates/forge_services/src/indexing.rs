@@ -237,7 +237,7 @@ impl<
                 let user_id = auth.user_id.clone();
 
                 // Store the auth in database
-                CredentialsRepository::store_auth(self.infra.as_ref(), &auth)
+                CredentialsRepository::set_auth(self.infra.as_ref(), &auth)
                     .await
                     .context("Failed to store authentication credentials")?;
 
@@ -456,7 +456,7 @@ where
             .context("Failed to authenticate with indexing service")?;
 
         // Store the auth in database
-        CredentialsRepository::store_auth(self.infra.as_ref(), &auth)
+        CredentialsRepository::set_auth(self.infra.as_ref(), &auth)
             .await
             .context("Failed to store authentication credentials")?;
 
@@ -589,7 +589,7 @@ mod tests {
 
     #[async_trait::async_trait]
     impl CredentialsRepository for MockInfra {
-        async fn store_auth(&self, _auth: &IndexingAuth) -> Result<()> {
+        async fn set_auth(&self, _auth: &IndexingAuth) -> Result<()> {
             Ok(())
         }
 

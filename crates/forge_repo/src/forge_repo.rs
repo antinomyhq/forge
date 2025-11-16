@@ -447,8 +447,8 @@ impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
 
 #[async_trait::async_trait]
 impl<F: Send + Sync> CredentialsRepository for ForgeRepo<F> {
-    async fn store_auth(&self, auth: &IndexingAuth) -> anyhow::Result<()> {
-        self.indexing_auth_repository.store_auth(auth).await
+    async fn set_auth(&self, auth: &IndexingAuth) -> anyhow::Result<()> {
+        self.indexing_auth_repository.set_auth(auth).await
     }
 
     async fn get_api_key(&self) -> anyhow::Result<Option<forge_domain::ApiKey>> {

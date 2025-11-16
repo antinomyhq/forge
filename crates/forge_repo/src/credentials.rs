@@ -40,7 +40,7 @@ impl ForgeCredentialsRepository {
 
 #[async_trait::async_trait]
 impl CredentialsRepository for ForgeCredentialsRepository {
-    async fn store_auth(&self, auth: &IndexingAuth) -> anyhow::Result<()> {
+    async fn set_auth(&self, auth: &IndexingAuth) -> anyhow::Result<()> {
         let model: IndexingAuthModel = auth.into();
         let mut conn = self.pool.get_connection()?;
 
@@ -110,7 +110,7 @@ mod tests {
             "test_token_123".to_string().into(), // Convert to ApiKey
         );
 
-        repo.store_auth(&auth).await.unwrap();
+        repo.set_auth(&auth).await.unwrap();
 
         let retrieved_token = repo.get_api_key().await.unwrap();
         assert_eq!(retrieved_token, Some("test_token_123".to_string().into()));
@@ -125,7 +125,7 @@ mod tests {
         let repo = repository().unwrap();
 
         let auth = IndexingAuth::new(UserId::generate(), "test_token".to_string().into());
-        repo.store_auth(&auth).await.unwrap();
+        repo.set_auth(&auth).await.unwrap();
 
         repo.delete_api_key().await.unwrap();
 
@@ -141,11 +141,11 @@ mod tests {
 
         // Store first auth
         let auth1 = IndexingAuth::new(user_id.clone(), "token1".to_string().into());
-        repo.store_auth(&auth1).await.unwrap();
+        repo.set_auth(&auth1).await.unwrap();
 
         // Store second auth with same user_id (should replace)
         let auth2 = IndexingAuth::new(user_id, "token2".to_string().into());
-        repo.store_auth(&auth2).await.unwrap();
+        repo.set_auth(&auth2).await.unwrap();
 
         let token = repo.get_api_key().await.unwrap();
         assert_eq!(token, Some("token2".to_string().into()));

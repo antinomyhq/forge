@@ -119,7 +119,7 @@ pub trait WorkspaceRepository: Send + Sync {
 #[async_trait::async_trait]
 pub trait CredentialsRepository: Send + Sync {
     /// Store authentication credentials in database
-    async fn store_auth(&self, auth: &IndexingAuth) -> anyhow::Result<()>;
+    async fn set_auth(&self, auth: &IndexingAuth) -> anyhow::Result<()>;
 
     /// Get stored authentication token for the current user
     async fn get_api_key(&self) -> anyhow::Result<Option<crate::ApiKey>>;
