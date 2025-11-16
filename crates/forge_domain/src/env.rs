@@ -76,6 +76,9 @@ pub struct Environment {
     /// Top-k parameter for codebase search relevance.
     /// Controlled by FORGE_CODEBASE_SEARCH_TOP_K environment variable.
     pub codebase_search_top_k: Option<u32>,
+    /// URL for the indexing server.
+    /// Controlled by FORGE_INDEX_SERVER_URL environment variable.
+    pub index_server_url: String,
 }
 
 impl Environment {
@@ -226,6 +229,7 @@ fn test_command_path() {
         max_image_size: 262144,
         codebase_search_limit: 100,
         codebase_search_top_k: Some(10),
+        index_server_url: "http://localhost:8080".to_string(),
     };
 
     let actual = fixture.command_path();
@@ -262,6 +266,7 @@ fn test_command_cwd_path() {
         max_image_size: 262144,
         codebase_search_limit: 100,
         codebase_search_top_k: Some(10),
+        index_server_url: "http://localhost:8080".to_string(),
     };
 
     let actual = fixture.command_cwd_path();
@@ -298,6 +303,7 @@ fn test_command_cwd_path_independent_from_command_path() {
         max_image_size: 262144,
         codebase_search_limit: 100,
         codebase_search_top_k: Some(10),
+        index_server_url: "http://localhost:8080".to_string(),
     };
 
     let command_path = fixture.command_path();

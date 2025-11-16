@@ -62,14 +62,8 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
             db_pool.clone(),
         ));
 
-        // Create codebase repository - requires FORGE_INDEX_SERVER_URL environment
-        // variable
-        let indexing_server_url = infra
-            .get_env_var("FORGE_INDEX_SERVER_URL")
-            .unwrap_or_else(|| "http://localhost:8080".to_string());
-
         let codebase_repo = Arc::new(
-            crate::CodebaseRepositoryImpl::new(indexing_server_url)
+            crate::CodebaseRepositoryImpl::new(&env.index_server_url)
                 .expect("Failed to create codebase repository"),
         );
 
