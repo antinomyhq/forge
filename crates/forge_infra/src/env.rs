@@ -84,7 +84,9 @@ impl ForgeEnvironmentInfra {
             codebase_search_limit: parse_env::<usize>("FORGE_CODEBASE_SEARCH_LIMIT").unwrap_or(100),
             codebase_search_top_k: parse_env::<u32>("FORGE_CODEBASE_SEARCH_TOP_K").or(Some(10)),
             index_server_url: parse_env::<String>("FORGE_INDEX_SERVER_URL")
-                .unwrap_or_else(|| "http://localhost:8080".to_string()),
+                .as_ref()
+                .and_then(|url| Url::parse(url.as_str()).ok())
+                .unwrap_or_else(|| Url::parse("http://localhost:8080").unwrap()),
         }
     }
 

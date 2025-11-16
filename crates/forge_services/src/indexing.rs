@@ -476,12 +476,14 @@ mod tests {
     }
 
     fn search_result() -> CodeSearchResult {
-        CodeSearchResult::FileChunk {
-            node_id: "n1".into(),
-            file_path: "main.rs".into(),
-            content: "fn main() {}".into(),
-            start_line: 1,
-            end_line: 1,
+        CodeSearchResult {
+            node: forge_domain::CodeNode::FileChunk {
+                node_id: "n1".into(),
+                file_path: "main.rs".into(),
+                content: "fn main() {}".into(),
+                start_line: 1,
+                end_line: 1,
+            },
             similarity: 0.95,
         }
     }

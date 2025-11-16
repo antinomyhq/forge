@@ -9,7 +9,6 @@ expression: to_value(actual)
 <file_chunk
   file_path="src/retry.rs"
   lines="10-19"
-  similarity="0.95"
 ><![CDATA[fn retry_with_backoff(max_attempts: u32) {
     let mut delay = 100;
     for attempt in 0..max_attempts {
@@ -24,7 +23,6 @@ expression: to_value(actual)
 <file_chunk
   file_path="src/http/client.rs"
   lines="45-50"
-  similarity="0.92"
 ><![CDATA[async fn request_with_retry(&self, url: &str) -> Result<Response> {
     const MAX_RETRIES: usize = 3;
     let mut backoff = ExponentialBackoff::default();
@@ -38,7 +36,6 @@ expression: to_value(actual)
 <file_chunk
   file_path="src/auth/oauth.rs"
   lines="100-108"
-  similarity="0.89"
 ><![CDATA[async fn refresh_token(&self) -> Result<Token> {
     let refresh_token = self.get_refresh_token()?;
     let response = self.client.post(&self.token_url)

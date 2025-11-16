@@ -5,8 +5,8 @@ use console::strip_ansi_codes;
 use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
-    CodebaseQueryResult, Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
-    FileOperation, Metrics, NetFetch, PlanCreate, ToolKind,
+    CodebaseQueryResult, Environment, FSPatch, FSRead, FSRemove,
+    FSSearch, FSUndo, FSWrite, FileOperation, Metrics, NetFetch, PlanCreate, ToolKind,
 };
 use forge_template::Element;
 
@@ -335,7 +335,7 @@ impl ToolOperation {
                         query_elem = query_elem.text("No results found for query. Try refining your search with more specific terms or different keywords.")
                     } else {
                         for result in &query_result.results {
-                            query_elem = query_elem.append(result.to_element());
+                            query_elem = query_elem.append(result.node.to_element());
                         }
                     }
                     root = root.append(query_elem);
@@ -1565,20 +1565,24 @@ mod tests {
                 CodebaseQueryResult {
                     query: "retry mechanism with exponential backoff".to_string(),
                     results: vec![
-                        CodeSearchResult::FileChunk {
-                            node_id: "node1".to_string(),
-                            file_path: "src/retry.rs".to_string(),
-                            content: "fn retry_with_backoff(max_attempts: u32) {\n    let mut delay = 100;\n    for attempt in 0..max_attempts {\n        if try_operation().is_ok() {\n            return;\n        }\n        thread::sleep(Duration::from_millis(delay));\n        delay *= 2;\n    }\n}".to_string(),
-                            start_line: 10,
-                            end_line: 19,
+                        CodeSearchResult {
+                            node: CodeNode::FileChunk {
+                                node_id: "node1".to_string(),
+                                file_path: "src/retry.rs".to_string(),
+                                content: "fn retry_with_backoff(max_attempts: u32) {\n    let mut delay = 100;\n    for attempt in 0..max_attempts {\n        if try_operation().is_ok() {\n            return;\n        }\n        thread::sleep(Duration::from_millis(delay));\n        delay *= 2;\n    }\n}".to_string(),
+                                start_line: 10,
+                                end_line: 19,
+                            },
                             similarity: 0.9534,
                         },
-                        CodeSearchResult::FileChunk {
-                            node_id: "node2".to_string(),
-                            file_path: "src/http/client.rs".to_string(),
-                            content: "async fn request_with_retry(&self, url: &str) -> Result<Response> {\n    const MAX_RETRIES: usize = 3;\n    let mut backoff = ExponentialBackoff::default();\n    // Implementation...\n}".to_string(),
-                            start_line: 45,
-                            end_line: 50,
+                        CodeSearchResult {
+                            node: CodeNode::FileChunk {
+                                node_id: "node2".to_string(),
+                                file_path: "src/http/client.rs".to_string(),
+                                content: "async fn request_with_retry(&self, url: &str) -> Result<Response> {\n    const MAX_RETRIES: usize = 3;\n    let mut backoff = ExponentialBackoff::default();\n    // Implementation...\n}".to_string(),
+                                start_line: 45,
+                                end_line: 50,
+                            },
                             similarity: 0.9201,
                         },
                     ],
@@ -1586,12 +1590,14 @@ mod tests {
                 CodebaseQueryResult {
                     query: "OAuth token refresh flow".to_string(),
                     results: vec![
-                        CodeSearchResult::FileChunk {
-                            node_id: "node3".to_string(),
-                            file_path: "src/auth/oauth.rs".to_string(),
-                            content: "async fn refresh_token(&self) -> Result<Token> {\n    let refresh_token = self.get_refresh_token()?;\n    let response = self.client.post(&self.token_url)\n        .form(&[(\"grant_type\", \"refresh_token\"),\n                (\"refresh_token\", &refresh_token)])\n        .send()\n        .await?;\n    response.json().await\n}".to_string(),
-                            start_line: 100,
-                            end_line: 108,
+                        CodeSearchResult {
+                            node: CodeNode::FileChunk {
+                                node_id: "node3".to_string(),
+                                file_path: "src/auth/oauth.rs".to_string(),
+                                content: "async fn refresh_token(&self) -> Result<Token> {\n    let refresh_token = self.get_refresh_token()?;\n    let response = self.client.post(&self.token_url)\n        .form(&[(\"grant_type\", \"refresh_token\"),\n                (\"refresh_token\", &refresh_token)])\n        .send()\n        .await?;\n    response.json().await\n}".to_string(),
+                                start_line: 100,
+                                end_line: 108,
+                            },
                             similarity: 0.8876,
                         },
                     ],

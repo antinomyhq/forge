@@ -172,13 +172,26 @@ pub struct CodebaseQueryResult {
     pub results: Vec<CodeSearchResult>,
 }
 
+/// A search result with its similarity score
+///
+/// Wraps a code node with its semantic search similarity score,
+/// keeping the score separate from the node data itself.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CodeSearchResult {
+    /// The node data (file, chunk, note, etc.)
+    #[serde(flatten)]
+    pub node: CodeNode,
+    /// Similarity score (0.0 - 1.0)
+    pub similarity: f32,
+}
+
 /// Result of a semantic search query
 ///
 /// Represents different types of nodes returned from the codebase service.
 /// Each variant contains only the fields relevant to that node type.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
-pub enum CodeSearchResult {
+pub enum CodeNode {
     /// File chunk with precise line numbers
     FileChunk {
         /// Node ID
@@ -191,8 +204,6 @@ pub enum CodeSearchResult {
         start_line: u32,
         /// End line in the file
         end_line: u32,
-        /// Similarity score (0.0 - 1.0)
-        similarity: f32,
     },
     /// Full file content
     File {
@@ -204,8 +215,6 @@ pub enum CodeSearchResult {
         content: String,
         /// SHA-256 hash of the file content
         hash: String,
-        /// Similarity score (0.0 - 1.0)
-        similarity: f32,
     },
     /// File reference (path only, no content)
     FileRef {
@@ -215,8 +224,6 @@ pub enum CodeSearchResult {
         file_path: String,
         /// SHA-256 hash of the file content
         file_hash: String,
-        /// Similarity score (0.0 - 1.0)
-        similarity: f32,
     },
     /// Note content
     Note {
@@ -224,8 +231,6 @@ pub enum CodeSearchResult {
         node_id: String,
         /// Note content
         content: String,
-        /// Similarity score (0.0 - 1.0)
-        similarity: f32,
     },
     /// Task description
     Task {
@@ -233,12 +238,10 @@ pub enum CodeSearchResult {
         node_id: String,
         /// Task description
         task: String,
-        /// Similarity score (0.0 - 1.0)
-        similarity: f32,
     },
 }
 
-impl CodeSearchResult {
+impl CodeNode {
     /// Get the node ID for any variant
     pub fn node_id(&self) -> &str {
         match self {
@@ -247,17 +250,6 @@ impl CodeSearchResult {
             | Self::FileRef { node_id, .. }
             | Self::Note { node_id, .. }
             | Self::Task { node_id, .. } => node_id,
-        }
-    }
-
-    /// Get the similarity score for any variant
-    pub fn similarity(&self) -> f32 {
-        match self {
-            Self::FileChunk { similarity, .. }
-            | Self::File { similarity, .. }
-            | Self::FileRef { similarity, .. }
-            | Self::Note { similarity, .. }
-            | Self::Task { similarity, .. } => *similarity,
         }
     }
 
