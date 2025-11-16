@@ -29,6 +29,7 @@ serde_yml.workspace = true
 forge_template.workspace = true
 base64.workspace = true
 derive-getters = "0.5.0"
+dirs.workspace = true
 regex.workspace = true
 forge_tool_macros.workspace = true
 lazy_static = "1.5.0"
@@ -42,3 +43,4 @@ insta = { workspace = true, features = ["yaml"] }
 pretty_assertions.workspace = true
 is_ci.workspace = true
 fake = { version = "4.4.0", features = ["derive"] }
+proptest = "1.0.0"

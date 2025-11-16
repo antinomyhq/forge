@@ -70,6 +70,15 @@ pub struct Environment {
     /// Maximum number of conversations to show in list.
     /// Controlled by FORGE_MAX_CONVERSATIONS environment variable.
     pub max_conversations: usize,
+    /// Maximum number of inline shell commands per prompt.
+    /// Controlled by FORGE_INLINE_MAX_COMMANDS environment variable.
+    pub inline_max_commands: usize,
+    /// Maximum execution time in seconds for a single inline shell command.
+    /// Controlled by FORGE_INLINE_COMMAND_TIMEOUT environment variable.
+    pub inline_command_timeout: u64,
+    /// Maximum output characters per inline shell command.
+    /// Controlled by FORGE_INLINE_MAX_OUTPUT_LENGTH environment variable.
+    pub inline_max_output_length: usize,
 }
 
 impl Environment {
@@ -127,6 +136,7 @@ impl Environment {
     }
 
     /// Returns the path to the cache directory
+    /// Returns path to cache directory
     pub fn cache_dir(&self) -> PathBuf {
         self.base_path.join("cache")
     }
@@ -136,6 +146,41 @@ impl Environment {
         self.cwd.hash(&mut hasher);
 
         WorkspaceId(hasher.finish())
+    }
+}
+
+impl Default for Environment {
+    fn default() -> Self {
+        Environment {
+            os: std::env::consts::OS.to_string(),
+            pid: std::process::id(),
+            cwd: std::env::current_dir().unwrap_or_default(),
+            shell: std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string()),
+            base_path: dirs::home_dir()
+                .map(|a| a.join("forge"))
+                .unwrap_or(PathBuf::from(".").join("forge")),
+            home: dirs::home_dir(),
+            retry_config: RetryConfig::default(),
+            max_search_lines: 200,
+            max_search_result_bytes: 10240,
+            fetch_truncation_limit: 40_000,
+            max_read_size: 2000,
+            stdout_max_prefix_length: 200,
+            stdout_max_suffix_length: 200,
+            tool_timeout: 300,
+            auto_open_dump: false,
+            debug_requests: false,
+            stdout_max_line_length: 2000,
+            http: HttpConfig::default(),
+            max_file_size: 256 << 10,  // 256 KiB
+            max_image_size: 256 << 10, // 256 KiB
+            forge_api_url: Url::parse("https://antinomy.ai/api/v1/").unwrap(),
+            custom_history_path: None,
+            max_conversations: 100,
+            inline_max_commands: 10,
+            inline_command_timeout: 120,
+            inline_max_output_length: 32768,
+        }
     }
 }
 
@@ -218,6 +263,9 @@ fn test_command_path() {
         custom_history_path: None,
         max_conversations: 100,
         max_image_size: 262144,
+        inline_max_commands: 10,
+        inline_command_timeout: 120,
+        inline_max_output_length: 32768,
     };
 
     let actual = fixture.command_path();
@@ -252,6 +300,9 @@ fn test_command_cwd_path() {
         custom_history_path: None,
         max_conversations: 100,
         max_image_size: 262144,
+        inline_max_commands: 10,
+        inline_command_timeout: 120,
+        inline_max_output_length: 32768,
     };
 
     let actual = fixture.command_cwd_path();
@@ -286,6 +337,9 @@ fn test_command_cwd_path_independent_from_command_path() {
         custom_history_path: None,
         max_conversations: 100,
         max_image_size: 262144,
+        inline_max_commands: 10,
+        inline_command_timeout: 120,
+        inline_max_output_length: 32768,
     };
 
     let command_path = fixture.command_path();

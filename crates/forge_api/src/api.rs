@@ -43,6 +43,12 @@ pub trait API: Sync + Send {
     /// Returns the current environment
     fn environment(&self) -> Environment;
 
+    /// Check operation permission using policy service
+    async fn check_operation_permission(
+        &self,
+        operation: &forge_domain::PermissionOperation,
+    ) -> anyhow::Result<forge_app::PolicyDecision>;
+
     /// Adds a new conversation to the conversation store
     async fn upsert_conversation(&self, conversation: Conversation) -> Result<()>;
 

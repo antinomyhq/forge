@@ -8,12 +8,44 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, AnyProvider, ApiKeyRequest, AuthContextRequest, AuthContextResponse, ChatRequest,
+    AgentId, AnyProvider, ApiKeyRequest, AuthContextRequest, AuthContextResponse, ChatRequest,
     ChatResponse, CodeRequest, Conversation, ConversationId, DeviceCodeRequest, Event,
     InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, UserPrompt, Workflow,
 };
 use forge_app::utils::truncate_key;
-use forge_app::{CommitResult, ToolResolver};
+use forge_app::{CommandInfra, CommitResult, InlineShellExecutor, ToolResolver};
+use forge_domain::EventValue;
+use forge_domain::inline_shell::parse_inline_commands;
+
+/// Wrapper to use API's execute_shell_command method as CommandInfra
+struct InlineShellCommandInfra<A: forge_api::API> {
+    api: Arc<A>,
+}
+
+#[async_trait::async_trait]
+impl<A: forge_api::API> CommandInfra for InlineShellCommandInfra<A> {
+    async fn execute_command(
+        &self,
+        command: String,
+        working_dir: std::path::PathBuf,
+        _silent: bool,
+        _env_vars: Option<Vec<String>>,
+    ) -> anyhow::Result<forge_domain::CommandOutput> {
+        // Note: silent and env_vars are ignored for now as API doesn't support them
+        self.api.execute_shell_command(&command, working_dir).await
+    }
+
+    async fn execute_command_raw(
+        &self,
+        command: &str,
+        _working_dir: std::path::PathBuf,
+        _env_vars: Option<Vec<String>>,
+    ) -> anyhow::Result<std::process::ExitStatus> {
+        // Note: working_dir and env_vars are ignored for now as API doesn't support
+        // them
+        self.api.execute_shell_command_raw(command).await
+    }
+}
 use forge_display::MarkdownFormat;
 use forge_domain::{
     AuthMethod, ChatResponseContent, ContextMessage, Role, TitleFormat, UserCommand,
@@ -45,7 +77,7 @@ use crate::tools_display::format_tools;
 use crate::update::on_update;
 use crate::{TRACKER, banner, tracker};
 
-pub struct UI<A, F: Fn() -> A> {
+pub struct UI<A: forge_api::API, F: Fn() -> A> {
     markdown: MarkdownFormat,
     state: UIState,
     api: Arc<F::Output>,
@@ -56,9 +88,10 @@ pub struct UI<A, F: Fn() -> A> {
     spinner: SpinnerManager,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
+    inline_shell_executor: Arc<forge_app::ConcreteInlineShellExecutor>,
 }
 
-impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
+impl<A: forge_api::API + 'static, F: Fn() -> A> UI<A, F> {
     /// Writes a line to the console output
     /// Takes anything that implements ToString trait
     fn writeln<T: ToString>(&mut self, content: T) -> anyhow::Result<()> {
@@ -171,7 +204,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let command = Arc::new(ForgeCommandManager::default());
         Ok(Self {
             state: Default::default(),
-            api,
+            api: api.clone(),
             new_api: Arc::new(f),
             console: Console::new(env.clone(), command.clone()),
             cli,
@@ -179,6 +212,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             spinner: SpinnerManager::new(),
             markdown: MarkdownFormat::new(),
             _guard: forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?,
+            inline_shell_executor: Arc::new(forge_app::ConcreteInlineShellExecutor::new(
+                std::sync::Arc::new(InlineShellCommandInfra { api: Arc::clone(&api) }),
+                env.clone(),
+            )),
         })
     }
 
@@ -474,11 +511,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         // Join all args into a single command string
                         let command_str = args.join(" ");
 
-                        // Add slash prefix if not present
-                        let command_with_slash = if command_str.starts_with('/') {
-                            command_str
+                        // Przetwarzaj inline shell commands w command arguments
+                        let processed_args = self
+                            .process_inline_shell_commands(Some(command_str))
+                            .await?;
+                        let processed_command = processed_args.unwrap_or_default();
+
+                        // Kontynuuj z przetworzonymi argumentami
+                        let command_with_slash = if processed_command.starts_with('/') {
+                            processed_command
                         } else {
-                            format!("/{}", command_str)
+                            format!("/{}", processed_command)
                         };
                         let command = self.command.parse(&command_with_slash)?;
                         self.on_command(command).await?;
@@ -1347,7 +1390,23 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.on_provider_selection().await?;
             }
             SlashCommand::Shell(ref command) => {
-                self.api.execute_shell_command_raw(command).await?;
+                // Przetwarzaj shell command jako inline shell
+                let shell_content = format!("!`{}`", command);
+                let processed_content = self
+                    .process_inline_shell_commands(Some(shell_content))
+                    .await?;
+
+                // Create ChatRequest with processed content
+                let conversation_id = self.init_conversation().await?;
+                let operating_agent = self.api.get_active_agent().await.unwrap_or_default();
+                let event = Event::new(
+                    format!("{operating_agent}"),
+                    Some(processed_content.unwrap_or_default()),
+                );
+                let chat = ChatRequest::new(event, conversation_id);
+
+                // Send to LLM instead of direct execution
+                self.on_chat(chat).await?;
             }
             SlashCommand::Commit { max_diff_size } => {
                 let args = CommitCommandGroup { preview: true, max_diff_size, diff: None };
@@ -1878,8 +1937,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Initialize the conversation
         let conversation_id = self.init_conversation().await?;
 
+        // Process inline shell commands in dispatch content
+        let processed_content = self
+            .process_inline_shell_commands(Some(json.clone()))
+            .await?;
+
+        // Use processed content if available, otherwise original
+        let final_content = processed_content.unwrap_or(json);
+
         // Parse the JSON to determine the event name and value
-        let event: UserCommand = serde_json::from_str(&json)?;
+        let event: UserCommand = serde_json::from_str(&final_content)?;
 
         // Create the chat request with the event
         let chat = ChatRequest::new(event.into(), conversation_id);
@@ -2066,12 +2133,117 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
+    /// Process inline shell commands in content
+    async fn process_inline_shell_commands(
+        &mut self,
+        content: Option<String>,
+    ) -> Result<Option<String>> {
+        let Some(content) = content else {
+            return Ok(None);
+        };
+
+        tracing::debug!("Processing inline shell commands in content: {}", content);
+
+        // Parse inline shell commands
+        let commands = parse_inline_commands(&content)?;
+        if commands.commands_found.is_empty() {
+            tracing::debug!("No inline shell commands found in content");
+            return Ok(Some(content));
+        }
+
+        tracing::debug!(
+            "Found {} inline shell commands",
+            commands.commands_found.len()
+        );
+
+        // Check maximum commands limit
+        let max_commands = self.api.environment().inline_max_commands;
+        if commands.commands_found.len() > max_commands {
+            tracing::error!(
+                "Too many inline shell commands: {} found, max allowed: {}",
+                commands.commands_found.len(),
+                max_commands
+            );
+            return Err(anyhow::Error::from(
+                forge_domain::inline_shell::InlineShellError::TooManyCommands {
+                    count: commands.commands_found.len(),
+                    max_allowed: max_commands,
+                },
+            ));
+        }
+
+        // Check policy for each command before execution
+        let cwd = self.api.environment().cwd.clone();
+        let restricted = self.cli.restricted;
+        let mut approved_commands = Vec::new();
+
+        for cmd in &commands.commands_found {
+            // Check for dangerous commands in restricted mode
+            if restricted && forge_domain::inline_shell::is_dangerous_command(&cmd.command) {
+                tracing::error!(
+                    "Dangerous command blocked in restricted mode: {}",
+                    cmd.command
+                );
+                return Err(anyhow::Error::from(
+                    forge_domain::inline_shell::InlineShellError::RestrictedModeBlocked {
+                        command: cmd.command.clone(),
+                    },
+                ));
+            }
+
+            // Check policy for command execution
+            let operation = forge_domain::PermissionOperation::Execute {
+                command: cmd.command.clone(),
+                cwd: cwd.clone(),
+                message: format!("Execute shell command: {}", cmd.command),
+            };
+
+            match self.api.check_operation_permission(&operation).await {
+                Ok(decision) => {
+                    if !decision.allowed {
+                        tracing::error!("Policy blocked command: {}", cmd.command);
+                        return Err(anyhow::Error::from(
+                            forge_domain::inline_shell::InlineShellError::PolicyBlocked {
+                                command: cmd.command.clone(),
+                            },
+                        ));
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Policy check failed for command '{}': {}", cmd.command, e);
+                    return Err(anyhow::Error::from(
+                        forge_domain::inline_shell::InlineShellError::PolicyCheckFailed {
+                            command: cmd.command.clone(),
+                            source: e,
+                        },
+                    ));
+                }
+            }
+
+            approved_commands.push(cmd.clone());
+        }
+
+        // Execute commands
+        let results = self
+            .inline_shell_executor
+            .execute_commands(approved_commands, &cwd, !restricted)
+            .await?;
+
+        // Replace commands with results
+        let processed_content = forge_app::replace_commands_in_content(&content, &results);
+
+        Ok(Some(processed_content))
+    }
+
     async fn on_message(&mut self, content: Option<String>) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
 
+        // Process inline shell commands
+        let processed_content = self.process_inline_shell_commands(content).await?;
+
         // Create a ChatRequest with the appropriate event type
         let operating_agent = self.api.get_active_agent().await.unwrap_or_default();
-        let event = Event::new(format!("{operating_agent}"), content);
+        let event = Event::new(format!("{operating_agent}"), processed_content);
 
         // Create the chat request with the event
         let chat = ChatRequest::new(event, conversation_id);
@@ -2304,7 +2476,21 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn on_custom_event(&mut self, event: Event) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
-        let chat = ChatRequest::new(event, conversation_id);
+
+        // Process inline shell commands in the event value if it's a Text event
+        let processed_event = if let Some(EventValue::Text(user_prompt)) = &event.value {
+            let processed_content = self
+                .process_inline_shell_commands(Some(user_prompt.to_string()))
+                .await?;
+            Event {
+                value: Some(EventValue::text(processed_content.unwrap_or_default())),
+                ..event
+            }
+        } else {
+            event
+        };
+
+        let chat = ChatRequest::new(processed_event, conversation_id);
         self.on_chat(chat).await
     }
 

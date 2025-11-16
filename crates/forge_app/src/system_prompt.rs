@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use derive_setters::Setters;
+use forge_domain::inline_shell::{InlineShellCommand, parse_inline_commands};
 use forge_domain::{
     Agent, Conversation, Environment, Error, Model, SystemContext, Template, ToolDefinition,
     ToolUsagePrompt,
@@ -8,6 +9,7 @@ use forge_domain::{
 use tracing::debug;
 
 use crate::TemplateService;
+use crate::inline_shell::{InlineShellExecutor, replace_commands_in_content};
 
 #[derive(Setters)]
 pub struct SystemPrompt<S> {
@@ -18,10 +20,16 @@ pub struct SystemPrompt<S> {
     files: Vec<String>,
     models: Vec<Model>,
     custom_instructions: Vec<String>,
+    inline_shell_executor: Arc<dyn InlineShellExecutor + Send + Sync>,
 }
 
 impl<S: TemplateService> SystemPrompt<S> {
-    pub fn new(services: Arc<S>, environment: Environment, agent: Agent) -> Self {
+    pub fn new(
+        services: Arc<S>,
+        environment: Environment,
+        agent: Agent,
+        inline_shell_executor: Arc<dyn InlineShellExecutor + Send + Sync>,
+    ) -> Self {
         Self {
             services,
             environment,
@@ -30,6 +38,7 @@ impl<S: TemplateService> SystemPrompt<S> {
             tool_definitions: Vec::default(),
             files: Vec::default(),
             custom_instructions: Vec::default(),
+            inline_shell_executor,
         }
     }
 
@@ -70,9 +79,55 @@ impl<S: TemplateService> SystemPrompt<S> {
                 supports_parallel_tool_calls,
             };
 
+            // Process inline shell commands in the system prompt template
+            // Execute commands and replace with their actual results
+            let parsed = parse_inline_commands(&system_prompt.template);
+            let processed_template = if let Ok(parsed_content) = parsed {
+                if parsed_content.commands_found.is_empty() {
+                    system_prompt.template.clone()
+                } else {
+                    // Execute inline shell commands and replace with their results
+                    let cwd = &self.environment.cwd;
+                    let restricted = false; // Allow execution in system prompts
+                    let commands: Vec<InlineShellCommand> =
+                        parsed_content.commands_found.to_vec();
+
+                    match self
+                        .inline_shell_executor
+                        .execute_commands(commands, cwd, restricted)
+                        .await
+                    {
+                        Ok(results) => {
+                            replace_commands_in_content(&system_prompt.template, &results)
+                        }
+                        Err(e) => {
+                            debug!(
+                                "Failed to execute inline shell commands in system prompt: {}",
+                                e
+                            );
+                            // Fallback to placeholder on error
+                            let fallback_results = parsed_content
+                                .commands_found
+                                .iter()
+                                .map(|cmd| forge_domain::CommandResult {
+                                    original_match: cmd.full_match.clone(),
+                                    command: cmd.command.clone(),
+                                    stdout: format!("[Inline shell command failed: {}]", e),
+                                    stderr: String::new(),
+                                    exit_code: 1,
+                                })
+                                .collect::<Vec<_>>();
+                            replace_commands_in_content(&system_prompt.template, &fallback_results)
+                        }
+                    }
+                }
+            } else {
+                system_prompt.template.clone()
+            };
+
             let static_block = self
                 .services
-                .render_template(Template::new(&system_prompt.template), &())
+                .render_template(Template::new(&processed_template), &())
                 .await?;
             let non_static_block = self
                 .services

@@ -81,6 +81,10 @@ impl ForgeEnvironmentInfra {
             forge_api_url,
             custom_history_path,
             max_conversations: parse_env::<usize>("FORGE_MAX_CONVERSATIONS").unwrap_or(100),
+            inline_max_commands: parse_env::<usize>("FORGE_INLINE_MAX_COMMANDS").unwrap_or(10),
+            inline_command_timeout: parse_env::<u64>("FORGE_INLINE_COMMAND_TIMEOUT").unwrap_or(120),
+            inline_max_output_length: parse_env::<usize>("FORGE_INLINE_MAX_OUTPUT_LENGTH")
+                .unwrap_or(32768),
         }
     }
 
@@ -772,6 +776,54 @@ SIMPLE=value"#;
             env::remove_var("TEST_U64");
             env::remove_var("TEST_F64");
             env::remove_var("TEST_STRING");
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_inline_shell_env_vars() {
+        let cwd = tempfile::tempdir().unwrap();
+        let infra = ForgeEnvironmentInfra::new(false, cwd.path().to_path_buf());
+
+        // Test default values
+        unsafe {
+            std::env::remove_var("FORGE_INLINE_MAX_COMMANDS");
+            std::env::remove_var("FORGE_INLINE_COMMAND_TIMEOUT");
+            std::env::remove_var("FORGE_INLINE_MAX_OUTPUT_LENGTH");
+        }
+
+        let env = infra.get_environment();
+        assert_eq!(env.inline_max_commands, 10);
+        assert_eq!(env.inline_command_timeout, 120);
+        assert_eq!(env.inline_max_output_length, 32768);
+
+        // Test custom values
+        unsafe {
+            std::env::set_var("FORGE_INLINE_MAX_COMMANDS", "20");
+            std::env::set_var("FORGE_INLINE_COMMAND_TIMEOUT", "120");
+            std::env::set_var("FORGE_INLINE_MAX_OUTPUT_LENGTH", "5000");
+        }
+
+        let env = infra.get_environment();
+        assert_eq!(env.inline_max_commands, 20);
+        assert_eq!(env.inline_command_timeout, 120);
+        assert_eq!(env.inline_max_output_length, 5000);
+
+        // Test invalid values (should fallback to defaults)
+        unsafe {
+            std::env::set_var("FORGE_INLINE_MAX_COMMANDS", "invalid");
+            std::env::set_var("FORGE_INLINE_COMMAND_TIMEOUT", "not-a-number");
+        }
+
+        let env = infra.get_environment();
+        assert_eq!(env.inline_max_commands, 10); // fallback to default
+        assert_eq!(env.inline_command_timeout, 120); // fallback to default
+
+        // Clean up
+        unsafe {
+            std::env::remove_var("FORGE_INLINE_MAX_COMMANDS");
+            std::env::remove_var("FORGE_INLINE_COMMAND_TIMEOUT");
+            std::env::remove_var("FORGE_INLINE_MAX_OUTPUT_LENGTH");
         }
     }
 }

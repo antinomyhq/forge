@@ -7,8 +7,8 @@ use forge_app::dto::ToolsOverview;
 use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
     CommandLoaderService, ConversationService, EnvironmentInfra, EnvironmentService,
-    FileDiscoveryService, ForgeApp, GitApp, McpConfigManager, McpService, ProviderAuthService,
-    ProviderService, Services, User, UserUsage, Walker, WorkflowService,
+    FileDiscoveryService, ForgeApp, GitApp, McpConfigManager, McpService, PolicyService,
+    ProviderAuthService, ProviderService, Services, User, UserUsage, Walker, WorkflowService,
 };
 use forge_domain::{InitAuth, LoginInfo, *};
 use forge_infra::ForgeInfra;
@@ -27,6 +27,11 @@ pub struct ForgeAPI<S, F> {
 impl<A, F> ForgeAPI<A, F> {
     pub fn new(services: Arc<A>, infra: Arc<F>) -> Self {
         Self { services, infra }
+    }
+
+    /// Get access to the services
+    pub fn services(&self) -> &A {
+        &self.services
     }
 
     /// Creates a ForgeApp instance with the current services
@@ -135,6 +140,13 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
 
     fn environment(&self) -> Environment {
         self.services.get_environment().clone()
+    }
+
+    async fn check_operation_permission(
+        &self,
+        operation: &forge_domain::PermissionOperation,
+    ) -> anyhow::Result<forge_app::PolicyDecision> {
+        self.services.check_operation_permission(operation).await
     }
 
     async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
