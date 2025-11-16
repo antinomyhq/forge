@@ -83,7 +83,7 @@ impl Runner {
         let system_tools = setup.tools.clone();
         let agent = agent
             .apply_workflow_config(&setup.workflow)
-            .set_model_deeply(setup.model.clone());
+            .model(setup.model.clone());
 
         // Render system prompt into context.
         let conversation = SystemPrompt::new(services.clone(), setup.env.clone(), agent.clone())
@@ -158,7 +158,7 @@ impl AgentService for Runner {
 
     async fn call(
         &self,
-        _: &forge_domain::Agent,
+        _: &crate::Agent,
         _: &forge_domain::ToolCallContext,
         test_call: forge_domain::ToolCallFull,
     ) -> forge_domain::ToolResult {

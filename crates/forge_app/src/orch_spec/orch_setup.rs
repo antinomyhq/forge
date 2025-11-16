@@ -4,12 +4,13 @@ use std::path::PathBuf;
 use chrono::{DateTime, Local};
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, AgentId, Attachment, ChatCompletionMessage, ChatResponse, ContextMessage, Conversation,
-    Environment, Event, HttpConfig, ModelId, RetryConfig, Role, Template, ToolCallFull,
+    AgentId, Attachment, ChatCompletionMessage, ChatResponse, ContextMessage, Conversation,
+    Environment, Event, HttpConfig, ModelId, ProviderId, RetryConfig, Role, Template, ToolCallFull,
     ToolDefinition, ToolResult, Workflow,
 };
 use url::Url;
 
+use crate::Agent;
 use crate::orch_spec::orch_runner::Runner;
 
 // User prompt
@@ -90,10 +91,14 @@ impl Default for TestContext {
                 max_image_size: 262144,
             },
             title: Some("test-conversation".into()),
-            agent: Agent::new(AgentId::new("forge"))
-                .system_prompt(Template::new("You are Forge"))
-                .user_prompt(Template::new(USER_PROMPT))
-                .tools(vec![("fs_read").into(), ("fs_write").into()]),
+            agent: Agent::new(
+                AgentId::new("forge"),
+                ProviderId::Anthropic,
+                ModelId::new("claude-3-5-sonnet-20241022"),
+            )
+            .system_prompt(Template::new("You are Forge"))
+            .user_prompt(Template::new(USER_PROMPT))
+            .tools(vec![("fs_read").into(), ("fs_write").into()]),
             tools: vec![
                 ToolDefinition::new("fs_read"),
                 ToolDefinition::new("fs_write"),

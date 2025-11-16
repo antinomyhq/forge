@@ -2,12 +2,11 @@ use std::sync::Arc;
 
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, Conversation, Environment, Error, Model, SystemContext, Template, ToolDefinition,
-    ToolUsagePrompt,
+    Conversation, Environment, Model, SystemContext, Template, ToolDefinition, ToolUsagePrompt,
 };
 use tracing::debug;
 
-use crate::TemplateService;
+use crate::{Agent, TemplateService};
 
 #[derive(Setters)]
 pub struct SystemPrompt<S> {
@@ -90,10 +89,7 @@ impl<S: TemplateService> SystemPrompt<S> {
     // Returns if agent supports tool or not.
     fn is_tool_supported(&self) -> anyhow::Result<bool> {
         let agent = &self.agent;
-        let model_id = agent
-            .model
-            .as_ref()
-            .ok_or(Error::MissingModel(agent.id.clone()))?;
+        let model_id = &agent.model;
 
         // Check if at agent level tool support is defined
         let tool_supported = match agent.tool_supported {
@@ -120,10 +116,9 @@ impl<S: TemplateService> SystemPrompt<S> {
     /// Checks if parallel tool calls is supported by agent
     fn is_parallel_tool_call_supported(&self) -> bool {
         let agent = &self.agent;
-        agent
-            .model
-            .as_ref()
-            .and_then(|model_id| self.models.iter().find(|model| &model.id == model_id))
+        self.models
+            .iter()
+            .find(|model| model.id == agent.model)
             .and_then(|model| model.supports_parallel_tool_calls)
             .unwrap_or_default()
     }

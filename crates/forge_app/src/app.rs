@@ -12,15 +12,15 @@ use crate::changed_files::ChangedFiles;
 use crate::dto::ToolsOverview;
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
-use crate::services::{CustomInstructionsService, TemplateService};
+use crate::services::{AgentRegistry, CustomInstructionsService, TemplateService};
 use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
 use crate::user_prompt::UserPromptGenerator;
 use crate::{
-    AgentProviderResolver, AgentRegistry, ConversationService, EnvironmentService,
-    FileDiscoveryService, ProviderService, Services, Walker, WorkflowService,
+    AgentProviderResolver, ConversationService, EnvironmentService, FileDiscoveryService,
+    ProviderService, Services, Walker, WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -91,20 +91,15 @@ impl<S: Services> ForgeApp<S> {
 
         // Prepare agents with user configuration
         let agent_provider_resolver = AgentProviderResolver::new(services.clone());
-        let active_model = agent_provider_resolver
-            .get_model(Some(agent_id.clone()))
-            .await?;
-        let agent = services
-            .get_agents()
+
+        // Get agent and apply workflow config
+        let agent = self
+            .services
+            .get_agent(&agent_id)
             .await?
-            .into_iter()
-            .find(|agent| agent.id == agent_id)
-            .map(|agent| {
-                agent
-                    .apply_workflow_config(&workflow)
-                    .set_model_deeply(active_model.clone())
-            })
-            .ok_or(crate::Error::AgentNotFound(agent_id))?;
+            .ok_or(crate::Error::AgentNotFound(agent_id.clone()))?
+            .apply_workflow_config(&workflow)
+            .set_compact_model_if_none();
 
         let agent_provider = agent_provider_resolver
             .get_provider(Some(agent.id.clone()))
@@ -217,23 +212,26 @@ impl<S: Services> ForgeApp<S> {
         // Calculate original metrics
         let original_messages = context.messages.len();
         let original_token_count = *context.token_count();
-        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
-        let model = agent_provider_resolver
-            .get_model(Some(active_agent_id.clone()))
-            .await?;
+
         let workflow = self.services.read_merged(None).await.unwrap_or_default();
-        let Some(compact) = self
-            .services
-            .get_agents()
-            .await?
-            .into_iter()
-            .find(|agent| active_agent_id == agent.id)
-            .and_then(|agent| {
-                agent
-                    .apply_workflow_config(&workflow)
-                    .set_model_deeply(model.clone())
-                    .compact
-            })
+
+        // Get agent and apply workflow config
+        let agent = self.services.get_agent(&active_agent_id).await?;
+
+        let Some(agent) = agent else {
+            return Ok(CompactionResult::new(
+                original_token_count,
+                0,
+                original_messages,
+                0,
+            ));
+        };
+
+        // Get compact config from the agent
+        let Some(compact) = agent
+            .apply_workflow_config(&workflow)
+            .set_compact_model_if_none()
+            .compact
         else {
             return Ok(CompactionResult::new(
                 original_token_count,

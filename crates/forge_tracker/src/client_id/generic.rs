@@ -11,5 +11,5 @@ pub fn get_or_create_client_id() -> anyhow::Result<String> {
 
     builder
         .build(PARAPHRASE)
-        .map_err(|e| anyhow::anyhow!("Failed to generate machine ID: {}", e))
+        .map_err(|e| anyhow::anyhow!("Failed to generate machine ID: {e}"))
 }

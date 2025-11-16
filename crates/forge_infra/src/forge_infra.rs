@@ -4,9 +4,9 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::{
-    CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
-    FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, StrategyFactory,
-    UserInfra, WalkerInfra,
+    AgentRepository, CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
+    FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra,
+    StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
     AuthMethod, CommandOutput, Environment, FileInfo as FileInfoData, McpServerConfig, ProviderId,
@@ -16,6 +16,7 @@ use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
 use reqwest_eventsource::EventSource;
 
+use crate::agent_repository::ForgeAgentRepository;
 use crate::auth::{AnyAuthStrategy, ForgeAuthStrategyFactory};
 use crate::env::ForgeEnvironmentInfra;
 use crate::executor::ForgeCommandExecutorService;
@@ -48,6 +49,13 @@ pub struct ForgeInfra {
     walker_service: Arc<ForgeWalkerService>,
     http_service: Arc<ForgeHttpInfra<ForgeFileWriteService>>,
     strategy_factory: Arc<ForgeAuthStrategyFactory>,
+    agent_repository: Arc<
+        ForgeAgentRepository<
+            ForgeFileMetaService,
+            ForgeEnvironmentInfra,
+            ForgeDirectoryReaderService,
+        >,
+    >,
 }
 
 impl ForgeInfra {
@@ -57,15 +65,24 @@ impl ForgeInfra {
 
         let file_write_service = Arc::new(ForgeFileWriteService::new());
         let http_service = Arc::new(ForgeHttpInfra::new(env.clone(), file_write_service.clone()));
+        let file_read_service = Arc::new(ForgeFileReadService::new());
+        let file_meta_service = Arc::new(ForgeFileMetaService);
+        let directory_reader_service = Arc::new(ForgeDirectoryReaderService);
+
+        let agent_repository = Arc::new(ForgeAgentRepository::new(
+            file_meta_service.clone(),
+            environment_service.clone(),
+            directory_reader_service.clone(),
+        ));
 
         Self {
-            file_read_service: Arc::new(ForgeFileReadService::new()),
+            file_read_service,
             file_write_service,
             file_remove_service: Arc::new(ForgeFileRemoveService::new()),
             environment_service,
-            file_meta_service: Arc::new(ForgeFileMetaService),
+            file_meta_service,
             create_dirs_service: Arc::new(ForgeCreateDirsService),
-            directory_reader_service: Arc::new(ForgeDirectoryReaderService),
+            directory_reader_service,
             command_executor_service: Arc::new(ForgeCommandExecutorService::new(
                 restricted,
                 env.clone(),
@@ -75,6 +92,7 @@ impl ForgeInfra {
             walker_service: Arc::new(ForgeWalkerService::new()),
             strategy_factory: Arc::new(ForgeAuthStrategyFactory::new()),
             http_service,
+            agent_repository,
         }
     }
 }
@@ -266,5 +284,12 @@ impl StrategyFactory for ForgeInfra {
     ) -> anyhow::Result<Self::Strategy> {
         self.strategy_factory
             .create_auth_strategy(provider_id, method, required_params)
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentRepository for ForgeInfra {
+    async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::AgentDefinition>> {
+        self.agent_repository.get_agents().await
     }
 }

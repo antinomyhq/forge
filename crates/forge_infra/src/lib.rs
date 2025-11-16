@@ -1,5 +1,6 @@
 pub mod executor;
 
+mod agent_repository;
 mod auth;
 mod env;
 mod error;

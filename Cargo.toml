@@ -116,7 +116,7 @@ nucleo = "0.5.0"
 gray_matter = "0.3.2"
 num-format = "0.4"
 humantime = "2.1.0"
-
+dashmap = "7.0.0-rc2"
 
 # Internal crates
 forge_api = { path = "crates/forge_api" }

@@ -5,7 +5,7 @@ use forge_domain::*;
 use serde_json::json;
 use tracing::debug;
 
-use crate::{AttachmentService, TemplateService};
+use crate::{Agent, AttachmentService, TemplateService};
 
 /// Service responsible for setting user prompts in the conversation context
 #[derive(Clone)]
@@ -102,12 +102,12 @@ impl<S: TemplateService + AttachmentService> UserPromptGenerator<S> {
                 raw_content: event_value,
                 tool_calls: None,
                 reasoning_details: None,
-                model: self.agent.model.clone(),
+                model: Some(self.agent.model.clone()),
                 droppable: false,
             };
             context = context
                 .add_message(ContextMessage::Text(message))
-                .add_attachments(attachments, self.agent.model.clone());
+                .add_attachments(attachments, Some(self.agent.model.clone()));
         }
 
         Ok(conversation.context(context))

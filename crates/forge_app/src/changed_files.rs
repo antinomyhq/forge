@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use forge_domain::{Agent, ContextMessage, Conversation, Role, TextMessage};
+use forge_domain::{ContextMessage, Conversation, Role, TextMessage};
 use forge_template::Element;
 
 use crate::utils::format_display_path;
-use crate::{EnvironmentService, FsReadService};
+use crate::{Agent, EnvironmentService, FsReadService};
 
 /// Service responsible for detecting externally changed files and rendering
 /// notifications
@@ -65,10 +65,9 @@ impl<S: FsReadService + EnvironmentService> ChangedFiles<S> {
 
         let context = conversation.context.take().unwrap_or_default();
 
-        let mut message = TextMessage::new(Role::User, notification).droppable(true);
-        if let Some(model) = self.agent.model.clone() {
-            message = message.model(model);
-        }
+        let message = TextMessage::new(Role::User, notification)
+            .droppable(true)
+            .model(self.agent.model.clone());
 
         conversation = conversation.context(context.add_message(ContextMessage::from(message)));
 
@@ -82,14 +81,14 @@ mod tests {
     use std::path::PathBuf;
 
     use forge_domain::{
-        Agent, AgentId, Context, Conversation, ConversationId, Environment, FileOperation, Metrics,
-        ModelId, ToolKind,
+        AgentId, Context, Conversation, ConversationId, Environment, FileOperation, Metrics,
+        ModelId, ProviderId, ToolKind,
     };
     use pretty_assertions::assert_eq;
 
     use super::*;
     use crate::services::Content;
-    use crate::{EnvironmentService, FsReadService, ReadOutput};
+    use crate::{Agent, EnvironmentService, FsReadService, ReadOutput};
 
     #[derive(Clone, Default)]
     struct TestServices {
@@ -141,7 +140,11 @@ mod tests {
         cwd: Option<PathBuf>,
     ) -> (ChangedFiles<TestServices>, Conversation) {
         let services = Arc::new(TestServices { files, cwd });
-        let agent = Agent::new(AgentId::new("test")).model(ModelId::new("test-model"));
+        let agent = Agent::new(
+            AgentId::new("test"),
+            ProviderId::Anthropic,
+            ModelId::new("test-model"),
+        );
         let changed_files = ChangedFiles::new(services, agent);
 
         let mut metrics = Metrics::default();

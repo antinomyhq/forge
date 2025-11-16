@@ -5,7 +5,7 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use forge_app::dto::ToolsOverview;
 use forge_app::{
-    AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
+    Agent, AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
     CommandLoaderService, ConversationService, EnvironmentInfra, EnvironmentService,
     FileDiscoveryService, ForgeApp, GitApp, McpConfigManager, McpService, ProviderAuthService,
     ProviderService, Services, User, UserUsage, Walker, WorkflowService,
@@ -70,7 +70,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
             .await?)
     }
     async fn get_agents(&self) -> Result<Vec<Agent>> {
-        Ok(self.services.get_agents().await?)
+        self.services.get_agents().await
     }
 
     async fn get_providers(&self) -> Result<Vec<AnyProvider>> {
@@ -217,17 +217,15 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     async fn logout(&self) -> Result<()> {
         self.app().logout().await
     }
+
     async fn get_agent_provider(&self, agent_id: AgentId) -> anyhow::Result<Provider<Url>> {
         let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
         agent_provider_resolver.get_provider(Some(agent_id)).await
     }
 
-    async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>> {
-        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
-        agent_provider_resolver.get_provider(None).await
-    }
-
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
+        // Invalidate cache for agents
+        self.services.reload_agents().await?;
         self.services.set_default_provider(provider_id).await
     }
 
@@ -323,5 +321,10 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
 
     async fn remove_provider(&self, provider_id: &ProviderId) -> Result<()> {
         Ok(self.services.remove_credential(provider_id).await?)
+    }
+
+    async fn get_default_provider(&self) -> Result<Provider<Url>> {
+        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
+        agent_provider_resolver.get_provider(None).await
     }
 }
