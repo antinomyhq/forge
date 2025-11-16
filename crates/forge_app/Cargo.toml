@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 forge_domain.workspace = true
 forge_stream.workspace = true
+forge_tracker.workspace = true
 async-trait.workspace = true
 anyhow.workspace = true
 serde.workspace = true
@@ -19,6 +20,7 @@ handlebars.workspace = true
 rust-embed.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
+
 regex.workspace = true
 thiserror.workspace = true
 forge_display.workspace = true
@@ -40,6 +42,7 @@ reqwest-eventsource.workspace = true
 schemars.workspace = true
 glob.workspace = true
 lazy_static.workspace = true
+indexmap.workspace = true
 
 
 [dev-dependencies]
@@ -49,3 +52,4 @@ insta.workspace = true
 tokio-stream.workspace = true
 fake = { version = "4.4.0", features = ["derive"] }
 forge_domain = { path = "../forge_domain" }
+async-trait.workspace = true

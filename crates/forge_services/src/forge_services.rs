@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use forge_app::{
-    CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
-    FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, KVStore, McpServerInfra,
-    Services, StrategyFactory, UserInfra, WalkerInfra,
+    CommandInfra, ConcreteInlineShellExecutor, DirectoryReaderInfra, EnvironmentInfra,
+    EnvironmentService, FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra,
+    FileWriterInfra, HttpInfra, KVStore, McpServerInfra, Services, StrategyFactory, UserInfra,
+    WalkerInfra,
 };
 use forge_domain::{
     AppConfigRepository, ConversationRepository, ProviderRepository, SnapshotRepository,
@@ -78,6 +79,7 @@ pub struct ForgeServices<
     command_loader_service: Arc<ForgeCommandLoaderService<F>>,
     policy_service: ForgePolicyService<F>,
     provider_auth_service: ForgeProviderAuthService<F>,
+    inline_shell_executor: Arc<ConcreteInlineShellExecutor>,
 }
 
 impl<
@@ -127,6 +129,9 @@ impl<
         let command_loader_service = Arc::new(ForgeCommandLoaderService::new(infra.clone()));
         let policy_service = ForgePolicyService::new(infra.clone());
         let provider_auth_service = ForgeProviderAuthService::new(infra.clone());
+        let environment = env_service.get_environment();
+        let inline_shell_executor =
+            Arc::new(ConcreteInlineShellExecutor::new(infra.clone(), environment));
 
         Self {
             conversation_service,
@@ -156,6 +161,7 @@ impl<
             command_loader_service,
             policy_service,
             provider_auth_service,
+            inline_shell_executor,
         }
     }
 }
@@ -215,6 +221,7 @@ impl<
     type AgentRegistry = ForgeAgentLoaderService<F>;
     type CommandLoaderService = ForgeCommandLoaderService<F>;
     type PolicyService = ForgePolicyService<F>;
+    type InlineShellExecutor = ConcreteInlineShellExecutor;
 
     fn provider_service(&self) -> &Self::ProviderService {
         &self.chat_service
@@ -316,5 +323,9 @@ impl<
     }
     fn image_read_service(&self) -> &Self::ImageReadService {
         &self.image_read_service
+    }
+
+    fn inline_shell_executor(&self) -> Arc<Self::InlineShellExecutor> {
+        Arc::clone(&self.inline_shell_executor)
     }
 }

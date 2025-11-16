@@ -572,7 +572,29 @@ mod tests {
         use fake::{Fake, Faker};
         let mut fixture: Environment = Faker.fake();
         fixture = fixture.os(os.to_string());
-        if let Some(home_path) = home {
+        // Explicitly set home to None if requested
+        if home.is_none() {
+            // Use default Environment which should have home: None
+            fixture = Environment::default()
+                .os(fixture.os.clone())
+                .pid(fixture.pid)
+                .cwd(fixture.cwd.clone())
+                .shell(fixture.shell.clone())
+                .base_path(fixture.base_path.clone())
+                .forge_api_url(fixture.forge_api_url.clone())
+                .retry_config(fixture.retry_config.clone())
+                .max_search_lines(fixture.max_search_lines)
+                .max_search_result_bytes(fixture.max_search_result_bytes)
+                .fetch_truncation_limit(fixture.fetch_truncation_limit)
+                .stdout_max_prefix_length(fixture.stdout_max_prefix_length)
+                .stdout_max_suffix_length(fixture.stdout_max_suffix_length)
+                .stdout_max_line_length(fixture.stdout_max_line_length)
+                .max_read_size(fixture.max_read_size)
+                .http(fixture.http.clone())
+                .max_file_size(fixture.max_file_size)
+                .max_image_size(fixture.max_image_size)
+                .tool_timeout(fixture.tool_timeout);
+        } else if let Some(home_path) = home {
             fixture = fixture.home(PathBuf::from(home_path));
         }
         fixture

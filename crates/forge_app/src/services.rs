@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -478,6 +479,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type CommandLoaderService: CommandLoaderService;
     type PolicyService: PolicyService;
     type ProviderAuthService: ProviderAuthService;
+    type InlineShellExecutor: crate::inline_shell::InlineShellExecutor;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn config_service(&self) -> &Self::AppConfigService;
@@ -506,6 +508,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn command_loader_service(&self) -> &Self::CommandLoaderService;
     fn policy_service(&self) -> &Self::PolicyService;
     fn provider_auth_service(&self) -> &Self::ProviderAuthService;
+    fn inline_shell_executor(&self) -> Arc<Self::InlineShellExecutor>;
 }
 
 #[async_trait::async_trait]
@@ -944,6 +947,21 @@ impl<I: Services> ProviderAuthService for I {
     ) -> anyhow::Result<AuthCredential> {
         self.provider_auth_service()
             .refresh_provider_credential(provider, method)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> crate::inline_shell::InlineShellExecutor for I {
+    async fn execute_commands(
+        &self,
+        commands: Vec<forge_domain::inline_shell::InlineShellCommand>,
+        working_dir: &std::path::Path,
+        restricted: bool,
+    ) -> Result<Vec<forge_domain::CommandResult>, forge_domain::inline_shell::InlineShellError>
+    {
+        self.inline_shell_executor()
+            .execute_commands(commands, working_dir, restricted)
             .await
     }
 }
