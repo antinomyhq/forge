@@ -2591,10 +2591,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         };
 
         self.spinner.stop(None)?;
-        self.writeln(format!("✨ Found {} results:", results.len()))?;
+
+        let mut info = Info::new().add_title(format!("FOUND {} RESULTS", results.len()));
 
         for (i, result) in results.iter().enumerate() {
-            let similarity = format!("   Similarity: {:.2}%", result.similarity() * 100.0);
+            let similarity = format!("{:.2}%", result.similarity() * 100.0);
+            let result_num = (i + 1).to_string();
 
             match result {
                 forge_domain::CodeSearchResult::FileChunk {
@@ -2603,37 +2605,44 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     end_line,
                     ..
                 } => {
-                    self.writeln(format!(
-                        "{}. {}:{}-{}",
-                        i + 1,
-                        file_path,
-                        start_line,
-                        end_line
-                    ))?;
-                    self.writeln(similarity)?;
-                    // self.writeln(format!("   ```\n   {}\n   ```", content))?;
+                    info = info
+                        .add_title(result_num)
+                        .add_key_value(
+                            "Location",
+                            format!("{}:{}-{}", file_path, start_line, end_line),
+                        )
+                        .add_key_value("Similarity", similarity);
                 }
                 forge_domain::CodeSearchResult::File { file_path, .. } => {
-                    self.writeln(format!("{}. {} (full file)", i + 1, file_path))?;
-                    self.writeln(similarity)?;
+                    info = info
+                        .add_title(result_num)
+                        .add_key_value("Location", format!("{} (full file)", file_path))
+                        .add_key_value("Similarity", similarity);
                 }
                 forge_domain::CodeSearchResult::FileRef { file_path, .. } => {
-                    self.writeln(format!("{}. {} (reference)", i + 1, file_path))?;
-                    self.writeln(similarity)?;
+                    info = info
+                        .add_title(result_num)
+                        .add_key_value("Location", format!("{} (reference)", file_path))
+                        .add_key_value("Similarity", similarity);
                 }
                 forge_domain::CodeSearchResult::Note { content, .. } => {
-                    self.writeln(format!("{}. Note", i + 1))?;
-                    self.writeln(similarity)?;
-                    self.writeln(format!("   {}", content))?;
+                    info = info
+                        .add_title(result_num)
+                        .add_key_value("Type", "Note")
+                        .add_key_value("Similarity", similarity)
+                        .add_key_value("Content", content);
                 }
                 forge_domain::CodeSearchResult::Task { task, .. } => {
-                    self.writeln(format!("{}. Task", i + 1))?;
-                    self.writeln(similarity)?;
-                    self.writeln(format!("   {}", task))?;
+                    info = info
+                        .add_title(result_num)
+                        .add_key_value("Type", "Task")
+                        .add_key_value("Similarity", similarity)
+                        .add_key_value("Content", task);
                 }
             }
-            self.writeln("")?;
         }
+
+        self.writeln(info)?;
 
         Ok(())
     }
