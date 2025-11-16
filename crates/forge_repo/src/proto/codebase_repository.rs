@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_domain::{
-    CodeSearchResult, CodebaseRepository, UploadStats, UserId as DomainUserId, WorkspaceId,
+    CodeSearchResult, CodebaseRepository, UploadStats, WorkspaceId,
     WorkspaceInfo,
 };
 use tonic::transport::Channel;
@@ -34,15 +34,20 @@ impl CodebaseRepositoryImpl {
 impl CodebaseRepository for CodebaseRepositoryImpl {
     async fn create_workspace(
         &self,
-        user_id: &DomainUserId,
         working_dir: &std::path::Path,
+        auth_token: &forge_domain::ApiKey,
     ) -> Result<WorkspaceId> {
-        let request = CreateWorkspaceRequest {
-            user_id: Some(UserId { id: user_id.to_string() }),
+        let mut request = tonic::Request::new(CreateWorkspaceRequest {
             workspace: Some(WorkspaceDefinition {
                 working_dir: working_dir.to_string_lossy().to_string(),
             }),
-        };
+        });
+
+        // Add authorization header
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", &**auth_token).parse()?,
+        );
 
         let mut client = self.client.clone();
         let response = client.create_workspace(request).await?;
@@ -61,7 +66,11 @@ impl CodebaseRepository for CodebaseRepositoryImpl {
             .context("Failed to parse workspace ID from server response")
     }
 
-    async fn upload_files(&self, upload: &forge_domain::FileUpload) -> Result<UploadStats> {
+    async fn upload_files(
+        &self,
+        upload: &forge_domain::FileUpload,
+        auth_token: &forge_domain::ApiKey,
+    ) -> Result<UploadStats> {
         let files: Vec<File> = upload
             .data
             .iter()
@@ -71,13 +80,18 @@ impl CodebaseRepository for CodebaseRepositoryImpl {
             })
             .collect();
 
-        let request = UploadFilesRequest {
-            user_id: Some(UserId { id: upload.user_id.to_string() }),
+        let mut request = tonic::Request::new(UploadFilesRequest {
             workspace_id: Some(proto_generated::WorkspaceId {
                 id: upload.workspace_id.to_string(),
             }),
             content: Some(FileUploadContent { files, git: None }),
-        };
+        });
+
+        // Add authorization header
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", &**auth_token).parse()?,
+        );
 
         let mut client = self.client.clone();
         let response = client.upload_files(request).await?;
@@ -94,9 +108,9 @@ impl CodebaseRepository for CodebaseRepositoryImpl {
     async fn search(
         &self,
         search_query: &forge_domain::CodeSearchQuery<'_>,
+        auth_token: &forge_domain::ApiKey,
     ) -> Result<Vec<CodeSearchResult>> {
-        let request = tonic::Request::new(SearchRequest {
-            user_id: Some(UserId { id: search_query.user_id.to_string() }),
+        let mut request = tonic::Request::new(SearchRequest {
             workspace_id: Some(proto_generated::WorkspaceId {
                 id: search_query.workspace_id.to_string(),
             }),
@@ -107,6 +121,12 @@ impl CodebaseRepository for CodebaseRepositoryImpl {
                 ..Default::default()
             }),
         });
+
+        // Add authorization header
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", &**auth_token).parse()?,
+        );
 
         let mut client = self.client.clone();
         let response = client.search(request).await?;
@@ -162,10 +182,17 @@ impl CodebaseRepository for CodebaseRepositoryImpl {
     }
 
     /// List all workspaces for a user
-    async fn list_workspaces(&self, user_id: &DomainUserId) -> Result<Vec<WorkspaceInfo>> {
-        let request = tonic::Request::new(ListWorkspacesRequest {
-            user_id: Some(UserId { id: user_id.to_string() }),
-        });
+    async fn list_workspaces(
+        &self,
+        auth_token: &forge_domain::ApiKey,
+    ) -> Result<Vec<WorkspaceInfo>> {
+        let mut request = tonic::Request::new(ListWorkspacesRequest {});
+
+        // Add authorization header
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", &**auth_token).parse()?,
+        );
 
         let mut client = self.client.clone();
         let response = client.list_workspaces(request).await?;
@@ -188,13 +215,19 @@ impl CodebaseRepository for CodebaseRepositoryImpl {
     async fn list_workspace_files(
         &self,
         workspace: &forge_domain::WorkspaceFiles,
+        auth_token: &forge_domain::ApiKey,
     ) -> Result<Vec<forge_domain::FileHash>> {
-        let request = tonic::Request::new(ListFilesRequest {
-            user_id: Some(UserId { id: workspace.user_id.to_string() }),
+        let mut request = tonic::Request::new(ListFilesRequest {
             workspace_id: Some(proto_generated::WorkspaceId {
                 id: workspace.workspace_id.to_string(),
             }),
         });
+
+        // Add authorization header
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", &**auth_token).parse()?,
+        );
 
         let mut client = self.client.clone();
         let response = client.list_files(request).await?;
@@ -214,18 +247,27 @@ impl CodebaseRepository for CodebaseRepositoryImpl {
     }
 
     /// Delete files from a workspace
-    async fn delete_files(&self, deletion: &forge_domain::FileDeletion) -> Result<()> {
+    async fn delete_files(
+        &self,
+        deletion: &forge_domain::FileDeletion,
+        auth_token: &forge_domain::ApiKey,
+    ) -> Result<()> {
         if deletion.data.is_empty() {
             return Ok(());
         }
 
-        let request = tonic::Request::new(DeleteFilesRequest {
-            user_id: Some(UserId { id: deletion.user_id.to_string() }),
+        let mut request = tonic::Request::new(DeleteFilesRequest {
             workspace_id: Some(proto_generated::WorkspaceId {
                 id: deletion.workspace_id.to_string(),
             }),
             file_paths: deletion.data.clone(),
         });
+
+        // Add authorization header
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", &**auth_token).parse()?,
+        );
 
         let mut client = self.client.clone();
         client.delete_files(request).await?;
@@ -235,13 +277,18 @@ impl CodebaseRepository for CodebaseRepositoryImpl {
 
     async fn delete_workspace(
         &self,
-        user_id: &forge_domain::UserId,
         workspace_id: &forge_domain::WorkspaceId,
+        auth_token: &forge_domain::ApiKey,
     ) -> Result<()> {
-        let request = tonic::Request::new(DeleteWorkspaceRequest {
-            user_id: Some(UserId { id: user_id.to_string() }),
+        let mut request = tonic::Request::new(DeleteWorkspaceRequest {
             workspace_id: Some(proto_generated::WorkspaceId { id: workspace_id.to_string() }),
         });
+
+        // Add authorization header
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", &**auth_token).parse()?,
+        );
 
         let mut client = self.client.clone();
         client.delete_workspace(request).await?;

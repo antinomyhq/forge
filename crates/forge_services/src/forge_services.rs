@@ -6,8 +6,8 @@ use forge_app::{
     Services, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    AppConfigRepository, CodebaseRepository, ConversationRepository, ProviderRepository,
-    SnapshotRepository, WorkspaceRepository,
+    AppConfigRepository, CodebaseRepository, ConversationRepository, IndexingAuthRepository,
+    ProviderRepository, SnapshotRepository, WorkspaceRepository,
 };
 
 use crate::ForgeProviderAuthService;
@@ -189,6 +189,7 @@ impl<
         + ProviderRepository
         + StrategyFactory
         + WorkspaceRepository
+        + IndexingAuthRepository
         + CodebaseRepository
         + Clone
         + 'static,
