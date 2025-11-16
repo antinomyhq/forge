@@ -29,6 +29,22 @@ impl ForgeContextEngineRepository {
         let client = ForgeServiceClient::new(channel);
         Ok(Self { client })
     }
+
+    /// Add authorization header to a gRPC request
+    ///
+    /// Takes ownership of the request, adds the Bearer token to the
+    /// authorization header, and returns the modified request.
+    fn with_auth<T>(
+        &self,
+        mut request: tonic::Request<T>,
+        auth_token: &ApiKey,
+    ) -> Result<tonic::Request<T>> {
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", &**auth_token).parse()?,
+        );
+        Ok(request)
+    }
 }
 
 #[async_trait]
@@ -57,17 +73,13 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
         working_dir: &std::path::Path,
         auth_token: &forge_domain::ApiKey,
     ) -> Result<WorkspaceId> {
-        let mut request = tonic::Request::new(CreateWorkspaceRequest {
+        let request = tonic::Request::new(CreateWorkspaceRequest {
             workspace: Some(WorkspaceDefinition {
                 working_dir: working_dir.to_string_lossy().to_string(),
             }),
         });
 
-        // Add authorization header
-        request.metadata_mut().insert(
-            "authorization",
-            format!("Bearer {}", &**auth_token).parse()?,
-        );
+        let request = self.with_auth(request, auth_token)?;
 
         let mut client = self.client.clone();
         let response = client.create_workspace(request).await?;
@@ -100,18 +112,14 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
             })
             .collect();
 
-        let mut request = tonic::Request::new(UploadFilesRequest {
+        let request = tonic::Request::new(UploadFilesRequest {
             workspace_id: Some(proto_generated::WorkspaceId {
                 id: upload.workspace_id.to_string(),
             }),
             content: Some(FileUploadContent { files, git: None }),
         });
 
-        // Add authorization header
-        request.metadata_mut().insert(
-            "authorization",
-            format!("Bearer {}", &**auth_token).parse()?,
-        );
+        let request = self.with_auth(request, auth_token)?;
 
         let mut client = self.client.clone();
         let response = client.upload_files(request).await?;
@@ -130,7 +138,7 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
         search_query: &forge_domain::CodeSearchQuery<'_>,
         auth_token: &forge_domain::ApiKey,
     ) -> Result<Vec<CodeSearchResult>> {
-        let mut request = tonic::Request::new(SearchRequest {
+        let request = tonic::Request::new(SearchRequest {
             workspace_id: Some(proto_generated::WorkspaceId {
                 id: search_query.workspace_id.to_string(),
             }),
@@ -142,11 +150,7 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
             }),
         });
 
-        // Add authorization header
-        request.metadata_mut().insert(
-            "authorization",
-            format!("Bearer {}", &**auth_token).parse()?,
-        );
+        let request = self.with_auth(request, auth_token)?;
 
         let mut client = self.client.clone();
         let response = client.search(request).await?;
@@ -206,13 +210,8 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
         &self,
         auth_token: &forge_domain::ApiKey,
     ) -> Result<Vec<WorkspaceInfo>> {
-        let mut request = tonic::Request::new(ListWorkspacesRequest {});
-
-        // Add authorization header
-        request.metadata_mut().insert(
-            "authorization",
-            format!("Bearer {}", &**auth_token).parse()?,
-        );
+        let request = tonic::Request::new(ListWorkspacesRequest {});
+        let request = self.with_auth(request, auth_token)?;
 
         let mut client = self.client.clone();
         let response = client.list_workspaces(request).await?;
@@ -237,17 +236,13 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
         workspace: &forge_domain::WorkspaceFiles,
         auth_token: &forge_domain::ApiKey,
     ) -> Result<Vec<forge_domain::FileHash>> {
-        let mut request = tonic::Request::new(ListFilesRequest {
+        let request = tonic::Request::new(ListFilesRequest {
             workspace_id: Some(proto_generated::WorkspaceId {
                 id: workspace.workspace_id.to_string(),
             }),
         });
 
-        // Add authorization header
-        request.metadata_mut().insert(
-            "authorization",
-            format!("Bearer {}", &**auth_token).parse()?,
-        );
+        let request = self.with_auth(request, auth_token)?;
 
         let mut client = self.client.clone();
         let response = client.list_files(request).await?;
@@ -276,18 +271,14 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
             return Ok(());
         }
 
-        let mut request = tonic::Request::new(DeleteFilesRequest {
+        let request = tonic::Request::new(DeleteFilesRequest {
             workspace_id: Some(proto_generated::WorkspaceId {
                 id: deletion.workspace_id.to_string(),
             }),
             file_paths: deletion.data.clone(),
         });
 
-        // Add authorization header
-        request.metadata_mut().insert(
-            "authorization",
-            format!("Bearer {}", &**auth_token).parse()?,
-        );
+        let request = self.with_auth(request, auth_token)?;
 
         let mut client = self.client.clone();
         client.delete_files(request).await?;
@@ -300,15 +291,11 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
         workspace_id: &forge_domain::WorkspaceId,
         auth_token: &forge_domain::ApiKey,
     ) -> Result<()> {
-        let mut request = tonic::Request::new(DeleteWorkspaceRequest {
+        let request = tonic::Request::new(DeleteWorkspaceRequest {
             workspace_id: Some(proto_generated::WorkspaceId { id: workspace_id.to_string() }),
         });
 
-        // Add authorization header
-        request.metadata_mut().insert(
-            "authorization",
-            format!("Bearer {}", &**auth_token).parse()?,
-        );
+        let request = self.with_auth(request, auth_token)?;
 
         let mut client = self.client.clone();
         client.delete_workspace(request).await?;
