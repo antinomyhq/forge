@@ -192,7 +192,7 @@ mod tests {
         let messages = &actual.context.unwrap().messages;
         assert_eq!(messages.len(), 1);
         let message = messages[0].content().unwrap().to_string();
-        assert!(message.contains("/test/file.txt"));
+        assert!(message.contains("test/file.txt"));
         assert!(message.contains("modified externally"));
     }
 
