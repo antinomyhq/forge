@@ -1,9 +1,6 @@
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use forge_domain::{
-    CodeSearchResult, CodebaseRepository, UploadStats, WorkspaceId,
-    WorkspaceInfo,
-};
+use forge_domain::{CodeSearchResult, CodebaseRepository, UploadStats, WorkspaceId, WorkspaceInfo};
 use tonic::transport::Channel;
 
 // Include the generated proto code at module level

@@ -219,38 +219,49 @@ impl<
 
         info!(canonical_path = %canonical_path.display(), "Resolved canonical path");
 
-        // Get auth token - if not authenticated, create API key automatically
-        let token = match self.infra.get_key().await? {
+        // Get or create auth token
+        let (token, user_id, new_auth) = match self.infra.get_key().await? {
             Some(token) => {
-                token
+                let user_id = IndexingAuthRepository::get_user_id(self.infra.as_ref())
+                    .await?
+                    .context("No user_id found in database")?;
+                (token, user_id, None)
             }
             None => {
                 let auth = self.infra.authenticate().await.context(
                     "Failed to authenticate with indexing server. Please check server connectivity.",
                 )?;
-                auth.token
+                let token = auth.token.clone();
+                let user_id = auth.user_id.clone();
+                (token, user_id, Some(auth))
             }
         };
 
-        let user_id = IndexingAuthRepository::get_user_id(self.infra.as_ref())
-            .await?
-            .context("No user_id found after authentication")?;
-
         let existing_workspace = self.infra.find_by_path(&canonical_path).await?;
 
-        let (workspace_id, is_new_workspace) = existing_workspace
-            .map(|workspace| (workspace.workspace_id, false))
-            .unwrap_or_else(|| (WorkspaceId::generate(), true));
+        let (workspace_id, is_new_workspace) = match existing_workspace {
+            Some(workspace) if workspace.user_id == user_id => {
+                (workspace.workspace_id, false)
+            }
+            Some(workspace) => {
+                if let Err(e) = self.infra.delete(&workspace.workspace_id).await {
+                    warn!(error = %e, "Failed to delete old workspace entry from local database");
+                }
+                (WorkspaceId::generate(), true)
+            }
+            None => {
+                (WorkspaceId::generate(), true)
+            }
+        };
 
-        // Create workspace on server if new
         let workspace_id = if is_new_workspace {
-            info!("Creating new workspace on server");
-            self.infra
+            let id = self
+                .infra
                 .create_workspace(&canonical_path, &token)
                 .await
-                .context("Failed to create workspace on server")?
+                .context("Failed to create workspace on server")?;
+            id
         } else {
-            info!(workspace_id = %workspace_id, "Using existing workspace");
             workspace_id
         };
 
@@ -277,7 +288,9 @@ impl<
                 workspace_id,
                 total_file_count,
                 forge_domain::UploadStats::default(),
-            ));
+            )
+            .with_new_api_key(new_auth)
+            .with_new_workspace(is_new_workspace));
         }
 
         // Upload in batches
@@ -313,7 +326,9 @@ impl<
             "Sync completed successfully"
         );
 
-        Ok(IndexStats::new(workspace_id, total_file_count, total_stats))
+        Ok(IndexStats::new(workspace_id, total_file_count, total_stats)
+            .with_new_api_key(new_auth)
+            .with_new_workspace(is_new_workspace))
     }
 
     /// Performs semantic code search on a workspace.
@@ -360,7 +375,6 @@ impl<
 
     /// Lists all workspaces.
     async fn list_codebase(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
-
         // Get auth token
         let token = self.infra.get_key().await?.context(
             "No indexing authentication found. Please run `forge index login <API_KEY>` first.",
@@ -649,11 +663,7 @@ mod tests {
                 .extend(deletion.data.clone());
             Ok(())
         }
-        async fn delete_workspace(
-            &self,
-            workspace_id: &WorkspaceId,
-            _: &ApiKey,
-        ) -> Result<()> {
+        async fn delete_workspace(&self, workspace_id: &WorkspaceId, _: &ApiKey) -> Result<()> {
             self.workspaces
                 .lock()
                 .await

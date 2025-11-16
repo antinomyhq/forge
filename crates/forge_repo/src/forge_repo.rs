@@ -499,9 +499,7 @@ impl<F: Send + Sync> forge_domain::CodebaseRepository for ForgeRepo<F> {
         &self,
         auth_token: &forge_domain::ApiKey,
     ) -> anyhow::Result<Vec<forge_domain::WorkspaceInfo>> {
-        self.codebase_repo
-            .list_workspaces(auth_token)
-            .await
+        self.codebase_repo.list_workspaces(auth_token).await
     }
 
     async fn list_workspace_files(
