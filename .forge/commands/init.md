@@ -1,78 +1,73 @@
 ---
 name: init
-description: Initialize or update AGENTS.md with project contribution guidelines
+description: Initialize or update AGENTS.md with project-specific patterns and insights
 ---
-# STEP 1: ANALYZE THE CODEBASE
 
-**Always start by analyzing the project** to understand:
-- Build system
-- Test framework and conventions
-- Code organization patterns and architecture
-- Existing conventions in the codebase
+Analyze this codebase and create an AGENTS.md file with guidelines for AI agents working in this repository.
 
-Read key files to understand the project structure and patterns.
+## Target Location
+{{#if parameters}}
+**Use the exact path provided by the user:** `{{parameters}}`
 
-# STEP 2: CHECK EXISTING DOCUMENTATION
+Rules:
+- If path ends with `.md` → use it as-is
+- If path does NOT end with `.md` → append `/AGENTS.md`
+- Create any missing parent directories
+{{else}}
+Create AGENTS.md in the current directory
+{{/if}}
 
-- Check if `.cursor/rules/` or `.cursorrules` exists - extract important development rules
-- Check if `.github/copilot-instructions.md` exists - extract important development rules  
-- Check if `README.md` exists - extract development/contribution guidelines (NOT project description)
-- Check if `AGENTS.md` exists - use it as a starting point to improve upon
+## What to Include
 
-# STEP 3: CREATE/UPDATE AGENTS.MD
+1. **Architecture & Boundaries** - Rules that prevent architectural violations:
+   - What dependency rules must developers follow? (not how the system is organized)
+   - What would break the architecture if a developer violated it?
+   - What imports/dependencies are forbidden? Why?
 
-Create a concise AGENTS.md file focused on HOW TO CONTRIBUTE to this codebase, not what the project does.
+2. **Build/Verification Commands** - How to build, test, lint. Include non-obvious commands or anti-patterns (e.g., "NEVER run X").
 
-## CRITICAL CONSTRAINTS:
-- **HARD LIMIT: Maximum 250 lines total** - if file exceeds this, remove content until under limit
-- Focus on contribution workflow, not project explanation
-- Assume reader is already familiar with the tech stack
-- No sections explaining "what is X" - only "how to work with X"
-- Brevity over completeness - capture only the essentials
+3. **Code Patterns to Follow** - Constraints developers must respect when writing code:
+   - What patterns must be followed when adding new code? (not how existing code works)
+   - How should components be structured? (services, classes, modules)
+   - Are there conventions that prevent bugs? (error handling, validation, testing)
+   - What are the anti-patterns to avoid?
+   - What design principles guide contributions?
 
-## REQUIRED CONTENT:
+4. **Critical Conventions** - Rules that must be followed to avoid bugs:
+   - How should errors be handled when crossing boundaries?
+   - What testing patterns are required? (structure, assertions, fixtures)
+   - What documentation is required? (when/where/what to document)
+   - Are there refactoring rules or gotchas?
+   - Are there VCS/Git conventions?
 
-## 1. Common Commands
-Essential commands for development workflow:
-- How to run tests (all tests, single test, specific module)
-- How to build/compile (dev, release, verification)
-- How to lint/format code
-- Any project-specific dev commands
+## What NOT to Include
 
-## 2. Architecture Overview
-**Critical patterns only** - architectural rules that prevent bugs:
-- Project structure and layer dependencies
-- Key design patterns used (with 1 short example if complex)
-- Important data flows (1-2 sentences each)
-- Any non-obvious architectural decisions
+- Generic advice ("write tests", "use git", "follow style guide")
+- Obvious practices visible in any file
+- **Compiler-catchable issues**: Circular dependencies, unused imports, type errors
+- **Linter rules**: Language-specific lint suppressions, formatting, style preferences
+- **Basic programming concepts**: Standard patterns that any experienced developer knows
+- **Business logic**: How features work, what the system does, system behavior
+- **Implementation specifics**: Concrete class/function/struct names, field definitions
+- **Feature descriptions**: What tools do, how compaction works, what agents exist
+- **Inventory lists**: Don't list every struct, enum, function, or file
+- **Technology-specific basics**: Language-specific conventions everyone should know
+- Project descriptions (focus on HOW to contribute, not WHAT it does)
+- Made-up information not found in the codebase
+- Summary sections or conclusions
 
-## 3. Contribution Guidelines
-Project-specific development practices:
-- Error handling patterns
-- Test writing conventions
-- Code organization patterns
-- Documentation requirements
-- Any project-specific coding standards
+## Discovery Process
 
-## 4. Development Notes
-- Git commit conventions
-- Important anti-patterns to avoid
-- When to ask before making changes
+1. Check for existing AGENTS.md - if found, preserve its insights
+2. Check `.cursor/rules/`, `.cursorrules`, `.github/copilot-instructions.md` for project-specific rules
+3. Check README.md for important architectural notes
+4. Analyze the codebase for patterns
 
-## STRICT RULES:
-- NO detailed component/module/class lists that can be discovered by reading code
-- NO exhaustive inventories of files, tools, or features
-- NO examples longer than 10 lines
-- NO generic advice that applies to any project (e.g., "write tests", "use version control")
-- NO descriptions of what the software does or its features
-- NO repetition - be concise and direct
-- If updating existing AGENTS.md, preserve project-specific knowledge while removing bloat
+## Format
 
-## OUTPUT FORMAT:
-Begin with:
+Start with:
+```markdown
+# Agent Guidelines
 
+This document contains guidelines and best practices for AI agents working with this codebase.
 ```
-# AGENTS.md
-
-This file provides guidance to coding agents (like yourself) when working with code in this repository.
-            
