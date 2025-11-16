@@ -220,13 +220,8 @@ impl<
         info!(canonical_path = %canonical_path.display(), "Resolved canonical path");
 
         // Get or create auth token
-        let (token, user_id, new_auth) = match self.infra.get_api_key().await? {
-            Some(token) => {
-                let user_id = CredentialsRepository::get_user_id(self.infra.as_ref())
-                    .await?
-                    .context("No user_id found in database")?;
-                (token, user_id, None)
-            }
+        let (token, user_id, new_auth) = match self.infra.get_auth().await? {
+            Some(auth) => (auth.token, auth.user_id, None),
             None => {
                 let auth = ContextEngineRepository::authenticate(self.infra.as_ref())
                     .await
@@ -353,9 +348,9 @@ impl<
             .ok_or(forge_domain::Error::WorkspaceNotFound)?;
 
         // Step 3: Get auth token
-        let token = self
+        let auth = self
             .infra
-            .get_api_key()
+            .get_auth()
             .await?
             .ok_or(forge_domain::Error::AuthTokenNotFound)?;
 
@@ -368,7 +363,7 @@ impl<
 
         let results = self
             .infra
-            .search(&search_query, &token)
+            .search(&search_query, &auth.token)
             .await
             .context("Failed to search")?;
 
@@ -378,16 +373,16 @@ impl<
     /// Lists all workspaces.
     async fn list_codebase(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
         // Get auth token
-        let token = self
+        let auth = self
             .infra
-            .get_api_key()
+            .get_auth()
             .await?
             .ok_or(forge_domain::Error::AuthTokenNotFound)?;
 
         // List all workspaces for this user
         self.infra
             .as_ref()
-            .list_workspaces(&token)
+            .list_workspaces(&auth.token)
             .await
             .context("Failed to list workspaces")
     }
@@ -395,16 +390,16 @@ impl<
     /// Deletes a workspace from both the server and local database.
     async fn delete_codebase(&self, workspace_id: &forge_domain::WorkspaceId) -> Result<()> {
         // Get auth token
-        let token = self
+        let auth = self
             .infra
-            .get_api_key()
+            .get_auth()
             .await?
             .ok_or(forge_domain::Error::AuthTokenNotFound)?;
 
         // Delete from server
         self.infra
             .as_ref()
-            .delete_workspace(workspace_id, &token)
+            .delete_workspace(workspace_id, &auth.token)
             .await
             .context("Failed to delete workspace from server")?;
 
@@ -470,7 +465,7 @@ where
     /// Returns an error if deletion fails
     pub async fn logout(&self) -> Result<()> {
         self.infra
-            .delete_api_key()
+            .delete_auth()
             .await
             .context("Failed to logout from indexing service")?;
 
@@ -593,27 +588,22 @@ mod tests {
             Ok(())
         }
 
-        async fn get_api_key(&self) -> Result<Option<ApiKey>> {
+        async fn get_auth(&self) -> Result<Option<IndexingAuth>> {
             if self.authenticated {
-                Ok(Some("test_token".to_string().into()))
+                let user_id = self
+                    .workspace
+                    .as_ref()
+                    .map(|w| w.user_id.clone())
+                    .unwrap_or_else(UserId::generate);
+                Ok(Some(IndexingAuth::new(
+                    user_id,
+                    "test_token".to_string().into(),
+                )))
             } else {
                 Ok(None)
             }
         }
-        async fn get_user_id(&self) -> Result<Option<UserId>> {
-            if !self.authenticated {
-                return Ok(None);
-            }
-            // Return existing workspace user_id, or generate a new one
-            // This simulates that the user has logged in
-            Ok(Some(
-                self.workspace
-                    .as_ref()
-                    .map(|w| w.user_id.clone())
-                    .unwrap_or_else(UserId::generate),
-            ))
-        }
-        async fn delete_api_key(&self) -> Result<()> {
+        async fn delete_auth(&self) -> Result<()> {
             Ok(())
         }
     }

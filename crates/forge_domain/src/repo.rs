@@ -121,14 +121,11 @@ pub trait CredentialsRepository: Send + Sync {
     /// Store authentication credentials in database
     async fn set_auth(&self, auth: &IndexingAuth) -> anyhow::Result<()>;
 
-    /// Get stored authentication token for the current user
-    async fn get_api_key(&self) -> anyhow::Result<Option<crate::ApiKey>>;
-
-    /// Get the stored user_id
-    async fn get_user_id(&self) -> anyhow::Result<Option<UserId>>;
+    /// Get stored authentication (both token and user_id)
+    async fn get_auth(&self) -> anyhow::Result<Option<IndexingAuth>>;
 
     /// Delete stored authentication (both user_id and token)
-    async fn delete_api_key(&self) -> anyhow::Result<()>;
+    async fn delete_auth(&self) -> anyhow::Result<()>;
 }
 
 /// Repository for managing codebase indexing and search operations

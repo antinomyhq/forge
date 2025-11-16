@@ -11,7 +11,7 @@ use forge_domain::{
     AnyProvider, AppConfig, AppConfigRepository, AuthCredential, CommandOutput, Conversation,
     ConversationId, ConversationRepository, CredentialsRepository, Environment, FileInfo,
     IndexingAuth, McpServerConfig, Provider, ProviderId, ProviderRepository, Snapshot,
-    SnapshotRepository, UserId,
+    SnapshotRepository,
 };
 use forge_infra::CacacheStorage;
 use reqwest::header::HeaderMap;
@@ -451,16 +451,12 @@ impl<F: Send + Sync> CredentialsRepository for ForgeRepo<F> {
         self.indexing_auth_repository.set_auth(auth).await
     }
 
-    async fn get_api_key(&self) -> anyhow::Result<Option<forge_domain::ApiKey>> {
-        self.indexing_auth_repository.get_api_key().await
+    async fn get_auth(&self) -> anyhow::Result<Option<IndexingAuth>> {
+        self.indexing_auth_repository.get_auth().await
     }
 
-    async fn get_user_id(&self) -> anyhow::Result<Option<UserId>> {
-        self.indexing_auth_repository.get_user_id().await
-    }
-
-    async fn delete_api_key(&self) -> anyhow::Result<()> {
-        self.indexing_auth_repository.delete_api_key().await
+    async fn delete_auth(&self) -> anyhow::Result<()> {
+        self.indexing_auth_repository.delete_auth().await
     }
 }
 
