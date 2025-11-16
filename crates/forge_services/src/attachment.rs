@@ -42,19 +42,25 @@ impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfr
             // List all entries (files and directories) efficiently without reading file
             // contents
             let dir_entries = self.infra.list_directory_entries(&path).await?;
-            let cwd = &self.infra.get_environment().cwd;
 
             // Create DirectoryEntry for each entry
             let mut entries: Vec<DirectoryEntry> = dir_entries
                 .into_iter()
                 .map(|(entry_path, is_dir)| {
-                    let normalized_path = format_display_path(&entry_path, cwd);
+                    let normalized_path = format_display_path(&entry_path, &path);
                     DirectoryEntry { path: normalized_path, is_dir }
                 })
                 .collect();
 
-            // Sort for consistent ordering
-            entries.sort_by(|a, b| a.path.cmp(&b.path));
+            // Sort entries: directories first, then by name
+            entries.sort_by(|a, b| {
+                // Directories come before files
+                match (a.is_dir, b.is_dir) {
+                    (true, false) => std::cmp::Ordering::Less,
+                    (false, true) => std::cmp::Ordering::Greater,
+                    _ => a.path.cmp(&b.path), // Same type, sort by name
+                }
+            });
 
             return Ok(Attachment {
                 content: AttachmentContent::DirectoryListing { entries },
@@ -1187,20 +1193,14 @@ pub mod tests {
                 assert_eq!(entries.len(), 3);
 
                 // Check for files (is_dir = false)
-                let file1 = entries
-                    .iter()
-                    .find(|e| e.path == "mydir/file1.txt")
-                    .unwrap();
+                let file1 = entries.iter().find(|e| e.path == "file1.txt").unwrap();
                 assert!(!file1.is_dir);
 
-                let file2 = entries
-                    .iter()
-                    .find(|e| e.path == "mydir/file2.txt")
-                    .unwrap();
+                let file2 = entries.iter().find(|e| e.path == "file2.txt").unwrap();
                 assert!(!file2.is_dir);
 
                 // Check for subdirectory (is_dir = true)
-                let subdir = entries.iter().find(|e| e.path == "mydir/subdir").unwrap();
+                let subdir = entries.iter().find(|e| e.path == "subdir").unwrap();
                 assert!(subdir.is_dir);
             }
             _ => panic!("Expected DirectoryListing attachment"),
@@ -1272,11 +1272,8 @@ pub mod tests {
         match &dir_attachment.content {
             AttachmentContent::DirectoryListing { entries } => {
                 assert_eq!(entries.len(), 1);
-                // File path should be relative (inside the listing)
-                let dir_file = entries
-                    .iter()
-                    .find(|e| e.path == "mixdir/dir_file.txt")
-                    .unwrap();
+                // File path should be relative to the directory being listed
+                let dir_file = entries.iter().find(|e| e.path == "dir_file.txt").unwrap();
                 assert!(!dir_file.is_dir);
             }
             _ => panic!("Expected DirectoryListing attachment"),
@@ -1291,5 +1288,179 @@ pub mod tests {
             &file_attachment.content,
             AttachmentContent::FileContent { .. }
         ));
+    }
+
+    #[tokio::test]
+    async fn test_directory_sorting_dirs_first() {
+        let infra = Arc::new(MockCompositeService::new());
+
+        // Add directory with mixed files and subdirectories in random order
+        infra.file_service.add_dir(PathBuf::from("/test/sortdir"));
+        infra.add_file(
+            PathBuf::from("/test/sortdir/zebra.txt"),
+            "File Z".to_string(),
+        );
+        infra
+            .file_service
+            .add_dir(PathBuf::from("/test/sortdir/apple_dir"));
+        infra.add_file(
+            PathBuf::from("/test/sortdir/banana.txt"),
+            "File B".to_string(),
+        );
+        infra
+            .file_service
+            .add_dir(PathBuf::from("/test/sortdir/zoo_dir"));
+        infra.add_file(
+            PathBuf::from("/test/sortdir/cherry.txt"),
+            "File C".to_string(),
+        );
+        infra
+            .file_service
+            .add_dir(PathBuf::from("/test/sortdir/berry_dir"));
+
+        let chat_request = ForgeChatRequest::new(infra.clone());
+        let url = "@[/test/sortdir]";
+        let attachments = chat_request.attachments(url).await.unwrap();
+
+        // Verify directory listing
+        assert_eq!(attachments.len(), 1);
+        let attachment = attachments.first().unwrap();
+
+        match &attachment.content {
+            AttachmentContent::DirectoryListing { entries } => {
+                assert_eq!(entries.len(), 6);
+
+                // Verify directories come first, sorted alphabetically
+                assert!(entries[0].is_dir);
+                assert_eq!(entries[0].path, "apple_dir");
+
+                assert!(entries[1].is_dir);
+                assert_eq!(entries[1].path, "berry_dir");
+
+                assert!(entries[2].is_dir);
+                assert_eq!(entries[2].path, "zoo_dir");
+
+                // Verify files come after, sorted alphabetically
+                assert!(!entries[3].is_dir);
+                assert_eq!(entries[3].path, "banana.txt");
+
+                assert!(!entries[4].is_dir);
+                assert_eq!(entries[4].path, "cherry.txt");
+
+                assert!(!entries[5].is_dir);
+                assert_eq!(entries[5].path, "zebra.txt");
+            }
+            _ => panic!("Expected DirectoryListing attachment"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_directory_sorting_only_directories() {
+        let infra = Arc::new(MockCompositeService::new());
+
+        // Add directory with only subdirectories
+        infra.file_service.add_dir(PathBuf::from("/test/onlydirs"));
+        infra
+            .file_service
+            .add_dir(PathBuf::from("/test/onlydirs/zebra_dir"));
+        infra
+            .file_service
+            .add_dir(PathBuf::from("/test/onlydirs/alpha_dir"));
+        infra
+            .file_service
+            .add_dir(PathBuf::from("/test/onlydirs/middle_dir"));
+
+        let chat_request = ForgeChatRequest::new(infra.clone());
+        let url = "@[/test/onlydirs]";
+        let attachments = chat_request.attachments(url).await.unwrap();
+
+        match &attachments[0].content {
+            AttachmentContent::DirectoryListing { entries } => {
+                assert_eq!(entries.len(), 3);
+
+                // All should be directories, sorted alphabetically
+                assert!(entries[0].is_dir);
+                assert_eq!(entries[0].path, "alpha_dir");
+
+                assert!(entries[1].is_dir);
+                assert_eq!(entries[1].path, "middle_dir");
+
+                assert!(entries[2].is_dir);
+                assert_eq!(entries[2].path, "zebra_dir");
+            }
+            _ => panic!("Expected DirectoryListing attachment"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_directory_sorting_only_files() {
+        let infra = Arc::new(MockCompositeService::new());
+
+        // Add directory with only files
+        infra.file_service.add_dir(PathBuf::from("/test/onlyfiles"));
+        infra.add_file(PathBuf::from("/test/onlyfiles/zebra.txt"), "Z".to_string());
+        infra.add_file(PathBuf::from("/test/onlyfiles/alpha.txt"), "A".to_string());
+        infra.add_file(PathBuf::from("/test/onlyfiles/middle.txt"), "M".to_string());
+
+        let chat_request = ForgeChatRequest::new(infra.clone());
+        let url = "@[/test/onlyfiles]";
+        let attachments = chat_request.attachments(url).await.unwrap();
+
+        match &attachments[0].content {
+            AttachmentContent::DirectoryListing { entries } => {
+                assert_eq!(entries.len(), 3);
+
+                // All should be files, sorted alphabetically
+                assert!(!entries[0].is_dir);
+                assert_eq!(entries[0].path, "alpha.txt");
+
+                assert!(!entries[1].is_dir);
+                assert_eq!(entries[1].path, "middle.txt");
+
+                assert!(!entries[2].is_dir);
+                assert_eq!(entries[2].path, "zebra.txt");
+            }
+            _ => panic!("Expected DirectoryListing attachment"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_directory_sorting_case_insensitive() {
+        let infra = Arc::new(MockCompositeService::new());
+
+        // Add directory with mixed case names
+        infra.file_service.add_dir(PathBuf::from("/test/casetest"));
+        infra
+            .file_service
+            .add_dir(PathBuf::from("/test/casetest/Zebra_dir"));
+        infra
+            .file_service
+            .add_dir(PathBuf::from("/test/casetest/apple_dir"));
+        infra.add_file(PathBuf::from("/test/casetest/Zebra.txt"), "Z".to_string());
+        infra.add_file(PathBuf::from("/test/casetest/apple.txt"), "A".to_string());
+
+        let chat_request = ForgeChatRequest::new(infra.clone());
+        let url = "@[/test/casetest]";
+        let attachments = chat_request.attachments(url).await.unwrap();
+
+        match &attachments[0].content {
+            AttachmentContent::DirectoryListing { entries } => {
+                assert_eq!(entries.len(), 4);
+
+                // Directories first
+                assert!(entries[0].is_dir);
+                assert!(entries[1].is_dir);
+
+                // Files after
+                assert!(!entries[2].is_dir);
+                assert!(!entries[3].is_dir);
+
+                // Note: Rust's default string comparison is case-sensitive
+                // so "Zebra_dir" < "apple_dir" (uppercase comes before
+                // lowercase) This documents the current
+                // behavior
+            }
+            _ => panic!("Expected DirectoryListing attachment"),
+        }
     }
 }

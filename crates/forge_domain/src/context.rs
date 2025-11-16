@@ -402,20 +402,9 @@ impl Context {
                     message.into()
                 }
                 AttachmentContent::DirectoryListing { entries } => {
-                    // Sort entries: directories first, then by name
-                    let mut sorted_entries = entries;
-                    sorted_entries.sort_by(|a, b| {
-                        // Directories come before files
-                        match (a.is_dir, b.is_dir) {
-                            (true, false) => std::cmp::Ordering::Less,
-                            (false, true) => std::cmp::Ordering::Greater,
-                            _ => a.path.cmp(&b.path), // Same type, sort by name
-                        }
-                    });
-
                     let elm = Element::new("directory_listing")
                         .attr("path", attachment.path)
-                        .append(sorted_entries.into_iter().map(|entry| {
+                        .append(entries.into_iter().map(|entry| {
                             let tag_name = if entry.is_dir { "dir" } else { "file" };
                             Element::new(tag_name).text(entry.path)
                         }));
@@ -1072,17 +1061,18 @@ mod tests {
 
     #[test]
     fn test_directory_listing_sorted_dirs_first() {
-        // Create entries in mixed order
+        // Create entries already sorted (as they would come from attachment service)
+        // Directories first, then files, all sorted alphabetically
         let fixture_attachments = vec![Attachment {
             path: "/test/root".to_string(),
             content: AttachmentContent::DirectoryListing {
                 entries: vec![
-                    DirectoryEntry { path: "zebra.txt".to_string(), is_dir: false },
                     DirectoryEntry { path: "apple_dir".to_string(), is_dir: true },
-                    DirectoryEntry { path: "banana.txt".to_string(), is_dir: false },
-                    DirectoryEntry { path: "zoo_dir".to_string(), is_dir: true },
-                    DirectoryEntry { path: "cherry.txt".to_string(), is_dir: false },
                     DirectoryEntry { path: "berry_dir".to_string(), is_dir: true },
+                    DirectoryEntry { path: "zoo_dir".to_string(), is_dir: true },
+                    DirectoryEntry { path: "banana.txt".to_string(), is_dir: false },
+                    DirectoryEntry { path: "cherry.txt".to_string(), is_dir: false },
+                    DirectoryEntry { path: "zebra.txt".to_string(), is_dir: false },
                 ],
             },
         }];
