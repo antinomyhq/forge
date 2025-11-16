@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod ui_inline_shell_tests {
+mod inline_shell_tests {
     use std::os::unix::process::ExitStatusExt;
     use std::path::PathBuf;
     use std::sync::Arc;
@@ -384,7 +384,6 @@ mod ui_inline_shell_tests {
         let _executor = ConcreteInlineShellExecutor::new(Arc::new(mock_infra), environment);
 
         // Test passes if executor creation succeeds with custom environment
-        assert!(true);
     }
 
     #[tokio::test]
@@ -897,7 +896,7 @@ mod ui_inline_shell_tests {
         assert!(results[0].stdout.contains("nothing to commit"));
 
         // Verify that the command output would be inserted correctly into message
-        let processed_content = forge_app::replace_commands_in_content(&message_content, &results);
+        let processed_content = forge_app::replace_commands_in_content(message_content, &results);
         assert!(processed_content.contains("On branch main\nnothing to commit"));
         assert!(!processed_content.contains("🔧"));
     }
