@@ -283,8 +283,8 @@ impl<
                 total_file_count,
                 forge_domain::UploadStats::default(),
             )
-            .with_new_api_key(new_auth)
-            .with_new_workspace(is_new_workspace));
+            .new_api_key(new_auth)
+            .is_new_workspace(is_new_workspace));
         }
 
         // Upload in batches

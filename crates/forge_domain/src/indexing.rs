@@ -1,4 +1,5 @@
 use derive_more::Display;
+use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -134,8 +135,7 @@ pub struct FileHash {
 }
 
 /// Result of a codebase sync operation
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Setters)]
 pub struct IndexStats {
     /// Workspace ID that was synced
     pub workspace_id: WorkspaceId,
