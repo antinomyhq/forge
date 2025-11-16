@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use forge_app::{CodebaseService, FileReaderInfra, Walker, WalkerInfra, compute_hash};
+use forge_app::{ContextEngineService, FileReaderInfra, Walker, WalkerInfra, compute_hash};
 use forge_domain::{
     ContextEngineRepository, IndexStats, CredentialsRepository, UserId, WorkspaceId,
     WorkspaceRepository,
@@ -208,7 +208,7 @@ impl<
         + ContextEngineRepository
         + WalkerInfra
         + FileReaderInfra,
-> CodebaseService for ForgeIndexingService<F>
+> ContextEngineService for ForgeIndexingService<F>
 {
     async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> Result<IndexStats> {
         info!(path = %path.display(), "Starting codebase sync");

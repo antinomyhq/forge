@@ -5,7 +5,7 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use forge_app::dto::ToolsOverview;
 use forge_app::{
-    AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CodebaseService,
+    AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, ContextEngineService,
     CommandInfra, CommandLoaderService, ConversationService, EnvironmentInfra, EnvironmentService,
     FileDiscoveryService, ForgeApp, GitApp, McpConfigManager, McpService, ProviderAuthService,
     ProviderService, Services, User, UserUsage, Walker, WorkflowService,

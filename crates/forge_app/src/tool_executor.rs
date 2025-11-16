@@ -10,7 +10,7 @@ use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::ShellService;
 use crate::utils::format_display_path;
 use crate::{
-    CodebaseService, ConversationService, EnvironmentService, FollowUpService, FsCreateService,
+    ContextEngineService, ConversationService, EnvironmentService, FollowUpService, FsCreateService,
     FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoService,
     ImageReadService, NetFetchService, PlanCreateService, PolicyService,
 };
@@ -24,7 +24,7 @@ impl<
         + ImageReadService
         + FsCreateService
         + FsSearchService
-        + CodebaseService
+        + ContextEngineService
         + NetFetchService
         + FsRemoveService
         + FsPatchService
