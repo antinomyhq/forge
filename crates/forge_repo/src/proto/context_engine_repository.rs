@@ -17,6 +17,58 @@ mod proto_generated {
 use forge_service_client::ForgeServiceClient;
 use proto_generated::*;
 
+// TryFrom implementations for converting proto types to domain types
+
+impl TryFrom<CreateApiKeyResponse> for IndexingAuth {
+    type Error = anyhow::Error;
+
+    fn try_from(response: CreateApiKeyResponse) -> Result<Self> {
+        let user_id = response.user_id.context("Missing user_id in response")?.id;
+        let user_id = UserId::from_string(&user_id).context("Invalid user_id returned from API")?;
+        let token: ApiKey = response.key.into();
+
+        Ok(IndexingAuth { user_id, token, created_at: Utc::now() })
+    }
+}
+
+impl TryFrom<CreateWorkspaceResponse> for WorkspaceId {
+    type Error = anyhow::Error;
+
+    fn try_from(response: CreateWorkspaceResponse) -> Result<Self> {
+        let workspace = response.workspace.context("No workspace in response")?;
+        let workspace_id = workspace
+            .workspace_id
+            .context("Server did not return workspace ID in CreateWorkspace response")?
+            .id;
+
+        WorkspaceId::from_string(&workspace_id)
+            .context("Failed to parse workspace ID from server response")
+    }
+}
+
+impl TryFrom<Workspace> for WorkspaceInfo {
+    type Error = anyhow::Error;
+
+    fn try_from(workspace: Workspace) -> Result<Self> {
+        let id_msg = workspace
+            .workspace_id
+            .context("Missing workspace_id in response")?;
+        let workspace_id =
+            WorkspaceId::from_string(&id_msg.id).context("Failed to parse workspace ID")?;
+
+        Ok(WorkspaceInfo { workspace_id, working_dir: workspace.working_dir })
+    }
+}
+
+impl TryFrom<FileRefNode> for forge_domain::FileHash {
+    type Error = anyhow::Error;
+
+    fn try_from(file_ref_node: FileRefNode) -> Result<Self> {
+        let data = file_ref_node.data.context("Missing data in FileRefNode")?;
+        Ok(forge_domain::FileHash { path: data.path, hash: data.file_hash })
+    }
+}
+
 /// gRPC implementation of CodebaseRepository
 pub struct ForgeContextEngineRepository {
     client: ForgeServiceClient<Channel>,
@@ -51,7 +103,6 @@ impl ForgeContextEngineRepository {
 impl ContextEngineRepository for ForgeContextEngineRepository {
     async fn authenticate(&self) -> Result<IndexingAuth> {
         let mut client = self.client.clone();
-
         let request = tonic::Request::new(CreateApiKeyRequest { user_id: None });
 
         let response = client
@@ -60,12 +111,7 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
             .context("Failed to call CreateApiKey gRPC")?
             .into_inner();
 
-        let user_id = response.user_id.context("Missing user_id in response")?.id;
-        let user_id = UserId::from_string(&user_id).context("Invalid user_id returned from API")?;
-
-        let token: ApiKey = response.key.into();
-
-        Ok(IndexingAuth { user_id, token, created_at: Utc::now() })
+        response.try_into()
     }
 
     async fn create_workspace(
@@ -82,20 +128,9 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
         let request = self.with_auth(request, auth_token)?;
 
         let mut client = self.client.clone();
-        let response = client.create_workspace(request).await?;
+        let response = client.create_workspace(request).await?.into_inner();
 
-        let workspace = response
-            .into_inner()
-            .workspace
-            .context("No workspace in response")?;
-
-        let workspace_id = workspace
-            .workspace_id
-            .context("Server did not return workspace ID in CreateWorkspace response")?
-            .id;
-
-        WorkspaceId::from_string(&workspace_id)
-            .context("Failed to parse workspace ID from server response")
+        response.try_into()
     }
 
     async fn upload_files(
@@ -216,18 +251,12 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
         let mut client = self.client.clone();
         let response = client.list_workspaces(request).await?;
 
-        let workspaces = response
+        response
             .into_inner()
             .workspaces
             .into_iter()
-            .filter_map(|workspace| {
-                let id_msg = workspace.workspace_id?;
-                let workspace_id = WorkspaceId::from_string(&id_msg.id).ok()?;
-                Some(WorkspaceInfo { workspace_id, working_dir: workspace.working_dir })
-            })
-            .collect();
-
-        Ok(workspaces)
+            .map(|workspace| workspace.try_into())
+            .collect()
     }
 
     /// List all files in a workspace with their hashes
@@ -247,18 +276,12 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
         let mut client = self.client.clone();
         let response = client.list_files(request).await?;
 
-        // Extract file paths and hashes from FileRefNode
-        let files = response
+        response
             .into_inner()
             .files
             .into_iter()
-            .filter_map(|file_ref_node| {
-                let data = file_ref_node.data?;
-                Some(forge_domain::FileHash { path: data.path, hash: data.file_hash })
-            })
-            .collect();
-
-        Ok(files)
+            .map(|file_ref_node| file_ref_node.try_into())
+            .collect()
     }
 
     /// Delete files from a workspace
