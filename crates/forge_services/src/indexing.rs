@@ -223,7 +223,7 @@ impl<
         let (token, user_id, new_auth) = match self.infra.get_auth().await? {
             Some(auth) => (auth.token, auth.user_id, None),
             None => {
-                let auth = ContextEngineRepository::authenticate(self.infra.as_ref())
+                let auth = self.infra.authenticate()
                     .await
                     .context(
                         "Failed to authenticate with indexing server. Please check server connectivity.",
@@ -232,7 +232,7 @@ impl<
                 let user_id = auth.user_id.clone();
 
                 // Store the auth in database
-                CredentialsRepository::set_auth(self.infra.as_ref(), &auth)
+                self.infra.set_auth(&auth)
                     .await
                     .context("Failed to store authentication credentials")?;
 
@@ -446,12 +446,12 @@ where
     /// Returns an error if authentication or storing credentials fails
     pub async fn login(&self) -> Result<()> {
         // Call gRPC API to authenticate
-        let auth = ContextEngineRepository::authenticate(self.infra.as_ref())
+        let auth = self.infra.authenticate()
             .await
             .context("Failed to authenticate with indexing service")?;
 
         // Store the auth in database
-        CredentialsRepository::set_auth(self.infra.as_ref(), &auth)
+       self.infra.set_auth(&auth)
             .await
             .context("Failed to store authentication credentials")?;
 
