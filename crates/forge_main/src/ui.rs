@@ -2562,10 +2562,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 // Display new API key if one was created
                 if let Some(auth) = &stats.new_api_key {
                     let info = Info::new()
-                        .add_title("NEW API KEY CREATED")
+                        .add_title("⚠️  NEW API KEY CREATED [Will be shown only once]")
                         .add_key_value("API Key", auth.token.as_str())
-                        .add_key_value("User ID", auth.user_id.to_string())
-                        .add_value("⚠️  Save this key securely - it will not be shown again");
+                        .add_key_value("User ID", auth.user_id.to_string());
                     self.writeln(info.to_string())?;
                 }
 

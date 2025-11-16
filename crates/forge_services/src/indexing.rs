@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{CodebaseService, FileReaderInfra, Walker, WalkerInfra, compute_hash};
 use forge_domain::{
-    CodebaseRepository, IndexStats, IndexingAuthRepository, UserId, WorkspaceId,
+    ContextEngineRepository, IndexStats, CredentialsRepository, UserId, WorkspaceId,
     WorkspaceRepository,
 };
 use futures::future::join_all;
@@ -56,7 +56,7 @@ impl<F> ForgeIndexingService<F> {
         auth_token: &forge_domain::ApiKey,
     ) -> Result<HashMap<String, String>>
     where
-        F: CodebaseRepository,
+        F: ContextEngineRepository,
     {
         info!("Fetching existing file hashes from server to detect changes...");
         let workspace_files =
@@ -107,7 +107,7 @@ impl<F> ForgeIndexingService<F> {
         auth_token: &forge_domain::ApiKey,
     ) -> Result<Vec<(String, String)>>
     where
-        F: WorkspaceRepository + CodebaseRepository,
+        F: WorkspaceRepository + ContextEngineRepository,
     {
         let total_file_count = all_files.len();
 
@@ -204,8 +204,8 @@ impl<F> ForgeIndexingService<F> {
 #[async_trait]
 impl<
     F: WorkspaceRepository
-        + IndexingAuthRepository
-        + CodebaseRepository
+        + CredentialsRepository
+        + ContextEngineRepository
         + WalkerInfra
         + FileReaderInfra,
 > CodebaseService for ForgeIndexingService<F>
@@ -220,9 +220,9 @@ impl<
         info!(canonical_path = %canonical_path.display(), "Resolved canonical path");
 
         // Get or create auth token
-        let (token, user_id, new_auth) = match self.infra.get_key().await? {
+        let (token, user_id, new_auth) = match self.infra.get_api_key().await? {
             Some(token) => {
-                let user_id = IndexingAuthRepository::get_user_id(self.infra.as_ref())
+                let user_id = CredentialsRepository::get_user_id(self.infra.as_ref())
                     .await?
                     .context("No user_id found in database")?;
                 (token, user_id, None)
@@ -347,7 +347,7 @@ impl<
         // Step 3: Get auth token
         let token = self
             .infra
-            .get_key()
+            .get_api_key()
             .await?
             .ok_or(forge_domain::Error::AuthTokenNotFound)?;
 
@@ -372,7 +372,7 @@ impl<
         // Get auth token
         let token = self
             .infra
-            .get_key()
+            .get_api_key()
             .await?
             .ok_or(forge_domain::Error::AuthTokenNotFound)?;
 
@@ -389,7 +389,7 @@ impl<
         // Get auth token
         let token = self
             .infra
-            .get_key()
+            .get_api_key()
             .await?
             .ok_or(forge_domain::Error::AuthTokenNotFound)?;
 
@@ -430,7 +430,7 @@ impl<
 // Additional authentication methods for ForgeIndexingService
 impl<F> ForgeIndexingService<F>
 where
-    F: IndexingAuthRepository + WorkspaceRepository,
+    F: CredentialsRepository + WorkspaceRepository,
 {
     /// Login to the indexing service by storing an authentication token
     ///
@@ -458,7 +458,7 @@ where
     /// Returns an error if deletion fails
     pub async fn logout(&self) -> Result<()> {
         self.infra
-            .logout()
+            .delete_api_key()
             .await
             .context("Failed to logout from indexing service")?;
 
@@ -576,7 +576,7 @@ mod tests {
     }
 
     #[async_trait::async_trait]
-    impl IndexingAuthRepository for MockInfra {
+    impl CredentialsRepository for MockInfra {
         async fn authenticate(&self) -> Result<IndexingAuth> {
             // Mock authentication - return fake user_id and token
             Ok(IndexingAuth::new(
@@ -584,7 +584,7 @@ mod tests {
                 "test_token".to_string().into(),
             ))
         }
-        async fn get_key(&self) -> Result<Option<ApiKey>> {
+        async fn get_api_key(&self) -> Result<Option<ApiKey>> {
             if self.authenticated {
                 Ok(Some("test_token".to_string().into()))
             } else {
@@ -604,7 +604,7 @@ mod tests {
                     .unwrap_or_else(UserId::generate),
             ))
         }
-        async fn logout(&self) -> Result<()> {
+        async fn delete_api_key(&self) -> Result<()> {
             Ok(())
         }
     }
@@ -626,7 +626,7 @@ mod tests {
     }
 
     #[async_trait]
-    impl CodebaseRepository for MockInfra {
+    impl ContextEngineRepository for MockInfra {
         async fn create_workspace(&self, _: &Path, _: &ApiKey) -> Result<WorkspaceId> {
             Ok(WorkspaceId::generate())
         }

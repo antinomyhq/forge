@@ -6,7 +6,7 @@ use forge_app::{
     Services, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    AppConfigRepository, CodebaseRepository, ConversationRepository, IndexingAuthRepository,
+    AppConfigRepository, ContextEngineRepository, ConversationRepository, CredentialsRepository,
     ProviderRepository, SnapshotRepository, WorkspaceRepository,
 };
 
@@ -52,7 +52,7 @@ pub struct ForgeServices<
         + KVStore
         + ProviderRepository
         + forge_domain::WorkspaceRepository
-        + CodebaseRepository,
+        + ContextEngineRepository,
 > {
     chat_service: Arc<ForgeProviderService<F>>,
     config_service: Arc<ForgeAppConfigService<F>>,
@@ -101,7 +101,7 @@ impl<
         + ProviderRepository
         + KVStore
         + forge_domain::WorkspaceRepository
-        + CodebaseRepository,
+        + ContextEngineRepository,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -189,8 +189,8 @@ impl<
         + ProviderRepository
         + StrategyFactory
         + WorkspaceRepository
-        + IndexingAuthRepository
-        + CodebaseRepository
+        + CredentialsRepository
+        + ContextEngineRepository
         + Clone
         + 'static,
 > Services for ForgeServices<F>

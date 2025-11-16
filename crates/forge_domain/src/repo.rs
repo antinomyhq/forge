@@ -116,25 +116,24 @@ pub trait WorkspaceRepository: Send + Sync {
 }
 
 /// Repository for managing indexing service authentication
-
 #[async_trait::async_trait]
-pub trait IndexingAuthRepository: Send + Sync {
+pub trait CredentialsRepository: Send + Sync {
     /// Authenticate with the indexing service via HTTP API
     async fn authenticate(&self) -> anyhow::Result<IndexingAuth>;
 
     /// Get stored authentication token for the current user
-    async fn get_key(&self) -> anyhow::Result<Option<crate::ApiKey>>;
+    async fn get_api_key(&self) -> anyhow::Result<Option<crate::ApiKey>>;
 
     /// Get the stored user_id
     async fn get_user_id(&self) -> anyhow::Result<Option<UserId>>;
 
     /// Delete stored authentication (both user_id and token)
-    async fn logout(&self) -> anyhow::Result<()>;
+    async fn delete_api_key(&self) -> anyhow::Result<()>;
 }
 
 /// Repository for managing codebase indexing and search operations
 #[async_trait::async_trait]
-pub trait CodebaseRepository: Send + Sync {
+pub trait ContextEngineRepository: Send + Sync {
     /// Create a new workspace on the indexing server
     async fn create_workspace(
         &self,

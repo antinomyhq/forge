@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use forge_domain::{CodeSearchResult, CodebaseRepository, UploadStats, WorkspaceId, WorkspaceInfo};
+use forge_domain::{CodeSearchResult, ContextEngineRepository, UploadStats, WorkspaceId, WorkspaceInfo};
 use tonic::transport::Channel;
 
 // Include the generated proto code at module level
@@ -28,7 +28,7 @@ impl CodebaseRepositoryImpl {
 }
 
 #[async_trait]
-impl CodebaseRepository for CodebaseRepositoryImpl {
+impl ContextEngineRepository for CodebaseRepositoryImpl {
     async fn create_workspace(
         &self,
         working_dir: &std::path::Path,
