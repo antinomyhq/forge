@@ -232,7 +232,8 @@ impl<
                 let user_id = auth.user_id.clone();
 
                 // Store the auth in database
-                self.infra.set_auth(&auth)
+                self.infra
+                    .set_auth(&auth)
                     .await
                     .context("Failed to store authentication credentials")?;
 
@@ -446,12 +447,15 @@ where
     /// Returns an error if authentication or storing credentials fails
     pub async fn login(&self) -> Result<()> {
         // Call gRPC API to authenticate
-        let auth = self.infra.authenticate()
+        let auth = self
+            .infra
+            .authenticate()
             .await
             .context("Failed to authenticate with indexing service")?;
 
         // Store the auth in database
-       self.infra.set_auth(&auth)
+        self.infra
+            .set_auth(&auth)
             .await
             .context("Failed to store authentication credentials")?;
 

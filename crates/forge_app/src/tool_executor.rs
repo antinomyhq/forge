@@ -203,27 +203,17 @@ impl<
                 let env = self.services.get_environment();
                 let services = self.services.clone();
                 let cwd = env.cwd.clone();
+                let query = input.query;
+                let mut params = forge_domain::SearchParams::new(&query, env.codebase_search_limit);
+                if let Some(top_k) = env.codebase_search_top_k {
+                    params = params.with_top_k(top_k);
+                }
+                let services = services.clone();
+                let cwd = cwd.clone();
+                let results = services.query_codebase(cwd, params).await?;
+                let out = forge_domain::CodebaseQueryResult { query, results };
 
-                // Execute all queries in parallel
-                let query_futures = input.queries.iter().map(|query| {
-                    let mut params =
-                        forge_domain::SearchParams::new(query, env.codebase_search_limit);
-                    if let Some(top_k) = env.codebase_search_top_k {
-                        params = params.with_top_k(top_k);
-                    }
-                    let query_str = query.clone();
-                    let services = services.clone();
-                    let cwd = cwd.clone();
-                    async move {
-                        let results = services.query_codebase(cwd, params).await?;
-                        Ok::<_, anyhow::Error>(forge_domain::CodebaseQueryResult {
-                            query: query_str,
-                            results,
-                        })
-                    }
-                });
-
-                let output = futures::future::try_join_all(query_futures).await?;
+                let output = out;
 
                 ToolOperation::CodebaseSearch { output }
             }

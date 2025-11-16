@@ -186,7 +186,7 @@ pub struct CodebaseSearch {
     /// backoff", "streaming responses from LLM API", "OAuth token refresh
     /// flow". Bad: generic terms like "retry" or "auth" without context. Think
     /// about the behavior and functionality you're looking for.
-    pub queries: Vec<String>,
+    pub query: String,
 }
 
 /// Request to remove a file at the specified path. Use this when you need to
