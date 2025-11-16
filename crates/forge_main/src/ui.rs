@@ -67,7 +67,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     /// Writes a TitleFormat to the console output with proper formatting
     fn writeln_title(&mut self, title: TitleFormat) -> anyhow::Result<()> {
-        self.spinner.write_ln(title.display())
+        let env = self.api.environment();
+        self.spinner.write_ln(title.display_with_env(env))
     }
 
     fn writeln_to_stderr(&mut self, title: String) -> anyhow::Result<()> {
@@ -1938,6 +1939,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Always set the conversation id in state
         self.state.conversation_id = Some(id);
+        // Clear accumulated usage when starting/switching to a conversation
+        self.state.current_usage = None;
 
         Ok(id)
     }
@@ -2151,7 +2154,35 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         match message {
             ChatResponse::TaskMessage { content } => match content {
-                ChatResponseContent::Title(title) => self.writeln(title.display())?,
+                ChatResponseContent::Title(title) => {
+                    let env = self.api.environment();
+                    let display = title.display_with_env(env);
+
+                    // Use locally tracked usage (includes nested agents) or fall back to
+                    // conversation
+                    let fallback_usage = if self.state.current_usage.is_none()
+                        && let Some(conversation_id) = self.state.conversation_id
+                    {
+                        self.api
+                            .conversation(&conversation_id)
+                            .await
+                            .ok()
+                            .flatten()
+                            .and_then(|c| c.context)
+                            .and_then(|ctx| ctx.usage)
+                    } else {
+                        None
+                    };
+
+                    let usage = self
+                        .state
+                        .current_usage
+                        .as_ref()
+                        .or(fallback_usage.as_ref());
+
+                    let formatted = display.format_with_data(usage, None);
+                    self.writeln(formatted)?
+                }
                 ChatResponseContent::PlainText(text) => self.writeln(text)?,
                 ChatResponseContent::Markdown(text) => {
                     tracing::info!(message = %text, "Agent Response");
@@ -2179,7 +2210,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     return Ok(());
                 }
             }
-            ChatResponse::Usage(_) => {}
+            ChatResponse::Usage(usage) => {
+                // Track usage locally for accurate title display
+                self.state.current_usage = Some(usage);
+            }
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 if !self.api.environment().retry_config.suppress_retry_errors {
                     self.spinner.start(Some("Retrying"))?;
