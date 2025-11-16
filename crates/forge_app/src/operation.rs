@@ -5,8 +5,8 @@ use console::strip_ansi_codes;
 use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
-    CodebaseQueryResult, Environment, FSPatch, FSRead, FSRemove,
-    FSSearch, FSUndo, FSWrite, FileOperation, Metrics, NetFetch, PlanCreate, ToolKind,
+    CodebaseQueryResult, Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
+    FileOperation, Metrics, NetFetch, PlanCreate, ToolKind,
 };
 use forge_template::Element;
 
@@ -508,7 +508,7 @@ mod tests {
     use std::fmt::Write;
     use std::path::PathBuf;
 
-    use forge_domain::{FSRead, ToolValue};
+    use forge_domain::{CodeNode, FSRead, ToolValue};
 
     use super::*;
     use crate::{Content, Match, MatchResult};
