@@ -240,27 +240,21 @@ impl<
         let existing_workspace = self.infra.find_by_path(&canonical_path).await?;
 
         let (workspace_id, is_new_workspace) = match existing_workspace {
-            Some(workspace) if workspace.user_id == user_id => {
-                (workspace.workspace_id, false)
-            }
+            Some(workspace) if workspace.user_id == user_id => (workspace.workspace_id, false),
             Some(workspace) => {
                 if let Err(e) = self.infra.delete(&workspace.workspace_id).await {
                     warn!(error = %e, "Failed to delete old workspace entry from local database");
                 }
                 (WorkspaceId::generate(), true)
             }
-            None => {
-                (WorkspaceId::generate(), true)
-            }
+            None => (WorkspaceId::generate(), true),
         };
 
         let workspace_id = if is_new_workspace {
-            let id = self
-                .infra
+            self.infra
                 .create_workspace(&canonical_path, &token)
                 .await
-                .context("Failed to create workspace on server")?;
-            id
+                .context("Failed to create workspace on server")?
         } else {
             workspace_id
         };
@@ -348,14 +342,14 @@ impl<
             .find_by_path(&canonical_path)
             .await
             .context("Failed to query database")?
-            .ok_or_else(|| {
-                anyhow::anyhow!("Workspace not found. Run `forge index sync .` first.")
-            })?;
+            .ok_or(forge_domain::Error::WorkspaceNotFound)?;
 
         // Step 3: Get auth token
-        let token = self.infra.get_key().await?.context(
-            "No indexing authentication found. Please run `forge index login <API_KEY>` first.",
-        )?;
+        let token = self
+            .infra
+            .get_key()
+            .await?
+            .ok_or(forge_domain::Error::AuthTokenNotFound)?;
 
         // Step 4: Search the codebase
         let search_query = forge_domain::CodeBase::new(
@@ -376,9 +370,11 @@ impl<
     /// Lists all workspaces.
     async fn list_codebase(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
         // Get auth token
-        let token = self.infra.get_key().await?.context(
-            "No indexing authentication found. Please run `forge index login <API_KEY>` first.",
-        )?;
+        let token = self
+            .infra
+            .get_key()
+            .await?
+            .ok_or(forge_domain::Error::AuthTokenNotFound)?;
 
         // List all workspaces for this user
         self.infra
@@ -391,9 +387,11 @@ impl<
     /// Deletes a workspace from both the server and local database.
     async fn delete_codebase(&self, workspace_id: &forge_domain::WorkspaceId) -> Result<()> {
         // Get auth token
-        let token = self.infra.get_key().await?.context(
-            "No indexing authentication found. Please run `forge index login <API_KEY>` first.",
-        )?;
+        let token = self
+            .infra
+            .get_key()
+            .await?
+            .ok_or(forge_domain::Error::AuthTokenNotFound)?;
 
         // Delete from server
         self.infra
