@@ -296,26 +296,20 @@ impl CodeSearchResult {
         use forge_template::Element;
 
         match self {
-            Self::FileChunk { file_path, content, start_line, end_line, similarity, .. } => {
+            Self::FileChunk { file_path, content, start_line, end_line, .. } => {
                 Element::new("file_chunk")
                     .attr("file_path", file_path)
                     .attr("lines", format!("{}-{}", start_line, end_line))
-                    .attr("similarity", format!("{:.2}", similarity))
                     .cdata(content)
             }
-            Self::File { file_path, content, similarity, .. } => Element::new("file")
+            Self::File { file_path, content, .. } => Element::new("file")
                 .attr("file_path", file_path)
-                .attr("similarity", format!("{:.2}", similarity))
                 .cdata(content),
-            Self::FileRef { file_path, similarity, .. } => Element::new("file_ref")
-                .attr("file_path", file_path)
-                .attr("similarity", format!("{:.2}", similarity)),
-            Self::Note { content, similarity, .. } => Element::new("note")
-                .attr("similarity", format!("{:.2}", similarity))
-                .cdata(content),
-            Self::Task { task, similarity, .. } => Element::new("task")
-                .attr("similarity", format!("{:.2}", similarity))
-                .text(task),
+            Self::FileRef { file_path, .. } => {
+                Element::new("file_ref").attr("file_path", file_path)
+            }
+            Self::Note { content, .. } => Element::new("note").cdata(content),
+            Self::Task { task, .. } => Element::new("task").text(task),
         }
     }
 }
