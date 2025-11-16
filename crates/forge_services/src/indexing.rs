@@ -364,6 +364,22 @@ impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra
 
         Ok(())
     }
+
+    async fn is_indexed(&self, path: &std::path::Path) -> Result<bool> {
+        // Canonicalize path first to ensure consistent comparison
+        let canonical_path = match path.canonicalize() {
+            Ok(p) => p,
+            Err(_) => return Ok(false), // Path doesn't exist, so it can't be indexed
+        };
+
+        // Check if workspace is indexed
+        Ok(self
+            .infra
+            .as_ref()
+            .find_by_path(&canonical_path)
+            .await?
+            .is_some())
+    }
 }
 
 #[cfg(test)]

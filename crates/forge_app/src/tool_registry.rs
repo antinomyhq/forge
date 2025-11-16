@@ -16,7 +16,7 @@ use crate::dto::ToolsOverview;
 use crate::error::Error;
 use crate::mcp_executor::McpExecutor;
 use crate::tool_executor::ToolExecutor;
-use crate::{EnvironmentService, McpService, Services, ToolResolver};
+use crate::{CodebaseService, EnvironmentService, McpService, Services, ToolResolver};
 
 pub struct ToolRegistry<S> {
     tool_executor: ToolExecutor<S>,
@@ -129,7 +129,19 @@ impl<S: Services> ToolRegistry<S> {
         let mcp_tools = self.services.get_mcp_servers().await?;
         let agent_tools = self.agent_executor.agent_definitions().await?;
 
+        // Check if current working directory is indexed
+        let cwd = self.services.get_environment().cwd.clone();
+        let is_indexed = self.services.is_indexed(&cwd).await.unwrap_or(false);
+
         let system_tools = ToolCatalog::iter()
+            .filter(|tool| {
+                // Filter out codebase_search if cwd is not indexed
+                if matches!(tool, ToolCatalog::CodebaseSearch(_)) {
+                    is_indexed
+                } else {
+                    true
+                }
+            })
             .map(|tool| tool.definition())
             .collect::<Vec<_>>();
 

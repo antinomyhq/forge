@@ -88,6 +88,8 @@ impl Default for TestContext {
                 custom_history_path: None,
                 max_conversations: 100,
                 max_image_size: 262144,
+                codebase_search_limit: 50,
+                codebase_search_top_k: Some(5),
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(AgentId::new("forge"))
