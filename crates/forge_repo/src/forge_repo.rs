@@ -37,7 +37,7 @@ pub struct ForgeRepo<F> {
     provider_repository: Arc<ForgeProviderRepository<F>>,
     indexing_repository: Arc<crate::indexing::IndexingRepositoryImpl>,
     indexing_auth_repository: Arc<crate::ForgeCredentialsRepository>,
-    codebase_repo: Arc<crate::CodebaseRepositoryImpl>,
+    codebase_repo: Arc<crate::ForgeContextEngineRepository>,
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
@@ -74,7 +74,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
             Arc::new(crate::ForgeCredentialsRepository::new(db_pool.clone()));
 
         let codebase_repo = Arc::new(
-            crate::CodebaseRepositoryImpl::new(indexing_server_url)
+            crate::ForgeContextEngineRepository::new(indexing_server_url)
                 .expect("Failed to create codebase repository"),
         );
 

@@ -1,3 +1,3 @@
-mod codebase_repository;
+mod context_engine_repository;
 
-pub use codebase_repository::CodebaseRepositoryImpl;
+pub use context_engine_repository::ForgeContextEngineRepository;

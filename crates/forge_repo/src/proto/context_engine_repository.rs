@@ -18,11 +18,11 @@ use forge_service_client::ForgeServiceClient;
 use proto_generated::*;
 
 /// gRPC implementation of CodebaseRepository
-pub struct CodebaseRepositoryImpl {
+pub struct ForgeContextEngineRepository {
     client: ForgeServiceClient<Channel>,
 }
 
-impl CodebaseRepositoryImpl {
+impl ForgeContextEngineRepository {
     /// Create a new gRPC client with lazy connection
     pub fn new(server_url: impl Into<String>) -> Result<Self> {
         let channel = Channel::from_shared(server_url.into())?.connect_lazy();
@@ -32,7 +32,7 @@ impl CodebaseRepositoryImpl {
 }
 
 #[async_trait]
-impl ContextEngineRepository for CodebaseRepositoryImpl {
+impl ContextEngineRepository for ForgeContextEngineRepository {
     async fn authenticate(&self) -> Result<IndexingAuth> {
         let mut client = self.client.clone();
 
