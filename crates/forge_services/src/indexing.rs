@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{ContextEngineService, FileReaderInfra, Walker, WalkerInfra, compute_hash};
 use forge_domain::{
-    ContextEngineRepository, IndexStats, CredentialsRepository, UserId, WorkspaceId,
+    ContextEngineRepository, CredentialsRepository, IndexStats, UserId, WorkspaceId,
     WorkspaceRepository,
 };
 use futures::future::join_all;
@@ -228,11 +228,19 @@ impl<
                 (token, user_id, None)
             }
             None => {
-                let auth = self.infra.authenticate().await.context(
-                    "Failed to authenticate with indexing server. Please check server connectivity.",
-                )?;
+                let auth = ContextEngineRepository::authenticate(self.infra.as_ref())
+                    .await
+                    .context(
+                        "Failed to authenticate with indexing server. Please check server connectivity.",
+                    )?;
                 let token = auth.token.clone();
                 let user_id = auth.user_id.clone();
+
+                // Store the auth in database
+                CredentialsRepository::store_auth(self.infra.as_ref(), &auth)
+                    .await
+                    .context("Failed to store authentication credentials")?;
+
                 (token, user_id, Some(auth))
             }
         };
@@ -321,8 +329,8 @@ impl<
         );
 
         Ok(IndexStats::new(workspace_id, total_file_count, total_stats)
-            .with_new_api_key(new_auth)
-            .with_new_workspace(is_new_workspace))
+            .new_api_key(new_auth)
+            .is_new_workspace(is_new_workspace))
     }
 
     /// Performs semantic code search on a workspace.
@@ -430,23 +438,27 @@ impl<
 // Additional authentication methods for ForgeIndexingService
 impl<F> ForgeIndexingService<F>
 where
-    F: CredentialsRepository + WorkspaceRepository,
+    F: CredentialsRepository + WorkspaceRepository + ContextEngineRepository,
 {
     /// Login to the indexing service by storing an authentication token
     ///
-    /// # Arguments
-    /// * `token` - The authentication token from the indexing service
+    /// Authenticate with the indexing service and store credentials
+    ///
+    /// This method authenticates with the indexing service backend and stores
+    /// the authentication credentials locally for future use.
     ///
     /// # Errors
-    /// Returns an error if storing the authentication fails
+    /// Returns an error if authentication or storing credentials fails
     pub async fn login(&self) -> Result<()> {
-        // Create credentials
-
-        // Call HTTP API to authenticate and store token
-        self.infra
-            .authenticate()
+        // Call gRPC API to authenticate
+        let auth = ContextEngineRepository::authenticate(self.infra.as_ref())
             .await
             .context("Failed to authenticate with indexing service")?;
+
+        // Store the auth in database
+        CredentialsRepository::store_auth(self.infra.as_ref(), &auth)
+            .await
+            .context("Failed to store authentication credentials")?;
 
         info!("Successfully logged in to indexing service");
         Ok(())
@@ -577,13 +589,10 @@ mod tests {
 
     #[async_trait::async_trait]
     impl CredentialsRepository for MockInfra {
-        async fn authenticate(&self) -> Result<IndexingAuth> {
-            // Mock authentication - return fake user_id and token
-            Ok(IndexingAuth::new(
-                UserId::generate(),
-                "test_token".to_string().into(),
-            ))
+        async fn store_auth(&self, _auth: &IndexingAuth) -> Result<()> {
+            Ok(())
         }
+
         async fn get_api_key(&self) -> Result<Option<ApiKey>> {
             if self.authenticated {
                 Ok(Some("test_token".to_string().into()))
@@ -627,6 +636,14 @@ mod tests {
 
     #[async_trait]
     impl ContextEngineRepository for MockInfra {
+        async fn authenticate(&self) -> Result<IndexingAuth> {
+            // Mock authentication - return fake user_id and token
+            Ok(IndexingAuth::new(
+                UserId::generate(),
+                "test_token".to_string().into(),
+            ))
+        }
+
         async fn create_workspace(&self, _: &Path, _: &ApiKey) -> Result<WorkspaceId> {
             Ok(WorkspaceId::generate())
         }

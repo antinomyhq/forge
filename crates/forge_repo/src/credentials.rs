@@ -1,23 +1,11 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use chrono::Utc;
 use diesel::prelude::*;
-use forge_app::EnvironmentInfra;
-use forge_domain::{ApiKey, IndexingAuth, CredentialsRepository, UserId};
-use tonic::transport::Channel;
+use forge_domain::{ApiKey, CredentialsRepository, IndexingAuth, UserId};
 
 use crate::database::schema::indexing_auth;
 use crate::DatabasePool;
-
-// Re-use the proto generated code from codebase_repository module
-#[allow(dead_code)]
-mod proto_generated {
-    tonic::include_proto!("forge.v1");
-}
-
-use proto_generated::forge_service_client::ForgeServiceClient;
-use proto_generated::CreateApiKeyRequest;
 
 /// Diesel model for indexing_auth table
 #[derive(Debug, Queryable, Insertable, AsChangeset)]
@@ -38,105 +26,41 @@ impl From<&IndexingAuth> for IndexingAuthModel {
     }
 }
 
-/// Repository implementation for indexing service authentication
-pub struct ForgeCredentialsRepository<F> {
+/// Repository implementation for indexing service authentication credentials
+pub struct ForgeCredentialsRepository {
     pool: Arc<DatabasePool>,
-    #[allow(dead_code)]
-    infra: Arc<F>,
-    client: ForgeServiceClient<Channel>,
 }
 
-impl<E: EnvironmentInfra> ForgeCredentialsRepository<E> {
-    /// Create a new indexing auth repository
-    pub fn new(pool: Arc<DatabasePool>, infra: Arc<E>, server_url: impl Into<String>) -> Self {
-        let channel = Channel::from_shared(server_url.into())
-            .expect("Invalid server URL")
-            .connect_lazy();
-        let client = ForgeServiceClient::new(channel);
-
-        Self { pool, infra, client }
-    }
-
-    /// Call gRPC API to create API key and get user_id and token
-    async fn call_create_api_key(&self) -> anyhow::Result<(UserId, ApiKey)> {
-        let mut client = self.client.clone();
-
-        let request = tonic::Request::new(CreateApiKeyRequest { user_id: None });
-
-        let response = client
-            .create_api_key(request)
-            .await
-            .context("Failed to call CreateApiKey gRPC")?
-            .into_inner();
-
-        let user_id = response.user_id.context("Missing user_id in response")?.id;
-        let user_id = UserId::from_string(&user_id).context("Invalid user_id returned from API")?;
-
-        let token: ApiKey = response.key.into();
-
-        Ok((user_id, token))
-    }
-
-    /// Store auth in database
-    async fn store_auth(&self, auth: &IndexingAuth) -> anyhow::Result<()> {
-        let model: IndexingAuthModel = auth.into();
-        let pool = Arc::clone(&self.pool);
-
-        tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-            let mut conn = pool.get_connection()?;
-
-            diesel::replace_into(indexing_auth::table)
-                .values(&model)
-                .execute(&mut conn)
-                .context("Failed to store indexing auth")?;
-
-            Ok(())
-        })
-        .await??;
-
-        Ok(())
+impl ForgeCredentialsRepository {
+    /// Create a new credentials repository
+    pub fn new(pool: Arc<DatabasePool>) -> Self {
+        Self { pool }
     }
 }
 
 #[async_trait::async_trait]
-impl<E: EnvironmentInfra> CredentialsRepository for ForgeCredentialsRepository<E> {
-    async fn authenticate(&self) -> anyhow::Result<IndexingAuth> {
-        // Call gRPC API to get user_id and token
-        let (user_id, token) = self.call_create_api_key().await?;
+impl CredentialsRepository for ForgeCredentialsRepository {
+    async fn store_auth(&self, auth: &IndexingAuth) -> anyhow::Result<()> {
+        let model: IndexingAuthModel = auth.into();
+        let mut conn = self.pool.get_connection()?;
 
-        // Create auth record
-        let auth = IndexingAuth { user_id, token, created_at: Utc::now() };
+        diesel::replace_into(indexing_auth::table)
+            .values(&model)
+            .execute(&mut conn)
+            .context("Failed to store indexing auth")?;
 
-        // Store in database
-        self.store_auth(&auth).await?;
-
-        Ok(auth)
+        Ok(())
     }
 
     async fn get_api_key(&self) -> anyhow::Result<Option<ApiKey>> {
-        let pool = self.pool.clone();
-
-        let result: Option<IndexingAuthModel> =
-            tokio::task::spawn_blocking(move || -> anyhow::Result<Option<IndexingAuthModel>> {
-                let mut conn = pool.get_connection()?;
-                let result = indexing_auth::table.first(&mut conn).optional()?;
-                Ok(result)
-            })
-            .await??;
-
-        Ok(result.map(|model| model.token.into()))
+        let mut conn = self.pool.get_connection()?;
+        let result = indexing_auth::table.first(&mut conn).optional()?;
+        Ok(result.map(|model: IndexingAuthModel| model.token.into()))
     }
 
     async fn get_user_id(&self) -> anyhow::Result<Option<UserId>> {
-        let pool = Arc::clone(&self.pool);
-
-        let result: Option<IndexingAuthModel> =
-            tokio::task::spawn_blocking(move || -> anyhow::Result<Option<IndexingAuthModel>> {
-                let mut conn = pool.get_connection()?;
-                let result = indexing_auth::table.first(&mut conn).optional()?;
-                Ok(result)
-            })
-            .await??;
+        let mut conn = self.pool.get_connection()?;
+        let result: Option<IndexingAuthModel> = indexing_auth::table.first(&mut conn).optional()?;
 
         result
             .map(|model| UserId::from_string(&model.user_id))
@@ -144,51 +68,23 @@ impl<E: EnvironmentInfra> CredentialsRepository for ForgeCredentialsRepository<E
     }
 
     async fn delete_api_key(&self) -> anyhow::Result<()> {
-        let pool = Arc::clone(&self.pool);
-
-        tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-            let mut conn = pool.get_connection()?;
-            diesel::delete(indexing_auth::table)
-                .execute(&mut conn)
-                .context("Failed to delete indexing auth")?;
-            Ok(())
-        })
-        .await??;
-
+        let mut conn = self.pool.get_connection()?;
+        diesel::delete(indexing_auth::table)
+            .execute(&mut conn)
+            .context("Failed to delete indexing auth")?;
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::Environment;
     use pretty_assertions::assert_eq;
 
     use super::*;
 
-    /// Mock environment for testing
-    struct MockEnvironment;
-
-    impl EnvironmentInfra for MockEnvironment {
-        fn get_environment(&self) -> Environment {
-            use fake::{Fake, Faker};
-            Faker.fake()
-        }
-
-        fn get_env_var(&self, _key: &str) -> Option<String> {
-            None // Return None to use default URL
-        }
-    }
-
-    fn repository() -> anyhow::Result<ForgeCredentialsRepository<MockEnvironment>> {
+    fn repository() -> anyhow::Result<ForgeCredentialsRepository> {
         let pool = Arc::new(DatabasePool::in_memory()?);
-        let environment = Arc::new(MockEnvironment);
-        let server_url = "http://localhost:8080";
-        Ok(ForgeCredentialsRepository::new(
-            pool,
-            environment,
-            server_url,
-        ))
+        Ok(ForgeCredentialsRepository::new(pool))
     }
 
     #[tokio::test]

@@ -164,18 +164,6 @@ impl IndexStats {
             is_new_workspace: false,
         }
     }
-
-    /// Set the new API key that was created during sync
-    pub fn with_new_api_key(mut self, new_api_key: Option<IndexingAuth>) -> Self {
-        self.new_api_key = new_api_key;
-        self
-    }
-
-    /// Set whether a new workspace was created
-    pub fn with_new_workspace(mut self, is_new: bool) -> Self {
-        self.is_new_workspace = is_new;
-        self
-    }
 }
 
 /// Statistics from uploading files to the codebase server

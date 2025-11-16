@@ -9,8 +9,8 @@ use forge_app::{
 };
 use forge_domain::{
     AnyProvider, AppConfig, AppConfigRepository, AuthCredential, CommandOutput, Conversation,
-    ConversationId, ConversationRepository, Environment, FileInfo, IndexingAuth,
-    CredentialsRepository, McpServerConfig, Provider, ProviderId, ProviderRepository, Snapshot,
+    ConversationId, ConversationRepository, CredentialsRepository, Environment, FileInfo,
+    IndexingAuth, McpServerConfig, Provider, ProviderId, ProviderRepository, Snapshot,
     SnapshotRepository, UserId,
 };
 use forge_infra::CacacheStorage;
@@ -36,7 +36,7 @@ pub struct ForgeRepo<F> {
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
     indexing_repository: Arc<crate::indexing::IndexingRepositoryImpl>,
-    indexing_auth_repository: Arc<crate::ForgeCredentialsRepository<F>>,
+    indexing_auth_repository: Arc<crate::ForgeCredentialsRepository>,
     codebase_repo: Arc<crate::CodebaseRepositoryImpl>,
 }
 
@@ -69,12 +69,9 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
             .get_env_var("FORGE_INDEX_SERVER_URL")
             .unwrap_or_else(|| "http://localhost:8080".to_string());
 
-        // Create indexing auth repository - uses same server URL as codebase repo
-        let indexing_auth_repository = Arc::new(crate::ForgeCredentialsRepository::new(
-            db_pool.clone(),
-            infra.clone(),
-            indexing_server_url.clone(),
-        ));
+        // Create indexing auth repository
+        let indexing_auth_repository =
+            Arc::new(crate::ForgeCredentialsRepository::new(db_pool.clone()));
 
         let codebase_repo = Arc::new(
             crate::CodebaseRepositoryImpl::new(indexing_server_url)
@@ -449,9 +446,9 @@ impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + Send + Sync> CredentialsRepository for ForgeRepo<F> {
-    async fn authenticate(&self) -> anyhow::Result<IndexingAuth> {
-        self.indexing_auth_repository.authenticate().await
+impl<F: Send + Sync> CredentialsRepository for ForgeRepo<F> {
+    async fn store_auth(&self, auth: &IndexingAuth) -> anyhow::Result<()> {
+        self.indexing_auth_repository.store_auth(auth).await
     }
 
     async fn get_api_key(&self) -> anyhow::Result<Option<forge_domain::ApiKey>> {
@@ -469,6 +466,10 @@ impl<F: EnvironmentInfra + Send + Sync> CredentialsRepository for ForgeRepo<F> {
 
 #[async_trait::async_trait]
 impl<F: Send + Sync> forge_domain::ContextEngineRepository for ForgeRepo<F> {
+    async fn authenticate(&self) -> anyhow::Result<IndexingAuth> {
+        self.codebase_repo.authenticate().await
+    }
+
     async fn create_workspace(
         &self,
         working_dir: &std::path::Path,

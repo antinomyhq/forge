@@ -1,6 +1,10 @@
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use forge_domain::{CodeSearchResult, ContextEngineRepository, UploadStats, WorkspaceId, WorkspaceInfo};
+use chrono::Utc;
+use forge_domain::{
+    ApiKey, CodeSearchResult, ContextEngineRepository, IndexingAuth, UploadStats, UserId,
+    WorkspaceId, WorkspaceInfo,
+};
 use tonic::transport::Channel;
 
 // Include the generated proto code at module level
@@ -29,6 +33,25 @@ impl CodebaseRepositoryImpl {
 
 #[async_trait]
 impl ContextEngineRepository for CodebaseRepositoryImpl {
+    async fn authenticate(&self) -> Result<IndexingAuth> {
+        let mut client = self.client.clone();
+
+        let request = tonic::Request::new(CreateApiKeyRequest { user_id: None });
+
+        let response = client
+            .create_api_key(request)
+            .await
+            .context("Failed to call CreateApiKey gRPC")?
+            .into_inner();
+
+        let user_id = response.user_id.context("Missing user_id in response")?.id;
+        let user_id = UserId::from_string(&user_id).context("Invalid user_id returned from API")?;
+
+        let token: ApiKey = response.key.into();
+
+        Ok(IndexingAuth { user_id, token, created_at: Utc::now() })
+    }
+
     async fn create_workspace(
         &self,
         working_dir: &std::path::Path,
