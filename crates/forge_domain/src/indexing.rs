@@ -202,6 +202,8 @@ impl UploadStats {
 pub struct CodebaseQueryResult {
     /// The query string that was executed
     pub query: String,
+    /// Optional relevance query used for re-ranking
+    pub relevance_query: Option<String>,
     /// The search results for this query
     pub results: Vec<CodeSearchResult>,
 }

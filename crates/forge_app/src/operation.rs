@@ -331,6 +331,12 @@ impl ToolOperation {
                 let mut root = Element::new("codebase_search_results");
 
                 let mut query_elem = Element::new("query").attr("value", &output.query);
+
+                // Add relevance_query attribute if provided
+                if let Some(ref relevance_query) = output.relevance_query {
+                    query_elem = query_elem.attr("relevance_query", relevance_query);
+                }
+
                 if output.results.is_empty() {
                     query_elem = query_elem.text("No results found for query. Try refining your search with more specific terms or different keywords.")
                 } else {
@@ -1563,6 +1569,7 @@ mod tests {
         let fixture = ToolOperation::CodebaseSearch {
             output: CodebaseQueryResult {
                 query: "retry mechanism with exponential backoff".to_string(),
+                relevance_query: None,
                 results: vec![
                     CodeSearchResult {
                         node: CodeNode::FileChunk {
@@ -1585,6 +1592,39 @@ mod tests {
                         similarity: 0.9201,
                     },
                 ],
+            },
+        };
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(
+            ToolKind::CodebaseSearch,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_codebase_search_with_relevance_query() {
+        use forge_domain::{CodeNode, CodeSearchResult, CodebaseQueryResult};
+
+        let fixture = ToolOperation::CodebaseSearch {
+            output: CodebaseQueryResult {
+                query: "authentication logic".to_string(),
+                relevance_query: Some("need to add similar auth to my endpoint".to_string()),
+                results: vec![CodeSearchResult {
+                    node: CodeNode::FileChunk {
+                        node_id: "node1".to_string(),
+                        file_path: "src/auth.rs".to_string(),
+                        content: "fn authenticate_user(token: &str) -> Result<User> {\n    verify_jwt(token)\n}".to_string(),
+                        start_line: 10,
+                        end_line: 12,
+                    },
+                    similarity: 0.95,
+                }],
             },
         };
 

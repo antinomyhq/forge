@@ -213,7 +213,11 @@ impl<
                 let services = services.clone();
                 let cwd = cwd.clone();
                 let results = services.query_codebase(cwd, params).await?;
-                let out = forge_domain::CodebaseQueryResult { query, results };
+                let out = forge_domain::CodebaseQueryResult {
+                    query,
+                    relevance_query: Some(relevance_query),
+                    results,
+                };
 
                 let output = out;
 
