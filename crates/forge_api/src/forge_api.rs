@@ -332,7 +332,9 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     ) -> Result<MpscStream<Result<forge_domain::IndexProgress>>> {
         let services = self.services.clone();
         Ok(MpscStream::spawn(move |sender| async move {
-            let _ = services.sync_codebase(path, batch_size, Some(sender)).await;
+            if let Err(err) = services.sync_codebase(path, batch_size, Some(sender.clone())).await {
+                let _ = sender.send(Err(err)).await;
+            }
         }))
     }
 
