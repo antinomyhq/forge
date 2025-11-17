@@ -76,8 +76,8 @@ pub struct ForgeContextEngineRepository {
 
 impl ForgeContextEngineRepository {
     /// Create a new gRPC client with lazy connection
-    pub fn new(server_url: impl Into<String>) -> Result<Self> {
-        let channel = Channel::from_shared(server_url.into())?.connect_lazy();
+    pub fn new(server_url: &url::Url) -> Result<Self> {
+        let channel = Channel::from_shared(server_url.to_string())?.connect_lazy();
         let client = ForgeServiceClient::new(channel);
         Ok(Self { client })
     }
@@ -202,38 +202,36 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
                 let node_id = node.node_id.map(|n| n.id).unwrap_or_default();
                 let similarity = query_item.distance.unwrap_or(0.0);
 
-                // Convert proto node to domain CodeSearchResult based on type
-                let result = match node_data.kind? {
-                    node_data::Kind::FileChunk(chunk) => CodeSearchResult::FileChunk {
+                // Convert proto node to domain CodeNode based on type
+                let code_node = match node_data.kind? {
+                    node_data::Kind::FileChunk(chunk) => forge_domain::CodeNode::FileChunk {
                         node_id,
                         file_path: chunk.path,
                         content: chunk.content,
                         start_line: chunk.start_line,
                         end_line: chunk.end_line,
-                        similarity,
                     },
-                    node_data::Kind::File(file) => CodeSearchResult::File {
+                    node_data::Kind::File(file) => forge_domain::CodeNode::File {
                         node_id: node_id.clone(),
                         file_path: file.path,
                         content: file.content,
                         hash: node.hash,
-                        similarity,
                     },
-                    node_data::Kind::FileRef(file_ref) => CodeSearchResult::FileRef {
+                    node_data::Kind::FileRef(file_ref) => forge_domain::CodeNode::FileRef {
                         node_id,
                         file_path: file_ref.path,
                         file_hash: file_ref.file_hash,
-                        similarity,
                     },
                     node_data::Kind::Note(note) => {
-                        CodeSearchResult::Note { node_id, content: note.content, similarity }
+                        forge_domain::CodeNode::Note { node_id, content: note.content }
                     }
                     node_data::Kind::Task(task) => {
-                        CodeSearchResult::Task { node_id, task: task.task, similarity }
+                        forge_domain::CodeNode::Task { node_id, task: task.task }
                     }
                 };
 
-                Some(result)
+                // Wrap the node with its similarity score
+                Some(CodeSearchResult { node: code_node, similarity })
             })
             .collect();
 

@@ -64,17 +64,12 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
             db_pool.clone(),
         ));
 
-        // Get indexing server URL from environment
-        let indexing_server_url = infra
-            .get_env_var("FORGE_INDEX_SERVER_URL")
-            .unwrap_or_else(|| "http://localhost:8080".to_string());
-
         // Create indexing auth repository
         let indexing_auth_repository =
             Arc::new(crate::ForgeCredentialsRepository::new(db_pool.clone()));
 
         let codebase_repo = Arc::new(
-            crate::ForgeContextEngineRepository::new(indexing_server_url)
+            crate::ForgeContextEngineRepository::new(&env.index_server_url)
                 .expect("Failed to create codebase repository"),
         );
 
