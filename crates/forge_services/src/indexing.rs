@@ -32,18 +32,20 @@ impl IndexedFile {
 /// Service for indexing codebases and performing semantic search
 pub struct ForgeIndexingService<F> {
     infra: Arc<F>,
-    sender: Option<forge_domain::IndexProgressSender>,
 }
 
 impl<F> ForgeIndexingService<F> {
     /// Creates a new indexing service with the provided infrastructure.
     pub fn new(infra: Arc<F>) -> Self {
-        Self { infra, sender: None }
+        Self { infra }
     }
 
     /// Helper to send progress events
-    async fn send_progress(&self, progress: forge_domain::IndexProgress) {
-        if let Some(sender) = &self.sender
+    async fn send_progress(
+        sender: &Option<forge_domain::IndexProgressSender>,
+        progress: forge_domain::IndexProgress,
+    ) {
+        if let Some(sender) = sender
             && let Err(e) = sender.send(Ok(progress)).await
         {
             tracing::warn!("Failed to send progress event: {}", e);
@@ -73,6 +75,7 @@ impl<
         workspace_id: &WorkspaceId,
         local_file_map: &HashMap<String, String>,
         auth_token: &forge_domain::ApiKey,
+        sender: &Option<forge_domain::IndexProgressSender>,
     ) -> Result<HashMap<String, String>>
     where
         F: ContextEngineRepository,
@@ -106,8 +109,7 @@ impl<
                 "Deleting {} old/orphaned files from server before syncing",
                 count
             );
-            self.send_progress(forge_domain::IndexProgress::DeletingFiles { count })
-                .await;
+            Self::send_progress(sender, forge_domain::IndexProgress::DeletingFiles { count }).await;
 
             let deletion =
                 forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), files_to_delete);
@@ -129,6 +131,7 @@ impl<
         user_id: &UserId,
         workspace_id: &WorkspaceId,
         auth_token: &forge_domain::ApiKey,
+        sender: &Option<forge_domain::IndexProgressSender>,
     ) -> Result<Vec<(String, String)>>
     where
         F: WorkspaceRepository + ContextEngineRepository,
@@ -145,7 +148,7 @@ impl<
         let server_hashes = if is_new_workspace {
             HashMap::new()
         } else {
-            self.sync_server_files(user_id, workspace_id, &local_file_map, auth_token)
+            self.sync_server_files(user_id, workspace_id, &local_file_map, auth_token, sender)
                 .await?
         };
 
@@ -228,19 +231,13 @@ impl<
         &self,
         path: PathBuf,
         batch_size: usize,
-        sender: Option<forge_domain::IndexProgressSender>,
+        sender: &Option<forge_domain::IndexProgressSender>,
     ) -> Result<IndexStats> {
-        // Create service instance with sender for this operation
-        // TODO: don't create custom service again.
-        let service = ForgeIndexingService { infra: self.infra.clone(), sender };
-
         let is_authenticated = self.infra.get_auth().await?;
         if is_authenticated.is_none() {
-            let auth = service.infra.authenticate().await?;
-            let _ = service.infra.set_auth(&auth).await?;
-            let _ = service
-                .send_progress(forge_domain::IndexProgress::Authenticated { auth })
-                .await;
+            let auth = self.infra.authenticate().await?;
+            self.infra.set_auth(&auth).await?;
+            Self::send_progress(sender, forge_domain::IndexProgress::Authenticated { auth }).await;
         }
 
         info!(path = %path.display(), "Starting codebase sync");
@@ -252,7 +249,7 @@ impl<
         info!(canonical_path = %canonical_path.display(), "Resolved canonical path");
 
         // Get auth token (must already exist - caller should call ensure_auth first)
-        let auth = service
+        let auth = self
             .infra
             .get_auth()
             .await?
@@ -260,12 +257,12 @@ impl<
         let token = auth.token.clone();
         let user_id = auth.user_id;
 
-        let existing_workspace = service.infra.find_by_path(&canonical_path).await?;
+        let existing_workspace = self.infra.find_by_path(&canonical_path).await?;
 
         let (workspace_id, is_new_workspace) = match existing_workspace {
             Some(workspace) if workspace.user_id == user_id => (workspace.workspace_id, false),
             Some(workspace) => {
-                if let Err(e) = service.infra.delete(&workspace.workspace_id).await {
+                if let Err(e) = self.infra.delete(&workspace.workspace_id).await {
                     warn!(error = %e, "Failed to delete old workspace entry from local database");
                 }
                 (WorkspaceId::generate(), true)
@@ -274,38 +271,49 @@ impl<
         };
 
         let workspace_id = if is_new_workspace {
-            let wid = service
+            let wid = self
                 .infra
                 .create_workspace(&canonical_path, &token)
                 .await
                 .context("Failed to create workspace on server")?;
-            let _ = service
-                .send_progress(forge_domain::IndexProgress::WorkspaceCreated {
-                    workspace_id: wid.clone(),
-                })
-                .await;
+            Self::send_progress(
+                sender,
+                forge_domain::IndexProgress::WorkspaceCreated { workspace_id: wid.clone() },
+            )
+            .await;
             wid
         } else {
             workspace_id
         };
 
         // Discover and read all files
-        service
-            .send_progress(forge_domain::IndexProgress::DiscoveringFiles {
+        Self::send_progress(
+            sender,
+            forge_domain::IndexProgress::DiscoveringFiles {
                 path: canonical_path.display().to_string(),
-            })
-            .await;
+            },
+        )
+        .await;
 
-        let all_files = service.read_files(&canonical_path).await?;
+        let all_files = self.read_files(&canonical_path).await?;
         let total_file_count = all_files.len();
 
-        service
-            .send_progress(forge_domain::IndexProgress::FilesDiscovered { count: total_file_count })
-            .await;
+        Self::send_progress(
+            sender,
+            forge_domain::IndexProgress::FilesDiscovered { count: total_file_count },
+        )
+        .await;
 
         // Determine which files need to be uploaded
-        let files_to_upload = service
-            .find_files_to_upload(all_files, is_new_workspace, &user_id, &workspace_id, &token)
+        let files_to_upload = self
+            .find_files_to_upload(
+                all_files,
+                is_new_workspace,
+                &user_id,
+                &workspace_id,
+                &token,
+                sender,
+            )
             .await?;
 
         // Early exit if nothing to upload
@@ -314,8 +322,7 @@ impl<
                 "All {} files are up to date - nothing to upload",
                 total_file_count
             );
-            service
-                .infra
+            self.infra
                 .upsert(&workspace_id, &user_id, &canonical_path)
                 .await
                 .context("Failed to save workspace")?;
@@ -344,12 +351,14 @@ impl<
             );
 
             // Send progress before uploading
-            service
-                .send_progress(forge_domain::IndexProgress::UploadingFiles {
+            Self::send_progress(
+                sender,
+                forge_domain::IndexProgress::UploadingFiles {
                     current: files_uploaded,
                     total: total_files,
-                })
-                .await;
+                },
+            )
+            .await;
 
             let file_reads: Vec<forge_domain::FileRead> = batch
                 .iter()
@@ -359,7 +368,7 @@ impl<
             let upload =
                 forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), file_reads);
 
-            let stats = service
+            let stats = self
                 .infra
                 .upload_files(&upload, &token)
                 .await
@@ -370,8 +379,7 @@ impl<
         }
 
         // Save workspace metadata
-        service
-            .infra
+        self.infra
             .upsert(&workspace_id, &user_id, &canonical_path)
             .await
             .context("Failed to save workspace")?;
@@ -387,14 +395,16 @@ impl<
             "Sync completed successfully"
         );
 
-        service
-            .send_progress(forge_domain::IndexProgress::Completed {
+        Self::send_progress(
+            sender,
+            forge_domain::IndexProgress::Completed {
                 is_new_workspace,
                 files_processed: total_file_count,
                 files_uploaded,
                 files_skipped,
-            })
-            .await;
+            },
+        )
+        .await;
 
         Ok(IndexStats::new(workspace_id, total_file_count, total_stats)
             .is_new_workspace(is_new_workspace))
@@ -416,7 +426,7 @@ impl<
         batch_size: usize,
         sender: Option<tokio::sync::mpsc::Sender<anyhow::Result<forge_domain::IndexProgress>>>,
     ) -> Result<IndexStats> {
-        self.sync_codebase_internal(path, batch_size, sender).await
+        self.sync_codebase_internal(path, batch_size, &sender).await
     }
 
     /// Performs semantic code search on a workspace.
