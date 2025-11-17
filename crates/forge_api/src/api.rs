@@ -203,4 +203,10 @@ pub trait API: Sync + Send {
 
     /// Delete a workspace
     async fn delete_codebase(&self, workspace_id: forge_domain::WorkspaceId) -> Result<()>;
+
+    /// Check if authentication credentials exist
+    async fn is_authenticated(&self) -> Result<bool>;
+
+    /// Create new authentication credentials
+    async fn create_auth_credentials(&self) -> Result<forge_domain::IndexingAuth>;
 }

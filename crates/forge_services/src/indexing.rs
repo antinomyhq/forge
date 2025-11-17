@@ -219,27 +219,14 @@ impl<
 
         info!(canonical_path = %canonical_path.display(), "Resolved canonical path");
 
-        // Get or create auth token
-        let (token, user_id, new_auth) = match self.infra.get_auth().await? {
-            Some(auth) => (auth.token, auth.user_id, None),
-            None => {
-                let auth = self.infra.authenticate()
-                    .await
-                    .context(
-                        "Failed to authenticate with indexing server. Please check server connectivity.",
-                    )?;
-                let token = auth.token.clone();
-                let user_id = auth.user_id.clone();
-
-                // Store the auth in database
-                self.infra
-                    .set_auth(&auth)
-                    .await
-                    .context("Failed to store authentication credentials")?;
-
-                (token, user_id, Some(auth))
-            }
-        };
+        // Get auth token (must already exist - caller should call ensure_auth first)
+        let auth = self
+            .infra
+            .get_auth()
+            .await?
+            .context("No authentication credentials found. Please authenticate first.")?;
+        let token = auth.token.clone();
+        let user_id = auth.user_id;
 
         let existing_workspace = self.infra.find_by_path(&canonical_path).await?;
 
@@ -287,7 +274,6 @@ impl<
                 total_file_count,
                 forge_domain::UploadStats::default(),
             )
-            .new_api_key(new_auth)
             .is_new_workspace(is_new_workspace));
         }
 
@@ -325,7 +311,6 @@ impl<
         );
 
         Ok(IndexStats::new(workspace_id, total_file_count, total_stats)
-            .new_api_key(new_auth)
             .is_new_workspace(is_new_workspace))
     }
 
@@ -428,6 +413,27 @@ impl<
             .find_by_path(&canonical_path)
             .await?
             .is_some())
+    }
+
+    async fn is_authenticated(&self) -> Result<bool> {
+        Ok(self.infra.get_auth().await?.is_some())
+    }
+
+    async fn create_auth_credentials(&self) -> Result<forge_domain::IndexingAuth> {
+        // Authenticate with the indexing service
+        let auth = self
+            .infra
+            .authenticate()
+            .await
+            .context("Failed to authenticate with indexing service")?;
+
+        // Store the auth in database
+        self.infra
+            .set_auth(&auth)
+            .await
+            .context("Failed to store authentication credentials")?;
+
+        Ok(auth)
     }
 }
 

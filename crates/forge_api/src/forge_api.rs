@@ -348,4 +348,12 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     async fn delete_codebase(&self, workspace_id: forge_domain::WorkspaceId) -> Result<()> {
         self.services.delete_codebase(&workspace_id).await
     }
+
+    async fn is_authenticated(&self) -> Result<bool> {
+        self.services.is_authenticated().await
+    }
+
+    async fn create_auth_credentials(&self) -> Result<forge_domain::IndexingAuth> {
+        self.services.create_auth_credentials().await
+    }
 }

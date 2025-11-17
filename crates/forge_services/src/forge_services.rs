@@ -327,7 +327,7 @@ impl<
         &self.policy_service
     }
 
-    fn codebase_service(&self) -> &Self::CodebaseService {
+    fn context_engine_service(&self) -> &Self::CodebaseService {
         &self.codebase_service
     }
 

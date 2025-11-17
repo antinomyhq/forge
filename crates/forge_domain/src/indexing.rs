@@ -143,8 +143,6 @@ pub struct IndexStats {
     pub files_processed: usize,
     /// Upload statistics
     pub upload_stats: UploadStats,
-    /// New API key that was created (if any)
-    pub new_api_key: Option<IndexingAuth>,
     /// Whether a new workspace was created (vs using existing)
     pub is_new_workspace: bool,
 }
@@ -160,7 +158,6 @@ impl IndexStats {
             workspace_id,
             files_processed,
             upload_stats,
-            new_api_key: None,
             is_new_workspace: false,
         }
     }
