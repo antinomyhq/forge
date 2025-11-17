@@ -4,7 +4,9 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use forge_app::{ContextEngineService, FileReaderInfra, Walker, WalkerInfra, compute_hash};
+use forge_app::{
+    ContextEngineService, FileInfoInfra, FileReaderInfra, Walker, WalkerInfra, compute_hash,
+};
 use forge_domain::{
     ContextEngineRepository, CredentialsRepository, IndexStats, UserId, WorkspaceId,
     WorkspaceRepository,
@@ -150,7 +152,7 @@ impl<F> ForgeIndexingService<F> {
     /// Walks the directory, reads all files, and computes their hashes.
     async fn read_files(&self, dir_path: &Path) -> Result<Vec<IndexedFile>>
     where
-        F: WalkerInfra + FileReaderInfra,
+        F: WalkerInfra + FileReaderInfra + FileInfoInfra,
     {
         // Walk directory
         info!("Walking directory to discover files");
@@ -174,13 +176,18 @@ impl<F> ForgeIndexingService<F> {
         info!(file_count = walked_files.len(), "Discovered files");
         anyhow::ensure!(!walked_files.is_empty(), "No files found to index");
 
-        // Read all files and compute hashes
+        // Filter binary files and read all text files
         let infra = self.infra.clone();
         let read_tasks = walked_files.into_iter().map(|walked| {
             let infra = infra.clone();
             let file_path = dir_path.join(&walked.path);
             let relative_path = walked.path.clone();
             async move {
+                // Skip binary files
+                if let Ok(true) = infra.is_binary(&file_path).await {
+                    return None;
+                }
+
                 infra
                     .read_utf8(&file_path)
                     .await
@@ -207,7 +214,8 @@ impl<
         + CredentialsRepository
         + ContextEngineRepository
         + WalkerInfra
-        + FileReaderInfra,
+        + FileReaderInfra
+        + FileInfoInfra,
 > ContextEngineService for ForgeIndexingService<F>
 {
     async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> Result<IndexStats> {
@@ -716,6 +724,23 @@ mod tests {
                 String::new(),
                 FileInfo { total_lines: 1, start_line: 1, end_line: 1 },
             ))
+        }
+    }
+
+    #[async_trait]
+    impl forge_app::FileInfoInfra for MockInfra {
+        async fn is_binary(&self, _path: &Path) -> Result<bool> {
+            // For testing, assume all files are text unless they have binary extensions
+            Ok(false)
+        }
+        async fn is_file(&self, _path: &Path) -> Result<bool> {
+            Ok(true)
+        }
+        async fn exists(&self, _path: &Path) -> Result<bool> {
+            Ok(true)
+        }
+        async fn file_size(&self, _path: &Path) -> Result<u64> {
+            Ok(100)
         }
     }
 
