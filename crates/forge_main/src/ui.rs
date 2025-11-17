@@ -2557,9 +2557,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         if !self.api.is_authenticated().await? {
             let auth = self.api.create_auth_credentials().await?;
             let info = Info::new()
-                .add_title("⚠️  NEW API KEY CREATED [Will be shown only once]")
-                .add_key_value("API Key", auth.token.as_str())
-                .add_key_value("User ID", auth.user_id.to_string());
+                .add_title("NEW API KEY CREATED")
+                .add_key_value("API Key", auth.token.as_str());
             self.writeln(info.to_string())?;
         }
 
