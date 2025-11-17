@@ -35,6 +35,12 @@ pub enum IndexProgress {
     FilesDiscovered {
         count: usize,
     },
+    Authenticated {
+        auth: IndexingAuth,
+    },
+    WorkspaceCreated {
+        workspace_id: WorkspaceId,
+    },
     DeletingFiles {
         count: usize,
     },

@@ -231,7 +231,17 @@ impl<
         sender: Option<forge_domain::IndexProgressSender>,
     ) -> Result<IndexStats> {
         // Create service instance with sender for this operation
+        // TODO: don't create custom service again.
         let service = ForgeIndexingService { infra: self.infra.clone(), sender };
+
+        let is_authenticated = self.infra.get_auth().await?;
+        if is_authenticated.is_none() {
+            let auth = service.infra.authenticate().await?;
+            let _ = service.infra.set_auth(&auth).await?;
+            let _ = service
+                .send_progress(forge_domain::IndexProgress::Authenticated { auth })
+                .await;
+        }
 
         info!(path = %path.display(), "Starting codebase sync");
 
@@ -264,11 +274,17 @@ impl<
         };
 
         let workspace_id = if is_new_workspace {
-            service
+            let wid = service
                 .infra
                 .create_workspace(&canonical_path, &token)
                 .await
-                .context("Failed to create workspace on server")?
+                .context("Failed to create workspace on server")?;
+            let _ = service
+                .send_progress(forge_domain::IndexProgress::WorkspaceCreated {
+                    workspace_id: wid.clone(),
+                })
+                .await;
+            wid
         } else {
             workspace_id
         };
