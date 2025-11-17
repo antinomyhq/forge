@@ -9,6 +9,7 @@ tools:
   - fetch
   - read_image
   - search
+  - codebase_search
 user_prompt: |-
   {{#if (eq event.name 'sage/user_task_update')}}
   <feedback>{{event.value}}</feedback>

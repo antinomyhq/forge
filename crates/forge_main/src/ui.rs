@@ -2560,20 +2560,20 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         path: std::path::PathBuf,
         batch_size: usize,
     ) -> anyhow::Result<()> {
+        // Check if auth already exists and create if needed
+        if !self.api.is_authenticated().await? {
+            let auth = self.api.create_auth_credentials().await?;
+            let info = Info::new()
+                .add_title("NEW API KEY CREATED")
+                .add_key_value("API Key", auth.token.as_str());
+            self.writeln(info.to_string())?;
+        }
+
         self.spinner.start(Some("Syncing codebase..."))?;
 
         match self.api.sync_codebase(path.clone(), batch_size).await {
             Ok(stats) => {
                 self.spinner.stop(None)?;
-
-                // Display new API key if one was created
-                if let Some(auth) = &stats.new_api_key {
-                    let info = Info::new()
-                        .add_title("⚠️  NEW API KEY CREATED [Will be shown only once]")
-                        .add_key_value("API Key", auth.token.as_str())
-                        .add_key_value("User ID", auth.user_id.to_string());
-                    self.writeln(info.to_string())?;
-                }
 
                 // Display workspace creation info
                 if stats.is_new_workspace {
