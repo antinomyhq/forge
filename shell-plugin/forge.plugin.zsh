@@ -514,7 +514,7 @@ function _forge_action_query() {
 
 # Action handler: Index delete
 # Supports both interactive and direct deletion:
-#   :delete                    # Interactive selection with confirmation
+#   :delete                    # Interactive selection
 #   :delete workspace-id       # Delete specific workspace with confirmation
 function _forge_action_delete_workspace() {
     local input_text="$1"
@@ -544,15 +544,7 @@ function _forge_action_delete_workspace() {
     
     if [[ -n "$selected" ]]; then
         local workspace_id="${selected%% *}"
-        echo
-        echo "\033[33m⚠\033[0m About to delete workspace: $workspace_id"
-        echo -n "Are you sure? (y/N): "
-        read -r confirmation
-        if [[ "$confirmation" =~ ^[Yy]$ ]]; then
-            _forge_exec index delete "$workspace_id" --yes
-        else
-            echo "Cancelled"
-        fi
+        _forge_exec index delete "$workspace_id" -y
     fi
     _forge_reset
 }

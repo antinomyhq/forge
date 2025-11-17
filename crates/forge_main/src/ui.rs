@@ -2703,7 +2703,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                 // Output based on mode
                 if porcelain {
-                    self.writeln(Porcelain::from(info))?;
+                    // Skip header row in porcelain mode (consistent with conversation list)
+                    self.writeln(Porcelain::from(info).skip(1))?;
                 } else {
                     self.writeln(info)?;
                 }
