@@ -1505,7 +1505,6 @@ dependencies = [
  "forge_domain",
  "forge_fs",
  "forge_snaps",
- "forge_stream",
  "futures",
  "glob",
  "gray_matter",
