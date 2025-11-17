@@ -287,14 +287,6 @@ impl<
         };
 
         // Discover and read all files
-        Self::send_progress(
-            sender,
-            forge_domain::IndexProgress::DiscoveringFiles {
-                path: canonical_path.display().to_string(),
-            },
-        )
-        .await;
-
         let all_files = self.read_files(&canonical_path).await?;
         let total_file_count = all_files.len();
 

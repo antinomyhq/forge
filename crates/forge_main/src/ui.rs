@@ -2565,13 +2565,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 Ok(progress) => {
                     use forge_domain::IndexProgress;
                     match progress {
-                        IndexProgress::DiscoveringFiles { path } => {
-                            self.spinner
-                                .start(Some(&format!("Discovering files in {}", path)))?;
-                        }
                         IndexProgress::FilesDiscovered { count } => {
                             self.spinner
-                                .start(Some(&format!("Found {} files", count)))?;
+                                .start(Some(&format!("Discovered {} files", count)))?;
                         }
                         IndexProgress::DeletingFiles { count } => {
                             self.spinner

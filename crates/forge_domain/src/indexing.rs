@@ -29,9 +29,6 @@ impl IndexingAuth {
 /// Progress events for codebase indexing operations
 #[derive(Debug, Clone, PartialEq)]
 pub enum IndexProgress {
-    DiscoveringFiles {
-        path: String,
-    },
     FilesDiscovered {
         count: usize,
     },
