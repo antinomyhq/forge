@@ -384,9 +384,18 @@ impl<
             .to_string_lossy()
             .to_string();
 
-        // Mark the workspace that matches current directory
+        // Enrich workspaces with local data (is_current and updated_at)
         for workspace in &mut workspaces {
             workspace.is_current = workspace.working_dir == current_dir;
+
+            // Try to get local workspace data to get updated_at
+            if let Ok(Some(local_workspace)) = self
+                .infra
+                .find_by_path(std::path::Path::new(&workspace.working_dir))
+                .await
+            {
+                workspace.updated_at = local_workspace.updated_at;
+            }
         }
 
         Ok(workspaces)
@@ -798,6 +807,7 @@ mod tests {
             node_count: 10,
             relation_count: 20,
             is_current: false,
+            updated_at: None,
         });
         let service = ForgeIndexingService::new(Arc::new(mock));
 
@@ -875,6 +885,7 @@ mod tests {
             node_count: 5,
             relation_count: 10,
             is_current: false,
+            updated_at: None,
         });
         let service = ForgeIndexingService::new(Arc::new(mock));
 

@@ -22,12 +22,13 @@ struct IndexingRecord {
 
 impl IndexingRecord {
     fn new(workspace_id: &WorkspaceId, user_id: &UserId, path: &std::path::Path) -> Self {
+        let now = Utc::now().naive_utc();
         Self {
             remote_workspace_id: workspace_id.to_string(),
             user_id: user_id.to_string(),
             path: path.to_string_lossy().into_owned(),
-            created_at: Utc::now().naive_utc(),
-            updated_at: None,
+            created_at: now,
+            updated_at: Some(now),
         }
     }
 }
@@ -141,7 +142,7 @@ mod tests {
         assert_eq!(actual.workspace_id, workspace_id);
         assert_eq!(actual.user_id, user_id);
         assert_eq!(actual.path, path);
-        assert!(actual.updated_at.is_none());
+        assert!(actual.updated_at.is_some());
     }
 
     #[tokio::test]

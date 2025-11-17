@@ -62,6 +62,7 @@ impl TryFrom<Workspace> for WorkspaceInfo {
             node_count: workspace.node_count,
             relation_count: workspace.relation_count,
             is_current: false, // Will be set by service layer
+            updated_at: None,  // Will be enriched with local data by service layer
         })
     }
 }

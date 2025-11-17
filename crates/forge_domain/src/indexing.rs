@@ -115,7 +115,7 @@ pub struct GitInfo {
 }
 
 /// Information about a workspace from the server
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WorkspaceInfo {
     /// Workspace ID
     pub workspace_id: WorkspaceId,
@@ -127,6 +127,8 @@ pub struct WorkspaceInfo {
     pub relation_count: u64,
     /// Whether this workspace matches the current working directory
     pub is_current: bool,
+    /// Last time the workspace was synced (from local database)
+    pub updated_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// File hash information from the server

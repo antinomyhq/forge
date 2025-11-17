@@ -2693,13 +2693,31 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     }
                 } else {
                     for workspace in workspaces {
+                        // Format the updated_at time in human-readable format
+                        let updated_str = workspace
+                            .updated_at
+                            .map(|updated_at| {
+                                let now = chrono::Utc::now();
+                                let duration = now.signed_duration_since(updated_at);
+                                let duration = std::time::Duration::from_secs(
+                                    (duration.num_minutes() * 60).max(0) as u64,
+                                );
+                                if duration.is_zero() {
+                                    "now".to_string()
+                                } else {
+                                    format!("{} ago", humantime::format_duration(duration))
+                                }
+                            })
+                            .unwrap_or_else(|| "unknown".to_string());
+
                         if porcelain {
                             // In porcelain mode, title becomes first column value
                             info = info
                                 .add_title(workspace.workspace_id.to_string())
                                 .add_key_value("Path", &workspace.working_dir)
                                 .add_key_value("Nodes", workspace.node_count.to_string())
-                                .add_key_value("Relations", workspace.relation_count.to_string());
+                                .add_key_value("Relations", workspace.relation_count.to_string())
+                                .add_key_value("Updated", updated_str);
                         } else {
                             // In human-readable mode, show both ID and Path as key-values
                             let path_display = if workspace.is_current {
@@ -2712,7 +2730,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                                 .add_key_value("ID", workspace.workspace_id.to_string())
                                 .add_key_value("Path", path_display)
                                 .add_key_value("Nodes", workspace.node_count.to_string())
-                                .add_key_value("Relations", workspace.relation_count.to_string());
+                                .add_key_value("Relations", workspace.relation_count.to_string())
+                                .add_key_value("Updated", updated_str);
                         }
                     }
                 }
