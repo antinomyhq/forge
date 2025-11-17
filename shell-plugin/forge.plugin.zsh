@@ -488,6 +488,82 @@ function _forge_action_suggest() {
     fi
 }
 
+
+# Action handler: Index sync
+function _forge_action_sync() {
+    local path="${1:-.}"
+    echo
+    _forge_exec index sync "$path"
+    _forge_reset
+}
+
+# Action handler: Index query
+function _forge_action_query() {
+    local input_text="$1"
+    
+    if [[ -z "$input_text" ]]; then
+        echo "\033[31m✗\033[0m Please provide a search query"
+        _forge_reset
+        return 0
+    fi
+    
+    echo
+    _forge_exec index query $input_text
+    _forge_reset
+}
+
+# Action handler: Index delete
+# Supports both interactive and direct deletion:
+#   :delete                    # Interactive selection with confirmation
+#   :delete workspace-id       # Delete specific workspace with confirmation
+function _forge_action_delete_workspace() {
+    local input_text="$1"
+    
+    echo
+    
+    # If workspace ID is provided, delete directly
+    if [[ -n "$input_text" ]]; then
+        # Use ${=input_text} to properly parse flags like --yes/-y
+        _forge_exec index delete ${=input_text} -y
+        _forge_reset
+        return 0
+    fi
+    
+    # Otherwise, show interactive selector
+    local output
+    output=$($_FORGE_BIN index list --porcelain 2>/dev/null)
+    
+    if [[ -z "$output" ]]; then
+        echo "\033[31m✗\033[0m No workspaces available"
+        _forge_reset
+        return 1
+    fi
+    
+    local selected
+    selected=$(echo "$output" | _forge_fzf --delimiter="$_FORGE_DELIMITER" --prompt="Delete workspace ❯ " --with-nth="2,3..")
+    
+    if [[ -n "$selected" ]]; then
+        local workspace_id="${selected%% *}"
+        echo
+        echo "\033[33m⚠\033[0m About to delete workspace: $workspace_id"
+        echo -n "Are you sure? (y/N): "
+        read -r confirmation
+        if [[ "$confirmation" =~ ^[Yy]$ ]]; then
+            _forge_exec index delete "$workspace_id" --yes
+        else
+            echo "Cancelled"
+        fi
+    fi
+    _forge_reset
+}
+
+# Action handler: Index command (shows workspaces by default)
+function _forge_action_index() {
+    echo
+    _forge_exec index list
+    _forge_reset
+}
+
 # Action handler: Generate shell command from natural language
 # Usage: :? <description>
 function _forge_action_suggest() {
@@ -685,6 +761,18 @@ function forge-accept-line() {
         ;;
         logout)
             _forge_action_logout
+        ;;
+        workspace) 
+            _forge_action_index
+        ;;
+        sync|index)
+            _forge_action_sync "$input_text"
+        ;;
+        query)
+            _forge_action_query "$input_text"
+        ;;
+        delete|del)
+            _forge_action_delete_workspace "$input_text"
         ;;
         *)
             _forge_action_default "$user_action" "$input_text"

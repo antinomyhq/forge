@@ -146,6 +146,57 @@ export FORGE_BIN="/path/to/custom/forge"
 - Internal pattern matching for conversation syntax (`:`)
 - New session command keyword: `:new` or `:n`
 
+### Codebase Indexing
+
+Manage semantic search indexes for your codebase:
+
+#### List Workspaces
+
+View all indexed workspaces:
+
+```bash
+:workspace
+```
+
+#### Sync Directory
+
+Index a directory for semantic search:
+
+```bash
+:sync
+# or 
+:index
+# or specify a path
+:sync /path/to/directory
+# or
+:index /path/to/directory
+```
+
+#### Query Index
+
+Search the indexed codebase:
+
+```bash
+:query authentication logic
+:query retry mechanism with exponential backoff
+```
+
+#### Delete Workspace
+
+Delete an indexed workspace:
+
+```bash
+# Interactive selection with confirmation
+:delete
+:del
+# or provide workspace_id for deletion
+:delete workspace-id
+:del abc123-def456
+```
+
+- Without arguments: Shows fuzzy finder to select workspace interactively
+- With workspace ID: Deletes the specified workspace
+
 ## Advanced Features
 
 ### Command History
@@ -188,4 +239,24 @@ All transformed commands are properly saved to ZSH history, allowing you to:
 :info
 :new
 : New conversation starts here
+```
+
+
+### Codebase Indexing
+
+```bash
+# List all workspaces
+:workspace
+
+# Index current directory
+:sync
+:index
+
+# Query the codebase
+:query authentication middleware
+:query database connection pooling
+
+# Delete workspace
+:delete
+:delete abc123-def456
 ```
