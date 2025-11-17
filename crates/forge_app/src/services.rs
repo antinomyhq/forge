@@ -993,7 +993,9 @@ impl<I: Services> ContextEngineService for I {
         path: PathBuf,
         params: SearchParams<'_>,
     ) -> anyhow::Result<Vec<CodeSearchResult>> {
-        self.context_engine_service().query_codebase(path, params).await
+        self.context_engine_service()
+            .query_codebase(path, params)
+            .await
     }
 
     async fn list_codebase(&self) -> anyhow::Result<Vec<WorkspaceInfo>> {
@@ -1001,7 +1003,9 @@ impl<I: Services> ContextEngineService for I {
     }
 
     async fn delete_codebase(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()> {
-        self.context_engine_service().delete_codebase(workspace_id).await
+        self.context_engine_service()
+            .delete_codebase(workspace_id)
+            .await
     }
 
     async fn is_indexed(&self, path: &Path) -> anyhow::Result<bool> {
@@ -1013,6 +1017,8 @@ impl<I: Services> ContextEngineService for I {
     }
 
     async fn create_auth_credentials(&self) -> anyhow::Result<IndexingAuth> {
-        self.context_engine_service().create_auth_credentials().await
+        self.context_engine_service()
+            .create_auth_credentials()
+            .await
     }
 }
