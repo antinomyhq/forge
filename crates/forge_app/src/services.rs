@@ -254,11 +254,15 @@ pub trait ContextEngineService: Send + Sync {
     /// Checks if workspace is indexed.
     async fn is_indexed(&self, path: &Path) -> anyhow::Result<bool>;
 
-    /// Check if authentication credentials exist
-    async fn is_authenticated(&self) -> anyhow::Result<bool>;
+    /// Get authentication credentials if they exist
+    async fn get_auth(&self) -> anyhow::Result<Option<IndexingAuth>>;
 
     /// Create new authentication credentials
     async fn create_auth_credentials(&self) -> anyhow::Result<IndexingAuth>;
+
+    /// Revoke access to the indexing service by deleting authentication
+    /// credentials
+    async fn revoke_access(&self) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -1012,13 +1016,17 @@ impl<I: Services> ContextEngineService for I {
         self.context_engine_service().is_indexed(path).await
     }
 
-    async fn is_authenticated(&self) -> anyhow::Result<bool> {
-        self.context_engine_service().is_authenticated().await
+    async fn get_auth(&self) -> anyhow::Result<Option<IndexingAuth>> {
+        self.context_engine_service().get_auth().await
     }
 
     async fn create_auth_credentials(&self) -> anyhow::Result<IndexingAuth> {
         self.context_engine_service()
             .create_auth_credentials()
             .await
+    }
+
+    async fn revoke_access(&self) -> anyhow::Result<()> {
+        self.context_engine_service().revoke_access().await
     }
 }

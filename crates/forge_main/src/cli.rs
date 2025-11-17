@@ -212,6 +212,12 @@ pub enum IndexCommand {
         #[arg(short = 'y', long)]
         yes: bool,
     },
+
+    /// Revoke access to the indexing service.
+    Logout,
+
+    /// Show authentication status and credentials.
+    Info,
 }
 
 /// Command group for listing resources.

@@ -415,8 +415,8 @@ impl<
             .is_some())
     }
 
-    async fn is_authenticated(&self) -> Result<bool> {
-        Ok(self.infra.get_auth().await?.is_some())
+    async fn get_auth(&self) -> Result<Option<forge_domain::IndexingAuth>> {
+        self.infra.get_auth().await
     }
 
     async fn create_auth_credentials(&self) -> Result<forge_domain::IndexingAuth> {
@@ -434,6 +434,10 @@ impl<
             .context("Failed to store authentication credentials")?;
 
         Ok(auth)
+    }
+
+    async fn revoke_access(&self) -> Result<()> {
+        self.logout().await
     }
 }
 

@@ -511,6 +511,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     crate::cli::IndexCommand::Delete { workspace_id, yes } => {
                         self.on_delete_workspace(workspace_id, yes).await?;
                     }
+                    crate::cli::IndexCommand::Logout => {
+                        self.on_index_logout().await?;
+                    }
+                    crate::cli::IndexCommand::Info => {
+                        self.on_index_status().await?;
+                    }
                 }
                 return Ok(());
             }
@@ -2554,7 +2560,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         batch_size: usize,
     ) -> anyhow::Result<()> {
         // Check if auth already exists and create if needed
-        if !self.api.is_authenticated().await? {
+        if self.api.get_auth().await?.is_none() {
             let auth = self.api.create_auth_credentials().await?;
             let info = Info::new()
                 .add_title("NEW API KEY CREATED")
@@ -2753,6 +2759,46 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 Err(e)
             }
         }
+    }
+
+    async fn on_index_logout(&mut self) -> anyhow::Result<()> {
+        // Check if currently authenticated
+        let auth = self.api.get_auth().await?;
+
+        if auth.is_none() {
+            self.writeln_title(TitleFormat::info("Not currently authenticated"))?;
+            return Ok(());
+        }
+
+        // Delete authentication credentials
+        self.spinner.start(Some("Revoking access..."))?;
+
+        self.api.delete_codebase_auth().await?;
+
+        self.spinner.stop(None)?;
+        self.writeln_title(TitleFormat::completion("Successfully logged out"))?;
+
+        Ok(())
+    }
+
+    async fn on_index_status(&mut self) -> anyhow::Result<()> {
+        let auth = self.api.get_auth().await?;
+
+        match auth {
+            Some(auth) => {
+                let info = Info::new()
+                    .add_title("AUTHENTICATED")
+                    .add_key_value("User ID", auth.user_id.to_string())
+                    .add_key_value("API Key", &*auth.token);
+                self.writeln(info.to_string())?;
+            }
+            None => {
+                let info = Info::new().add_title("NOT AUTHENTICATED");
+                self.writeln(info.to_string())?;
+            }
+        }
+
+        Ok(())
     }
 }
 
