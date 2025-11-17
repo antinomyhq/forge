@@ -2533,7 +2533,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
             let count = result.migrated_providers.len();
             let message = if count == 1 {
-                format!("Migrated 1 provider from environment variables")
+                "Migrated 1 provider from environment variables".to_string()
             } else {
                 format!("Migrated {} providers from environment variables", count)
             };
