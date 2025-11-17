@@ -6,10 +6,10 @@ use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse,
     AuthCredential, AuthMethod, ChatCompletionMessage, CodeSearchResult, CommandOutput, Context,
-    Conversation, ConversationId, Environment, File, Image, IndexStats, IndexingAuth, InitAuth,
-    LoginInfo, McpConfig, McpServers, Model, ModelId, PatchOperation, Provider, ProviderId,
-    ResultStream, Scope, SearchParams, Template, ToolCallFull, ToolOutput, Workflow, WorkspaceId,
-    WorkspaceInfo,
+    Conversation, ConversationId, Environment, File, Image, IndexProgress, IndexStats,
+    IndexingAuth, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId, PatchOperation,
+    Provider, ProviderId, ResultStream, Scope, SearchParams, Template, ToolCallFull, ToolOutput,
+    Workflow, WorkspaceId, WorkspaceInfo,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -236,7 +236,12 @@ pub trait CustomInstructionsService: Send + Sync {
 #[async_trait::async_trait]
 pub trait ContextEngineService: Send + Sync {
     /// Index the codebase at the given path
-    async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> anyhow::Result<IndexStats>;
+    async fn sync_codebase(
+        &self,
+        path: PathBuf,
+        batch_size: usize,
+        sender: Option<tokio::sync::mpsc::Sender<anyhow::Result<IndexProgress>>>,
+    ) -> anyhow::Result<IndexStats>;
 
     /// Query the indexed codebase with semantic search
     async fn query_codebase(
@@ -982,9 +987,14 @@ impl<I: Services> ProviderAuthService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> ContextEngineService for I {
-    async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> anyhow::Result<IndexStats> {
+    async fn sync_codebase(
+        &self,
+        path: PathBuf,
+        batch_size: usize,
+        sender: Option<tokio::sync::mpsc::Sender<anyhow::Result<IndexProgress>>>,
+    ) -> anyhow::Result<IndexStats> {
         self.context_engine_service()
-            .sync_codebase(path, batch_size)
+            .sync_codebase(path, batch_size, sender)
             .await
     }
 

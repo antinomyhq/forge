@@ -26,6 +26,34 @@ impl IndexingAuth {
     }
 }
 
+/// Progress events for codebase indexing operations
+#[derive(Debug, Clone, PartialEq)]
+pub enum IndexProgress {
+    DiscoveringFiles {
+        path: String,
+    },
+    FilesDiscovered {
+        count: usize,
+    },
+    DeletingFiles {
+        count: usize,
+    },
+    UploadingFiles {
+        current: usize,
+        total: usize,
+    },
+    Completed {
+        is_new_workspace: bool,
+        files_processed: usize,
+        files_uploaded: usize,
+        files_skipped: usize,
+    },
+}
+
+/// Type alias for sending indexing progress events
+pub type IndexProgressSender =
+    tokio::sync::mpsc::Sender<anyhow::Result<IndexProgress, anyhow::Error>>;
+
 /// File content for upload to codebase server
 ///
 /// Contains the file path (relative to workspace root) and its textual content

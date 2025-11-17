@@ -329,8 +329,11 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         &self,
         path: PathBuf,
         batch_size: usize,
-    ) -> Result<forge_domain::IndexStats> {
-        self.services.sync_codebase(path, batch_size).await
+    ) -> Result<MpscStream<Result<forge_domain::IndexProgress>>> {
+        let services = self.services.clone();
+        Ok(MpscStream::spawn(move |sender| async move {
+            let _ = services.sync_codebase(path, batch_size, Some(sender)).await;
+        }))
     }
 
     async fn query_codebase(
