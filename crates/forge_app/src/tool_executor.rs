@@ -204,7 +204,9 @@ impl<
                 let services = self.services.clone();
                 let cwd = env.cwd.clone();
                 let query = input.query;
-                let mut params = forge_domain::SearchParams::new(&query, env.codebase_search_limit);
+                let relevance_query = input.relevance_query;
+                let mut params = forge_domain::SearchParams::new(&query, env.codebase_search_limit)
+                    .with_relevance_query(&relevance_query);
                 if let Some(top_k) = env.codebase_search_top_k {
                     params = params.with_top_k(top_k);
                 }

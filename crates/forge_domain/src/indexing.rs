@@ -63,15 +63,21 @@ pub struct SearchParams<'a> {
     pub query: &'a str,
     pub limit: usize,
     pub top_k: Option<u32>,
+    pub relevance_query: Option<&'a str>,
 }
 
 impl<'a> SearchParams<'a> {
     pub fn new(query: &'a str, limit: usize) -> Self {
-        Self { query, limit, top_k: None }
+        Self { query, limit, top_k: None, relevance_query: None }
     }
 
     pub fn with_top_k(mut self, top_k: u32) -> Self {
         self.top_k = Some(top_k);
+        self
+    }
+
+    pub fn with_relevance_query(mut self, relevance_query: &'a str) -> Self {
+        self.relevance_query = Some(relevance_query);
         self
     }
 }
