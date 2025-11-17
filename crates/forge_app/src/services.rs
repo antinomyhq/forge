@@ -233,7 +233,7 @@ pub trait CustomInstructionsService: Send + Sync {
 
 /// Service for indexing codebases for semantic search
 #[async_trait::async_trait]
-pub trait CodebaseService: Send + Sync {
+pub trait ContextEngineService: Send + Sync {
     /// Index the codebase at the given path
     async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> anyhow::Result<IndexStats>;
 
@@ -501,7 +501,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type CommandLoaderService: CommandLoaderService;
     type PolicyService: PolicyService;
     type ProviderAuthService: ProviderAuthService;
-    type CodebaseService: CodebaseService;
+    type CodebaseService: ContextEngineService;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn config_service(&self) -> &Self::AppConfigService;
@@ -974,7 +974,7 @@ impl<I: Services> ProviderAuthService for I {
 }
 
 #[async_trait::async_trait]
-impl<I: Services> CodebaseService for I {
+impl<I: Services> ContextEngineService for I {
     async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> anyhow::Result<IndexStats> {
         self.codebase_service()
             .sync_codebase(path, batch_size)

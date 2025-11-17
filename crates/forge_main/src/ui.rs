@@ -2556,9 +2556,30 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.spinner.start(Some("Syncing codebase..."))?;
 
         match self.api.sync_codebase(path.clone(), batch_size).await {
-            Ok(_) => {
+            Ok(stats) => {
                 self.spinner.stop(None)?;
-                self.writeln(format!("Successfully synced: {}", path.display()))?;
+
+                // Display new API key if one was created
+                if let Some(auth) = &stats.new_api_key {
+                    let info = Info::new()
+                        .add_title("⚠️  NEW API KEY CREATED [Will be shown only once]")
+                        .add_key_value("API Key", auth.token.as_str())
+                        .add_key_value("User ID", auth.user_id.to_string());
+                    self.writeln(info.to_string())?;
+                }
+
+                // Display workspace creation info
+                if stats.is_new_workspace {
+                    self.writeln_title(
+                        TitleFormat::action("Workspace created")
+                            .sub_title(stats.workspace_id.to_string()),
+                    )?;
+                }
+
+                self.writeln_title(TitleFormat::completion(format!(
+                    "Successfully synced: {}",
+                    path.display()
+                )))?;
                 Ok(())
             }
             Err(e) => {
@@ -2721,7 +2742,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         match self.api.delete_codebase(workspace_id.clone()).await {
             Ok(()) => {
                 self.spinner.stop(None)?;
-                self.writeln(format!("Successfully deleted workspace {}", workspace_id))?;
+                self.writeln_title(TitleFormat::completion(format!(
+                    "Successfully deleted workspace {}",
+                    workspace_id
+                )))?;
                 Ok(())
             }
             Err(e) => {

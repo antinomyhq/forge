@@ -1,8 +1,30 @@
 use derive_more::Display;
+use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::WorkspaceId;
+
+/// Stored authentication token for the indexing service (no expiry)
+///
+/// Associates a user with their indexing service authentication token
+/// obtained from the remote authentication API.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IndexingAuth {
+    /// User ID that owns this authentication
+    pub user_id: UserId,
+    /// Authentication token (obtained from HTTP API)
+    pub token: crate::ApiKey,
+    /// When this token was stored locally
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl IndexingAuth {
+    /// Create a new indexing auth record
+    pub fn new(user_id: UserId, token: crate::ApiKey) -> Self {
+        Self { user_id, token, created_at: chrono::Utc::now() }
+    }
+}
 
 /// File content for upload to codebase server
 ///
@@ -113,8 +135,7 @@ pub struct FileHash {
 }
 
 /// Result of a codebase sync operation
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Setters)]
 pub struct IndexStats {
     /// Workspace ID that was synced
     pub workspace_id: WorkspaceId,
@@ -122,6 +143,10 @@ pub struct IndexStats {
     pub files_processed: usize,
     /// Upload statistics
     pub upload_stats: UploadStats,
+    /// New API key that was created (if any)
+    pub new_api_key: Option<IndexingAuth>,
+    /// Whether a new workspace was created (vs using existing)
+    pub is_new_workspace: bool,
 }
 
 impl IndexStats {
@@ -131,7 +156,13 @@ impl IndexStats {
         files_processed: usize,
         upload_stats: UploadStats,
     ) -> Self {
-        Self { workspace_id, files_processed, upload_stats }
+        Self {
+            workspace_id,
+            files_processed,
+            upload_stats,
+            new_api_key: None,
+            is_new_workspace: false,
+        }
     }
 }
 

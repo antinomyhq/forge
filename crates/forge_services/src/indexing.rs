@@ -4,8 +4,11 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use forge_app::{CodebaseService, FileReaderInfra, Walker, WalkerInfra, compute_hash};
-use forge_domain::{CodebaseRepository, IndexStats, UserId, WorkspaceId, WorkspaceRepository};
+use forge_app::{ContextEngineService, FileReaderInfra, Walker, WalkerInfra, compute_hash};
+use forge_domain::{
+    ContextEngineRepository, CredentialsRepository, IndexStats, UserId, WorkspaceId,
+    WorkspaceRepository,
+};
 use futures::future::join_all;
 use tracing::{info, warn};
 
@@ -50,16 +53,17 @@ impl<F> ForgeIndexingService<F> {
         user_id: &UserId,
         workspace_id: &WorkspaceId,
         local_file_map: &HashMap<String, String>,
+        auth_token: &forge_domain::ApiKey,
     ) -> Result<HashMap<String, String>>
     where
-        F: CodebaseRepository,
+        F: ContextEngineRepository,
     {
         info!("Fetching existing file hashes from server to detect changes...");
         let workspace_files =
             forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), ());
         let server_hashes = self
             .infra
-            .list_workspace_files(&workspace_files)
+            .list_workspace_files(&workspace_files, auth_token)
             .await
             .map(|files| {
                 let hashes: HashMap<_, _> = files.into_iter().map(|f| (f.path, f.hash)).collect();
@@ -84,7 +88,7 @@ impl<F> ForgeIndexingService<F> {
             let deletion =
                 forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), files_to_delete);
             self.infra
-                .delete_files(&deletion)
+                .delete_files(&deletion, auth_token)
                 .await
                 .context("Failed to delete old/orphaned files")?;
         }
@@ -100,9 +104,10 @@ impl<F> ForgeIndexingService<F> {
         is_new_workspace: bool,
         user_id: &UserId,
         workspace_id: &WorkspaceId,
+        auth_token: &forge_domain::ApiKey,
     ) -> Result<Vec<(String, String)>>
     where
-        F: WorkspaceRepository + CodebaseRepository,
+        F: WorkspaceRepository + ContextEngineRepository,
     {
         let total_file_count = all_files.len();
 
@@ -116,7 +121,7 @@ impl<F> ForgeIndexingService<F> {
         let server_hashes = if is_new_workspace {
             HashMap::new()
         } else {
-            self.sync_server_files(user_id, workspace_id, &local_file_map)
+            self.sync_server_files(user_id, workspace_id, &local_file_map, auth_token)
                 .await?
         };
 
@@ -197,8 +202,13 @@ impl<F> ForgeIndexingService<F> {
 }
 
 #[async_trait]
-impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra> CodebaseService
-    for ForgeIndexingService<F>
+impl<
+    F: WorkspaceRepository
+        + CredentialsRepository
+        + ContextEngineRepository
+        + WalkerInfra
+        + FileReaderInfra,
+> ContextEngineService for ForgeIndexingService<F>
 {
     async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> Result<IndexStats> {
         info!(path = %path.display(), "Starting codebase sync");
@@ -209,21 +219,47 @@ impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra
 
         info!(canonical_path = %canonical_path.display(), "Resolved canonical path");
 
+        // Get or create auth token
+        let (token, user_id, new_auth) = match self.infra.get_auth().await? {
+            Some(auth) => (auth.token, auth.user_id, None),
+            None => {
+                let auth = self.infra.authenticate()
+                    .await
+                    .context(
+                        "Failed to authenticate with indexing server. Please check server connectivity.",
+                    )?;
+                let token = auth.token.clone();
+                let user_id = auth.user_id.clone();
+
+                // Store the auth in database
+                self.infra
+                    .set_auth(&auth)
+                    .await
+                    .context("Failed to store authentication credentials")?;
+
+                (token, user_id, Some(auth))
+            }
+        };
+
         let existing_workspace = self.infra.find_by_path(&canonical_path).await?;
 
-        let (workspace_id, user_id, is_new_workspace) = existing_workspace
-            .map(|workspace| (workspace.workspace_id, workspace.user_id, false))
-            .unwrap_or_else(|| (WorkspaceId::generate(), UserId::generate(), true));
+        let (workspace_id, is_new_workspace) = match existing_workspace {
+            Some(workspace) if workspace.user_id == user_id => (workspace.workspace_id, false),
+            Some(workspace) => {
+                if let Err(e) = self.infra.delete(&workspace.workspace_id).await {
+                    warn!(error = %e, "Failed to delete old workspace entry from local database");
+                }
+                (WorkspaceId::generate(), true)
+            }
+            None => (WorkspaceId::generate(), true),
+        };
 
-        // Create workspace on server if new
         let workspace_id = if is_new_workspace {
-            info!("Creating new workspace on server");
             self.infra
-                .create_workspace(&user_id, &canonical_path)
+                .create_workspace(&canonical_path, &token)
                 .await
                 .context("Failed to create workspace on server")?
         } else {
-            info!(workspace_id = %workspace_id, "Using existing workspace");
             workspace_id
         };
 
@@ -233,7 +269,7 @@ impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra
 
         // Determine which files need to be uploaded
         let files_to_upload = self
-            .find_files_to_upload(all_files, is_new_workspace, &user_id, &workspace_id)
+            .find_files_to_upload(all_files, is_new_workspace, &user_id, &workspace_id, &token)
             .await?;
 
         // Early exit if nothing to upload
@@ -250,7 +286,9 @@ impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra
                 workspace_id,
                 total_file_count,
                 forge_domain::UploadStats::default(),
-            ));
+            )
+            .new_api_key(new_auth)
+            .is_new_workspace(is_new_workspace));
         }
 
         // Upload in batches
@@ -267,7 +305,7 @@ impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra
 
             let stats = self
                 .infra
-                .upload_files(&upload)
+                .upload_files(&upload, &token)
                 .await
                 .context("Failed to upload files")?;
             total_stats = total_stats + stats;
@@ -286,7 +324,9 @@ impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra
             "Sync completed successfully"
         );
 
-        Ok(IndexStats::new(workspace_id, total_file_count, total_stats))
+        Ok(IndexStats::new(workspace_id, total_file_count, total_stats)
+            .new_api_key(new_auth)
+            .is_new_workspace(is_new_workspace))
     }
 
     /// Performs semantic code search on a workspace.
@@ -306,11 +346,16 @@ impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra
             .find_by_path(&canonical_path)
             .await
             .context("Failed to query database")?
-            .ok_or_else(|| {
-                anyhow::anyhow!("Workspace not found. Run `forge index sync .` first.")
-            })?;
+            .ok_or(forge_domain::Error::WorkspaceNotFound)?;
 
-        // Step 3: Search the codebase
+        // Step 3: Get auth token
+        let auth = self
+            .infra
+            .get_auth()
+            .await?
+            .ok_or(forge_domain::Error::AuthTokenNotFound)?;
+
+        // Step 4: Search the codebase
         let search_query = forge_domain::CodeBase::new(
             workspace.user_id.clone(),
             workspace.workspace_id.clone(),
@@ -319,7 +364,7 @@ impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra
 
         let results = self
             .infra
-            .search(&search_query)
+            .search(&search_query, &auth.token)
             .await
             .context("Failed to search")?;
 
@@ -328,30 +373,34 @@ impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra
 
     /// Lists all workspaces.
     async fn list_codebase(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
-        let user_id =
-            self.infra.as_ref().get_user_id().await?.ok_or_else(|| {
-                anyhow::anyhow!("No workspaces found. Run `forge index sync` first.")
-            })?;
+        // Get auth token
+        let auth = self
+            .infra
+            .get_auth()
+            .await?
+            .ok_or(forge_domain::Error::AuthTokenNotFound)?;
 
         // List all workspaces for this user
         self.infra
             .as_ref()
-            .list_workspaces(&user_id)
+            .list_workspaces(&auth.token)
             .await
             .context("Failed to list workspaces")
     }
 
     /// Deletes a workspace from both the server and local database.
     async fn delete_codebase(&self, workspace_id: &forge_domain::WorkspaceId) -> Result<()> {
-        let user_id =
-            self.infra.as_ref().get_user_id().await?.ok_or_else(|| {
-                anyhow::anyhow!("No workspaces found. Run `forge index sync` first.")
-            })?;
+        // Get auth token
+        let auth = self
+            .infra
+            .get_auth()
+            .await?
+            .ok_or(forge_domain::Error::AuthTokenNotFound)?;
 
         // Delete from server
         self.infra
             .as_ref()
-            .delete_workspace(&user_id, workspace_id)
+            .delete_workspace(workspace_id, &auth.token)
             .await
             .context("Failed to delete workspace from server")?;
 
@@ -382,6 +431,53 @@ impl<F: WorkspaceRepository + CodebaseRepository + WalkerInfra + FileReaderInfra
     }
 }
 
+// Additional authentication methods for ForgeIndexingService
+impl<F> ForgeIndexingService<F>
+where
+    F: CredentialsRepository + WorkspaceRepository + ContextEngineRepository,
+{
+    /// Login to the indexing service by storing an authentication token
+    ///
+    /// Authenticate with the indexing service and store credentials
+    ///
+    /// This method authenticates with the indexing service backend and stores
+    /// the authentication credentials locally for future use.
+    ///
+    /// # Errors
+    /// Returns an error if authentication or storing credentials fails
+    pub async fn login(&self) -> Result<()> {
+        // Call gRPC API to authenticate
+        let auth = self
+            .infra
+            .authenticate()
+            .await
+            .context("Failed to authenticate with indexing service")?;
+
+        // Store the auth in database
+        self.infra
+            .set_auth(&auth)
+            .await
+            .context("Failed to store authentication credentials")?;
+
+        info!("Successfully logged in to indexing service");
+        Ok(())
+    }
+
+    /// Logout from the indexing service by removing the authentication token
+    ///
+    /// # Errors
+    /// Returns an error if deletion fails
+    pub async fn logout(&self) -> Result<()> {
+        self.infra
+            .delete_auth()
+            .await
+            .context("Failed to logout from indexing service")?;
+
+        info!("Successfully logged out from indexing service");
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -390,8 +486,8 @@ mod tests {
 
     use forge_app::WalkedFile;
     use forge_domain::{
-        CodeSearchQuery, CodeSearchResult, FileDeletion, FileHash, FileInfo, FileUpload,
-        UploadStats, UserId, Workspace, WorkspaceFiles, WorkspaceId, WorkspaceInfo,
+        ApiKey, CodeSearchQuery, CodeSearchResult, FileDeletion, FileHash, FileInfo, FileUpload,
+        IndexingAuth, UploadStats, UserId, Workspace, WorkspaceFiles, WorkspaceId, WorkspaceInfo,
     };
     use pretty_assertions::assert_eq;
 
@@ -406,6 +502,7 @@ mod tests {
         server_files: Vec<FileHash>,
         deleted_files: Arc<tokio::sync::Mutex<Vec<String>>>,
         uploaded_files: Arc<tokio::sync::Mutex<Vec<String>>>,
+        authenticated: bool, // Track whether user is authenticated
     }
 
     impl MockInfra {
@@ -416,6 +513,7 @@ mod tests {
                     .iter()
                     .map(|p| (p.to_string(), format!("content of {}", p)))
                     .collect(),
+                authenticated: true, // Simulate authenticated user
                 ..Default::default()
             }
         }
@@ -438,6 +536,7 @@ mod tests {
                 files: files_map,
                 workspace: Some(workspace()),
                 server_files,
+                authenticated: true, // Simulate authenticated user
                 ..Default::default()
             }
         }
@@ -460,6 +559,7 @@ mod tests {
                 files: files_map,
                 workspace: Some(workspace()),
                 server_files: server,
+                authenticated: true, // Simulate authenticated user
                 ..Default::default()
             }
         }
@@ -488,6 +588,32 @@ mod tests {
         }
     }
 
+    #[async_trait::async_trait]
+    impl CredentialsRepository for MockInfra {
+        async fn set_auth(&self, _auth: &IndexingAuth) -> Result<()> {
+            Ok(())
+        }
+
+        async fn get_auth(&self) -> Result<Option<IndexingAuth>> {
+            if self.authenticated {
+                let user_id = self
+                    .workspace
+                    .as_ref()
+                    .map(|w| w.user_id.clone())
+                    .unwrap_or_else(UserId::generate);
+                Ok(Some(IndexingAuth::new(
+                    user_id,
+                    "test_token".to_string().into(),
+                )))
+            } else {
+                Ok(None)
+            }
+        }
+        async fn delete_auth(&self) -> Result<()> {
+            Ok(())
+        }
+    }
+
     #[async_trait]
     impl WorkspaceRepository for MockInfra {
         async fn upsert(&self, _: &WorkspaceId, _: &UserId, _: &Path) -> Result<()> {
@@ -505,34 +631,50 @@ mod tests {
     }
 
     #[async_trait]
-    impl CodebaseRepository for MockInfra {
-        async fn create_workspace(&self, _: &UserId, _: &Path) -> Result<WorkspaceId> {
+    impl ContextEngineRepository for MockInfra {
+        async fn authenticate(&self) -> Result<IndexingAuth> {
+            // Mock authentication - return fake user_id and token
+            Ok(IndexingAuth::new(
+                UserId::generate(),
+                "test_token".to_string().into(),
+            ))
+        }
+
+        async fn create_workspace(&self, _: &Path, _: &ApiKey) -> Result<WorkspaceId> {
             Ok(WorkspaceId::generate())
         }
-        async fn upload_files(&self, upload: &FileUpload) -> Result<UploadStats> {
+        async fn upload_files(&self, upload: &FileUpload, _: &ApiKey) -> Result<UploadStats> {
             self.uploaded_files
                 .lock()
                 .await
                 .extend(upload.data.iter().map(|f| f.path.clone()));
             Ok(UploadStats::new(upload.data.len(), upload.data.len()))
         }
-        async fn search(&self, _: &CodeSearchQuery<'_>) -> Result<Vec<CodeSearchResult>> {
+        async fn search(
+            &self,
+            _: &CodeSearchQuery<'_>,
+            _: &ApiKey,
+        ) -> Result<Vec<CodeSearchResult>> {
             Ok(self.search_results.clone())
         }
-        async fn list_workspaces(&self, _: &UserId) -> Result<Vec<WorkspaceInfo>> {
+        async fn list_workspaces(&self, _: &ApiKey) -> Result<Vec<WorkspaceInfo>> {
             Ok(self.workspaces.lock().await.clone())
         }
-        async fn list_workspace_files(&self, _: &WorkspaceFiles) -> Result<Vec<FileHash>> {
+        async fn list_workspace_files(
+            &self,
+            _: &WorkspaceFiles,
+            _: &ApiKey,
+        ) -> Result<Vec<FileHash>> {
             Ok(self.server_files.clone())
         }
-        async fn delete_files(&self, deletion: &FileDeletion) -> Result<()> {
+        async fn delete_files(&self, deletion: &FileDeletion, _: &ApiKey) -> Result<()> {
             self.deleted_files
                 .lock()
                 .await
                 .extend(deletion.data.clone());
             Ok(())
         }
-        async fn delete_workspace(&self, _: &UserId, workspace_id: &WorkspaceId) -> Result<()> {
+        async fn delete_workspace(&self, workspace_id: &WorkspaceId, _: &ApiKey) -> Result<()> {
             self.workspaces
                 .lock()
                 .await

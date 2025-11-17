@@ -48,6 +48,9 @@ service ForgeService {
   
   // Deletes a workspace
   rpc DeleteWorkspace(DeleteWorkspaceRequest) returns (DeleteWorkspaceResponse);
+  
+  // Creates a new API key for a user
+  rpc CreateApiKey(CreateApiKeyRequest) returns (CreateApiKeyResponse);
 }
 
 // Node types
@@ -94,10 +97,9 @@ message UserId {
 
 message Workspace {
   WorkspaceId workspace_id = 1;
-  UserId user_id = 2;
-  string working_dir = 3;
-  uint64 node_count = 4;
-  uint64 relation_count = 5;
+  string working_dir = 2;
+  uint64 node_count = 3;
+  uint64 relation_count = 4;
 }
 
 message WorkspaceDefinition {
@@ -203,6 +205,7 @@ message Query {
   optional uint32 limit = 3;
   repeated NodeKind kinds = 4;
   optional uint32 top_k = 5;
+  optional string relevance_query = 6;
 }
 
 message RelatedNodesQuery {
@@ -237,9 +240,8 @@ message UploadResult {
 
 // Request/Response messages
 message UpsertNodesRequest {
-  UserId user_id = 1;
-  WorkspaceId workspace_id = 2;
-  repeated NodeDefinition nodes = 3;
+  WorkspaceId workspace_id = 1;
+  repeated NodeDefinition nodes = 2;
 }
 
 message UpsertNodesResponse {
@@ -247,9 +249,8 @@ message UpsertNodesResponse {
 }
 
 message GetNodeRequest {
-  UserId user_id = 1;
-  WorkspaceId workspace_id = 2;
-  NodeId node_id = 3;
+  WorkspaceId workspace_id = 1;
+  NodeId node_id = 2;
 }
 
 message GetNodeResponse {
@@ -257,9 +258,8 @@ message GetNodeResponse {
 }
 
 message DeleteNodeRequest {
-  UserId user_id = 1;
-  WorkspaceId workspace_id = 2;
-  repeated NodeId node_ids = 3;
+  WorkspaceId workspace_id = 1;
+  repeated NodeId node_ids = 2;
 }
 
 message DeleteNodeResponse {
@@ -267,9 +267,8 @@ message DeleteNodeResponse {
 }
 
 message SearchRequest {
-  UserId user_id = 1;
-  WorkspaceId workspace_id = 2;
-  optional Query query = 3;
+  WorkspaceId workspace_id = 1;
+  optional Query query = 2;
 }
 
 message SearchResponse {
@@ -277,9 +276,8 @@ message SearchResponse {
 }
 
 message CreateRelationRequest {
-  UserId user_id = 1;
-  WorkspaceId workspace_id = 2;
-  RelationDefinition relation = 3;
+  WorkspaceId workspace_id = 1;
+  RelationDefinition relation = 2;
 }
 
 message CreateRelationResponse {
@@ -287,9 +285,8 @@ message CreateRelationResponse {
 }
 
 message DeleteRelationRequest {
-  UserId user_id = 1;
-  WorkspaceId workspace_id = 2;
-  repeated RelationId relation_ids = 3;
+  WorkspaceId workspace_id = 1;
+  repeated RelationId relation_ids = 2;
 }
 
 message DeleteRelationResponse {
@@ -297,9 +294,8 @@ message DeleteRelationResponse {
 }
 
 message ListRelatedNodesRequest {
-  UserId user_id = 1;
-  WorkspaceId workspace_id = 2;
-  optional RelatedNodesQuery query = 3;
+  WorkspaceId workspace_id = 1;
+  optional RelatedNodesQuery query = 2;
 }
 
 message ListRelatedNodesResponse {
@@ -307,9 +303,8 @@ message ListRelatedNodesResponse {
 }
 
 message UploadFilesRequest {
-  UserId user_id = 1;
-  WorkspaceId workspace_id = 2;
-  FileUploadContent content = 3;
+  WorkspaceId workspace_id = 1;
+  FileUploadContent content = 2;
 }
 
 message UploadFilesResponse {
@@ -317,9 +312,8 @@ message UploadFilesResponse {
 }
 
 message DeleteFilesRequest {
-  UserId user_id = 1;
-  WorkspaceId workspace_id = 2;
-  repeated string file_paths = 3;
+  WorkspaceId workspace_id = 1;
+  repeated string file_paths = 2;
 }
 
 message DeleteFilesResponse {
@@ -328,8 +322,7 @@ message DeleteFilesResponse {
 }
 
 message ListFilesRequest {
-  UserId user_id = 1;
-  WorkspaceId workspace_id = 2;
+  WorkspaceId workspace_id = 1;
 }
 
 message ListFilesResponse {
@@ -360,8 +353,7 @@ message HealthCheckResponse {
 }
 
 message CreateWorkspaceRequest {
-  UserId user_id = 1;
-  WorkspaceDefinition workspace = 2;
+  WorkspaceDefinition workspace = 1;
 }
 
 message CreateWorkspaceResponse {
@@ -369,7 +361,6 @@ message CreateWorkspaceResponse {
 }
 
 message ListWorkspacesRequest {
-  UserId user_id = 1;
 }
 
 message ListWorkspacesResponse {
@@ -377,10 +368,19 @@ message ListWorkspacesResponse {
 }
 
 message DeleteWorkspaceRequest {
-  UserId user_id = 1;
-  WorkspaceId workspace_id = 2;
+  WorkspaceId workspace_id = 1;
 }
 
 message DeleteWorkspaceResponse {
   WorkspaceId workspace_id = 1;
+}
+
+
+message CreateApiKeyRequest {
+  optional UserId user_id = 1;
+}
+
+message CreateApiKeyResponse {
+  UserId user_id = 1;
+  string key = 2;
 }
