@@ -121,6 +121,12 @@ pub struct WorkspaceInfo {
     pub workspace_id: WorkspaceId,
     /// Working directory path
     pub working_dir: String,
+    /// Number of nodes indexed
+    pub node_count: u64,
+    /// Number of relations indexed
+    pub relation_count: u64,
+    /// Whether this workspace matches the current working directory
+    pub is_current: bool,
 }
 
 /// File hash information from the server

@@ -4,7 +4,9 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use forge_app::{ContextEngineService, FileReaderInfra, Walker, WalkerInfra, compute_hash};
+use forge_app::{
+    ContextEngineService, EnvironmentInfra, FileReaderInfra, Walker, WalkerInfra, compute_hash,
+};
 use forge_domain::{
     ContextEngineRepository, CredentialsRepository, IndexStats, UserId, WorkspaceId,
     WorkspaceRepository,
@@ -207,7 +209,8 @@ impl<
         + CredentialsRepository
         + ContextEngineRepository
         + WalkerInfra
-        + FileReaderInfra,
+        + FileReaderInfra
+        + EnvironmentInfra,
 > ContextEngineService for ForgeIndexingService<F>
 {
     async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> Result<IndexStats> {
@@ -366,11 +369,27 @@ impl<
             .ok_or(forge_domain::Error::AuthTokenNotFound)?;
 
         // List all workspaces for this user
-        self.infra
+        let mut workspaces = self
+            .infra
             .as_ref()
             .list_workspaces(&auth.token)
             .await
-            .context("Failed to list workspaces")
+            .context("Failed to list workspaces")?;
+
+        // Get current directory to mark the current workspace
+        let current_dir = self
+            .infra
+            .get_environment()
+            .cwd
+            .to_string_lossy()
+            .to_string();
+
+        // Mark the workspace that matches current directory
+        for workspace in &mut workspaces {
+            workspace.is_current = workspace.working_dir == current_dir;
+        }
+
+        Ok(workspaces)
     }
 
     /// Deletes a workspace from both the server and local database.
@@ -723,6 +742,16 @@ mod tests {
         }
     }
 
+    impl EnvironmentInfra for MockInfra {
+        fn get_environment(&self) -> forge_domain::Environment {
+            use fake::{Fake, Faker};
+            Faker.fake()
+        }
+        fn get_env_var(&self, _: &str) -> Option<String> {
+            None
+        }
+    }
+
     #[tokio::test]
     async fn test_sync_new_workspace() {
         let service = ForgeIndexingService::new(Arc::new(MockInfra::new(&["main.rs", "lib.rs"])));
@@ -766,6 +795,9 @@ mod tests {
         mock.workspaces.lock().await.push(WorkspaceInfo {
             workspace_id: ws.workspace_id,
             working_dir: "/project".into(),
+            node_count: 10,
+            relation_count: 20,
+            is_current: false,
         });
         let service = ForgeIndexingService::new(Arc::new(mock));
 
@@ -840,6 +872,9 @@ mod tests {
         mock.workspaces.lock().await.push(WorkspaceInfo {
             workspace_id: ws.workspace_id.clone(),
             working_dir: "/project".into(),
+            node_count: 5,
+            relation_count: 10,
+            is_current: false,
         });
         let service = ForgeIndexingService::new(Arc::new(mock));
 

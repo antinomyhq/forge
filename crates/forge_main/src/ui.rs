@@ -2697,12 +2697,22 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                             // In porcelain mode, title becomes first column value
                             info = info
                                 .add_title(workspace.workspace_id.to_string())
-                                .add_key_value("Path", workspace.working_dir);
+                                .add_key_value("Path", &workspace.working_dir)
+                                .add_key_value("Nodes", workspace.node_count.to_string())
+                                .add_key_value("Relations", workspace.relation_count.to_string());
                         } else {
                             // In human-readable mode, show both ID and Path as key-values
+                            let path_display = if workspace.is_current {
+                                format!("{} (current)", workspace.working_dir)
+                            } else {
+                                workspace.working_dir.clone()
+                            };
+
                             info = info
                                 .add_key_value("ID", workspace.workspace_id.to_string())
-                                .add_key_value("Path", workspace.working_dir);
+                                .add_key_value("Path", path_display)
+                                .add_key_value("Nodes", workspace.node_count.to_string())
+                                .add_key_value("Relations", workspace.relation_count.to_string());
                         }
                     }
                 }

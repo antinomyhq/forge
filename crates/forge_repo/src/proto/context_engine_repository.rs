@@ -56,7 +56,13 @@ impl TryFrom<Workspace> for WorkspaceInfo {
         let workspace_id =
             WorkspaceId::from_string(&id_msg.id).context("Failed to parse workspace ID")?;
 
-        Ok(WorkspaceInfo { workspace_id, working_dir: workspace.working_dir })
+        Ok(WorkspaceInfo {
+            workspace_id,
+            working_dir: workspace.working_dir,
+            node_count: workspace.node_count,
+            relation_count: workspace.relation_count,
+            is_current: false, // Will be set by service layer
+        })
     }
 }
 
