@@ -2527,16 +2527,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Display results based on whether migration occurred
         if let Some(result) = result {
             self.writeln_title(
-                TitleFormat::warning("Credentials migrated from environment variables")
-                    .sub_title(
-                        "Forge no longer reads API keys from env vars. Learn more: https://forgecode.dev/docs/custom-providers/",
-                    ),
+                TitleFormat::warning("Forge no longer reads API keys from environment variables.")
+                    .sub_title("Learn more: https://forgecode.dev/docs/custom-providers/"),
             )?;
 
-            self.writeln_title(TitleFormat::info(format!(
-                "Migrated {} provider(s) from environment variables",
-                result.migrated_providers.len()
-            )))?;
+            let count = result.migrated_providers.len();
+            let message = if count == 1 {
+                format!("Migrated 1 provider from environment variables")
+            } else {
+                format!("Migrated {} providers from environment variables", count)
+            };
+            self.writeln_title(TitleFormat::info(message))?;
         }
         Ok(())
     }
