@@ -549,8 +549,8 @@ function _forge_action_delete_workspace() {
     _forge_reset
 }
 
-# Action handler: Index command (shows workspaces by default)
-function _forge_action_index() {
+# Action handler: List workspaces
+function _forge_action_workspace_list() {
     echo
     _forge_exec index list
     _forge_reset
@@ -755,7 +755,7 @@ function forge-accept-line() {
             _forge_action_logout
         ;;
         workspace) 
-            _forge_action_index
+            _forge_action_workspace_list
         ;;
         sync|index)
             _forge_action_sync "$input_text"
