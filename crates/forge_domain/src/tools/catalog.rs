@@ -207,6 +207,13 @@ pub struct CodebaseSearch {
     #[serde(default = "default_codebase_top_k")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub top_k: Option<u32>,
+    
+    /// Describe WHY you're searching and what problem you're trying to solve.
+    /// This filters results to match your specific intent. Good: "I need to
+    /// add similar retry logic to API calls", "understanding how to handle
+    /// authentication errors", "implementing rate limiting for new endpoint".
+    /// Bad: repeating the query or generic phrases.
+    pub use_case: String,
 }
 
 /// Request to remove a file at the specified path. Use this when you need to

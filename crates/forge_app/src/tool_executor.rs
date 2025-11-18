@@ -204,13 +204,14 @@ impl<
                 let services = self.services.clone();
                 let cwd = env.cwd.clone();
                 let query = input.query;
+                let use_case = input.use_case;
 
                 let limit = input.limit.unwrap_or(100) as usize;
                 let top_k = input.top_k.unwrap_or(10);
-                let params = forge_domain::SearchParams::new(&query, limit).with_top_k(top_k);
+                let params = forge_domain::SearchParams::new(&query, &use_case, limit).top_k(top_k);
 
                 let results = services.query_codebase(cwd, params).await?;
-                let output = forge_domain::CodebaseQueryResult { query, results };
+                let output = forge_domain::CodebaseQueryResult { query, use_case, results };
 
                 ToolOperation::CodebaseSearch { output }
             }
