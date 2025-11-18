@@ -949,7 +949,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 "suggest",
                 "Generate shell commands without executing them [alias: s]",
             ),
-            ("sync", "Index the current workspace for semantic code search"),
+            (
+                "sync",
+                "Sync the current workspace for codebase search",
+            ),
             ("login", "Login to a provider"),
             ("logout", "Logout from a provider"),
         ];
