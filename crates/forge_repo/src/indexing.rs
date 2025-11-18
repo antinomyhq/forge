@@ -108,6 +108,12 @@ impl WorkspaceRepository for IndexingRepositoryImpl {
         .execute(&mut connection)?;
         Ok(())
     }
+
+    async fn get_all(&self) -> anyhow::Result<Vec<Workspace>> {
+        let mut connection = self.pool.get_connection()?;
+        let records = workspace::table.load::<IndexingRecord>(&mut connection)?;
+        records.into_iter().map(Workspace::try_from).collect()
+    }
 }
 
 #[cfg(test)]
@@ -164,5 +170,30 @@ mod tests {
         let actual = fixture.find_by_path(&path).await.unwrap().unwrap();
 
         assert!(actual.updated_at.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_get_all_workspaces() {
+        let fixture = repo_impl();
+        let workspace_id1 = WorkspaceId::generate();
+        let workspace_id2 = WorkspaceId::generate();
+        let user_id = UserId::generate();
+        let path1 = PathBuf::from("/test/project1");
+        let path2 = PathBuf::from("/test/project2");
+
+        fixture
+            .upsert(&workspace_id1, &user_id, &path1)
+            .await
+            .unwrap();
+        fixture
+            .upsert(&workspace_id2, &user_id, &path2)
+            .await
+            .unwrap();
+
+        let actual = fixture.get_all().await.unwrap();
+
+        assert_eq!(actual.len(), 2);
+        assert!(actual.iter().any(|w| w.path == path1));
+        assert!(actual.iter().any(|w| w.path == path2));
     }
 }
