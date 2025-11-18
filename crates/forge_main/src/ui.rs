@@ -1350,7 +1350,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.api.execute_shell_command_raw(command).await?;
             }
             SlashCommand::Commit { max_diff_size } => {
-                let args = CommitCommandGroup { preview: true, max_diff_size, diff: None };
+                let args = CommitCommandGroup {
+                    preview: true,
+                    max_diff_size: max_diff_size.or(Some(100_000)),
+                    diff: None,
+                };
                 let result = self.handle_commit_command(args).await?;
                 let flags = if result.has_staged_files { "" } else { " -a" };
                 let commit_command = format!("!git commit{flags} -m '{}'", result.message);
