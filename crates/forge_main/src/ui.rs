@@ -508,6 +508,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     crate::cli::IndexCommand::Query { query, path, limit, top_k } => {
                         self.on_query(query, path, limit, top_k).await?;
                     }
+                    crate::cli::IndexCommand::Diff { path, porcelain } => {
+                        self.on_index_diff(path, porcelain).await?;
+                    }
                     crate::cli::IndexCommand::Delete { workspace_id, yes } => {
                         self.on_delete_workspace(workspace_id, yes).await?;
                     }
@@ -2712,6 +2715,46 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
             Err(e) => {
                 self.spinner.stop(None)?;
+                Err(e)
+            }
+        }
+    }
+
+    async fn on_index_diff(
+        &mut self,
+        path: std::path::PathBuf,
+        porcelain: bool,
+    ) -> anyhow::Result<()> {
+        if !porcelain {
+            self.spinner.start(Some("Checking workspace diff..."))?;
+        }
+
+        match self.api.diff_codebase(path.clone()).await {
+            Ok(stats) => {
+                if !porcelain {
+                    self.spinner.stop(None)?;
+                }
+
+                if porcelain {
+                    // Machine-readable format: just list files (empty output if nothing to sync)
+                    for file in &stats.files_to_sync {
+                        self.writeln(file)?;
+                    }
+                } else {
+                    // Human-readable summary
+                    let info = Info::new()
+                        .add_title(format!("INDEX DIFF: {}", path.display()))
+                        .add_key_value("Total files", stats.total_files.to_string())
+                        .add_key_value("Files to sync", stats.files_to_sync_count().to_string());
+
+                    self.writeln(info.to_string())?;
+                }
+                Ok(())
+            }
+            Err(e) => {
+                if !porcelain {
+                    self.spinner.stop(None)?;
+                }
                 Err(e)
             }
         }

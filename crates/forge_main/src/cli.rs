@@ -203,6 +203,17 @@ pub enum IndexCommand {
         top_k: Option<u32>,
     },
 
+    /// Show files that need to be synced.
+    Diff {
+        /// Path to the directory to check
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Output in machine-readable format (list all files)
+        #[arg(short, long)]
+        porcelain: bool,
+    },
+
     /// Delete a workspace.
     Delete {
         /// Workspace ID to delete

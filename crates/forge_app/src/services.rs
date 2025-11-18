@@ -6,10 +6,10 @@ use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse,
     AuthCredential, AuthMethod, ChatCompletionMessage, CodeSearchResult, CommandOutput, Context,
-    Conversation, ConversationId, Environment, File, Image, IndexStats, IndexingAuth, InitAuth,
-    LoginInfo, McpConfig, McpServers, Model, ModelId, PatchOperation, Provider, ProviderId,
-    ResultStream, Scope, SearchParams, Template, ToolCallFull, ToolOutput, Workflow, WorkspaceId,
-    WorkspaceInfo,
+    Conversation, ConversationId, Environment, File, Image, IndexDiffStats, IndexStats,
+    IndexingAuth, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId, PatchOperation,
+    Provider, ProviderId, ResultStream, Scope, SearchParams, Template, ToolCallFull, ToolOutput,
+    Workflow, WorkspaceId, WorkspaceInfo,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -247,6 +247,9 @@ pub trait ContextEngineService: Send + Sync {
 
     /// List all workspaces indexed by the user
     async fn list_codebase(&self) -> anyhow::Result<Vec<WorkspaceInfo>>;
+
+    /// Check which files need to be synced without syncing them
+    async fn diff_codebase(&self, path: PathBuf) -> anyhow::Result<IndexDiffStats>;
 
     /// Delete a workspace and all its indexed data
     async fn delete_codebase(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()>;
@@ -1000,6 +1003,10 @@ impl<I: Services> ContextEngineService for I {
 
     async fn list_codebase(&self) -> anyhow::Result<Vec<WorkspaceInfo>> {
         self.context_engine_service().list_codebase().await
+    }
+
+    async fn diff_codebase(&self, path: PathBuf) -> anyhow::Result<IndexDiffStats> {
+        self.context_engine_service().diff_codebase(path).await
     }
 
     async fn delete_codebase(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()> {

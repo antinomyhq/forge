@@ -201,6 +201,9 @@ pub trait API: Sync + Send {
     /// List all workspaces
     async fn list_codebases(&self) -> Result<Vec<forge_domain::WorkspaceInfo>>;
 
+    /// Check which files need to be synced in a workspace
+    async fn diff_codebase(&self, path: PathBuf) -> Result<forge_domain::IndexDiffStats>;
+
     /// Delete a workspace
     async fn delete_codebase(&self, workspace_id: forge_domain::WorkspaceId) -> Result<()>;
 

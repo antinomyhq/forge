@@ -345,6 +345,10 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         self.services.list_codebase().await
     }
 
+    async fn diff_codebase(&self, path: PathBuf) -> Result<forge_domain::IndexDiffStats> {
+        self.services.diff_codebase(path).await
+    }
+
     async fn delete_codebase(&self, workspace_id: forge_domain::WorkspaceId) -> Result<()> {
         self.services.delete_codebase(&workspace_id).await
     }

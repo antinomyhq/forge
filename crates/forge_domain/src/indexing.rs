@@ -191,6 +191,27 @@ impl UploadStats {
     }
 }
 
+/// Result of an index diff operation showing files that need sync
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IndexDiffStats {
+    /// Total number of files in the local workspace
+    pub total_files: usize,
+    /// List of file paths that need to be synced (new or modified)
+    pub files_to_sync: Vec<String>,
+}
+
+impl IndexDiffStats {
+    /// Create new diff statistics
+    pub fn new(total_files: usize, files_to_sync: Vec<String>) -> Self {
+        Self { total_files, files_to_sync }
+    }
+
+    /// Number of files that need to be synced
+    pub fn files_to_sync_count(&self) -> usize {
+        self.files_to_sync.len()
+    }
+}
+
 /// Results for a single codebase search query
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CodebaseQueryResult {
