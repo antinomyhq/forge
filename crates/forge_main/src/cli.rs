@@ -212,10 +212,6 @@ pub enum IndexCommand {
         /// Path to the directory to check
         #[arg(default_value = ".")]
         path: PathBuf,
-
-        /// Output in machine-readable format (list all files)
-        #[arg(short, long)]
-        porcelain: bool,
     },
 
     /// Delete a workspace.

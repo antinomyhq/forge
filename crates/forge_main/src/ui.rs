@@ -508,8 +508,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     crate::cli::IndexCommand::Query { query, path, limit, top_k, use_case } => {
                         self.on_query(query, path, limit, top_k, use_case).await?;
                     }
-                    crate::cli::IndexCommand::Info { path, porcelain } => {
-                        self.on_index_diff(path, porcelain).await?;
+                    crate::cli::IndexCommand::Info { path } => {
+                        self.on_index_diff(path).await?;
                     }
                     crate::cli::IndexCommand::Delete { workspace_id, yes } => {
                         self.on_delete_workspace(workspace_id, yes).await?;
@@ -2727,53 +2727,33 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
     }
 
-    async fn on_index_diff(
-        &mut self,
-        path: std::path::PathBuf,
-        porcelain: bool,
-    ) -> anyhow::Result<()> {
-        if !porcelain {
-            self.spinner.start(Some("Checking workspace diff..."))?;
-        }
+    async fn on_index_diff(&mut self, path: std::path::PathBuf) -> anyhow::Result<()> {
+        self.spinner.start(Some("Checking workspace diff..."))?;
 
         match self.api.diff_codebase(path.clone()).await {
             Ok(stats) => {
-                if !porcelain {
-                    self.spinner.stop(None)?;
-                }
+                self.spinner.stop(None)?;
 
-                if porcelain {
-                    // Machine-readable format: just list files (empty output if nothing to sync)
-                    for file in &stats.files_to_sync {
-                        self.writeln(file)?;
-                    }
+                // Human-readable summary
+                if stats.files_to_sync.is_empty() {
+                    self.writeln_title(TitleFormat::info(
+                        "No changes to sync. Workspace is up to date.",
+                    ))?;
                 } else {
-                    // Human-readable summary
-                    if stats.files_to_sync.is_empty() {
-                        self.writeln_title(TitleFormat::info(
-                            "No changes to sync. Workspace is up to date.",
-                        ))?;
-                    } else {
-                        let info = Info::new()
-                            // FIXME: Add actual values
-                            .add_title(format!("WORKSPACE [Last Synced 5 mins ago]"))
-                            .add_key_value("Path", path.canonicalize()?.display())
-                            .add_key_value("Total", stats.total_files.to_string())
-                            .add_key_value(
-                                "Synced",
-                                stats.total_files - stats.files_to_sync_count(),
-                            )
-                            .add_key_value("Pending", stats.files_to_sync_count().to_string());
+                    let info = Info::new()
+                        // FIXME: Add actual values
+                        .add_title(format!("WORKSPACE [Last Synced 5 mins ago]"))
+                        .add_key_value("Path", path.canonicalize()?.display())
+                        .add_key_value("Total", stats.total_files.to_string())
+                        .add_key_value("Synced", stats.total_files - stats.files_to_sync_count())
+                        .add_key_value("Pending", stats.files_to_sync_count().to_string());
 
-                        self.writeln(info.to_string())?;
-                    }
+                    self.writeln(info.to_string())?;
                 }
                 Ok(())
             }
             Err(e) => {
-                if !porcelain {
-                    self.spinner.stop(None)?;
-                }
+                self.spinner.stop(None)?;
                 Err(e)
             }
         }
