@@ -495,6 +495,15 @@ function _forge_action_suggest() {
     fi
 }
 
+# Action handler: Index sync
+function _forge_action_sync() {
+    echo
+    _forge_exec index sync
+    _forge_reset
+}
+
+
+
 # Action handler: Generate shell command from natural language
 # Usage: :? <description>
 function _forge_action_suggest() {
@@ -692,6 +701,9 @@ function forge-accept-line() {
         ;;
         logout)
             _forge_action_logout
+        ;;
+        sync)
+            _forge_action_sync
         ;;
         *)
             _forge_action_default "$user_action" "$input_text"
