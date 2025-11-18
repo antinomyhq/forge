@@ -1064,4 +1064,57 @@ mod tests {
         assert!(differ.out_of_sync_files().is_empty());
         assert!(differ.files_to_upload().is_empty());
     }
+
+    #[tokio::test]
+    async fn test_diff_codebase_workspace_not_found() {
+        let service = ForgeIndexingService::new(Arc::new(MockInfra::default()));
+
+        let actual = service.diff_codebase(PathBuf::from(".")).await;
+
+        assert!(actual.is_err());
+        let error = actual.unwrap_err();
+        assert!(error.to_string().contains("Workspace not found"));
+    }
+
+    #[tokio::test]
+    async fn test_diff_codebase_no_changes() {
+        let mock = MockInfra::synced(&["main.rs", "lib.rs"]);
+        let service = ForgeIndexingService::new(Arc::new(mock));
+
+        let actual = service.diff_codebase(PathBuf::from(".")).await.unwrap();
+
+        assert_eq!(actual.total_files, 2);
+        assert_eq!(actual.files_to_sync_count(), 0);
+        assert!(actual.files_to_sync.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_diff_codebase_with_changes() {
+        let mock = MockInfra::out_of_sync(&["main.rs", "new.rs"], &["main.rs", "deleted.rs"]);
+        let service = ForgeIndexingService::new(Arc::new(mock));
+
+        let actual = service.diff_codebase(PathBuf::from(".")).await.unwrap();
+
+        assert_eq!(actual.total_files, 2);
+        assert_eq!(actual.files_to_sync_count(), 2);
+        assert!(actual.files_to_sync.contains(&"new.rs".to_string()));
+        assert!(actual.files_to_sync.contains(&"deleted.rs".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_diff_codebase_no_auth() {
+        let mut mock = MockInfra::synced(&["main.rs"]);
+        mock.authenticated = false;
+        let service = ForgeIndexingService::new(Arc::new(mock));
+
+        let actual = service.diff_codebase(PathBuf::from(".")).await;
+
+        assert!(actual.is_err());
+        let error = actual.unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("No authentication credentials found")
+        );
+    }
 }
