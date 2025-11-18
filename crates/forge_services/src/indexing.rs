@@ -296,7 +296,7 @@ impl<
 
                 Ok(IndexDiffStats::new(total_files, diff.out_of_sync_files()))
             }
-            None => Err(anyhow::anyhow!("Workspace is not indexed yet!")),
+            None => Err(forge_domain::Error::WorkspaceNotFound.into()),
         }
     }
 
