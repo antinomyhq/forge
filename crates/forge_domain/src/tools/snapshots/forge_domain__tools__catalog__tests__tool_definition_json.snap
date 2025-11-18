@@ -114,9 +114,25 @@ expression: tools
     "query"
   ],
   "properties": {
+    "limit": {
+      "description": "Maximum number of results to return. Defaults to 100 if not specified.",
+      "default": 100,
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0,
+      "nullable": true
+    },
     "query": {
       "description": "Describe WHAT the code does or its purpose. Include domain-specific terms and technical context. Good: \"retry mechanism with exponential backoff\", \"streaming responses from LLM API\", \"OAuth token refresh flow\". Bad: generic terms like \"retry\" or \"auth\" without context. Think about the behavior and functionality you're looking for.",
       "type": "string"
+    },
+    "top_k": {
+      "description": "Top-k parameter for relevance filtering. Controls the number of nearest neighbors to consider during semantic search. Higher values may return more results but with lower relevance. Defaults to 10 if not specified.",
+      "default": 10,
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0,
+      "nullable": true
     }
   }
 }
