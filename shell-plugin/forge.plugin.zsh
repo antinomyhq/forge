@@ -490,9 +490,8 @@ function _forge_action_suggest() {
 
 # Action handler: Index sync
 function _forge_action_sync() {
-    local path="${1:-.}"
     echo
-    _forge_exec index sync "$path"
+    _forge_exec index sync
     _forge_reset
 }
 
@@ -697,7 +696,7 @@ function forge-accept-line() {
             _forge_action_logout
         ;;
         sync)
-            _forge_action_sync "$input_text"
+            _forge_action_sync
         ;;
         *)
             _forge_action_default "$user_action" "$input_text"
