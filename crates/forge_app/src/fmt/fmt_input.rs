@@ -60,18 +60,11 @@ impl FormatContent for ToolCatalog {
                 };
                 Some(TitleFormat::debug(title).into())
             }
-            ToolCatalog::CodebaseSearch(input) => {
-                let subtitle = if !input.use_case.is_empty() {
-                    format!("'{}' [Relevance: '{}']", input.query, input.use_case)
-                } else {
-                    format!("'{}'", input.query)
-                };
-                Some(
-                    TitleFormat::debug("Semantic Search")
-                        .sub_title(subtitle)
-                        .into(),
-                )
-            }
+            ToolCatalog::CodebaseSearch(input) => Some(
+                TitleFormat::debug(format!("Codebase Search '{}'", input.query))
+                    .sub_title(format!("[{}]", input.use_case))
+                    .into(),
+            ),
             ToolCatalog::Remove(input) => {
                 let display_path = display_path_for(&input.path);
                 Some(TitleFormat::debug("Remove").sub_title(display_path).into())
