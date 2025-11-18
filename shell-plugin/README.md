@@ -172,31 +172,6 @@ Index a directory for semantic search:
 :index /path/to/directory
 ```
 
-#### Query Index
-
-Search the indexed codebase:
-
-```bash
-:query authentication logic
-:query retry mechanism with exponential backoff
-```
-
-#### Delete Workspace
-
-Delete an indexed workspace:
-
-```bash
-# Interactive selection with confirmation
-:delete
-:del
-# or provide workspace_id for deletion
-:delete workspace-id
-:del abc123-def456
-```
-
-- Without arguments: Shows fuzzy finder to select workspace interactively
-- With workspace ID: Deletes the specified workspace
-
 ## Advanced Features
 
 ### Command History
@@ -251,12 +226,4 @@ All transformed commands are properly saved to ZSH history, allowing you to:
 # Index current directory
 :sync
 :index
-
-# Query the codebase
-:query authentication middleware
-:query database connection pooling
-
-# Delete workspace
-:delete
-:delete abc123-def456
 ```
