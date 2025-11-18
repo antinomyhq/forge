@@ -2742,12 +2742,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     }
                 } else {
                     // Human-readable summary
-                    let info = Info::new()
-                        .add_title(format!("INDEX DIFF: {}", path.display()))
-                        .add_key_value("Total files", stats.total_files.to_string())
-                        .add_key_value("Files to sync", stats.files_to_sync_count().to_string());
+                    if stats.files_to_sync.is_empty() {
+                        self.writeln_title(TitleFormat::info("No changes to sync. Workspace is up to date."))?;
+                    } else {
+                        let info = Info::new()
+                            .add_title(format!("WORKSPACE DIFF: {}", path.display()))
+                            .add_key_value("Total files", stats.total_files.to_string())
+                            .add_key_value("Files to sync", stats.files_to_sync_count().to_string());
 
-                    self.writeln(info.to_string())?;
+                        self.writeln(info.to_string())?;
+                    }
                 }
                 Ok(())
             }
