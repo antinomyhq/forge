@@ -134,7 +134,7 @@ impl Differ {
     }
 
     /// Get all file paths that need to be synced (orphaned + out_of_sync + new)
-    fn out_of_sync_changes(&self) -> Vec<String> {
+    fn out_of_sync_files(&self) -> Vec<String> {
         self.orphaned
             .iter()
             .map(|f| f.path.clone())
@@ -294,7 +294,7 @@ impl<
 
                 let diff = Differ::new(&local_files, &server_files);
 
-                Ok(IndexDiffStats::new(total_files, diff.out_of_sync_changes()))
+                Ok(IndexDiffStats::new(total_files, diff.out_of_sync_files()))
             }
             None => Err(anyhow::anyhow!("Workspace is not indexed yet!")),
         }
@@ -979,7 +979,7 @@ mod tests {
         assert!(differ.new.is_empty());
         assert!(!differ.has_changes());
         assert!(differ.files_to_delete().is_empty());
-        assert!(differ.out_of_sync_changes().is_empty());
+        assert!(differ.out_of_sync_files().is_empty());
         assert!(differ.files_to_upload().is_empty());
     }
 
@@ -999,7 +999,7 @@ mod tests {
         assert!(differ.out_of_sync.is_empty());
         assert!(differ.has_changes());
         assert_eq!(differ.files_to_delete(), vec!["deleted.rs"]);
-        assert_eq!(differ.out_of_sync_changes(), vec!["deleted.rs"]);
+        assert_eq!(differ.out_of_sync_files(), vec!["deleted.rs"]);
         assert!(differ.files_to_upload().is_empty());
     }
 
@@ -1022,7 +1022,7 @@ mod tests {
         assert!(differ.orphaned.is_empty());
         assert!(differ.has_changes());
         assert_eq!(differ.files_to_delete(), vec!["main.rs"]);
-        assert_eq!(differ.out_of_sync_changes(), vec!["main.rs"]);
+        assert_eq!(differ.out_of_sync_files(), vec!["main.rs"]);
 
         let uploaded = differ.files_to_upload();
         assert_eq!(uploaded.len(), 1);
@@ -1045,7 +1045,7 @@ mod tests {
         assert!(differ.orphaned.is_empty());
         assert!(differ.has_changes());
         assert!(differ.files_to_delete().is_empty());
-        assert_eq!(differ.out_of_sync_changes(), vec!["new.rs"]);
+        assert_eq!(differ.out_of_sync_files(), vec!["new.rs"]);
 
         let uploaded = differ.files_to_upload();
         assert_eq!(uploaded.len(), 1);
@@ -1061,7 +1061,7 @@ mod tests {
         assert!(differ.new.is_empty());
         assert!(!differ.has_changes());
         assert!(differ.files_to_delete().is_empty());
-        assert!(differ.out_of_sync_changes().is_empty());
+        assert!(differ.out_of_sync_files().is_empty());
         assert!(differ.files_to_upload().is_empty());
     }
 }
