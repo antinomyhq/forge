@@ -122,6 +122,11 @@ expression: tools
       "minimum": 0.0,
       "nullable": true
     },
+    "path": {
+      "description": "The absolute path of the directory or file to search in. it will be searched recursively if it's dir. If it's a file path, only that specific file will be searched.",
+      "type": "string",
+      "nullable": true
+    },
     "query": {
       "description": "Describe WHAT the code does or its purpose. Include domain-specific terms and technical context. Good: \"retry mechanism with exponential backoff\", \"streaming responses from LLM API\", \"OAuth token refresh flow\". Bad: generic terms like \"retry\" or \"auth\" without context. Think about the behavior and functionality you're looking for.",
       "type": "string"

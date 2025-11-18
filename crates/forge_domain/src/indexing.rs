@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use derive_more::Display;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
@@ -63,15 +65,21 @@ pub struct SearchParams<'a> {
     pub query: &'a str,
     pub limit: usize,
     pub top_k: Option<u32>,
+    pub path: Option<PathBuf>,
 }
 
 impl<'a> SearchParams<'a> {
     pub fn new(query: &'a str, limit: usize) -> Self {
-        Self { query, limit, top_k: None }
+        Self { query, limit, top_k: None, path: None }
     }
 
     pub fn with_top_k(mut self, top_k: u32) -> Self {
         self.top_k = Some(top_k);
+        self
+    }
+
+    pub fn with_path(mut self, path: PathBuf) -> Self {
+        self.path = Some(path);
         self
     }
 }
