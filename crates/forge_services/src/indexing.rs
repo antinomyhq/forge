@@ -41,9 +41,9 @@ impl ServerFile {
     }
 }
 
-/// Complete diff result containing all file categories
+/// Computes the diff between local and server files
 #[derive(Debug)]
-struct FilesDiff {
+struct Differ {
     /// Files on server but not locally (should be deleted from server)
     orphaned: Vec<ServerFile>,
     /// Files on both but with different hashes (should be deleted and
@@ -53,13 +53,69 @@ struct FilesDiff {
     new: Vec<IndexedFile>,
 }
 
-impl FilesDiff {
+impl Differ {
+    /// Creates a new differ by computing the diff between local and server
+    /// files
+    fn new(local_files: &[IndexedFile], server_files: &[ServerFile]) -> Self {
+        let orphaned = Self::find_orphaned_files(server_files, local_files);
+        let out_of_sync = Self::find_out_of_sync_files(server_files, local_files);
+        let new = Self::find_new_files(server_files, local_files);
+
+        Self { orphaned, out_of_sync, new }
+    }
+
+    /// Identifies orphaned files - files that exist on server but not locally.
+    fn find_orphaned_files(
+        server_files: &[ServerFile],
+        local_files: &[IndexedFile],
+    ) -> Vec<ServerFile> {
+        let local_paths = local_files.iter().map(|f| &f.path).collect::<HashSet<_>>();
+
+        server_files
+            .iter()
+            .filter(|server_file| !local_paths.contains(&server_file.path))
+            .map(|f| ServerFile::new(f.path.clone(), f.hash.clone()))
+            .collect()
+    }
+
+    /// Identifies out of sync files - files that exist on both server and local
+    /// but have different hashes
+    fn find_out_of_sync_files(
+        server_files: &[ServerFile],
+        local_files: &[IndexedFile],
+    ) -> Vec<IndexedFile> {
+        let server_map = server_files
+            .iter()
+            .map(|f| (&f.path, &f.hash))
+            .collect::<HashMap<_, _>>();
+        local_files
+            .iter()
+            .filter(|file| {
+                // Only include files that exist on server but with different hash
+                server_map
+                    .get(&file.path)
+                    .is_some_and(|server_hash| server_hash != &&file.hash)
+            })
+            .cloned()
+            .collect::<Vec<_>>()
+    }
+
+    /// Identifies new files - files that exist locally but not on server
+    fn find_new_files(
+        server_files: &[ServerFile],
+        local_files: &[IndexedFile],
+    ) -> Vec<IndexedFile> {
+        let server_paths: HashSet<_> = server_files.iter().map(|f| &f.path).collect();
+        local_files
+            .iter()
+            .filter(|file| !server_paths.contains(&file.path))
+            .cloned()
+            .collect()
+    }
+
     /// Get all files that need to be uploaded (new + out of sync)
     fn files_to_upload(self) -> Vec<IndexedFile> {
-        self.new
-            .into_iter()
-            .chain(self.out_of_sync)
-            .collect()
+        self.new.into_iter().chain(self.out_of_sync).collect()
     }
 
     /// Get all file paths that need to be deleted from server (orphaned + out
@@ -126,70 +182,6 @@ impl<F> ForgeIndexingService<F> {
             })
             .unwrap_or_default();
         Ok(server_files)
-    }
-
-    /// Identifies orphaned files - files that exist on server but not locally.
-    fn find_orphaned_files(
-        &self,
-        server_files: &[ServerFile],
-        local_files: &[IndexedFile],
-    ) -> Vec<ServerFile> {
-        let local_paths = local_files.iter().map(|f| &f.path).collect::<HashSet<_>>();
-
-        server_files
-            .iter()
-            .filter(|server_file| !local_paths.contains(&server_file.path))
-            .map(|f| ServerFile::new(f.path.clone(), f.hash.clone()))
-            .collect()
-    }
-
-    /// Identifies out of sync files - files that exist on both server and local
-    /// but have different hashes
-    fn find_out_of_sync_files(
-        &self,
-        server_files: &[ServerFile],
-        local_files: &[IndexedFile],
-    ) -> Vec<IndexedFile> {
-        let server_map = server_files
-            .iter()
-            .map(|f| (&f.path, &f.hash))
-            .collect::<HashMap<_, _>>();
-        local_files
-            .iter()
-            .filter(|file| {
-                // Only include files that exist on server but with different hash
-                server_map
-                    .get(&file.path)
-                    .is_some_and(|server_hash| server_hash != &&file.hash)
-            }).cloned()
-            .collect::<Vec<_>>()
-    }
-
-    /// Identifies new files - files that exist locally but not on server
-    fn find_new_files(
-        &self,
-        server_files: &[ServerFile],
-        local_files: &[IndexedFile],
-    ) -> Vec<IndexedFile> {
-        let server_paths: HashSet<_> = server_files.iter().map(|f| &f.path).collect();
-        local_files
-            .iter()
-            .filter(|file| !server_paths.contains(&file.path))
-            .cloned()
-            .collect()
-    }
-
-    /// Computes the complete diff between server and local files
-    fn compute_files_diff(
-        &self,
-        server_files: &[ServerFile],
-        local_files: &[IndexedFile],
-    ) -> FilesDiff {
-        let orphaned = self.find_orphaned_files(server_files, local_files);
-        let out_of_sync = self.find_out_of_sync_files(server_files, local_files);
-        let new = self.find_new_files(server_files, local_files);
-
-        FilesDiff { orphaned, out_of_sync, new }
     }
 
     /// Delete out of sync files from server
@@ -300,7 +292,7 @@ impl<
                 let local_files = self.read_files(&existing_workspace.path).await?;
                 let total_files = local_files.len();
 
-                let diff = self.compute_files_diff(&server_files, &local_files);
+                let diff = Differ::new(&local_files, &server_files);
 
                 Ok(IndexDiffStats::new(total_files, diff.out_of_sync_changes()))
             }
@@ -358,7 +350,7 @@ impl<
                 .find_workspace_files(&user_id, &token, &workspace_id)
                 .await?;
 
-            let diff = self.compute_files_diff(&server_files, &all_files);
+            let diff = Differ::new(&all_files, &server_files);
 
             // Delete orphaned and out-of-sync files from server
             if diff.has_changes() {
@@ -959,5 +951,117 @@ mod tests {
 
         let actual = service.list_codebase().await.unwrap();
         assert!(!actual.iter().any(|w| w.workspace_id == ws.workspace_id));
+    }
+
+    fn local_file(path: &str, hash: &str) -> IndexedFile {
+        IndexedFile::new(path.to_string(), String::new(), hash.to_string())
+    }
+
+    fn server_file(path: &str, hash: &str) -> ServerFile {
+        ServerFile::new(path, hash)
+    }
+
+    #[test]
+    fn test_differ_no_changes_when_files_match() {
+        let local = vec![
+            local_file("main.rs", "hash1"),
+            local_file("lib.rs", "hash2"),
+        ];
+        let server = vec![
+            server_file("main.rs", "hash1"),
+            server_file("lib.rs", "hash2"),
+        ];
+
+        let differ = Differ::new(&local, &server);
+
+        assert!(differ.orphaned.is_empty());
+        assert!(differ.out_of_sync.is_empty());
+        assert!(differ.new.is_empty());
+        assert!(!differ.has_changes());
+        assert!(differ.files_to_delete().is_empty());
+        assert!(differ.out_of_sync_changes().is_empty());
+        assert!(differ.files_to_upload().is_empty());
+    }
+
+    #[test]
+    fn test_differ_find_orphaned_files() {
+        let local = vec![local_file("main.rs", "hash1")];
+        let server = vec![
+            server_file("main.rs", "hash1"),
+            server_file("deleted.rs", "hash2"),
+        ];
+
+        let differ = Differ::new(&local, &server);
+
+        assert_eq!(differ.orphaned.len(), 1);
+        assert_eq!(differ.orphaned[0].path, "deleted.rs");
+        assert!(differ.new.is_empty());
+        assert!(differ.out_of_sync.is_empty());
+        assert!(differ.has_changes());
+        assert_eq!(differ.files_to_delete(), vec!["deleted.rs"]);
+        assert_eq!(differ.out_of_sync_changes(), vec!["deleted.rs"]);
+        assert!(differ.files_to_upload().is_empty());
+    }
+
+    #[test]
+    fn test_differ_find_out_of_sync_files() {
+        let local = vec![
+            local_file("main.rs", "new_hash"),
+            local_file("unchanged.rs", "hash3"),
+        ];
+        let server = vec![
+            server_file("main.rs", "old_hash"),
+            server_file("unchanged.rs", "hash3"),
+        ];
+
+        let differ = Differ::new(&local, &server);
+
+        assert_eq!(differ.out_of_sync.len(), 1);
+        assert_eq!(differ.out_of_sync[0].path, "main.rs");
+        assert!(differ.new.is_empty());
+        assert!(differ.orphaned.is_empty());
+        assert!(differ.has_changes());
+        assert_eq!(differ.files_to_delete(), vec!["main.rs"]);
+        assert_eq!(differ.out_of_sync_changes(), vec!["main.rs"]);
+
+        let uploaded = differ.files_to_upload();
+        assert_eq!(uploaded.len(), 1);
+        assert_eq!(uploaded[0].path, "main.rs");
+    }
+
+    #[test]
+    fn test_differ_find_new_files() {
+        let local = vec![
+            local_file("main.rs", "hash1"),
+            local_file("new.rs", "hash2"),
+        ];
+        let server = vec![server_file("main.rs", "hash1")];
+
+        let differ = Differ::new(&local, &server);
+
+        assert_eq!(differ.new.len(), 1);
+        assert_eq!(differ.new[0].path, "new.rs");
+        assert!(differ.out_of_sync.is_empty());
+        assert!(differ.orphaned.is_empty());
+        assert!(differ.has_changes());
+        assert!(differ.files_to_delete().is_empty());
+        assert_eq!(differ.out_of_sync_changes(), vec!["new.rs"]);
+
+        let uploaded = differ.files_to_upload();
+        assert_eq!(uploaded.len(), 1);
+        assert_eq!(uploaded[0].path, "new.rs");
+    }
+
+    #[test]
+    fn test_differ_empty_local_and_server() {
+        let differ = Differ::new(&[], &[]);
+
+        assert!(differ.orphaned.is_empty());
+        assert!(differ.out_of_sync.is_empty());
+        assert!(differ.new.is_empty());
+        assert!(!differ.has_changes());
+        assert!(differ.files_to_delete().is_empty());
+        assert!(differ.out_of_sync_changes().is_empty());
+        assert!(differ.files_to_upload().is_empty());
     }
 }
