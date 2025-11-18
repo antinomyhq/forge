@@ -158,7 +158,7 @@ mod tests {
         let fs = MockFsReadService::new().with_file("/test/file.txt", content);
         let detector = FileChangeDetector::new(Arc::new(fs));
 
-        let mut metrics = Metrics::new();
+        let mut metrics = Metrics::default();
         metrics.file_operations.insert(
             "/test/file.txt".to_string(),
             FileOperation::new(ToolKind::Write).content_hash(Some(content_hash)),
@@ -179,7 +179,7 @@ mod tests {
         let fs = MockFsReadService::new().with_file("/test/file.txt", new_content);
         let detector = FileChangeDetector::new(Arc::new(fs));
 
-        let mut metrics = Metrics::new();
+        let mut metrics = Metrics::default();
         metrics.file_operations.insert(
             "/test/file.txt".to_string(),
             FileOperation::new(ToolKind::Write).content_hash(Some(old_hash)),
@@ -201,7 +201,7 @@ mod tests {
         let fs = MockFsReadService::new().with_not_found("/test/file.txt");
         let detector = FileChangeDetector::new(Arc::new(fs));
 
-        let mut metrics = Metrics::new();
+        let mut metrics = Metrics::default();
         metrics.file_operations.insert(
             "/test/file.txt".to_string(),
             FileOperation::new(ToolKind::Write).content_hash(Some(old_hash)),
@@ -226,7 +226,7 @@ mod tests {
         let detector = FileChangeDetector::new(Arc::new(fs));
 
         // First call: detect change
-        let mut metrics = Metrics::new();
+        let mut metrics = Metrics::default();
         metrics.file_operations.insert(
             "/test/file.txt".to_string(),
             FileOperation::new(ToolKind::Write).content_hash(Some(old_hash)),

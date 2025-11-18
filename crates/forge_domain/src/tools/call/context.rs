@@ -55,7 +55,7 @@ mod tests {
 
     #[test]
     fn test_create_context() {
-        let metrics = Metrics::new();
+        let metrics = Metrics::default();
         let context = ToolCallContext::new(metrics);
         assert!(context.sender.is_none());
     }
@@ -64,7 +64,7 @@ mod tests {
     fn test_with_sender() {
         // This is just a type check test - we don't actually create a sender
         // as it's complex to set up in a unit test
-        let metrics = Metrics::new();
+        let metrics = Metrics::default();
         let context = ToolCallContext::new(metrics);
         assert!(context.sender.is_none());
     }

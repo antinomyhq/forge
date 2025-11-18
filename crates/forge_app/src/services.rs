@@ -376,6 +376,7 @@ pub trait ShellService: Send + Sync {
         command: String,
         cwd: PathBuf,
         keep_ansi: bool,
+        silent: bool,
         env_vars: Option<Vec<String>>,
     ) -> anyhow::Result<ShellOutput>;
 }
@@ -773,10 +774,11 @@ impl<I: Services> ShellService for I {
         command: String,
         cwd: PathBuf,
         keep_ansi: bool,
+        silent: bool,
         env_vars: Option<Vec<String>>,
     ) -> anyhow::Result<ShellOutput> {
         self.shell_service()
-            .execute(command, cwd, keep_ansi, env_vars)
+            .execute(command, cwd, keep_ansi, silent, env_vars)
             .await
     }
 }

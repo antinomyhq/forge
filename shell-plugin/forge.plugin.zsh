@@ -7,10 +7,18 @@
 # Using typeset to keep variables local to plugin scope and prevent public exposure
 typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
 typeset -h _FORGE_CONVERSATION_PATTERN=":"
+typeset -h _FORGE_MAX_COMMIT_DIFF="${FORGE_MAX_COMMIT_DIFF:-5000}"
 typeset -h _FORGE_DELIMITER='\s\s+'
 
 # Detect fd command - Ubuntu/Debian use 'fdfind', others use 'fd'
 typeset -h _FORGE_FD_CMD="$(command -v fdfind 2>/dev/null || command -v fd 2>/dev/null || echo 'fd')"
+
+# Detect bat command - use bat if available, otherwise fall back to cat
+if command -v bat &>/dev/null; then
+    typeset -h _FORGE_CAT_CMD="bat --color=always --style=numbers,changes --line-range=:500"
+else
+    typeset -h _FORGE_CAT_CMD="cat"
+fi
 
 # Commands cache - loaded lazily on first use
 typeset -h _FORGE_COMMANDS=""
@@ -210,19 +218,19 @@ function _forge_handle_conversation_command() {
 function forge-completion() {
     local current_word="${LBUFFER##* }"
     
-    # Handle @ completion (existing functionality)
+    # Handle @ completion (files and directories)
     if [[ "$current_word" =~ ^@.*$ ]]; then
         local filter_text="${current_word#@}"
         local selected
         local fzf_args=(
-            --preview="bat --color=always --style=numbers,changes --line-range=:500 {} 2>/dev/null || cat {}"
+            --preview="if [ -d {} ]; then ls -la --color=always {} 2>/dev/null || ls -la {}; else $_FORGE_CAT_CMD {}; fi"
             --preview-window=right:60%:wrap:border-sharp
         )
         
         if [[ -n "$filter_text" ]]; then
-            selected=$($_FORGE_FD_CMD --type f --hidden --exclude .git | _forge_fzf --query "$filter_text" "${fzf_args[@]}")
+            selected=$($_FORGE_FD_CMD --type f --type d --hidden --exclude .git | _forge_fzf --query "$filter_text" "${fzf_args[@]}")
         else
-            selected=$($_FORGE_FD_CMD --type f --hidden --exclude .git | _forge_fzf "${fzf_args[@]}")
+            selected=$($_FORGE_FD_CMD --type f --type d --hidden --exclude .git | _forge_fzf "${fzf_args[@]}")
         fi
         
         if [[ -n "$selected" ]]; then
@@ -422,6 +430,36 @@ function _forge_action_provider() {
 function _forge_action_model() {
     _forge_select_and_set_config "list models" "model" "Model" "$($_FORGE_BIN config get model --porcelain)" "2,3.."
     _forge_reset
+}
+
+# Action handler: Commit changes with AI-generated message
+function _forge_action_commit() {
+    local commit_message
+    # Generate AI commit message
+    echo
+    # Force color output even when not connected to TTY
+    # FORCE_COLOR: for indicatif spinner colors
+    # CLICOLOR_FORCE: for colored crate text colors
+    commit_message=$(FORCE_COLOR=true CLICOLOR_FORCE=1 $_FORGE_BIN commit --preview --max-diff "$_FORGE_MAX_COMMIT_DIFF")
+    
+    # Proceed only if command succeeded
+    if [[ -n "$commit_message" ]]; then
+        # Check if there are staged changes to determine commit strategy
+        if git diff --staged --quiet; then
+            # No staged changes: commit all tracked changes with -a flag
+            BUFFER="git commit -a -m '$commit_message'"
+        else
+            # Staged changes exist: commit only what's staged
+            BUFFER="git commit -m '$commit_message'"
+        fi
+        # Move cursor to end of buffer for immediate execution
+        CURSOR=${#BUFFER}
+        # Refresh display to show the new command
+        zle reset-prompt
+    else
+        echo "$commit_message"
+        _forge_reset
+    fi
 }
 
 # Action handler: Show tools
@@ -648,6 +686,9 @@ function forge-accept-line() {
         tools|t)
             _forge_action_tools
         ;;
+        commit)
+            _forge_action_commit
+        ;;
         suggest|s)
             _forge_action_suggest "$input_text"
         ;;
@@ -684,3 +725,6 @@ bindkey '^M' forge-accept-line
 bindkey '^J' forge-accept-line
 # Update the Tab binding to use the new completion widget
 bindkey '^I' forge-completion  # Tab for both @ and :command completion
+
+# Aliases
+alias fc="$_FORGE_BIN commit"

@@ -18,7 +18,7 @@ mod ui;
 
 mod update;
 
-pub use cli::Cli;
+pub use cli::{Cli, TopLevelCommand};
 use lazy_static::lazy_static;
 pub use sandbox::Sandbox;
 pub use title_display::*;

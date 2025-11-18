@@ -1,5 +1,6 @@
 mod agent;
 mod agent_executor;
+mod agent_provider_resolver;
 mod app;
 mod apply_tunable_parameters;
 mod authenticator;
@@ -10,6 +11,7 @@ pub mod dto;
 mod error;
 mod file_tracking;
 mod fmt;
+mod git_app;
 mod infra;
 mod init_conversation_metrics;
 mod mcp_executor;
@@ -34,9 +36,11 @@ pub mod utils;
 mod walker;
 
 pub use agent::*;
+pub use agent_provider_resolver::*;
 pub use app::*;
 pub use command_generator::*;
 pub use error::*;
+pub use git_app::*;
 pub use infra::*;
 pub use services::*;
 pub use template_engine::*;

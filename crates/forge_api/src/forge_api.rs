@@ -5,10 +5,10 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use forge_app::dto::ToolsOverview;
 use forge_app::{
-    AgentRegistry, AppConfigService, AuthService, CommandInfra, CommandLoaderService,
-    ConversationService, EnvironmentInfra, EnvironmentService, FileDiscoveryService, ForgeApp,
-    McpConfigManager, McpService, ProviderAuthService, ProviderService, Services, User, UserUsage,
-    Walker, WorkflowService,
+    AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
+    CommandLoaderService, ConversationService, EnvironmentInfra, EnvironmentService,
+    FileDiscoveryService, ForgeApp, GitApp, McpConfigManager, McpService, ProviderAuthService,
+    ProviderService, Services, User, UserUsage, Walker, WorkflowService,
 };
 use forge_domain::{InitAuth, LoginInfo, *};
 use forge_infra::ForgeInfra;
@@ -75,6 +75,24 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
 
     async fn get_providers(&self) -> Result<Vec<AnyProvider>> {
         Ok(self.services.get_all_providers().await?)
+    }
+
+    async fn commit(
+        &self,
+        preview: bool,
+        max_diff_size: Option<usize>,
+        diff: Option<String>,
+    ) -> Result<forge_app::CommitResult> {
+        let git_app = GitApp::new(self.services.clone());
+        let result = git_app.commit_message(max_diff_size, diff).await?;
+
+        if preview {
+            Ok(result)
+        } else {
+            git_app
+                .commit(result.message, result.has_staged_files)
+                .await
+        }
     }
 
     async fn get_provider(&self, id: &ProviderId) -> Result<AnyProvider> {
@@ -200,11 +218,13 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         self.app().logout().await
     }
     async fn get_agent_provider(&self, agent_id: AgentId) -> anyhow::Result<Provider<Url>> {
-        self.app().get_provider(Some(agent_id)).await
+        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
+        agent_provider_resolver.get_provider(Some(agent_id)).await
     }
 
     async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>> {
-        self.app().get_provider(None).await
+        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
+        agent_provider_resolver.get_provider(None).await
     }
 
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
@@ -245,11 +265,13 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     }
 
     async fn get_agent_model(&self, agent_id: AgentId) -> Option<ModelId> {
-        self.app().get_model(Some(agent_id)).await.ok()
+        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
+        agent_provider_resolver.get_model(Some(agent_id)).await.ok()
     }
 
     async fn get_default_model(&self) -> Option<ModelId> {
-        self.app().get_model(None).await.ok()
+        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
+        agent_provider_resolver.get_model(None).await.ok()
     }
     async fn set_default_model(
         &self,
