@@ -132,12 +132,13 @@ impl<S: Services> ToolRegistry<S> {
         // Check if current working directory is indexed
         let cwd = self.services.get_environment().cwd.clone();
         let is_indexed = self.services.is_indexed(&cwd).await.unwrap_or(false);
+        let is_authenticated = self.services.is_authenticated().await.unwrap_or(false);
 
         let system_tools = ToolCatalog::iter()
             .filter(|tool| {
                 // Filter out codebase_search if cwd is not indexed
                 if matches!(tool, ToolCatalog::CodebaseSearch(_)) {
-                    is_indexed
+                    is_indexed && is_authenticated
                 } else {
                     true
                 }
