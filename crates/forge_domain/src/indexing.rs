@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use derive_more::Display;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
@@ -118,6 +119,8 @@ pub struct WorkspaceInfo {
     pub workspace_id: WorkspaceId,
     /// Working directory path
     pub working_dir: String,
+    /// Last time the workspace was updated/synced
+    pub last_updated: Option<DateTime<Utc>>,
 }
 
 /// File hash information from the server
@@ -195,18 +198,25 @@ pub struct IndexDiffStats {
     pub total_files: usize,
     /// List of file paths that need to be synced (new or modified)
     pub files_to_sync: Vec<String>,
+    /// Last time the workspace was synced with the server
+    pub last_synced_at: Option<DateTime<Utc>>,
 }
 
 impl IndexDiffStats {
     /// Create new diff statistics
-    pub fn new(total_files: usize, files_to_sync: Vec<String>) -> Self {
-        Self { total_files, files_to_sync }
+    pub fn new(
+        total_files: usize,
+        files_to_sync: Vec<String>,
+        last_synced_at: Option<DateTime<Utc>>,
+    ) -> Self {
+        Self { total_files, files_to_sync, last_synced_at }
     }
 
     /// Number of files that need to be synced
     pub fn files_to_sync_count(&self) -> usize {
         self.files_to_sync.len()
     }
+
 }
 
 /// Results for a single codebase search query

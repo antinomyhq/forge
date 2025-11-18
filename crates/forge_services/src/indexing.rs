@@ -286,15 +286,28 @@ impl<
                     )?;
                 let auth_token = auth.token;
                 let user_id = auth.user_id;
-                let server_files = self
-                    .find_workspace_files(&user_id, &auth_token, &existing_workspace.workspace_id)
-                    .await?;
-                let local_files = self.read_files(&existing_workspace.path).await?;
+
+                let (workspace_info, server_files, local_files) = tokio::try_join!(
+                    self.infra
+                        .get_workspace(&existing_workspace.workspace_id, &auth_token),
+                    self.find_workspace_files(
+                        &user_id,
+                        &auth_token,
+                        &existing_workspace.workspace_id
+                    ),
+                    self.read_files(&existing_workspace.path)
+                )?;
+
+                let last_synced_at = workspace_info.and_then(|w| w.last_updated);
                 let total_files = local_files.len();
 
                 let diff = Differ::new(&local_files, &server_files);
 
-                Ok(IndexDiffStats::new(total_files, diff.out_of_sync_files()))
+                Ok(IndexDiffStats::new(
+                    total_files,
+                    diff.out_of_sync_files(),
+                    last_synced_at,
+                ))
             }
             None => Err(forge_domain::Error::WorkspaceNotFound.into()),
         }
