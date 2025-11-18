@@ -189,6 +189,11 @@ fn default_codebase_top_k() -> Option<u32> {
 /// This tool understands concepts and finds semantically related code.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct CodebaseSearch {
+    /// The absolute path of the directory or file to search in. it will be searched recursively if it's dir. If it's a file path,
+    /// only that specific file will be searched.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+
     /// Describe WHAT the code does or its purpose. Include domain-specific
     /// terms and technical context. Good: "retry mechanism with exponential
     /// backoff", "streaming responses from LLM API", "OAuth token refresh

@@ -181,6 +181,11 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
                 prompt: Some(search_query.data.query.to_string()),
                 limit: Some(search_query.data.limit as u32),
                 top_k: search_query.data.top_k,
+                path: search_query
+                    .data
+                    .path
+                    .as_ref()
+                    .map(|p| p.display().to_string()),
                 ..Default::default()
             }),
         });

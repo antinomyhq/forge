@@ -202,14 +202,21 @@ impl<
             ToolCatalog::CodebaseSearch(input) => {
                 let env = self.services.get_environment();
                 let services = self.services.clone();
-                let cwd = env.cwd.clone();
-                let query = input.query;
+                let workspace_path = env.cwd.clone();
 
+                let query = input.query;
                 let limit = input.limit.unwrap_or(100) as usize;
                 let top_k = input.top_k.unwrap_or(10);
-                let params = forge_domain::SearchParams::new(&query, limit).with_top_k(top_k);
 
-                let results = services.query_codebase(cwd, params).await?;
+                let mut params = forge_domain::SearchParams::new(&query, limit).with_top_k(top_k);
+
+                // Add path filter if provided
+                if let Some(path) = input.path {
+                    let normalized_path = PathBuf::from(self.normalize_path(path));
+                    params = params.with_path(normalized_path);
+                }
+
+                let results = services.query_codebase(workspace_path, params).await?;
                 let output = forge_domain::CodebaseQueryResult { query, results };
 
                 ToolOperation::CodebaseSearch { output }
