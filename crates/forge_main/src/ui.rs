@@ -720,7 +720,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     "Successfully logged out from {}",
                     provider_id
                 )))?;
-                return Ok(true)
+                return Ok(true);
             }
             None => {
                 self.writeln_title(TitleFormat::info("Cancelled"))?;
