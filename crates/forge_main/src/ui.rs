@@ -263,7 +263,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                                     tracker::error(&error);
                                     tracing::error!(error = ?error);
                                     self.spinner.stop(None)?;
-                                    self.writeln_to_stderr(TitleFormat::error(error.to_string()).display().to_string())?;
+                                    self.writeln_to_stderr(TitleFormat::error(format!("{:?}", error)).display().to_string())?;
                                 },
                             }
                         }
