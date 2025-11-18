@@ -328,20 +328,18 @@ impl ToolOperation {
                 }
             },
             ToolOperation::CodebaseSearch { output } => {
-                let mut root = Element::new("codebase_search_results");
-
-                let mut query_elem = Element::new("query")
-                    .attr("value", &output.query)
-                    .attr("use_case", &output.use_case);
+                let mut root = Element::new("codebase_search_results")
+                    .attr("query", &output.query)
+                    .attr("use_case", &output.use_case)
+                    .attr("results", output.results.len());
 
                 if output.results.is_empty() {
-                    query_elem = query_elem.text("No results found for query. Try refining your search with more specific terms or different keywords.")
+                    root = root.text("No results found for query. Try refining your search with more specific terms or different keywords.")
                 } else {
                     for result in &output.results {
-                        query_elem = query_elem.append(result.node.to_element());
+                        root = root.append(result.node.to_element());
                     }
                 }
-                root = root.append(query_elem);
 
                 forge_domain::ToolOutput::text(root)
             }

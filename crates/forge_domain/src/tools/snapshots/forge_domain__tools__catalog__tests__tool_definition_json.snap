@@ -112,14 +112,14 @@ expression: tools
   "type": "object",
   "required": [
     "query",
-    "relevance_query"
+    "use_case"
   ],
   "properties": {
     "query": {
-      "description": "Describe WHAT the code does or its purpose. Include domain-specific terms and technical context. Good: \"retry mechanism with exponential backoff\", \"streaming responses from LLM API\", \"OAuth token refresh flow\". Bad: generic terms like \"retry\" or \"auth\" without context.",
+      "description": "Describe WHAT the code does or its purpose. Include domain-specific terms and technical context. Good: \"retry mechanism with exponential backoff\", \"streaming responses from LLM API\", \"OAuth token refresh flow\". Bad: generic terms like \"retry\" or \"auth\" without context. Think about the behavior and functionality you're looking for.",
       "type": "string"
     },
-    "relevance_query": {
+    "use_case": {
       "description": "Describe WHY you're searching and what problem you're trying to solve. This filters results to match your specific intent. Good: \"I need to add similar retry logic to API calls\", \"understanding how to handle authentication errors\", \"implementing rate limiting for new endpoint\". Bad: repeating the query or generic phrases.",
       "type": "string"
     }
