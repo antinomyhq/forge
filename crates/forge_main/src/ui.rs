@@ -2734,38 +2734,30 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         match self.api.diff_codebase(path.clone()).await {
             Ok(stats) => {
                 self.spinner.stop(None)?;
-                // Human-readable summary
-                if stats.files_to_sync.is_empty() {
-                    self.writeln_title(TitleFormat::info(
-                        "No changes to sync. Workspace is up to date.",
-                    ))?;
-                } else {
-                    // Format last synced time if available
-                    let title = stats
-                        .last_synced_at
-                        .map(|last_synced| {
-                            let duration = Utc::now().signed_duration_since(last_synced);
-                            let duration = std::time::Duration::from_secs(
-                                (duration.num_seconds()).max(0) as u64,
-                            );
-                            let time_text = if duration.is_zero() {
-                                "just now".to_string()
-                            } else {
-                                format!("{} ago", humantime::format_duration(duration))
-                            };
-                            format!("WORKSPACE [Last Synced {}]", time_text)
-                        })
-                        .unwrap_or("WORKSPACE".to_string());
+                // Format last synced time if available
+                let title = stats
+                    .last_synced_at
+                    .map(|last_synced| {
+                        let duration = Utc::now().signed_duration_since(last_synced);
+                        let duration =
+                            std::time::Duration::from_secs((duration.num_seconds()).max(0) as u64);
+                        let time_text = if duration.is_zero() {
+                            "just now".to_string()
+                        } else {
+                            format!("{} ago", humantime::format_duration(duration))
+                        };
+                        format!("WORKSPACE [Last Synced {}]", time_text)
+                    })
+                    .unwrap_or("WORKSPACE".to_string());
 
-                    let info = Info::new()
-                        .add_title(title)
-                        .add_key_value("Path", path.canonicalize()?.display())
-                        .add_key_value("Total", stats.total_files.to_string())
-                        .add_key_value("Synced", stats.total_files - stats.files_to_sync_count())
-                        .add_key_value("Pending", stats.files_to_sync_count().to_string());
+                let info = Info::new()
+                    .add_title(title)
+                    .add_key_value("Path", path.canonicalize()?.display())
+                    .add_key_value("Total", stats.total_files.to_string())
+                    .add_key_value("Synced", stats.total_files - stats.files_to_sync_count())
+                    .add_key_value("Pending", stats.files_to_sync_count().to_string());
 
-                    self.writeln(info.to_string())?;
-                }
+                self.writeln(info.to_string())?;
                 Ok(())
             }
             Err(e) => {
