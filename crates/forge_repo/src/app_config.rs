@@ -84,7 +84,7 @@ mod tests {
 
     use bytes::Bytes;
     use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra};
-    use forge_domain::{AppConfig, Environment};
+    use forge_domain::{AppConfig, Environment, ProviderId};
     use pretty_assertions::assert_eq;
     use tempfile::TempDir;
 
@@ -252,7 +252,13 @@ mod tests {
 
         let actual = repo.get_app_config().await.unwrap();
 
-        let expected = AppConfig::default();
+        // With the new hybrid provider system, "xyz" is treated as a custom provider
+        let expected_provider = ProviderId::custom("xyz".to_string()).unwrap();
+        let expected = AppConfig {
+            key_info: None,
+            provider: Some(expected_provider),
+            model: HashMap::new(),
+        };
         assert_eq!(actual, expected);
     }
 

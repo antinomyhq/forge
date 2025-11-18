@@ -16,7 +16,8 @@ use forge_app::utils::truncate_key;
 use forge_app::{CommitResult, ToolResolver};
 use forge_display::MarkdownFormat;
 use forge_domain::{
-    AuthMethod, ChatResponseContent, ContextMessage, Role, TitleFormat, UserCommand,
+    AuthMethod, BuiltInProviderId, ChatResponseContent, ContextMessage, Role, TitleFormat,
+    UserCommand,
 };
 use forge_fs::ForgeFS;
 use forge_select::ForgeSelect;
@@ -1493,7 +1494,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
     async fn handle_api_key_input(
         &mut self,
-        provider_id: ProviderId,
+        provider_id: &ProviderId,
         request: &ApiKeyRequest,
     ) -> anyhow::Result<()> {
         use anyhow::Context;
@@ -1525,13 +1526,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         self.api
             .complete_provider_auth(
-                provider_id,
+                provider_id.clone(),
                 response,
                 Duration::from_secs(0), // No timeout needed since we have the data
             )
             .await?;
 
-        self.display_credential_success(provider_id).await?;
+        self.display_credential_success(provider_id.clone()).await?;
 
         Ok(())
     }
@@ -1572,7 +1573,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn handle_device_flow(
         &mut self,
-        provider_id: ProviderId,
+        provider_id: &ProviderId,
         request: &DeviceCodeRequest,
     ) -> Result<()> {
         use std::time::Duration;
@@ -1595,12 +1596,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let response = AuthContextResponse::device_code(request.clone());
 
         self.api
-            .complete_provider_auth(provider_id, response, Duration::from_secs(600))
+            .complete_provider_auth(provider_id.clone(), response, Duration::from_secs(600))
             .await?;
 
         self.spinner.stop(None)?;
 
-        self.display_credential_success(provider_id).await?;
+        self.display_credential_success(provider_id.clone()).await?;
         Ok(())
     }
 
@@ -1619,7 +1620,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         .prompt()?;
 
         if should_set_active.unwrap_or(false) {
-            self.api.set_default_provider(provider_id).await?;
+            self.api.set_default_provider(provider_id.clone()).await?;
             self.writeln_title(TitleFormat::action(format!("Provider set {}", provider_id)))?;
         }
         Ok(())
@@ -1627,7 +1628,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn handle_code_flow(
         &mut self,
-        provider_id: ProviderId,
+        provider_id: &ProviderId,
         request: &CodeRequest,
     ) -> anyhow::Result<()> {
         use colored::Colorize;
@@ -1670,7 +1671,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         self.api
             .complete_provider_auth(
-                provider_id,
+                provider_id.clone(),
                 response,
                 Duration::from_secs(0), // No timeout needed since we have the data
             )
@@ -1678,7 +1679,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         self.spinner.stop(None)?;
 
-        self.display_credential_success(provider_id).await?;
+        self.display_credential_success(provider_id.clone()).await?;
         Ok(())
     }
 
@@ -1686,7 +1687,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// available
     async fn select_auth_method(
         &mut self,
-        provider_id: ProviderId,
+        provider_id: &ProviderId,
         auth_methods: &[AuthMethod],
     ) -> Result<Option<AuthMethod>> {
         use colored::Colorize;
@@ -1741,7 +1742,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         auth_methods: Vec<AuthMethod>,
     ) -> Result<()> {
         // Select auth method (or use the only one available)
-        let auth_method = match self.select_auth_method(provider_id, &auth_methods).await? {
+        let auth_method = match self.select_auth_method(&provider_id, &auth_methods).await? {
             Some(method) => method,
             None => return Ok(()), // User cancelled
         };
@@ -1751,19 +1752,19 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Initiate the authentication flow
         let auth_request = self
             .api
-            .init_provider_auth(provider_id, auth_method)
+            .init_provider_auth(provider_id.clone(), auth_method)
             .await?;
 
         // Handle the specific authentication flow based on the request type
         match auth_request {
             AuthContextRequest::ApiKey(request) => {
-                self.handle_api_key_input(provider_id, &request).await?;
+                self.handle_api_key_input(&provider_id, &request).await?;
             }
             AuthContextRequest::DeviceCode(request) => {
-                self.handle_device_flow(provider_id, &request).await?;
+                self.handle_device_flow(&provider_id, &request).await?;
             }
             AuthContextRequest::Code(request) => {
-                self.handle_code_flow(provider_id, &request).await?;
+                self.handle_code_flow(&provider_id, &request).await?;
             }
         }
 
@@ -1804,15 +1805,31 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(None);
         };
 
-        // If already configured, extract and return Provider<Url>
-        if provider.0.is_configured() {
-            return Ok(provider.0.into_configured());
+        // Handle both configured and unconfigured providers
+        match provider.0 {
+            AnyProvider::Url(p) => Ok(Some(p)),
+            AnyProvider::Template(p) => {
+                // Provider is not configured - initiate authentication flow
+                let provider_id = p.id.clone();
+                let auth_methods = p.auth_methods;
+
+                // Configure the provider
+                self.configure_provider(provider_id.clone(), auth_methods)
+                    .await?;
+
+                // After configuration, fetch the provider again
+                let providers = self.api.get_providers().await?;
+                let configured_provider = providers
+                    .into_iter()
+                    .find(|entry| entry.id() == provider_id)
+                    .and_then(|entry| match entry {
+                        AnyProvider::Url(p) => Some(p),
+                        AnyProvider::Template(_) => None,
+                    });
+
+                Ok(configured_provider)
+            }
         }
-
-        self.configure_provider(provider.0.id(), provider.0.auth_methods().to_vec())
-            .await?;
-
-        Ok(None)
     }
 
     // Helper method to handle model selection and update the conversation
@@ -1852,7 +1869,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         };
 
         // Set the provider via API
-        self.api.set_default_provider(provider.id).await?;
+        self.api.set_default_provider(provider.id.clone()).await?;
 
         self.writeln_title(TitleFormat::action(format!(
             "Switched to provider: {}",
@@ -2470,7 +2487,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let provider_entry = providers
             .iter()
             .find(|p| p.id() == provider_id)
-            .ok_or_else(|| forge_domain::Error::provider_not_available(provider_id))?;
+            .ok_or_else(|| forge_domain::Error::provider_not_available(provider_id.clone()))?;
 
         // If already configured, return immediately
         if provider_entry.is_configured() {
@@ -2479,10 +2496,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Configure the provider
         let auth_methods = provider_entry.auth_methods().to_vec();
-        self.configure_provider(provider_id, auth_methods).await?;
+        self.configure_provider(provider_id.clone(), auth_methods)
+            .await?;
 
         // Verify configuration succeeded
-        if self.api.get_provider(&provider_id).await?.is_configured() {
+        let providers = self.api.get_providers().await?;
+        if providers
+            .iter()
+            .any(|p| p.id() == provider_id && p.is_configured())
+        {
             Ok(provider_id)
         } else {
             Err(anyhow::anyhow!(
@@ -2522,5 +2544,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
 /// Get list of valid provider names
 fn get_valid_provider_names() -> Vec<String> {
-    ProviderId::iter().map(|p| p.to_string()).collect()
+    let mut names = Vec::new();
+
+    // Add built-in provider names
+    names.extend(BuiltInProviderId::iter().map(|p| p.to_string()));
+
+    // TODO: Add custom provider names from loaded configuration
+    // This will be implemented in the next phase
+
+    names
 }

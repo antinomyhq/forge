@@ -60,7 +60,7 @@ impl<S: AS> TitleGenerator<S> {
 
         let stream = self
             .services
-            .chat_agent(&self.model_id, ctx, self.provider_id)
+            .chat_agent(&self.model_id, ctx, self.provider_id.clone())
             .await?;
         let ChatCompletionMessageFull { content, .. } = stream.into_full(false).await?;
         if let Some(extracted) = extract_tag_content(&content, "title") {

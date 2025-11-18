@@ -111,11 +111,11 @@ mod tests {
                 app_config: Arc::new(Mutex::new(AppConfig::default())),
                 providers: vec![
                     Provider {
-                        id: ProviderId::OpenAI,
+                        id: ProviderId::openai(),
                         response: ProviderResponse::OpenAI,
                         url: Url::parse("https://api.openai.com").unwrap(),
                         credential: Some(forge_domain::AuthCredential {
-                            id: ProviderId::OpenAI,
+                            id: ProviderId::openai(),
                             auth_details: forge_domain::AuthDetails::ApiKey(
                                 forge_domain::ApiKey::from("test-key".to_string()),
                             ),
@@ -134,13 +134,13 @@ mod tests {
                         }]),
                     },
                     Provider {
-                        id: ProviderId::Anthropic,
+                        id: ProviderId::anthropic(),
                         response: ProviderResponse::Anthropic,
                         url: Url::parse("https://api.anthropic.com").unwrap(),
                         auth_methods: vec![forge_domain::AuthMethod::ApiKey],
                         url_params: vec![],
                         credential: Some(forge_domain::AuthCredential {
-                            id: ProviderId::Anthropic,
+                            id: ProviderId::anthropic(),
                             auth_details: forge_domain::AuthDetails::ApiKey(
                                 forge_domain::ApiKey::from("test-key".to_string()),
                             ),
@@ -216,7 +216,7 @@ mod tests {
         let service = ForgeAppConfigService::new(Arc::new(fixture));
 
         let actual = service.get_default_provider().await?;
-        let expected = ProviderId::OpenAI;
+        let expected = ProviderId::openai();
 
         assert_eq!(actual.id, expected);
         Ok(())
@@ -227,9 +227,11 @@ mod tests {
         let fixture = MockInfra::new();
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
-        service.set_default_provider(ProviderId::Anthropic).await?;
+        service
+            .set_default_provider(ProviderId::anthropic())
+            .await?;
         let actual = service.get_default_provider().await?;
-        let expected = ProviderId::Anthropic;
+        let expected = ProviderId::anthropic();
 
         assert_eq!(actual.id, expected);
         Ok(())
@@ -240,11 +242,13 @@ mod tests {
         let fixture = MockInfra::new();
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
-        service.set_default_provider(ProviderId::Anthropic).await?;
+        service
+            .set_default_provider(ProviderId::anthropic())
+            .await?;
 
         let config = fixture.get_app_config().await?;
         let actual = config.provider;
-        let expected = Some(ProviderId::Anthropic);
+        let expected = Some(ProviderId::anthropic());
 
         assert_eq!(actual, expected);
         Ok(())
@@ -255,7 +259,7 @@ mod tests {
         let fixture = MockInfra::new();
         let service = ForgeAppConfigService::new(Arc::new(fixture));
 
-        let result = service.get_default_model(&ProviderId::OpenAI).await;
+        let result = service.get_default_model(&ProviderId::openai()).await;
 
         assert!(result.is_err());
         Ok(())
@@ -267,9 +271,9 @@ mod tests {
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
         service
-            .set_default_model("gpt-4".to_string().into(), ProviderId::OpenAI)
+            .set_default_model("gpt-4".to_string().into(), ProviderId::openai())
             .await?;
-        let actual = service.get_default_model(&ProviderId::OpenAI).await?;
+        let actual = service.get_default_model(&ProviderId::openai()).await?;
         let expected = "gpt-4".to_string().into();
 
         assert_eq!(actual, expected);
@@ -282,11 +286,11 @@ mod tests {
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
         service
-            .set_default_model("gpt-4".to_string().into(), ProviderId::OpenAI)
+            .set_default_model("gpt-4".to_string().into(), ProviderId::openai())
             .await?;
 
         let config = fixture.get_app_config().await?;
-        let actual = config.model.get(&ProviderId::OpenAI).cloned();
+        let actual = config.model.get(&ProviderId::openai()).cloned();
         let expected = Some("gpt-4".to_string().into());
 
         assert_eq!(actual, expected);
@@ -299,17 +303,17 @@ mod tests {
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
         service
-            .set_default_model("gpt-4".to_string().into(), ProviderId::OpenAI)
+            .set_default_model("gpt-4".to_string().into(), ProviderId::openai())
             .await?;
         service
-            .set_default_model("claude-3".to_string().into(), ProviderId::Anthropic)
+            .set_default_model("claude-3".to_string().into(), ProviderId::anthropic())
             .await?;
 
         let config = fixture.get_app_config().await?;
         let actual = config.model;
         let mut expected = HashMap::new();
-        expected.insert(ProviderId::OpenAI, "gpt-4".to_string().into());
-        expected.insert(ProviderId::Anthropic, "claude-3".to_string().into());
+        expected.insert(ProviderId::openai(), "gpt-4".to_string().into());
+        expected.insert(ProviderId::anthropic(), "claude-3".to_string().into());
 
         assert_eq!(actual, expected);
         Ok(())
@@ -348,7 +352,7 @@ mod tests {
         let first_provider = service.get_first_available_provider().await?;
         assert_eq!(
             first_provider.id,
-            ProviderId::OpenAI,
+            ProviderId::openai(),
             "First provider should be OpenAI (first in ProviderId enum order after Forge)"
         );
 
