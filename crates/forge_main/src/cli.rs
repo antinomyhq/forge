@@ -204,7 +204,7 @@ pub enum IndexCommand {
 
         /// Describe your intent or goal to filter results for relevance.
         #[arg(long, short = 'r')]
-        relevance_query: Option<String>,
+        use_case: String,
     },
 
     /// Delete a workspace.

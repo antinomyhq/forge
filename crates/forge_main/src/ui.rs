@@ -505,15 +505,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     crate::cli::IndexCommand::List { porcelain } => {
                         self.on_list_workspaces(porcelain).await?;
                     }
-                    crate::cli::IndexCommand::Query {
-                        query,
-                        path,
-                        limit,
-                        top_k,
-                        relevance_query,
-                    } => {
-                        self.on_query(query, path, limit, top_k, relevance_query)
-                            .await?;
+                    crate::cli::IndexCommand::Query { query, path, limit, top_k, use_case } => {
+                        self.on_query(query, path, limit, top_k, use_case).await?;
                     }
                     crate::cli::IndexCommand::Delete { workspace_id, yes } => {
                         self.on_delete_workspace(workspace_id, yes).await?;
@@ -2602,16 +2595,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         path: PathBuf,
         limit: usize,
         top_k: Option<u32>,
-        relevance_query: Option<String>,
+        use_case: String,
     ) -> anyhow::Result<()> {
         self.spinner.start(Some("Searching codebase..."))?;
 
-        let mut params = forge_domain::SearchParams::new(&query, limit);
+        let mut params = forge_domain::SearchParams::new(&query, &use_case, limit);
         if let Some(k) = top_k {
-            params = params.with_top_k(k);
-        }
-        if let Some(rq) = relevance_query.as_deref() {
-            params = params.with_relevance_query(rq);
+            params = params.top_k(k);
         }
 
         let results = match self.api.query_codebase(path.clone(), params).await {

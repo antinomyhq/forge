@@ -58,27 +58,18 @@ impl<T> CodeBase<T> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Setters)]
+#[setters(strip_option, into)]
 pub struct SearchParams<'a> {
     pub query: &'a str,
     pub limit: usize,
     pub top_k: Option<u32>,
-    pub relevance_query: Option<&'a str>,
+    pub use_case: String,
 }
 
 impl<'a> SearchParams<'a> {
-    pub fn new(query: &'a str, limit: usize) -> Self {
-        Self { query, limit, top_k: None, relevance_query: None }
-    }
-
-    pub fn with_top_k(mut self, top_k: u32) -> Self {
-        self.top_k = Some(top_k);
-        self
-    }
-
-    pub fn with_relevance_query(mut self, relevance_query: &'a str) -> Self {
-        self.relevance_query = Some(relevance_query);
-        self
+    pub fn new(query: &'a str, use_case: &str, limit: usize) -> Self {
+        Self { query, limit, top_k: None, use_case: use_case.to_string() }
     }
 }
 
@@ -202,8 +193,8 @@ impl UploadStats {
 pub struct CodebaseQueryResult {
     /// The query string that was executed
     pub query: String,
-    /// Optional relevance query used for re-ranking
-    pub relevance_query: Option<String>,
+    /// Relevance query used for re-ranking
+    pub use_case: String,
     /// The search results for this query
     pub results: Vec<CodeSearchResult>,
 }

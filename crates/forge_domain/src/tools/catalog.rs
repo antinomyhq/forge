@@ -192,7 +192,7 @@ pub struct CodebaseSearch {
     /// add similar retry logic to API calls", "understanding how to handle
     /// authentication errors", "implementing rate limiting for new endpoint".
     /// Bad: repeating the query or generic phrases.
-    pub relevance_query: String,
+    pub use_case: String,
 }
 
 /// Request to remove a file at the specified path. Use this when you need to

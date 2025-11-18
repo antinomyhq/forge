@@ -330,12 +330,9 @@ impl ToolOperation {
             ToolOperation::CodebaseSearch { output } => {
                 let mut root = Element::new("codebase_search_results");
 
-                let mut query_elem = Element::new("query").attr("value", &output.query);
-
-                // Add relevance_query attribute if provided
-                if let Some(ref relevance_query) = output.relevance_query {
-                    query_elem = query_elem.attr("relevance_query", relevance_query);
-                }
+                let mut query_elem = Element::new("query")
+                    .attr("value", &output.query)
+                    .attr("use_case", &output.use_case);
 
                 if output.results.is_empty() {
                     query_elem = query_elem.text("No results found for query. Try refining your search with more specific terms or different keywords.")
@@ -1569,7 +1566,7 @@ mod tests {
         let fixture = ToolOperation::CodebaseSearch {
             output: CodebaseQueryResult {
                 query: "retry mechanism with exponential backoff".to_string(),
-                relevance_query: None,
+                use_case: "where is the retrying logic written".to_string(),
                 results: vec![
                     CodeSearchResult {
                         node: CodeNode::FileChunk {
@@ -1608,13 +1605,13 @@ mod tests {
     }
 
     #[test]
-    fn test_codebase_search_with_relevance_query() {
+    fn test_codebase_search_with_usecase() {
         use forge_domain::{CodeNode, CodeSearchResult, CodebaseQueryResult};
 
         let fixture = ToolOperation::CodebaseSearch {
             output: CodebaseQueryResult {
                 query: "authentication logic".to_string(),
-                relevance_query: Some("need to add similar auth to my endpoint".to_string()),
+                use_case: "need to add similar auth to my endpoint".to_string(),
                 results: vec![CodeSearchResult {
                     node: CodeNode::FileChunk {
                         node_id: "node1".to_string(),

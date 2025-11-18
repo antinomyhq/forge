@@ -61,8 +61,8 @@ impl FormatContent for ToolCatalog {
                 Some(TitleFormat::debug(title).into())
             }
             ToolCatalog::CodebaseSearch(input) => {
-                let subtitle = if !input.relevance_query.is_empty() {
-                    format!("'{}' [Relevance: '{}']", input.query, input.relevance_query)
+                let subtitle = if !input.use_case.is_empty() {
+                    format!("'{}' [Relevance: '{}']", input.query, input.use_case)
                 } else {
                     format!("'{}'", input.query)
                 };
