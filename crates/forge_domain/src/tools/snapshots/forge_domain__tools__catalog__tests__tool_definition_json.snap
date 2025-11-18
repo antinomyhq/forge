@@ -123,7 +123,7 @@ expression: tools
       "nullable": true
     },
     "path": {
-      "description": "The path to search within. If not provided, searches the current working directory. Can be an absolute path or relative to the working directory.",
+      "description": "The absolute path of the directory or file to search in. it will be searched recursively if it's dir. If it's a file path, only that specific file will be searched.",
       "type": "string",
       "nullable": true
     },
