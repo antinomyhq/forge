@@ -206,8 +206,8 @@ impl<
                 let query = input.query;
                 let use_case = input.use_case;
 
-                let limit = input.limit.unwrap_or(100) as usize;
-                let top_k = input.top_k.unwrap_or(10);
+                let limit = env.codebase_search_limit;
+                let top_k = input.top_k;
                 let params = forge_domain::SearchParams::new(&query, &use_case, limit).top_k(top_k);
 
                 let results = services.query_codebase(cwd, params).await?;

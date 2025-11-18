@@ -70,6 +70,9 @@ pub struct Environment {
     /// Maximum number of conversations to show in list.
     /// Controlled by FORGE_MAX_CONVERSATIONS environment variable.
     pub max_conversations: usize,
+    /// Maximum number of results to return from initial vector search.
+    /// Controlled by FORGE_CODEBASE_SEARCH_LIMIT environment variable.
+    pub codebase_search_limit: usize,
     /// URL for the indexing server.
     /// Controlled by FORGE_INDEX_SERVER_URL environment variable.
     #[dummy(expr = "url::Url::parse(\"http://localhost:8080\").unwrap()")]
@@ -221,6 +224,7 @@ fn test_command_path() {
         debug_requests: false,
         custom_history_path: None,
         max_conversations: 100,
+        codebase_search_limit: 100,
         max_image_size: 262144,
         index_server_url: "http://localhost:8080".parse().unwrap(),
     };
@@ -256,6 +260,7 @@ fn test_command_cwd_path() {
         debug_requests: false,
         custom_history_path: None,
         max_conversations: 100,
+        codebase_search_limit: 100,
         max_image_size: 262144,
         index_server_url: "http://localhost:8080".parse().unwrap(),
     };
@@ -291,6 +296,7 @@ fn test_command_cwd_path_independent_from_command_path() {
         debug_requests: false,
         custom_history_path: None,
         max_conversations: 100,
+        codebase_search_limit: 100,
         max_image_size: 262144,
         index_server_url: "http://localhost:8080".parse().unwrap(),
     };

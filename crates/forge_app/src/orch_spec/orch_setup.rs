@@ -87,6 +87,7 @@ impl Default for TestContext {
                 debug_requests: false,
                 custom_history_path: None,
                 max_conversations: 100,
+                codebase_search_limit: 100,
                 max_image_size: 262144,
                 index_server_url: Url::parse("http://localhost:8080").unwrap(),
             },
