@@ -58,21 +58,18 @@ impl<T> CodeBase<T> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Setters)]
+#[setters(strip_option, into)]
 pub struct SearchParams<'a> {
     pub query: &'a str,
     pub limit: usize,
     pub top_k: Option<u32>,
+    pub use_case: String,
 }
 
 impl<'a> SearchParams<'a> {
-    pub fn new(query: &'a str, limit: usize) -> Self {
-        Self { query, limit, top_k: None }
-    }
-
-    pub fn with_top_k(mut self, top_k: u32) -> Self {
-        self.top_k = Some(top_k);
-        self
+    pub fn new(query: &'a str, use_case: &str, limit: usize) -> Self {
+        Self { query, limit, top_k: None, use_case: use_case.to_string() }
     }
 }
 
@@ -196,6 +193,8 @@ impl UploadStats {
 pub struct CodebaseQueryResult {
     /// The query string that was executed
     pub query: String,
+    /// Relevance query used for re-ranking
+    pub use_case: String,
     /// The search results for this query
     pub results: Vec<CodeSearchResult>,
 }

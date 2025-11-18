@@ -187,6 +187,12 @@ pub struct CodebaseSearch {
     /// flow". Bad: generic terms like "retry" or "auth" without context. Think
     /// about the behavior and functionality you're looking for.
     pub query: String,
+    /// Describe WHY you're searching and what problem you're trying to solve.
+    /// This filters results to match your specific intent. Good: "I need to
+    /// add similar retry logic to API calls", "understanding how to handle
+    /// authentication errors", "implementing rate limiting for new endpoint".
+    /// Bad: repeating the query or generic phrases.
+    pub use_case: String,
 }
 
 /// Request to remove a file at the specified path. Use this when you need to
