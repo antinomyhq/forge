@@ -201,6 +201,10 @@ pub enum IndexCommand {
         /// Number of highest probability tokens to consider (1-1000).
         #[arg(long)]
         top_k: Option<u32>,
+
+        /// Describe your intent or goal to filter results for relevance.
+        #[arg(long, short = 'r')]
+        use_case: String,
     },
 
     /// Delete a workspace.

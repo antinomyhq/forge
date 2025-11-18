@@ -328,17 +328,18 @@ impl ToolOperation {
                 }
             },
             ToolOperation::CodebaseSearch { output } => {
-                let mut root = Element::new("codebase_search_results");
+                let mut root = Element::new("codebase_search_results")
+                    .attr("query", &output.query)
+                    .attr("use_case", &output.use_case)
+                    .attr("results", output.results.len());
 
-                let mut query_elem = Element::new("query").attr("value", &output.query);
                 if output.results.is_empty() {
-                    query_elem = query_elem.text("No results found for query. Try refining your search with more specific terms or different keywords.")
+                    root = root.text("No results found for query. Try refining your search with more specific terms or different keywords.")
                 } else {
                     for result in &output.results {
-                        query_elem = query_elem.append(result.node.to_element());
+                        root = root.append(result.node.to_element());
                     }
                 }
-                root = root.append(query_elem);
 
                 forge_domain::ToolOutput::text(root)
             }
@@ -1563,6 +1564,7 @@ mod tests {
         let fixture = ToolOperation::CodebaseSearch {
             output: CodebaseQueryResult {
                 query: "retry mechanism with exponential backoff".to_string(),
+                use_case: "where is the retrying logic written".to_string(),
                 results: vec![
                     CodeSearchResult {
                         node: CodeNode::FileChunk {
@@ -1585,6 +1587,39 @@ mod tests {
                         similarity: 0.9201,
                     },
                 ],
+            },
+        };
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(
+            ToolKind::CodebaseSearch,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_codebase_search_with_usecase() {
+        use forge_domain::{CodeNode, CodeSearchResult, CodebaseQueryResult};
+
+        let fixture = ToolOperation::CodebaseSearch {
+            output: CodebaseQueryResult {
+                query: "authentication logic".to_string(),
+                use_case: "need to add similar auth to my endpoint".to_string(),
+                results: vec![CodeSearchResult {
+                    node: CodeNode::FileChunk {
+                        node_id: "node1".to_string(),
+                        file_path: "src/auth.rs".to_string(),
+                        content: "fn authenticate_user(token: &str) -> Result<User> {\n    verify_jwt(token)\n}".to_string(),
+                        start_line: 10,
+                        end_line: 12,
+                    },
+                    similarity: 0.95,
+                }],
             },
         };
 

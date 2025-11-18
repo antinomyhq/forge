@@ -505,8 +505,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     crate::cli::IndexCommand::List { porcelain } => {
                         self.on_list_workspaces(porcelain).await?;
                     }
-                    crate::cli::IndexCommand::Query { query, path, limit, top_k } => {
-                        self.on_query(query, path, limit, top_k).await?;
+                    crate::cli::IndexCommand::Query { query, path, limit, top_k, use_case } => {
+                        self.on_query(query, path, limit, top_k, use_case).await?;
                     }
                     crate::cli::IndexCommand::Delete { workspace_id, yes } => {
                         self.on_delete_workspace(workspace_id, yes).await?;
@@ -2605,12 +2605,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         path: PathBuf,
         limit: usize,
         top_k: Option<u32>,
+        use_case: String,
     ) -> anyhow::Result<()> {
         self.spinner.start(Some("Searching codebase..."))?;
 
-        let mut params = forge_domain::SearchParams::new(&query, limit);
+        let mut params = forge_domain::SearchParams::new(&query, &use_case, limit);
         if let Some(k) = top_k {
-            params = params.with_top_k(k);
+            params = params.top_k(k);
         }
 
         let results = match self.api.query_codebase(path.clone(), params).await {

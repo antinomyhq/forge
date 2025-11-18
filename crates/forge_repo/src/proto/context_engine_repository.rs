@@ -188,6 +188,7 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
                 prompt: Some(search_query.data.query.to_string()),
                 limit: Some(search_query.data.limit as u32),
                 top_k: search_query.data.top_k,
+                relevance_query: Some(search_query.data.use_case.to_string()),
                 ..Default::default()
             }),
         });

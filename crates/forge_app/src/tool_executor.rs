@@ -204,14 +204,16 @@ impl<
                 let services = self.services.clone();
                 let cwd = env.cwd.clone();
                 let query = input.query;
-                let mut params = forge_domain::SearchParams::new(&query, env.codebase_search_limit);
+                let use_case = input.use_case;
+                let mut params =
+                    forge_domain::SearchParams::new(&query, &use_case, env.codebase_search_limit);
                 if let Some(top_k) = env.codebase_search_top_k {
-                    params = params.with_top_k(top_k);
+                    params = params.top_k(top_k);
                 }
                 let services = services.clone();
                 let cwd = cwd.clone();
                 let results = services.query_codebase(cwd, params).await?;
-                let out = forge_domain::CodebaseQueryResult { query, results };
+                let out = forge_domain::CodebaseQueryResult { query, use_case, results };
 
                 let output = out;
 
