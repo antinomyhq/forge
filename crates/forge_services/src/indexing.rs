@@ -843,7 +843,7 @@ mod tests {
         mock.search_results = vec![search_result()];
         let service = ForgeIndexingService::new(Arc::new(mock));
 
-        let params = forge_domain::SearchParams::new("test", 10);
+        let params = forge_domain::SearchParams::new("test", "fest", 10);
         let actual = service
             .query_codebase(PathBuf::from("."), params)
             .await
@@ -856,7 +856,7 @@ mod tests {
     async fn test_query_error_when_not_found() {
         let service = ForgeIndexingService::new(Arc::new(MockInfra::default()));
 
-        let params = forge_domain::SearchParams::new("test", 10);
+        let params = forge_domain::SearchParams::new("test", "fest", 10);
         let actual = service.query_codebase(PathBuf::from("."), params).await;
 
         assert!(actual.is_err());
