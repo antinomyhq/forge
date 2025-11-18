@@ -760,12 +760,6 @@ function forge-accept-line() {
         sync|index)
             _forge_action_sync "$input_text"
         ;;
-        query)
-            _forge_action_query "$input_text"
-        ;;
-        delete|del)
-            _forge_action_delete_workspace "$input_text"
-        ;;
         *)
             _forge_action_default "$user_action" "$input_text"
         ;;
