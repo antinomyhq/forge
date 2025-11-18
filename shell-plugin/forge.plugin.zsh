@@ -704,7 +704,7 @@ function forge-accept-line() {
         workspace) 
             _forge_action_workspace_list
         ;;
-        sync|index)
+        index)
             _forge_action_sync "$input_text"
         ;;
         *)
