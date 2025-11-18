@@ -508,7 +508,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     crate::cli::IndexCommand::Query { query, path, limit, top_k, use_case } => {
                         self.on_query(query, path, limit, top_k, use_case).await?;
                     }
-                    crate::cli::IndexCommand::Diff { path, porcelain } => {
+                    crate::cli::IndexCommand::Info { path, porcelain } => {
                         self.on_index_diff(path, porcelain).await?;
                     }
                     crate::cli::IndexCommand::Delete { workspace_id, yes } => {
@@ -2755,12 +2755,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         ))?;
                     } else {
                         let info = Info::new()
-                            .add_title(format!("WORKSPACE DIFF: {}", path.display()))
-                            .add_key_value("Total files", stats.total_files.to_string())
+                            // FIXME: Add actual values
+                            .add_title(format!("WORKSPACE [Last Synced 5 mins ago]"))
+                            .add_key_value("Path", path.canonicalize()?.display())
+                            .add_key_value("Total", stats.total_files.to_string())
                             .add_key_value(
-                                "Files to sync",
-                                stats.files_to_sync_count().to_string(),
-                            );
+                                "Synced",
+                                stats.total_files - stats.files_to_sync_count(),
+                            )
+                            .add_key_value("Pending", stats.files_to_sync_count().to_string());
 
                         self.writeln(info.to_string())?;
                     }

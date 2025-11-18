@@ -208,7 +208,7 @@ pub enum IndexCommand {
     },
 
     /// Show files that need to be synced.
-    Diff {
+    Info {
         /// Path to the directory to check
         #[arg(default_value = ".")]
         path: PathBuf,
