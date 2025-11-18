@@ -679,7 +679,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn handle_provider_logout(
         &mut self,
         provider_id: Option<&ProviderId>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<bool> {
         // If provider_id is specified, logout from that specific provider
         if let Some(id) = provider_id {
             let provider = self.api.get_provider(id).await?;
@@ -693,7 +693,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 "Successfully logged out from {}",
                 id
             )))?;
-            return Ok(());
+            return Ok(true);
         }
 
         // Fetch and filter configured providers
@@ -701,7 +701,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         if configured_providers.is_empty() {
             self.writeln_title(TitleFormat::info("No configured providers found"))?;
-            return Ok(());
+            return Ok(false);
         }
 
         // Sort the providers by their display names
@@ -720,13 +720,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     "Successfully logged out from {}",
                     provider_id
                 )))?;
+                return Ok(true)
             }
             None => {
                 self.writeln_title(TitleFormat::info("Cancelled"))?;
             }
         }
 
-        Ok(())
+        Ok(false)
     }
 
     async fn handle_commit_command(
@@ -1404,24 +1405,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 }
             }
             SlashCommand::Login => {
-                self.spinner.start(Some("Logging in"))?;
-                self.api.logout().await?;
-                self.login().await?;
-                self.spinner.stop(None)?;
-                let key_info = self.api.get_login_info().await?;
-                tracker::login(
-                    key_info
-                        .and_then(|v| v.auth_provider_id)
-                        .unwrap_or_default(),
-                );
+                self.handle_provider_login(None).await?;
             }
             SlashCommand::Logout => {
-                self.spinner.start(Some("Logging out"))?;
-                self.api.logout().await?;
-                self.spinner.stop(None)?;
-                self.writeln_title(TitleFormat::info("Logged out"))?;
-                // Exit the UI after logout
-                return Ok(true);
+                let logout = self.handle_provider_logout(None).await?;
+                return Ok(logout);
             }
             SlashCommand::Retry => {
                 self.spinner.start(None)?;
@@ -2053,23 +2041,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.update_model(operating_model);
 
         Ok(workflow)
-    }
-
-    async fn login(&mut self) -> Result<()> {
-        let auth = self.api.init_login().await?;
-        open::that(auth.auth_url.as_str()).ok();
-        self.writeln_title(TitleFormat::info(
-            format!("Login here: {}", auth.auth_url).as_str(),
-        ))?;
-        self.spinner.start(Some("Waiting for login to complete"))?;
-
-        self.api.login(&auth).await?;
-
-        self.spinner.stop(None)?;
-
-        self.writeln_title(TitleFormat::info("Login completed".to_string().as_str()))?;
-
-        Ok(())
     }
 
     async fn on_message(&mut self, content: Option<String>) -> Result<()> {
