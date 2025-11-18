@@ -88,8 +88,6 @@ impl Default for TestContext {
                 custom_history_path: None,
                 max_conversations: 100,
                 max_image_size: 262144,
-                codebase_search_limit: 50,
-                codebase_search_top_k: Some(5),
                 index_server_url: Url::parse("http://localhost:8080").unwrap(),
             },
             title: Some("test-conversation".into()),

@@ -172,6 +172,14 @@ pub struct FSSearch {
     pub file_pattern: Option<String>,
 }
 
+fn default_codebase_limit() -> Option<u32> {
+    Some(100)
+}
+
+fn default_codebase_top_k() -> Option<u32> {
+    Some(10)
+}
+
 /// Searches code by meaning using AI-powered semantic search to quickly locate
 /// specific code implementations. Use when you need to FIND WHERE code is
 /// located by describing what it does. Examples: \"where is authentication
@@ -187,6 +195,18 @@ pub struct CodebaseSearch {
     /// flow". Bad: generic terms like "retry" or "auth" without context. Think
     /// about the behavior and functionality you're looking for.
     pub query: String,
+
+    /// Maximum number of results to return. Defaults to 100 if not specified.
+    #[serde(default = "default_codebase_limit")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+
+    /// Top-k parameter for relevance filtering. Controls the number of nearest
+    /// neighbors to consider during semantic search. Higher values may return
+    /// more results but with lower relevance. Defaults to 10 if not specified.
+    #[serde(default = "default_codebase_top_k")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top_k: Option<u32>,
 }
 
 /// Request to remove a file at the specified path. Use this when you need to
