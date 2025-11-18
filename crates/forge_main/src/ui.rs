@@ -1408,8 +1408,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.handle_provider_login(None).await?;
             }
             SlashCommand::Logout => {
-                let logout = self.handle_provider_logout(None).await?;
-                return Ok(logout);
+                return self.handle_provider_logout(None).await;
             }
             SlashCommand::Retry => {
                 self.spinner.start(None)?;
