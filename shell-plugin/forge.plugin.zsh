@@ -496,12 +496,7 @@ function _forge_action_sync() {
     _forge_reset
 }
 
-# Action handler: List workspaces
-function _forge_action_workspace_list() {
-    echo
-    _forge_exec index list
-    _forge_reset
-}
+
 
 # Action handler: Generate shell command from natural language
 # Usage: :? <description>
@@ -701,10 +696,7 @@ function forge-accept-line() {
         logout)
             _forge_action_logout
         ;;
-        workspace) 
-            _forge_action_workspace_list
-        ;;
-        index)
+        sync)
             _forge_action_sync "$input_text"
         ;;
         *)
