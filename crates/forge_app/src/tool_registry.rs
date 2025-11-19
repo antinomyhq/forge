@@ -132,7 +132,7 @@ impl<S: Services> ToolRegistry<S> {
         // Check if current working directory is indexed
         let cwd = self.services.get_environment().cwd.clone();
         let is_indexed = self.services.is_indexed(&cwd).await.unwrap_or(false);
-        let is_authenticated = self.services.is_authenticated().await.unwrap_or(false);
+        let is_authenticated = self.services.get_auth().await?.is_some();
 
         Ok(ToolsOverview::new()
             .system(Self::get_system_tools(is_indexed && is_authenticated))
