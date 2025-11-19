@@ -1460,11 +1460,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     }
                 }
 
-                if let Some(selected_agent) = ForgeSelect::select(
-                    "select the agent from following list",
-                    display_agents.clone(),
-                )
-                .prompt()?
+                if let Some(selected_agent) =
+                    ForgeSelect::select("Select an agent", display_agents.clone()).prompt()?
                 {
                     self.on_agent_change(selected_agent.id).await?;
                 }
