@@ -77,8 +77,17 @@ pub struct ForgeContextEngineRepository {
 impl ForgeContextEngineRepository {
     /// Create a new gRPC client with lazy connection
     pub fn new(server_url: &url::Url) -> Result<Self> {
-        let channel = Channel::from_shared(server_url.to_string())?.connect_lazy();
+        let mut channel = Channel::from_shared(server_url.to_string())?.concurrency_limit(256);
+
+        // Enable TLS for https URLs using system certificate store
+        if server_url.scheme().contains("https") {
+            channel =
+                channel.tls_config(tonic::transport::ClientTlsConfig::new().with_native_roots())?;
+        }
+
+        let channel = channel.connect_lazy();
         let client = ForgeServiceClient::new(channel);
+
         Ok(Self { client })
     }
 
