@@ -445,10 +445,6 @@ impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
     async fn delete(&self, workspace_id: &forge_domain::WorkspaceId) -> anyhow::Result<()> {
         self.indexing_repository.delete(workspace_id).await
     }
-
-    async fn get_all(&self) -> anyhow::Result<Vec<forge_domain::Workspace>> {
-        self.indexing_repository.get_all().await
-    }
 }
 
 #[async_trait::async_trait]

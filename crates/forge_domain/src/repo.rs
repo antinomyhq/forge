@@ -114,8 +114,6 @@ pub trait WorkspaceRepository: Send + Sync {
     /// Delete workspace from local database
     async fn delete(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()>;
 
-    /// Get all workspaces from local database
-    async fn get_all(&self) -> anyhow::Result<Vec<Workspace>>;
 }
 
 /// Repository for managing indexing service authentication credentials

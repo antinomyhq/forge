@@ -56,13 +56,19 @@ impl TryFrom<Workspace> for WorkspaceInfo {
         let workspace_id =
             WorkspaceId::from_string(&id_msg.id).context("Failed to parse workspace ID")?;
 
+        // Parse last_updated from API response
+        let updated_at = workspace
+            .last_updated
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
+            .map(|dt| dt.with_timezone(&chrono::Utc));
+
         Ok(WorkspaceInfo {
             workspace_id,
             working_dir: workspace.working_dir,
             node_count: workspace.node_count,
             relation_count: workspace.relation_count,
             is_current: false, // Will be set by service layer
-            updated_at: None,  // Will be enriched with local data by service layer
+            updated_at,
         })
     }
 }

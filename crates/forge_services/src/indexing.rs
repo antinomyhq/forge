@@ -385,20 +385,9 @@ impl<
             .to_string_lossy()
             .to_string();
 
-        // Get all local workspaces once to avoid multiple I/O calls
-        let local_workspaces = self.infra.get_all().await.unwrap_or_default();
-
-        // Enrich workspaces with local data (is_current and updated_at)
+        // Mark the current workspace based on working directory
         for workspace in &mut workspaces {
             workspace.is_current = workspace.working_dir == current_dir;
-
-            // Use local workspace data to get updated_at
-            if let Some(local_workspace) = local_workspaces
-                .iter()
-                .find(|w| w.path.to_string_lossy() == workspace.working_dir)
-            {
-                workspace.updated_at = local_workspace.updated_at;
-            }
         }
 
         Ok(workspaces)
@@ -668,10 +657,6 @@ mod tests {
         }
         async fn delete(&self, _: &WorkspaceId) -> Result<()> {
             Ok(())
-        }
-
-        async fn get_all(&self) -> Result<Vec<Workspace>> {
-            Ok(self.workspace.clone().into_iter().collect())
         }
     }
 

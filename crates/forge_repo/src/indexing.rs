@@ -108,12 +108,6 @@ impl WorkspaceRepository for IndexingRepositoryImpl {
         .execute(&mut connection)?;
         Ok(())
     }
-
-    async fn get_all(&self) -> anyhow::Result<Vec<Workspace>> {
-        let mut connection = self.pool.get_connection()?;
-        let records = workspace::table.load::<IndexingRecord>(&mut connection)?;
-        records.into_iter().map(Workspace::try_from).collect()
-    }
 }
 
 #[cfg(test)]
