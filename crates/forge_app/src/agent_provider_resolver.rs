@@ -93,8 +93,7 @@ where
     /// Sets the model for the agent's provider
     pub async fn set_default_model(&self, agent_id: Option<AgentId>, model: ModelId) -> Result<()> {
         // Invalidate cache for agents
-        self.0.reload_agents().await?;
-        if let Some(agent_id) = agent_id {
+        let result = if let Some(agent_id) = agent_id {
             if let Some(agent) = self.0.get_agent(&agent_id).await? {
                 let provider_id = agent.provider;
                 self.0.set_default_model(model, provider_id).await
@@ -107,6 +106,9 @@ where
         } else {
             let provider_id = self.get_provider(None).await?.id;
             self.0.set_default_model(model, provider_id).await
-        }
+        };
+        self.0.reload_agents().await?;
+
+        result
     }
 }
