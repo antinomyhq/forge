@@ -172,6 +172,10 @@ pub struct FSSearch {
     pub file_pattern: Option<String>,
 }
 
+fn default_codebase_top_k() -> u32 {
+    10
+}
+
 /// Searches code by meaning using AI-powered semantic search to quickly locate
 /// specific code implementations. Use when you need to FIND WHERE code is
 /// located by describing what it does. Examples: \"where is authentication
@@ -187,6 +191,13 @@ pub struct CodebaseSearch {
     /// flow". Bad: generic terms like "retry" or "auth" without context. Think
     /// about the behavior and functionality you're looking for.
     pub query: String,
+
+    /// Top-k parameter for relevance filtering. Controls the number of nearest
+    /// neighbors to consider during semantic search. Higher values may return
+    /// more results but with lower relevance. Defaults to 10 if not specified.
+    #[serde(default = "default_codebase_top_k")]
+    pub top_k: u32,
+
     /// Describe WHY you're searching and what problem you're trying to solve.
     /// This filters results to match your specific intent. Good: "I need to
     /// add similar retry logic to API calls", "understanding how to handle
