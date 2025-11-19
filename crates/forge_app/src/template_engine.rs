@@ -106,7 +106,7 @@ impl<'a> TemplateEngine<'a> {
         create_handlerbar()
     }
 
-    pub(crate) fn default() -> Self {
+    pub fn default() -> Self {
         TemplateEngine { handlebar: HANDLEBARS.clone() }
     }
 }

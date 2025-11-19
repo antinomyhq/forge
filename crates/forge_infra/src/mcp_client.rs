@@ -36,7 +36,10 @@ pub struct ForgeMcpClient {
 impl ForgeMcpClient {
     pub fn new(config: McpServerConfig, env_vars: &BTreeMap<String, String>) -> Self {
         let config = match config {
-            McpServerConfig::Http(http) => McpServerConfig::Http(http.resolve(env_vars)),
+            McpServerConfig::Http(http) => {
+                // FIXME: Lazily initialize the templates: Only at the time of connection - Use oncelock for performance
+                McpServerConfig::Http(resolve_http_templates(http, env_vars).unwrap())
+            }
             x => x,
         };
         Self { client: Default::default(), config }
@@ -106,7 +109,6 @@ impl ForgeMcpClient {
                 match self.client_info().serve(transport).await {
                     Ok(client) => client,
                     Err(e) => {
-                        println!("e: {}", e);
                         let transport = SseClientTransport::start_with_client(
                             client,
                             SseClientConfig {
@@ -233,5 +235,106 @@ impl McpClientInfra for ForgeMcpClient {
     async fn call(&self, tool_name: &ToolName, input: Value) -> anyhow::Result<ToolOutput> {
         self.attempt_with_retry(|| self.call(tool_name, &input))
             .await
+    }
+}
+
+/// Resolves mustache templates in McpHttpServer headers using TemplateEngine
+/// and provided environment variables
+fn resolve_http_templates(
+    mut http: McpHttpServer,
+    env_vars: &BTreeMap<String, String>,
+) -> anyhow::Result<McpHttpServer> {
+    let handlebars = forge_app::TemplateEngine::default();
+
+    // Create template data with env variables nested under "env"
+    let template_data = serde_json::json!({"env": env_vars});
+
+    // Resolve templates in headers
+    for (_, value) in http.headers.iter_mut() {
+        let resolved = handlebars.render(value.clone(), &template_data)?;
+        *value = resolved;
+    }
+
+    Ok(http)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn test_resolve_http_templates_with_env() {
+        let env_vars = BTreeMap::from([
+            ("GH_TOKEN".to_string(), "secret_token_123".to_string()),
+            ("API_KEY".to_string(), "api_key_456".to_string()),
+        ]);
+
+        let http = McpHttpServer {
+            url: "https://api.example.com".to_string(),
+            headers: BTreeMap::from([
+                (
+                    "Authorization".to_string(),
+                    "Bearer {{env.GH_TOKEN}}".to_string(),
+                ),
+                ("X-API-Key".to_string(), "{{env.API_KEY}}".to_string()),
+                ("Content-Type".to_string(), "application/json".to_string()),
+            ]),
+            disable: false,
+        };
+
+        let resolved = resolve_http_templates(http, &env_vars).unwrap();
+
+        assert_eq!(
+            resolved.headers.get("Authorization"),
+            Some(&"Bearer secret_token_123".to_string())
+        );
+        assert_eq!(
+            resolved.headers.get("X-API-Key"),
+            Some(&"api_key_456".to_string())
+        );
+        assert_eq!(
+            resolved.headers.get("Content-Type"),
+            Some(&"application/json".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_http_templates_missing_env_var() {
+        let env_vars = BTreeMap::new(); // Empty env vars
+
+        let http = McpHttpServer {
+            url: "https://api.example.com".to_string(),
+            headers: BTreeMap::from([(
+                "Authorization".to_string(),
+                "Bearer {{env.MISSING_VAR}}".to_string(),
+            )]),
+            disable: false,
+        };
+
+        let resolved = resolve_http_templates(http, &env_vars).unwrap();
+
+        // Should keep original value if template rendering fails
+        assert_eq!(
+            resolved.headers.get("Authorization"),
+            Some(&"Bearer {{env.MISSING_VAR}}".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_http_templates_preserves_url_and_disable() {
+        let env_vars = BTreeMap::from([("TOKEN".to_string(), "test".to_string())]);
+
+        let http = McpHttpServer {
+            url: "https://test.example.com".to_string(),
+            headers: BTreeMap::from([("Auth".to_string(), "{{env.TOKEN}}".to_string())]),
+            disable: true,
+        };
+
+        let resolved = resolve_http_templates(http, &env_vars).unwrap();
+
+        assert_eq!(resolved.url, "https://test.example.com");
+        assert_eq!(resolved.disable, true);
+        assert_eq!(resolved.headers.get("Auth"), Some(&"test".to_string()));
     }
 }
