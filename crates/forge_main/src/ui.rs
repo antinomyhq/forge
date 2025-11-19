@@ -762,7 +762,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(());
         }
 
-        let mut info = Info::new().add_title("AGENTS");
+        let mut info = Info::new();
 
         for agent in agents.iter() {
             let id = agent.id.as_str().to_string();
@@ -784,16 +784,35 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
             let model_name = agent.model.as_str().to_string();
 
+            let reasoning = if agent
+                .reasoning
+                .as_ref()
+                .and_then(|a| a.enabled)
+                .unwrap_or_default()
+            {
+                "ENABLED"
+            } else {
+                "DISABLED"
+            };
             info = info
                 .add_title(id.to_case(Case::UpperSnake))
-                .add_key_value("id", id)
-                .add_key_value("title", title)
-                .add_key_value("provider", provider_name)
-                .add_key_value("model", model_name);
+                .add_key_value("Id", id)
+                .add_key_value("Title", title)
+                .add_key_value("Provider", provider_name)
+                .add_key_value("Model", model_name)
+                .add_key_value("Reasoning", reasoning);
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip(1).drop_col(0);
+            let porcelain =
+                Porcelain::from(&info)
+                    .skip(1)
+                    .drop_col(0)
+                    .map_col(4, |text| match text.as_deref() {
+                        Some("ENABLED") => Some("Reasoning".to_string()),
+                        Some("DISABLED") => Some("Non-Reasoning".to_string()),
+                        _ => None,
+                    });
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
