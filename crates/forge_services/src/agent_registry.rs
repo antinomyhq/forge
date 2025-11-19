@@ -124,8 +124,8 @@ impl<R: AgentRepository + AppConfigRepository + ProviderRepository> forge_app::A
     }
 
     async fn reload_agents(&self) -> anyhow::Result<()> {
-        let mut agents = self.agents.write().await;
-        *agents = None;
+        *self.agents.write().await = None;
+
         self.ensure_agents_loaded().await?;
         Ok(())
     }
