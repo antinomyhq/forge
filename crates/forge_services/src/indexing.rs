@@ -374,6 +374,37 @@ impl<
             .context("Failed to list workspaces")
     }
 
+    /// Retrieves workspace information for a specific path.
+    async fn get_workspace_info(&self, path: PathBuf) -> Result<Option<forge_domain::WorkspaceInfo>>
+    where
+        F: WorkspaceRepository + ContextEngineRepository + CredentialsRepository,
+    {
+        let path = path
+            .canonicalize()
+            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
+
+        // Get auth token
+        let auth = self
+            .infra
+            .get_auth()
+            .await?
+            .ok_or(forge_domain::Error::AuthTokenNotFound)?;
+
+        // Find workspace by path
+        let workspace = self.infra.find_by_path(&path).await?;
+
+        if let Some(workspace) = workspace {
+            // Get detailed workspace info from server
+            self.infra
+                .as_ref()
+                .get_workspace(&workspace.workspace_id, &auth.token)
+                .await
+                .context("Failed to get workspace info")
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Deletes a workspace from both the server and local database.
     async fn delete_codebase(&self, workspace_id: &forge_domain::WorkspaceId) -> Result<()> {
         // Get auth token
@@ -667,6 +698,19 @@ mod tests {
         async fn list_workspaces(&self, _: &ApiKey) -> Result<Vec<WorkspaceInfo>> {
             Ok(self.workspaces.lock().await.clone())
         }
+        async fn get_workspace(
+            &self,
+            workspace_id: &WorkspaceId,
+            _: &ApiKey,
+        ) -> Result<Option<WorkspaceInfo>> {
+            Ok(self
+                .workspaces
+                .lock()
+                .await
+                .iter()
+                .find(|w| w.workspace_id == *workspace_id)
+                .cloned())
+        }
         async fn list_workspace_files(
             &self,
             _: &WorkspaceFiles,
@@ -763,6 +807,9 @@ mod tests {
         mock.workspaces.lock().await.push(WorkspaceInfo {
             workspace_id: ws.workspace_id,
             working_dir: "/project".into(),
+            node_count: 0,
+            relation_count: 0,
+            last_updated: None,
         });
         let service = ForgeIndexingService::new(Arc::new(mock));
 
@@ -837,6 +884,9 @@ mod tests {
         mock.workspaces.lock().await.push(WorkspaceInfo {
             workspace_id: ws.workspace_id.clone(),
             working_dir: "/project".into(),
+            node_count: 0,
+            relation_count: 0,
+            last_updated: None,
         });
         let service = ForgeIndexingService::new(Arc::new(mock));
 
@@ -844,5 +894,57 @@ mod tests {
 
         let actual = service.list_codebase().await.unwrap();
         assert!(!actual.iter().any(|w| w.workspace_id == ws.workspace_id));
+    }
+
+    #[tokio::test]
+    async fn test_get_workspace_info_returns_workspace() {
+        let mock = MockInfra::synced(&["main.rs"]);
+        let ws = mock.workspace.clone().unwrap();
+        mock.workspaces.lock().await.push(WorkspaceInfo {
+            workspace_id: ws.workspace_id.clone(),
+            working_dir: ws.path.to_str().unwrap().into(),
+            node_count: 5,
+            relation_count: 10,
+            last_updated: Some(chrono::Utc::now()),
+        });
+        let service = ForgeIndexingService::new(Arc::new(mock));
+
+        let actual = service.get_workspace_info(ws.path).await.unwrap();
+
+        assert!(actual.is_some());
+        let expected = actual.unwrap();
+        assert_eq!(expected.workspace_id, ws.workspace_id);
+        assert_eq!(expected.node_count, 5);
+        assert_eq!(expected.relation_count, 10);
+    }
+
+    #[tokio::test]
+    async fn test_get_workspace_info_returns_none_when_not_found() {
+        let mock = MockInfra::new(&["main.rs"]);
+        let service = ForgeIndexingService::new(Arc::new(mock));
+
+        let actual = service
+            .get_workspace_info(PathBuf::from("."))
+            .await
+            .unwrap();
+
+        assert!(actual.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_get_workspace_info_error_when_not_authenticated() {
+        let mut mock = MockInfra::synced(&["main.rs"]);
+        mock.authenticated = false;
+        let ws = mock.workspace.clone().unwrap();
+        let service = ForgeIndexingService::new(Arc::new(mock));
+        let actual = service.get_workspace_info(ws.path).await;
+
+        assert!(actual.is_err());
+        assert!(
+            actual
+                .unwrap_err()
+                .to_string()
+                .contains("No indexing authentication found")
+        );
     }
 }

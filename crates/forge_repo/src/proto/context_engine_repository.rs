@@ -56,7 +56,18 @@ impl TryFrom<Workspace> for WorkspaceInfo {
         let workspace_id =
             WorkspaceId::from_string(&id_msg.id).context("Failed to parse workspace ID")?;
 
-        Ok(WorkspaceInfo { workspace_id, working_dir: workspace.working_dir })
+        let last_updated = workspace
+            .last_updated
+            .and_then(|ts| chrono::DateTime::parse_from_rfc3339(&ts).ok())
+            .map(|dt| dt.with_timezone(&chrono::Utc));
+
+        Ok(WorkspaceInfo {
+            workspace_id,
+            working_dir: workspace.working_dir,
+            node_count: workspace.node_count,
+            relation_count: workspace.relation_count,
+            last_updated,
+        })
     }
 }
 
@@ -265,6 +276,24 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
             .into_iter()
             .map(|workspace| workspace.try_into())
             .collect()
+    }
+
+    /// Get workspace information by workspace ID
+    async fn get_workspace(
+        &self,
+        workspace_id: &WorkspaceId,
+        auth_token: &forge_domain::ApiKey,
+    ) -> Result<Option<WorkspaceInfo>> {
+        let request = tonic::Request::new(GetWorkspaceInfoRequest {
+            workspace_id: Some(proto_generated::WorkspaceId { id: workspace_id.to_string() }),
+        });
+        let request = self.with_auth(request, auth_token)?;
+
+        let mut client = self.client.clone();
+        let response = client.get_workspace_info(request).await?;
+
+        let workspace = response.into_inner().workspace;
+        workspace.map(|w| w.try_into()).transpose()
     }
 
     /// List all files in a workspace with their hashes

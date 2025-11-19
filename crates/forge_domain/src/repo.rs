@@ -161,6 +161,13 @@ pub trait ContextEngineRepository: Send + Sync {
         auth_token: &crate::ApiKey,
     ) -> anyhow::Result<Vec<crate::WorkspaceInfo>>;
 
+    /// Get workspace information by workspace ID
+    async fn get_workspace(
+        &self,
+        workspace_id: &WorkspaceId,
+        auth_token: &crate::ApiKey,
+    ) -> anyhow::Result<Option<crate::WorkspaceInfo>>;
+
     /// List all files in a workspace with their hashes
     async fn list_workspace_files(
         &self,

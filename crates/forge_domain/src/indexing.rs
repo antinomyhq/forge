@@ -118,6 +118,12 @@ pub struct WorkspaceInfo {
     pub workspace_id: WorkspaceId,
     /// Working directory path
     pub working_dir: String,
+    /// Number of nodes created
+    pub node_count: u64,
+    /// Number of relations between nodes
+    pub relation_count: u64,
+    /// Last updated timestamp
+    pub last_updated: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// File hash information from the server
