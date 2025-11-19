@@ -755,13 +755,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
     }
 
-    async fn on_show_agents(&mut self, porcelain: bool) -> anyhow::Result<()> {
+    /// Builds an Info structure for agents with their details
+    async fn build_agents_info(&self) -> anyhow::Result<Info> {
         let agents = self.api.get_agents().await?;
-
-        if agents.is_empty() {
-            return Ok(());
-        }
-
         let mut info = Info::new();
 
         for agent in agents.iter() {
@@ -802,6 +798,18 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .add_key_value("Model", model_name)
                 .add_key_value("Reasoning", reasoning);
         }
+
+        Ok(info)
+    }
+
+    async fn on_show_agents(&mut self, porcelain: bool) -> anyhow::Result<()> {
+        let agents = self.api.get_agents().await?;
+
+        if agents.is_empty() {
+            return Ok(());
+        }
+
+        let info = self.build_agents_info().await?;
 
         if porcelain {
             let porcelain =
@@ -1408,39 +1416,23 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                 let agents = self.api.get_agents().await?;
 
-                // Build Info structure matching list agents format
-                let mut info = Info::new().add_title("AGENTS");
-
-                for agent in agents.iter() {
-                    let id = agent.id.as_str().to_string();
-                    let title = agent
-                        .title
-                        .as_deref()
-                        .unwrap_or("<Missing agent.title>")
-                        .lines()
-                        .collect::<Vec<_>>()
-                        .join(" ");
-
-                    // Get provider for this agent
-                    let provider_name = self
-                        .get_provider(Some(agent.id.clone()))
-                        .await
-                        .ok()
-                        .map(|p| p.id.to_string())
-                        .unwrap_or_else(|| "<unset>".to_string());
-
-                    let model_name = agent.model.as_str().to_string();
-
-                    info = info
-                        .add_title(id.to_case(Case::UpperSnake))
-                        .add_key_value("id", id)
-                        .add_key_value("title", title)
-                        .add_key_value("provider", provider_name)
-                        .add_key_value("model", model_name);
+                if agents.is_empty() {
+                    return Ok(false);
                 }
 
+                // Reuse the same Info building logic as list agents
+                let info = self.build_agents_info().await?;
+
                 // Convert to porcelain format (same as list agents --porcelain)
-                let porcelain_output = Porcelain::from(&info).skip(1).drop_col(0);
+                let porcelain_output =
+                    Porcelain::from(&info)
+                        .skip(1)
+                        .drop_col(0)
+                        .map_col(4, |text| match text.as_deref() {
+                            Some("ENABLED") => Some("Reasoning".to_string()),
+                            Some("DISABLED") => Some("Non-Reasoning".to_string()),
+                            _ => None,
+                        });
 
                 // Split the porcelain output into lines and create agents
                 let porcelain_lines: Vec<String> = porcelain_output
