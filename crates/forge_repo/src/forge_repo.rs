@@ -12,7 +12,8 @@ use forge_domain::{
     ConversationId, ConversationRepository, Environment, FileInfo, McpServerConfig,
     MigrationResult, Provider, ProviderId, ProviderRepository, Snapshot, SnapshotRepository,
 };
-use forge_infra::CacacheStorage;
+// Re-export CacacheStorage from forge_infra
+pub use forge_infra::CacacheStorage;
 use reqwest::header::HeaderMap;
 use reqwest::Response;
 use reqwest_eventsource::EventSource;
@@ -20,7 +21,10 @@ use url::Url;
 
 use crate::fs_snap::ForgeFileSnapshotService;
 use crate::provider::ForgeProviderRepository;
-use crate::{AppConfigRepositoryImpl, ConversationRepositoryImpl, DatabasePool, PoolConfig};
+use crate::{
+    AppConfigRepositoryImpl, ConversationRepositoryImpl, DatabasePool, ForgeAgentRepository,
+    PoolConfig,
+};
 
 /// Repository layer that implements all domain repository traits
 ///
@@ -34,6 +38,7 @@ pub struct ForgeRepo<F> {
     app_config_repository: Arc<AppConfigRepositoryImpl<F>>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
+    agent_repository: Arc<ForgeAgentRepository<F>>,
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
@@ -53,7 +58,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
         )); // 1 hour TTL
 
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
-
+        let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
         Self {
             infra,
             file_snapshot_service,
@@ -61,6 +66,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
             app_config_repository,
             mcp_cache_repository,
             provider_repository,
+            agent_repository,
         }
     }
 }
@@ -387,9 +393,11 @@ where
 }
 
 #[async_trait::async_trait]
-impl<F: AgentRepository + Send + Sync> AgentRepository for ForgeRepo<F> {
+impl<F: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra + Send + Sync> AgentRepository
+    for ForgeRepo<F>
+{
     async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::AgentDefinition>> {
-        self.infra.get_agents().await
+        self.agent_repository.get_agents().await
     }
 }
 
