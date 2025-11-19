@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::future::Future;
 use std::str::FromStr;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, OnceLock, RwLock};
 
 use backon::{ExponentialBuilder, Retryable};
 use forge_app::McpClientInfra;
@@ -31,18 +31,31 @@ type RmcpClient = RunningService<RoleClient, InitializeRequestParam>;
 pub struct ForgeMcpClient {
     client: Arc<RwLock<Option<Arc<RmcpClient>>>>,
     config: McpServerConfig,
+    env_vars: BTreeMap<String, String>,
+    resolved_config: Arc<OnceLock<anyhow::Result<McpServerConfig>>>,
 }
 
 impl ForgeMcpClient {
     pub fn new(config: McpServerConfig, env_vars: &BTreeMap<String, String>) -> Self {
-        let config = match config {
-            McpServerConfig::Http(http) => {
-                // FIXME: Lazily initialize the templates: Only at the time of connection - Use oncelock for performance
-                McpServerConfig::Http(resolve_http_templates(http, env_vars).unwrap())
-            }
-            x => x,
-        };
-        Self { client: Default::default(), config }
+        Self {
+            client: Default::default(),
+            config,
+            env_vars: env_vars.clone(),
+            resolved_config: Arc::new(OnceLock::new()),
+        }
+    }
+
+    /// Gets the resolved configuration, lazily initializing templates if needed
+    fn get_resolved_config(&self) -> anyhow::Result<&McpServerConfig> {
+        self.resolved_config
+            .get_or_init(|| match &self.config {
+                McpServerConfig::Http(http) => {
+                    resolve_http_templates(http.clone(), &self.env_vars).map(McpServerConfig::Http)
+                }
+                x => Ok(x.clone()),
+            })
+            .as_ref()
+            .map_err(|e| anyhow::anyhow!("{e}"))
     }
 
     fn client_info(&self) -> ClientInfo {
@@ -72,17 +85,18 @@ impl ForgeMcpClient {
     }
 
     fn get_client(&self) -> Option<Arc<RmcpClient>> {
-        let guard = self.client.read().unwrap();
-        guard.clone()
+        self.client.read().ok().and_then(|guard| guard.clone())
     }
 
     fn set_client(&self, client: Arc<RmcpClient>) {
-        let mut guard = self.client.write().unwrap();
-        *guard = Some(client);
+        if let Ok(mut guard) = self.client.write() {
+            *guard = Some(client);
+        }
     }
 
     async fn create_connection(&self) -> anyhow::Result<Arc<RmcpClient>> {
-        let client = match &self.config {
+        let config = self.get_resolved_config()?;
+        let client = match config {
             McpServerConfig::Stdio(stdio) => {
                 let mut cmd = Command::new(stdio.command.clone());
 
@@ -108,7 +122,7 @@ impl ForgeMcpClient {
                 );
                 match self.client_info().serve(transport).await {
                     Ok(client) => client,
-                    Err(e) => {
+                    Err(_e) => {
                         let transport = SseClientTransport::start_with_client(
                             client,
                             SseClientConfig {
@@ -216,8 +230,10 @@ impl ForgeMcpClient {
                 })
                 .unwrap_or(false);
 
-            if is_transport {
-                self.client.write().unwrap().take();
+            if is_transport
+                && let Ok(mut guard) = self.client.write()
+            {
+                guard.take();
             }
 
             is_transport
@@ -238,21 +254,23 @@ impl McpClientInfra for ForgeMcpClient {
     }
 }
 
-/// Resolves mustache templates in McpHttpServer headers using TemplateEngine
+/// Resolves mustache templates in McpHttpServer headers using Handlebars
 /// and provided environment variables
 fn resolve_http_templates(
     mut http: McpHttpServer,
     env_vars: &BTreeMap<String, String>,
 ) -> anyhow::Result<McpHttpServer> {
-    let handlebars = forge_app::TemplateEngine::default();
+    let handlebars = forge_app::TemplateEngine::handlebar_instance();
 
     // Create template data with env variables nested under "env"
     let template_data = serde_json::json!({"env": env_vars});
 
     // Resolve templates in headers
     for (_, value) in http.headers.iter_mut() {
-        let resolved = handlebars.render(value.clone(), &template_data)?;
-        *value = resolved;
+        // Try to render the template, but keep original value if it fails
+        if let Ok(resolved) = handlebars.render_template(value, &template_data) {
+            *value = resolved;
+        }
     }
 
     Ok(http)
@@ -260,8 +278,9 @@ fn resolve_http_templates(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
     fn test_resolve_http_templates_with_env() {

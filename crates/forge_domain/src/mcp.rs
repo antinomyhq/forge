@@ -89,8 +89,7 @@ pub struct McpHttpServer {
     pub disable: bool,
 }
 
-impl McpHttpServer {
-}
+impl McpHttpServer {}
 
 impl Display for McpServerConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
