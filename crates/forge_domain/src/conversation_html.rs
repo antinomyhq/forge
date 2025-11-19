@@ -303,7 +303,7 @@ mod tests {
 
     #[test]
     fn test_render_conversation_with_reasoning_details() {
-        use crate::agent::{Effort, ReasoningConfig};
+        use crate::agent_definition::{Effort, ReasoningConfig};
         use crate::context::{Context, ContextMessage};
         use crate::conversation::ConversationId;
         use crate::reasoning::ReasoningFull;
