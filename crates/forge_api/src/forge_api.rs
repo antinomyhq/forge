@@ -324,4 +324,8 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     async fn remove_provider(&self, provider_id: &ProviderId) -> Result<()> {
         Ok(self.services.remove_credential(provider_id).await?)
     }
+
+    async fn migrate_env_credentials(&self) -> Result<Option<forge_domain::MigrationResult>> {
+        Ok(self.services.migrate_env_credentials().await?)
+    }
 }
