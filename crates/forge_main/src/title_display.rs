@@ -46,6 +46,7 @@ impl TitleDisplay {
                     Category::Debug => "⏺".cyan(),
                     Category::Error => "⏺".red(),
                     Category::Completion => "⏺".yellow(),
+                    Category::Warning => "⏺".bright_yellow(),
                 };
                 format!("{} {}", icon, result.trim()).trim().to_string()
             } else {
@@ -83,6 +84,9 @@ impl TitleDisplay {
                     .red()
                     .to_string(),
                 Category::Completion => self.inner.title.white().bold().to_string(),
+                Category::Warning => format!("{} {}", "WARNING:".bold(), self.inner.title)
+                    .bright_yellow()
+                    .to_string(),
             }
         } else {
             self.inner.title.clone()
@@ -112,6 +116,7 @@ impl TitleDisplay {
                 Category::Debug => "⏺".cyan().to_string(),
                 Category::Error => "⏺".red().to_string(),
                 Category::Completion => "⏺".yellow().to_string(),
+                Category::Warning => "⏺".bright_yellow().to_string(),
             }
         } else {
             "⏺".to_string()
