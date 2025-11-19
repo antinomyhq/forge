@@ -1,9 +1,7 @@
 use std::collections::HashSet;
 
-use forge_domain::{ToolDefinition, ToolName};
+use forge_domain::{Agent, ToolDefinition, ToolName};
 use glob::Pattern;
-
-use crate::Agent;
 
 /// Service that resolves tool definitions for agents based on their configured
 /// tool list
@@ -78,11 +76,10 @@ impl ToolResolver {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{AgentId, ModelId, ProviderId, ToolDefinition, ToolName};
+    use forge_domain::{Agent, AgentId, ModelId, ProviderId, ToolDefinition, ToolName};
     use pretty_assertions::assert_eq;
 
     use super::ToolResolver;
-    use crate::Agent;
 
     #[test]
     fn test_resolve_filters_agent_tools() {

@@ -1,6 +1,5 @@
 mod agent;
 mod agent_executor;
-mod agent_struct;
 
 mod agent_provider_resolver;
 mod app;
@@ -39,7 +38,6 @@ mod walker;
 
 pub use agent::*;
 pub use agent_provider_resolver::*;
-pub use agent_struct::*;
 pub use app::*;
 pub use command_generator::*;
 pub use error::*;

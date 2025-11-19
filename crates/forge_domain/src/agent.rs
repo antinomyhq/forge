@@ -1,10 +1,11 @@
 use derive_setters::Setters;
-use forge_domain::{
+use merge::Merge;
+
+use crate::{
     AgentDefinition, AgentId, Compact, Context, Error, EventContext, MaxTokens, ModelId,
     ProviderId, ReasoningConfig, Result, SystemContext, Temperature, Template, ToolDefinition,
     ToolName, TopK, TopP, Workflow,
 };
-use merge::Merge;
 
 /// Runtime agent representation with required model and provider
 /// Created by converting AgentDefinition with resolved defaults
@@ -241,7 +242,7 @@ impl From<Agent> for ToolDefinition {
         ToolDefinition {
             name,
             description,
-            input_schema: schemars::schema_for!(forge_domain::AgentInput),
+            input_schema: schemars::schema_for!(crate::AgentInput),
         }
     }
 }

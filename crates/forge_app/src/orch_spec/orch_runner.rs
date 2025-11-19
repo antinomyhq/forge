@@ -158,7 +158,7 @@ impl AgentService for Runner {
 
     async fn call(
         &self,
-        _: &crate::Agent,
+        _: &forge_domain::Agent,
         _: &forge_domain::ToolCallContext,
         test_call: forge_domain::ToolCallFull,
     ) -> forge_domain::ToolResult {

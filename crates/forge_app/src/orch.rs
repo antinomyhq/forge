@@ -5,15 +5,15 @@ use std::time::Duration;
 
 use async_recursion::async_recursion;
 use derive_setters::Setters;
-use forge_domain::*;
+use forge_domain::{Agent, *};
 use forge_template::Element;
 use tokio::task::JoinHandle;
 use tracing::{debug, info, warn};
 
+use crate::TemplateEngine;
 use crate::agent::AgentService;
 use crate::compact::Compactor;
 use crate::title_generator::TitleGenerator;
-use crate::{Agent, TemplateEngine};
 
 #[derive(Clone, Setters)]
 #[setters(into)]

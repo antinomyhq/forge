@@ -1,11 +1,11 @@
 use std::ops::Deref;
 use std::sync::Arc;
 
-use forge_domain::*;
+use forge_domain::{Agent, *};
 use serde_json::json;
 use tracing::debug;
 
-use crate::{Agent, AttachmentService, TemplateService};
+use crate::{AttachmentService, TemplateService};
 
 /// Service responsible for setting user prompts in the conversation context
 #[derive(Clone)]

@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use dashmap::DashMap;
+use forge_app::AgentRepository;
 use forge_app::domain::AgentId;
-use forge_app::{Agent, AgentRepository};
-use forge_domain::{AppConfigRepository, ProviderRepository};
+use forge_domain::{Agent, AppConfigRepository, ProviderRepository};
 use tokio::sync::RwLock;
 
 /// AgentRegistryService manages the active-agent ID and a registry of runtime

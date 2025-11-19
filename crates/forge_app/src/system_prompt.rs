@@ -2,11 +2,12 @@ use std::sync::Arc;
 
 use derive_setters::Setters;
 use forge_domain::{
-    Conversation, Environment, Model, SystemContext, Template, ToolDefinition, ToolUsagePrompt,
+    Agent, Conversation, Environment, Model, SystemContext, Template, ToolDefinition,
+    ToolUsagePrompt,
 };
 use tracing::debug;
 
-use crate::{Agent, TemplateService};
+use crate::TemplateService;
 
 #[derive(Setters)]
 pub struct SystemPrompt<S> {

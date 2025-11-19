@@ -4,13 +4,12 @@ use std::path::PathBuf;
 use chrono::{DateTime, Local};
 use derive_setters::Setters;
 use forge_domain::{
-    AgentId, Attachment, ChatCompletionMessage, ChatResponse, ContextMessage, Conversation,
+    Agent, AgentId, Attachment, ChatCompletionMessage, ChatResponse, ContextMessage, Conversation,
     Environment, Event, HttpConfig, ModelId, ProviderId, RetryConfig, Role, Template, ToolCallFull,
     ToolDefinition, ToolResult, Workflow,
 };
 use url::Url;
 
-use crate::Agent;
 use crate::orch_spec::orch_runner::Runner;
 
 // User prompt

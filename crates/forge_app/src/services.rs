@@ -406,10 +406,10 @@ pub trait AgentRegistry: Send + Sync {
     async fn set_active_agent_id(&self, agent_id: AgentId) -> anyhow::Result<()>;
 
     /// Get all agents from the registry store
-    async fn get_agents(&self) -> anyhow::Result<Vec<crate::Agent>>;
+    async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::Agent>>;
 
     /// Get agent by ID (from registry store)
-    async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<crate::Agent>>;
+    async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<forge_domain::Agent>>;
 
     /// Reload agents by invalidating the cache
     async fn reload_agents(&self) -> anyhow::Result<()>;
@@ -863,11 +863,11 @@ impl<I: Services> AgentRegistry for I {
         self.agent_registry().set_active_agent_id(agent_id).await
     }
 
-    async fn get_agents(&self) -> anyhow::Result<Vec<crate::Agent>> {
+    async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::Agent>> {
         self.agent_registry().get_agents().await
     }
 
-    async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<crate::Agent>> {
+    async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<forge_domain::Agent>> {
         self.agent_registry().get_agent(agent_id).await
     }
 

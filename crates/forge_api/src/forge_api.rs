@@ -5,12 +5,12 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use forge_app::dto::ToolsOverview;
 use forge_app::{
-    Agent, AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
+    AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
     CommandLoaderService, ConversationService, EnvironmentInfra, EnvironmentService,
     FileDiscoveryService, ForgeApp, GitApp, McpConfigManager, McpService, ProviderAuthService,
     ProviderService, Services, User, UserUsage, Walker, WorkflowService,
 };
-use forge_domain::{InitAuth, LoginInfo, *};
+use forge_domain::{Agent, InitAuth, LoginInfo, *};
 use forge_infra::ForgeInfra;
 use forge_repo::ForgeRepo;
 use forge_services::ForgeServices;
