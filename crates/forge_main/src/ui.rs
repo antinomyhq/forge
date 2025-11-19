@@ -1408,16 +1408,18 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                 let agents = self.api.get_agents().await?;
 
-                // Fetch all models to get their names
-                let models = self.get_models().await?;
+                // Build Info structure matching list agents format
+                let mut info = Info::new().add_title("AGENTS");
 
-                // Collect agents with their provider and model information
-                let mut display_agents = Vec::new();
-                for agent in agents {
-                    let title = &agent
+                for agent in agents.iter() {
+                    let id = agent.id.as_str().to_string();
+                    let title = agent
                         .title
-                        .clone()
-                        .unwrap_or("<Missing agent.title>".to_string());
+                        .as_deref()
+                        .unwrap_or("<Missing agent.title>")
+                        .lines()
+                        .collect::<Vec<_>>()
+                        .join(" ");
 
                     // Get provider for this agent
                     let provider_name = self
@@ -1427,33 +1429,35 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         .map(|p| p.id.to_string())
                         .unwrap_or_else(|| "<unset>".to_string());
 
-                    // Get model for this agent
-                    let model_display = if let Some(model_id) =
-                        self.get_agent_model(Some(agent.id.clone())).await
-                    {
-                        // Find the model in the models list to get its name
-                        models
-                            .iter()
-                            .find(|m| m.id == model_id)
-                            .and_then(|m| m.name.as_ref())
-                            .map(|name| name.to_string())
-                            .unwrap_or_else(|| model_id.as_str().to_string())
-                    } else {
-                        "<unset>".to_string()
-                    };
+                    let model_name = agent.model.as_str().to_string();
 
-                    // Left side: agent id and title
-                    let left_side = format!(
-                        "{} {}",
-                        agent.id.as_str().bold(),
-                        title.lines().collect::<Vec<_>>().join(" ").dimmed()
-                    );
+                    info = info
+                        .add_title(id.to_case(Case::UpperSnake))
+                        .add_key_value("id", id)
+                        .add_key_value("title", title)
+                        .add_key_value("provider", provider_name)
+                        .add_key_value("model", model_name);
+                }
 
-                    // Right side: provider and model
-                    let right_side = format!("{}: {}", provider_name, model_display).dimmed();
+                // Convert to porcelain format (same as list agents --porcelain)
+                let porcelain_output = Porcelain::from(&info).skip(1).drop_col(0);
 
-                    let label = format!("{:<70} {}", left_side, right_side);
-                    display_agents.push(Agent { label, id: agent.id.clone() });
+                // Split the porcelain output into lines and create agents
+                let porcelain_lines: Vec<String> = porcelain_output
+                    .to_string()
+                    .lines()
+                    .map(|s| s.to_string())
+                    .collect();
+
+                let mut display_agents = Vec::new();
+                for line in porcelain_lines {
+                    // Extract agent id from the beginning of the line
+                    if let Some(id_str) = line.split_whitespace().next() {
+                        display_agents.push(Agent {
+                            label: line.clone(),
+                            id: AgentId::new(id_str.to_string()),
+                        });
+                    }
                 }
 
                 if let Some(selected_agent) = ForgeSelect::select(
