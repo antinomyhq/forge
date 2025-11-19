@@ -138,6 +138,12 @@ pub trait ProviderService: Send + Sync {
         credential: forge_domain::AuthCredential,
     ) -> anyhow::Result<()>;
     async fn remove_credential(&self, id: &forge_domain::ProviderId) -> anyhow::Result<()>;
+    /// Migrates environment variable-based credentials to file-based
+    /// credentials. Returns Some(MigrationResult) if credentials were migrated,
+    /// None if file already exists or no credentials to migrate.
+    async fn migrate_env_credentials(
+        &self,
+    ) -> anyhow::Result<Option<forge_domain::MigrationResult>>;
 }
 
 /// Manages user preferences for default providers and models.
@@ -571,6 +577,12 @@ impl<I: Services> ProviderService for I {
 
     async fn remove_credential(&self, id: &forge_domain::ProviderId) -> anyhow::Result<()> {
         self.provider_service().remove_credential(id).await
+    }
+
+    async fn migrate_env_credentials(
+        &self,
+    ) -> anyhow::Result<Option<forge_domain::MigrationResult>> {
+        self.provider_service().migrate_env_credentials().await
     }
 }
 

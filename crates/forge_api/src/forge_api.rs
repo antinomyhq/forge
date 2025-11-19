@@ -323,6 +323,10 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         Ok(self.services.remove_credential(provider_id).await?)
     }
 
+    async fn migrate_env_credentials(&self) -> Result<Option<forge_domain::MigrationResult>> {
+        Ok(self.services.migrate_env_credentials().await?)
+    }
+
     async fn get_default_provider(&self) -> Result<Provider<Url>> {
         let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
         agent_provider_resolver.get_provider(None).await

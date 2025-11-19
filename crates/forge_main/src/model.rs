@@ -476,12 +476,12 @@ pub enum SlashCommand {
     #[strum(props(usage = "Switch to an agent interactively"))]
     Agent,
 
-    /// Log into the default provider.
-    #[strum(props(usage = "Log into the Forge provider"))]
+    /// Allows you to configure provider
+    #[strum(props(usage = "Allows you to configure provider"))]
     Login,
 
-    /// Logs out of the current session.
-    #[strum(props(usage = "Logout of the current session"))]
+    /// Logs out from the configured provider
+    #[strum(props(usage = "Logout from configured provider"))]
     Logout,
 
     /// Retry without modifying model context
