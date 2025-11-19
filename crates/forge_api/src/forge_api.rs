@@ -360,8 +360,4 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     async fn is_authenticated(&self) -> Result<bool> {
         self.services.is_authenticated().await
     }
-
-    async fn create_auth_credentials(&self) -> Result<forge_domain::IndexingAuth> {
-        self.services.create_auth_credentials().await
-    }
 }

@@ -2555,15 +2555,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     ) -> anyhow::Result<()> {
         use tokio_stream::StreamExt;
 
-        // Check if auth already exists and create if needed
-        if !self.api.is_authenticated().await? {
-            let auth = self.api.create_auth_credentials().await?;
-            let info = Info::new()
-                .add_title("NEW API KEY CREATED")
-                .add_key_value("API Key", auth.token.as_str());
-            self.writeln(info.to_string())?;
-        }
-
         // Start spinner initially
         self.spinner.start(Some("Starting indexing..."))?;
 
@@ -2574,13 +2565,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 Ok(progress) => {
                     use forge_domain::IndexProgress;
                     match progress {
-                        IndexProgress::DiscoveringFiles { path } => {
-                            self.spinner
-                                .start(Some(&format!("Discovering files in {}", path)))?;
-                        }
                         IndexProgress::FilesDiscovered { count } => {
                             self.spinner
-                                .start(Some(&format!("Found {} files", count)))?;
+                                .start(Some(&format!("Discovered {} files", count)))?;
                         }
                         IndexProgress::DeletingFiles { count } => {
                             self.spinner
@@ -2610,6 +2597,19 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                                 "Processed {} files: {} uploaded, {} skipped",
                                 files_processed, files_uploaded, files_skipped
                             ))?;
+                        }
+                        IndexProgress::WorkspaceCreated { workspace_id } => {
+                            self.writeln_title(
+                                TitleFormat::action("Workspace created")
+                                    .sub_title(workspace_id.to_string()),
+                            )?;
+                        }
+                        IndexProgress::Authenticated { auth } => {
+                            self.spinner.stop(None)?;
+                            let info = Info::new()
+                                .add_title("NEW API KEY CREATED")
+                                .add_key_value("API Key", auth.token.as_str());
+                            self.writeln(info.to_string())?;
                         }
                     }
                 }
