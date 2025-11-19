@@ -836,13 +836,13 @@ mod tests {
         let agents = vec![
             Agent::new(
                 "test-agent",
-                ProviderId::Anthropic,
+                ProviderId::ANTHROPIC,
                 ModelId::new("claude-3-5-sonnet-20241022"),
             )
             .title("Test Agent".to_string()),
             Agent::new(
                 "another",
-                ProviderId::Anthropic,
+                ProviderId::ANTHROPIC,
                 ModelId::new("claude-3-5-sonnet-20241022"),
             )
             .title("Another Agent".to_string()),
@@ -881,7 +881,7 @@ mod tests {
         let agents = vec![
             Agent::new(
                 "test-agent",
-                ProviderId::Anthropic,
+                ProviderId::ANTHROPIC,
                 ModelId::new("claude-3-5-sonnet-20241022"),
             )
             .title("Test Agent".to_string()),
