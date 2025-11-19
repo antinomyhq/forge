@@ -4,11 +4,11 @@ use std::time::Duration;
 use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse,
-    AuthCredential, AuthMethod, ChatCompletionMessage, CommandOutput, Context, Conversation,
-    ConversationId, Environment, File, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model,
-    ModelId, PatchOperation, Provider, ProviderId, ResultStream, Scope, Template, ToolCallFull,
-    ToolOutput, Workflow,
+    AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthCredential,
+    AuthMethod, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
+    Environment, File, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId,
+    PatchOperation, Provider, ProviderId, ResultStream, Scope, Template, ToolCallFull, ToolOutput,
+    Workflow,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -399,20 +399,20 @@ pub trait AuthService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait AgentRegistry: Send + Sync {
-    /// Load all agent definitions from the forge/agent directory
-    async fn get_agents(&self) -> anyhow::Result<Vec<Agent>>;
-
-    /// Get agent by ID
-    async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<Agent>>;
-
-    /// Get the currently active agent
-    async fn get_active_agent(&self) -> anyhow::Result<Option<Agent>>;
-
     /// Get the active agent ID
     async fn get_active_agent_id(&self) -> anyhow::Result<Option<AgentId>>;
 
     /// Set the active agent ID
     async fn set_active_agent_id(&self, agent_id: AgentId) -> anyhow::Result<()>;
+
+    /// Get all agents from the registry store
+    async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::Agent>>;
+
+    /// Get agent by ID (from registry store)
+    async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<forge_domain::Agent>>;
+
+    /// Reload agents by invalidating the cache
+    async fn reload_agents(&self) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -855,24 +855,24 @@ pub trait HttpClientService: Send + Sync + 'static {
 
 #[async_trait::async_trait]
 impl<I: Services> AgentRegistry for I {
-    async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
-        self.agent_registry().get_agents().await
-    }
-
-    async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<Agent>> {
-        self.agent_registry().get_agent(agent_id).await
-    }
-
-    async fn get_active_agent(&self) -> anyhow::Result<Option<Agent>> {
-        self.agent_registry().get_active_agent().await
-    }
-
     async fn get_active_agent_id(&self) -> anyhow::Result<Option<AgentId>> {
         self.agent_registry().get_active_agent_id().await
     }
 
     async fn set_active_agent_id(&self, agent_id: AgentId) -> anyhow::Result<()> {
         self.agent_registry().set_active_agent_id(agent_id).await
+    }
+
+    async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::Agent>> {
+        self.agent_registry().get_agents().await
+    }
+
+    async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<forge_domain::Agent>> {
+        self.agent_registry().get_agent(agent_id).await
+    }
+
+    async fn reload_agents(&self) -> anyhow::Result<()> {
+        self.agent_registry().reload_agents().await
     }
 }
 

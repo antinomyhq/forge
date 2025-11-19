@@ -24,11 +24,17 @@ where
     /// agent is provided. Automatically refreshes OAuth credentials if they're
     /// about to expire.
     pub async fn get_provider(&self, agent_id: Option<AgentId>) -> Result<Provider<url::Url>> {
-        let provider = if let Some(agent) = agent_id
-            && let Some(agent) = self.0.get_agent(&agent).await?
-            && let Some(provider_id) = agent.provider
-        {
-            self.0.get_provider(provider_id).await?
+        let provider = if let Some(agent_id) = agent_id {
+            // Load all agent definitions and find the one we need
+
+            if let Some(agent) = self.0.get_agent(&agent_id).await? {
+                // If the agent definition has a provider, use it; otherwise use default
+                self.0.get_provider(agent.provider).await?
+            } else {
+                // TODO: Needs review, should we throw an err here?
+                // we can throw crate::Error::AgentNotFound
+                self.0.get_default_provider().await?
+            }
         } else {
             self.0.get_default_provider().await?
         };
@@ -69,13 +75,40 @@ where
     /// Gets the model for the specified agent, or the default model if no agent
     /// is provided
     pub async fn get_model(&self, agent_id: Option<AgentId>) -> Result<ModelId> {
-        let provider_id = self.get_provider(agent_id).await?.id;
-        self.0.get_default_model(&provider_id).await
+        if let Some(agent_id) = agent_id {
+            if let Some(agent) = self.0.get_agent(&agent_id).await? {
+                Ok(agent.model)
+            } else {
+                // TODO: Needs review, should we throw an err here?
+                // we can throw crate::Error::AgentNotFound
+                let provider_id = self.get_provider(Some(agent_id)).await?.id;
+                self.0.get_default_model(&provider_id).await
+            }
+        } else {
+            let provider_id = self.get_provider(None).await?.id;
+            self.0.get_default_model(&provider_id).await
+        }
     }
 
-    /// Sets the default model for the agent's provider
+    /// Sets the model for the agent's provider
     pub async fn set_default_model(&self, agent_id: Option<AgentId>, model: ModelId) -> Result<()> {
-        let provider_id = self.get_provider(agent_id).await?.id;
-        self.0.set_default_model(model, provider_id).await
+        // Invalidate cache for agents
+        let result = if let Some(agent_id) = agent_id {
+            if let Some(agent) = self.0.get_agent(&agent_id).await? {
+                let provider_id = agent.provider;
+                self.0.set_default_model(model, provider_id).await
+            } else {
+                // TODO: Needs review, should we throw an err here?
+                // we can throw crate::Error::AgentNotFound
+                let provider_id = self.get_provider(None).await?.id;
+                self.0.set_default_model(model, provider_id).await
+            }
+        } else {
+            let provider_id = self.get_provider(None).await?.id;
+            self.0.set_default_model(model, provider_id).await
+        };
+        self.0.reload_agents().await?;
+
+        result
     }
 }

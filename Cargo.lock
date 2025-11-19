@@ -720,6 +720,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "dashmap"
+version = "7.0.0-rc2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4a1e35a65fe0538a60167f0ada6e195ad5d477f6ddae273943596d4a1a5730b"
+dependencies = [
+ "cfg-if",
+ "crossbeam-utils",
+ "equivalent",
+ "hashbrown 0.15.5",
+ "lock_api",
+ "parking_lot_core",
+]
+
+[[package]]
 name = "data-encoding"
 version = "2.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1404,12 +1418,14 @@ dependencies = [
  "derive_more",
  "diesel",
  "diesel_migrations",
+ "dirs",
  "fake",
  "forge_app",
  "forge_domain",
  "forge_fs",
  "forge_infra",
  "forge_snaps",
+ "gray_matter",
  "handlebars",
  "merge 0.2.0",
  "pretty_assertions",
@@ -1446,6 +1462,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "chrono",
+ "dashmap",
  "derive_setters",
  "fake",
  "forge_app",

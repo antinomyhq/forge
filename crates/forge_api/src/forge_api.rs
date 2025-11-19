@@ -10,7 +10,7 @@ use forge_app::{
     FileDiscoveryService, ForgeApp, GitApp, McpConfigManager, McpService, ProviderAuthService,
     ProviderService, Services, User, UserUsage, Walker, WorkflowService,
 };
-use forge_domain::{InitAuth, LoginInfo, *};
+use forge_domain::{Agent, InitAuth, LoginInfo, *};
 use forge_infra::ForgeInfra;
 use forge_repo::ForgeRepo;
 use forge_services::ForgeServices;
@@ -70,7 +70,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
             .await?)
     }
     async fn get_agents(&self) -> Result<Vec<Agent>> {
-        Ok(self.services.get_agents().await?)
+        self.services.get_agents().await
     }
 
     async fn get_providers(&self) -> Result<Vec<AnyProvider>> {
@@ -217,18 +217,17 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     async fn logout(&self) -> Result<()> {
         self.app().logout().await
     }
+
     async fn get_agent_provider(&self, agent_id: AgentId) -> anyhow::Result<Provider<Url>> {
         let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
         agent_provider_resolver.get_provider(Some(agent_id)).await
     }
 
-    async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>> {
-        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
-        agent_provider_resolver.get_provider(None).await
-    }
-
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        self.services.set_default_provider(provider_id).await
+        // Invalidate cache for agents
+        let result = self.services.set_default_provider(provider_id).await;
+        self.services.reload_agents().await?;
+        result
     }
 
     async fn user_info(&self) -> Result<Option<User>> {
@@ -327,5 +326,10 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
 
     async fn migrate_env_credentials(&self) -> Result<Option<forge_domain::MigrationResult>> {
         Ok(self.services.migrate_env_credentials().await?)
+    }
+
+    async fn get_default_provider(&self) -> Result<Provider<Url>> {
+        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
+        agent_provider_resolver.get_provider(None).await
     }
 }
