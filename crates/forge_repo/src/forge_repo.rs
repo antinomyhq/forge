@@ -9,8 +9,8 @@ use forge_app::{
 };
 use forge_domain::{
     AnyProvider, AppConfig, AppConfigRepository, AuthCredential, CommandOutput, Conversation,
-    ConversationId, ConversationRepository, Environment, FileInfo, McpServerConfig, Provider,
-    ProviderId, ProviderRepository, Snapshot, SnapshotRepository,
+    ConversationId, ConversationRepository, Environment, FileInfo, McpServerConfig,
+    MigrationResult, Provider, ProviderId, ProviderRepository, Snapshot, SnapshotRepository,
 };
 use forge_infra::CacacheStorage;
 use reqwest::header::HeaderMap;
@@ -129,6 +129,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> Prov
 
     async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()> {
         self.provider_repository.remove_credential(id).await
+    }
+
+    async fn migrate_env_credentials(&self) -> anyhow::Result<Option<MigrationResult>> {
+        self.provider_repository.migrate_env_to_file().await
     }
 }
 
@@ -291,6 +295,13 @@ impl<F> DirectoryReaderInfra for ForgeRepo<F>
 where
     F: DirectoryReaderInfra + Send + Sync,
 {
+    async fn list_directory_entries(
+        &self,
+        directory: &Path,
+    ) -> anyhow::Result<Vec<(PathBuf, bool)>> {
+        self.infra.list_directory_entries(directory).await
+    }
+
     async fn read_directory_files(
         &self,
         directory: &Path,

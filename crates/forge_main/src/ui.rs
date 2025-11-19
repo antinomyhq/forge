@@ -264,7 +264,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                                     tracker::error(&error);
                                     tracing::error!(error = ?error);
                                     self.spinner.stop(None)?;
-                                    self.writeln_to_stderr(TitleFormat::error(error.to_string()).display().to_string())?;
+                                    self.writeln_to_stderr(TitleFormat::error(format!("{:?}", error)).display().to_string())?;
                                 },
                             }
                         }
@@ -680,7 +680,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn handle_provider_logout(
         &mut self,
         provider_id: Option<&ProviderId>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<bool> {
         // If provider_id is specified, logout from that specific provider
         if let Some(id) = provider_id {
             let provider = self.api.get_provider(id).await?;
@@ -694,7 +694,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 "Successfully logged out from {}",
                 id
             )))?;
-            return Ok(());
+            return Ok(true);
         }
 
         // Fetch and filter configured providers
@@ -702,7 +702,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         if configured_providers.is_empty() {
             self.writeln_title(TitleFormat::info("No configured providers found"))?;
-            return Ok(());
+            return Ok(false);
         }
 
         // Sort the providers by their display names
@@ -721,13 +721,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     "Successfully logged out from {}",
                     provider_id
                 )))?;
+                return Ok(true);
             }
             None => {
                 self.writeln_title(TitleFormat::info("Cancelled"))?;
             }
         }
 
-        Ok(())
+        Ok(false)
     }
 
     async fn handle_commit_command(
@@ -1351,7 +1352,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.api.execute_shell_command_raw(command).await?;
             }
             SlashCommand::Commit { max_diff_size } => {
-                let args = CommitCommandGroup { preview: true, max_diff_size, diff: None };
+                let args = CommitCommandGroup {
+                    preview: true,
+                    max_diff_size: max_diff_size.or(Some(100_000)),
+                    diff: None,
+                };
                 let result = self.handle_commit_command(args).await?;
                 let flags = if result.has_staged_files { "" } else { " -a" };
                 let commit_command = format!("!git commit{flags} -m '{}'", result.message);
@@ -1401,24 +1406,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 }
             }
             SlashCommand::Login => {
-                self.spinner.start(Some("Logging in"))?;
-                self.api.logout().await?;
-                self.login().await?;
-                self.spinner.stop(None)?;
-                let key_info = self.api.get_login_info().await?;
-                tracker::login(
-                    key_info
-                        .and_then(|v| v.auth_provider_id)
-                        .unwrap_or_default(),
-                );
+                self.handle_provider_login(None).await?;
             }
             SlashCommand::Logout => {
-                self.spinner.start(Some("Logging out"))?;
-                self.api.logout().await?;
-                self.spinner.stop(None)?;
-                self.writeln_title(TitleFormat::info("Logged out"))?;
-                // Exit the UI after logout
-                return Ok(true);
+                return self.handle_provider_logout(None).await;
             }
             SlashCommand::Retry => {
                 self.spinner.start(None)?;
@@ -1983,6 +1974,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Run the independent initialization tasks in parallel for better performance
         let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
 
+        let _ = self.handle_migrate_credentials().await;
+
         // Ensure we have a model selected before proceeding with initialization
         if self
             .get_agent_model(self.api.get_active_agent().await)
@@ -2050,23 +2043,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.update_model(operating_model);
 
         Ok(workflow)
-    }
-
-    async fn login(&mut self) -> Result<()> {
-        let auth = self.api.init_login().await?;
-        open::that(auth.auth_url.as_str()).ok();
-        self.writeln_title(TitleFormat::info(
-            format!("Login here: {}", auth.auth_url).as_str(),
-        ))?;
-        self.spinner.start(Some("Waiting for login to complete"))?;
-
-        self.api.login(&auth).await?;
-
-        self.spinner.stop(None)?;
-
-        self.writeln_title(TitleFormat::info("Login completed".to_string().as_str()))?;
-
-        Ok(())
     }
 
     async fn on_message(&mut self, content: Option<String>) -> Result<()> {
@@ -2546,6 +2522,31 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             self.writeln(self.markdown.render(message))?;
         }
 
+        Ok(())
+    }
+
+    /// Handle credential migration
+    async fn handle_migrate_credentials(&mut self) -> Result<()> {
+        // Perform the migration
+        self.spinner.start(Some("Migrating credentials"))?;
+        let result = self.api.migrate_env_credentials().await?;
+        self.spinner.stop(None)?;
+
+        // Display results based on whether migration occurred
+        if let Some(result) = result {
+            self.writeln_title(
+                TitleFormat::warning("Forge no longer reads API keys from environment variables.")
+                    .sub_title("Learn more: https://forgecode.dev/docs/custom-providers/"),
+            )?;
+
+            let count = result.migrated_providers.len();
+            let message = if count == 1 {
+                "Migrated 1 provider from environment variables".to_string()
+            } else {
+                format!("Migrated {} providers from environment variables", count)
+            };
+            self.writeln_title(TitleFormat::info(message))?;
+        }
         Ok(())
     }
 }

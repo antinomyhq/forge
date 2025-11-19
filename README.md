@@ -21,8 +21,8 @@
 - [Command-Line Options](#command-line-options)
 - [Advanced Configuration](#advanced-configuration)
   - [Provider Configuration](#provider-configuration)
-  - [Setup Instructions](#setup-instructions)
-  - [Available Models](#available-models)
+    - [Managing Provider Credentials](#managing-provider-credentials)
+    - [Deprecated: Environment Variables](#deprecated-environment-variables)
   - [forge.yaml Configuration Options](#forgeyaml-configuration-options)
   - [Environment Variables](#environment-variables)
   - [MCP Configuration](#mcp-configuration)
@@ -38,10 +38,20 @@
 
 ## Quickstart
 
-To get started with Forge, set up your [provider API keys](https://forgecode.dev/docs/custom-providers/) in your `.env` file, then run Forge using the command below:
+To get started with Forge, run the command below:
 
 ```bash
 npx forgecode@latest
+```
+
+On first run, Forge will guide you through setting up your AI provider credentials using the interactive login flow. Alternatively, you can configure providers beforehand:
+
+```bash
+# Configure your provider credentials interactively
+forge provider login
+
+# Then start Forge
+forge
 ```
 
 That's it! Forge is now ready to assist you with your development tasks.
@@ -170,7 +180,38 @@ Here's a quick reference of Forge's command-line options:
 
 ### Provider Configuration
 
-Forge supports multiple AI providers. Below are setup instructions for each supported provider
+Forge supports multiple AI providers. The recommended way to configure providers is using the interactive login command:
+
+```bash
+forge provider login
+```
+
+This will:
+
+1. Show you a list of available providers
+2. Guide you through entering the required credentials
+
+#### Managing Provider Credentials
+
+```bash
+# Login to a provider (add or update credentials)
+forge provider login
+
+# Remove provider credentials
+forge provider logout
+
+# List supported providers
+forge provider list
+```
+
+#### Deprecated: Environment Variables
+
+> **⚠️ DEPRECATED**: Using `.env` files for provider configuration is deprecated and will be removed in a future version. Please use `forge provider login` instead.
+
+For backward compatibility, Forge still supports environment variables. On first run, any credentials found in environment variables will be automatically migrated to file-based storage.
+
+<details>
+<summary><strong>Legacy Environment Variable Setup (Deprecated)</strong></summary>
 
 <details>
 <summary><strong>OpenRouter</strong></summary>
@@ -179,8 +220,6 @@ Forge supports multiple AI providers. Below are setup instructions for each supp
 # .env
 OPENROUTER_API_KEY=<your_openrouter_api_key>
 ```
-
-_No changes in `forge.yaml` required_
 
 </details>
 
@@ -192,8 +231,6 @@ _No changes in `forge.yaml` required_
 REQUESTY_API_KEY=<your_requesty_api_key>
 ```
 
-_No changes in `forge.yaml` required_
-
 </details>
 
 <details>
@@ -204,8 +241,6 @@ _No changes in `forge.yaml` required_
 XAI_API_KEY=<your_xai_api_key>
 ```
 
-switch the model using `/model` command in the Forge CLI.
-
 </details>
 
 <details>
@@ -214,16 +249,10 @@ switch the model using `/model` command in the Forge CLI.
 ```bash
 # .env
 ZAI_API_KEY=<your_zai_api_key>
-```
 
-If you have a coding plan subscription, instead of setting `ZAI_API_KEY`, set `ZAI_CODING_API_KEY` and Forge will use your coding plan instead of standard API pricing:
-
-```bash
-# .env
+# Or for coding plan subscription
 ZAI_CODING_API_KEY=<your_zai_coding_api_key>
 ```
-
-switch the model using `/model` command in the Forge CLI.
 
 </details>
 
@@ -234,8 +263,6 @@ switch the model using `/model` command in the Forge CLI.
 # .env
 CEREBRAS_API_KEY=<your_cerebras_api_key>
 ```
-
-switch the model using `/model` command in the Forge CLI.
 
 </details>
 
@@ -272,19 +299,7 @@ model: claude-3.7-sonnet
 <details>
 <summary><strong>Google Vertex AI</strong></summary>
 
-```bash
-# .env
-PROJECT_ID=<your_project_id>
-LOCATION=<your_location>
-VERTEX_AI_AUTH_TOKEN=<your_auth_token>
-```
-
-```yaml
-# forge.yaml
-model: google/gemini-2.5-pro
-```
-
-### Setup Instructions
+**Setup Instructions:**
 
 1. **Install Google Cloud CLI** and authenticate:
 
@@ -299,16 +314,28 @@ model: google/gemini-2.5-pro
    gcloud auth print-access-token
    ```
 
-   Use this token as `VERTEX_AI_AUTH_TOKEN`.
+3. **Use the token when logging in via Forge**:
 
-3. **Find your project ID and location**:
-   - Project ID: Available in Google Cloud Console or via `gcloud config get-value project`
-   - Location: Your Google Cloud region (e.g., `us-central1`, `europe-west1`)
+   ```bash
+   forge provider login
+   # Select Google Vertex AI and enter your credentials
+   ```
 
-### Available Models
+**Legacy `.env` setup:**
 
-Forge loads Vertex AI models from a static configuration file, including:
+```bash
+# .env
+PROJECT_ID=<your_project_id>
+LOCATION=<your_location>
+VERTEX_AI_AUTH_TOKEN=<your_auth_token>
+```
 
+```yaml
+# forge.yaml
+model: google/gemini-2.5-pro
+```
+
+**Available Models:**
 - Claude models: `claude-sonnet-4@20250514`
 - Gemini models: `gemini-2.5-pro`, `gemini-2.0-flash`
 
@@ -360,20 +387,31 @@ To use Amazon Bedrock models with Forge, you'll need to first set up the [Bedroc
    - Deploy the CloudFormation stack
    - Note your API Base URL from the CloudFormation outputs
 
-2. **Create these files in your project directory**:
+2. **Configure in Forge**:
 
    ```bash
-   # .env
-   OPENAI_API_KEY=<your_bedrock_gateway_api_key>
-   OPENAI_URL=<your_bedrock_gateway_base_url>
+   forge provider login
+   # Select OpenAI-compatible provider and enter your Bedrock Gateway details
    ```
 
-   ```yaml
-   # forge.yaml
-   model: anthropic.claude-3-opus
-   ```
+**Legacy `.env` setup:**
 
-   </details>
+```bash
+# .env
+OPENAI_API_KEY=<your_bedrock_gateway_api_key>
+OPENAI_URL=<your_bedrock_gateway_base_url>
+```
+
+```yaml
+# forge.yaml
+model: anthropic.claude-3-opus
+```
+
+</details>
+
+</details>
+
+---
 
 ### forge.yaml Configuration Options
 
