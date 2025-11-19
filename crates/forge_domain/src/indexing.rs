@@ -118,7 +118,7 @@ pub struct WorkspaceInfo {
     pub workspace_id: WorkspaceId,
     /// Working directory path
     pub working_dir: String,
-    /// Number of nodes indexed
+    /// Number of nodes created
     pub node_count: u64,
     /// Number of relations between nodes
     pub relation_count: u64,
