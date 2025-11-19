@@ -184,7 +184,10 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
             .result
             .context("Server did not return upload result in UploadFiles response")?;
 
-        Ok(UploadStats::new(result.nodes.len(), result.relations.len()))
+        Ok(UploadStats::new(
+            result.node_ids.len(),
+            result.relations.len(),
+        ))
     }
 
     /// Search for code using semantic search
