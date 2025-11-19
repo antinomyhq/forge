@@ -505,8 +505,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     crate::cli::IndexCommand::List { porcelain } => {
                         self.on_list_workspaces(porcelain).await?;
                     }
-                    crate::cli::IndexCommand::Query { query, path, limit, top_k } => {
-                        self.on_query(query, path, limit, top_k).await?;
+                    crate::cli::IndexCommand::Query { query, path, limit, top_k, use_case } => {
+                        self.on_query(query, path, limit, top_k, use_case).await?;
                     }
                     crate::cli::IndexCommand::Delete { workspace_id, yes } => {
                         self.on_delete_workspace(workspace_id, yes).await?;
@@ -949,6 +949,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 "suggest",
                 "Generate shell commands without executing them [alias: s]",
             ),
+            ("sync", "Sync the current workspace for codebase search"),
             ("login", "Login to a provider"),
             ("logout", "Logout from a provider"),
         ];
@@ -1378,7 +1379,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.api.execute_shell_command_raw(command).await?;
             }
             SlashCommand::Commit { max_diff_size } => {
-                let args = CommitCommandGroup { preview: true, max_diff_size, diff: None };
+                let args = CommitCommandGroup {
+                    preview: true,
+                    max_diff_size: max_diff_size.or(Some(100_000)),
+                    diff: None,
+                };
                 let result = self.handle_commit_command(args).await?;
                 let flags = if result.has_staged_files { "" } else { " -a" };
                 let commit_command = format!("!git commit{flags} -m '{}'", result.message);
@@ -2636,12 +2641,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         path: PathBuf,
         limit: usize,
         top_k: Option<u32>,
+        use_case: String,
     ) -> anyhow::Result<()> {
         self.spinner.start(Some("Searching codebase..."))?;
 
-        let mut params = forge_domain::SearchParams::new(&query, limit);
+        let mut params = forge_domain::SearchParams::new(&query, &use_case, limit);
         if let Some(k) = top_k {
-            params = params.with_top_k(k);
+            params = params.top_k(k);
         }
 
         let results = match self.api.query_codebase(path.clone(), params).await {
@@ -2744,7 +2750,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                 // Output based on mode
                 if porcelain {
-                    self.writeln(Porcelain::from(info))?;
+                    // Skip header row in porcelain mode (consistent with conversation list)
+                    self.writeln(Porcelain::from(info).skip(1))?;
                 } else {
                     self.writeln(info)?;
                 }

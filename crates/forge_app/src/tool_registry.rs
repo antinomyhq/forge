@@ -132,27 +132,30 @@ impl<S: Services> ToolRegistry<S> {
         // Check if current working directory is indexed
         let cwd = self.services.get_environment().cwd.clone();
         let is_indexed = self.services.is_indexed(&cwd).await.unwrap_or(false);
-
-        let system_tools = ToolCatalog::iter()
-            .filter(|tool| {
-                // Filter out codebase_search if cwd is not indexed
-                if matches!(tool, ToolCatalog::CodebaseSearch(_)) {
-                    is_indexed
-                } else {
-                    true
-                }
-            })
-            .map(|tool| tool.definition())
-            .collect::<Vec<_>>();
+        let is_authenticated = self.services.is_authenticated().await.unwrap_or(false);
 
         Ok(ToolsOverview::new()
-            .system(system_tools)
+            .system(Self::get_system_tools(is_indexed && is_authenticated))
             .agents(agent_tools)
             .mcp(mcp_tools))
     }
 }
 
 impl<S> ToolRegistry<S> {
+    fn get_system_tools(codebase_search_supported: bool) -> Vec<ToolDefinition> {
+        ToolCatalog::iter()
+            .filter(|tool| {
+                // Filter out codebase_search if cwd is not indexed
+                if matches!(tool, ToolCatalog::CodebaseSearch(_)) {
+                    codebase_search_supported
+                } else {
+                    true
+                }
+            })
+            .map(|tool| tool.definition())
+            .collect::<Vec<_>>()
+    }
+
     /// Validates if a tool is supported by both the agent and the system.
     ///
     /// # Validation Process
@@ -355,5 +358,17 @@ mod tests {
 
         assert!(actual_match.is_ok());
         assert!(actual_no_match.is_err());
+    }
+
+    #[test]
+    fn test_codebase_search_included_when_supported() {
+        let actual = ToolRegistry::<()>::get_system_tools(true);
+        assert!(actual.iter().any(|t| t.name.as_str() == "codebase_search"));
+    }
+
+    #[test]
+    fn test_codebase_search_filtered_when_not_supported() {
+        let actual = ToolRegistry::<()>::get_system_tools(false);
+        assert!(actual.iter().all(|t| t.name.as_str() != "codebase_search"));
     }
 }

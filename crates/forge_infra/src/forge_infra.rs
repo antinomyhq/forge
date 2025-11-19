@@ -245,6 +245,15 @@ impl HttpInfra for ForgeInfra {
 }
 #[async_trait::async_trait]
 impl DirectoryReaderInfra for ForgeInfra {
+    async fn list_directory_entries(
+        &self,
+        directory: &Path,
+    ) -> anyhow::Result<Vec<(PathBuf, bool)>> {
+        self.directory_reader_service
+            .list_directory_entries(directory)
+            .await
+    }
+
     async fn read_directory_files(
         &self,
         directory: &Path,

@@ -185,7 +185,8 @@ impl<
             .cwd(dir_path.to_path_buf())
             .max_depth(usize::MAX)
             .max_breadth(usize::MAX)
-            .max_files(usize::MAX);
+            .max_files(usize::MAX)
+            .skip_binary(true);
         walker_config.max_file_size = None;
         walker_config.max_total_size = None;
 
@@ -201,7 +202,7 @@ impl<
         info!(file_count = walked_files.len(), "Discovered files");
         anyhow::ensure!(!walked_files.is_empty(), "No files found to index");
 
-        // Read all files and compute hashes
+        // Filter binary files and read all text files
         let infra = self.infra.clone();
         let read_tasks = walked_files.into_iter().map(|walked| {
             let infra = infra.clone();
@@ -845,7 +846,7 @@ mod tests {
         mock.search_results = vec![search_result()];
         let service = ForgeIndexingService::new(Arc::new(mock));
 
-        let params = forge_domain::SearchParams::new("test", 10);
+        let params = forge_domain::SearchParams::new("test", "fest", 10);
         let actual = service
             .query_codebase(PathBuf::from("."), params)
             .await
@@ -858,7 +859,7 @@ mod tests {
     async fn test_query_error_when_not_found() {
         let service = ForgeIndexingService::new(Arc::new(MockInfra::default()));
 
-        let params = forge_domain::SearchParams::new("test", 10);
+        let params = forge_domain::SearchParams::new("test", "fest", 10);
         let actual = service.query_codebase(PathBuf::from("."), params).await;
 
         assert!(actual.is_err());

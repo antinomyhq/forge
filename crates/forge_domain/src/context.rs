@@ -401,6 +401,22 @@ impl Context {
 
                     message.into()
                 }
+                AttachmentContent::DirectoryListing { entries } => {
+                    let elm = Element::new("directory_listing")
+                        .attr("path", attachment.path)
+                        .append(entries.into_iter().map(|entry| {
+                            let tag_name = if entry.is_dir { "dir" } else { "file" };
+                            Element::new(tag_name).text(entry.path)
+                        }));
+
+                    let mut message = TextMessage::new(Role::User, elm.to_string()).droppable(true);
+
+                    if let Some(model) = model_id.clone() {
+                        message = message.model(model);
+                    }
+
+                    message.into()
+                }
             })
         })
     }
@@ -586,8 +602,8 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::estimate_token_count;
     use crate::transformer::Transformer;
+    use crate::{DirectoryEntry, estimate_token_count};
 
     #[test]
     fn test_override_system_message() {
@@ -1005,6 +1021,88 @@ mod tests {
             assert!(
                 message.is_droppable(),
                 "All file content attachments should be marked as droppable"
+            );
+        }
+    }
+
+    #[test]
+    fn test_add_attachments_directory_listing() {
+        let fixture_attachments = vec![Attachment {
+            path: "/test/mydir".to_string(),
+            content: AttachmentContent::DirectoryListing {
+                entries: vec![
+                    DirectoryEntry { path: "/test/mydir/file1.txt".to_string(), is_dir: false },
+                    DirectoryEntry { path: "/test/mydir/file2.rs".to_string(), is_dir: false },
+                    DirectoryEntry { path: "/test/mydir/subdir".to_string(), is_dir: true },
+                ],
+            },
+        }];
+
+        let actual = Context::default().add_attachments(fixture_attachments, None);
+
+        // Verify message was added
+        assert_eq!(actual.messages.len(), 1);
+
+        // Verify directory listing is formatted correctly as XML
+        let message = actual.messages.first().unwrap();
+        assert!(
+            message.is_droppable(),
+            "Directory listing should be marked as droppable"
+        );
+
+        let text = message.to_text();
+        // The XML is encoded within the message content
+        assert!(text.contains("&lt;directory_listing"));
+        // Check that files use <file> tag
+        assert!(text.contains("&lt;file&gt;"));
+        // Check that directories use <dir> tag
+        assert!(text.contains("&lt;dir&gt;"));
+    }
+
+    #[test]
+    fn test_directory_listing_sorted_dirs_first() {
+        // Create entries already sorted (as they would come from attachment service)
+        // Directories first, then files, all sorted alphabetically
+        let fixture_attachments = vec![Attachment {
+            path: "/test/root".to_string(),
+            content: AttachmentContent::DirectoryListing {
+                entries: vec![
+                    DirectoryEntry { path: "apple_dir".to_string(), is_dir: true },
+                    DirectoryEntry { path: "berry_dir".to_string(), is_dir: true },
+                    DirectoryEntry { path: "zoo_dir".to_string(), is_dir: true },
+                    DirectoryEntry { path: "banana.txt".to_string(), is_dir: false },
+                    DirectoryEntry { path: "cherry.txt".to_string(), is_dir: false },
+                    DirectoryEntry { path: "zebra.txt".to_string(), is_dir: false },
+                ],
+            },
+        }];
+
+        let actual = Context::default().add_attachments(fixture_attachments, None);
+        let text = actual.messages.first().unwrap().to_text();
+
+        // Extract the order of entries from the XML
+        let dir_entries: Vec<&str> = text
+            .split("&lt;")
+            .filter(|s| s.starts_with("dir&gt;") || s.starts_with("file&gt;"))
+            .collect();
+
+        // Verify directories come first, then files, all sorted alphabetically
+        let expected_order = [
+            "dir&gt;apple_dir",
+            "dir&gt;berry_dir",
+            "dir&gt;zoo_dir",
+            "file&gt;banana.txt",
+            "file&gt;cherry.txt",
+            "file&gt;zebra.txt",
+        ];
+
+        for (i, expected) in expected_order.iter().enumerate() {
+            assert!(
+                dir_entries[i].starts_with(expected),
+                "Expected entry {} to start with '{}', but got '{}'",
+                i,
+                expected,
+                dir_entries[i]
             );
         }
     }
