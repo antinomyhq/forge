@@ -30,7 +30,7 @@ thiserror.workspace = true
 derive_more.workspace = true
 
 # gRPC for codebase client
-tonic = "0.14.2"
+tonic = { version = "0.14.2", features = ["tls-native-roots"] }
 prost = "0.14.1"
 tonic-prost = "0.14.2"
 
