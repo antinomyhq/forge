@@ -501,6 +501,16 @@ impl<F: Send + Sync> forge_domain::ContextEngineRepository for ForgeRepo<F> {
         self.codebase_repo.list_workspaces(auth_token).await
     }
 
+    async fn get_workspace(
+        &self,
+        workspace_id: &forge_domain::WorkspaceId,
+        auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<Option<forge_domain::WorkspaceInfo>> {
+        self.codebase_repo
+            .get_workspace(workspace_id, auth_token)
+            .await
+    }
+
     async fn list_workspace_files(
         &self,
         workspace: &forge_domain::WorkspaceFiles,

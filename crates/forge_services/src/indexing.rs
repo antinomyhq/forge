@@ -374,6 +374,37 @@ impl<
             .context("Failed to list workspaces")
     }
 
+    /// Retrieves workspace information for a specific path.
+    async fn get_workspace_info(&self, path: PathBuf) -> Result<Option<forge_domain::WorkspaceInfo>>
+    where
+        F: WorkspaceRepository + ContextEngineRepository + CredentialsRepository,
+    {
+        let path = path
+            .canonicalize()
+            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
+
+        // Get auth token
+        let auth = self
+            .infra
+            .get_auth()
+            .await?
+            .ok_or(forge_domain::Error::AuthTokenNotFound)?;
+
+        // Find workspace by path
+        let workspace = self.infra.find_by_path(&path).await?;
+
+        if let Some(workspace) = workspace {
+            // Get detailed workspace info from server
+            self.infra
+                .as_ref()
+                .get_workspace(&workspace.workspace_id, &auth.token)
+                .await
+                .context("Failed to get workspace info")
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Deletes a workspace from both the server and local database.
     async fn delete_codebase(&self, workspace_id: &forge_domain::WorkspaceId) -> Result<()> {
         // Get auth token
