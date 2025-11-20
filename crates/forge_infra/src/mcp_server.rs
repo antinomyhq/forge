@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use forge_app::McpServerInfra;
 use forge_domain::McpServerConfig;
 
@@ -10,7 +12,11 @@ pub struct ForgeMcpServer;
 impl McpServerInfra for ForgeMcpServer {
     type Client = ForgeMcpClient;
 
-    async fn connect(&self, config: McpServerConfig) -> anyhow::Result<Self::Client> {
-        Ok(ForgeMcpClient::new(config))
+    async fn connect(
+        &self,
+        config: McpServerConfig,
+        env_vars: &BTreeMap<String, String>,
+    ) -> anyhow::Result<Self::Client> {
+        Ok(ForgeMcpClient::new(config, env_vars))
     }
 }

@@ -40,7 +40,7 @@ impl McpServerConfig {
 
     /// Create a new HTTP-based MCP server (auto-detects transport type)
     pub fn new_http(url: impl Into<String>) -> Self {
-        Self::Http(McpHttpServer { url: url.into(), disable: false })
+        Self::Http(McpHttpServer { url: url.into(), headers: BTreeMap::new(), disable: false })
     }
 
     pub fn is_disabled(&self) -> bool {
@@ -74,15 +74,22 @@ pub struct McpStdioServer {
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
 pub struct McpHttpServer {
-    /// Url of the MCP server
+    /// Url of the MCP server (auto-detects HTTP vs SSE transport)
     #[serde(skip_serializing_if = "String::is_empty")]
     pub url: String,
+
+    /// Optional headers for HTTP requests
+    /// Supports mustache templates for environment variables: {{.env.VAR_NAME}}
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub headers: BTreeMap<String, String>,
 
     /// Disable it temporarily without having to
     /// remove it from the config.
     #[serde(default)]
     pub disable: bool,
 }
+
+impl McpHttpServer {}
 
 impl Display for McpServerConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -313,5 +320,36 @@ mod tests {
         let result = serde_json::from_str::<McpConfig>(json);
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_http_server_with_headers() {
+        use pretty_assertions::assert_eq;
+
+        let json = r#"{
+            "mcpServers": {
+                "github": {
+                    "url": "https://api.githubcopilot.com/mcp/",
+                    "headers": {
+                        "Authorization": "Bearer test_token",
+                        "Content-Type": "application/json"
+                    }
+                }
+            }
+        }"#;
+
+        let actual: McpConfig = serde_json::from_str(json).unwrap();
+
+        match actual.mcp_servers.get(&"github".to_string().into()) {
+            Some(McpServerConfig::Http(server)) => {
+                assert_eq!(server.url, "https://api.githubcopilot.com/mcp/");
+                assert_eq!(server.headers.len(), 2);
+                assert_eq!(
+                    server.headers.get("Authorization"),
+                    Some(&"Bearer test_token".to_string())
+                );
+            }
+            _ => panic!("Expected Http variant"),
+        }
     }
 }
