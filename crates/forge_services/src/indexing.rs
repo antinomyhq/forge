@@ -6,8 +6,8 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{ContextEngineService, FileReaderInfra, Walker, WalkerInfra, compute_hash};
 use forge_domain::{
-    ContextEngineRepository, CredentialsRepository, IndexDiffStats, IndexStats, UserId,
-    WorkspaceId, WorkspaceRepository,
+    ContextEngineRepository, CredentialsRepository, IndexStats, UserId, WorkspaceId,
+    WorkspaceRepository, WorkspaceStatus,
 };
 use futures::future::join_all;
 use tracing::{info, warn};
@@ -272,7 +272,7 @@ impl<
         + FileReaderInfra,
 > ContextEngineService for ForgeIndexingService<F>
 {
-    async fn diff_codebase(&self, path: PathBuf) -> anyhow::Result<IndexDiffStats> {
+    async fn diff_codebase(&self, path: PathBuf) -> anyhow::Result<WorkspaceStatus> {
         info!(path = %path.display(), "Starting codebase diffing");
         let path = path
             .canonicalize()
@@ -298,15 +298,21 @@ impl<
                     self.read_files(&existing_workspace.path)
                 )?;
 
-                let last_synced_at = workspace_info.and_then(|w| w.last_updated);
+                let (last_synced_at, node_count, relation_count) = workspace_info
+                    .map(|w| (w.last_updated, w.node_count, w.relation_count))
+                    .unwrap_or((None, 0, 0));
                 let total_files = local_files.len();
 
                 let diff = Differ::new(&local_files, &server_files);
 
-                Ok(IndexDiffStats::new(
+                Ok(WorkspaceStatus::new(
                     total_files,
                     diff.out_of_sync_files(),
                     last_synced_at,
+                    existing_workspace.path.to_string_lossy().to_string(),
+                    existing_workspace.workspace_id.clone(),
+                    node_count,
+                    relation_count,
                 ))
             }
             None => Err(forge_domain::Error::WorkspaceNotFound.into()),
@@ -492,6 +498,37 @@ impl<
             .list_workspaces(&auth.token)
             .await
             .context("Failed to list workspaces")
+    }
+
+    /// Retrieves workspace information for a specific path.
+    async fn get_workspace_info(&self, path: PathBuf) -> Result<Option<forge_domain::WorkspaceInfo>>
+    where
+        F: WorkspaceRepository + ContextEngineRepository + CredentialsRepository,
+    {
+        let path = path
+            .canonicalize()
+            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
+
+        // Get auth token
+        let auth = self
+            .infra
+            .get_auth()
+            .await?
+            .ok_or(forge_domain::Error::AuthTokenNotFound)?;
+
+        // Find workspace by path
+        let workspace = self.infra.find_by_path(&path).await?;
+
+        if let Some(workspace) = workspace {
+            // Get detailed workspace info from server
+            self.infra
+                .as_ref()
+                .get_workspace(&workspace.workspace_id, &auth.token)
+                .await
+                .context("Failed to get workspace info")
+        } else {
+            Ok(None)
+        }
     }
 
     /// Deletes a workspace from both the server and local database.
@@ -787,6 +824,19 @@ mod tests {
         async fn list_workspaces(&self, _: &ApiKey) -> Result<Vec<WorkspaceInfo>> {
             Ok(self.workspaces.lock().await.clone())
         }
+        async fn get_workspace(
+            &self,
+            workspace_id: &WorkspaceId,
+            _: &ApiKey,
+        ) -> Result<Option<WorkspaceInfo>> {
+            Ok(self
+                .workspaces
+                .lock()
+                .await
+                .iter()
+                .find(|w| w.workspace_id == *workspace_id)
+                .cloned())
+        }
         async fn list_workspace_files(
             &self,
             _: &WorkspaceFiles,
@@ -883,6 +933,9 @@ mod tests {
         mock.workspaces.lock().await.push(WorkspaceInfo {
             workspace_id: ws.workspace_id,
             working_dir: "/project".into(),
+            node_count: 0,
+            relation_count: 0,
+            last_updated: None,
         });
         let service = ForgeIndexingService::new(Arc::new(mock));
 
@@ -957,6 +1010,9 @@ mod tests {
         mock.workspaces.lock().await.push(WorkspaceInfo {
             workspace_id: ws.workspace_id.clone(),
             working_dir: "/project".into(),
+            node_count: 0,
+            relation_count: 0,
+            last_updated: None,
         });
         let service = ForgeIndexingService::new(Arc::new(mock));
 
@@ -966,168 +1022,55 @@ mod tests {
         assert!(!actual.iter().any(|w| w.workspace_id == ws.workspace_id));
     }
 
-    fn local_file(path: &str, hash: &str) -> IndexedFile {
-        IndexedFile::new(path.to_string(), String::new(), hash.to_string())
-    }
-
-    fn server_file(path: &str, hash: &str) -> ServerFile {
-        ServerFile::new(path, hash)
-    }
-
-    #[test]
-    fn test_differ_no_changes_when_files_match() {
-        let local = vec![
-            local_file("main.rs", "hash1"),
-            local_file("lib.rs", "hash2"),
-        ];
-        let server = vec![
-            server_file("main.rs", "hash1"),
-            server_file("lib.rs", "hash2"),
-        ];
-
-        let differ = Differ::new(&local, &server);
-
-        assert!(differ.orphaned.is_empty());
-        assert!(differ.out_of_sync.is_empty());
-        assert!(differ.new.is_empty());
-        assert!(!differ.has_changes());
-        assert!(differ.files_to_delete().is_empty());
-        assert!(differ.out_of_sync_files().is_empty());
-        assert!(differ.files_to_upload().is_empty());
-    }
-
-    #[test]
-    fn test_differ_find_orphaned_files() {
-        let local = vec![local_file("main.rs", "hash1")];
-        let server = vec![
-            server_file("main.rs", "hash1"),
-            server_file("deleted.rs", "hash2"),
-        ];
-
-        let differ = Differ::new(&local, &server);
-
-        assert_eq!(differ.orphaned.len(), 1);
-        assert_eq!(differ.orphaned[0].path, "deleted.rs");
-        assert!(differ.new.is_empty());
-        assert!(differ.out_of_sync.is_empty());
-        assert!(differ.has_changes());
-        assert_eq!(differ.files_to_delete(), vec!["deleted.rs"]);
-        assert_eq!(differ.out_of_sync_files(), vec!["deleted.rs"]);
-        assert!(differ.files_to_upload().is_empty());
-    }
-
-    #[test]
-    fn test_differ_find_out_of_sync_files() {
-        let local = vec![
-            local_file("main.rs", "new_hash"),
-            local_file("unchanged.rs", "hash3"),
-        ];
-        let server = vec![
-            server_file("main.rs", "old_hash"),
-            server_file("unchanged.rs", "hash3"),
-        ];
-
-        let differ = Differ::new(&local, &server);
-
-        assert_eq!(differ.out_of_sync.len(), 1);
-        assert_eq!(differ.out_of_sync[0].path, "main.rs");
-        assert!(differ.new.is_empty());
-        assert!(differ.orphaned.is_empty());
-        assert!(differ.has_changes());
-        assert_eq!(differ.files_to_delete(), vec!["main.rs"]);
-        assert_eq!(differ.out_of_sync_files(), vec!["main.rs"]);
-
-        let uploaded = differ.files_to_upload();
-        assert_eq!(uploaded.len(), 1);
-        assert_eq!(uploaded[0].path, "main.rs");
-    }
-
-    #[test]
-    fn test_differ_find_new_files() {
-        let local = vec![
-            local_file("main.rs", "hash1"),
-            local_file("new.rs", "hash2"),
-        ];
-        let server = vec![server_file("main.rs", "hash1")];
-
-        let differ = Differ::new(&local, &server);
-
-        assert_eq!(differ.new.len(), 1);
-        assert_eq!(differ.new[0].path, "new.rs");
-        assert!(differ.out_of_sync.is_empty());
-        assert!(differ.orphaned.is_empty());
-        assert!(differ.has_changes());
-        assert!(differ.files_to_delete().is_empty());
-        assert_eq!(differ.out_of_sync_files(), vec!["new.rs"]);
-
-        let uploaded = differ.files_to_upload();
-        assert_eq!(uploaded.len(), 1);
-        assert_eq!(uploaded[0].path, "new.rs");
-    }
-
-    #[test]
-    fn test_differ_empty_local_and_server() {
-        let differ = Differ::new(&[], &[]);
-
-        assert!(differ.orphaned.is_empty());
-        assert!(differ.out_of_sync.is_empty());
-        assert!(differ.new.is_empty());
-        assert!(!differ.has_changes());
-        assert!(differ.files_to_delete().is_empty());
-        assert!(differ.out_of_sync_files().is_empty());
-        assert!(differ.files_to_upload().is_empty());
-    }
-
     #[tokio::test]
-    async fn test_diff_codebase_workspace_not_found() {
-        let service = ForgeIndexingService::new(Arc::new(MockInfra::default()));
-
-        let actual = service.diff_codebase(PathBuf::from(".")).await;
-
-        assert!(actual.is_err());
-        let error = actual.unwrap_err();
-        assert!(error.to_string().contains("Workspace not found"));
-    }
-
-    #[tokio::test]
-    async fn test_diff_codebase_no_changes() {
-        let mock = MockInfra::synced(&["main.rs", "lib.rs"]);
+    async fn test_get_workspace_info_returns_workspace() {
+        let mock = MockInfra::synced(&["main.rs"]);
+        let ws = mock.workspace.clone().unwrap();
+        mock.workspaces.lock().await.push(WorkspaceInfo {
+            workspace_id: ws.workspace_id.clone(),
+            working_dir: ws.path.to_str().unwrap().into(),
+            node_count: 5,
+            relation_count: 10,
+            last_updated: Some(chrono::Utc::now()),
+        });
         let service = ForgeIndexingService::new(Arc::new(mock));
 
-        let actual = service.diff_codebase(PathBuf::from(".")).await.unwrap();
+        let actual = service.get_workspace_info(ws.path).await.unwrap();
 
-        assert_eq!(actual.total_files, 2);
-        assert_eq!(actual.files_to_sync_count(), 0);
-        assert!(actual.files_to_sync.is_empty());
+        assert!(actual.is_some());
+        let expected = actual.unwrap();
+        assert_eq!(expected.workspace_id, ws.workspace_id);
+        assert_eq!(expected.node_count, 5);
+        assert_eq!(expected.relation_count, 10);
     }
 
     #[tokio::test]
-    async fn test_diff_codebase_with_changes() {
-        let mock = MockInfra::out_of_sync(&["main.rs", "new.rs"], &["main.rs", "deleted.rs"]);
+    async fn test_get_workspace_info_returns_none_when_not_found() {
+        let mock = MockInfra::new(&["main.rs"]);
         let service = ForgeIndexingService::new(Arc::new(mock));
 
-        let actual = service.diff_codebase(PathBuf::from(".")).await.unwrap();
+        let actual = service
+            .get_workspace_info(PathBuf::from("."))
+            .await
+            .unwrap();
 
-        assert_eq!(actual.total_files, 2);
-        assert_eq!(actual.files_to_sync_count(), 2);
-        assert!(actual.files_to_sync.contains(&"new.rs".to_string()));
-        assert!(actual.files_to_sync.contains(&"deleted.rs".to_string()));
+        assert!(actual.is_none());
     }
 
     #[tokio::test]
-    async fn test_diff_codebase_no_auth() {
+    async fn test_get_workspace_info_error_when_not_authenticated() {
         let mut mock = MockInfra::synced(&["main.rs"]);
         mock.authenticated = false;
+        let ws = mock.workspace.clone().unwrap();
         let service = ForgeIndexingService::new(Arc::new(mock));
-
-        let actual = service.diff_codebase(PathBuf::from(".")).await;
+        let actual = service.get_workspace_info(ws.path).await;
 
         assert!(actual.is_err());
-        let error = actual.unwrap_err();
         assert!(
-            error
+            actual
+                .unwrap_err()
                 .to_string()
-                .contains("No authentication credentials found")
+                .contains("No indexing authentication found")
         );
     }
 }

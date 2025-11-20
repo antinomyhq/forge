@@ -2728,6 +2728,50 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
     }
 
+    async fn _on_workspace_info(&mut self, path: std::path::PathBuf) -> anyhow::Result<()> {
+        self.spinner.start(Some("Fetching workspace info..."))?;
+
+        match self.api.get_workspace_info(path).await {
+            Ok(Some(workspace)) => {
+                self.spinner.stop(None)?;
+
+                let mut info = Info::new()
+                    .add_title("WORKSPACE")
+                    .add_key_value("Workspace ID", workspace.workspace_id.to_string())
+                    .add_key_value("Workspace Path", workspace.working_dir)
+                    .add_key_value("File Count", workspace.node_count.to_string())
+                    .add_key_value("Relations", workspace.relation_count.to_string());
+
+                // Add last updated if available
+                if let Some(last_updated) = workspace.last_updated {
+                    let duration = chrono::Utc::now().signed_duration_since(last_updated);
+                    let duration =
+                        std::time::Duration::from_secs((duration.num_minutes() * 60).max(0) as u64);
+                    let time_ago = if duration.is_zero() {
+                        "now".to_string()
+                    } else {
+                        format!("{} ago", humantime::format_duration(duration))
+                    };
+                    info = info.add_key_value("Last Updated", time_ago);
+                }
+
+                self.writeln(info)
+            }
+            Ok(None) => {
+                self.spinner.stop(None)?;
+                self.writeln_to_stderr(
+                    TitleFormat::error("No workspace found. Run 'forge index sync' to create one.")
+                        .display()
+                        .to_string(),
+                )
+            }
+            Err(e) => {
+                self.spinner.stop(None)?;
+                Err(e)
+            }
+        }
+    }
+
     async fn on_index_diff(&mut self, path: std::path::PathBuf) -> anyhow::Result<()> {
         self.spinner.start(Some("Checking workspace diff..."))?;
 
@@ -2752,10 +2796,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                 let info = Info::new()
                     .add_title(title)
-                    .add_key_value("Path", path.canonicalize()?.display())
-                    .add_key_value("Total", stats.total_files.to_string())
-                    .add_key_value("Synced", stats.total_files - stats.files_to_sync_count())
-                    .add_key_value("Pending", stats.files_to_sync_count().to_string());
+                    .add_key_value("Workspace ID", stats.workspace_id.to_string())
+                    .add_key_value("Workspace Path", &stats.workspace_dir)
+                    .add_key_value("File Count", stats.node_count.to_string())
+                    .add_key_value("Relations", stats.relation_count.to_string())
+                    .add_key_value("Total Files", stats.total_files.to_string())
+                    .add_key_value(
+                        "Synced Files",
+                        stats.total_files - stats.files_to_sync_count(),
+                    )
+                    .add_key_value("Pending Files", stats.files_to_sync_count().to_string());
 
                 self.writeln(info.to_string())?;
                 Ok(())

@@ -85,7 +85,7 @@ impl ForgeEnvironmentInfra {
             index_server_url: parse_env::<String>("FORGE_INDEX_SERVER_URL")
                 .as_ref()
                 .and_then(|url| Url::parse(url.as_str()).ok())
-                .unwrap_or_else(|| Url::parse("http://localhost:8080").unwrap()),
+                .unwrap_or_else(|| Url::parse("https://forge-ce-383492806735.us-central1.run.app").unwrap()),
         }
     }
 

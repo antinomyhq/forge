@@ -207,9 +207,9 @@ pub enum IndexCommand {
         use_case: String,
     },
 
-    /// Show files that need to be synced.
+    /// Show workspace information for an indexed directory.
     Info {
-        /// Path to the directory to check
+        /// Path to the directory to get information for
         #[arg(default_value = ".")]
         path: PathBuf,
     },

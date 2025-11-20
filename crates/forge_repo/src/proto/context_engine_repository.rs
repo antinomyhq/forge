@@ -56,7 +56,6 @@ impl TryFrom<Workspace> for WorkspaceInfo {
         let workspace_id =
             WorkspaceId::from_string(&id_msg.id).context("Failed to parse workspace ID")?;
 
-        // Parse last_updated timestamp if present
         let last_updated = workspace
             .last_updated
             .and_then(|ts| chrono::DateTime::parse_from_rfc3339(&ts).ok())
@@ -65,6 +64,8 @@ impl TryFrom<Workspace> for WorkspaceInfo {
         Ok(WorkspaceInfo {
             workspace_id,
             working_dir: workspace.working_dir,
+            node_count: workspace.node_count,
+            relation_count: workspace.relation_count,
             last_updated,
         })
     }
@@ -87,8 +88,17 @@ pub struct ForgeContextEngineRepository {
 impl ForgeContextEngineRepository {
     /// Create a new gRPC client with lazy connection
     pub fn new(server_url: &url::Url) -> Result<Self> {
-        let channel = Channel::from_shared(server_url.to_string())?.connect_lazy();
+        let mut channel = Channel::from_shared(server_url.to_string())?.concurrency_limit(256);
+
+        // Enable TLS for https URLs using system certificate store
+        if server_url.scheme().contains("https") {
+            channel =
+                channel.tls_config(tonic::transport::ClientTlsConfig::new().with_native_roots())?;
+        }
+
+        let channel = channel.connect_lazy();
         let client = ForgeServiceClient::new(channel);
+
         Ok(Self { client })
     }
 
@@ -174,7 +184,10 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
             .result
             .context("Server did not return upload result in UploadFiles response")?;
 
-        Ok(UploadStats::new(result.nodes.len(), result.relations.len()))
+        Ok(UploadStats::new(
+            result.node_ids.len(),
+            result.relations.len(),
+        ))
     }
 
     /// Search for code using semantic search
@@ -268,9 +281,10 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
             .collect()
     }
 
+    /// Get workspace information by workspace ID
     async fn get_workspace(
         &self,
-        workspace_id: &forge_domain::WorkspaceId,
+        workspace_id: &WorkspaceId,
         auth_token: &forge_domain::ApiKey,
     ) -> Result<Option<WorkspaceInfo>> {
         let request = tonic::Request::new(GetWorkspaceInfoRequest {

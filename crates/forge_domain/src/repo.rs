@@ -161,7 +161,7 @@ pub trait ContextEngineRepository: Send + Sync {
         auth_token: &crate::ApiKey,
     ) -> anyhow::Result<Vec<crate::WorkspaceInfo>>;
 
-    /// Get workspace details by workspace ID
+    /// Get workspace information by workspace ID
     async fn get_workspace(
         &self,
         workspace_id: &WorkspaceId,

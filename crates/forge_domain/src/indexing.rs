@@ -119,8 +119,12 @@ pub struct WorkspaceInfo {
     pub workspace_id: WorkspaceId,
     /// Working directory path
     pub working_dir: String,
-    /// Last time the workspace was updated/synced
-    pub last_updated: Option<DateTime<Utc>>,
+    /// Number of nodes created
+    pub node_count: u64,
+    /// Number of relations between nodes
+    pub relation_count: u64,
+    /// Last updated timestamp
+    pub last_updated: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// File hash information from the server
@@ -193,30 +197,45 @@ impl UploadStats {
 
 /// Result of an index diff operation showing files that need sync
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct IndexDiffStats {
+pub struct WorkspaceStatus {
     /// Total number of files in the local workspace
     pub total_files: usize,
     /// List of file paths that need to be synced (new or modified)
     pub files_to_sync: Vec<String>,
     /// Last time the workspace was synced with the server
     pub last_synced_at: Option<DateTime<Utc>>,
+    pub workspace_dir: String,
+    pub workspace_id: WorkspaceId,
+    pub node_count: u64,
+    pub relation_count: u64,
 }
 
-impl IndexDiffStats {
+impl WorkspaceStatus {
     /// Create new diff statistics
     pub fn new(
         total_files: usize,
         files_to_sync: Vec<String>,
         last_synced_at: Option<DateTime<Utc>>,
+        workspace_dir: String,
+        workspace_id: WorkspaceId,
+        node_count: u64,
+        relation_count: u64,
     ) -> Self {
-        Self { total_files, files_to_sync, last_synced_at }
+        Self {
+            total_files,
+            files_to_sync,
+            last_synced_at,
+            workspace_dir,
+            workspace_id,
+            node_count,
+            relation_count,
+        }
     }
 
     /// Number of files that need to be synced
     pub fn files_to_sync_count(&self) -> usize {
         self.files_to_sync.len()
     }
-
 }
 
 /// Results for a single codebase search query
