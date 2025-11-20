@@ -9,6 +9,7 @@ tools:
   - plan
   - sage
   - read_image
+  - codebase_search
   - mcp_*
 user_prompt: |-
   {{#if (eq event.name 'muse/user_task_update')}}

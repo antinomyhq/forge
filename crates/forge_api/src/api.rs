@@ -184,12 +184,12 @@ pub trait API: Sync + Send {
     /// Remove provider credentials (logout)
     async fn remove_provider(&self, provider_id: &ProviderId) -> Result<()>;
 
-    /// Sync a codebase directory for semantic search
+    /// Sync a codebase directory for semantic search with progress streaming
     async fn sync_codebase(
         &self,
         path: PathBuf,
         batch_size: usize,
-    ) -> Result<forge_domain::IndexStats>;
+    ) -> Result<MpscStream<Result<forge_domain::IndexProgress>>>;
 
     /// Query the indexed codebase
     async fn query_codebase(
@@ -212,7 +212,4 @@ pub trait API: Sync + Send {
 
     /// Check if authentication credentials exist
     async fn is_authenticated(&self) -> Result<bool>;
-
-    /// Create new authentication credentials
-    async fn create_auth_credentials(&self) -> Result<forge_domain::IndexingAuth>;
 }

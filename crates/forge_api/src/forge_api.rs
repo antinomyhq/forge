@@ -329,8 +329,8 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         &self,
         path: PathBuf,
         batch_size: usize,
-    ) -> Result<forge_domain::IndexStats> {
-        self.services.sync_codebase(path, batch_size).await
+    ) -> Result<MpscStream<Result<forge_domain::IndexProgress>>> {
+        Ok(self.services.sync_codebase(path, batch_size).await?)
     }
 
     async fn query_codebase(
@@ -358,9 +358,5 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
 
     async fn is_authenticated(&self) -> Result<bool> {
         self.services.is_authenticated().await
-    }
-
-    async fn create_auth_credentials(&self) -> Result<forge_domain::IndexingAuth> {
-        self.services.create_auth_credentials().await
     }
 }

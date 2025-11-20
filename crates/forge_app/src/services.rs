@@ -6,7 +6,7 @@ use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse,
     AuthCredential, AuthMethod, ChatCompletionMessage, CodeSearchResult, CommandOutput, Context,
-    Conversation, ConversationId, Environment, File, Image, IndexStats, IndexingAuth, InitAuth,
+    Conversation, ConversationId, Environment, File, Image, IndexProgress, IndexingAuth, InitAuth,
     LoginInfo, McpConfig, McpServers, Model, ModelId, PatchOperation, Provider, ProviderId,
     ResultStream, Scope, SearchParams, Template, ToolCallFull, ToolOutput, Workflow, WorkspaceId,
     WorkspaceInfo,
@@ -236,7 +236,11 @@ pub trait CustomInstructionsService: Send + Sync {
 #[async_trait::async_trait]
 pub trait ContextEngineService: Send + Sync {
     /// Index the codebase at the given path
-    async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> anyhow::Result<IndexStats>;
+    async fn sync_codebase(
+        &self,
+        path: PathBuf,
+        batch_size: usize,
+    ) -> anyhow::Result<forge_stream::MpscStream<anyhow::Result<IndexProgress>>>;
 
     /// Query the indexed codebase with semantic search
     async fn query_codebase(
@@ -985,7 +989,11 @@ impl<I: Services> ProviderAuthService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> ContextEngineService for I {
-    async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> anyhow::Result<IndexStats> {
+    async fn sync_codebase(
+        &self,
+        path: PathBuf,
+        batch_size: usize,
+    ) -> anyhow::Result<forge_stream::MpscStream<anyhow::Result<IndexProgress>>> {
         self.context_engine_service()
             .sync_codebase(path, batch_size)
             .await

@@ -2562,40 +2562,81 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         path: std::path::PathBuf,
         batch_size: usize,
     ) -> anyhow::Result<()> {
-        // Check if auth already exists and create if needed
-        if !self.api.is_authenticated().await? {
-            let auth = self.api.create_auth_credentials().await?;
-            let info = Info::new()
-                .add_title("NEW API KEY CREATED")
-                .add_key_value("API Key", auth.token.as_str());
-            self.writeln(info.to_string())?;
-        }
+        use tokio_stream::StreamExt;
 
-        self.spinner.start(Some("Syncing codebase..."))?;
+        // Start spinner initially
+        self.spinner.start(Some("Starting indexing..."))?;
 
-        match self.api.sync_codebase(path.clone(), batch_size).await {
-            Ok(stats) => {
-                self.spinner.stop(None)?;
+        // Get stream from API
+        let mut stream = self.api.sync_codebase(path.clone(), batch_size).await?;
+        while let Some(event) = stream.next().await {
+            match event {
+                Ok(progress) => {
+                    use forge_domain::IndexProgress;
+                    match progress {
+                        IndexProgress::FilesDiscovered { count } => {
+                            self.spinner
+                                .start(Some(&format!("Discovered {} files", count)))?;
+                        }
+                        IndexProgress::DeletingFiles { count } => {
+                            self.spinner
+                                .start(Some(&format!("Deleting {} outdated files...", count)))?;
+                        }
+                        IndexProgress::UploadingFiles { current, total } => {
+                            let percentage = if total > 0 {
+                                (current * 100) / total
+                            } else {
+                                0
+                            };
+                            self.spinner.start(Some(&format!(
+                                "Uploading files {}/{} - {}%",
+                                current, total, percentage
+                            )))?;
+                        }
+                        IndexProgress::Completed {
+                            files_processed,
+                            files_uploaded,
+                            files_skipped,
+                            ..
+                        } => {
+                            self.spinner.stop(None)?;
 
-                // Display workspace creation info
-                if stats.is_new_workspace {
-                    self.writeln_title(
-                        TitleFormat::action("Workspace created")
-                            .sub_title(stats.workspace_id.to_string()),
-                    )?;
+                            // Display statistics
+                            self.writeln(format!(
+                                "Processed {} files: {} uploaded, {} skipped",
+                                files_processed, files_uploaded, files_skipped
+                            ))?;
+                        }
+                        IndexProgress::WorkspaceCreated { workspace_id } => {
+                            self.writeln_title(
+                                TitleFormat::action("Workspace created")
+                                    .sub_title(workspace_id.to_string()),
+                            )?;
+                        }
+                        IndexProgress::Authenticated { auth } => {
+                            self.spinner.stop(None)?;
+                            let info = Info::new()
+                                .add_title("NEW API KEY CREATED")
+                                .add_key_value("API Key", auth.token.as_str());
+                            self.writeln(info.to_string())?;
+                        }
+                    }
                 }
-
-                self.writeln_title(TitleFormat::completion(format!(
-                    "Successfully synced: {}",
-                    path.display()
-                )))?;
-                Ok(())
-            }
-            Err(e) => {
-                self.spinner.stop(None)?;
-                Err(e)
+                Err(e) => {
+                    self.spinner.stop(None)?;
+                    return Err(e);
+                }
             }
         }
+
+        self.spinner.stop(None)?;
+
+        self.writeln_title(TitleFormat::completion(format!(
+            "Successfully synced: {}",
+            path.display()
+        )))?;
+
+        Ok(())
     }
 
     async fn on_query(
