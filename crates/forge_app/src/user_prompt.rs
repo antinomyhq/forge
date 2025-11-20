@@ -45,9 +45,8 @@ impl<S: TemplateService + AttachmentService> UserPromptGenerator<S> {
                 .as_ref()
                 .and_then(|v| v.as_user_prompt().map(|u| u.as_str().to_string()))
                 .unwrap_or_default();
-            let mut event_context =
-                EventContext::new(EventContextValue::new(self.event.name.clone(), user_input))
-                    .current_date(self.current_time.format("%Y-%m-%d").to_string());
+            let mut event_context = EventContext::new(EventContextValue::new(user_input))
+                .current_date(self.current_time.format("%Y-%m-%d").to_string());
 
             // Check if context already contains user messages to determine if it's feedback
             let has_user_messages = context.messages.iter().any(|msg| msg.has_role(Role::User));
@@ -70,10 +69,7 @@ impl<S: TemplateService + AttachmentService> UserPromptGenerator<S> {
                             &json!({"parameters": command.parameters.join(" ")}),
                         )
                         .await?;
-                    event_context.event(EventContextValue::new(
-                        self.event.name.clone(),
-                        rendered_prompt,
-                    ))
+                    event_context.event(EventContextValue::new(rendered_prompt))
                 }
                 None => event_context,
             };

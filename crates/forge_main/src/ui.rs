@@ -2107,8 +2107,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let conversation_id = self.init_conversation().await?;
 
         // Create a ChatRequest with the appropriate event type
-        let operating_agent = self.api.get_active_agent().await.unwrap_or_default();
-        let event = Event::new(format!("{operating_agent}"), content);
+        let event = match content {
+            Some(text) => Event::new(text),
+            None => Event::empty(),
+        };
 
         // Create the chat request with the event
         let chat = ChatRequest::new(event, conversation_id);
