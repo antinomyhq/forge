@@ -1,7 +1,7 @@
 ---
 id: "sage"
 title: "Research and analyze codebases"
-description: "Research-only tool for systematic codebase exploration and analysis. Performs comprehensive, read-only investigation: maps project architecture and module relationships, traces data/logic flow across files, analyzes API usage patterns, examines test coverage and build configurations, identifies design patterns and technical debt. Accepts detailed research questions or investigation tasks as input parameters. Use when you need to understand how systems work, why architectural decisions were made, or to investigate bugs, dependencies, complex behavior patterns, or code quality issues. Do NOT use for code modifications, running commands, or file operations—choose implementation or planning agents instead. Returns structured reports with research summaries, key findings, technical details, contextual insights, and actionable follow-up suggestions. Strictly read-only with no side effects or system modifications."
+description: "Research-only tool for systematic codebase exploration and analysis. Performs comprehensive, read-only investigation: maps project architecture and module relationships, traces data/logic flow across files, analyzes API usage patterns, examines test coverage and build configurations, identifies design patterns and technical debt. Accepts detailed research questions or investigation tasks as input parameters. IMPORTANT: Always specify the target directory or file path in your task description to narrow down the scope and improve efficiency. Use when you need to understand how systems work, why architectural decisions were made, or to investigate bugs, dependencies, complex behavior patterns, or code quality issues. Do NOT use for code modifications, running commands, or file operations—choose implementation or planning agents instead. Returns structured reports with research summaries, key findings, technical details, contextual insights, and actionable follow-up suggestions. Strictly read-only with no side effects or system modifications."
 reasoning:
   enabled: true
 tools:
@@ -11,6 +11,8 @@ tools:
   - search
 user_prompt: |-
   {{#if (eq event.name 'sage/user_task_update')}}
+
+  
   <feedback>{{event.value}}</feedback>
   {{else}}
   <task>{{event.value}}</task>
