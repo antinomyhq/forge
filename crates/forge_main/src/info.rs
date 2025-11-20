@@ -959,19 +959,20 @@ mod tests {
             .add_key_value("VERSION", "1.0.0")
             .add_key_value("Working Directory", "/home/user")
             .add_key_value("Mixed CASE Key", "value");
-        
+
         let display = info.to_string();
-        
-        // All keys should be lowercase - checking just the key part without exact formatting
+
+        // All keys should be lowercase - checking just the key part without exact
+        // formatting
         assert!(display.contains("version"));
         assert!(display.contains("working directory"));
         assert!(display.contains("mixed case key"));
-        
+
         // Values should be preserved
         assert!(display.contains("1.0.0"));
         assert!(display.contains("/home/user"));
         assert!(display.contains("value"));
-        
+
         // Should not contain uppercase versions
         assert!(!display.contains("VERSION"));
         assert!(!display.contains("Working Directory"));
