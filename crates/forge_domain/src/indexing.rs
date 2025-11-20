@@ -204,9 +204,13 @@ pub struct WorkspaceStatus {
     pub files_to_sync: Vec<String>,
     /// Last time the workspace was synced with the server
     pub last_synced_at: Option<DateTime<Utc>>,
+    /// Path to the workspace directory
     pub workspace_dir: String,
+    /// Unique identifier for the workspace
     pub workspace_id: WorkspaceId,
+    /// Total number of indexed nodes in the workspace
     pub node_count: u64,
+    /// Total number of relations between nodes
     pub relation_count: u64,
 }
 
