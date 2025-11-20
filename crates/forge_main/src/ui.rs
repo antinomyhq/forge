@@ -2752,18 +2752,23 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .unwrap_or("WORKSPACE".to_string());
 
                 let synced_count = status.total_files - status.files_to_sync_count();
+                let percentage = if status.total_files > 0 {
+                    synced_count as f64 / status.total_files as f64 * 100.0
+                } else {
+                    100.0
+                };
                 let sync_status = format!(
-                    "{}/{} ({} to sync)",
+                    "{}/{} ({:.2}% synced)",
                     synced_count,
                     status.total_files,
-                    status.files_to_sync_count()
+                    percentage
                 );
 
                 let info = Info::new()
                     .add_title(title)
                     .add_key_value("ID", status.workspace_info.workspace_id.to_string())
                     .add_key_value("Path", &status.workspace_info.working_dir)
-                    .add_title("INDEX STATUS")
+                    .add_title("SYNC STATUS")
                     .add_key_value("Files", sync_status)
                     .add_key_value(
                         "Relations",
