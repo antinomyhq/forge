@@ -207,6 +207,13 @@ pub enum IndexCommand {
         use_case: String,
     },
 
+    /// Show workspace information for an indexed directory.
+    Info {
+        /// Path to the directory to get information for
+        #[arg(default_value = ".")]
+        path: PathBuf,
+    },
+
     /// Delete a workspace.
     Delete {
         /// Workspace ID to delete

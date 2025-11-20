@@ -4,26 +4,8 @@ package forge.v1;
 
 // Main service for interacting with Forge's context engine
 service ForgeService {
-  // Creates or updates multiple nodes in the context engine
-  rpc UpsertNodes(UpsertNodesRequest) returns (UpsertNodesResponse);
-  
-  // Retrieves a node by its ID
-  rpc GetNode(GetNodeRequest) returns (GetNodeResponse);
-  
-  // Deletes a node from the context engine
-  rpc DeleteNode(DeleteNodeRequest) returns (DeleteNodeResponse);
-  
   // Searches for nodes matching a query
   rpc Search(SearchRequest) returns (SearchResponse);
-  
-  // Creates a relation between two nodes
-  rpc CreateRelation(CreateRelationRequest) returns (CreateRelationResponse);
-  
-  // Deletes a relation between two nodes
-  rpc DeleteRelation(DeleteRelationRequest) returns (DeleteRelationResponse);
-  
-  // Lists nodes related to a specific node
-  rpc ListRelatedNodes(ListRelatedNodesRequest) returns (ListRelatedNodesResponse);
   
   // Uploads files to the context engine
   rpc UploadFiles(UploadFilesRequest) returns (UploadFilesResponse);
@@ -45,6 +27,9 @@ service ForgeService {
   
   // Lists all workspaces for a user
   rpc ListWorkspaces(ListWorkspacesRequest) returns (ListWorkspacesResponse);
+  
+  // Retrieves workspace info for a specific workspace
+  rpc GetWorkspaceInfo(GetWorkspaceInfoRequest) returns (GetWorkspaceInfoResponse);
   
   // Deletes a workspace
   rpc DeleteWorkspace(DeleteWorkspaceRequest) returns (DeleteWorkspaceResponse);
@@ -100,6 +85,7 @@ message Workspace {
   string working_dir = 2;
   uint64 node_count = 3;
   uint64 relation_count = 4;
+  optional string last_updated = 5;
 }
 
 message WorkspaceDefinition {
@@ -151,13 +137,7 @@ message Node {
   WorkspaceId workspace_id = 2;
   string hash = 3;
   optional GitInfo git = 4;
-  repeated NodeRelation relations = 5;
   NodeData data = 6;
-}
-
-message NodeRelation {
-  Relation relation_type = 1;
-  Node target_node = 2;
 }
 
 message Relation {
@@ -166,26 +146,6 @@ message Relation {
     Relation inverse = 2;
   }
 }
-
-message NodeDefinition {
-  optional NodeId node_id = 1;
-  optional GitInfo git = 2;
-  NodeData data = 3;
-}
-
-message RelationDefinition {
-  NodeId source_node_id = 1;
-  NodeId target_node_id = 2;
-  Relation relation_type = 3;
-}
-
-message RelationInfo {
-  RelationId relation_id = 1;
-  NodeId source_node_id = 2;
-  NodeId target_node_id = 3;
-  Relation relation_type = 4;
-}
-
 
 message QueryItem {
   Node node = 1;
@@ -208,22 +168,6 @@ message Query {
   optional string relevance_query = 6;
 }
 
-message RelatedNodesQuery {
-  NodeId source_node_id = 1;
-  repeated Relation relation_types = 2;
-  optional uint32 limit = 3;
-}
-
-message RelatedNode {
-  Node node = 1;
-  Relation relation_type = 2;
-  NodeId source_node_id = 3;
-}
-
-message RelatedNodesResult {
-  repeated RelatedNode data = 1;
-}
-
 message FileUploadContent {
   repeated File files = 1;
   optional GitInfo git = 2;
@@ -234,38 +178,11 @@ message RelationCreateResult {
 }
 
 message UploadResult {
-  repeated Node nodes = 1;
+  repeated string node_ids = 1;
   repeated RelationCreateResult relations = 2;
 }
 
 // Request/Response messages
-message UpsertNodesRequest {
-  WorkspaceId workspace_id = 1;
-  repeated NodeDefinition nodes = 2;
-}
-
-message UpsertNodesResponse {
-  repeated Node nodes = 1;
-}
-
-message GetNodeRequest {
-  WorkspaceId workspace_id = 1;
-  NodeId node_id = 2;
-}
-
-message GetNodeResponse {
-  optional Node node = 1;
-}
-
-message DeleteNodeRequest {
-  WorkspaceId workspace_id = 1;
-  repeated NodeId node_ids = 2;
-}
-
-message DeleteNodeResponse {
-  uint32 deleted_count = 1;
-}
-
 message SearchRequest {
   WorkspaceId workspace_id = 1;
   optional Query query = 2;
@@ -273,33 +190,6 @@ message SearchRequest {
 
 message SearchResponse {
   QueryResult result = 1;
-}
-
-message CreateRelationRequest {
-  WorkspaceId workspace_id = 1;
-  RelationDefinition relation = 2;
-}
-
-message CreateRelationResponse {
-  RelationId relation_id = 1;
-}
-
-message DeleteRelationRequest {
-  WorkspaceId workspace_id = 1;
-  repeated RelationId relation_ids = 2;
-}
-
-message DeleteRelationResponse {
-  uint64 deleted_count = 1;
-}
-
-message ListRelatedNodesRequest {
-  WorkspaceId workspace_id = 1;
-  optional RelatedNodesQuery query = 2;
-}
-
-message ListRelatedNodesResponse {
-  RelatedNodesResult result = 1;
 }
 
 message UploadFilesRequest {
@@ -360,11 +250,18 @@ message CreateWorkspaceResponse {
   Workspace workspace = 1;
 }
 
-message ListWorkspacesRequest {
-}
+message ListWorkspacesRequest {}
 
 message ListWorkspacesResponse {
   repeated Workspace workspaces = 1;
+}
+
+message GetWorkspaceInfoRequest {
+  WorkspaceId workspace_id = 1;
+}
+
+message GetWorkspaceInfoResponse {
+  optional Workspace workspace = 1;
 }
 
 message DeleteWorkspaceRequest {

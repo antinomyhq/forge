@@ -252,6 +252,9 @@ pub trait ContextEngineService: Send + Sync {
     /// List all workspaces indexed by the user
     async fn list_codebase(&self) -> anyhow::Result<Vec<WorkspaceInfo>>;
 
+    /// Get workspace information for a specific path
+    async fn get_workspace_info(&self, path: PathBuf) -> anyhow::Result<Option<WorkspaceInfo>>;
+
     /// Delete a workspace and all its indexed data
     async fn delete_codebase(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()>;
 
@@ -1008,6 +1011,10 @@ impl<I: Services> ContextEngineService for I {
 
     async fn list_codebase(&self) -> anyhow::Result<Vec<WorkspaceInfo>> {
         self.context_engine_service().list_codebase().await
+    }
+
+    async fn get_workspace_info(&self, path: PathBuf) -> anyhow::Result<Option<WorkspaceInfo>> {
+        self.context_engine_service().get_workspace_info(path).await
     }
 
     async fn delete_codebase(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()> {
