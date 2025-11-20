@@ -92,19 +92,26 @@ where
 
     /// Sets the model for the agent's provider
     pub async fn set_default_model(&self, agent_id: Option<AgentId>, model: ModelId) -> Result<()> {
-        if let Some(agent_id) = agent_id {
-            if let Some(agent) = self.0.get_agent(&agent_id).await? {
-                let provider_id = agent.provider;
-                self.0.set_default_model(model, provider_id).await
+        let provider_id = if let Some(agent_id) = agent_id {
+            // Get agent definitions directly without requiring runtime agent
+            // (which needs both provider AND model to be configured)
+            let agent_defs = self.0.get_agent_definitions().await?;
+            if let Some(agent_def) = agent_defs.iter().find(|a| a.id == agent_id) {
+                // Use agent's provider if specified, otherwise fall back to default
+                if let Some(provider_id) = agent_def.provider {
+                    provider_id
+                } else {
+                    self.get_provider(None).await?.id
+                }
             } else {
-                // TODO: Needs review, should we throw an err here?
-                // we can throw crate::Error::AgentNotFound
-                let provider_id = self.get_provider(None).await?.id;
-                self.0.set_default_model(model, provider_id).await
+                // Agent not found, use default provider
+                self.get_provider(None).await?.id
             }
         } else {
-            let provider_id = self.get_provider(None).await?.id;
-            self.0.set_default_model(model, provider_id).await
-        }
+            // No agent specified, use default provider
+            self.get_provider(None).await?.id
+        };
+
+        self.0.set_default_model(model, provider_id).await
     }
 }

@@ -83,4 +83,8 @@ impl<R: AgentRepository + AppConfigRepository + ProviderRepository> forge_app::A
         let agents = self.get_runtime_agents().await?;
         Ok(agents.into_iter().find(|a| a.id == *agent_id))
     }
+
+    async fn get_agent_definitions(&self) -> anyhow::Result<Vec<forge_domain::AgentDefinition>> {
+        self.repository.get_agents().await
+    }
 }

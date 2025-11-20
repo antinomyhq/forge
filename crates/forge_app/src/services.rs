@@ -410,6 +410,10 @@ pub trait AgentRegistry: Send + Sync {
 
     /// Get agent by ID (from registry store)
     async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<forge_domain::Agent>>;
+
+    /// Get agent definitions without requiring full runtime configuration
+    /// (provider and model don't need to be set)
+    async fn get_agent_definitions(&self) -> anyhow::Result<Vec<forge_domain::AgentDefinition>>;
 }
 
 #[async_trait::async_trait]
@@ -866,6 +870,10 @@ impl<I: Services> AgentRegistry for I {
 
     async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<forge_domain::Agent>> {
         self.agent_registry().get_agent(agent_id).await
+    }
+
+    async fn get_agent_definitions(&self) -> anyhow::Result<Vec<forge_domain::AgentDefinition>> {
+        self.agent_registry().get_agent_definitions().await
     }
 }
 
