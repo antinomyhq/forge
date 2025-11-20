@@ -2751,24 +2751,24 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     })
                     .unwrap_or("WORKSPACE".to_string());
 
+                let synced_count = status.total_files - status.files_to_sync_count();
+                let sync_status = format!(
+                    "{}/{} ({} to sync)",
+                    synced_count,
+                    status.total_files,
+                    status.files_to_sync_count()
+                );
+
                 let info = Info::new()
                     .add_title(title)
-                    .add_key_value(
-                        "Workspace ID",
-                        status.workspace_info.workspace_id.to_string(),
-                    )
-                    .add_key_value("Workspace Path", &status.workspace_info.working_dir)
-                    .add_key_value("File Count", status.workspace_info.node_count.to_string())
+                    .add_key_value("ID", status.workspace_info.workspace_id.to_string())
+                    .add_key_value("Path", &status.workspace_info.working_dir)
+                    .add_title("INDEX STATUS")
+                    .add_key_value("Files", sync_status)
                     .add_key_value(
                         "Relations",
                         status.workspace_info.relation_count.to_string(),
-                    )
-                    .add_key_value("Total Files", status.total_files.to_string())
-                    .add_key_value(
-                        "Synced Files",
-                        status.total_files - status.files_to_sync_count(),
-                    )
-                    .add_key_value("Pending Files", status.files_to_sync_count().to_string());
+                    );
 
                 self.writeln(info.to_string())?;
                 Ok(())
