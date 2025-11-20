@@ -63,7 +63,7 @@ where
         left.iter()
             .filter_map(|left_item| {
                 right_map.get(&left_item.key()).and_then(|right_item| {
-                    if !left_item.content_equals(right_item) {
+                    if !left_item.equals(right_item) {
                         Some((left_item, *right_item))
                     } else {
                         None
