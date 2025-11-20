@@ -4,8 +4,8 @@ use anyhow::Result;
 use url::Url;
 
 use crate::{
-    AnyProvider, AppConfig, AuthCredential, Conversation, ConversationId, Provider, ProviderId,
-    Snapshot,
+    AnyProvider, AppConfig, AuthCredential, Conversation, ConversationId, MigrationResult,
+    Provider, ProviderId, Snapshot,
 };
 
 /// Repository for managing file snapshots
@@ -92,4 +92,5 @@ pub trait ProviderRepository: Send + Sync {
     async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()>;
     async fn get_credential(&self, id: &ProviderId) -> anyhow::Result<Option<AuthCredential>>;
     async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()>;
+    async fn migrate_env_credentials(&self) -> anyhow::Result<Option<MigrationResult>>;
 }

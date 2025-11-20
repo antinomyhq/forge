@@ -45,13 +45,14 @@ impl<I: CommandInfra + EnvironmentInfra> ShellService for ForgeShell<I> {
         command: String,
         cwd: PathBuf,
         keep_ansi: bool,
+        silent: bool,
         env_vars: Option<Vec<String>>,
     ) -> anyhow::Result<ShellOutput> {
         Self::validate_command(&command)?;
 
         let mut output = self
             .infra
-            .execute_command(command, cwd, false, env_vars)
+            .execute_command(command, cwd, silent, env_vars)
             .await?;
 
         if !keep_ansi {
@@ -135,6 +136,7 @@ mod tests {
                 "echo hello".to_string(),
                 PathBuf::from("."),
                 false,
+                false,
                 Some(vec!["PATH".to_string(), "HOME".to_string()]),
             )
             .await
@@ -149,7 +151,13 @@ mod tests {
         let fixture = ForgeShell::new(Arc::new(MockCommandInfra { expected_env_vars: None }));
 
         let actual = fixture
-            .execute("echo hello".to_string(), PathBuf::from("."), false, None)
+            .execute(
+                "echo hello".to_string(),
+                PathBuf::from("."),
+                false,
+                false,
+                None,
+            )
             .await
             .unwrap();
 
@@ -167,6 +175,7 @@ mod tests {
             .execute(
                 "echo hello".to_string(),
                 PathBuf::from("."),
+                false,
                 false,
                 Some(vec![]),
             )

@@ -4,16 +4,17 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::{
-    CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
-    FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, KVStore, McpServerInfra,
-    StrategyFactory, UserInfra, WalkedFile, Walker, WalkerInfra,
+    AgentRepository, CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
+    FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, KVStore,
+    McpServerInfra, StrategyFactory, UserInfra, WalkedFile, Walker, WalkerInfra,
 };
 use forge_domain::{
     AnyProvider, AppConfig, AppConfigRepository, AuthCredential, CommandOutput, Conversation,
-    ConversationId, ConversationRepository, Environment, FileInfo, McpServerConfig, Provider,
-    ProviderId, ProviderRepository, Snapshot, SnapshotRepository,
+    ConversationId, ConversationRepository, Environment, FileInfo, McpServerConfig,
+    MigrationResult, Provider, ProviderId, ProviderRepository, Snapshot, SnapshotRepository,
 };
-use forge_infra::CacacheStorage;
+// Re-export CacacheStorage from forge_infra
+pub use forge_infra::CacacheStorage;
 use reqwest::header::HeaderMap;
 use reqwest::Response;
 use reqwest_eventsource::EventSource;
@@ -21,7 +22,10 @@ use url::Url;
 
 use crate::fs_snap::ForgeFileSnapshotService;
 use crate::provider::ForgeProviderRepository;
-use crate::{AppConfigRepositoryImpl, ConversationRepositoryImpl, DatabasePool, PoolConfig};
+use crate::{
+    AppConfigRepositoryImpl, ConversationRepositoryImpl, DatabasePool, ForgeAgentRepository,
+    PoolConfig,
+};
 
 /// Repository layer that implements all domain repository traits
 ///
@@ -35,6 +39,7 @@ pub struct ForgeRepo<F> {
     app_config_repository: Arc<AppConfigRepositoryImpl<F>>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
+    agent_repository: Arc<ForgeAgentRepository<F>>,
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
@@ -54,7 +59,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
         )); // 1 hour TTL
 
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
-
+        let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
         Self {
             infra,
             file_snapshot_service,
@@ -62,6 +67,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
             app_config_repository,
             mcp_cache_repository,
             provider_repository,
+            agent_repository,
         }
     }
 }
@@ -130,6 +136,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> Prov
 
     async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()> {
         self.provider_repository.remove_credential(id).await
+    }
+
+    async fn migrate_env_credentials(&self) -> anyhow::Result<Option<MigrationResult>> {
+        self.provider_repository.migrate_env_to_file().await
     }
 }
 
@@ -296,6 +306,13 @@ impl<F> DirectoryReaderInfra for ForgeRepo<F>
 where
     F: DirectoryReaderInfra + Send + Sync,
 {
+    async fn list_directory_entries(
+        &self,
+        directory: &Path,
+    ) -> anyhow::Result<Vec<(PathBuf, bool)>> {
+        self.infra.list_directory_entries(directory).await
+    }
+
     async fn read_directory_files(
         &self,
         directory: &Path,
@@ -381,6 +398,15 @@ where
         self.infra
             .execute_command_raw(command, working_dir, env_vars)
             .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra + Send + Sync> AgentRepository
+    for ForgeRepo<F>
+{
+    async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::AgentDefinition>> {
+        self.agent_repository.get_agents().await
     }
 }
 

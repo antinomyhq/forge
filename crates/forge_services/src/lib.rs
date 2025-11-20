@@ -21,7 +21,6 @@ mod tool_services;
 mod utils;
 mod workflow;
 
-pub use agent_registry::*;
 pub use clipper::*;
 pub use command_loader::*;
 pub use custom_instructions::*;

@@ -2,8 +2,8 @@ use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
 use colored::Colorize;
-use forge_api::{AnyProvider, Model, ProviderId, Template};
-use forge_domain::{Agent, UserCommand};
+use forge_api::{Agent, AnyProvider, Model, ProviderId, Template};
+use forge_domain::UserCommand;
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumProperty};
 
@@ -76,7 +76,7 @@ impl Display for CliProvider {
                 }
             }
             AnyProvider::Template(_) => {
-                write!(f, "  {:<width$} [unavailable]", name, width = name_width)?;
+                write!(f, "  {name:<name_width$} [unavailable]")?;
             }
         }
         Ok(())
@@ -173,6 +173,7 @@ impl ForgeCommandManager {
                 | "retry"
                 | "conversations"
                 | "list"
+                | "commit"
         )
     }
 
@@ -334,7 +335,7 @@ impl ForgeCommandManager {
             "/exit" => Ok(SlashCommand::Exit),
             "/update" => Ok(SlashCommand::Update),
             "/dump" => {
-                let html = !parameters.is_empty() && parameters[0] == "--html";
+                let html = !parameters.is_empty() && parameters[0] == "html";
                 Ok(SlashCommand::Dump { html })
             }
             "/act" | "/forge" => Ok(SlashCommand::Forge),
@@ -349,6 +350,13 @@ impl ForgeCommandManager {
             "/logout" => Ok(SlashCommand::Logout),
             "/retry" => Ok(SlashCommand::Retry),
             "/conversation" | "/conversations" => Ok(SlashCommand::Conversations),
+            "/commit" => {
+                // Support flexible syntax:
+                // /commit              -> commit with AI message
+                // /commit 5000         -> commit with max-diff of 5000 bytes
+                let max_diff_size = parameters.iter().find_map(|&p| p.parse::<usize>().ok());
+                Ok(SlashCommand::Commit { max_diff_size })
+            }
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -468,12 +476,12 @@ pub enum SlashCommand {
     #[strum(props(usage = "Switch to an agent interactively"))]
     Agent,
 
-    /// Log into the default provider.
-    #[strum(props(usage = "Log into the Forge provider"))]
+    /// Allows you to configure provider
+    #[strum(props(usage = "Allows you to configure provider"))]
     Login,
 
-    /// Logs out of the current session.
-    #[strum(props(usage = "Logout of the current session"))]
+    /// Logs out from the configured provider
+    #[strum(props(usage = "Logout from configured provider"))]
     Logout,
 
     /// Retry without modifying model context
@@ -486,6 +494,16 @@ pub enum SlashCommand {
     /// Switch directly to a specific agent by ID
     #[strum(props(usage = "Switch directly to a specific agent"))]
     AgentSwitch(String),
+
+    /// Generate and optionally commit changes with AI-generated message
+    ///
+    /// Examples:
+    /// - `/commit` - Generate message and commit
+    /// - `/commit 5000` - Commit with max diff of 5000 bytes
+    #[strum(props(
+        usage = "Generate AI commit message and commit changes. Format: /commit <max-diff|preview>"
+    ))]
+    Commit { max_diff_size: Option<usize> },
 }
 
 impl SlashCommand {
@@ -503,6 +521,7 @@ impl SlashCommand {
             SlashCommand::Muse => "muse",
             SlashCommand::Sage => "sage",
             SlashCommand::Help => "help",
+            SlashCommand::Commit { .. } => "commit",
             SlashCommand::Dump { .. } => "dump",
             SlashCommand::Model => "model",
             SlashCommand::Provider => "provider",
@@ -808,13 +827,24 @@ mod tests {
 
     #[test]
     fn test_register_agent_commands() {
-        use forge_domain::Agent;
+        use forge_api::Agent;
+        use forge_domain::{ModelId, ProviderId};
 
         // Setup
         let fixture = ForgeCommandManager::default();
         let agents = vec![
-            Agent::new("test-agent").title("Test Agent".to_string()),
-            Agent::new("another").title("Another Agent".to_string()),
+            Agent::new(
+                "test-agent",
+                ProviderId::Anthropic,
+                ModelId::new("claude-3-5-sonnet-20241022"),
+            )
+            .title("Test Agent".to_string()),
+            Agent::new(
+                "another",
+                ProviderId::Anthropic,
+                ModelId::new("claude-3-5-sonnet-20241022"),
+            )
+            .title("Another Agent".to_string()),
         ];
 
         // Execute
@@ -842,11 +872,19 @@ mod tests {
 
     #[test]
     fn test_parse_agent_switch_command() {
-        use forge_domain::Agent;
+        use forge_api::Agent;
+        use forge_domain::{ModelId, ProviderId};
 
         // Setup
         let fixture = ForgeCommandManager::default();
-        let agents = vec![Agent::new("test-agent").title("Test Agent".to_string())];
+        let agents = vec![
+            Agent::new(
+                "test-agent",
+                ProviderId::Anthropic,
+                ModelId::new("claude-3-5-sonnet-20241022"),
+            )
+            .title("Test Agent".to_string()),
+        ];
         let _result = fixture.register_agent_commands(agents);
 
         // Execute
@@ -1060,6 +1098,65 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_commit_command() {
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture.parse("/commit").unwrap();
+        match actual {
+            SlashCommand::Commit { max_diff_size } => {
+                assert_eq!(max_diff_size, None);
+            }
+            _ => panic!("Expected Commit command, got {actual:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_commit_command_with_preview() {
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture.parse("/commit preview").unwrap();
+        match actual {
+            SlashCommand::Commit { max_diff_size } => {
+                assert_eq!(max_diff_size, None);
+            }
+            _ => panic!("Expected Commit command with preview, got {actual:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_commit_command_with_max_diff() {
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture.parse("/commit 5000").unwrap();
+        match actual {
+            SlashCommand::Commit { max_diff_size } => {
+                assert_eq!(max_diff_size, Some(5000));
+            }
+            _ => panic!("Expected Commit command with max_diff_size, got {actual:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_commit_command_with_all_flags() {
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture.parse("/commit preview 10000").unwrap();
+        match actual {
+            SlashCommand::Commit { max_diff_size } => {
+                assert_eq!(max_diff_size, Some(10000));
+            }
+            _ => panic!("Expected Commit command with all flags, got {actual:?}"),
+        }
+    }
+
+    #[test]
+    fn test_commit_command_in_default_commands() {
+        let manager = ForgeCommandManager::default();
+        let commands = manager.list();
+        let contains_commit = commands.iter().any(|cmd| cmd.name == "commit");
+        assert!(
+            contains_commit,
+            "Commit command should be in default commands"
+        );
+    }
+
+    #[test]
     fn test_parse_invalid_agent_command() {
         // Setup
         let fixture = ForgeCommandManager::default();
@@ -1092,5 +1189,31 @@ mod tests {
             }
             _ => panic!("Expected Tool command, got {result:?}"),
         }
+    }
+
+    #[test]
+    fn test_parse_dump_command_json() {
+        // Setup
+        let fixture = ForgeCommandManager::default();
+
+        // Execute
+        let actual = fixture.parse("/dump").unwrap();
+
+        // Verify
+        let expected = SlashCommand::Dump { html: false };
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_dump_command_html_without_dashes() {
+        // Setup
+        let fixture = ForgeCommandManager::default();
+
+        // Execute
+        let actual = fixture.parse("/dump html").unwrap();
+
+        // Verify
+        let expected = SlashCommand::Dump { html: true };
+        assert_eq!(actual, expected);
     }
 }

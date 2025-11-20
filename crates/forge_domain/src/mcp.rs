@@ -75,7 +75,7 @@ pub struct McpStdioServer {
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
 pub struct McpHttpServer {
     /// Url of the MCP server (auto-detects HTTP vs SSE transport)
-    #[serde(skip_serializing_if = "String::is_empty")]
+    #[serde(skip_serializing_if = "String::is_empty", alias = "serverUrl")]
     pub url: String,
 
     /// Optional headers for HTTP requests

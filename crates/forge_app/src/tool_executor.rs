@@ -229,6 +229,7 @@ impl<
                         input.command.clone(),
                         PathBuf::from(normalized_cwd),
                         input.keep_ansi,
+                        false,
                         input.env.clone(),
                     )
                     .await?;
