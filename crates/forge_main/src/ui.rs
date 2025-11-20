@@ -2726,36 +2726,39 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 }
 
                 // Build Info object once
-                let mut info = if porcelain {
-                    Info::new()
-                } else {
-                    Info::new().add_title("WORKSPACES")
-                };
+                let mut info = Info::new();
 
-                if workspaces.is_empty() {
-                    if !porcelain {
-                        info = info.add_value("No workspaces found");
-                    }
-                } else {
-                    for workspace in workspaces {
-                        if porcelain {
-                            // In porcelain mode, title becomes first column value
-                            info = info
-                                .add_title(workspace.workspace_id.to_string())
-                                .add_key_value("Path", workspace.working_dir);
+                for workspace in workspaces {
+                    let elapsed_time = workspace.last_updated.map_or("NEVER".to_string(), |d| {
+                        let duration = chrono::Utc::now().signed_duration_since(d);
+                        let duration =
+                            Duration::from_secs((duration.num_minutes() * 60).max(0) as u64);
+                        if duration.is_zero() {
+                            "now".to_string()
                         } else {
-                            // In human-readable mode, show both ID and Path as key-values
-                            info = info
-                                .add_key_value("ID", workspace.workspace_id.to_string())
-                                .add_key_value("Path", workspace.working_dir);
+                            format!("{} ago", humantime::format_duration(duration))
                         }
-                    }
+                    });
+
+                    let timestamp = workspace.last_updated.map_or("NEVER".to_string(), |d| {
+                        d.with_timezone(&chrono::Local)
+                            .format("%Y-%m-%d %H:%M:%S %Z")
+                            .to_string()
+                    });
+
+                    info = info
+                        .add_title(format!("Workspace [{}]", timestamp))
+                        .add_key_value("id", workspace.workspace_id.to_string())
+                        .add_key_value("path", workspace.working_dir)
+                        .add_key_value("last updated", elapsed_time)
+                        .add_key_value("total nodes", workspace.node_count)
+                        .add_key_value("total relations", workspace.relation_count);
                 }
 
                 // Output based on mode
                 if porcelain {
                     // Skip header row in porcelain mode (consistent with conversation list)
-                    self.writeln(Porcelain::from(info).skip(1))?;
+                    self.writeln(Porcelain::from(info).skip(1).drop_cols(&[0, 4, 5]))?;
                 } else {
                     self.writeln(info)?;
                 }
