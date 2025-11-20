@@ -298,21 +298,16 @@ impl<
                     self.read_files(&existing_workspace.path)
                 )?;
 
-                let (last_synced_at, node_count, relation_count) = workspace_info
-                    .map(|w| (w.last_updated, w.node_count, w.relation_count))
-                    .unwrap_or((None, 0, 0));
+                let workspace_info =
+                    workspace_info.ok_or(forge_domain::Error::WorkspaceNotFound)?;
                 let total_files = local_files.len();
 
                 let diff = Differ::new(&local_files, &server_files);
 
                 Ok(WorkspaceStatus::new(
+                    workspace_info,
                     total_files,
                     diff.out_of_sync_files(),
-                    last_synced_at,
-                    existing_workspace.path.to_string_lossy().to_string(),
-                    existing_workspace.workspace_id.clone(),
-                    node_count,
-                    relation_count,
                 ))
             }
             None => Err(forge_domain::Error::WorkspaceNotFound.into()),

@@ -2732,11 +2732,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         self.spinner.start(Some("Checking workspace info..."))?;
 
         match self.api.diff_codebase(path.clone()).await {
-            Ok(stats) => {
+            Ok(status) => {
                 self.spinner.stop(None)?;
                 // Format last synced time if available
-                let title = stats
-                    .last_synced_at
+                let title = status
+                    .workspace_info
+                    .last_updated
                     .map(|last_synced| {
                         let duration = Utc::now().signed_duration_since(last_synced);
                         let duration =
@@ -2752,16 +2753,22 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
                 let info = Info::new()
                     .add_title(title)
-                    .add_key_value("Workspace ID", stats.workspace_id.to_string())
-                    .add_key_value("Workspace Path", &stats.workspace_dir)
-                    .add_key_value("File Count", stats.node_count.to_string())
-                    .add_key_value("Relations", stats.relation_count.to_string())
-                    .add_key_value("Total Files", stats.total_files.to_string())
+                    .add_key_value(
+                        "Workspace ID",
+                        status.workspace_info.workspace_id.to_string(),
+                    )
+                    .add_key_value("Workspace Path", &status.workspace_info.working_dir)
+                    .add_key_value("File Count", status.workspace_info.node_count.to_string())
+                    .add_key_value(
+                        "Relations",
+                        status.workspace_info.relation_count.to_string(),
+                    )
+                    .add_key_value("Total Files", status.total_files.to_string())
                     .add_key_value(
                         "Synced Files",
-                        stats.total_files - stats.files_to_sync_count(),
+                        status.total_files - status.files_to_sync_count(),
                     )
-                    .add_key_value("Pending Files", stats.files_to_sync_count().to_string());
+                    .add_key_value("Pending Files", status.files_to_sync_count().to_string());
 
                 self.writeln(info.to_string())?;
                 Ok(())

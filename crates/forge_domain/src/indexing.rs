@@ -1,4 +1,3 @@
-use chrono::{DateTime, Utc};
 use derive_more::Display;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
@@ -198,42 +197,22 @@ impl UploadStats {
 /// Result of an index diff operation showing files that need sync
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkspaceStatus {
+    /// Workspace information from the server
+    pub workspace_info: WorkspaceInfo,
     /// Total number of files in the local workspace
     pub total_files: usize,
     /// List of file paths that need to be synced (new or modified)
     pub files_to_sync: Vec<String>,
-    /// Last time the workspace was synced with the server
-    pub last_synced_at: Option<DateTime<Utc>>,
-    /// Path to the workspace directory
-    pub workspace_dir: String,
-    /// Unique identifier for the workspace
-    pub workspace_id: WorkspaceId,
-    /// Total number of indexed nodes in the workspace
-    pub node_count: u64,
-    /// Total number of relations between nodes
-    pub relation_count: u64,
 }
 
 impl WorkspaceStatus {
-    /// Create new diff statistics
+    /// Create new workspace status from workspace info and diff data
     pub fn new(
+        workspace_info: WorkspaceInfo,
         total_files: usize,
         files_to_sync: Vec<String>,
-        last_synced_at: Option<DateTime<Utc>>,
-        workspace_dir: String,
-        workspace_id: WorkspaceId,
-        node_count: u64,
-        relation_count: u64,
     ) -> Self {
-        Self {
-            total_files,
-            files_to_sync,
-            last_synced_at,
-            workspace_dir,
-            workspace_id,
-            node_count,
-            relation_count,
-        }
+        Self { workspace_info, total_files, files_to_sync }
     }
 
     /// Number of files that need to be synced
