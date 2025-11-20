@@ -2759,9 +2759,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 };
                 let sync_status = format!(
                     "{}/{} ({:.2}% synced)",
-                    synced_count,
-                    status.total_files,
-                    percentage
+                    synced_count, status.total_files, percentage
                 );
 
                 let info = Info::new()

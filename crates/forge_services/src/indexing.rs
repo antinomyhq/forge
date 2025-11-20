@@ -1,10 +1,11 @@
-use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use forge_app::{ContextEngineService, FileReaderInfra, Walker, WalkerInfra, compute_hash};
+use forge_app::{
+    ContextEngineService, DiffResult, Diffable, FileReaderInfra, Walker, WalkerInfra, compute_hash,
+};
 use forge_domain::{
     ContextEngineRepository, CredentialsRepository, IndexStats, UserId, WorkspaceId,
     WorkspaceRepository, WorkspaceStatus,
@@ -29,6 +30,18 @@ impl IndexedFile {
     }
 }
 
+impl Diffable<ServerFile> for IndexedFile {
+    type Key = String;
+
+    fn key(&self) -> Self::Key {
+        self.path.clone()
+    }
+
+    fn equals(&self, other: &ServerFile) -> bool {
+        self.hash == other.hash
+    }
+}
+
 #[derive(Debug)]
 struct ServerFile {
     pub path: String,
@@ -41,106 +54,15 @@ impl ServerFile {
     }
 }
 
-/// Computes the diff between local and server files
-#[derive(Debug)]
-struct Differ {
-    /// Files on server but not locally (should be deleted from server)
-    orphaned: Vec<ServerFile>,
-    /// Files on both but with different hashes (should be deleted and
-    /// re-uploaded)
-    out_of_sync: Vec<IndexedFile>,
-    /// Files locally but not on server (should be uploaded)
-    new: Vec<IndexedFile>,
-}
+impl Diffable for ServerFile {
+    type Key = String;
 
-impl Differ {
-    /// Creates a new differ by computing the diff between local and server
-    /// files
-    fn new(local_files: &[IndexedFile], server_files: &[ServerFile]) -> Self {
-        let orphaned = Self::find_orphaned_files(server_files, local_files);
-        let out_of_sync = Self::find_out_of_sync_files(server_files, local_files);
-        let new = Self::find_new_files(server_files, local_files);
-
-        Self { orphaned, out_of_sync, new }
+    fn key(&self) -> Self::Key {
+        self.path.clone()
     }
 
-    /// Identifies orphaned files - files that exist on server but not locally.
-    fn find_orphaned_files(
-        server_files: &[ServerFile],
-        local_files: &[IndexedFile],
-    ) -> Vec<ServerFile> {
-        let local_paths = local_files.iter().map(|f| &f.path).collect::<HashSet<_>>();
-
-        server_files
-            .iter()
-            .filter(|server_file| !local_paths.contains(&server_file.path))
-            .map(|f| ServerFile::new(f.path.clone(), f.hash.clone()))
-            .collect()
-    }
-
-    /// Identifies out of sync files - files that exist on both server and local
-    /// but have different hashes
-    fn find_out_of_sync_files(
-        server_files: &[ServerFile],
-        local_files: &[IndexedFile],
-    ) -> Vec<IndexedFile> {
-        let server_map = server_files
-            .iter()
-            .map(|f| (&f.path, &f.hash))
-            .collect::<HashMap<_, _>>();
-        local_files
-            .iter()
-            .filter(|file| {
-                // Only include files that exist on server but with different hash
-                server_map
-                    .get(&file.path)
-                    .is_some_and(|server_hash| server_hash != &&file.hash)
-            })
-            .cloned()
-            .collect::<Vec<_>>()
-    }
-
-    /// Identifies new files - files that exist locally but not on server
-    fn find_new_files(
-        server_files: &[ServerFile],
-        local_files: &[IndexedFile],
-    ) -> Vec<IndexedFile> {
-        let server_paths: HashSet<_> = server_files.iter().map(|f| &f.path).collect();
-        local_files
-            .iter()
-            .filter(|file| !server_paths.contains(&file.path))
-            .cloned()
-            .collect()
-    }
-
-    /// Get all files that need to be uploaded (new + out of sync)
-    fn files_to_upload(self) -> Vec<IndexedFile> {
-        self.new.into_iter().chain(self.out_of_sync).collect()
-    }
-
-    /// Get all file paths that need to be deleted from server (orphaned + out
-    /// of sync)
-    fn files_to_delete(&self) -> Vec<String> {
-        self.orphaned
-            .iter()
-            .map(|f| f.path.clone())
-            .chain(self.out_of_sync.iter().map(|f| f.path.clone()))
-            .collect()
-    }
-
-    /// Check if there are any files to sync
-    fn has_changes(&self) -> bool {
-        !self.orphaned.is_empty() || !self.out_of_sync.is_empty() || !self.new.is_empty()
-    }
-
-    /// Get all file paths that need to be synced (orphaned + out_of_sync + new)
-    fn out_of_sync_files(&self) -> Vec<String> {
-        self.orphaned
-            .iter()
-            .map(|f| f.path.clone())
-            .chain(self.out_of_sync.iter().map(|f| f.path.clone()))
-            .chain(self.new.iter().map(|f| f.path.clone()))
-            .collect()
+    fn equals(&self, other: &Self) -> bool {
+        self.hash == other.hash
     }
 }
 
@@ -302,12 +224,18 @@ impl<
                     workspace_info.ok_or(forge_domain::Error::WorkspaceNotFound)?;
                 let total_files = local_files.len();
 
-                let diff = Differ::new(&local_files, &server_files);
+                let diff = DiffResult::compute(&local_files, &server_files);
+                let files_to_sync: Vec<String> = diff
+                    .only_left
+                    .iter()
+                    .map(|f| f.path.clone())
+                    .chain(diff.modified.iter().map(|(l, _)| l.path.clone()))
+                    .collect();
 
                 Ok(WorkspaceStatus::new(
                     workspace_info,
                     total_files,
-                    diff.out_of_sync_files(),
+                    files_to_sync,
                 ))
             }
             None => Err(forge_domain::Error::WorkspaceNotFound.into()),
@@ -364,11 +292,17 @@ impl<
                 .find_workspace_files(&user_id, &token, &workspace_id)
                 .await?;
 
-            let diff = Differ::new(&all_files, &server_files);
+            let diff = DiffResult::compute(&all_files, &server_files);
 
             // Delete orphaned and out-of-sync files from server
-            if diff.has_changes() {
-                let files_to_delete = diff.files_to_delete();
+            if diff.has_differences() {
+                let files_to_delete: Vec<String> = diff
+                    .only_right
+                    .iter()
+                    .map(|f| f.path.clone())
+                    .chain(diff.modified.iter().map(|(_, r)| r.path.clone()))
+                    .collect();
+
                 if !files_to_delete.is_empty() {
                     self.delete_files_from_server(&user_id, &workspace_id, &token, files_to_delete)
                         .await?;
@@ -376,7 +310,11 @@ impl<
             }
 
             // Upload both new files and out-of-sync files
-            diff.files_to_upload()
+            diff.only_left
+                .into_iter()
+                .chain(diff.modified.into_iter().map(|(l, _)| l))
+                .cloned()
+                .collect()
         } else {
             all_files
         };
