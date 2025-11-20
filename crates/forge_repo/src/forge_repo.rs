@@ -151,7 +151,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> AppC
     }
 
     async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
-        self.app_config_repository.set_app_config(config).await
+        self.app_config_repository.set_app_config(config).await?;
+        // Invalidate agent cache since agents depend on default provider/model config
+        self.agent_repository.invalidate_cache().await;
+        Ok(())
     }
 }
 

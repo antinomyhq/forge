@@ -224,10 +224,8 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     }
 
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        // Invalidate cache for agents
-        let result = self.services.set_default_provider(provider_id).await;
-        self.services.reload_agents().await?;
-        result
+        // Agent cache is automatically invalidated when provider config changes
+        self.services.set_default_provider(provider_id).await
     }
 
     async fn user_info(&self) -> Result<Option<User>> {

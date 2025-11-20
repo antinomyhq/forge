@@ -1,22 +1,19 @@
 use std::sync::Arc;
 
-use dashmap::DashMap;
 use forge_app::AgentRepository;
 use forge_app::domain::AgentId;
 use forge_domain::{Agent, AppConfigRepository, ProviderRepository};
 use tokio::sync::RwLock;
 
-/// AgentRegistryService manages the active-agent ID and a registry of runtime
-/// Agents in-memory. It lazily loads agents from AgentRepository on first
-/// access.
+/// AgentRegistryService manages the active-agent ID and coordinates with
+/// AgentRepository to provide runtime Agent instances.
+///
+/// The service converts AgentDefinitions from the repository into runtime
+/// Agents by applying default provider and model configurations.
+/// Caching is handled internally by the AgentRepository.
 pub struct ForgeAgentRegistryService<R> {
-    // Infrastructure dependency for loading agent definitions
+    // Infrastructure dependency for loading agent definitions and config
     repository: Arc<R>,
-
-    // In-memory storage for agents keyed by AgentId string
-    // Lazily initialized on first access
-    // Wrapped in RwLock to allow invalidation
-    agents: RwLock<Option<DashMap<String, Agent>>>,
 
     // In-memory storage for the active agent ID
     active_agent_id: RwLock<Option<AgentId>>,
@@ -25,47 +22,15 @@ pub struct ForgeAgentRegistryService<R> {
 impl<R> ForgeAgentRegistryService<R> {
     /// Creates a new AgentRegistryService with the given repository
     pub fn new(repository: Arc<R>) -> Self {
-        Self {
-            repository,
-            agents: RwLock::new(None),
-            active_agent_id: RwLock::new(None),
-        }
+        Self { repository, active_agent_id: RwLock::new(None) }
     }
 }
 
 impl<R: AgentRepository + AppConfigRepository + ProviderRepository> ForgeAgentRegistryService<R> {
-    /// Lazily initializes and returns the agents map
-    /// Loads agents from repository on first call, subsequent calls return
-    /// cached value
-    async fn ensure_agents_loaded(&self) -> anyhow::Result<DashMap<String, Agent>> {
-        // Check if already loaded
-        {
-            let agents_read = self.agents.read().await;
-            if let Some(agents) = agents_read.as_ref() {
-                return Ok(agents.clone());
-            }
-        }
-
-        // Not loaded yet, acquire write lock and load
-        let mut agents_write = self.agents.write().await;
-
-        // Double-check in case another task loaded while we were waiting for write
-        // lock
-        if let Some(agents) = agents_write.as_ref() {
-            return Ok(agents.clone());
-        }
-
-        // Load agents
-        let agents_map = self.load_agents().await?;
-
-        // Store and return
-        *agents_write = Some(agents_map.clone());
-        Ok(agents_map)
-    }
-
-    /// Load agents from repository
-    async fn load_agents(&self) -> anyhow::Result<DashMap<String, Agent>> {
-        // Load agent definitions from repository
+    /// Converts agent definitions from repository to runtime agents
+    /// by applying default provider and model configurations
+    async fn get_runtime_agents(&self) -> anyhow::Result<Vec<Agent>> {
+        // Load agent definitions from repository (cached internally)
         let agent_defs = self.repository.get_agents().await?;
 
         // Get default provider and model from app config
@@ -85,16 +50,13 @@ impl<R: AgentRepository + AppConfigRepository + ProviderRepository> ForgeAgentRe
                 )
             })?;
 
-        // Create the agents map
-        let agents_map = DashMap::new();
+        // Convert definitions to runtime agents
+        let agents = agent_defs
+            .into_iter()
+            .map(|def| Agent::from_agent_def(def, default_provider.id, default_model.clone()))
+            .collect();
 
-        // Convert definitions to runtime agents and populate map
-        for def in agent_defs {
-            let agent = Agent::from_agent_def(def, default_provider.id, default_model.clone());
-            agents_map.insert(agent.id.as_str().to_string(), agent);
-        }
-
-        Ok(agents_map)
+        Ok(agents)
     }
 }
 
@@ -114,19 +76,11 @@ impl<R: AgentRepository + AppConfigRepository + ProviderRepository> forge_app::A
     }
 
     async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
-        let agents = self.ensure_agents_loaded().await?;
-        Ok(agents.iter().map(|entry| entry.value().clone()).collect())
+        self.get_runtime_agents().await
     }
 
     async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<Agent>> {
-        let agents = self.ensure_agents_loaded().await?;
-        Ok(agents.get(agent_id.as_str()).map(|v| v.value().clone()))
-    }
-
-    async fn reload_agents(&self) -> anyhow::Result<()> {
-        *self.agents.write().await = None;
-
-        self.ensure_agents_loaded().await?;
-        Ok(())
+        let agents = self.get_runtime_agents().await?;
+        Ok(agents.into_iter().find(|a| a.id == *agent_id))
     }
 }

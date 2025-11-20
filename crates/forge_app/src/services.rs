@@ -410,9 +410,6 @@ pub trait AgentRegistry: Send + Sync {
 
     /// Get agent by ID (from registry store)
     async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<forge_domain::Agent>>;
-
-    /// Reload agents by invalidating the cache
-    async fn reload_agents(&self) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -869,10 +866,6 @@ impl<I: Services> AgentRegistry for I {
 
     async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<forge_domain::Agent>> {
         self.agent_registry().get_agent(agent_id).await
-    }
-
-    async fn reload_agents(&self) -> anyhow::Result<()> {
-        self.agent_registry().reload_agents().await
     }
 }
 
