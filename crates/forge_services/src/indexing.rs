@@ -34,6 +34,12 @@ pub struct ForgeIndexingService<F> {
     infra: Arc<F>,
 }
 
+impl<F> Clone for ForgeIndexingService<F> {
+    fn clone(&self) -> Self {
+        Self { infra: Arc::clone(&self.infra) }
+    }
+}
+
 impl<F> ForgeIndexingService<F> {
     /// Creates a new indexing service with the provided infrastructure.
     pub fn new(infra: Arc<F>) -> Self {
@@ -410,16 +416,36 @@ impl<
         + CredentialsRepository
         + ContextEngineRepository
         + WalkerInfra
-        + FileReaderInfra,
+        + FileReaderInfra
+        + 'static,
 > ContextEngineService for ForgeIndexingService<F>
 {
     async fn sync_codebase(
         &self,
         path: PathBuf,
         batch_size: usize,
-        sender: Option<tokio::sync::mpsc::Sender<anyhow::Result<forge_domain::IndexProgress>>>,
-    ) -> Result<IndexStats> {
-        self.sync_codebase_internal(path, batch_size, &sender).await
+    ) -> Result<forge_stream::MpscStream<Result<forge_domain::IndexProgress>>> {
+        let service = self.clone();
+        Ok(forge_stream::MpscStream::spawn(move |sender| async move {
+            match service
+                .sync_codebase_internal(path, batch_size, &Some(sender.clone()))
+                .await
+            {
+                Ok(stats) => {
+                    let _ = sender
+                        .send(Ok(forge_domain::IndexProgress::Completed {
+                            is_new_workspace: stats.is_new_workspace,
+                            files_processed: stats.files_processed,
+                            files_uploaded: stats.upload_stats.nodes_created,
+                            files_skipped: stats.files_processed - stats.upload_stats.nodes_created,
+                        }))
+                        .await;
+                }
+                Err(err) => {
+                    let _ = sender.send(Err(err)).await;
+                }
+            }
+        }))
     }
 
     /// Performs semantic code search on a workspace.
@@ -829,15 +855,28 @@ mod tests {
 
     #[tokio::test]
     async fn test_sync_new_workspace() {
+        use futures::StreamExt;
+
         let service = ForgeIndexingService::new(Arc::new(MockInfra::new(&["main.rs", "lib.rs"])));
 
-        let actual = service
-            .sync_codebase(PathBuf::from("."), 20, None)
-            .await
-            .unwrap();
+        let mut stream = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
 
-        assert_eq!(actual.files_processed, 2);
-        assert_eq!(actual.upload_stats.nodes_created, 2);
+        let mut files_processed = 0;
+        let mut nodes_created = 0;
+        while let Some(progress) = stream.next().await {
+            if let Ok(forge_domain::IndexProgress::Completed {
+                files_processed: fp,
+                files_uploaded,
+                ..
+            }) = progress
+            {
+                files_processed = fp;
+                nodes_created = files_uploaded;
+            }
+        }
+
+        assert_eq!(files_processed, 2);
+        assert_eq!(nodes_created, 2);
     }
 
     #[tokio::test]
@@ -892,6 +931,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_stale_files_deleted_and_changed_uploaded() {
+        use futures::StreamExt;
+
         let mut mock = MockInfra::out_of_sync(
             &["changed.rs", "unchanged.rs", "new.rs"],
             &["deleted.rs", "unchanged.rs"],
@@ -900,10 +941,10 @@ mod tests {
             .push(FileHash { path: "changed.rs".into(), hash: "old".into() });
         let service = ForgeIndexingService::new(Arc::new(mock.clone()));
 
-        service
-            .sync_codebase(PathBuf::from("."), 20, None)
-            .await
-            .unwrap();
+        let mut stream = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
+
+        // Consume the stream
+        while stream.next().await.is_some() {}
 
         let deleted = mock.deleted_files.lock().await;
         assert_eq!(deleted.len(), 2);
@@ -918,30 +959,38 @@ mod tests {
 
     #[tokio::test]
     async fn test_no_upload_when_unchanged() {
+        use futures::StreamExt;
+
         let mock = MockInfra::synced(&["main.rs"]);
         let service = ForgeIndexingService::new(Arc::new(mock.clone()));
 
-        let actual = service
-            .sync_codebase(PathBuf::from("."), 20, None)
-            .await
-            .unwrap();
+        let mut stream = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
+
+        let mut nodes_created = 0;
+        while let Some(progress) = stream.next().await {
+            if let Ok(forge_domain::IndexProgress::Completed { files_uploaded, .. }) = progress {
+                nodes_created = files_uploaded;
+            }
+        }
 
         assert!(mock.deleted_files.lock().await.is_empty());
         assert!(mock.uploaded_files.lock().await.is_empty());
-        assert_eq!(actual.upload_stats.nodes_created, 0);
+        assert_eq!(nodes_created, 0);
     }
 
     #[tokio::test]
     async fn test_orphaned_files_deleted() {
+        use futures::StreamExt;
+
         let mut mock = MockInfra::out_of_sync(&["main.rs"], &["main.rs"]);
         mock.server_files
             .push(FileHash { path: "old.rs".into(), hash: "x".into() });
         let service = ForgeIndexingService::new(Arc::new(mock.clone()));
 
-        service
-            .sync_codebase(PathBuf::from("."), 20, None)
-            .await
-            .unwrap();
+        let mut stream = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
+
+        // Consume the stream
+        while stream.next().await.is_some() {}
 
         let deleted = mock.deleted_files.lock().await;
         assert_eq!(deleted.len(), 1);
