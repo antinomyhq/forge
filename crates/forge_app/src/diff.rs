@@ -5,10 +5,10 @@ use std::hash::Hash;
 pub trait Diffable<Rhs = Self> {
     type Key: Hash + Eq;
 
-    /// Returns the key used for comparison
+    /// Returns the key used for matching items across collections
     fn key(&self) -> Self::Key;
 
-    /// Checks if two items with the same key are equal
+    /// Checks if two items with the same key have equal content
     fn equals(&self, other: &Rhs) -> bool;
 }
 
@@ -63,7 +63,7 @@ where
         left.iter()
             .filter_map(|left_item| {
                 right_map.get(&left_item.key()).and_then(|right_item| {
-                    if !left_item.equals(right_item) {
+                    if !left_item.content_equals(right_item) {
                         Some((left_item, *right_item))
                     } else {
                         None
@@ -107,7 +107,7 @@ mod tests {
             self.id.clone()
         }
 
-        fn equals(&self, other: &Self) -> bool {
+        fn content_equals(&self, other: &Self) -> bool {
             // Compare both id and hash for equality
             self.id == other.id && self.hash == other.hash
         }
