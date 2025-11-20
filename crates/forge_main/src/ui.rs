@@ -100,6 +100,31 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
     }
 
+    /// Sets the default provider and ensures a default model is configured.
+    /// If the provider doesn't have a default model, prompts the user to select
+    /// one.
+    async fn set_provider_with_model_check(&mut self, provider_id: ProviderId) -> Result<()> {
+        self.api.set_default_provider(provider_id).await?;
+
+        // Check if the provider has a default model configured
+        if self
+            .api
+            .get_provider_default_model(&provider_id)
+            .await
+            .is_err()
+        {
+            self.writeln_title(TitleFormat::info("Please select a model for the provider"))?;
+            let model = self
+                .select_model()
+                .await?
+                .ok_or(anyhow::anyhow!("Model selection is required to continue"))?;
+            let active_agent = self.api.get_active_agent().await;
+            self.api.set_default_model(active_agent, model).await?;
+        }
+
+        Ok(())
+    }
+
     /// Filters providers to return only configured ones
     fn get_configured_providers(&self, providers: Vec<AnyProvider>) -> Vec<CliProvider> {
         use crate::model::CliProvider;
@@ -1656,7 +1681,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         .prompt()?;
 
         if should_set_active.unwrap_or(false) {
-            self.api.set_default_provider(provider_id).await?;
+            self.set_provider_with_model_check(provider_id)
+                .await?;
             self.writeln_title(TitleFormat::action(format!("Provider set {provider_id}")))?;
         }
         Ok(())
@@ -1884,8 +1910,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             None => return Ok(()),
         };
 
-        // Set the provider via API
-        self.api.set_default_provider(provider.id).await?;
+        // Set the provider via API and check for default model
+        self.set_provider_with_model_check(provider.id)
+            .await?;
 
         self.writeln_title(TitleFormat::action(format!(
             "Switched to provider: {}",
@@ -2019,6 +2046,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         let _ = self.handle_migrate_credentials().await;
 
+        let is_provider_configured = self
+            .get_provider(self.api.get_active_agent().await)
+            .await
+            .is_ok();
+        if !is_provider_configured {
+            self.select_provider().await?;
+        }
         // Ensure we have a model selected before proceeding with initialization
         if self
             .get_agent_model(self.api.get_active_agent().await)
@@ -2402,7 +2436,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         match args.field {
             ConfigField::Provider => {
                 let provider_id = self.validate_provider(&args.value).await?;
-                self.api.set_default_provider(provider_id).await?;
+                self.set_provider_with_model_check(provider_id).await?;
                 self.writeln_title(TitleFormat::action("Provider set").sub_title(&args.value))?;
             }
             ConfigField::Model => {

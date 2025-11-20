@@ -270,6 +270,13 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
         agent_provider_resolver.get_model(None).await.ok()
     }
+
+    async fn get_provider_default_model(
+        &self,
+        provider_id: &ProviderId,
+    ) -> anyhow::Result<ModelId> {
+        self.services.get_default_model(provider_id).await
+    }
     async fn set_default_model(
         &self,
         agent_id: Option<AgentId>,

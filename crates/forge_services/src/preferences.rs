@@ -58,8 +58,10 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
         }
 
         // No active provider set or configured provider not found, try to find the
-        // first available one
-        self.get_first_available_provider().await
+        // first available one and save it to config
+        let provider = self.get_first_available_provider().await?;
+        self.set_default_provider(provider.id).await?;
+        Ok(provider)
     }
 
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {

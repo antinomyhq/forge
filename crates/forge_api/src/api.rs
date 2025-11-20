@@ -150,6 +150,10 @@ pub trait API: Sync + Send {
     /// Gets the default model
     async fn get_default_model(&self) -> Option<ModelId>;
 
+    /// Gets the default model for a specific provider
+    async fn get_provider_default_model(&self, provider_id: &ProviderId)
+    -> anyhow::Result<ModelId>;
+
     /// Sets the operating model
     async fn set_default_model(
         &self,
