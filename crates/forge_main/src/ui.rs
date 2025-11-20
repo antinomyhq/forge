@@ -1681,8 +1681,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         .prompt()?;
 
         if should_set_active.unwrap_or(false) {
-            self.set_provider_with_model_check(provider_id)
-                .await?;
+            self.set_provider_with_model_check(provider_id).await?;
             self.writeln_title(TitleFormat::action(format!("Provider set {provider_id}")))?;
         }
         Ok(())
@@ -1911,8 +1910,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         };
 
         // Set the provider via API and check for default model
-        self.set_provider_with_model_check(provider.id)
-            .await?;
+        self.set_provider_with_model_check(provider.id).await?;
 
         self.writeln_title(TitleFormat::action(format!(
             "Switched to provider: {}",
