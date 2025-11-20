@@ -512,8 +512,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     crate::cli::IndexCommand::Info { path } => {
                         self.on_workspace_info(path).await?;
                     }
-                    crate::cli::IndexCommand::Delete { workspace_id, yes } => {
-                        self.on_delete_workspace(workspace_id, yes).await?;
+                    crate::cli::IndexCommand::Delete { workspace_id } => {
+                        self.on_delete_workspace(workspace_id).await?;
                     }
                 }
                 return Ok(());
@@ -2776,25 +2776,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
     }
 
-    async fn on_delete_workspace(&mut self, workspace_id: String, yes: bool) -> anyhow::Result<()> {
+    async fn on_delete_workspace(&mut self, workspace_id: String) -> anyhow::Result<()> {
         // Parse workspace ID
         let workspace_id = forge_domain::WorkspaceId::from_string(&workspace_id)
             .context("Invalid workspace ID format")?;
-
-        // Confirmation prompt unless --yes flag is provided
-        if !yes {
-            let confirmed = ForgeSelect::confirm(format!(
-                "Warning: This will permanently delete workspace {} and all its indexed data. Continue?",
-                workspace_id
-            ))
-            .with_default(false)
-            .prompt()?;
-
-            if !confirmed.unwrap_or(false) {
-                self.writeln("Deletion cancelled.")?;
-                return Ok(());
-            }
-        }
 
         self.spinner.start(Some("Deleting workspace..."))?;
 
