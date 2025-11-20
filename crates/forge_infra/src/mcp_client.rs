@@ -230,9 +230,7 @@ impl ForgeMcpClient {
                 })
                 .unwrap_or(false);
 
-            if is_transport
-                && let Ok(mut guard) = self.client.write()
-            {
+            if is_transport && let Ok(mut guard) = self.client.write() {
                 guard.take();
             }
 
