@@ -48,7 +48,10 @@ pub struct Event {
     pub value: Option<EventValue>,
     pub timestamp: String,
     pub attachments: Vec<Attachment>,
-    pub context: Option<String>,
+
+    /// Contains additional context about the prompt that should typically be
+    /// included after the `value` as a user message.
+    pub additional_context: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
@@ -144,7 +147,7 @@ impl Event {
             value: Some(value.into()),
             timestamp,
             attachments: Vec::new(),
-            context: None,
+            additional_context: None,
         }
     }
 
@@ -157,7 +160,7 @@ impl Event {
             value: None,
             timestamp,
             attachments: Vec::new(),
-            context: None,
+            additional_context: None,
         }
     }
 }

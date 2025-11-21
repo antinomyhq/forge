@@ -2117,7 +2117,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         // Set piped input if present
         if let Some(piped) = piped_input {
-            event = event.piped_input(piped);
+            event = event.additional_context(piped);
         }
 
         // Create the chat request with the event

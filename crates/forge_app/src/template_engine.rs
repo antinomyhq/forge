@@ -102,6 +102,16 @@ impl<'a> TemplateEngine<'a> {
         Ok(self.handlebar.render(&template.template, data)?)
     }
 
+    /// Renders a template with the provided data.
+    pub fn render_template<V: serde::Serialize>(
+        &self,
+        template: impl Into<Template<V>>,
+        data: &V,
+    ) -> anyhow::Result<String> {
+        let template = template.into();
+        Ok(self.handlebar.render_template(&template.template, data)?)
+    }
+
     pub fn handlebar_instance() -> Handlebars<'static> {
         create_handlerbar()
     }
