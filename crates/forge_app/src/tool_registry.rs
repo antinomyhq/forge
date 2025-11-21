@@ -180,7 +180,7 @@ impl<S> ToolRegistry<S> {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Agent, AgentId, ToolCatalog, ToolName};
+    use forge_domain::{Agent, AgentId, ModelId, ProviderId, ToolCatalog, ToolName};
     use pretty_assertions::assert_eq;
 
     use crate::error::Error;
@@ -188,8 +188,12 @@ mod tests {
 
     fn agent() -> Agent {
         // only allow read and search tools for this agent
-        Agent::new(AgentId::new("test_agent"))
-            .tools(vec![ToolName::new("read"), ToolName::new("search")])
+        Agent::new(
+            AgentId::new("test_agent"),
+            ProviderId::Anthropic,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .tools(vec![ToolName::new("read"), ToolName::new("search")])
     }
 
     #[tokio::test]
@@ -214,8 +218,12 @@ mod tests {
 
     #[test]
     fn test_validate_tool_call_with_glob_pattern_wildcard() {
-        let fixture = Agent::new(AgentId::new("test_agent"))
-            .tools(vec![ToolName::new("mcp_*"), ToolName::new("read")]);
+        let fixture = Agent::new(
+            AgentId::new("test_agent"),
+            ProviderId::Anthropic,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .tools(vec![ToolName::new("mcp_*"), ToolName::new("read")]);
 
         let actual = ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("mcp_foo"));
 
@@ -224,8 +232,12 @@ mod tests {
 
     #[test]
     fn test_validate_tool_call_with_glob_pattern_multiple_tools() {
-        let fixture = Agent::new(AgentId::new("test_agent"))
-            .tools(vec![ToolName::new("mcp_*"), ToolName::new("read")]);
+        let fixture = Agent::new(
+            AgentId::new("test_agent"),
+            ProviderId::Anthropic,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .tools(vec![ToolName::new("mcp_*"), ToolName::new("read")]);
 
         let actual_mcp_read =
             ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("mcp_read"));
@@ -240,8 +252,12 @@ mod tests {
 
     #[test]
     fn test_validate_tool_call_with_glob_pattern_no_match() {
-        let fixture = Agent::new(AgentId::new("test_agent"))
-            .tools(vec![ToolName::new("mcp_*"), ToolName::new("read")]);
+        let fixture = Agent::new(
+            AgentId::new("test_agent"),
+            ProviderId::Anthropic,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .tools(vec![ToolName::new("mcp_*"), ToolName::new("read")]);
 
         let actual = ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("write"));
 
@@ -256,8 +272,12 @@ mod tests {
 
     #[test]
     fn test_validate_tool_call_with_glob_pattern_question_mark() {
-        let fixture = Agent::new(AgentId::new("test_agent"))
-            .tools(vec![ToolName::new("read?"), ToolName::new("write")]);
+        let fixture = Agent::new(
+            AgentId::new("test_agent"),
+            ProviderId::Anthropic,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .tools(vec![ToolName::new("read?"), ToolName::new("write")]);
 
         let actual_read1 =
             ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("read1"));
@@ -272,8 +292,12 @@ mod tests {
 
     #[test]
     fn test_validate_tool_call_with_glob_pattern_character_class() {
-        let fixture = Agent::new(AgentId::new("test_agent"))
-            .tools(vec![ToolName::new("tool_[abc]"), ToolName::new("write")]);
+        let fixture = Agent::new(
+            AgentId::new("test_agent"),
+            ProviderId::Anthropic,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .tools(vec![ToolName::new("tool_[abc]"), ToolName::new("write")]);
 
         let actual_tool_a =
             ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("tool_a"));
@@ -292,8 +316,12 @@ mod tests {
 
     #[test]
     fn test_validate_tool_call_with_glob_pattern_double_wildcard() {
-        let fixture = Agent::new(AgentId::new("test_agent"))
-            .tools(vec![ToolName::new("**"), ToolName::new("read")]);
+        let fixture = Agent::new(
+            AgentId::new("test_agent"),
+            ProviderId::Anthropic,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .tools(vec![ToolName::new("**"), ToolName::new("read")]);
 
         let actual_any_tool =
             ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("any_tool_name"));
@@ -306,8 +334,12 @@ mod tests {
 
     #[test]
     fn test_validate_tool_call_exact_match_with_special_chars() {
-        let fixture = Agent::new(AgentId::new("test_agent"))
-            .tools(vec![ToolName::new("tool_[special]"), ToolName::new("read")]);
+        let fixture = Agent::new(
+            AgentId::new("test_agent"),
+            ProviderId::Anthropic,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .tools(vec![ToolName::new("tool_[special]"), ToolName::new("read")]);
 
         let actual =
             ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("tool_[special]"));
@@ -320,7 +352,12 @@ mod tests {
 
     #[test]
     fn test_validate_tool_call_backward_compatibility_exact_match() {
-        let fixture = Agent::new(AgentId::new("test_agent")).tools(vec![
+        let fixture = Agent::new(
+            AgentId::new("test_agent"),
+            ProviderId::Anthropic,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .tools(vec![
             ToolName::new("read"),
             ToolName::new("write"),
             ToolName::new("search"),
@@ -339,7 +376,11 @@ mod tests {
 
     #[test]
     fn test_validate_tool_call_empty_tools_list() {
-        let fixture = Agent::new(AgentId::new("test_agent"));
+        let fixture = Agent::new(
+            AgentId::new("test_agent"),
+            ProviderId::Anthropic,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        );
 
         let actual = ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("read"));
 
@@ -348,8 +389,12 @@ mod tests {
 
     #[test]
     fn test_validate_tool_call_glob_with_prefix_suffix() {
-        let fixture =
-            Agent::new(AgentId::new("test_agent")).tools(vec![ToolName::new("mcp_*_tool")]);
+        let fixture = Agent::new(
+            AgentId::new("test_agent"),
+            ProviderId::Anthropic,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .tools(vec![ToolName::new("mcp_*_tool")]);
 
         let actual_match =
             ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("mcp_read_tool"));

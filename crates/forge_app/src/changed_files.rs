@@ -65,10 +65,9 @@ impl<S: FsReadService + EnvironmentService> ChangedFiles<S> {
 
         let context = conversation.context.take().unwrap_or_default();
 
-        let mut message = TextMessage::new(Role::User, notification).droppable(true);
-        if let Some(model) = self.agent.model.clone() {
-            message = message.model(model);
-        }
+        let message = TextMessage::new(Role::User, notification)
+            .droppable(true)
+            .model(self.agent.model.clone());
 
         conversation = conversation.context(context.add_message(ContextMessage::from(message)));
 
@@ -83,7 +82,7 @@ mod tests {
 
     use forge_domain::{
         Agent, AgentId, Context, Conversation, ConversationId, Environment, FileOperation, Metrics,
-        ModelId, ToolKind,
+        ModelId, ProviderId, ToolKind,
     };
     use pretty_assertions::assert_eq;
 
@@ -141,7 +140,11 @@ mod tests {
         cwd: Option<PathBuf>,
     ) -> (ChangedFiles<TestServices>, Conversation) {
         let services = Arc::new(TestServices { files, cwd });
-        let agent = Agent::new(AgentId::new("test")).model(ModelId::new("test-model"));
+        let agent = Agent::new(
+            AgentId::new("test"),
+            ProviderId::Anthropic,
+            ModelId::new("test-model"),
+        );
         let changed_files = ChangedFiles::new(services, agent);
 
         let mut metrics = Metrics::default();
