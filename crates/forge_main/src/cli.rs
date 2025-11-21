@@ -473,6 +473,13 @@ pub struct CommitCommandGroup {
     /// diff content: `git diff | forge commit --preview`
     #[arg(skip)]
     pub diff: Option<String>,
+
+    /// Additional text to customize the commit message
+    ///
+    /// Provide additional context or instructions for the AI to use when
+    /// generating the commit message. Multiple words can be provided without
+    /// quotes: `forge commit fix typo in readme`
+    pub text: Vec<String>,
 }
 
 #[cfg(test)]
@@ -979,6 +986,59 @@ mod tests {
         let fixture = Cli::parse_from(["forge"]);
         let actual = fixture.is_interactive();
         let expected = true;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_commit_with_custom_text() {
+        let fixture = Cli::parse_from(["forge", "commit", "fix", "typo", "in", "readme"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Commit(commit)) => commit.text,
+            _ => panic!("Expected Commit command"),
+        };
+        let expected = ["fix", "typo", "in", "readme"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<String>>();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_commit_without_custom_text() {
+        let fixture = Cli::parse_from(["forge", "commit", "--preview"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Commit(commit)) => commit.text,
+            _ => panic!("Expected Commit command"),
+        };
+        let expected: Vec<String> = vec![];
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_commit_with_text_and_flags() {
+        let fixture = Cli::parse_from([
+            "forge",
+            "commit",
+            "--preview",
+            "--max-diff",
+            "50000",
+            "update",
+            "docs",
+        ]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Commit(commit)) => {
+                (commit.preview, commit.max_diff_size, commit.text)
+            }
+            _ => panic!("Expected Commit command"),
+        };
+        let expected = (
+            true,
+            Some(50000),
+            ["update", "docs"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<String>>(),
+        );
         assert_eq!(actual, expected);
     }
 }
