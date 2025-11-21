@@ -1003,12 +1003,15 @@ mod tests {
     fn test_cli_provider_display_minimal() {
         let fixture = AnyProvider::Url(Provider {
             id: ProviderId::OpenAI,
-            response: ProviderResponse::OpenAI,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
-            models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
+            models: Some(Models::Url(
+                Url::parse("https://api.openai.com/v1/models").unwrap(),
+            )),
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
@@ -1020,12 +1023,15 @@ mod tests {
     fn test_cli_provider_display_with_subdomain() {
         let fixture = AnyProvider::Url(Provider {
             id: ProviderId::OpenRouter,
-            response: ProviderResponse::OpenAI,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://openrouter.ai/api/v1/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
-            models: Models::Url(Url::parse("https://openrouter.ai/api/v1/models").unwrap()),
+            models: Some(Models::Url(
+                Url::parse("https://openrouter.ai/api/v1/models").unwrap(),
+            )),
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
@@ -1037,12 +1043,15 @@ mod tests {
     fn test_cli_provider_display_no_domain() {
         let fixture = AnyProvider::Url(Provider {
             id: ProviderId::Forge,
-            response: ProviderResponse::OpenAI,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("http://localhost:8080/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
-            models: Models::Url(Url::parse("http://localhost:8080/models").unwrap()),
+            models: Some(Models::Url(
+                Url::parse("http://localhost:8080/models").unwrap(),
+            )),
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
@@ -1054,12 +1063,15 @@ mod tests {
     fn test_cli_provider_display_template() {
         let fixture = AnyProvider::Template(Provider {
             id: ProviderId::Anthropic,
-            response: ProviderResponse::Anthropic,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::Anthropic),
             url: Template::new("https://api.anthropic.com/v1/messages"),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
-            models: Models::Url(Template::new("https://api.anthropic.com/v1/models")),
+            models: Some(Models::Url(Template::new(
+                "https://api.anthropic.com/v1/models",
+            ))),
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
@@ -1071,12 +1083,15 @@ mod tests {
     fn test_cli_provider_display_ip_address() {
         let fixture = AnyProvider::Url(Provider {
             id: ProviderId::Forge,
-            response: ProviderResponse::OpenAI,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("http://192.168.1.1:8080/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
-            models: Models::Url(Url::parse("http://192.168.1.1:8080/models").unwrap()),
+            models: Some(Models::Url(
+                Url::parse("http://192.168.1.1:8080/models").unwrap(),
+            )),
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);

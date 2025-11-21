@@ -160,9 +160,12 @@ mod tests {
         async fn get_provider(&self, _id: ProviderId) -> Result<Provider<Url>> {
             Ok(Provider {
                 id: ProviderId::OpenAI,
-                response: ProviderResponse::OpenAI,
+                provider_type: Default::default(),
+                response: Some(ProviderResponse::OpenAI),
                 url: Url::parse("https://api.test.com").unwrap(),
-                models: Models::Url(Url::parse("https://api.test.com/models").unwrap()),
+                models: Some(Models::Url(
+                    Url::parse("https://api.test.com/models").unwrap(),
+                )),
                 auth_methods: vec![AuthMethod::ApiKey],
                 url_params: vec![],
                 credential: Some(AuthCredential {

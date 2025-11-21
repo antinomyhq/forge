@@ -19,6 +19,12 @@ pub struct IndexingAuth {
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
+impl From<IndexingAuth> for crate::AuthDetails {
+    fn from(auth: IndexingAuth) -> Self {
+        crate::AuthDetails::ApiKey(auth.token)
+    }
+}
+
 impl IndexingAuth {
     /// Create a new indexing auth record
     pub fn new(user_id: UserId, token: crate::ApiKey) -> Self {

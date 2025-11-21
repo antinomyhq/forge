@@ -719,7 +719,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             if !provider.is_configured() {
                 return Err(anyhow::anyhow!("Provider '{}' is not configured", id));
             }
-
             self.api.remove_provider(id).await?;
             self.writeln_title(TitleFormat::completion(format!(
                 "Successfully logged out from {}",
@@ -1778,6 +1777,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         provider_id: ProviderId,
         auth_methods: Vec<AuthMethod>,
     ) -> Result<()> {
+        // Check if this is a context engine provider - handle automatically
+        if provider_id == ProviderId::ForgeServices {
+            let auth = self.api.create_auth_credentials().await?;
+            let info = Info::new()
+                .add_title("NEW API KEY CREATED")
+                .add_key_value("API Key", auth.token.as_str());
+            self.writeln(info.to_string())?;
+            return Ok(());
+        }
+
+        // For LLM providers, use the normal interactive authentication flow
         // Select auth method (or use the only one available)
         let auth_method = match self.select_auth_method(provider_id, &auth_methods).await? {
             Some(method) => method,
@@ -1816,6 +1826,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .get_providers()
             .await?
             .into_iter()
+            .filter(|p| {
+                let filter = forge_domain::ProviderType::Llm;
+                match &p {
+                    AnyProvider::Url(provider) => provider.provider_type == filter,
+                    AnyProvider::Template(provider) => provider.provider_type == filter,
+                }
+            })
             .map(CliProvider)
             .collect::<Vec<_>>();
 
@@ -1880,7 +1897,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn on_provider_selection(&mut self) -> Result<()> {
-        // Select a provider
+        // Select a provider (only show LLM providers for chat)
         let provider_option = self.select_provider().await?;
 
         // If no provider was selected (user canceled), return early

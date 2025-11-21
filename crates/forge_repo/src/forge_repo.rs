@@ -142,6 +142,15 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> Prov
     }
 
     async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()> {
+        // For context engine, store in SQLite instead of .credentials.json
+        if credential.id == ProviderId::ForgeServices {
+            // Context engine credentials are stored via the gRPC authentication flow
+            // This method is called after successful authentication, but the credential
+            // is already stored in SQLite by the authenticate_context_engine function
+            return Ok(());
+        }
+
+        // For all other providers, use standard file-based credentials
         self.provider_repository.upsert_credential(credential).await
     }
 
@@ -150,6 +159,12 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> Prov
     }
 
     async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()> {
+        // For ForgeServices, delete from SQLite
+        if *id == ProviderId::ForgeServices {
+            return self.indexing_auth_repository.delete_auth().await;
+        }
+
+        // For other providers, use file-based credentials
         self.provider_repository.remove_credential(id).await
     }
 }
