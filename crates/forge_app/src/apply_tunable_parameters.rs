@@ -38,8 +38,8 @@ impl ApplyTunableParameters {
 #[cfg(test)]
 mod tests {
     use forge_domain::{
-        AgentId, Context, ConversationId, MaxTokens, ReasoningConfig, Temperature, ToolDefinition,
-        TopK, TopP,
+        AgentId, Context, ConversationId, MaxTokens, ModelId, ProviderId, ReasoningConfig,
+        Temperature, ToolDefinition, TopK, TopP,
     };
     use pretty_assertions::assert_eq;
 
@@ -55,12 +55,16 @@ mod tests {
     fn test_apply_sets_parameters() {
         let reasoning = ReasoningConfig::default().max_tokens(2000);
 
-        let agent = Agent::new(AgentId::new("test"))
-            .temperature(Temperature::new(0.7).unwrap())
-            .max_tokens(MaxTokens::new(1000).unwrap())
-            .top_k(TopK::new(50).unwrap())
-            .top_p(TopP::new(0.9).unwrap())
-            .reasoning(reasoning.clone());
+        let agent = Agent::new(
+            AgentId::new("test"),
+            ProviderId::Anthropic,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .temperature(Temperature::new(0.7).unwrap())
+        .max_tokens(MaxTokens::new(1000).unwrap())
+        .top_k(TopK::new(50).unwrap())
+        .top_p(TopP::new(0.9).unwrap())
+        .reasoning(reasoning.clone());
 
         let tool_def = ToolDefinition::new("test_tool")
             .description("A test tool")

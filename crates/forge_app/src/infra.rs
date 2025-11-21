@@ -321,3 +321,24 @@ pub trait StrategyFactory: Send + Sync {
         required_params: Vec<forge_domain::URLParam>,
     ) -> anyhow::Result<Self::Strategy>;
 }
+
+/// Repository for loading agent definitions from multiple sources.
+///
+/// This trait provides access to agent definitions from:
+/// 1. Built-in agents (embedded in the application)
+/// 2. Global custom agents (from ~/.forge/agents/ directory)
+/// 3. Project-local agents (from .forge/agents/ directory in current working
+///    directory)
+///
+/// ## Agent Precedence
+/// When agents have duplicate IDs across different sources, the precedence
+/// order is: **CWD (project-local) > Global custom > Built-in**
+///
+/// This means project-local agents can override global agents, and both can
+/// override built-in agents.
+#[async_trait::async_trait]
+pub trait AgentRepository: Send + Sync {
+    /// Load all agent definitions from all available sources with conflict
+    /// resolution.
+    async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::AgentDefinition>>;
+}

@@ -269,7 +269,7 @@ fn create_reasoning_config_section(conversation: &Conversation) -> Element {
                 .append(reasoning_config.max_tokens.map(|max_tokens| {
                     Element::new("p")
                         .append(Element::new("strong").text("Max Tokens: "))
-                        .text(format!("{:?}", max_tokens))
+                        .text(format!("{max_tokens:?}"))
                 }))
         } else {
             section.append(Element::new("p").text("No reasoning configuration found"))
@@ -303,7 +303,7 @@ mod tests {
 
     #[test]
     fn test_render_conversation_with_reasoning_details() {
-        use crate::agent::{Effort, ReasoningConfig};
+        use crate::agent_definition::{Effort, ReasoningConfig};
         use crate::context::{Context, ContextMessage};
         use crate::conversation::ConversationId;
         use crate::reasoning::ReasoningFull;

@@ -87,7 +87,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// active agent's provider
     async fn get_provider(&self, agent_id: Option<AgentId>) -> Result<Provider<Url>> {
         match agent_id {
-            Some(id) => self.api.get_agent_provider(id).await,
+            Some(agent_id) => self.api.get_agent_provider(agent_id).await,
             None => self.api.get_default_provider().await,
         }
     }
@@ -96,7 +96,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// active agent's model
     async fn get_agent_model(&self, agent_id: Option<AgentId>) -> Option<ModelId> {
         match agent_id {
-            Some(id) => self.api.get_agent_model(id).await,
+            Some(agent_id) => self.api.get_agent_model(agent_id).await,
             None => self.api.get_default_model().await,
         }
     }
@@ -479,7 +479,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         let command_with_slash = if command_str.starts_with('/') {
                             command_str
                         } else {
-                            format!("/{}", command_str)
+                            format!("/{command_str}")
                         };
                         let command = self.command.parse(&command_with_slash)?;
                         self.on_command(command).await?;
@@ -515,8 +515,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.handle_generate_conversation_id().await?;
             }
             ConversationCommand::Dump { id, html } => {
-                let conversation_id = ConversationId::parse(&id)
-                    .context(format!("Invalid conversation ID: {}", id))?;
+                let conversation_id =
+                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
 
                 self.validate_conversation_exists(&conversation_id).await?;
 
@@ -529,8 +529,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.state.conversation_id = original_id;
             }
             ConversationCommand::Compact { id } => {
-                let conversation_id = ConversationId::parse(&id)
-                    .context(format!("Invalid conversation ID: {}", id))?;
+                let conversation_id =
+                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
 
                 self.validate_conversation_exists(&conversation_id).await?;
 
@@ -543,8 +543,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.state.conversation_id = original_id;
             }
             ConversationCommand::Retry { id } => {
-                let conversation_id = ConversationId::parse(&id)
-                    .context(format!("Invalid conversation ID: {}", id))?;
+                let conversation_id =
+                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
 
                 self.validate_conversation_exists(&conversation_id).await?;
 
@@ -557,34 +557,34 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.state.conversation_id = original_id;
             }
             ConversationCommand::Resume { id } => {
-                let conversation_id = ConversationId::parse(&id)
-                    .context(format!("Invalid conversation ID: {}", id))?;
+                let conversation_id =
+                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
 
                 self.validate_conversation_exists(&conversation_id).await?;
 
                 self.state.conversation_id = Some(conversation_id);
-                self.writeln_title(TitleFormat::info(format!("Resumed conversation: {}", id)))?;
+                self.writeln_title(TitleFormat::info(format!("Resumed conversation: {id}")))?;
                 // Interactive mode will be handled by the main loop
             }
             ConversationCommand::Show { id } => {
-                let conversation_id = ConversationId::parse(&id)
-                    .context(format!("Invalid conversation ID: {}", id))?;
+                let conversation_id =
+                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
 
                 let conversation = self.validate_conversation_exists(&conversation_id).await?;
 
                 self.on_show_last_message(conversation).await?;
             }
             ConversationCommand::Info { id } => {
-                let conversation_id = ConversationId::parse(&id)
-                    .context(format!("Invalid conversation ID: {}", id))?;
+                let conversation_id =
+                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
 
                 let conversation = self.validate_conversation_exists(&conversation_id).await?;
 
                 self.on_show_conv_info(conversation).await?;
             }
             ConversationCommand::Clone { id } => {
-                let conversation_id = ConversationId::parse(&id)
-                    .context(format!("Invalid conversation ID: {}", id))?;
+                let conversation_id =
+                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
 
                 let conversation = self.validate_conversation_exists(&conversation_id).await?;
 
@@ -606,8 +606,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         conversation.ok_or_else(|| {
             anyhow::anyhow!(
-                "Conversation '{}' not found. Use 'forge conversation list' to see available conversations.",
-                conversation_id
+                "Conversation '{conversation_id}' not found. Use 'forge conversation list' to see available conversations."
             )
         })
     }
@@ -686,13 +685,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             let provider = self.api.get_provider(id).await?;
 
             if !provider.is_configured() {
-                return Err(anyhow::anyhow!("Provider '{}' is not configured", id));
+                return Err(anyhow::anyhow!("Provider '{id}' is not configured"));
             }
 
             self.api.remove_provider(id).await?;
             self.writeln_title(TitleFormat::completion(format!(
-                "Successfully logged out from {}",
-                id
+                "Successfully logged out from {id}"
             )))?;
             return Ok(true);
         }
@@ -718,8 +716,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 let provider_id = provider.0.id();
                 self.api.remove_provider(&provider_id).await?;
                 self.writeln_title(TitleFormat::completion(format!(
-                    "Successfully logged out from {}",
-                    provider_id
+                    "Successfully logged out from {provider_id}"
                 )))?;
                 return Ok(true);
             }
@@ -735,7 +732,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         &mut self,
         commit_group: CommitCommandGroup,
     ) -> anyhow::Result<CommitResult> {
-        self.spinner.start(Some("Generating commit message"))?;
+        self.spinner.start(Some("Creating commit"))?;
+
+        // Convert Vec<String> to Option<String> by joining with spaces
+        let additional_context = if commit_group.text.is_empty() {
+            None
+        } else {
+            Some(commit_group.text.join(" "))
+        };
 
         // Handle the commit command
         let result = self
@@ -744,6 +748,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 commit_group.preview,
                 commit_group.max_diff_size,
                 commit_group.diff,
+                additional_context,
             )
             .await;
 
@@ -759,14 +764,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
     }
 
-    async fn on_show_agents(&mut self, porcelain: bool) -> anyhow::Result<()> {
+    /// Builds an Info structure for agents with their details
+    async fn build_agents_info(&self) -> anyhow::Result<Info> {
         let agents = self.api.get_agents().await?;
-
-        if agents.is_empty() {
-            return Ok(());
-        }
-
-        let mut info = Info::new().add_title("AGENTS");
+        let mut info = Info::new();
 
         for agent in agents.iter() {
             let id = agent.id.as_str().to_string();
@@ -777,11 +778,58 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .lines()
                 .collect::<Vec<_>>()
                 .join(" ");
-            info = info.add_key_value(id, title);
+
+            // Get provider and model for this agent
+            let provider_name = self
+                .get_provider(Some(agent.id.clone()))
+                .await
+                .ok()
+                .map(|p| p.id.to_string())
+                .unwrap_or_else(|| "<unset>".to_string());
+
+            let model_name = agent.model.as_str().to_string();
+
+            let reasoning = if agent
+                .reasoning
+                .as_ref()
+                .and_then(|a| a.enabled)
+                .unwrap_or_default()
+            {
+                "ENABLED"
+            } else {
+                "DISABLED"
+            };
+            info = info
+                .add_title(id.to_case(Case::UpperSnake))
+                .add_key_value("Id", id)
+                .add_key_value("Title", title)
+                .add_key_value("Provider", provider_name)
+                .add_key_value("Model", model_name)
+                .add_key_value("Reasoning", reasoning);
         }
 
+        Ok(info)
+    }
+
+    async fn on_show_agents(&mut self, porcelain: bool) -> anyhow::Result<()> {
+        let agents = self.api.get_agents().await?;
+
+        if agents.is_empty() {
+            return Ok(());
+        }
+
+        let info = self.build_agents_info().await?;
+
         if porcelain {
-            let porcelain = Porcelain::from(&info).into_long().skip(1).drop_col(0);
+            let porcelain =
+                Porcelain::from(&info)
+                    .skip(1)
+                    .drop_col(0)
+                    .map_col(4, |text| match text.as_deref() {
+                        Some("ENABLED") => Some("Reasoning".to_string()),
+                        Some("DISABLED") => Some("Non-Reasoning".to_string()),
+                        _ => None,
+                    });
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -1356,6 +1404,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     preview: true,
                     max_diff_size: max_diff_size.or(Some(100_000)),
                     diff: None,
+                    text: Vec::new(),
                 };
                 let result = self.handle_commit_command(args).await?;
                 let flags = if result.has_staged_files { "" } else { " -a" };
@@ -1376,31 +1425,45 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 }
 
                 let agents = self.api.get_agents().await?;
-                let n = agents
-                    .iter()
-                    .map(|a| a.id.as_str().len())
-                    .max()
-                    .unwrap_or_default();
-                let display_agents = agents
-                    .into_iter()
-                    .map(|agent| {
-                        let title = &agent.title.unwrap_or("<Missing agent.title>".to_string());
-                        {
-                            let label = format!(
-                                "{:<n$} {}",
-                                agent.id.as_str().bold(),
-                                title.lines().collect::<Vec<_>>().join(" ").dimmed()
-                            );
-                            Agent { label, id: agent.id.clone() }
-                        }
-                    })
-                    .collect::<Vec<_>>();
 
-                if let Some(selected_agent) = ForgeSelect::select(
-                    "select the agent from following list",
-                    display_agents.clone(),
-                )
-                .prompt()?
+                if agents.is_empty() {
+                    return Ok(false);
+                }
+
+                // Reuse the same Info building logic as list agents
+                let info = self.build_agents_info().await?;
+
+                // Convert to porcelain format (same as list agents --porcelain)
+                let porcelain_output =
+                    Porcelain::from(&info)
+                        .skip(1)
+                        .drop_col(0)
+                        .map_col(4, |text| match text.as_deref() {
+                            Some("ENABLED") => Some("Reasoning".to_string()),
+                            Some("DISABLED") => Some("Non-Reasoning".to_string()),
+                            _ => None,
+                        });
+
+                // Split the porcelain output into lines and create agents
+                let porcelain_lines: Vec<String> = porcelain_output
+                    .to_string()
+                    .lines()
+                    .map(|s| s.to_string())
+                    .collect();
+
+                let mut display_agents = Vec::new();
+                for line in porcelain_lines {
+                    // Extract agent id from the beginning of the line
+                    if let Some(id_str) = line.split_whitespace().next() {
+                        display_agents.push(Agent {
+                            label: line.clone(),
+                            id: AgentId::new(id_str.to_string()),
+                        });
+                    }
+                }
+
+                if let Some(selected_agent) =
+                    ForgeSelect::select("Select an agent", display_agents.clone()).prompt()?
                 {
                     self.on_agent_change(selected_agent.id).await?;
                 }
@@ -1424,8 +1487,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     self.on_agent_change(AgentId::new(agent_id)).await?;
                 } else {
                     return Err(anyhow::anyhow!(
-                        "Agent '{}' not found or unavailable",
-                        agent_id
+                        "Agent '{agent_id}' not found or unavailable"
                     ));
                 }
             }
@@ -1491,17 +1553,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .required_params
             .iter()
             .map(|param| {
-                let param_value = ForgeSelect::input(format!("Enter {}:", param))
+                let param_value = ForgeSelect::input(format!("Enter {param}:"))
                     .prompt()?
                     .context("Parameter input cancelled")?;
 
-                anyhow::ensure!(!param_value.trim().is_empty(), "{} cannot be empty", param);
+                anyhow::ensure!(!param_value.trim().is_empty(), "{param} cannot be empty");
 
                 Ok((param.to_string(), param_value))
             })
             .collect::<anyhow::Result<HashMap<_, _>>>()?;
 
-        let api_key = ForgeSelect::input(format!("Enter your {} API key:", provider_id))
+        let api_key = ForgeSelect::input(format!("Enter your {provider_id} API key:"))
             .prompt()?
             .context("API key input cancelled")?;
 
@@ -1550,8 +1612,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Try to open browser automatically
         if let Err(e) = open::that(display_uri) {
             self.writeln_title(TitleFormat::error(format!(
-                "Failed to open browser automatically: {}",
-                e
+                "Failed to open browser automatically: {e}"
             )))?;
         }
 
@@ -1594,21 +1655,19 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn display_credential_success(&mut self, provider_id: ProviderId) -> anyhow::Result<()> {
         self.writeln_title(TitleFormat::info(format!(
-            "{} configured successfully!",
-            provider_id
+            "{provider_id} configured successfully!"
         )))?;
 
         // Prompt user to set as active provider
         let should_set_active = ForgeSelect::confirm(format!(
-            "Would you like to set {} as the active provider?",
-            provider_id
+            "Would you like to set {provider_id} as the active provider?"
         ))
         .with_default(true)
         .prompt()?;
 
         if should_set_active.unwrap_or(false) {
             self.api.set_default_provider(provider_id).await?;
-            self.writeln_title(TitleFormat::action(format!("Provider set {}", provider_id)))?;
+            self.writeln_title(TitleFormat::action(format!("Provider set {provider_id}")))?;
         }
         Ok(())
     }
@@ -1624,7 +1683,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         self.writeln(format!(
             "{}",
-            format!("Authenticate using your {} account", provider_id).dimmed()
+            format!("Authenticate using your {provider_id} account").dimmed()
         ))?;
 
         // Display authorization URL
@@ -1637,8 +1696,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         // Try to open browser automatically
         if let Err(e) = open::that(request.authorization_url.as_str()) {
             self.writeln_title(TitleFormat::error(format!(
-                "Failed to open browser automatically: {}",
-                e
+                "Failed to open browser automatically: {e}"
             )))?;
         }
 
@@ -1680,10 +1738,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         use colored::Colorize;
 
         if auth_methods.is_empty() {
-            anyhow::bail!(
-                "No authentication methods available for provider {}",
-                provider_id
-            );
+            anyhow::bail!("No authentication methods available for provider {provider_id}");
         }
 
         // If only one auth method, use it directly
@@ -1994,6 +2049,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let mut base_workflow = Workflow::default();
         base_workflow.merge(workflow.clone());
         if first {
+            // For chat, we are trying to get active agent or setting it to default.
+            // So for default values, `/info` doesn't show active provider, model, etc.
+            // So my default, on new, we should set the active agent.
+            self.api
+                .set_active_agent(self.api.get_active_agent().await.unwrap_or_default())
+                .await?;
             // only call on_update if this is the first initialization
             on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
             if !workflow.commands.is_empty() {

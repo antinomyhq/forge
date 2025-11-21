@@ -349,7 +349,7 @@ pub struct Context {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub top_k: Option<TopK>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reasoning: Option<crate::agent::ReasoningConfig>,
+    pub reasoning: Option<crate::agent_definition::ReasoningConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub usage: Option<Usage>,
 }
@@ -851,8 +851,10 @@ mod tests {
 
     #[test]
     fn test_context_is_reasoning_supported_when_enabled() {
-        let fixture = Context::default()
-            .reasoning(crate::agent::ReasoningConfig { enabled: Some(true), ..Default::default() });
+        let fixture = Context::default().reasoning(crate::agent_definition::ReasoningConfig {
+            enabled: Some(true),
+            ..Default::default()
+        });
 
         let actual = fixture.is_reasoning_supported();
         let expected = true;
@@ -862,8 +864,8 @@ mod tests {
 
     #[test]
     fn test_context_is_reasoning_supported_when_effort_set() {
-        let fixture = Context::default().reasoning(crate::agent::ReasoningConfig {
-            effort: Some(crate::agent::Effort::High),
+        let fixture = Context::default().reasoning(crate::agent_definition::ReasoningConfig {
+            effort: Some(crate::agent_definition::Effort::High),
             ..Default::default()
         });
 
@@ -875,7 +877,7 @@ mod tests {
 
     #[test]
     fn test_context_is_reasoning_supported_when_max_tokens_positive() {
-        let fixture = Context::default().reasoning(crate::agent::ReasoningConfig {
+        let fixture = Context::default().reasoning(crate::agent_definition::ReasoningConfig {
             max_tokens: Some(1024),
             ..Default::default()
         });
@@ -888,8 +890,10 @@ mod tests {
 
     #[test]
     fn test_context_is_reasoning_not_supported_when_max_tokens_zero() {
-        let fixture = Context::default()
-            .reasoning(crate::agent::ReasoningConfig { max_tokens: Some(0), ..Default::default() });
+        let fixture = Context::default().reasoning(crate::agent_definition::ReasoningConfig {
+            max_tokens: Some(0),
+            ..Default::default()
+        });
 
         let actual = fixture.is_reasoning_supported();
         let expected = false;
@@ -899,7 +903,7 @@ mod tests {
 
     #[test]
     fn test_context_is_reasoning_not_supported_when_disabled() {
-        let fixture = Context::default().reasoning(crate::agent::ReasoningConfig {
+        let fixture = Context::default().reasoning(crate::agent_definition::ReasoningConfig {
             enabled: Some(false),
             ..Default::default()
         });
@@ -922,9 +926,10 @@ mod tests {
 
     #[test]
     fn test_context_is_reasoning_not_supported_when_explicitly_disabled() {
-        let fixture = Context::default().reasoning(crate::agent::ReasoningConfig {
+        let fixture = Context::default().reasoning(crate::agent_definition::ReasoningConfig {
             enabled: Some(false),
-            effort: Some(crate::agent::Effort::High), // Should be ignored when explicitly disabled
+            effort: Some(crate::agent_definition::Effort::High), /* Should be ignored when
+                                                                  * explicitly disabled */
             ..Default::default()
         });
 

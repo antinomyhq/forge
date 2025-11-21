@@ -1,16 +1,16 @@
 use std::sync::Arc;
 
 use forge_app::{
-    CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
-    FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, KVStore, McpServerInfra,
-    Services, StrategyFactory, UserInfra, WalkerInfra,
+    AgentRepository, CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
+    FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, KVStore,
+    McpServerInfra, Services, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
     AppConfigRepository, ConversationRepository, ProviderRepository, SnapshotRepository,
 };
 
 use crate::ForgeProviderAuthService;
-use crate::agent_registry::AgentLoaderService as ForgeAgentLoaderService;
+use crate::agent_registry::ForgeAgentRegistryService;
 use crate::attachment::ForgeChatRequest;
 use crate::auth::ForgeAuthService;
 use crate::command_loader::CommandLoaderService as ForgeCommandLoaderService;
@@ -49,7 +49,8 @@ pub struct ForgeServices<
         + ConversationRepository
         + AppConfigRepository
         + KVStore
-        + ProviderRepository,
+        + ProviderRepository
+        + AgentRepository,
 > {
     chat_service: Arc<ForgeProviderService<F>>,
     config_service: Arc<ForgeAppConfigService<F>>,
@@ -74,7 +75,7 @@ pub struct ForgeServices<
     env_service: Arc<ForgeEnvironmentService<F>>,
     custom_instructions_service: Arc<ForgeCustomInstructionsService<F>>,
     auth_service: Arc<AuthService<F>>,
-    agent_loader_service: Arc<ForgeAgentLoaderService<F>>,
+    agent_registry_service: Arc<ForgeAgentRegistryService<F>>,
     command_loader_service: Arc<ForgeCommandLoaderService<F>>,
     policy_service: ForgePolicyService<F>,
     provider_auth_service: ForgeProviderAuthService<F>,
@@ -95,7 +96,8 @@ impl<
         + ConversationRepository
         + AppConfigRepository
         + ProviderRepository
-        + KVStore,
+        + KVStore
+        + AgentRepository,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -123,7 +125,7 @@ impl<
         let env_service = Arc::new(ForgeEnvironmentService::new(infra.clone()));
         let custom_instructions_service =
             Arc::new(ForgeCustomInstructionsService::new(infra.clone()));
-        let agent_loader_service = Arc::new(ForgeAgentLoaderService::new(infra.clone()));
+        let agent_registry_service = Arc::new(ForgeAgentRegistryService::new(infra.clone()));
         let command_loader_service = Arc::new(ForgeCommandLoaderService::new(infra.clone()));
         let policy_service = ForgePolicyService::new(infra.clone());
         let provider_auth_service = ForgeProviderAuthService::new(infra.clone());
@@ -152,7 +154,7 @@ impl<
             auth_service,
             chat_service,
             config_service,
-            agent_loader_service,
+            agent_registry_service,
             command_loader_service,
             policy_service,
             provider_auth_service,
@@ -179,6 +181,7 @@ impl<
         + AppConfigRepository
         + KVStore
         + ProviderRepository
+        + AgentRepository
         + StrategyFactory
         + Clone
         + 'static,
@@ -212,7 +215,7 @@ impl<
     type ShellService = ForgeShell<F>;
     type McpService = McpService<F>;
     type AuthService = AuthService<F>;
-    type AgentRegistry = ForgeAgentLoaderService<F>;
+    type AgentRegistry = ForgeAgentRegistryService<F>;
     type CommandLoaderService = ForgeCommandLoaderService<F>;
     type PolicyService = ForgePolicyService<F>;
 
@@ -304,7 +307,7 @@ impl<
     }
 
     fn agent_registry(&self) -> &Self::AgentRegistry {
-        &self.agent_loader_service
+        &self.agent_registry_service
     }
 
     fn command_loader_service(&self) -> &Self::CommandLoaderService {

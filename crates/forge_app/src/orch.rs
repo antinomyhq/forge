@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use async_recursion::async_recursion;
 use derive_setters::Setters;
-use forge_domain::*;
+use forge_domain::{Agent, *};
 use forge_template::Element;
 use tokio::task::JoinHandle;
 use tracing::{debug, info, warn};
@@ -119,10 +119,7 @@ impl<S: AgentService> Orchestrator<S> {
     // Returns if agent supports tool or not.
     fn is_tool_supported(&self) -> anyhow::Result<bool> {
         let agent = &self.agent;
-        let model_id = agent
-            .model
-            .as_ref()
-            .ok_or(Error::MissingModel(agent.id.clone()))?;
+        let model_id = &agent.model;
 
         // Check if at agent level tool support is defined
         let tool_supported = match agent.tool_supported {
@@ -164,7 +161,7 @@ impl<S: AgentService> Orchestrator<S> {
             .chat_agent(
                 model_id,
                 transformers.transform(context),
-                self.agent.provider,
+                Some(self.agent.provider),
             )
             .await?;
 
@@ -206,7 +203,7 @@ impl<S: AgentService> Orchestrator<S> {
             "Initializing agent"
         );
 
-        let model_id = self.get_model()?;
+        let model_id = self.get_model();
 
         let mut context = self.conversation.context.clone().unwrap_or_default();
 
@@ -407,12 +404,8 @@ impl<S: AgentService> Orchestrator<S> {
         Ok(())
     }
 
-    fn get_model(&self) -> anyhow::Result<ModelId> {
-        Ok(self
-            .agent
-            .model
-            .clone()
-            .ok_or(Error::MissingModel(self.agent.id.clone()))?)
+    fn get_model(&self) -> ModelId {
+        self.agent.model.clone()
     }
 
     /// Creates a join handle which eventually resolves with the conversation
@@ -426,7 +419,7 @@ impl<S: AgentService> Orchestrator<S> {
                 self.services.clone(),
                 prompt.to_owned(),
                 model,
-                self.agent.provider,
+                Some(self.agent.provider),
             )
             .reasoning(self.agent.reasoning.clone());
 
