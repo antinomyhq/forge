@@ -331,7 +331,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         &self,
         path: PathBuf,
         batch_size: usize,
-    ) -> Result<forge_domain::IndexStats> {
+    ) -> Result<forge_domain::FileUploadResponse> {
         self.services.sync_codebase(path, batch_size).await
     }
 
@@ -362,7 +362,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         self.services.is_authenticated().await
     }
 
-    async fn create_auth_credentials(&self) -> Result<forge_domain::IndexingAuth> {
+    async fn create_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth> {
         self.services.create_auth_credentials().await
     }
 

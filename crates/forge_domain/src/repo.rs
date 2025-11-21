@@ -4,7 +4,7 @@ use anyhow::Result;
 use url::Url;
 
 use crate::{
-    AnyProvider, AppConfig, AuthCredential, Conversation, ConversationId, IndexingAuth,
+    AnyProvider, AppConfig, AuthCredential, Conversation, ConversationId, WorkspaceAuth,
     MigrationResult, Provider, ProviderId, Snapshot, UserId, Workspace, WorkspaceId,
 };
 
@@ -120,10 +120,10 @@ pub trait WorkspaceRepository: Send + Sync {
 #[async_trait::async_trait]
 pub trait CredentialsRepository: Send + Sync {
     /// Store authentication credentials in database
-    async fn set_auth(&self, auth: &IndexingAuth) -> anyhow::Result<()>;
+    async fn set_auth(&self, auth: &WorkspaceAuth) -> anyhow::Result<()>;
 
     /// Get stored authentication (both token and user_id)
-    async fn get_auth(&self) -> anyhow::Result<Option<IndexingAuth>>;
+    async fn get_auth(&self) -> anyhow::Result<Option<WorkspaceAuth>>;
 
     /// Delete stored authentication (both user_id and token)
     async fn delete_auth(&self) -> anyhow::Result<()>;
@@ -133,7 +133,7 @@ pub trait CredentialsRepository: Send + Sync {
 #[async_trait::async_trait]
 pub trait ContextEngineRepository: Send + Sync {
     /// Authenticate with the indexing service via gRPC API
-    async fn authenticate(&self) -> anyhow::Result<IndexingAuth>;
+    async fn authenticate(&self) -> anyhow::Result<WorkspaceAuth>;
 
     /// Create a new workspace on the indexing server
     async fn create_workspace(
@@ -147,7 +147,7 @@ pub trait ContextEngineRepository: Send + Sync {
         &self,
         upload: &crate::FileUpload,
         auth_token: &crate::ApiKey,
-    ) -> anyhow::Result<crate::UploadStats>;
+    ) -> anyhow::Result<crate::FileUploadInfo>;
 
     /// Search the indexed codebase using semantic search
     async fn search(

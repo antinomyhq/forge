@@ -6,7 +6,7 @@ use derive_setters::Setters;
 use forge_domain::{
     AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthCredential,
     AuthMethod, ChatCompletionMessage, CodeSearchResult, CommandOutput, Context, Conversation,
-    ConversationId, Environment, File, Image, IndexStats, IndexingAuth, InitAuth, LoginInfo,
+    ConversationId, Environment, File, Image, FileUploadResponse, WorkspaceAuth, InitAuth, LoginInfo,
     McpConfig, McpServers, Model, ModelId, PatchOperation, Provider, ProviderId, ResultStream,
     Scope, SearchParams, Template, ToolCallFull, ToolOutput, Workflow, WorkspaceId, WorkspaceInfo,
 };
@@ -241,7 +241,7 @@ pub trait CustomInstructionsService: Send + Sync {
 #[async_trait::async_trait]
 pub trait ContextEngineService: Send + Sync {
     /// Index the codebase at the given path
-    async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> anyhow::Result<IndexStats>;
+    async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> anyhow::Result<FileUploadResponse>;
 
     /// Query the indexed codebase with semantic search
     async fn query_codebase(
@@ -266,7 +266,7 @@ pub trait ContextEngineService: Send + Sync {
     async fn is_authenticated(&self) -> anyhow::Result<bool>;
 
     /// Create new authentication credentials
-    async fn create_auth_credentials(&self) -> anyhow::Result<IndexingAuth>;
+    async fn create_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth>;
 }
 
 #[async_trait::async_trait]
@@ -996,7 +996,7 @@ impl<I: Services> ProviderAuthService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> ContextEngineService for I {
-    async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> anyhow::Result<IndexStats> {
+    async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> anyhow::Result<FileUploadResponse> {
         self.context_engine_service()
             .sync_codebase(path, batch_size)
             .await
@@ -1034,7 +1034,7 @@ impl<I: Services> ContextEngineService for I {
         self.context_engine_service().is_authenticated().await
     }
 
-    async fn create_auth_credentials(&self) -> anyhow::Result<IndexingAuth> {
+    async fn create_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth> {
         self.context_engine_service()
             .create_auth_credentials()
             .await

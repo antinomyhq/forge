@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use chrono::Utc;
 use forge_domain::{
-    ApiKey, CodeSearchResult, ContextEngineRepository, IndexingAuth, UploadStats, UserId,
+    ApiKey, CodeSearchResult, ContextEngineRepository, WorkspaceAuth, FileUploadInfo, UserId,
     WorkspaceId, WorkspaceInfo,
 };
 use tonic::transport::Channel;
@@ -19,7 +19,7 @@ use proto_generated::*;
 
 // TryFrom implementations for converting proto types to domain types
 
-impl TryFrom<CreateApiKeyResponse> for IndexingAuth {
+impl TryFrom<CreateApiKeyResponse> for WorkspaceAuth {
     type Error = anyhow::Error;
 
     fn try_from(response: CreateApiKeyResponse) -> Result<Self> {
@@ -27,7 +27,7 @@ impl TryFrom<CreateApiKeyResponse> for IndexingAuth {
         let user_id = UserId::from_string(&user_id).context("Invalid user_id returned from API")?;
         let token: ApiKey = response.key.into();
 
-        Ok(IndexingAuth { user_id, token, created_at: Utc::now() })
+        Ok(WorkspaceAuth { user_id, token, created_at: Utc::now() })
     }
 }
 
@@ -121,7 +121,7 @@ impl ForgeContextEngineRepository {
 
 #[async_trait]
 impl ContextEngineRepository for ForgeContextEngineRepository {
-    async fn authenticate(&self) -> Result<IndexingAuth> {
+    async fn authenticate(&self) -> Result<WorkspaceAuth> {
         let mut client = self.client.clone();
         let request = tonic::Request::new(CreateApiKeyRequest { user_id: None });
 
@@ -157,7 +157,7 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
         &self,
         upload: &forge_domain::FileUpload,
         auth_token: &forge_domain::ApiKey,
-    ) -> Result<UploadStats> {
+    ) -> Result<FileUploadInfo> {
         let files: Vec<File> = upload
             .data
             .iter()
@@ -184,7 +184,7 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
             .result
             .context("Server did not return upload result in UploadFiles response")?;
 
-        Ok(UploadStats::new(
+        Ok(FileUploadInfo::new(
             result.node_ids.len(),
             result.relations.len(),
         ))

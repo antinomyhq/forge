@@ -10,7 +10,7 @@ use crate::WorkspaceId;
 /// Associates a user with their indexing service authentication token
 /// obtained from the remote authentication API.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct IndexingAuth {
+pub struct WorkspaceAuth {
     /// User ID that owns this authentication
     pub user_id: UserId,
     /// Authentication token (obtained from HTTP API)
@@ -19,7 +19,7 @@ pub struct IndexingAuth {
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
-impl IndexingAuth {
+impl WorkspaceAuth {
     /// Create a new indexing auth record
     pub fn new(user_id: UserId, token: crate::ApiKey) -> Self {
         Self { user_id, token, created_at: chrono::Utc::now() }
@@ -139,23 +139,23 @@ pub struct FileHash {
 
 /// Result of a codebase sync operation
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Setters)]
-pub struct IndexStats {
+pub struct FileUploadResponse {
     /// Workspace ID that was synced
     pub workspace_id: WorkspaceId,
     /// Number of files processed
     pub files_processed: usize,
     /// Upload statistics
-    pub upload_stats: UploadStats,
+    pub upload_stats: FileUploadInfo,
     /// Whether a new workspace was created (vs using existing)
     pub is_new_workspace: bool,
 }
 
-impl IndexStats {
+impl FileUploadResponse {
     /// Create new sync statistics
     pub fn new(
         workspace_id: WorkspaceId,
         files_processed: usize,
-        upload_stats: UploadStats,
+        upload_stats: FileUploadInfo,
     ) -> Self {
         Self {
             workspace_id,
@@ -169,14 +169,14 @@ impl IndexStats {
 /// Statistics from uploading files to the codebase server
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
-pub struct UploadStats {
+pub struct FileUploadInfo {
     /// Number of code nodes created
     pub nodes_created: usize,
     /// Number of relations created
     pub relations_created: usize,
 }
 
-impl std::ops::Add for UploadStats {
+impl std::ops::Add for FileUploadInfo {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
@@ -187,7 +187,7 @@ impl std::ops::Add for UploadStats {
     }
 }
 
-impl UploadStats {
+impl FileUploadInfo {
     /// Create new upload statistics
     pub fn new(nodes_created: usize, relations_created: usize) -> Self {
         Self { nodes_created, relations_created }

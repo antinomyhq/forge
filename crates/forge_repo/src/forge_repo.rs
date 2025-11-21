@@ -10,7 +10,7 @@ use forge_app::{
 use forge_domain::{
     AnyProvider, AppConfig, AppConfigRepository, AuthCredential, CommandOutput, Conversation,
     ConversationId, ConversationRepository, CredentialsRepository, Environment, FileInfo,
-    IndexingAuth, McpServerConfig, MigrationResult, Provider, ProviderId, ProviderRepository,
+    WorkspaceAuth, McpServerConfig, MigrationResult, Provider, ProviderId, ProviderRepository,
     Snapshot, SnapshotRepository,
 };
 // Re-export CacacheStorage from forge_infra
@@ -468,11 +468,11 @@ impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
 
 #[async_trait::async_trait]
 impl<F: Send + Sync> CredentialsRepository for ForgeRepo<F> {
-    async fn set_auth(&self, auth: &IndexingAuth) -> anyhow::Result<()> {
+    async fn set_auth(&self, auth: &WorkspaceAuth) -> anyhow::Result<()> {
         self.indexing_auth_repository.set_auth(auth).await
     }
 
-    async fn get_auth(&self) -> anyhow::Result<Option<IndexingAuth>> {
+    async fn get_auth(&self) -> anyhow::Result<Option<WorkspaceAuth>> {
         self.indexing_auth_repository.get_auth().await
     }
 
@@ -483,7 +483,7 @@ impl<F: Send + Sync> CredentialsRepository for ForgeRepo<F> {
 
 #[async_trait::async_trait]
 impl<F: Send + Sync> forge_domain::ContextEngineRepository for ForgeRepo<F> {
-    async fn authenticate(&self) -> anyhow::Result<IndexingAuth> {
+    async fn authenticate(&self) -> anyhow::Result<WorkspaceAuth> {
         self.codebase_repo.authenticate().await
     }
 
@@ -501,7 +501,7 @@ impl<F: Send + Sync> forge_domain::ContextEngineRepository for ForgeRepo<F> {
         &self,
         upload: &forge_domain::FileUpload,
         auth_token: &forge_domain::ApiKey,
-    ) -> anyhow::Result<forge_domain::UploadStats> {
+    ) -> anyhow::Result<forge_domain::FileUploadInfo> {
         self.codebase_repo.upload_files(upload, auth_token).await
     }
 
