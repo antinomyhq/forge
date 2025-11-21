@@ -11,8 +11,8 @@ Structure: `type(scope): description`
 1. **Single line only** - never use multiple lines or bullet points
 2. **Focus on what changed** - describe the primary change, not implementation details
 3. **Be specific** - mention the affected component/module when relevant
-4. **Preserve issue/PR references** - if recent commits use `(#1234)` format, include the relevant issue number at the end
-5. **Match project style** - analyze recent_commit_messages for patterns (scope usage, verbosity, issue references)
+4. **Exclude issue/PR references** - never include issue or PR numbers like `(#1234)` in the commit message
+5. **Match project style** - analyze recent_commit_messages for patterns (scope usage, verbosity), but ignore any issue/PR references
 6. **Imperative mood** - use "add" not "adds" or "added"
 7. **Conciseness** - shorter is better; avoid redundant words like "improve", "update", "enhance" unless necessary
 
