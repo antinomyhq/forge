@@ -48,6 +48,7 @@ pub struct Event {
     pub value: Option<EventValue>,
     pub timestamp: String,
     pub attachments: Vec<Attachment>,
+    pub context: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
@@ -143,6 +144,7 @@ impl Event {
             value: Some(value.into()),
             timestamp,
             attachments: Vec::new(),
+            context: None,
         }
     }
 
@@ -150,7 +152,13 @@ impl Event {
         let id = uuid::Uuid::new_v4().to_string();
         let timestamp = chrono::Utc::now().to_rfc3339();
 
-        Self { id, value: None, timestamp, attachments: Vec::new() }
+        Self {
+            id,
+            value: None,
+            timestamp,
+            attachments: Vec::new(),
+            context: None,
+        }
     }
 }
 

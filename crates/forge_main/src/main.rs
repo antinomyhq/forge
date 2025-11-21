@@ -29,11 +29,13 @@ async fn main() -> Result<()> {
     let mut cli = Cli::parse();
 
     // Check if there's piped input
-    if cli.prompt.is_none() && !atty::is(atty::Stream::Stdin) {
+    if !atty::is(atty::Stream::Stdin) {
         let mut stdin_content = String::new();
         std::io::stdin().read_to_string(&mut stdin_content)?;
         let trimmed_content = stdin_content.trim();
-        cli.prompt = Some(trimmed_content.to_string());
+        if !trimmed_content.is_empty() {
+            cli.piped_input = Some(trimmed_content.to_string());
+        }
     }
 
     // Handle worktree creation if specified
@@ -72,16 +74,17 @@ mod tests {
         // We can't easily test the actual stdin reading in a unit test,
         // but we can verify the logic flow
 
-        // Test that when prompt is already provided, stdin is ignored
+        // Test that when prompt is provided, it remains independent of piped input
         let cli_with_prompt = Cli::parse_from(["forge", "--prompt", "existing prompt"]);
         let original_prompt = cli_with_prompt.prompt.clone();
 
-        // The stdin logic should not override an existing prompt
+        // The prompt should remain as provided
         assert_eq!(original_prompt, Some("existing prompt".to_string()));
 
-        // Test that when no prompt is provided, we have the right structure
+        // Test that when no prompt is provided, piped_input field exists
         let cli_no_prompt = Cli::parse_from(["forge"]);
         assert_eq!(cli_no_prompt.prompt, None);
+        assert_eq!(cli_no_prompt.piped_input, None);
     }
 
     #[test]

@@ -5,7 +5,7 @@ use forge_domain::{Agent, *};
 use serde_json::json;
 use tracing::debug;
 
-use crate::{AttachmentService, TemplateService};
+use crate::{AttachmentService, TemplateEngine, TemplateService};
 
 /// Service responsible for setting user prompts in the conversation context
 #[derive(Clone)]
@@ -29,12 +29,24 @@ impl<S: TemplateService + AttachmentService> UserPromptGenerator<S> {
 
     /// Sets the user prompt in the context based on agent configuration and
     /// event data
-    pub async fn add_user_prompt(
-        &self,
-        mut conversation: Conversation,
-    ) -> anyhow::Result<Conversation> {
+    pub fn add_user_prompt(&self, mut conversation: Conversation) -> anyhow::Result<Conversation> {
         let mut context = conversation.context.take().unwrap_or_default();
         let event_value = self.event.value.clone();
+        let template_engine = TemplateEngine::default();
+
+        // Add piped input as a separate droppable message first (if present)
+        if let Some(piped_input) = &self.event.context {
+            let piped_message = TextMessage {
+                role: Role::User,
+                content: piped_input.clone(),
+                raw_content: None,
+                tool_calls: None,
+                reasoning_details: None,
+                model: Some(self.agent.model.clone()),
+                droppable: true, // Piped input is droppable
+            };
+            context = context.add_message(ContextMessage::Text(piped_message));
+        }
 
         let content = if let Some(user_prompt) = &self.agent.user_prompt
             && self.event.value.is_some()
@@ -62,13 +74,10 @@ impl<S: TemplateService + AttachmentService> UserPromptGenerator<S> {
             // Render the command first.
             let event_context = match self.event.value.as_ref().and_then(|v| v.as_command()) {
                 Some(command) => {
-                    let rendered_prompt = self
-                        .services
-                        .render_template(
-                            command.template.clone(),
-                            &json!({"parameters": command.parameters.join(" ")}),
-                        )
-                        .await?;
+                    let rendered_prompt = template_engine.render(
+                        command.template.clone(),
+                        &json!({"parameters": command.parameters.join(" ")}),
+                    )?;
                     event_context.event(EventContextValue::new(rendered_prompt))
                 }
                 None => event_context,
@@ -76,9 +85,8 @@ impl<S: TemplateService + AttachmentService> UserPromptGenerator<S> {
 
             // Render the event value into agent's user prompt template.
             Some(
-                self.services
-                    .render_template(Template::new(user_prompt.template.as_str()), &event_context)
-                    .await?,
+                template_engine
+                    .render(Template::new(user_prompt.template.as_str()), &event_context)?,
             )
         } else {
             // Use the raw event value as content if no user_prompt is provided
@@ -88,7 +96,7 @@ impl<S: TemplateService + AttachmentService> UserPromptGenerator<S> {
         };
 
         if let Some(content) = content {
-            // Parse Attachments
+            // Parse Attachments (do NOT parse piped input for attachments)
             let attachments = self.services.attachments(content.as_str()).await?;
 
             // Create User Message

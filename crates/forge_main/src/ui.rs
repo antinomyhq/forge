@@ -2106,11 +2106,19 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_message(&mut self, content: Option<String>) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
 
+        // Get piped input from CLI if available
+        let piped_input = self.cli.piped_input.clone();
+
         // Create a ChatRequest with the appropriate event type
-        let event = match content {
+        let mut event = match content {
             Some(text) => Event::new(text),
             None => Event::empty(),
         };
+
+        // Set piped input if present
+        if let Some(piped) = piped_input {
+            event = event.piped_input(piped);
+        }
 
         // Create the chat request with the event
         let chat = ChatRequest::new(event, conversation_id);
