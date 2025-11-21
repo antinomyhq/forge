@@ -218,10 +218,6 @@ pub enum IndexCommand {
     Delete {
         /// Workspace ID to delete
         workspace_id: String,
-
-        /// Skip confirmation prompt
-        #[arg(short = 'y', long)]
-        yes: bool,
     },
 }
 
