@@ -129,7 +129,7 @@ pub enum TopLevelCommand {
     Cmd(CmdCommandGroup),
 
     /// Manage codebases for semantic search.
-    Index(IndexCommandGroup),
+    Workspace(WorkspaceCommandGroup),
 }
 
 /// Command group for custom command management.
@@ -159,13 +159,13 @@ pub enum CmdCommand {
 
 /// Command group for codebase management.
 #[derive(Parser, Debug, Clone)]
-pub struct IndexCommandGroup {
+pub struct WorkspaceCommandGroup {
     #[command(subcommand)]
-    pub command: IndexCommand,
+    pub command: WorkspaceCommand,
 }
 
 #[derive(Subcommand, Debug, Clone)]
-pub enum IndexCommand {
+pub enum WorkspaceCommand {
     /// Synchronize a directory for semantic search.
     Sync {
         /// Path to the directory to sync

@@ -498,21 +498,21 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 return Ok(());
             }
 
-            TopLevelCommand::Index(index_group) => {
+            TopLevelCommand::Workspace(index_group) => {
                 match index_group.command {
-                    crate::cli::IndexCommand::Sync { path, batch_size } => {
+                    crate::cli::WorkspaceCommand::Sync { path, batch_size } => {
                         self.on_index(path, batch_size).await?;
                     }
-                    crate::cli::IndexCommand::List { porcelain } => {
+                    crate::cli::WorkspaceCommand::List { porcelain } => {
                         self.on_list_workspaces(porcelain).await?;
                     }
-                    crate::cli::IndexCommand::Query { query, path, limit, top_k, use_case } => {
+                    crate::cli::WorkspaceCommand::Query { query, path, limit, top_k, use_case } => {
                         self.on_query(query, path, limit, top_k, use_case).await?;
                     }
-                    crate::cli::IndexCommand::Info { path } => {
+                    crate::cli::WorkspaceCommand::Info { path } => {
                         self.on_index_info(path).await?;
                     }
-                    crate::cli::IndexCommand::Delete { workspace_id } => {
+                    crate::cli::WorkspaceCommand::Delete { workspace_id } => {
                         self.on_delete_workspace(workspace_id).await?;
                     }
                 }
@@ -2761,7 +2761,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     100.0
                 };
                 let sync_status = format!(
-                    "{}/{} ({:.2}% synced)",
+                    "{}/{} [{:.2}% synced]",
                     synced_count, status.total_files, percentage
                 );
 
@@ -2769,7 +2769,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .add_title(title)
                     .add_key_value("ID", status.workspace_info.workspace_id.to_string())
                     .add_key_value("Path", &status.workspace_info.working_dir)
-                    .add_title("SYNC STATUS")
                     .add_key_value("Files", sync_status)
                     .add_key_value(
                         "Relations",
