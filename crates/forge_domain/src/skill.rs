@@ -1,0 +1,80 @@
+use derive_setters::Setters;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
+/// Represents a reusable skill with a name, file path, and prompt content
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Setters, JsonSchema)]
+#[setters(strip_option, into)]
+pub struct Skill {
+    /// Name of the skill
+    pub name: String,
+
+    /// File path to the skill markdown file
+    pub path: String,
+
+    /// Content/prompt loaded from the markdown file
+    pub prompt: String,
+}
+
+impl Skill {
+    /// Creates a new Skill with required fields
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name identifier for the skill
+    /// * `path` - The file system path to the skill markdown file
+    /// * `prompt` - The skill prompt content
+    pub fn new(
+        name: impl Into<String>,
+        path: impl Into<String>,
+        prompt: impl Into<String>,
+    ) -> Self {
+        Self { name: name.into(), path: path.into(), prompt: prompt.into() }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    #[test]
+    fn test_skill_creation() {
+        // Fixture
+        let fixture = Skill::new("code_review", "/skills/code_review.md", "Review this code");
+
+        // Act
+        let actual = (
+            fixture.name.clone(),
+            fixture.path.clone(),
+            fixture.prompt.clone(),
+        );
+
+        // Assert
+        let expected = (
+            "code_review".to_string(),
+            "/skills/code_review.md".to_string(),
+            "Review this code".to_string(),
+        );
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_skill_with_setters() {
+        // Fixture
+        let fixture = Skill::new("test", "/path", "prompt")
+            .name("updated_name")
+            .path("/updated/path")
+            .prompt("updated prompt");
+
+        // Act
+        let actual = fixture;
+
+        // Assert
+        let expected = Skill::new("updated_name", "/updated/path", "updated prompt");
+        assert_eq!(actual.name, expected.name);
+        assert_eq!(actual.path, expected.path);
+        assert_eq!(actual.prompt, expected.prompt);
+    }
+}
