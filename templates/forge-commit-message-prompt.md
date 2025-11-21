@@ -18,8 +18,9 @@ Structure: `type(scope): description`
 
 # Input Analysis Priority
 1. **git_diff** - primary source for understanding the actual changes
-2. **recent_commit_messages** - reference for project's commit message style and conventions
-3. **branch_name** - additional context hint (feature/, fix/, etc.)
+2. **additional_context** - user-provided context to help structure the commit message (if provided, use this information to guide the commit message structure and focus)
+3. **recent_commit_messages** - reference for project's commit message style and conventions
+4. **branch_name** - additional context hint (feature/, fix/, etc.)
 
 # Examples
 Good:

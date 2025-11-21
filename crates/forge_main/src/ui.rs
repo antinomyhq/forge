@@ -731,7 +731,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         &mut self,
         commit_group: CommitCommandGroup,
     ) -> anyhow::Result<CommitResult> {
-        self.spinner.start(Some("Generating commit message"))?;
+        self.spinner.start(Some("Creating commit"))?;
+
+        // Convert Vec<String> to Option<String> by joining with spaces
+        let additional_context = if commit_group.text.is_empty() {
+            None
+        } else {
+            Some(commit_group.text.join(" "))
+        };
 
         // Handle the commit command
         let result = self
@@ -740,6 +747,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 commit_group.preview,
                 commit_group.max_diff_size,
                 commit_group.diff,
+                additional_context,
             )
             .await;
 
@@ -1395,6 +1403,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     preview: true,
                     max_diff_size: max_diff_size.or(Some(100_000)),
                     diff: None,
+                    text: Vec::new(),
                 };
                 let result = self.handle_commit_command(args).await?;
                 let flags = if result.has_staged_files { "" } else { " -a" };
