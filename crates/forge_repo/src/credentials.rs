@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use diesel::prelude::*;
-use forge_domain::{CredentialsRepository, WorkspaceAuth, UserId};
+use forge_domain::{CredentialsRepository, UserId, WorkspaceAuth};
 
 use crate::database::schema::indexing_auth;
 use crate::DatabasePool;

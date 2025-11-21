@@ -311,8 +311,10 @@ impl<
             "Sync completed successfully"
         );
 
-        Ok(FileUploadResponse::new(workspace_id, total_file_count, total_stats)
-            .is_new_workspace(is_new_workspace))
+        Ok(
+            FileUploadResponse::new(workspace_id, total_file_count, total_stats)
+                .is_new_workspace(is_new_workspace),
+        )
     }
 
     /// Performs semantic code search on a workspace.
@@ -525,7 +527,8 @@ mod tests {
     use forge_app::WalkedFile;
     use forge_domain::{
         ApiKey, CodeSearchQuery, CodeSearchResult, FileDeletion, FileHash, FileInfo, FileUpload,
-        WorkspaceAuth, FileUploadInfo, UserId, Workspace, WorkspaceFiles, WorkspaceId, WorkspaceInfo,
+        FileUploadInfo, UserId, Workspace, WorkspaceAuth, WorkspaceFiles, WorkspaceId,
+        WorkspaceInfo,
     };
     use pretty_assertions::assert_eq;
 

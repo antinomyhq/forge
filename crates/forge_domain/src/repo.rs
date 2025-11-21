@@ -4,8 +4,8 @@ use anyhow::Result;
 use url::Url;
 
 use crate::{
-    AnyProvider, AppConfig, AuthCredential, Conversation, ConversationId, WorkspaceAuth,
-    MigrationResult, Provider, ProviderId, Snapshot, UserId, Workspace, WorkspaceId,
+    AnyProvider, AppConfig, AuthCredential, Conversation, ConversationId, MigrationResult,
+    Provider, ProviderId, Snapshot, UserId, Workspace, WorkspaceAuth, WorkspaceId,
 };
 
 /// Repository for managing file snapshots

@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use chrono::Utc;
 use forge_domain::{
-    ApiKey, CodeSearchResult, ContextEngineRepository, WorkspaceAuth, FileUploadInfo, UserId,
+    ApiKey, CodeSearchResult, ContextEngineRepository, FileUploadInfo, UserId, WorkspaceAuth,
     WorkspaceId, WorkspaceInfo,
 };
 use tonic::transport::Channel;
