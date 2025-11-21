@@ -7,7 +7,7 @@
 # Using typeset to keep variables local to plugin scope and prevent public exposure
 typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
 typeset -h _FORGE_CONVERSATION_PATTERN=":"
-typeset -h _FORGE_MAX_COMMIT_DIFF="${FORGE_MAX_COMMIT_DIFF:-5000}"
+typeset -h _FORGE_MAX_COMMIT_DIFF="${FORGE_MAX_COMMIT_DIFF:-100000}"
 typeset -h _FORGE_DELIMITER='\s\s+'
 
 # Detect fd command - Ubuntu/Debian use 'fdfind', others use 'fd'
@@ -437,14 +437,22 @@ function _forge_action_model() {
 }
 
 # Action handler: Commit changes with AI-generated message
+# Usage: :commit [additional context]
 function _forge_action_commit() {
+    local additional_context="$1"
     local commit_message
     # Generate AI commit message
     echo
     # Force color output even when not connected to TTY
     # FORCE_COLOR: for indicatif spinner colors
     # CLICOLOR_FORCE: for colored crate text colors
-    commit_message=$(FORCE_COLOR=true CLICOLOR_FORCE=1 $_FORGE_BIN commit --preview --max-diff "$_FORGE_MAX_COMMIT_DIFF")
+    
+    # Build commit command with optional additional context
+    if [[ -n "$additional_context" ]]; then
+        commit_message=$(FORCE_COLOR=true CLICOLOR_FORCE=1 $_FORGE_BIN commit --preview --max-diff "$_FORGE_MAX_COMMIT_DIFF" $additional_context)
+    else
+        commit_message=$(FORCE_COLOR=true CLICOLOR_FORCE=1 $_FORGE_BIN commit --preview --max-diff "$_FORGE_MAX_COMMIT_DIFF")
+    fi
     
     # Proceed only if command succeeded
     if [[ -n "$commit_message" ]]; then
@@ -689,7 +697,7 @@ function forge-accept-line() {
             _forge_action_tools
         ;;
         commit)
-            _forge_action_commit
+            _forge_action_commit "$input_text"
         ;;
         suggest|s)
             _forge_action_suggest "$input_text"

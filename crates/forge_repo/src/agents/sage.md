@@ -10,13 +10,7 @@ tools:
   - read_image
   - search
 user_prompt: |-
-  {{#if (eq event.name 'sage/user_task_update')}}
-
-  
-  <feedback>{{event.value}}</feedback>
-  {{else}}
-  <task>{{event.value}}</task>
-  {{/if}}
+  <{{event.name}}>{{event.value}}</{{event.name}}>
   <system_date>{{current_date}}</system_date>
 ---
 

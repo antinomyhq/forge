@@ -17,11 +17,7 @@ tools:
   - mcp_*
   - read_image
 user_prompt: |-
-  {{#if (eq event.name 'forge/user_task_update')}}
-  <feedback>{{event.value}}</feedback>
-  {{else}}
-  <task>{{event.value}}</task>
-  {{/if}}
+  <{{event.name}}>{{event.value}}</{{event.name}}>
   <system_date>{{current_date}}</system_date>
 ---
 

@@ -14,11 +14,7 @@ use crate::orch_spec::orch_runner::Runner;
 
 // User prompt
 const USER_PROMPT: &str = r#"
-{{#if (eq event.name 'forge/user_task_update')}}
-  <feedback>{{event.value}}</feedback>
-  {{else}}
-  <task>{{event.value}}</task>
-  {{/if}}
+  <{{event.name}}>{{event.value}}</{{event.name}}>
   <system_date>{{current_date}}</system_date>
 "#;
 
@@ -108,8 +104,7 @@ impl Default for TestContext {
 
 impl TestContext {
     pub async fn run(&mut self, event: impl AsRef<str>) -> anyhow::Result<()> {
-        self.run_event(Event::new("forge", Some(event.as_ref())))
-            .await
+        self.run_event(Event::new(event.as_ref())).await
     }
 
     pub async fn run_event(&mut self, event: impl Into<Event>) -> anyhow::Result<()> {

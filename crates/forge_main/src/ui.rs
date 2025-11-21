@@ -731,7 +731,14 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         &mut self,
         commit_group: CommitCommandGroup,
     ) -> anyhow::Result<CommitResult> {
-        self.spinner.start(Some("Generating commit message"))?;
+        self.spinner.start(Some("Creating commit"))?;
+
+        // Convert Vec<String> to Option<String> by joining with spaces
+        let additional_context = if commit_group.text.is_empty() {
+            None
+        } else {
+            Some(commit_group.text.join(" "))
+        };
 
         // Handle the commit command
         let result = self
@@ -740,6 +747,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 commit_group.preview,
                 commit_group.max_diff_size,
                 commit_group.diff,
+                additional_context,
             )
             .await;
 
@@ -1395,6 +1403,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     preview: true,
                     max_diff_size: max_diff_size.or(Some(100_000)),
                     diff: None,
+                    text: Vec::new(),
                 };
                 let result = self.handle_commit_command(args).await?;
                 let flags = if result.has_staged_files { "" } else { " -a" };
@@ -2097,9 +2106,19 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_message(&mut self, content: Option<String>) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
 
+        // Get piped input from CLI if available
+        let piped_input = self.cli.piped_input.clone();
+
         // Create a ChatRequest with the appropriate event type
-        let operating_agent = self.api.get_active_agent().await.unwrap_or_default();
-        let event = Event::new(format!("{operating_agent}"), content);
+        let mut event = match content {
+            Some(text) => Event::new(text),
+            None => Event::empty(),
+        };
+
+        // Set piped input if present
+        if let Some(piped) = piped_input {
+            event = event.additional_context(piped);
+        }
 
         // Create the chat request with the event
         let chat = ChatRequest::new(event, conversation_id);

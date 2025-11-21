@@ -11,11 +11,7 @@ tools:
   - read_image
   - mcp_*
 user_prompt: |-
-  {{#if (eq event.name 'muse/user_task_update')}}
-  <feedback>{{event.value}}</feedback>
-  {{else}}
-  <task>{{event.value}}</task>
-  {{/if}}
+  <{{event.name}}>{{event.value}}</{{event.name}}>
   <system_date>{{current_date}}</system_date>
 ---
 
