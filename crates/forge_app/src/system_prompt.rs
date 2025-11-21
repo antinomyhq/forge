@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, Conversation, Environment, Model, SystemContext, Template, ToolDefinition,
+    Agent, Conversation, Environment, Model, Skill, SystemContext, Template, ToolDefinition,
     ToolUsagePrompt,
 };
 use tracing::debug;
@@ -18,6 +18,7 @@ pub struct SystemPrompt<S> {
     files: Vec<String>,
     models: Vec<Model>,
     custom_instructions: Vec<String>,
+    skills: Vec<Skill>,
 }
 
 impl<S: TemplateService> SystemPrompt<S> {
@@ -30,6 +31,7 @@ impl<S: TemplateService> SystemPrompt<S> {
             tool_definitions: Vec::default(),
             files: Vec::default(),
             custom_instructions: Vec::default(),
+            skills: Vec::default(),
         }
     }
 
@@ -68,6 +70,7 @@ impl<S: TemplateService> SystemPrompt<S> {
                 files,
                 custom_rules: custom_rules.join("\n\n"),
                 supports_parallel_tool_calls,
+                skills: self.skills.clone(),
             };
 
             let static_block = self
@@ -122,5 +125,70 @@ impl<S: TemplateService> SystemPrompt<S> {
             .find(|model| model.id == agent.model)
             .and_then(|model| model.supports_parallel_tool_calls)
             .unwrap_or_default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+    use std::sync::Arc;
+
+    use fake::Fake;
+    use forge_domain::{Agent, Environment, Skill};
+
+    use super::*;
+
+    struct MockTemplateService;
+
+    #[async_trait::async_trait]
+    impl TemplateService for MockTemplateService {
+        async fn render_template<T: serde::Serialize + Sync + Send>(
+            &self,
+            _template: Template<T>,
+            _context: &T,
+        ) -> anyhow::Result<String> {
+            Ok(String::new())
+        }
+
+        async fn register_template(&self, _path: PathBuf) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
+
+    fn create_test_environment() -> Environment {
+        use fake::Faker;
+        Faker.fake()
+    }
+
+    fn create_test_agent() -> Agent {
+        use forge_domain::{AgentId, ModelId, ProviderId};
+        Agent::new(
+            AgentId::new("test_agent"),
+            ProviderId::Forge,
+            ModelId::new("test_model"),
+        )
+    }
+
+    #[tokio::test]
+    async fn test_system_prompt_with_skills() {
+        // Fixture
+        let services = Arc::new(MockTemplateService);
+        let env = create_test_environment();
+        let agent = create_test_agent();
+        let skills = vec![
+            Skill::new("code_review", "/skills/code_review.md", "Review code"),
+            Skill::new("testing", "/skills/testing.md", "Write tests"),
+        ];
+
+        let system_prompt = SystemPrompt::new(services, env, agent).skills(skills.clone());
+
+        // Act - create a conversation and add system message
+        let conversation = forge_domain::Conversation::generate();
+        let result = system_prompt.add_system_message(conversation).await;
+
+        // Assert
+        assert!(result.is_ok());
+        let conversation = result.unwrap();
+        assert!(conversation.context.is_some());
     }
 }
