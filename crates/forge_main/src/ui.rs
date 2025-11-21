@@ -344,6 +344,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     ListCommand::Cmd => {
                         self.on_show_custom_commands(porcelain).await?;
                     }
+                    ListCommand::Workspace => {
+                        self.on_list_workspaces(porcelain).await?;
+                    }
                 }
                 return Ok(());
             }

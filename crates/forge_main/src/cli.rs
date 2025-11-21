@@ -272,6 +272,10 @@ pub enum ListCommand {
     /// List custom commands.
     #[command(alias = "cmds")]
     Cmd,
+
+    /// List workspaces.
+    #[command(alias = "workspaces")]
+    Workspace,
 }
 
 /// Command group for generating shell extensions.
@@ -1047,5 +1051,39 @@ mod tests {
         let actual = fixture.is_interactive();
         let expected = true;
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_list_workspace_command() {
+        let fixture = Cli::parse_from(["forge", "list", "workspace"]);
+        let is_workspace_list = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => matches!(list.command, ListCommand::Workspace),
+            _ => false,
+        };
+        assert_eq!(is_workspace_list, true);
+    }
+
+    #[test]
+    fn test_list_workspaces_alias_command() {
+        let fixture = Cli::parse_from(["forge", "list", "workspaces"]);
+        let is_workspace_list = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => matches!(list.command, ListCommand::Workspace),
+            _ => false,
+        };
+        assert_eq!(is_workspace_list, true);
+    }
+
+    #[test]
+    fn test_list_workspace_with_porcelain() {
+        let fixture = Cli::parse_from(["forge", "list", "workspace", "--porcelain"]);
+        let (is_workspace_list, porcelain) = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => (
+                matches!(list.command, ListCommand::Workspace),
+                list.porcelain,
+            ),
+            _ => (false, false),
+        };
+        assert_eq!(is_workspace_list, true);
+        assert_eq!(porcelain, true);
     }
 }
