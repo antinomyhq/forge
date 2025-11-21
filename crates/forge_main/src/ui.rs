@@ -6,7 +6,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use chrono::Utc;
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
@@ -1029,8 +1028,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip(2);
-            self.writeln(porcelain)?;
+            self.writeln(Porcelain::from(&info).skip(2))?;
         } else {
             self.writeln(info)?;
         }
@@ -2676,6 +2674,31 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
+    /// Helper method to format workspace info into an Info object
+    fn format_workspace_info(&self, workspace: &forge_domain::WorkspaceInfo) -> Info {
+        let title = workspace
+            .last_updated
+            .map(|last_updated| {
+                let duration = chrono::Utc::now().signed_duration_since(last_updated);
+                let duration =
+                    std::time::Duration::from_secs((duration.num_seconds()).max(0) as u64);
+                let time_text = if duration.is_zero() {
+                    "just now".to_string()
+                } else {
+                    format!("{} ago", humantime::format_duration(duration))
+                };
+                format!("WORKSPACE [Last Synced {}]", time_text)
+            })
+            .unwrap_or("WORKSPACE".to_string());
+
+        Info::new()
+            .add_title(title)
+            .add_key_value("ID", workspace.workspace_id.to_string())
+            .add_key_value("Path", &workspace.working_dir)
+            .add_key_value("Files", workspace.node_count.to_string())
+            .add_key_value("Relations", workspace.relation_count.to_string())
+    }
+
     async fn on_list_workspaces(&mut self, porcelain: bool) -> anyhow::Result<()> {
         if !porcelain {
             self.spinner.start(Some("Fetching workspaces..."))?;
@@ -2687,40 +2710,16 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     self.spinner.stop(None)?;
                 }
 
-                // Build Info object once
+                // Build Info object by iteratively calling format_workspace_info
                 let mut info = Info::new();
-
-                for workspace in workspaces {
-                    let elapsed_time = workspace.last_updated.map_or("NEVER".to_string(), |d| {
-                        let duration = chrono::Utc::now().signed_duration_since(d);
-                        let duration =
-                            Duration::from_secs((duration.num_minutes() * 60).max(0) as u64);
-                        if duration.is_zero() {
-                            "now".to_string()
-                        } else {
-                            format!("{} ago", humantime::format_duration(duration))
-                        }
-                    });
-
-                    let timestamp = workspace.last_updated.map_or("NEVER".to_string(), |d| {
-                        d.with_timezone(&chrono::Local)
-                            .format("%Y-%m-%d %H:%M:%S %Z")
-                            .to_string()
-                    });
-
-                    info = info
-                        .add_title(format!("Workspace [{}]", timestamp))
-                        .add_key_value("id", workspace.workspace_id.to_string())
-                        .add_key_value("path", workspace.working_dir)
-                        .add_key_value("updated", elapsed_time)
-                        .add_key_value("nodes", workspace.node_count)
-                        .add_key_value("relations", workspace.relation_count);
+                for workspace in &workspaces {
+                    info = info.extend(self.format_workspace_info(workspace));
                 }
 
                 // Output based on mode
                 if porcelain {
                     // Skip header row in porcelain mode (consistent with conversation list)
-                    self.writeln(Porcelain::from(info).skip(1).drop_cols(&[0, 4, 5]))?;
+                    self.writeln(Porcelain::from(info).skip(1).drop_col(0))?;
                 } else {
                     self.writeln(info)?;
                 }
@@ -2740,23 +2739,21 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         match self.api.diff_codebase(path.clone()).await {
             Ok(status) => {
                 self.spinner.stop(None)?;
-                // Format last synced time if available
-                let title = status
-                    .workspace_info
-                    .last_updated
-                    .map(|last_synced| {
-                        let duration = Utc::now().signed_duration_since(last_synced);
-                        let duration =
-                            std::time::Duration::from_secs((duration.num_seconds()).max(0) as u64);
-                        let time_text = if duration.is_zero() {
-                            "just now".to_string()
-                        } else {
-                            format!("{} ago", humantime::format_duration(duration))
-                        };
-                        format!("WORKSPACE [Last Synced {}]", time_text)
-                    })
-                    .unwrap_or("WORKSPACE".to_string());
 
+                // Start with base workspace info using the helper
+                let base_info = self.format_workspace_info(&status.workspace_info);
+
+                // Extract the title from base_info
+                let title = base_info
+                    .sections()
+                    .first()
+                    .and_then(|s| match s {
+                        crate::info::Section::Title(t) => Some(t.clone()),
+                        _ => None,
+                    })
+                    .unwrap_or_else(|| "WORKSPACE".to_string());
+
+                // Calculate sync status
                 let synced_count = status.total_files - status.files_to_sync_count();
                 let percentage = if status.total_files > 0 {
                     synced_count as f64 / status.total_files as f64 * 100.0
@@ -2768,6 +2765,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     synced_count, status.total_files, percentage
                 );
 
+                // Build info with sync status (overriding Files field)
                 let info = Info::new()
                     .add_title(title)
                     .add_key_value("ID", status.workspace_info.workspace_id.to_string())
