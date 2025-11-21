@@ -996,7 +996,7 @@ mod tests {
             Some(TopLevelCommand::Commit(commit)) => commit.text,
             _ => panic!("Expected Commit command"),
         };
-        let expected = vec!["fix", "typo", "in", "readme"]
+        let expected = ["fix", "typo", "in", "readme"]
             .iter()
             .map(|s| s.to_string())
             .collect::<Vec<String>>();
@@ -1034,7 +1034,7 @@ mod tests {
         let expected = (
             true,
             Some(50000),
-            vec!["update", "docs"]
+            ["update", "docs"]
                 .iter()
                 .map(|s| s.to_string())
                 .collect::<Vec<String>>(),
