@@ -49,6 +49,14 @@ impl McpServerConfig {
             McpServerConfig::Http(v) => v.disable,
         }
     }
+
+    /// Returns the type of MCP server as a string ("STDIO" or "HTTP")
+    pub fn server_type(&self) -> &'static str {
+        match self {
+            McpServerConfig::Stdio(_) => "STDIO",
+            McpServerConfig::Http(_) => "HTTP",
+        }
+    }
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, Setters, PartialEq, Hash)]
@@ -351,5 +359,20 @@ mod tests {
             }
             _ => panic!("Expected Http variant"),
         }
+    }
+
+    #[test]
+    fn test_server_type() {
+        use pretty_assertions::assert_eq;
+
+        let stdio_server = McpServerConfig::new_stdio("node", vec![], None);
+        let actual = stdio_server.server_type();
+        let expected = "STDIO";
+        assert_eq!(actual, expected);
+
+        let http_server = McpServerConfig::new_http("http://localhost:3000");
+        let actual = http_server.server_type();
+        let expected = "HTTP";
+        assert_eq!(actual, expected);
     }
 }
