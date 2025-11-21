@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{ContextEngineService, FileReaderInfra, Walker, WalkerInfra, compute_hash};
 use forge_domain::{
-    ContextEngineRepository, CredentialsRepository, IndexStats, UserId, WorkspaceId,
+    ContextEngineRepository, CredentialsRepository, FileUploadResponse, UserId, WorkspaceId,
     WorkspaceRepository,
 };
 use futures::future::join_all;
@@ -211,7 +211,7 @@ impl<
         + FileReaderInfra,
 > ContextEngineService for ForgeIndexingService<F>
 {
-    async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> Result<IndexStats> {
+    async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> Result<FileUploadResponse> {
         info!(path = %path.display(), "Starting codebase sync");
 
         let canonical_path = path
@@ -270,16 +270,16 @@ impl<
                 .upsert(&workspace_id, &user_id, &canonical_path)
                 .await
                 .context("Failed to save workspace")?;
-            return Ok(IndexStats::new(
+            return Ok(FileUploadResponse::new(
                 workspace_id,
                 total_file_count,
-                forge_domain::UploadStats::default(),
+                forge_domain::FileUploadInfo::default(),
             )
             .is_new_workspace(is_new_workspace));
         }
 
         // Upload in batches
-        let mut total_stats = forge_domain::UploadStats::default();
+        let mut total_stats = forge_domain::FileUploadInfo::default();
 
         for batch in files_to_upload.chunks(batch_size) {
             let file_reads: Vec<forge_domain::FileRead> = batch
@@ -311,8 +311,10 @@ impl<
             "Sync completed successfully"
         );
 
-        Ok(IndexStats::new(workspace_id, total_file_count, total_stats)
-            .is_new_workspace(is_new_workspace))
+        Ok(
+            FileUploadResponse::new(workspace_id, total_file_count, total_stats)
+                .is_new_workspace(is_new_workspace),
+        )
     }
 
     /// Performs semantic code search on a workspace.
@@ -451,7 +453,7 @@ impl<
         Ok(self.infra.get_auth().await?.is_some())
     }
 
-    async fn create_auth_credentials(&self) -> Result<forge_domain::IndexingAuth> {
+    async fn create_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth> {
         // Authenticate with the indexing service
         let auth = self
             .infra
@@ -525,7 +527,8 @@ mod tests {
     use forge_app::WalkedFile;
     use forge_domain::{
         ApiKey, CodeSearchQuery, CodeSearchResult, FileDeletion, FileHash, FileInfo, FileUpload,
-        IndexingAuth, UploadStats, UserId, Workspace, WorkspaceFiles, WorkspaceId, WorkspaceInfo,
+        FileUploadInfo, UserId, Workspace, WorkspaceAuth, WorkspaceFiles, WorkspaceId,
+        WorkspaceInfo,
     };
     use pretty_assertions::assert_eq;
 
@@ -628,18 +631,18 @@ mod tests {
 
     #[async_trait::async_trait]
     impl CredentialsRepository for MockInfra {
-        async fn set_auth(&self, _auth: &IndexingAuth) -> Result<()> {
+        async fn set_auth(&self, _auth: &WorkspaceAuth) -> Result<()> {
             Ok(())
         }
 
-        async fn get_auth(&self) -> Result<Option<IndexingAuth>> {
+        async fn get_auth(&self) -> Result<Option<WorkspaceAuth>> {
             if self.authenticated {
                 let user_id = self
                     .workspace
                     .as_ref()
                     .map(|w| w.user_id.clone())
                     .unwrap_or_else(UserId::generate);
-                Ok(Some(IndexingAuth::new(
+                Ok(Some(WorkspaceAuth::new(
                     user_id,
                     "test_token".to_string().into(),
                 )))
@@ -670,9 +673,9 @@ mod tests {
 
     #[async_trait]
     impl ContextEngineRepository for MockInfra {
-        async fn authenticate(&self) -> Result<IndexingAuth> {
+        async fn authenticate(&self) -> Result<WorkspaceAuth> {
             // Mock authentication - return fake user_id and token
-            Ok(IndexingAuth::new(
+            Ok(WorkspaceAuth::new(
                 UserId::generate(),
                 "test_token".to_string().into(),
             ))
@@ -681,12 +684,12 @@ mod tests {
         async fn create_workspace(&self, _: &Path, _: &ApiKey) -> Result<WorkspaceId> {
             Ok(WorkspaceId::generate())
         }
-        async fn upload_files(&self, upload: &FileUpload, _: &ApiKey) -> Result<UploadStats> {
+        async fn upload_files(&self, upload: &FileUpload, _: &ApiKey) -> Result<FileUploadInfo> {
             self.uploaded_files
                 .lock()
                 .await
                 .extend(upload.data.iter().map(|f| f.path.clone()));
-            Ok(UploadStats::new(upload.data.len(), upload.data.len()))
+            Ok(FileUploadInfo::new(upload.data.len(), upload.data.len()))
         }
         async fn search(
             &self,

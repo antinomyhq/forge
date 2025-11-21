@@ -2,8 +2,8 @@ use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
 use colored::Colorize;
-use forge_api::{AnyProvider, Model, ProviderId, Template};
-use forge_domain::{Agent, UserCommand};
+use forge_api::{Agent, AnyProvider, Model, ProviderId, Template};
+use forge_domain::UserCommand;
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumProperty};
 
@@ -76,7 +76,7 @@ impl Display for CliProvider {
                 }
             }
             AnyProvider::Template(_) => {
-                write!(f, "  {:<width$} [unavailable]", name, width = name_width)?;
+                write!(f, "  {name:<name_width$} [unavailable]")?;
             }
         }
         Ok(())
@@ -477,12 +477,12 @@ pub enum SlashCommand {
     #[strum(props(usage = "Switch to an agent interactively"))]
     Agent,
 
-    /// Log into the default provider.
-    #[strum(props(usage = "Log into the Forge provider"))]
+    /// Allows you to configure provider
+    #[strum(props(usage = "Allows you to configure provider"))]
     Login,
 
-    /// Logs out of the current session.
-    #[strum(props(usage = "Logout of the current session"))]
+    /// Logs out from the configured provider
+    #[strum(props(usage = "Logout from configured provider"))]
     Logout,
 
     /// Retry without modifying model context
@@ -833,13 +833,24 @@ mod tests {
 
     #[test]
     fn test_register_agent_commands() {
-        use forge_domain::Agent;
+        use forge_api::Agent;
+        use forge_domain::{ModelId, ProviderId};
 
         // Setup
         let fixture = ForgeCommandManager::default();
         let agents = vec![
-            Agent::new("test-agent").title("Test Agent".to_string()),
-            Agent::new("another").title("Another Agent".to_string()),
+            Agent::new(
+                "test-agent",
+                ProviderId::Anthropic,
+                ModelId::new("claude-3-5-sonnet-20241022"),
+            )
+            .title("Test Agent".to_string()),
+            Agent::new(
+                "another",
+                ProviderId::Anthropic,
+                ModelId::new("claude-3-5-sonnet-20241022"),
+            )
+            .title("Another Agent".to_string()),
         ];
 
         // Execute
@@ -867,11 +878,19 @@ mod tests {
 
     #[test]
     fn test_parse_agent_switch_command() {
-        use forge_domain::Agent;
+        use forge_api::Agent;
+        use forge_domain::{ModelId, ProviderId};
 
         // Setup
         let fixture = ForgeCommandManager::default();
-        let agents = vec![Agent::new("test-agent").title("Test Agent".to_string())];
+        let agents = vec![
+            Agent::new(
+                "test-agent",
+                ProviderId::Anthropic,
+                ModelId::new("claude-3-5-sonnet-20241022"),
+            )
+            .title("Test Agent".to_string()),
+        ];
         let _result = fixture.register_agent_commands(agents);
 
         // Execute

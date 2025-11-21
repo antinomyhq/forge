@@ -10,7 +10,7 @@ use forge_app::{
     EnvironmentService, FileDiscoveryService, ForgeApp, GitApp, McpConfigManager, McpService,
     ProviderAuthService, ProviderService, Services, User, UserUsage, Walker, WorkflowService,
 };
-use forge_domain::{InitAuth, LoginInfo, *};
+use forge_domain::{Agent, InitAuth, LoginInfo, *};
 use forge_infra::ForgeInfra;
 use forge_repo::ForgeRepo;
 use forge_services::ForgeServices;
@@ -70,7 +70,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
             .await?)
     }
     async fn get_agents(&self) -> Result<Vec<Agent>> {
-        Ok(self.services.get_agents().await?)
+        self.services.get_agents().await
     }
 
     async fn get_providers(&self) -> Result<Vec<AnyProvider>> {
@@ -82,9 +82,12 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         preview: bool,
         max_diff_size: Option<usize>,
         diff: Option<String>,
+        additional_context: Option<String>,
     ) -> Result<forge_app::CommitResult> {
         let git_app = GitApp::new(self.services.clone());
-        let result = git_app.commit_message(max_diff_size, diff).await?;
+        let result = git_app
+            .commit_message(max_diff_size, diff, additional_context)
+            .await?;
 
         if preview {
             Ok(result)
@@ -217,18 +220,17 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     async fn logout(&self) -> Result<()> {
         self.app().logout().await
     }
+
     async fn get_agent_provider(&self, agent_id: AgentId) -> anyhow::Result<Provider<Url>> {
         let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
         agent_provider_resolver.get_provider(Some(agent_id)).await
     }
 
-    async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>> {
-        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
-        agent_provider_resolver.get_provider(None).await
-    }
-
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        self.services.set_default_provider(provider_id).await
+        // Invalidate cache for agents
+        let result = self.services.set_default_provider(provider_id).await;
+        self.services.reload_agents().await?;
+        result
     }
 
     async fn user_info(&self) -> Result<Option<User>> {
@@ -329,7 +331,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         &self,
         path: PathBuf,
         batch_size: usize,
-    ) -> Result<forge_domain::IndexStats> {
+    ) -> Result<forge_domain::FileUploadResponse> {
         self.services.sync_codebase(path, batch_size).await
     }
 
@@ -360,7 +362,16 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         self.services.is_authenticated().await
     }
 
-    async fn create_auth_credentials(&self) -> Result<forge_domain::IndexingAuth> {
+    async fn create_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth> {
         self.services.create_auth_credentials().await
+    }
+
+    async fn migrate_env_credentials(&self) -> Result<Option<forge_domain::MigrationResult>> {
+        Ok(self.services.migrate_env_credentials().await?)
+    }
+
+    async fn get_default_provider(&self) -> Result<Provider<Url>> {
+        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
+        agent_provider_resolver.get_provider(None).await
     }
 }

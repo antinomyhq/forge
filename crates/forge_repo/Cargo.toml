@@ -28,6 +28,8 @@ diesel = { version = "2.2.12", features = ["sqlite", "r2d2", "chrono"] }
 diesel_migrations = "2.2.0"
 thiserror.workspace = true
 derive_more.workspace = true
+gray_matter = { workspace = true }
+dirs.workspace = true
 
 # gRPC for codebase client
 tonic = { version = "0.14.2", features = ["tls-native-roots"] }

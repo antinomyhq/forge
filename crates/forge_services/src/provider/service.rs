@@ -216,4 +216,8 @@ impl<I: EnvironmentInfra + HttpInfra + ProviderRepository + CredentialsRepositor
 
         Ok(())
     }
+
+    async fn migrate_env_credentials(&self) -> Result<Option<forge_domain::MigrationResult>> {
+        self.infra.migrate_env_credentials().await
+    }
 }

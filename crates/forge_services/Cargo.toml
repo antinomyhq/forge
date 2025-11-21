@@ -19,7 +19,7 @@ derive_setters.workspace = true
 tokio-stream.workspace = true
 handlebars.workspace = true
 forge_fs.workspace = true
-
+dashmap.workspace = true
 
 anyhow.workspace = true
 futures.workspace = true

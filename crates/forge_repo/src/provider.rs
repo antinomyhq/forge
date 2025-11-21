@@ -5,8 +5,8 @@ use bytes::Bytes;
 use forge_app::domain::{ProviderId, ProviderResponse};
 use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra};
 use forge_domain::{
-    AnyProvider, ApiKey, AuthCredential, AuthDetails, Error, Provider, ProviderRepository,
-    ProviderType, URLParam, URLParamValue,
+    AnyProvider, ApiKey, AuthCredential, AuthDetails, Error, MigrationResult, Provider,
+    ProviderRepository, ProviderType, URLParam, URLParamValue,
 };
 use handlebars::Handlebars;
 use merge::Merge;
@@ -138,9 +138,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
     }
 
     async fn get_providers(&self) -> Vec<AnyProvider> {
-        // Run migration if needed (one-time)
-        self.migrate_env_to_file().await.ok();
-
         let configs = self.get_merged_configs().await;
 
         let mut providers: Vec<AnyProvider> = Vec::new();
@@ -174,7 +171,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
     /// Migrates environment variable-based credentials to file-based
     /// credentials. This is a one-time migration that runs only if the
     /// credentials file doesn't exist.
-    async fn migrate_env_to_file(&self) -> anyhow::Result<()> {
+    pub async fn migrate_env_to_file(&self) -> anyhow::Result<Option<MigrationResult>> {
         let path = self
             .infra
             .get_environment()
@@ -183,10 +180,11 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
 
         // Check if credentials file already exists
         if self.infra.read_utf8(&path).await.is_ok() {
-            return Ok(());
+            return Ok(None);
         }
 
         let mut credentials = Vec::new();
+        let mut migrated_providers = Vec::new();
         let configs = self.get_merged_configs().await;
 
         let has_openai_url = self.infra.get_env_var("OPENAI_URL").is_some();
@@ -213,6 +211,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
 
             // Try to create credential from environment variables
             if let Ok(credential) = self.create_credential_from_env(&config) {
+                migrated_providers.push(config.id);
                 credentials.push(credential);
             }
         }
@@ -220,9 +219,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
         // Only write if we have credentials to migrate
         if !credentials.is_empty() {
             self.write_credentials(&credentials).await?;
+            Ok(Some(MigrationResult::new(path, migrated_providers)))
+        } else {
+            Ok(None)
         }
-
-        Ok(())
     }
 
     /// Creates a credential from environment variables for a given config
@@ -427,6 +427,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Sync> ProviderRep
         self.write_credentials(&credentials).await?;
 
         Ok(())
+    }
+
+    async fn migrate_env_credentials(&self) -> anyhow::Result<Option<MigrationResult>> {
+        self.migrate_env_to_file().await
     }
 }
 
@@ -667,6 +671,12 @@ mod env_tests {
         async fn remove_credential(&self, _id: &ProviderId) -> anyhow::Result<()> {
             Ok(())
         }
+
+        async fn migrate_env_credentials(
+            &self,
+        ) -> anyhow::Result<Option<forge_domain::MigrationResult>> {
+            Ok(None)
+        }
     }
 
     #[tokio::test]
@@ -886,6 +896,10 @@ mod env_tests {
 
         let infra = Arc::new(MockInfra::new(env_vars));
         let registry = ForgeProviderRepository::new(infra);
+
+        // Migrate environment variables to .credentials.json
+        registry.migrate_env_to_file().await.unwrap();
+
         let providers = registry.get_all_providers().await.unwrap();
 
         let openai_provider = providers
@@ -1026,6 +1040,12 @@ mod env_tests {
 
             async fn remove_credential(&self, _id: &ProviderId) -> anyhow::Result<()> {
                 Ok(())
+            }
+
+            async fn migrate_env_credentials(
+                &self,
+            ) -> anyhow::Result<Option<forge_domain::MigrationResult>> {
+                Ok(None)
             }
         }
 

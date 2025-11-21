@@ -38,6 +38,7 @@ pub trait API: Sync + Send {
         preview: bool,
         max_diff_size: Option<usize>,
         diff: Option<String>,
+        additional_context: Option<String>,
     ) -> Result<forge_app::CommitResult>;
 
     /// Returns the current environment
@@ -189,7 +190,7 @@ pub trait API: Sync + Send {
         &self,
         path: PathBuf,
         batch_size: usize,
-    ) -> Result<forge_domain::IndexStats>;
+    ) -> Result<forge_domain::FileUploadResponse>;
 
     /// Query the indexed codebase
     async fn query_codebase(
@@ -214,5 +215,10 @@ pub trait API: Sync + Send {
     async fn is_authenticated(&self) -> Result<bool>;
 
     /// Create new authentication credentials
-    async fn create_auth_credentials(&self) -> Result<forge_domain::IndexingAuth>;
+    async fn create_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth>;
+
+    /// Migrate environment variable-based credentials to file-based
+    /// credentials. This is a one-time migration that runs only if the
+    /// credentials file doesn't exist.
+    async fn migrate_env_credentials(&self) -> Result<Option<forge_domain::MigrationResult>>;
 }

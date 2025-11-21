@@ -5,7 +5,7 @@ use chrono::{DateTime, Local};
 use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, Attachment, ChatCompletionMessage, ChatResponse, ContextMessage, Conversation,
-    Environment, Event, HttpConfig, ModelId, RetryConfig, Role, Template, ToolCallFull,
+    Environment, Event, HttpConfig, ModelId, ProviderId, RetryConfig, Role, Template, ToolCallFull,
     ToolDefinition, ToolResult, Workflow,
 };
 use url::Url;
@@ -14,11 +14,7 @@ use crate::orch_spec::orch_runner::Runner;
 
 // User prompt
 const USER_PROMPT: &str = r#"
-{{#if (eq event.name 'forge/user_task_update')}}
-  <feedback>{{event.value}}</feedback>
-  {{else}}
-  <task>{{event.value}}</task>
-  {{/if}}
+  <{{event.name}}>{{event.value}}</{{event.name}}>
   <system_date>{{current_date}}</system_date>
 "#;
 
@@ -92,10 +88,14 @@ impl Default for TestContext {
                 index_server_url: Url::parse("http://localhost:8080").unwrap(),
             },
             title: Some("test-conversation".into()),
-            agent: Agent::new(AgentId::new("forge"))
-                .system_prompt(Template::new("You are Forge"))
-                .user_prompt(Template::new(USER_PROMPT))
-                .tools(vec![("fs_read").into(), ("fs_write").into()]),
+            agent: Agent::new(
+                AgentId::new("forge"),
+                ProviderId::Anthropic,
+                ModelId::new("claude-3-5-sonnet-20241022"),
+            )
+            .system_prompt(Template::new("You are Forge"))
+            .user_prompt(Template::new(USER_PROMPT))
+            .tools(vec![("fs_read").into(), ("fs_write").into()]),
             tools: vec![
                 ToolDefinition::new("fs_read"),
                 ToolDefinition::new("fs_write"),
@@ -106,8 +106,7 @@ impl Default for TestContext {
 
 impl TestContext {
     pub async fn run(&mut self, event: impl AsRef<str>) -> anyhow::Result<()> {
-        self.run_event(Event::new("forge", Some(event.as_ref())))
-            .await
+        self.run_event(Event::new(event.as_ref())).await
     }
 
     pub async fn run_event(&mut self, event: impl Into<Event>) -> anyhow::Result<()> {

@@ -1,3 +1,4 @@
+mod agent_repository;
 mod app_config;
 mod conversation;
 mod credentials;
@@ -8,6 +9,7 @@ mod indexing;
 mod proto;
 mod provider;
 
+pub use agent_repository::*;
 pub use app_config::*;
 pub use conversation::*;
 pub use credentials::*;

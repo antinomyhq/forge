@@ -4,11 +4,11 @@ use std::time::Duration;
 use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse,
-    AuthCredential, AuthMethod, ChatCompletionMessage, CodeSearchResult, CommandOutput, Context,
-    Conversation, ConversationId, Environment, File, Image, IndexStats, IndexingAuth, InitAuth,
-    LoginInfo, McpConfig, McpServers, Model, ModelId, PatchOperation, Provider, ProviderId,
-    ResultStream, Scope, SearchParams, Template, ToolCallFull, ToolOutput, Workflow, WorkspaceId,
+    AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthCredential,
+    AuthMethod, ChatCompletionMessage, CodeSearchResult, CommandOutput, Context, Conversation,
+    ConversationId, Environment, File, FileUploadResponse, Image, InitAuth, LoginInfo, McpConfig,
+    McpServers, Model, ModelId, PatchOperation, Provider, ProviderId, ResultStream, Scope,
+    SearchParams, Template, ToolCallFull, ToolOutput, Workflow, WorkspaceAuth, WorkspaceId,
     WorkspaceInfo,
 };
 use merge::Merge;
@@ -139,6 +139,12 @@ pub trait ProviderService: Send + Sync {
         credential: forge_domain::AuthCredential,
     ) -> anyhow::Result<()>;
     async fn remove_credential(&self, id: &forge_domain::ProviderId) -> anyhow::Result<()>;
+    /// Migrates environment variable-based credentials to file-based
+    /// credentials. Returns Some(MigrationResult) if credentials were migrated,
+    /// None if file already exists or no credentials to migrate.
+    async fn migrate_env_credentials(
+        &self,
+    ) -> anyhow::Result<Option<forge_domain::MigrationResult>>;
 }
 
 /// Manages user preferences for default providers and models.
@@ -236,7 +242,11 @@ pub trait CustomInstructionsService: Send + Sync {
 #[async_trait::async_trait]
 pub trait ContextEngineService: Send + Sync {
     /// Index the codebase at the given path
-    async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> anyhow::Result<IndexStats>;
+    async fn sync_codebase(
+        &self,
+        path: PathBuf,
+        batch_size: usize,
+    ) -> anyhow::Result<FileUploadResponse>;
 
     /// Query the indexed codebase with semantic search
     async fn query_codebase(
@@ -261,7 +271,7 @@ pub trait ContextEngineService: Send + Sync {
     async fn is_authenticated(&self) -> anyhow::Result<bool>;
 
     /// Create new authentication credentials
-    async fn create_auth_credentials(&self) -> anyhow::Result<IndexingAuth>;
+    async fn create_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth>;
 }
 
 #[async_trait::async_trait]
@@ -426,20 +436,20 @@ pub trait AuthService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait AgentRegistry: Send + Sync {
-    /// Load all agent definitions from the forge/agent directory
-    async fn get_agents(&self) -> anyhow::Result<Vec<Agent>>;
-
-    /// Get agent by ID
-    async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<Agent>>;
-
-    /// Get the currently active agent
-    async fn get_active_agent(&self) -> anyhow::Result<Option<Agent>>;
-
     /// Get the active agent ID
     async fn get_active_agent_id(&self) -> anyhow::Result<Option<AgentId>>;
 
     /// Set the active agent ID
     async fn set_active_agent_id(&self, agent_id: AgentId) -> anyhow::Result<()>;
+
+    /// Get all agents from the registry store
+    async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::Agent>>;
+
+    /// Get agent by ID (from registry store)
+    async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<forge_domain::Agent>>;
+
+    /// Reload agents by invalidating the cache
+    async fn reload_agents(&self) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -606,6 +616,12 @@ impl<I: Services> ProviderService for I {
 
     async fn remove_credential(&self, id: &forge_domain::ProviderId) -> anyhow::Result<()> {
         self.provider_service().remove_credential(id).await
+    }
+
+    async fn migrate_env_credentials(
+        &self,
+    ) -> anyhow::Result<Option<forge_domain::MigrationResult>> {
+        self.provider_service().migrate_env_credentials().await
     }
 }
 
@@ -878,24 +894,24 @@ pub trait HttpClientService: Send + Sync + 'static {
 
 #[async_trait::async_trait]
 impl<I: Services> AgentRegistry for I {
-    async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
-        self.agent_registry().get_agents().await
-    }
-
-    async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<Agent>> {
-        self.agent_registry().get_agent(agent_id).await
-    }
-
-    async fn get_active_agent(&self) -> anyhow::Result<Option<Agent>> {
-        self.agent_registry().get_active_agent().await
-    }
-
     async fn get_active_agent_id(&self) -> anyhow::Result<Option<AgentId>> {
         self.agent_registry().get_active_agent_id().await
     }
 
     async fn set_active_agent_id(&self, agent_id: AgentId) -> anyhow::Result<()> {
         self.agent_registry().set_active_agent_id(agent_id).await
+    }
+
+    async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::Agent>> {
+        self.agent_registry().get_agents().await
+    }
+
+    async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<forge_domain::Agent>> {
+        self.agent_registry().get_agent(agent_id).await
+    }
+
+    async fn reload_agents(&self) -> anyhow::Result<()> {
+        self.agent_registry().reload_agents().await
     }
 }
 
@@ -985,7 +1001,11 @@ impl<I: Services> ProviderAuthService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> ContextEngineService for I {
-    async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> anyhow::Result<IndexStats> {
+    async fn sync_codebase(
+        &self,
+        path: PathBuf,
+        batch_size: usize,
+    ) -> anyhow::Result<FileUploadResponse> {
         self.context_engine_service()
             .sync_codebase(path, batch_size)
             .await
@@ -1023,7 +1043,7 @@ impl<I: Services> ContextEngineService for I {
         self.context_engine_service().is_authenticated().await
     }
 
-    async fn create_auth_credentials(&self) -> anyhow::Result<IndexingAuth> {
+    async fn create_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth> {
         self.context_engine_service()
             .create_auth_credentials()
             .await
