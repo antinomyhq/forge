@@ -21,6 +21,14 @@ pub struct Cli {
     #[arg(long, short = 'p')]
     pub prompt: Option<String>,
 
+    /// Piped input from stdin (populated internally)
+    ///
+    /// This field is automatically populated when content is piped to forge
+    /// via stdin. It's kept separate from the prompt to allow proper handling
+    /// as a droppable message.
+    #[arg(skip)]
+    pub piped_input: Option<String>,
+
     /// Path to a JSON file containing the conversation to execute.
     #[arg(long)]
     pub conversation: Option<PathBuf>,
