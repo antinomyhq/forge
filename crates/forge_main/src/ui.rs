@@ -1114,10 +1114,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let mut info = Info::new();
 
         for (name, server) in mcp_servers.mcp_servers {
+            let label = match server {
+                forge_domain::McpServerConfig::Stdio(_) => "Command",
+                forge_domain::McpServerConfig::Http(_) => "URL",
+            };
+
             info = info
                 .add_title(name.to_uppercase())
                 .add_key_value("Type", server.server_type())
-                .add_key_value("Command", server.to_string());
+                .add_key_value(label, server.to_string());
 
             if server.is_disabled() {
                 info = info.add_key_value("Status", "disabled");
