@@ -275,10 +275,10 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     }
     async fn set_default_model(
         &self,
-        agent_id: Option<AgentId>,
         model_id: ModelId,
+        provider_id: ProviderId,
     ) -> anyhow::Result<()> {
-        self.app().set_default_model(agent_id, model_id).await
+        self.services.set_default_model(model_id, provider_id).await
     }
 
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {
