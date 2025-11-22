@@ -241,14 +241,7 @@ mod tests {
     #[test]
     fn test_extract_metadata_with_name_and_description() {
         // Fixture
-        let content = r#"---
-name: "pdf-handler"
-description: "This is a skill for handling PDF files"
----
-
-# PDF Handler
-
-Content here..."#;
+        let content = include_str!("fixtures/skills/with_name_and_description.md");
 
         // Act
         let actual = extract_metadata(content);
@@ -264,11 +257,7 @@ Content here..."#;
     #[test]
     fn test_extract_metadata_with_name_only() {
         // Fixture
-        let content = r#"---
-name: "custom-skill-name"
----
-
-# Skill Content"#;
+        let content = include_str!("fixtures/skills/with_name_only.md");
 
         // Act
         let actual = extract_metadata(content);
@@ -281,11 +270,7 @@ name: "custom-skill-name"
     #[test]
     fn test_extract_metadata_with_description_only() {
         // Fixture
-        let content = r#"---
-description: "Just a description"
----
-
-# Skill Content"#;
+        let content = include_str!("fixtures/skills/with_description_only.md");
 
         // Act
         let actual = extract_metadata(content);
@@ -298,7 +283,7 @@ description: "Just a description"
     #[test]
     fn test_extract_metadata_no_front_matter() {
         // Fixture
-        let content = "# Skill Title\n\nContent without front matter.";
+        let content = include_str!("fixtures/skills/no_front_matter.md");
 
         // Act
         let actual = extract_metadata(content);
