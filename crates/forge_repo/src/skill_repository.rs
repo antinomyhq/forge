@@ -40,12 +40,15 @@ impl<I> ForgeSkillRepository<I> {
 
     /// Loads built-in skills that are embedded in the application
     fn load_builtin_skills(&self) -> Vec<Skill> {
-        vec![Skill::new(
-            "skill-creation",
-            "builtin://skills/skill-creation.md",
+        let builtin_skills = vec![(
+            "forge://skills/skill-creation.md",
             include_str!("skills/skill-creation.md"),
-            "Built-in skill for creating new skills",
-        )]
+        )];
+
+        builtin_skills
+            .into_iter()
+            .filter_map(|(path, content)| extract_skill(path, content))
+            .collect()
     }
 }
 
@@ -147,12 +150,7 @@ fn extract_skill(path: &str, content: &str) -> Option<Skill> {
         parsed
             .data
             .and_then(|data| data.name.zip(data.description))
-            .map(|(name, description)| Skill {
-                name,
-                path,
-                command,
-                description,
-            })
+            .map(|(name, description)| Skill { name, path, command, description })
     })
 }
 
@@ -236,8 +234,12 @@ mod tests {
 
         // Assert
         assert_eq!(actual.len(), 1);
-        assert_eq!(actual[0].name, "skill-creation");
+        assert_eq!(actual[0].name, "skill-creator");
         assert_eq!(actual[0].path, "builtin://skills/skill-creation.md");
+        assert_eq!(
+            actual[0].description,
+            "Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends your capabilities with specialized knowledge, workflows, or tool integrations."
+        );
         assert!(actual[0].command.contains("Skill Creator"));
         assert!(actual[0].command.contains("creating effective skills"));
     }
