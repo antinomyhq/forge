@@ -522,6 +522,22 @@ COMSPEC=cmd.exe                        # Command processor to use (Windows)
 
 </details>
 
+<details>
+<summary><strong>Inline Shell Configuration</strong></summary>
+
+Configure the behavior of inline shell commands execution:
+
+```bash
+# .env
+FORGE_INLINE_MAX_COMMANDS=10           # Maximum number of inline shell commands allowed per message (default: 10)
+FORGE_INLINE_COMMAND_TIMEOUT=120       # Maximum execution time in seconds for inline shell commands (default: 120)
+FORGE_INLINE_MAX_OUTPUT_LENGTH=32768   # Maximum output length for inline shell commands in characters (default: 32768)
+```
+
+**Usage Example**: Inline shell commands can be executed directly in chat messages using the format `![command]`, e.g., `![ls -la]` or `![git status]`.
+
+</details>
+
 The `forge.yaml` file supports several advanced configuration options that let you customize Forge's behavior.
 
 <details>
