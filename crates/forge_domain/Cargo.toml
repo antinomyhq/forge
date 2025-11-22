@@ -42,4 +42,3 @@ insta = { workspace = true, features = ["yaml"] }
 pretty_assertions.workspace = true
 is_ci.workspace = true
 fake = { version = "4.4.0", features = ["derive"] }
-proptest = "1.0"
