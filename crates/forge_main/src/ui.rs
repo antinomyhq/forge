@@ -2274,6 +2274,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         if should_continue.unwrap_or(false) {
             self.spinner.start(None)?;
             Box::pin(self.on_message(None)).await?;
+        } else {
+            // Ensure spinner is stopped even when user says "No"
+            self.spinner.stop(None)?;
         }
 
         Ok(())
