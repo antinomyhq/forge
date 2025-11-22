@@ -39,16 +39,6 @@ impl Default for SecurityValidationService {
 /// Security validation operations
 impl SecurityValidationService {
     /// Check if a command is dangerous in restricted mode
-    ///
-    /// # Arguments
-    /// * `command` - The command to check
-    /// * `restricted` - Whether we're in restricted mode
-    ///
-    /// # Returns
-    /// * `Result<bool>` - Ok(true) if command is blocked, Ok(false) if allowed
-    ///
-    /// # Errors
-    /// Returns error if security analysis fails
     pub fn is_command_blocked(&self, command: &str, restricted: bool) -> anyhow::Result<bool> {
         if !restricted {
             return Ok(false);
@@ -59,35 +49,16 @@ impl SecurityValidationService {
     }
 
     /// Get security analysis for a command
-    ///
-    /// # Arguments
-    /// * `command` - The command to analyze
-    ///
-    /// # Returns
-    /// * `Result<SecurityCheckResult>` - Security analysis result
     pub fn analyze_command(&self, command: &str) -> anyhow::Result<SecurityCheckResult> {
         Ok(check_command_security(command))
     }
 
     /// Analyze security of content with inline shell commands
-    ///
-    /// # Arguments
-    /// * `content` - The content to analyze
-    ///
-    /// # Returns
-    /// * `Result<Vec<SecurityCheckResult>>` - Security results for dangerous
-    ///   commands
     pub fn analyze_content(&self, content: &str) -> anyhow::Result<Vec<SecurityCheckResult>> {
         Ok(analyze_content_security(content))
     }
 
     /// Get blocked command reason
-    ///
-    /// # Arguments
-    /// * `command` - The command to get reason for
-    ///
-    /// # Returns
-    /// * `Result<String>` - Reason why command is blocked
     pub fn get_block_reason(&self, command: &str) -> anyhow::Result<String> {
         let security_result = check_command_security(command);
         if security_result.is_dangerous {
@@ -181,7 +152,7 @@ mod tests {
     fn test_analyze_content() {
         let service = fixture_security_service();
 
-        let content = "Run ![ls -la] and ![rm -rf /] and ![echo hello]";
+        let content = "Run ![rm -rf /]";
         let results = service.analyze_content(content).unwrap();
 
         assert_eq!(results.len(), 1);

@@ -22,9 +22,6 @@ pub struct CommandResult {
 
 impl CommandResult {
     /// Returns replacement text for inline command
-    ///
-    /// If the command succeeded (exit code 0), returns stdout.
-    /// If the command failed, returns an error message with stderr.
     pub fn replacement_text(&self) -> String {
         if self.exit_code == 0 {
             self.stdout.clone()
@@ -40,21 +37,8 @@ impl CommandResult {
 }
 
 /// Interface for executing inline shell commands
-/// This trait allows for different execution strategies
 pub trait InlineShellExecutor: Send + Sync {
     /// Executes multiple inline shell commands sequentially
-    ///
-    /// # Arguments
-    ///
-    /// * `commands` - List of inline shell commands to execute
-    /// * `working_dir` - Working directory for command execution
-    /// * `unrestricted` - Whether to use unrestricted mode (bypass rbash)
-    ///
-    /// Returns a list of command results in the same order as input
-    ///
-    /// # Errors
-    ///
-    /// Returns `InlineShellError` if any command execution fails
     fn execute_commands(
         &self,
         commands: Vec<InlineShellCommand>,
@@ -63,13 +47,6 @@ pub trait InlineShellExecutor: Send + Sync {
     ) -> impl std::future::Future<Output = Result<Vec<CommandResult>, InlineShellError>> + Send;
 
     /// Replaces inline commands in content with their execution results
-    ///
-    /// # Arguments
-    ///
-    /// * `content` - Original content with inline commands
-    /// * `results` - Results from executing the commands
-    ///
-    /// Returns content with all inline commands replaced by their results
     fn replace_commands_in_content(&self, content: &str, results: &[CommandResult]) -> String;
 }
 
@@ -103,19 +80,13 @@ mod tests {
 
     #[test]
     fn test_replacement_text_failure_with_stderr() {
-        let result = fixture_command_result(r"![false]", "false", "", "Command failed", 1);
-        assert_eq!(
-            result.replacement_text(),
-            "[Error: Command failed: Command failed]"
-        );
+        let result = fixture_command_result(r"![ls]", "ls", "", "No such file", 2);
+        assert_eq!(result.replacement_text(), "[Error: Command failed: No such file]");
     }
 
     #[test]
-    fn test_replacement_text_failure_without_stderr() {
+    fn test_replacement_text_failure_no_stderr() {
         let result = fixture_command_result(r"![false]", "false", "", "", 1);
-        assert_eq!(
-            result.replacement_text(),
-            "[Error: Command failed with exit code 1]"
-        );
+        assert_eq!(result.replacement_text(), "[Error: Command failed with exit code 1]");
     }
 }
