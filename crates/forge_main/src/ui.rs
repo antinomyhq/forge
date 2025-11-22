@@ -1601,11 +1601,23 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             "→".blue(),
             display_uri.blue().underline()
         ))?;
-        self.writeln(format!(
-            "{} Enter code: {}",
-            "→".blue(),
-            user_code.bold().yellow()
-        ))?;
+        // Try to copy code to clipboard automatically
+        match arboard::Clipboard::new().and_then(|mut clipboard| clipboard.set_text(user_code)) {
+            Ok(_) => {
+                self.writeln(format!(
+                    "{} Code copied to clipboard: {}",
+                    "✓".green().bold(),
+                    user_code.bold().yellow()
+                ))?;
+            }
+            Err(_) => {
+                self.writeln(format!(
+                    "{} Enter code: {}",
+                    "→".blue(),
+                    user_code.bold().yellow()
+                ))?;
+            }
+        }
         self.writeln("")?;
 
         // Try to open browser automatically
