@@ -39,6 +39,10 @@ impl<R: forge_domain::SkillRepository> SkillFetchService for ForgeSkillFetch<R> 
                 )
             })
     }
+
+    async fn list_skills(&self) -> anyhow::Result<Vec<Skill>> {
+        self.0.load_skills().await.context("Failed to load skills")
+    }
 }
 
 #[cfg(test)]
@@ -112,5 +116,32 @@ mod tests {
         assert!(actual.is_err());
         let error = actual.unwrap_err().to_string();
         assert!(error.contains("Skill 'unknown' not found"));
+    }
+
+    #[tokio::test]
+    async fn test_list_skills() {
+        // Fixture
+        let expected = vec![
+            Skill::new(
+                "pdf",
+                "/skills/pdf.md",
+                "Handle PDF files",
+                "PDF handling skill",
+            ),
+            Skill::new(
+                "xlsx",
+                "/skills/xlsx.md",
+                "Handle Excel files",
+                "Excel handling skill",
+            ),
+        ];
+        let repo = MockSkillRepository { skills: expected.clone() };
+        let fetch_service = ForgeSkillFetch::new(Arc::new(repo));
+
+        // Act
+        let actual = fetch_service.list_skills().await.unwrap();
+
+        // Assert
+        assert_eq!(actual, expected);
     }
 }

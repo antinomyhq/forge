@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, Conversation, Environment, Model, Skill, SystemContext, Template, ToolDefinition,
+    Agent, Conversation, Environment, Model, SystemContext, Template, ToolDefinition,
     ToolUsagePrompt,
 };
 use tracing::debug;
 
-use crate::TemplateService;
+use crate::{SkillFetchService, TemplateEngine};
 
 #[derive(Setters)]
 pub struct SystemPrompt<S> {
@@ -18,10 +18,9 @@ pub struct SystemPrompt<S> {
     files: Vec<String>,
     models: Vec<Model>,
     custom_instructions: Vec<String>,
-    skills: Vec<Skill>,
 }
 
-impl<S: TemplateService> SystemPrompt<S> {
+impl<S: SkillFetchService> SystemPrompt<S> {
     pub fn new(services: Arc<S>, environment: Environment, agent: Agent) -> Self {
         Self {
             services,
@@ -31,7 +30,6 @@ impl<S: TemplateService> SystemPrompt<S> {
             tool_definitions: Vec::default(),
             files: Vec::default(),
             custom_instructions: Vec::default(),
-            skills: Vec::default(),
         }
     }
 
@@ -63,6 +61,8 @@ impl<S: TemplateService> SystemPrompt<S> {
                 custom_rules.push(rule.as_str());
             });
 
+            let skills = self.services.list_skills().await?;
+
             let ctx = SystemContext {
                 env: Some(env),
                 tool_information,
@@ -70,17 +70,13 @@ impl<S: TemplateService> SystemPrompt<S> {
                 files,
                 custom_rules: custom_rules.join("\n\n"),
                 supports_parallel_tool_calls,
-                skills: self.skills.clone(),
+                skills,
             };
 
-            let static_block = self
-                .services
-                .render_template(Template::new(&system_prompt.template), &())
-                .await?;
-            let non_static_block = self
-                .services
-                .render_template(Template::new("{{> forge-custom-agent-template.md }}"), &ctx)
-                .await?;
+            let static_block = TemplateEngine::default()
+                .render_template(Template::new(&system_prompt.template), &())?;
+            let non_static_block = TemplateEngine::default()
+                .render_template(Template::new("{{> forge-custom-agent-template.md }}"), &ctx)?;
 
             context.set_system_messages(vec![static_block, non_static_block])
         } else {
@@ -130,28 +126,28 @@ impl<S: TemplateService> SystemPrompt<S> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
     use std::sync::Arc;
 
     use fake::Fake;
-    use forge_domain::{Agent, Environment, Skill};
+    use forge_domain::{Agent, Environment};
 
     use super::*;
 
-    struct MockTemplateService;
+    struct MockSkillFetchService;
 
     #[async_trait::async_trait]
-    impl TemplateService for MockTemplateService {
-        async fn render_template<T: serde::Serialize + Sync + Send>(
-            &self,
-            _template: Template<T>,
-            _context: &T,
-        ) -> anyhow::Result<String> {
-            Ok(String::new())
+    impl SkillFetchService for MockSkillFetchService {
+        async fn fetch_skill(&self, _skill_name: String) -> anyhow::Result<forge_domain::Skill> {
+            Ok(forge_domain::Skill::new(
+                "test_skill",
+                "/skills/test.md",
+                "Test skill",
+                "Test skill description",
+            ))
         }
 
-        async fn register_template(&self, _path: PathBuf) -> anyhow::Result<()> {
-            Ok(())
+        async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
+            Ok(vec![])
         }
     }
 
@@ -170,27 +166,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_system_prompt_with_skills() {
+    async fn test_system_prompt_adds_context() {
         // Fixture
-        let services = Arc::new(MockTemplateService);
+        let services = Arc::new(MockSkillFetchService);
         let env = create_test_environment();
         let agent = create_test_agent();
-        let skills = vec![
-            Skill::new(
-                "code_review",
-                "/skills/code_review.md",
-                "Review code",
-                "Code review skill",
-            ),
-            Skill::new(
-                "testing",
-                "/skills/testing.md",
-                "Write tests",
-                "Testing skill",
-            ),
-        ];
-
-        let system_prompt = SystemPrompt::new(services, env, agent).skills(skills.clone());
+        let system_prompt = SystemPrompt::new(services, env, agent);
 
         // Act - create a conversation and add system message
         let conversation = forge_domain::Conversation::generate();
