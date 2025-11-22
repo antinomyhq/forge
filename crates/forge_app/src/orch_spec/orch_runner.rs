@@ -16,7 +16,7 @@ use crate::orch::Orchestrator;
 use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::user_prompt::UserPromptGenerator;
-use crate::{AgentService, AttachmentService, TemplateService};
+use crate::{AgentService, AttachmentService, ConcreteInlineShellExecutor, TemplateService};
 
 #[derive(Embed)]
 #[folder = "../../templates/"]
@@ -34,9 +34,14 @@ pub struct Runner {
     test_completions: Mutex<VecDeque<ChatCompletionMessage>>,
 
     attachments: Vec<Attachment>,
+    prompt_processor: Arc<crate::ForgePromptProcessor>,
 }
 
 impl Runner {
+    fn prompt_processor(&self) -> Arc<crate::ForgePromptProcessor> {
+        Arc::clone(&self.prompt_processor)
+    }
+
     fn new(setup: &TestContext) -> Self {
         let mut hb = Handlebars::new();
         hb.set_strict_mode(true);
@@ -48,12 +53,106 @@ impl Runner {
             hb.register_template_string(name, tpl).unwrap();
         }
 
+        // Create inline shell executor - for testing we need a simple infrastructure
+        // mock Since we can't access the test mock, we'll create a minimal one
+        // here
+        use std::collections::HashMap;
+
+        struct SimpleCommandInfra {
+            responses: HashMap<String, forge_domain::CommandOutput>,
+        }
+
+        impl SimpleCommandInfra {
+            fn new() -> Self {
+                let mut responses = HashMap::new();
+                responses.insert(
+                    "date".to_string(),
+                    forge_domain::CommandOutput {
+                        command: "date".to_string(),
+                        stdout: "2025-01-01".to_string(),
+                        stderr: String::new(),
+                        exit_code: Some(0),
+                    },
+                );
+                responses.insert(
+                    "pwd".to_string(),
+                    forge_domain::CommandOutput {
+                        command: "pwd".to_string(),
+                        stdout: "/test".to_string(),
+                        stderr: String::new(),
+                        exit_code: Some(0),
+                    },
+                );
+                Self { responses }
+            }
+        }
+
+        #[async_trait::async_trait]
+        impl crate::infra::CommandInfra for SimpleCommandInfra {
+            async fn execute_command(
+                &self,
+                command: String,
+                _working_dir: std::path::PathBuf,
+                _silent: bool,
+                _env_vars: Option<Vec<String>>,
+            ) -> Result<forge_domain::CommandOutput, anyhow::Error> {
+                // Return mock response for known commands
+                if let Some(output) = self.responses.get(&command) {
+                    Ok(forge_domain::CommandOutput {
+                        command: output.command.clone(),
+                        stdout: output.stdout.clone(),
+                        stderr: output.stderr.clone(),
+                        exit_code: output.exit_code,
+                    })
+                } else {
+                    // Default response for unknown commands
+                    Ok(forge_domain::CommandOutput {
+                        command: command.clone(),
+                        stdout: String::new(),
+                        stderr: format!("Command not found: {}", command),
+                        exit_code: Some(1),
+                    })
+                }
+            }
+
+            async fn execute_command_raw(
+                &self,
+                command: &str,
+                _working_dir: std::path::PathBuf,
+                _env_vars: Option<Vec<String>>,
+            ) -> Result<std::process::ExitStatus, anyhow::Error> {
+                use std::os::unix::process::ExitStatusExt;
+                use std::process::ExitStatus;
+
+                // For mock, just return a successful exit status for known commands
+                if self.responses.contains_key(command) {
+                    Ok(ExitStatus::from_raw(0))
+                } else {
+                    Ok(ExitStatus::from_raw(1))
+                }
+            }
+        }
+
+        let inline_shell_executor = Arc::new(ConcreteInlineShellExecutor::new(
+            std::sync::Arc::new(SimpleCommandInfra::new()),
+            forge_domain::Environment::default(),
+        ));
+
+        // Create PromptProcessor for testing
+        use crate::{ForgePromptProcessor, SecurityValidationService};
+        let security_validation_service = SecurityValidationService::new();
+        let prompt_processor = Arc::new(ForgePromptProcessor::new(
+            security_validation_service,
+            inline_shell_executor.clone(),
+        ));
+
         Self {
             hb,
             attachments: setup.attachments.clone(),
             conversation_history: Mutex::new(Vec::new()),
             test_tool_calls: Mutex::new(VecDeque::from(setup.mock_tool_call_responses.clone())),
             test_completions: Mutex::new(VecDeque::from(setup.mock_assistant_responses.clone())),
+            prompt_processor,
         }
     }
 
@@ -86,11 +185,16 @@ impl Runner {
             .model(setup.model.clone());
 
         // Render system prompt into context.
-        let conversation = SystemPrompt::new(services.clone(), setup.env.clone(), agent.clone())
-            .files(setup.files.clone())
-            .tool_definitions(system_tools.clone())
-            .add_system_message(conversation)
-            .await?;
+        let conversation = SystemPrompt::new(
+            services.clone(),
+            setup.env.clone(),
+            agent.clone(),
+            services.prompt_processor(),
+        )
+        .files(setup.files.clone())
+        .tool_definitions(system_tools.clone())
+        .add_system_message(conversation)
+        .await?;
 
         // Render user prompt into context.
         let conversation = UserPromptGenerator::new(

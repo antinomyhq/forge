@@ -4,7 +4,8 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use forge_app::domain::Command;
 use forge_app::{
-    DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
+    CommandLoaderService as CommandLoaderServiceTrait, DirectoryReaderInfra, EnvironmentInfra,
+    FileInfoInfra, FileReaderInfra, FileWriterInfra, PromptProcessor, SecurityContext,
 };
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
@@ -24,9 +25,132 @@ impl<F> CommandLoaderService<F> {
     }
 }
 
+/// Simplified command loader service that uses PromptProcessor for inline
+/// command processing
+#[allow(dead_code)]
+pub struct ForgeCommandLoaderService<F> {
+    infra: Arc<F>,
+    prompt_processor: Arc<dyn PromptProcessor>,
+    cache: tokio::sync::OnceCell<Vec<Command>>,
+}
+
+impl<F> ForgeCommandLoaderService<F>
+where
+    F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra,
+{
+    pub fn new(infra: Arc<F>, prompt_processor: Arc<dyn PromptProcessor>) -> Self {
+        Self { infra, prompt_processor, cache: Default::default() }
+    }
+
+    /// Load all command definitions with caching support
+    async fn cache_or_init(&self) -> anyhow::Result<Vec<Command>> {
+        self.cache.get_or_try_init(|| self.init()).await.cloned()
+    }
+
+    async fn init(&self) -> anyhow::Result<Vec<Command>> {
+        // Load built-in commands
+        let mut commands = vec![];
+
+        // Load custom commands from global directory
+        let dir = self.infra.get_environment().command_path();
+        let custom_commands = self.init_command_dir(&dir).await?;
+        commands.extend(custom_commands);
+
+        // Load custom commands from CWD
+        let dir = self.infra.get_environment().command_cwd_path();
+        let cwd_commands = self.init_command_dir(&dir).await?;
+
+        commands.extend(cwd_commands);
+
+        // Handle command name conflicts by keeping the last occurrence
+        // This gives precedence order: CWD > Global Custom > Built-in
+        Ok(resolve_command_conflicts(commands))
+    }
+
+    async fn init_command_dir(&self, dir: &std::path::Path) -> anyhow::Result<Vec<Command>> {
+        if !self.infra.exists(dir).await? {
+            return Ok(vec![]);
+        }
+
+        // Use DirectoryReaderInfra to read all .md files in parallel
+        let files = self
+            .infra
+            .read_directory_files(dir, Some("*.md"))
+            .await
+            .with_context(|| format!("Failed to read commands from: {}", dir.display()))?;
+
+        parse_command_iter_with_prompt_processor(
+            files.into_iter().map(|(path, content)| {
+                let name = path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("unknown")
+                    .to_string();
+                (name, content, dir.to_path_buf())
+            }),
+            &self.prompt_processor,
+        )
+        .await
+    }
+
+    /// Parse a single command file content and process inline commands
+    #[allow(dead_code)]
+    async fn parse_command_file(&self, content: &str, cwd: std::path::PathBuf) -> Result<Command> {
+        // Parse the frontmatter using gray_matter with type-safe deserialization
+        let gray_matter = Matter::<YAML>::new();
+        let result = gray_matter.parse::<Command>(content)?;
+
+        // Extract the frontmatter
+        let mut command = result.data.context("Empty command frontmatter")?;
+
+        // Process prompt content with inline commands if present
+        if !result.content.is_empty() {
+            // Create security context for custom commands
+            // Allow basic safe commands for custom command templates
+            let allowed_commands = vec![
+                "git".to_string(),
+                "cat".to_string(),
+                "ls".to_string(),
+                "find".to_string(),
+                "which".to_string(),
+                "type".to_string(),
+                "man".to_string(),
+                "head".to_string(),
+                "tail".to_string(),
+                "grep".to_string(),
+                "wc".to_string(),
+                "sort".to_string(),
+                "uniq".to_string(),
+            ];
+
+            let security_context = SecurityContext::custom_command(cwd, allowed_commands);
+
+            // Process inline commands in the prompt content
+            let processed_prompt = self
+                .prompt_processor
+                .process_inline_commands(&result.content, &security_context)
+                .await
+                .context("Failed to process inline commands in custom command")?;
+
+            command = command.prompt(processed_prompt);
+        }
+
+        Ok(command)
+    }
+}
+
 #[async_trait::async_trait]
 impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
-    forge_app::CommandLoaderService for CommandLoaderService<F>
+    CommandLoaderServiceTrait for ForgeCommandLoaderService<F>
+{
+    async fn get_commands(&self) -> anyhow::Result<Vec<Command>> {
+        self.cache_or_init().await
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra>
+    CommandLoaderServiceTrait for CommandLoaderService<F>
 {
     async fn get_commands(&self) -> anyhow::Result<Vec<Command>> {
         self.cache_or_init().await
@@ -99,6 +223,42 @@ fn resolve_command_conflicts(commands: Vec<Command>) -> Vec<Command> {
     // Convert back to vector (order is not guaranteed but doesn't matter for the
     // service)
     command_map.into_values().collect()
+}
+
+async fn parse_command_iter_with_prompt_processor<I, Path: AsRef<str>, Content: AsRef<str>>(
+    contents: I,
+    _prompt_processor: &Arc<dyn PromptProcessor>,
+) -> anyhow::Result<Vec<Command>>
+where
+    I: Iterator<Item = (Path, Content, std::path::PathBuf)>,
+{
+    let mut commands = vec![];
+
+    for (name, content, _cwd) in contents {
+        // Parse the frontmatter using gray_matter with type-safe deserialization
+        let gray_matter = Matter::<YAML>::new();
+        let result = gray_matter
+            .parse::<Command>(content.as_ref())
+            .with_context(|| format!("Failed to parse command: {}", name.as_ref()))?;
+
+        // Extract the frontmatter
+        let mut command = result
+            .data
+            .context("Empty command frontmatter")
+            .with_context(|| format!("Failed to parse command: {}", name.as_ref()))?;
+
+        // Process prompt content with inline commands if present
+        if !result.content.is_empty() {
+            // Store raw content without inline command processing during loading
+            // Inline commands should be processed during command execution, not during
+            // loading
+            command = command.prompt(result.content);
+        }
+
+        commands.push(command);
+    }
+
+    Ok(commands)
 }
 
 fn parse_command_iter<I, Path: AsRef<str>, Content: AsRef<str>>(

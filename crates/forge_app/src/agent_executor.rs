@@ -20,7 +20,10 @@ pub struct AgentExecutor<S> {
 
 impl<S: Services> AgentExecutor<S> {
     pub fn new(services: Arc<S>) -> Self {
-        Self { services, tool_agents: Arc::new(RwLock::new(None)) }
+        Self {
+            services,
+            tool_agents: Arc::new(RwLock::new(None)),
+        }
     }
 
     /// Returns a list of tool definitions for all available agents.
@@ -62,7 +65,10 @@ impl<S: Services> AgentExecutor<S> {
         let mut response_stream = app
             .chat(
                 agent_id.clone(),
-                ChatRequest::new(Event::new(task.clone()), conversation.id),
+                ChatRequest::new(
+                    Event::new(&task),
+                    conversation.id,
+                ),
             )
             .await?;
 

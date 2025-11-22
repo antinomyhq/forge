@@ -16,6 +16,7 @@ mod preferences;
 mod provider;
 mod provider_auth;
 mod range;
+mod security_validation;
 mod template;
 mod tool_services;
 mod utils;
@@ -30,6 +31,7 @@ pub use forge_services::*;
 pub use policy::*;
 pub use preferences::*;
 pub use provider_auth::*;
+pub use security_validation::*;
 
 /// Converts a type from its external representation into its domain model
 /// representation.

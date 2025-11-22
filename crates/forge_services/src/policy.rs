@@ -11,6 +11,7 @@ use forge_app::{
     DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
     PolicyDecision, PolicyService, UserInfra,
 };
+use forge_domain::inline_shell::ports::PolicyRepository;
 use lazy_static::lazy_static;
 use strum_macros::{Display, EnumIter};
 
@@ -264,6 +265,50 @@ fn create_policy_for_operation(
                 }),
             }
         }
+    }
+}
+
+/// Implementation of PolicyRepository port for ForgePolicyService
+impl<I> PolicyRepository for ForgePolicyService<I>
+where
+    I: FileReaderInfra
+        + FileWriterInfra
+        + FileInfoInfra
+        + EnvironmentInfra
+        + DirectoryReaderInfra
+        + Send
+        + Sync,
+    ForgePolicyService<I>: PolicyService,
+{
+    /// Check if an operation is allowed based on policies
+    async fn check_operation_permission(
+        &self,
+        operation: &forge_domain::PermissionOperation,
+    ) -> anyhow::Result<forge_domain::inline_shell::ports::policy_repository::PolicyDecision> {
+        // Use existing implementation and convert to domain type
+        let decision = PolicyService::check_operation_permission(self, operation).await?;
+
+        Ok(
+            forge_domain::inline_shell::ports::policy_repository::PolicyDecision {
+                allowed: decision.allowed,
+                path: decision.path,
+            },
+        )
+    }
+
+    /// Load all policy definitions
+    async fn load_policies(&self) -> anyhow::Result<Option<forge_domain::PolicyConfig>> {
+        // Convert domain operation to app domain operation
+        // For now, return None as this is handled by the service itself
+        Ok(None)
+    }
+
+    /// Add or modify a policy
+    async fn save_policy(&self, _policy: forge_domain::Policy) -> anyhow::Result<()> {
+        // Convert domain policy to app domain policy
+        // This would require conversion between domain types
+        // For now, this is a placeholder implementation
+        todo!("Implement save_policy for domain Policy")
     }
 }
 

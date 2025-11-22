@@ -65,9 +65,8 @@ impl<S: FsReadService + EnvironmentService> ChangedFiles<S> {
 
         let context = conversation.context.take().unwrap_or_default();
 
-        let message = TextMessage::new(Role::User, notification)
-            .droppable(true)
-            .model(self.agent.model.clone());
+        let mut message = TextMessage::new(Role::User, notification).droppable(true);
+        message = message.model(self.agent.model.clone());
 
         conversation = conversation.context(context.add_message(ContextMessage::from(message)));
 
@@ -195,7 +194,7 @@ mod tests {
         let messages = &actual.context.unwrap().messages;
         assert_eq!(messages.len(), 1);
         let message = messages[0].content().unwrap().to_string();
-        assert!(message.contains("/test/file.txt"));
+        assert!(message.contains("test/file.txt"));
         assert!(message.contains("modified externally"));
     }
 

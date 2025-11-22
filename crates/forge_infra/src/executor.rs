@@ -2,7 +2,6 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use forge_app::CommandInfra;
 use forge_domain::{CommandOutput, Environment};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
@@ -160,9 +159,10 @@ async fn stream<A: AsyncReadExt + Unpin, W: Write>(
     Ok(output)
 }
 
-/// The implementation for CommandExecutorService
+/// Implementation of domain CommandExecutor port
 #[async_trait::async_trait]
-impl CommandInfra for ForgeCommandExecutorService {
+impl forge_domain::inline_shell::ports::CommandExecutor for ForgeCommandExecutorService {
+    /// Executes a shell command and returns output
     async fn execute_command(
         &self,
         command: String,
@@ -174,6 +174,7 @@ impl CommandInfra for ForgeCommandExecutorService {
             .await
     }
 
+    /// Execute shell command on present stdio
     async fn execute_command_raw(
         &self,
         command: &str,
@@ -194,7 +195,7 @@ impl CommandInfra for ForgeCommandExecutorService {
 
 #[cfg(test)]
 mod tests {
-
+    use forge_domain::inline_shell::ports::CommandExecutor;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -241,6 +242,7 @@ mod tests {
         assert_eq!(actual.stderr, expected.stderr);
         assert_eq!(actual.success(), expected.success());
     }
+
     #[tokio::test]
     async fn test_command_executor_with_env_vars_success() {
         // Set up test environment variables

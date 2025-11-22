@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use forge_app::{
-    AgentRepository, CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
-    FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, KVStore,
-    McpServerInfra, Services, StrategyFactory, UserInfra, WalkerInfra,
+    AgentRepository, CommandInfra, ConcreteInlineShellExecutor, DirectoryReaderInfra,
+    EnvironmentInfra, EnvironmentService, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
+    FileRemoverInfra, FileWriterInfra, ForgePromptProcessor, HttpInfra, KVStore, McpServerInfra,
+    Services, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
     AppConfigRepository, ConversationRepository, ProviderRepository, SnapshotRepository,
@@ -13,7 +14,7 @@ use crate::ForgeProviderAuthService;
 use crate::agent_registry::ForgeAgentRegistryService;
 use crate::attachment::ForgeChatRequest;
 use crate::auth::ForgeAuthService;
-use crate::command_loader::CommandLoaderService as ForgeCommandLoaderService;
+use crate::command_loader::ForgeCommandLoaderService;
 use crate::conversation::ForgeConversationService;
 use crate::custom_instructions::ForgeCustomInstructionsService;
 use crate::discovery::ForgeDiscoveryService;
@@ -79,6 +80,8 @@ pub struct ForgeServices<
     command_loader_service: Arc<ForgeCommandLoaderService<F>>,
     policy_service: ForgePolicyService<F>,
     provider_auth_service: ForgeProviderAuthService<F>,
+    inline_shell_executor: Arc<ConcreteInlineShellExecutor>,
+    prompt_processor: Arc<ForgePromptProcessor>,
 }
 
 impl<
@@ -126,9 +129,24 @@ impl<
         let custom_instructions_service =
             Arc::new(ForgeCustomInstructionsService::new(infra.clone()));
         let agent_registry_service = Arc::new(ForgeAgentRegistryService::new(infra.clone()));
-        let command_loader_service = Arc::new(ForgeCommandLoaderService::new(infra.clone()));
         let policy_service = ForgePolicyService::new(infra.clone());
         let provider_auth_service = ForgeProviderAuthService::new(infra.clone());
+        let environment = env_service.get_environment();
+        let inline_shell_executor =
+            Arc::new(ConcreteInlineShellExecutor::new(infra.clone(), environment));
+
+        // Create PromptProcessor with required dependencies
+        use forge_app::{ForgePromptProcessor, SecurityValidationService};
+        let security_validation_service = SecurityValidationService::new();
+        let prompt_processor = Arc::new(ForgePromptProcessor::new(
+            security_validation_service,
+            inline_shell_executor.clone(),
+        ));
+
+        let command_loader_service = Arc::new(ForgeCommandLoaderService::new(
+            infra.clone(),
+            prompt_processor.clone(),
+        ));
 
         Self {
             conversation_service,
@@ -158,6 +176,8 @@ impl<
             command_loader_service,
             policy_service,
             provider_auth_service,
+            inline_shell_executor,
+            prompt_processor,
         }
     }
 }
@@ -218,6 +238,8 @@ impl<
     type AgentRegistry = ForgeAgentRegistryService<F>;
     type CommandLoaderService = ForgeCommandLoaderService<F>;
     type PolicyService = ForgePolicyService<F>;
+    type InlineShellExecutor = ConcreteInlineShellExecutor;
+    type PromptProcessor = ForgePromptProcessor;
 
     fn provider_service(&self) -> &Self::ProviderService {
         &self.chat_service
@@ -319,5 +341,13 @@ impl<
     }
     fn image_read_service(&self) -> &Self::ImageReadService {
         &self.image_read_service
+    }
+
+    fn inline_shell_executor(&self) -> Arc<Self::InlineShellExecutor> {
+        Arc::clone(&self.inline_shell_executor)
+    }
+
+    fn prompt_processor(&self) -> Arc<Self::PromptProcessor> {
+        Arc::clone(&self.prompt_processor)
     }
 }

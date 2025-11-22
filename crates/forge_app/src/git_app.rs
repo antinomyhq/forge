@@ -1,10 +1,11 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_domain::*;
 use forge_template::Element;
 
+use crate::services::{PromptProcessor, SecurityContext};
 use crate::{
     AgentProviderResolver, AgentRegistry, AppConfigService, EnvironmentService,
     ProviderAuthService, ProviderService, ShellService, TemplateService,
@@ -20,6 +21,7 @@ pub enum GitAppError {
 /// GitApp handles git-related operations like commit message generation.
 pub struct GitApp<S> {
     services: Arc<S>,
+    prompt_processor: Arc<dyn PromptProcessor>,
 }
 
 /// Result of a commit operation
@@ -49,13 +51,13 @@ struct DiffContext {
     branch_name: String,
     recent_commits: String,
     has_staged_files: bool,
-    additional_context: Option<String>,
+    cwd: PathBuf,
 }
 
 impl<S> GitApp<S> {
     /// Creates a new GitApp instance with the provided services.
-    pub fn new(services: Arc<S>) -> Self {
-        Self { services }
+    pub fn new(services: Arc<S>, prompt_processor: Arc<dyn PromptProcessor>) -> Self {
+        Self { services, prompt_processor }
     }
 
     /// Truncates diff content if it exceeds the maximum size
@@ -98,8 +100,6 @@ where
     ///   unlimited.
     /// * `diff` - Optional diff content provided via pipe. If provided, this
     ///   diff is used instead of fetching from git.
-    /// * `additional_context` - Optional additional text to help structure the
-    ///   commit message
     ///
     /// # Errors
     ///
@@ -108,10 +108,9 @@ where
         &self,
         max_diff_size: Option<usize>,
         diff: Option<String>,
-        additional_context: Option<String>,
     ) -> Result<CommitResult> {
         let CommitMessageDetails { message, has_staged_files } = self
-            .generate_commit_message(max_diff_size, diff, additional_context)
+            .generate_commit_message(max_diff_size, diff)
             .await?;
 
         Ok(CommitResult { message, committed: false, has_staged_files })
@@ -152,7 +151,6 @@ where
         &self,
         max_diff_size: Option<usize>,
         diff: Option<String>,
-        additional_context: Option<String>,
     ) -> Result<CommitMessageDetails> {
         // Get current working directory
         let cwd = self.services.get_environment().cwd;
@@ -178,7 +176,7 @@ where
             branch_name,
             recent_commits,
             has_staged_files,
-            additional_context,
+            cwd: cwd.clone(),
         })
         .await
     }
@@ -253,21 +251,27 @@ where
 
         // Build git diff content with optional truncation notice
         // Build user message using Element
-        let mut user_message = Element::new("user_message")
+        let _user_message = Element::new("user_message")
             .append(Element::new("branch_name").text(&ctx.branch_name))
             .append(Element::new("recent_commit_messages").text(&ctx.recent_commits))
             .append(Element::new("git_diff").cdata(&ctx.diff_content));
 
-        // Add additional context if provided
-        if let Some(additional_context) = &ctx.additional_context {
-            user_message =
-                user_message.append(Element::new("additional_context").text(additional_context));
-        }
+        let user_content = format!(
+            "<branch_name>\n{}\n</branch_name>\n\n<recent_commit_messages>\n{}\n</recent_commit_messages>\n\n<git_diff>\n{}</git_diff>",
+            ctx.branch_name, ctx.recent_commits, ctx.diff_content
+        );
+
+        // Process inline commands in user content with GitOperation security context
+        let security_context = SecurityContext::git_operation(ctx.cwd.clone());
+        let processed_user_content = self
+            .prompt_processor
+            .process_inline_commands(&user_content, &security_context)
+            .await?;
 
         let context = forge_domain::Context::default()
             .add_message(ContextMessage::system(rendered_prompt))
             .add_message(ContextMessage::user(
-                user_message.to_string(),
+                processed_user_content,
                 Some(model.clone()),
             ));
 
