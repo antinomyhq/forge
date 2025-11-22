@@ -30,32 +30,6 @@ impl<R: SkillRepository> SkillService<R> {
     pub async fn load_skills(&self) -> anyhow::Result<Vec<Skill>> {
         self.repository.load_skills().await
     }
-
-    /// Formats skills for inclusion in the system prompt
-    ///
-    /// Returns a formatted string with skill names and paths suitable for
-    /// adding to the system prompt.
-    ///
-    /// # Errors
-    /// Returns an error if skill loading fails
-    pub async fn format_skills_for_prompt(&self) -> anyhow::Result<String> {
-        let skills = self.load_skills().await?;
-
-        if skills.is_empty() {
-            return Ok(String::new());
-        }
-
-        let mut formatted = String::from("## Available Skills\n\n");
-
-        for skill in skills {
-            formatted.push_str(&format!(
-                "### {}\n**Path**: `{}`\n\n{}\n\n",
-                skill.name, skill.path, skill.prompt
-            ));
-        }
-
-        Ok(formatted)
-    }
 }
 
 #[cfg(test)]
@@ -108,43 +82,5 @@ mod tests {
         assert_eq!(actual.len(), 2);
         assert_eq!(actual[0].name, "code_review");
         assert_eq!(actual[1].name, "testing");
-    }
-
-    #[tokio::test]
-    async fn test_format_skills_for_prompt_empty() {
-        // Fixture
-        let repo = Arc::new(MockSkillRepository { skills: vec![] });
-        let service = SkillService::new(repo);
-
-        // Act
-        let actual = service.format_skills_for_prompt().await.unwrap();
-
-        // Assert
-        let expected = String::new();
-        assert_eq!(actual, expected);
-    }
-
-    #[tokio::test]
-    async fn test_format_skills_for_prompt_with_skills() {
-        // Fixture
-        let skills = vec![
-            Skill::new("code_review", "/skills/code_review.md", "Review code"),
-            Skill::new("testing", "/skills/testing.md", "Write tests"),
-        ];
-        let repo = Arc::new(MockSkillRepository { skills });
-        let service = SkillService::new(repo);
-
-        // Act
-        let actual = service.format_skills_for_prompt().await.unwrap();
-
-        // Assert
-        let expected = "## Available Skills\n\n\
-            ### code_review\n\
-            **Path**: `/skills/code_review.md`\n\n\
-            Review code\n\n\
-            ### testing\n\
-            **Path**: `/skills/testing.md`\n\n\
-            Write tests\n\n";
-        assert_eq!(actual, expected);
     }
 }
