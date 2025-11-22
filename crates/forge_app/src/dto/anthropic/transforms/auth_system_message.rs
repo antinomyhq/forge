@@ -51,7 +51,9 @@ mod tests {
 
     use super::*;
 
-    const AUTH_MESSAGE: &str = include_str!("claude_code.md");
+    async fn load_auth_message() -> String {
+        forge_test_kit::fixture!("/src/dto/anthropic/transforms/claude_code.md").await
+    }
 
     fn create_request_with_system_messages(system_count: usize) -> Request {
         let mut messages = Vec::new();
@@ -85,23 +87,25 @@ mod tests {
         Request::try_from(context).unwrap()
     }
 
-    #[test]
-    fn test_enabled_adds_auth_message() {
+    #[tokio::test]
+    async fn test_enabled_adds_auth_message() {
+        let auth_message = load_auth_message().await;
         let fixture = create_request_with_system_messages(0);
-        let mut transformer = AuthSystemMessage::new(AUTH_MESSAGE.to_string()).when(|_| true);
+        let mut transformer = AuthSystemMessage::new(auth_message.clone()).when(|_| true);
 
         let actual = transformer.transform(fixture);
 
         let system_messages = actual.system.unwrap();
         assert_eq!(system_messages.len(), 1);
-        assert_eq!(system_messages[0].text, AUTH_MESSAGE.trim());
+        assert_eq!(system_messages[0].text, auth_message.trim());
         assert_eq!(system_messages[0].r#type, "text");
     }
 
-    #[test]
-    fn test_disabled_does_not_add_auth_message() {
+    #[tokio::test]
+    async fn test_disabled_does_not_add_auth_message() {
+        let auth_message = load_auth_message().await;
         let fixture = create_request_with_system_messages(0);
-        let mut transformer = AuthSystemMessage::new(AUTH_MESSAGE.to_string()).when(|_| false);
+        let mut transformer = AuthSystemMessage::new(auth_message).when(|_| false);
 
         let actual = transformer.transform(fixture);
 
@@ -110,10 +114,11 @@ mod tests {
         assert_eq!(system_messages.len(), 0);
     }
 
-    #[test]
-    fn test_prepends_to_existing_system_messages() {
+    #[tokio::test]
+    async fn test_prepends_to_existing_system_messages() {
+        let auth_message = load_auth_message().await;
         let fixture = create_request_with_system_messages(2);
-        let mut transformer = AuthSystemMessage::new(AUTH_MESSAGE.to_string()).when(|_| true);
+        let mut transformer = AuthSystemMessage::new(auth_message.clone()).when(|_| true);
 
         let actual = transformer.transform(fixture);
 
@@ -121,7 +126,7 @@ mod tests {
         assert_eq!(system_messages.len(), 3);
 
         // Auth message should be first
-        assert_eq!(system_messages[0].text, AUTH_MESSAGE.trim());
+        assert_eq!(system_messages[0].text, auth_message.trim());
         assert_eq!(system_messages[0].r#type, "text");
 
         // Existing messages should follow
@@ -129,10 +134,11 @@ mod tests {
         assert_eq!(system_messages[2].text, "System message 1");
     }
 
-    #[test]
-    fn test_auth_message_content_matches_file() {
+    #[tokio::test]
+    async fn test_auth_message_content_matches_file() {
+        let auth_message = load_auth_message().await;
         let fixture = create_request_with_system_messages(0);
-        let mut transformer = AuthSystemMessage::new(AUTH_MESSAGE.to_string()).when(|_| true);
+        let mut transformer = AuthSystemMessage::new(auth_message).when(|_| true);
 
         let actual = transformer.transform(fixture);
 
@@ -141,25 +147,27 @@ mod tests {
         assert_eq!(system_messages[0].text, expected_content);
     }
 
-    #[test]
-    fn test_with_one_existing_system_message() {
+    #[tokio::test]
+    async fn test_with_one_existing_system_message() {
+        let auth_message = load_auth_message().await;
         let fixture = create_request_with_system_messages(1);
-        let mut transformer = AuthSystemMessage::new(AUTH_MESSAGE.to_string()).when(|_| true);
+        let mut transformer = AuthSystemMessage::new(auth_message.clone()).when(|_| true);
 
         let actual = transformer.transform(fixture);
 
         let system_messages = actual.system.unwrap();
         assert_eq!(system_messages.len(), 2);
-        assert_eq!(system_messages[0].text, AUTH_MESSAGE.trim());
+        assert_eq!(system_messages[0].text, auth_message.trim());
         assert_eq!(system_messages[1].text, "System message 0");
     }
 
-    #[test]
-    fn test_disabled_preserves_existing_system_messages() {
+    #[tokio::test]
+    async fn test_disabled_preserves_existing_system_messages() {
+        let auth_message = load_auth_message().await;
         let fixture = create_request_with_system_messages(2);
         let expected_count = fixture.system.as_ref().unwrap().len();
 
-        let mut transformer = AuthSystemMessage::new(AUTH_MESSAGE.to_string()).when(|_| false);
+        let mut transformer = AuthSystemMessage::new(auth_message).when(|_| false);
         let actual = transformer.transform(fixture);
 
         let system_messages = actual.system.unwrap();
