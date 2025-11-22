@@ -71,7 +71,7 @@ pub enum ProviderResponse {
 /// Represents the source of models for a provider
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum Models<T> {
+pub enum ModelSource<T> {
     /// Can be a `Url` or a `Template`
     Url(T),
     Hardcoded(Vec<Model>),
@@ -84,7 +84,7 @@ pub struct Provider<T> {
     pub provider_type: ProviderType,
     pub response: Option<ProviderResponse>,
     pub url: T,
-    pub models: Option<Models<T>>,
+    pub models: Option<ModelSource<T>>,
     pub auth_methods: Vec<crate::AuthMethod>,
     #[serde(default)]
     pub url_params: Vec<crate::URLParam>,
@@ -95,7 +95,7 @@ impl<T> Provider<T> {
     pub fn is_configured(&self) -> bool {
         self.credential.is_some()
     }
-    pub fn models(&self) -> Option<&Models<T>> {
+    pub fn models(&self) -> Option<&ModelSource<T>> {
         self.models.as_ref()
     }
 }
@@ -203,7 +203,7 @@ mod test_helpers {
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::Zai, key),
-            models: Some(Models::Url(
+            models: Some(ModelSource::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             )),
         }
@@ -219,7 +219,7 @@ mod test_helpers {
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::ZaiCoding, key),
-            models: Some(Models::Url(
+            models: Some(ModelSource::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             )),
         }
@@ -235,7 +235,7 @@ mod test_helpers {
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::OpenAI, key),
-            models: Some(Models::Url(
+            models: Some(ModelSource::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             )),
         }
@@ -251,7 +251,7 @@ mod test_helpers {
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::Xai, key),
-            models: Some(Models::Url(
+            models: Some(ModelSource::Url(
                 Url::parse("https://api.x.ai/v1/models").unwrap(),
             )),
         }
@@ -293,7 +293,7 @@ mod test_helpers {
                 .map(|&s| s.to_string().into())
                 .collect(),
             credential: make_credential(ProviderId::VertexAi, key),
-            models: Some(Models::Url(Url::parse(&model_url).unwrap())),
+            models: Some(ModelSource::Url(Url::parse(&model_url).unwrap())),
         }
     }
 
@@ -324,7 +324,7 @@ mod test_helpers {
                 .map(|&s| s.to_string().into())
                 .collect(),
             credential: make_credential(ProviderId::Azure, key),
-            models: Some(Models::Url(Url::parse(&model_url).unwrap())),
+            models: Some(ModelSource::Url(Url::parse(&model_url).unwrap())),
         }
     }
 }
@@ -355,7 +355,7 @@ mod tests {
             }),
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: vec![],
-            models: Some(Models::Url(
+            models: Some(ModelSource::Url(
                 Url::from_str("https://api.x.ai/v1/models").unwrap(),
             )),
         };
@@ -383,7 +383,7 @@ mod tests {
     fn test_zai_coding_to_model_url() {
         let fixture = zai_coding("test_key");
         let actual = fixture.models.clone();
-        let expected = Some(Models::Url(
+        let expected = Some(ModelSource::Url(
             Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
         ));
         assert_eq!(actual, expected);
@@ -401,7 +401,7 @@ mod tests {
     fn test_regular_zai_to_model_url() {
         let fixture = zai("test_key");
         let actual = fixture.models.clone();
-        let expected = Some(Models::Url(
+        let expected = Some(ModelSource::Url(
             Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
         ));
         assert_eq!(actual, expected);
@@ -434,7 +434,7 @@ mod tests {
 
         // Check model URL
         let actual_model = fixture.models.clone();
-        let expected_model = Some(Models::Url(
+        let expected_model = Some(ModelSource::Url(
             Url::parse(
                 "https://my-resource.openai.azure.com/openai/models?api-version=2024-02-15-preview",
             )
@@ -457,7 +457,7 @@ mod tests {
 
         // Check model URL
         let actual_model = fixture.models.clone();
-        let expected_model = Some(Models::Url(
+        let expected_model = Some(ModelSource::Url(
             Url::parse("https://east-us.openai.azure.com/openai/models?api-version=2023-05-15")
                 .unwrap(),
         ));

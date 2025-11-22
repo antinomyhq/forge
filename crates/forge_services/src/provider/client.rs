@@ -280,7 +280,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_test_credential(),
-            models: Some(forge_domain::Models::Url(
+            models: Some(forge_domain::ModelSource::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             )),
         };
@@ -303,7 +303,7 @@ mod tests {
             credential: make_test_credential(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
-            models: Some(forge_domain::Models::Url(
+            models: Some(forge_domain::ModelSource::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             )),
         };
@@ -328,7 +328,7 @@ mod tests {
             credential: make_test_credential(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
-            models: Some(forge_domain::Models::Url(
+            models: Some(forge_domain::ModelSource::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             )),
         };
@@ -356,7 +356,7 @@ mod tests {
             credential: make_test_credential(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
-            models: Some(forge_domain::Models::Url(
+            models: Some(forge_domain::ModelSource::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             )),
         };

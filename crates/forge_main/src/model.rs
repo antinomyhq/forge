@@ -552,7 +552,7 @@ impl SlashCommand {
 #[cfg(test)]
 mod tests {
     use console::strip_ansi_codes;
-    use forge_api::{ModelId, Models, ProviderId, ProviderResponse};
+    use forge_api::{ModelId, ModelSource, ProviderId, ProviderResponse};
     use forge_domain::{AnyProvider, Provider};
     use pretty_assertions::assert_eq;
     use url::Url;
@@ -1028,7 +1028,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
-            models: Some(Models::Url(
+            models: Some(ModelSource::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             )),
         });
@@ -1048,7 +1048,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
-            models: Some(Models::Url(
+            models: Some(ModelSource::Url(
                 Url::parse("https://openrouter.ai/api/v1/models").unwrap(),
             )),
         });
@@ -1068,7 +1068,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
-            models: Some(Models::Url(
+            models: Some(ModelSource::Url(
                 Url::parse("http://localhost:8080/models").unwrap(),
             )),
         });
@@ -1088,7 +1088,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
-            models: Some(Models::Url(Template::new(
+            models: Some(ModelSource::Url(Template::new(
                 "https://api.anthropic.com/v1/models",
             ))),
         });
@@ -1108,7 +1108,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
-            models: Some(Models::Url(
+            models: Some(ModelSource::Url(
                 Url::parse("http://192.168.1.1:8080/models").unwrap(),
             )),
         });

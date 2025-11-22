@@ -106,7 +106,7 @@ mod tests {
     use std::sync::Mutex;
 
     use forge_domain::{
-        AnyProvider, AppConfig, MigrationResult, Model, Models, Provider, ProviderId,
+        AnyProvider, AppConfig, MigrationResult, Model, ModelSource, Provider, ProviderId,
         ProviderResponse,
     };
     use pretty_assertions::assert_eq;
@@ -139,7 +139,7 @@ mod tests {
                         }),
                         auth_methods: vec![forge_domain::AuthMethod::ApiKey],
                         url_params: vec![],
-                        models: Some(Models::Hardcoded(vec![Model {
+                        models: Some(ModelSource::Hardcoded(vec![Model {
                             id: "gpt-4".to_string().into(),
                             name: Some("GPT-4".to_string()),
                             description: None,
@@ -163,7 +163,7 @@ mod tests {
                             ),
                             url_params: HashMap::new(),
                         }),
-                        models: Some(Models::Hardcoded(vec![Model {
+                        models: Some(ModelSource::Hardcoded(vec![Model {
                             id: "claude-3".to_string().into(),
                             name: Some("Claude 3".to_string()),
                             description: None,

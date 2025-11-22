@@ -72,7 +72,7 @@ mod tests {
     use url::Url;
 
     use super::*;
-    use crate::domain::{Models, ProviderResponse};
+    use crate::domain::{ModelSource, ProviderResponse};
 
     // Test helper functions
     fn make_credential(provider_id: ProviderId, key: &str) -> Option<forge_domain::AuthCredential> {
@@ -94,7 +94,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::Forge, key),
-            models: Some(Models::Url(
+            models: Some(ModelSource::Url(
                 Url::parse("https://antinomy.ai/api/v1/models").unwrap(),
             )),
         }
@@ -109,7 +109,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::Zai, key),
-            models: Some(Models::Url(
+            models: Some(ModelSource::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             )),
         }
@@ -124,7 +124,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::ZaiCoding, key),
-            models: Some(Models::Url(
+            models: Some(ModelSource::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             )),
         }
@@ -139,7 +139,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::OpenAI, key),
-            models: Some(Models::Url(
+            models: Some(ModelSource::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             )),
         }
@@ -154,7 +154,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::Xai, key),
-            models: Some(Models::Url(
+            models: Some(ModelSource::Url(
                 Url::parse("https://api.x.ai/v1/models").unwrap(),
             )),
         }
@@ -169,7 +169,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::Requesty, key),
-            models: Some(Models::Url(
+            models: Some(ModelSource::Url(
                 Url::parse("https://api.requesty.ai/v1/models").unwrap(),
             )),
         }
@@ -184,7 +184,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::OpenRouter, key),
-            models: Some(Models::Url(
+            models: Some(ModelSource::Url(
                 Url::parse("https://openrouter.ai/api/v1/models").unwrap(),
             )),
         }
@@ -199,7 +199,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::Anthropic, key),
-            models: Some(Models::Url(
+            models: Some(ModelSource::Url(
                 Url::parse("https://api.anthropic.com/v1/models").unwrap(),
             )),
         }

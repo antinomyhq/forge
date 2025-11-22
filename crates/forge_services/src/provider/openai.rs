@@ -135,7 +135,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
                 .ok_or_else(|| anyhow::anyhow!("Provider models configuration is required"))?;
 
             match models {
-                forge_domain::Models::Url(url) => {
+                forge_domain::ModelSource::Url(url) => {
                     debug!(url = %url, "Fetching models");
                     match self.fetch_models(url.as_str()).await {
                         Err(error) => {
@@ -150,7 +150,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
                         }
                     }
                 }
-                forge_domain::Models::Hardcoded(models) => {
+                forge_domain::ModelSource::Hardcoded(models) => {
                     debug!("Using hardcoded models");
                     Ok(models.clone())
                 }
@@ -251,7 +251,7 @@ mod tests {
             credential: make_credential(ProviderId::OpenAI, key),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
-            models: Some(forge_domain::Models::Url(
+            models: Some(forge_domain::ModelSource::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             )),
         }
@@ -266,7 +266,7 @@ mod tests {
             credential: make_credential(ProviderId::Zai, key),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
-            models: Some(forge_domain::Models::Url(
+            models: Some(forge_domain::ModelSource::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             )),
         }
@@ -281,7 +281,7 @@ mod tests {
             credential: make_credential(ProviderId::ZaiCoding, key),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
-            models: Some(forge_domain::Models::Url(
+            models: Some(forge_domain::ModelSource::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             )),
         }
@@ -296,7 +296,7 @@ mod tests {
             credential: make_credential(ProviderId::Anthropic, key),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
-            models: Some(forge_domain::Models::Url(
+            models: Some(forge_domain::ModelSource::Url(
                 Url::parse("https://api.anthropic.com/v1/models").unwrap(),
             )),
         }
@@ -359,7 +359,7 @@ mod tests {
             credential: make_credential(ProviderId::OpenAI, "test-api-key"),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
-            models: Some(forge_domain::Models::Url(
+            models: Some(forge_domain::ModelSource::Url(
                 reqwest::Url::parse(base_url)?.join("models")?,
             )),
         };

@@ -78,9 +78,9 @@ impl From<&ProviderConfig>
     fn from(config: &ProviderConfig) -> Self {
         let models = config.models.as_ref().map(|m| match m {
             Models::Url(model_url_template) => {
-                forge_domain::Models::Url(forge_domain::Template::new(model_url_template))
+                forge_domain::ModelSource::Url(forge_domain::Template::new(model_url_template))
             }
-            Models::Hardcoded(model_list) => forge_domain::Models::Hardcoded(model_list.clone()),
+            Models::Hardcoded(model_list) => forge_domain::ModelSource::Hardcoded(model_list.clone()),
         });
 
         Provider {
@@ -301,9 +301,9 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
                         .unwrap(),
                 )
                 .unwrap();
-                forge_domain::Models::Url(model_url)
+                forge_domain::ModelSource::Url(model_url)
             }
-            Models::Hardcoded(model_list) => forge_domain::Models::Hardcoded(model_list.clone()),
+            Models::Hardcoded(model_list) => forge_domain::ModelSource::Hardcoded(model_list.clone()),
         });
 
         Ok(Provider {
@@ -878,13 +878,13 @@ mod env_tests {
 
         // Check model URL
         match &provider.models.as_ref().unwrap() {
-            forge_domain::Models::Url(model_url) => {
+            forge_domain::ModelSource::Url(model_url) => {
                 assert_eq!(
                     model_url.as_str(),
                     "https://my-test-resource.openai.azure.com/openai/models?api-version=2024-02-01-preview"
                 );
             }
-            forge_domain::Models::Hardcoded(_) => panic!("Expected Models::Url variant"),
+            forge_domain::ModelSource::Hardcoded(_) => panic!("Expected Models::Url variant"),
         }
     }
 

@@ -90,11 +90,11 @@ impl<I: EnvironmentInfra + HttpInfra + CredentialsRepository> ForgeProviderServi
                     url_params: p.url_params.clone(),
                     credential: Some(credential),
                     models: p.models.clone().and_then(|m| match m {
-                        forge_domain::Models::Url(t) => {
-                            Url::parse(&t.template).ok().map(forge_domain::Models::Url)
+                        forge_domain::ModelSource::Url(t) => {
+                            Url::parse(&t.template).ok().map(forge_domain::ModelSource::Url)
                         }
-                        forge_domain::Models::Hardcoded(list) => {
-                            Some(forge_domain::Models::Hardcoded(list))
+                        forge_domain::ModelSource::Hardcoded(list) => {
+                            Some(forge_domain::ModelSource::Hardcoded(list))
                         }
                     }),
                 })
