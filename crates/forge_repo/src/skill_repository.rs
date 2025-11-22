@@ -4,6 +4,8 @@ use anyhow::Context;
 use forge_app::domain::Skill;
 use forge_app::{DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra};
 use forge_domain::SkillRepository;
+use gray_matter::{Matter, engine::YAML};
+use serde::Deserialize;
 
 /// Repository implementation for loading skills from multiple sources:
 /// 1. Built-in skills (embedded in the application)
@@ -41,6 +43,7 @@ impl<I> ForgeSkillRepository<I> {
             "skill-creation",
             "builtin://skills/skill-creation.md",
             include_str!("skills/skill-creation.md"),
+            "Built-in skill for creating new skills",
         )]
     }
 }
@@ -101,12 +104,39 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> ForgeSkillRepos
                     .unwrap_or("unknown")
                     .to_string();
 
-                Skill::new(name, path.display().to_string(), content)
+                let description = extract_description(&content);
+
+                Skill::new(name, path.display().to_string(), content, description)
             })
             .collect();
 
         Ok(skills)
     }
+}
+
+/// Extracts the description from the skill markdown content using YAML front matter
+///
+/// Parses YAML front matter from the markdown content and extracts the `description` field.
+/// Expected format:
+/// ```markdown
+/// ---
+/// description: "Your description here"
+/// ---
+/// # Skill content...
+/// ```
+///
+/// If no front matter or description is found, returns an empty string.
+fn extract_description(content: &str) -> String {
+    let matter = Matter::<YAML>::new();
+    let result = matter.parse(content);
+    
+    result
+        .data
+        .and_then(|data| data.as_mapping())
+        .and_then(|map| map.get(&serde_yaml::Value::String("description".to_string())))
+        .and_then(|val| val.as_str())
+        .map(|s| s.to_string())
+        .unwrap_or_default()
 }
 
 /// Resolves skill conflicts by keeping the last occurrence of each skill name
@@ -140,8 +170,8 @@ mod tests {
     fn test_resolve_skill_conflicts_no_duplicates() {
         // Fixture
         let skills = vec![
-            Skill::new("skill1", "/path/skill1.md", "prompt1"),
-            Skill::new("skill2", "/path/skill2.md", "prompt2"),
+            Skill::new("skill1", "/path/skill1.md", "prompt1", "desc1"),
+            Skill::new("skill2", "/path/skill2.md", "prompt2", "desc2"),
         ];
 
         // Act
@@ -158,9 +188,14 @@ mod tests {
     fn test_resolve_skill_conflicts_with_duplicates() {
         // Fixture
         let skills = vec![
-            Skill::new("skill1", "/global/skill1.md", "global prompt"),
-            Skill::new("skill2", "/global/skill2.md", "prompt2"),
-            Skill::new("skill1", "/cwd/skill1.md", "cwd prompt"),
+            Skill::new(
+                "skill1",
+                "/global/skill1.md",
+                "global prompt",
+                "global desc",
+            ),
+            Skill::new("skill2", "/global/skill2.md", "prompt2", "desc2"),
+            Skill::new("skill1", "/cwd/skill1.md", "cwd prompt", "cwd desc"),
         ];
 
         // Act
@@ -189,4 +224,56 @@ mod tests {
         assert!(actual[0].command.contains("Skill Creator"));
         assert!(actual[0].command.contains("creating effective skills"));
     }
+
+
+    #[test]
+    fn test_extract_description_with_front_matter() {
+        // Fixture
+        let content = r#"---
+description: "This is a skill for handling PDF files"
+---
+
+# PDF Handler
+
+Content here..."#;
+
+        // Act
+        let actual = extract_description(content);
+
+        // Assert
+        let expected = "This is a skill for handling PDF files";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_extract_description_no_front_matter() {
+        // Fixture
+        let content = "# Skill Title\n\nThis is content without front matter.";
+
+        // Act
+        let actual = extract_description(content);
+
+        // Assert
+        let expected = "";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_extract_description_front_matter_without_description() {
+        // Fixture
+        let content = r#"---
+title: "My Skill"
+author: "John Doe"
+---
+
+# Skill Content"#;
+
+        // Act
+        let actual = extract_description(content);
+
+        // Assert
+        let expected = "";
+        assert_eq!(actual, expected);
+    }
+
 }
