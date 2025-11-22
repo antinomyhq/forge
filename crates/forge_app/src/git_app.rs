@@ -109,9 +109,8 @@ where
         max_diff_size: Option<usize>,
         diff: Option<String>,
     ) -> Result<CommitResult> {
-        let CommitMessageDetails { message, has_staged_files } = self
-            .generate_commit_message(max_diff_size, diff)
-            .await?;
+        let CommitMessageDetails { message, has_staged_files } =
+            self.generate_commit_message(max_diff_size, diff).await?;
 
         Ok(CommitResult { message, committed: false, has_staged_files })
     }
