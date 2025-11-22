@@ -2058,7 +2058,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .await
             .is_ok();
         if !is_provider_configured {
-            self.select_provider().await?;
+            let provider_option = self.select_provider().await?;
+            
+            // If a provider was selected, save it as the default
+            if let Some(provider) = provider_option {
+                self.api.set_default_provider(provider.id).await?;
+            }
         }
         // Ensure we have a model selected before proceeding with initialization
         if self
