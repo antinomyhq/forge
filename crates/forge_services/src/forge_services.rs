@@ -81,7 +81,7 @@ pub struct ForgeServices<
     command_loader_service: Arc<ForgeCommandLoaderService<F>>,
     policy_service: ForgePolicyService<F>,
     provider_auth_service: ForgeProviderAuthService<F>,
-    skill_fetch_service: Arc<ForgeSkillFetch<F>>,
+    skill_service: Arc<ForgeSkillFetch<F>>,
 }
 
 impl<
@@ -133,7 +133,7 @@ impl<
         let command_loader_service = Arc::new(ForgeCommandLoaderService::new(infra.clone()));
         let policy_service = ForgePolicyService::new(infra.clone());
         let provider_auth_service = ForgeProviderAuthService::new(infra.clone());
-        let skill_fetch_service = Arc::new(ForgeSkillFetch::new(infra.clone()));
+        let skill_service = Arc::new(ForgeSkillFetch::new(infra.clone()));
 
         Self {
             conversation_service,
@@ -163,7 +163,7 @@ impl<
             command_loader_service,
             policy_service,
             provider_auth_service,
-            skill_fetch_service,
+            skill_service,
         }
     }
 }
@@ -329,6 +329,6 @@ impl<
         &self.image_read_service
     }
     fn skill_fetch_service(&self) -> &Self::SkillFetchService {
-        &self.skill_fetch_service
+        &self.skill_service
     }
 }

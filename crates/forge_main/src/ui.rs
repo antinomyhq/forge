@@ -333,6 +333,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     ListCommand::Cmd => {
                         self.on_show_custom_commands(porcelain).await?;
                     }
+                    ListCommand::Skill => {
+                        self.on_show_skills(porcelain).await?;
+                    }
                 }
                 return Ok(());
             }
@@ -1039,6 +1042,27 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             info = info
                 .add_title(command.name.clone())
                 .add_key_value("description", command.description.clone());
+        }
+
+        if porcelain {
+            let porcelain = Porcelain::from(&info).skip(2);
+            self.writeln(porcelain)?;
+        } else {
+            self.writeln(info)?;
+        }
+
+        Ok(())
+    }
+
+    /// Lists available skills
+    async fn on_show_skills(&mut self, porcelain: bool) -> anyhow::Result<()> {
+        let skills = self.api.get_skills().await?;
+        let mut info = Info::new().add_title("SKILLS");
+
+        for skill in skills {
+            info = info
+                .add_title(skill.name.clone())
+                .add_key_value("path", skill.path.clone());
         }
 
         if porcelain {
