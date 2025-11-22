@@ -487,10 +487,7 @@ impl ToolOperation {
                 forge_domain::ToolOutput::text(elm)
             }
             ToolOperation::Skill { input: _, output } => {
-                let elm = Element::new("skill_loaded")
-                    .attr("name", output.name)
-                    .attr("path", output.path)
-                    .append(Element::new("prompt").cdata(output.prompt));
+                let elm = Element::new("command").cdata(output.command);
 
                 forge_domain::ToolOutput::text(elm)
             }
