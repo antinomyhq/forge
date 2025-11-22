@@ -70,6 +70,11 @@ pub enum ToolOperation {
         input: PlanCreate,
         output: PlanCreateOutput,
     },
+    Skill {
+        #[allow(dead_code)]
+        input: forge_domain::SkillFetch,
+        output: forge_domain::Skill,
+    },
 }
 
 /// Trait for stream elements that can be converted to XML elements
@@ -478,6 +483,14 @@ impl ToolOperation {
                     .attr("path", output.path.display().to_string())
                     .attr("plan_name", input.plan_name)
                     .attr("version", input.version);
+
+                forge_domain::ToolOutput::text(elm)
+            }
+            ToolOperation::Skill { input: _, output } => {
+                let elm = Element::new("skill_loaded")
+                    .attr("name", output.name)
+                    .attr("path", output.path)
+                    .append(Element::new("prompt").cdata(output.prompt));
 
                 forge_domain::ToolOutput::text(elm)
             }
