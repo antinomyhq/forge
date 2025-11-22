@@ -276,7 +276,7 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
         ToolCatalog::Fetch(input) => Some(SummaryTool::Fetch { url: input.url }),
         ToolCatalog::Followup(input) => Some(SummaryTool::Followup { question: input.question }),
         ToolCatalog::Plan(input) => Some(SummaryTool::Plan { plan_name: input.plan_name }),
-        ToolCatalog::Skill(input) => Some(SummaryTool::Skill { name: input.skill_name }),
+        ToolCatalog::Skill(input) => Some(SummaryTool::Skill { name: input.name }),
     }
 }
 

@@ -382,7 +382,7 @@ pub struct PlanCreate {
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct SkillFetch {
     /// The name of the skill to fetch (e.g., "pdf", "code_review")
-    pub skill_name: String,
+    pub name: String,
 }
 
 fn default_raw() -> Option<bool> {
@@ -720,7 +720,7 @@ impl ToolCatalog {
     /// Creates a Skill tool call with the specified skill name
     pub fn tool_call_skill(skill_name: &str) -> ToolCallFull {
         ToolCallFull::from(ToolCatalog::Skill(SkillFetch {
-            skill_name: skill_name.to_string(),
+            name: skill_name.to_string(),
         }))
     }
 
