@@ -73,7 +73,7 @@ You are Forge, an expert software engineering assistant designed to help users w
 - Do not delete failing tests without a compelling reason
 
 {{#if skills}}
-{{> forge-partial-skill-instructions}}
+{{> forge-partial-skill-instructions.md}}
 {{else}}
 {{/if}}
 

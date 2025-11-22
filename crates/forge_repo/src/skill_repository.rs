@@ -98,20 +98,17 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> ForgeSkillRepos
 
         let skills: Vec<Skill> = files
             .into_iter()
-            .map(|(path, content)| {
+            .filter_map(|(path, content)| {
+                let path_str = path.display().to_string();
                 let filename = path
                     .file_stem()
                     .and_then(|s| s.to_str())
                     .unwrap_or("unknown")
                     .to_string();
 
-                let (metadata_name, description) = extract_metadata(&content);
-
-                // Use name from front matter if present, otherwise use filename
-                let name = metadata_name.unwrap_or(filename);
-                let description = description.unwrap_or_default();
-
-                Skill::new(name, path.display().to_string(), content, description)
+                // Try to extract skill from front matter, otherwise create with filename
+                extract_skill(&path_str, &content)
+                    .or_else(|| Some(Skill::new(filename, path_str, content, String::new())))
             })
             .collect();
 
@@ -141,15 +138,22 @@ struct SkillMetadata {
 /// ```
 ///
 /// Returns a tuple of (name, description) where both are Option<String>.
-fn extract_metadata(content: &str) -> (Option<String>, Option<String>) {
+fn extract_skill(path: &str, content: &str) -> Option<Skill> {
     let matter = Matter::<YAML>::new();
     let result = matter.parse::<SkillMetadata>(content);
-
-    result
-        .ok()
-        .and_then(|parsed| parsed.data)
-        .map(|metadata| (metadata.name, metadata.description))
-        .unwrap_or((None, None))
+    let path = path.to_owned();
+    result.ok().and_then(|parsed| {
+        let command = parsed.content;
+        parsed
+            .data
+            .and_then(|data| data.name.zip(data.description))
+            .map(|(name, description)| Skill {
+                name,
+                path,
+                command,
+                description,
+            })
+    })
 }
 
 /// Resolves skill conflicts by keeping the last occurrence of each skill name
@@ -241,55 +245,58 @@ mod tests {
     #[test]
     fn test_extract_metadata_with_name_and_description() {
         // Fixture
+        let path = "fixtures/skills/with_name_and_description.md";
         let content = include_str!("fixtures/skills/with_name_and_description.md");
 
         // Act
-        let actual = extract_metadata(content);
+        let actual = extract_skill(path, content);
 
         // Assert
-        let expected = (
-            Some("pdf-handler".to_string()),
-            Some("This is a skill for handling PDF files".to_string()),
-        );
+        let expected = Some(Skill::new(
+            "pdf-handler",
+            path,
+            "# PDF Handler\n\nContent here...",
+            "This is a skill for handling PDF files",
+        ));
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_extract_metadata_with_name_only() {
         // Fixture
+        let path = "fixtures/skills/with_name_only.md";
         let content = include_str!("fixtures/skills/with_name_only.md");
 
         // Act
-        let actual = extract_metadata(content);
+        let actual = extract_skill(path, content);
 
-        // Assert
-        let expected = (Some("custom-skill-name".to_string()), None);
-        assert_eq!(actual, expected);
+        // Assert - Returns None because description is missing
+        assert_eq!(actual, None);
     }
 
     #[test]
     fn test_extract_metadata_with_description_only() {
         // Fixture
+        let path = "fixtures/skills/with_description_only.md";
         let content = include_str!("fixtures/skills/with_description_only.md");
 
         // Act
-        let actual = extract_metadata(content);
+        let actual = extract_skill(path, content);
 
-        // Assert
-        let expected = (None, Some("Just a description".to_string()));
-        assert_eq!(actual, expected);
+        // Assert - Returns None because name is missing
+        assert_eq!(actual, None);
     }
 
     #[test]
     fn test_extract_metadata_no_front_matter() {
         // Fixture
+        let path = "fixtures/skills/no_front_matter.md";
         let content = include_str!("fixtures/skills/no_front_matter.md");
 
         // Act
-        let actual = extract_metadata(content);
+        let actual = extract_skill(path, content);
 
-        // Assert
-        let expected = (None, None);
-        assert_eq!(actual, expected);
+        // Assert - Returns None because front matter is missing
+        assert_eq!(actual, None);
     }
 }

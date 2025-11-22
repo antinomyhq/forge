@@ -23,7 +23,7 @@ Important:
 <skill>
 <name>{{this.name}}</name>
 <description>
-{{this.prompt}}
+{{this.description}}
 </description>
 </skill>
 {{/each}}

@@ -74,7 +74,7 @@ impl<S: SkillFetchService> SystemPrompt<S> {
             };
 
             let static_block = TemplateEngine::default()
-                .render_template(Template::new(&system_prompt.template), &())?;
+                .render_template(Template::new(&system_prompt.template), &ctx)?;
             let non_static_block = TemplateEngine::default()
                 .render_template(Template::new("{{> forge-custom-agent-template.md }}"), &ctx)?;
 
