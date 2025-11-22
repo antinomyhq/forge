@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use forge_domain::CommandResult;
 use forge_domain::inline_shell::{InlineShellError, parse_inline_commands};
 use tracing::{debug, warn};
 
 use super::{SecurityContext, SecurityValidationService};
-use crate::inline_shell::InlineShellExecutor;
+use crate::inline_shell::{InlineShellExecutor, replace_commands_in_content};
 
 /// Trait for processing inline commands in prompts
 #[async_trait::async_trait]
@@ -114,17 +113,6 @@ impl PromptProcessor for ForgePromptProcessor {
 
         Ok(processed_content)
     }
-}
-
-/// Replace inline commands in content with their execution results
-fn replace_commands_in_content(content: &str, results: &[CommandResult]) -> String {
-    let mut processed_content = content.to_string();
-
-    for result in results {
-        processed_content = processed_content.replace(&result.original_match, &result.stdout);
-    }
-
-    processed_content
 }
 
 #[cfg(test)]
