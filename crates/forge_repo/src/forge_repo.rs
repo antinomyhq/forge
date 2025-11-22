@@ -9,9 +9,8 @@ use forge_app::{
 };
 use forge_domain::{
     AnyProvider, AppConfig, AppConfigRepository, AuthCredential, CommandOutput, Conversation,
-    ConversationId, ConversationRepository, CredentialsRepository, Environment, FileInfo,
-    McpServerConfig, MigrationResult, Provider, ProviderId, ProviderRepository, Snapshot,
-    SnapshotRepository, WorkspaceAuth,
+    ConversationId, ConversationRepository, Environment, FileInfo, McpServerConfig,
+    MigrationResult, Provider, ProviderId, ProviderRepository, Snapshot, SnapshotRepository,
 };
 // Re-export CacacheStorage from forge_infra
 pub use forge_infra::CacacheStorage;
@@ -40,7 +39,6 @@ pub struct ForgeRepo<F> {
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
     indexing_repository: Arc<crate::indexing::IndexingRepositoryImpl>,
-    indexing_auth_repository: Arc<crate::ForgeCredentialsRepository>,
     codebase_repo: Arc<crate::ForgeContextEngineRepository>,
     agent_repository: Arc<ForgeAgentRepository<F>>,
 }
@@ -69,10 +67,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
             db_pool.clone(),
         ));
 
-        // Create indexing auth repository
-        let indexing_auth_repository =
-            Arc::new(crate::ForgeCredentialsRepository::new(db_pool.clone()));
-
         let codebase_repo = Arc::new(
             crate::ForgeContextEngineRepository::new(&env.index_server_url)
                 .expect("Failed to create codebase repository"),
@@ -86,7 +80,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
             mcp_cache_repository,
             provider_repository,
             indexing_repository,
-            indexing_auth_repository,
             codebase_repo,
             agent_repository,
         }
@@ -148,15 +141,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> Prov
     }
 
     async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()> {
-        // For context engine, store in SQLite instead of .credentials.json
-        if credential.id == ProviderId::ForgeServices {
-            // Context engine credentials are stored via the gRPC authentication flow
-            // This method is called after successful authentication, but the credential
-            // is already stored in SQLite by the authenticate_context_engine function
-            return Ok(());
-        }
-
-        // For all other providers, use standard file-based credentials
+        // All providers now use file-based credentials
         self.provider_repository.upsert_credential(credential).await
     }
 
@@ -165,12 +150,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> Prov
     }
 
     async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()> {
-        // For ForgeServices, delete from SQLite
-        if *id == ProviderId::ForgeServices {
-            return self.indexing_auth_repository.delete_auth().await;
-        }
-
-        // For other providers, use file-based credentials
+        // All providers now use file-based credentials
         self.provider_repository.remove_credential(id).await
     }
 
@@ -482,23 +462,8 @@ impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: Send + Sync> CredentialsRepository for ForgeRepo<F> {
-    async fn set_auth(&self, auth: &WorkspaceAuth) -> anyhow::Result<()> {
-        self.indexing_auth_repository.set_auth(auth).await
-    }
-
-    async fn get_auth(&self) -> anyhow::Result<Option<WorkspaceAuth>> {
-        self.indexing_auth_repository.get_auth().await
-    }
-
-    async fn delete_auth(&self) -> anyhow::Result<()> {
-        self.indexing_auth_repository.delete_auth().await
-    }
-}
-
-#[async_trait::async_trait]
 impl<F: Send + Sync> forge_domain::ContextEngineRepository for ForgeRepo<F> {
-    async fn authenticate(&self) -> anyhow::Result<WorkspaceAuth> {
+    async fn authenticate(&self) -> anyhow::Result<forge_domain::WorkspaceAuth> {
         self.codebase_repo.authenticate().await
     }
 

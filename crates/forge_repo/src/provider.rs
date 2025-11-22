@@ -80,7 +80,9 @@ impl From<&ProviderConfig>
             Models::Url(model_url_template) => {
                 forge_domain::ModelSource::Url(forge_domain::Template::new(model_url_template))
             }
-            Models::Hardcoded(model_list) => forge_domain::ModelSource::Hardcoded(model_list.clone()),
+            Models::Hardcoded(model_list) => {
+                forge_domain::ModelSource::Hardcoded(model_list.clone())
+            }
         });
 
         Provider {
@@ -303,7 +305,9 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
                 .unwrap();
                 forge_domain::ModelSource::Url(model_url)
             }
-            Models::Hardcoded(model_list) => forge_domain::ModelSource::Hardcoded(model_list.clone()),
+            Models::Hardcoded(model_list) => {
+                forge_domain::ModelSource::Hardcoded(model_list.clone())
+            }
         });
 
         Ok(Provider {

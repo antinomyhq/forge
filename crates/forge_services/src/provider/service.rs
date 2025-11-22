@@ -7,7 +7,7 @@ use forge_app::domain::{
     ProviderId, ResultStream, RetryConfig,
 };
 use forge_app::{EnvironmentInfra, HttpInfra, ProviderService};
-use forge_domain::{AuthCredential, CredentialsRepository, Provider, ProviderRepository};
+use forge_domain::{Provider, ProviderRepository};
 use tokio::sync::Mutex;
 use url::Url;
 
@@ -39,71 +39,7 @@ impl<I: EnvironmentInfra + HttpInfra> ForgeProviderService<I> {
     }
 }
 
-impl<I: EnvironmentInfra + HttpInfra + CredentialsRepository> ForgeProviderService<I> {
-    /// Populate ForgeServices credentials from SQLite into provider list
-    async fn populate_forge_services_credentials(
-        &self,
-        providers: &mut [AnyProvider],
-    ) -> Result<()> {
-        use forge_domain::AnyProvider;
-
-        // Find ForgeServices provider position
-        let position = providers
-            .iter()
-            .position(|p| p.id() == ProviderId::ForgeServices);
-
-        let Some(position) = position else {
-            return Ok(());
-        };
-
-        // Fetch credentials from SQLite
-        let Some(indexing_auth) = self.infra.get_auth().await? else {
-            return Ok(());
-        };
-
-        // Create credential from indexing auth
-        let credential = AuthCredential {
-            id: ProviderId::ForgeServices,
-            auth_details: indexing_auth.into(),
-            url_params: std::collections::HashMap::new(),
-        };
-
-        // Update provider with credential
-        let provider = &providers[position];
-        providers[position] = match provider {
-            AnyProvider::Url(p) => {
-                let mut updated = p.clone();
-                updated.credential = Some(credential);
-                AnyProvider::Url(updated)
-            }
-            AnyProvider::Template(p) => {
-                // Convert Template to Url provider
-                let url = Url::parse(&p.url.template)
-                    .map_err(|e| anyhow::anyhow!("Failed to parse ForgeServices URL: {}", e))?;
-
-                AnyProvider::Url(Provider {
-                    id: p.id,
-                    provider_type: p.provider_type,
-                    response: p.response.clone(),
-                    url: url.clone(),
-                    auth_methods: p.auth_methods.clone(),
-                    url_params: p.url_params.clone(),
-                    credential: Some(credential),
-                    models: p.models.clone().and_then(|m| match m {
-                        forge_domain::ModelSource::Url(t) => {
-                            Url::parse(&t.template).ok().map(forge_domain::ModelSource::Url)
-                        }
-                        forge_domain::ModelSource::Hardcoded(list) => {
-                            Some(forge_domain::ModelSource::Hardcoded(list))
-                        }
-                    }),
-                })
-            }
-        };
-
-        Ok(())
-    }
-
+impl<I: EnvironmentInfra + HttpInfra> ForgeProviderService<I> {
     async fn client(&self, provider: Provider<Url>) -> Result<Client<HttpClient<I>>> {
         let provider_id = provider.id;
 
@@ -134,7 +70,7 @@ impl<I: EnvironmentInfra + HttpInfra + CredentialsRepository> ForgeProviderServi
 }
 
 #[async_trait::async_trait]
-impl<I: EnvironmentInfra + HttpInfra + ProviderRepository + CredentialsRepository> ProviderService
+impl<I: EnvironmentInfra + HttpInfra + ProviderRepository> ProviderService
     for ForgeProviderService<I>
 {
     async fn chat(
@@ -180,13 +116,7 @@ impl<I: EnvironmentInfra + HttpInfra + ProviderRepository + CredentialsRepositor
     }
 
     async fn get_all_providers(&self) -> Result<Vec<AnyProvider>> {
-        let mut providers = self.infra.get_all_providers().await?;
-
-        // Populate ForgeServices credentials from SQLite
-        self.populate_forge_services_credentials(&mut providers)
-            .await?;
-
-        Ok(providers)
+        self.infra.get_all_providers().await
     }
 
     async fn upsert_credential(&self, credential: forge_domain::AuthCredential) -> Result<()> {

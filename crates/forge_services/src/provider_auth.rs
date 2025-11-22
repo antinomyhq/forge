@@ -3,8 +3,8 @@ use std::time::Duration;
 
 use forge_app::{AuthStrategy, ProviderAuthService, StrategyFactory};
 use forge_domain::{
-    AuthContextRequest, AuthContextResponse, AuthCredential, AuthMethod, CredentialsRepository,
-    Provider, ProviderId, ProviderRepository,
+    AuthContextRequest, AuthContextResponse, AuthCredential, AuthMethod, Provider, ProviderId,
+    ProviderRepository,
 };
 
 /// Forge Provider Authentication Service
@@ -23,7 +23,7 @@ impl<I> ForgeProviderAuthService<I> {
 #[async_trait::async_trait]
 impl<I> ProviderAuthService for ForgeProviderAuthService<I>
 where
-    I: StrategyFactory + ProviderRepository + CredentialsRepository + Send + Sync + 'static,
+    I: StrategyFactory + ProviderRepository + Send + Sync + 'static,
 {
     /// Initialize authentication flow for a provider
     async fn init_provider_auth(
@@ -100,22 +100,7 @@ where
         provider: &Provider<url::Url>,
         auth_method: AuthMethod,
     ) -> anyhow::Result<AuthCredential> {
-        // For context engine (ForgeServices), fetch from SQLite instead of file-based
-        // credentials
-        if provider.id == ProviderId::ForgeServices {
-            let indexing_auth = self.infra.get_auth().await?.ok_or_else(|| {
-                forge_domain::Error::ProviderNotAvailable { provider: provider.id }
-            })?;
-
-            // Convert IndexingAuth to AuthCredential
-            return Ok(forge_domain::AuthCredential {
-                id: ProviderId::ForgeServices,
-                auth_details: indexing_auth.into(),
-                url_params: std::collections::HashMap::new(),
-            });
-        }
-
-        // Get existing credential for non-context-engine providers
+        // Get existing credential
         let credential = self
             .infra
             .get_credential(&provider.id)

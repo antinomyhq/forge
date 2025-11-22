@@ -22,12 +22,4 @@ diesel::table! {
     }
 }
 
-diesel::table! {
-    indexing_auth (user_id) {
-        user_id -> Text,
-        token -> Text,
-        created_at -> Timestamp,
-    }
-}
-
-diesel::allow_tables_to_appear_in_same_query!(conversations, workspace, indexing_auth,);
+diesel::allow_tables_to_appear_in_same_query!(conversations, workspace,);
