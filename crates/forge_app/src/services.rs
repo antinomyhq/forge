@@ -20,11 +20,11 @@ use url::Url;
 
 use crate::Walker;
 use crate::user::{User, UserUsage};
-/// Service for validating security of shell commands
+/// Security validation service for shell commands
 pub struct SecurityValidationService;
 
 impl SecurityValidationService {
-    /// Create a new security validation service
+    /// Create new security validation service
     pub fn new() -> Self {
         Self
     }
@@ -36,9 +36,9 @@ impl Default for SecurityValidationService {
     }
 }
 
-/// Security validation operations
+/// Security validation implementation
 impl SecurityValidationService {
-    /// Check if a command is dangerous in restricted mode
+    /// Check if command is dangerous in restricted mode
     pub fn is_command_blocked(&self, command: &str, restricted: bool) -> anyhow::Result<bool> {
         if !restricted {
             return Ok(false);
@@ -48,17 +48,17 @@ impl SecurityValidationService {
         Ok(security_result.is_dangerous)
     }
 
-    /// Get security analysis for a command
+    /// Get security analysis for command
     pub fn analyze_command(&self, command: &str) -> anyhow::Result<SecurityCheckResult> {
         Ok(check_command_security(command))
     }
 
-    /// Analyze security of content with inline shell commands
+    /// Analyze content security for inline shell commands
     pub fn analyze_content(&self, content: &str) -> anyhow::Result<Vec<SecurityCheckResult>> {
         Ok(analyze_content_security(content))
     }
 
-    /// Get blocked command reason
+    /// Get reason for blocked command
     pub fn get_block_reason(&self, command: &str) -> anyhow::Result<String> {
         let security_result = check_command_security(command);
         if security_result.is_dangerous {
@@ -72,13 +72,6 @@ impl SecurityValidationService {
     }
 
     /// Check if command severity exceeds threshold
-    ///
-    /// # Arguments
-    /// * `command` - The command to check
-    /// * `max_severity` - Maximum allowed severity level
-    ///
-    /// # Returns
-    /// * `Result<bool>` - Ok(true) if command exceeds threshold
     pub fn exceeds_severity_threshold(
         &self,
         command: &str,
@@ -88,15 +81,7 @@ impl SecurityValidationService {
         Ok(security_result.severity > max_severity)
     }
 
-    /// Get all dangerous commands in content above severity threshold
-    ///
-    /// # Arguments
-    /// * `content` - Content to analyze
-    /// * `min_severity` - Minimum severity to include in results
-    ///
-    /// # Returns
-    /// * `Result<Vec<SecurityCheckResult>>` - Commands meeting severity
-    ///   threshold
+    /// Get dangerous commands in content above severity threshold
     pub fn get_dangerous_commands_by_severity(
         &self,
         content: &str,
@@ -329,34 +314,31 @@ pub trait ProviderService: Send + Sync {
         credential: forge_domain::AuthCredential,
     ) -> anyhow::Result<()>;
     async fn remove_credential(&self, id: &forge_domain::ProviderId) -> anyhow::Result<()>;
-    /// Migrates environment variable-based credentials to file-based
-    /// credentials. Returns Some(MigrationResult) if credentials were migrated,
-    /// None if file already exists or no credentials to migrate.
+    /// Migrate env-based credentials to file-based credentials
     async fn migrate_env_credentials(
         &self,
     ) -> anyhow::Result<Option<forge_domain::MigrationResult>>;
 }
 
-/// Manages user preferences for default providers and models.
+/// Manage user preferences for default providers and models.
 #[async_trait::async_trait]
 pub trait AppConfigService: Send + Sync {
-    /// Gets the user's default provider, or falls back to the first available
-    /// provider.
+    /// Get user's default provider or fallback to first available
     async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>>;
 
-    /// Sets the user's default provider preference.
+    /// Set user's default provider preference
     async fn set_default_provider(
         &self,
         provider_id: forge_domain::ProviderId,
     ) -> anyhow::Result<()>;
 
-    /// Gets the user's default model for a specific provider.
+    /// Get user's default model for specific provider
     async fn get_default_model(
         &self,
         provider_id: &forge_domain::ProviderId,
     ) -> anyhow::Result<ModelId>;
 
-    /// Sets the user's default model for a specific provider.
+    /// Set user's default model for specific provider
     async fn set_default_model(
         &self,
         model: ModelId,
@@ -366,11 +348,10 @@ pub trait AppConfigService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait McpConfigManager: Send + Sync {
-    /// Responsible to load the MCP servers from all configuration files.
-    /// If scope is provided, only loads from that specific scope (not merged).
+    /// Load MCP servers from configuration files
     async fn read_mcp_config(&self, scope: Option<&Scope>) -> anyhow::Result<McpConfig>;
 
-    /// Responsible for writing the McpConfig on disk.
+    /// Write McpConfig to disk
     async fn write_mcp_config(&self, config: &McpConfig, scope: &Scope) -> anyhow::Result<()>;
 }
 
@@ -378,7 +359,7 @@ pub trait McpConfigManager: Send + Sync {
 pub trait McpService: Send + Sync {
     async fn get_mcp_servers(&self) -> anyhow::Result<McpServers>;
     async fn execute_mcp(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput>;
-    /// Refresh the MCP cache by fetching fresh data
+    /// Refresh MCP cache by fetching fresh data
     async fn reload_mcp(&self) -> anyhow::Result<()>;
 }
 
@@ -388,8 +369,7 @@ pub trait ConversationService: Send + Sync {
 
     async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()>;
 
-    /// This is useful when you want to perform several operations on a
-    /// conversation atomically.
+    /// Perform atomic operations on conversation
     async fn modify_conversation<F, T>(&self, id: &ConversationId, f: F) -> anyhow::Result<T>
     where
         F: FnOnce(&mut Conversation) -> T + Send,
@@ -401,7 +381,7 @@ pub trait ConversationService: Send + Sync {
         limit: Option<usize>,
     ) -> anyhow::Result<Option<Vec<Conversation>>>;
 
-    /// Find the last active conversation
+    /// Find last active conversation
     async fn last_conversation(&self) -> anyhow::Result<Option<Conversation>>;
 }
 
@@ -430,18 +410,13 @@ pub trait CustomInstructionsService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait WorkflowService {
-    /// Find a forge.yaml config file by traversing parent directories.
-    /// Returns the path to the first found config file, or the original path if
-    /// none is found.
+    /// Find forge.yaml config file by traversing parent directories
     async fn resolve(&self, path: Option<std::path::PathBuf>) -> std::path::PathBuf;
 
-    /// Reads the workflow from the given path.
-    /// If no path is provided, it will try to find forge.yaml in the current
-    /// directory or its parent directories.
+    /// Read workflow from given path or find forge.yaml
     async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow>;
 
-    /// Reads the workflow from the given path and merges it with an default
-    /// workflow.
+    /// Read workflow and merge with default workflow
     async fn read_merged(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
         let workflow = self.read_workflow(path).await?;
         let mut base_workflow = Workflow::default();
@@ -449,18 +424,10 @@ pub trait WorkflowService {
         Ok(base_workflow)
     }
 
-    /// Writes the given workflow to the specified path.
-    /// If no path is provided, it will try to find forge.yaml in the current
-    /// directory or its parent directories.
+    /// Write workflow to specified path or find forge.yaml
     async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> anyhow::Result<()>;
 
-    /// Updates the workflow at the given path using the provided closure.
-    /// If no path is provided, it will try to find forge.yaml in the current
-    /// directory or its parent directories.
-    ///
-    /// The closure receives a mutable reference to the workflow, which can be
-    /// modified. After the closure completes, the updated workflow is
-    /// written back to the same path.
+    /// Update workflow using closure at given path
     async fn update_workflow<F>(&self, path: Option<&Path>, f: F) -> anyhow::Result<Workflow>
     where
         F: FnOnce(&mut Workflow) + Send;
@@ -473,7 +440,7 @@ pub trait FileDiscoveryService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait FsCreateService: Send + Sync {
-    /// Create a file at the specified path with the given content.
+    /// Create file at specified path with given content
     async fn create(
         &self,
         path: String,
@@ -484,7 +451,7 @@ pub trait FsCreateService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait PlanCreateService: Send + Sync {
-    /// Create a plan file with the specified name and version.
+    /// Create plan file with specified name and version
     async fn create_plan(
         &self,
         plan_name: String,
@@ -495,7 +462,7 @@ pub trait PlanCreateService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait FsPatchService: Send + Sync {
-    /// Patches a file at the specified path with the given content.
+    /// Patch file at specified path with given content
     async fn patch(
         &self,
         path: String,
@@ -507,7 +474,7 @@ pub trait FsPatchService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait FsReadService: Send + Sync {
-    /// Reads a file at the specified path and returns its content.
+    /// Read file at specified path and return content
     async fn read(
         &self,
         path: String,
@@ -518,19 +485,19 @@ pub trait FsReadService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait ImageReadService: Send + Sync {
-    /// Reads an image file at the specified path and returns its content.
+    /// Read image file at specified path and return content
     async fn read_image(&self, path: String) -> anyhow::Result<forge_domain::Image>;
 }
 
 #[async_trait::async_trait]
 pub trait FsRemoveService: Send + Sync {
-    /// Removes a file at the specified path.
+    /// Remove file at specified path
     async fn remove(&self, path: String) -> anyhow::Result<FsRemoveOutput>;
 }
 
 #[async_trait::async_trait]
 pub trait FsSearchService: Send + Sync {
-    /// Searches for a file at the specified path and returns its content.
+    /// Search for file at specified path and return content
     async fn search(
         &self,
         path: String,
@@ -541,7 +508,7 @@ pub trait FsSearchService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait FollowUpService: Send + Sync {
-    /// Follows up on a tool call with the given context.
+    /// Follow up on tool call with given context
     async fn follow_up(
         &self,
         question: String,
@@ -552,22 +519,19 @@ pub trait FollowUpService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait FsUndoService: Send + Sync {
-    /// Undoes the last file operation at the specified path.
-    /// And returns the content of the undone file.
-    // TODO: We should move Snapshot service to Services from infra
-    // and drop FsUndoService.
+    /// Undo last file operation at specified path
     async fn undo(&self, path: String) -> anyhow::Result<FsUndoOutput>;
 }
 
 #[async_trait::async_trait]
 pub trait NetFetchService: Send + Sync {
-    /// Fetches content from a URL and returns it as a string.
+    /// Fetch content from URL and return as string
     async fn fetch(&self, url: String, raw: Option<bool>) -> anyhow::Result<HttpResponse>;
 }
 
 #[async_trait::async_trait]
 pub trait ShellService: Send + Sync {
-    /// Executes a shell command and returns the output.
+    /// Execute shell command and return output
     async fn execute(
         &self,
         command: String,
@@ -590,33 +554,31 @@ pub trait AuthService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait AgentRegistry: Send + Sync {
-    /// Get the active agent ID
+    /// Get active agent ID
     async fn get_active_agent_id(&self) -> anyhow::Result<Option<AgentId>>;
 
-    /// Set the active agent ID
+    /// Set active agent ID
     async fn set_active_agent_id(&self, agent_id: AgentId) -> anyhow::Result<()>;
 
-    /// Get all agents from the registry store
+    /// Get all agents from registry store
     async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::Agent>>;
 
-    /// Get agent by ID (from registry store)
+    /// Get agent by ID from registry store
     async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<forge_domain::Agent>>;
 
-    /// Reload agents by invalidating the cache
+    /// Reload agents by invalidating cache
     async fn reload_agents(&self) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
 pub trait CommandLoaderService: Send + Sync {
-    /// Load all command definitions from the forge/commands directory
+    /// Load command definitions from forge/commands directory
     async fn get_commands(&self) -> anyhow::Result<Vec<forge_domain::Command>>;
 }
 
 #[async_trait::async_trait]
 pub trait PolicyService: Send + Sync {
-    /// Check if an operation is allowed and handle user confirmation if needed
-    /// Returns PolicyDecision with allowed flag and optional policy file path
-    /// (only when created)
+    /// Check operation permission and handle user confirmation
     async fn check_operation_permission(
         &self,
         operation: &forge_domain::PermissionOperation,
@@ -644,9 +606,7 @@ pub trait ProviderAuthService: Send + Sync {
     ) -> anyhow::Result<AuthCredential>;
 }
 
-/// Core app trait providing access to services and repositories.
-/// This trait follows clean architecture principles for dependency management
-/// and service/repository composition.
+/// Core app trait providing access to services and repositories
 pub trait Services: Send + Sync + 'static + Clone {
     type ProviderService: ProviderService;
     type AppConfigService: AppConfigService;
@@ -1032,14 +992,14 @@ impl<I: Services> AuthService for I {
     }
 }
 
-/// HTTP service trait for making HTTP requests
+/// HTTP service trait for making requests
 #[async_trait::async_trait]
 pub trait HttpClientService: Send + Sync + 'static {
     async fn get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response>;
     async fn post(&self, url: &Url, body: bytes::Bytes) -> anyhow::Result<Response>;
     async fn delete(&self, url: &Url) -> anyhow::Result<Response>;
 
-    /// Posts JSON data and returns a server-sent events stream
+    /// Post JSON data and return server-sent events stream
     async fn eventsource(
         &self,
         url: &Url,
