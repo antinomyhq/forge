@@ -441,6 +441,13 @@ pub trait SkillFetchService: Send + Sync {
     ///
     /// Returns an error if the skill is not found or cannot be loaded
     async fn fetch_skill(&self, skill_name: String) -> anyhow::Result<forge_domain::Skill>;
+
+    /// Lists all available skills
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if skills cannot be loaded
+    async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>>;
 }
 
 /// Provider authentication service
@@ -945,6 +952,10 @@ impl<I: Services> AppConfigService for I {
 impl<I: Services> SkillFetchService for I {
     async fn fetch_skill(&self, skill_name: String) -> anyhow::Result<forge_domain::Skill> {
         self.skill_fetch_service().fetch_skill(skill_name).await
+    }
+
+    async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
+        self.skill_fetch_service().list_skills().await
     }
 }
 
