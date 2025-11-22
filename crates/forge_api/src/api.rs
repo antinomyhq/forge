@@ -38,6 +38,7 @@ pub trait API: Sync + Send {
         preview: bool,
         max_diff_size: Option<usize>,
         diff: Option<String>,
+        additional_context: Option<String>,
     ) -> Result<forge_app::CommitResult>;
 
     /// Returns the current environment
@@ -155,11 +156,7 @@ pub trait API: Sync + Send {
     -> anyhow::Result<ModelId>;
 
     /// Sets the operating model
-    async fn set_default_model(
-        &self,
-        agent_id: Option<AgentId>,
-        model_id: ModelId,
-    ) -> anyhow::Result<()>;
+    async fn set_default_model(&self, model_id: ModelId, provider_id: ProviderId) -> Result<()>;
 
     /// Refresh MCP caches by fetching fresh data
     async fn reload_mcp(&self) -> Result<()>;

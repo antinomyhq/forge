@@ -89,29 +89,4 @@ where
             self.0.get_default_model(&provider_id).await
         }
     }
-
-    /// Sets the model for the agent's provider
-    pub async fn set_default_model(&self, agent_id: Option<AgentId>, model: ModelId) -> Result<()> {
-        let provider_id = if let Some(agent_id) = agent_id {
-            // Get agent definitions directly without requiring runtime agent
-            // (which needs both provider AND model to be configured)
-            let agent_defs = self.0.get_agent_definitions().await?;
-            if let Some(agent_def) = agent_defs.iter().find(|a| a.id == agent_id) {
-                // Use agent's provider if specified, otherwise fall back to default
-                if let Some(provider_id) = agent_def.provider {
-                    provider_id
-                } else {
-                    self.get_provider(None).await?.id
-                }
-            } else {
-                // Agent not found, use default provider
-                self.get_provider(None).await?.id
-            }
-        } else {
-            // No agent specified, use default provider
-            self.get_provider(None).await?.id
-        };
-
-        self.0.set_default_model(model, provider_id).await
-    }
 }

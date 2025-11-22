@@ -5,7 +5,6 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::conversation::{EVENT_USER_TASK_INIT, EVENT_USER_TASK_UPDATE};
 use crate::{Attachment, NamedTool, Template, ToolName};
 
 /// Represents a partial event structure used for CLI event dispatching
@@ -31,7 +30,7 @@ impl UserCommand {
 
 impl From<UserCommand> for Event {
     fn from(value: UserCommand) -> Self {
-        Event::new(value.name.clone(), Some(EventValue::Command(value)))
+        Event::new(EventValue::Command(value))
     }
 }
 
@@ -46,10 +45,13 @@ impl<T: AsRef<str>> From<T> for EventValue {
 #[setters(into, strip_option)]
 pub struct Event {
     pub id: String,
-    pub name: String,
     pub value: Option<EventValue>,
     pub timestamp: String,
     pub attachments: Vec<Attachment>,
+
+    /// Contains additional context about the prompt that should typically be
+    /// included after the `value` as a user message.
+    pub additional_context: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
@@ -97,8 +99,8 @@ pub struct EventContextValue {
 }
 
 impl EventContextValue {
-    pub fn new<S: Into<String>>(name: S, value: S) -> Self {
-        Self { name: name.into(), value: value.into() }
+    pub fn new<S: Into<String>>(value: S) -> Self {
+        Self { name: String::new(), value: value.into() }
     }
 }
 
@@ -112,31 +114,19 @@ impl EventContext {
         }
     }
 
-    /// Converts this EventContext into a feedback event by updating the event
-    /// name. This should be used when the context already contains user
-    /// messages.
+    /// Converts this EventContext into a feedback event by setting the event
+    /// name to "feedback". This should be used when the context already
+    /// contains user messages.
     pub fn into_feedback(mut self) -> Self {
-        if !self
-            .event
-            .name
-            .ends_with(&format!("/{EVENT_USER_TASK_UPDATE}"))
-        {
-            self.event.name = format!("{}/{}", self.event.name, EVENT_USER_TASK_UPDATE);
-        }
+        self.event.name = "feedback".to_string();
         self
     }
 
-    /// Converts this EventContext into a new task event by updating the event
-    /// name. This should be used when this is a new task without prior user
-    /// messages.
+    /// Converts this EventContext into a new task event by setting the event
+    /// name to "task". This should be used when this is a new task without
+    /// prior user messages.
     pub fn into_task(mut self) -> Self {
-        if !self
-            .event
-            .name
-            .ends_with(&format!("/{EVENT_USER_TASK_INIT}"))
-        {
-            self.event.name = format!("{}/{}", self.event.name, EVENT_USER_TASK_INIT);
-        }
+        self.event.name = "task".to_string();
         self
     }
 }
@@ -148,16 +138,29 @@ impl NamedTool for Event {
 }
 
 impl Event {
-    pub fn new<V: Into<EventValue>>(name: impl ToString, value: Option<V>) -> Self {
+    pub fn new<V: Into<EventValue>>(value: V) -> Self {
         let id = uuid::Uuid::new_v4().to_string();
         let timestamp = chrono::Utc::now().to_rfc3339();
 
         Self {
             id,
-            name: name.to_string(),
-            value: value.map(|v| v.into()),
+            value: Some(value.into()),
             timestamp,
             attachments: Vec::new(),
+            additional_context: None,
+        }
+    }
+
+    pub fn empty() -> Self {
+        let id = uuid::Uuid::new_v4().to_string();
+        let timestamp = chrono::Utc::now().to_rfc3339();
+
+        Self {
+            id,
+            value: None,
+            timestamp,
+            attachments: Vec::new(),
+            additional_context: None,
         }
     }
 }
@@ -168,52 +171,52 @@ mod tests {
 
     #[test]
     fn test_into_feedback() {
-        let event = EventContextValue::new("test_event", "");
+        let event = EventContextValue::new("");
         let context = EventContext::new(event);
 
         let feedback_context = context.into_feedback();
 
-        assert_eq!(feedback_context.event.name, "test_event/user_task_update");
+        assert_eq!(feedback_context.event.name, "feedback");
     }
 
     #[test]
     fn test_into_task() {
-        let event = EventContextValue::new("test_event", "");
+        let event = EventContextValue::new("");
         let context = EventContext::new(event);
 
         let task_context = context.into_task();
 
-        assert_eq!(task_context.event.name, "test_event/user_task_init");
+        assert_eq!(task_context.event.name, "task");
     }
 
     #[test]
-    fn test_into_feedback_prevents_duplicate_suffix() {
-        let event = EventContextValue::new("test_event", "");
+    fn test_into_feedback_idempotent() {
+        let event = EventContextValue::new("");
         let context = EventContext::new(event);
 
         // Call into_feedback twice
         let feedback_context = context.into_feedback().into_feedback();
 
-        assert_eq!(feedback_context.event.name, "test_event/user_task_update");
+        assert_eq!(feedback_context.event.name, "feedback");
     }
 
     #[test]
-    fn test_into_task_prevents_duplicate_suffix() {
-        let event = EventContextValue::new("test_event", "");
+    fn test_into_task_idempotent() {
+        let event = EventContextValue::new("");
         let context = EventContext::new(event);
 
         // Call into_task twice
         let task_context = context.into_task().into_task();
 
-        assert_eq!(task_context.event.name, "test_event/user_task_init");
+        assert_eq!(task_context.event.name, "task");
     }
 
     #[test]
     fn test_chaining_methods() {
-        let event = EventContextValue::new("agent_123", "initial content");
+        let event = EventContextValue::new("initial content");
         let context = EventContext::new(event).into_task();
 
-        assert_eq!(context.event.name, "agent_123/user_task_init");
+        assert_eq!(context.event.name, "task");
         assert_eq!(context.event.value, "initial content");
     }
 }

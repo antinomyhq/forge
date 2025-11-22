@@ -82,9 +82,12 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         preview: bool,
         max_diff_size: Option<usize>,
         diff: Option<String>,
+        additional_context: Option<String>,
     ) -> Result<forge_app::CommitResult> {
         let git_app = GitApp::new(self.services.clone());
-        let result = git_app.commit_message(max_diff_size, diff).await?;
+        let result = git_app
+            .commit_message(max_diff_size, diff, additional_context)
+            .await?;
 
         if preview {
             Ok(result)
@@ -279,10 +282,10 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     }
     async fn set_default_model(
         &self,
-        agent_id: Option<AgentId>,
         model_id: ModelId,
+        provider_id: ProviderId,
     ) -> anyhow::Result<()> {
-        self.app().set_default_model(agent_id, model_id).await
+        self.services.set_default_model(model_id, provider_id).await
     }
 
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {
