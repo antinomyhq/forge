@@ -4,7 +4,8 @@ use anyhow::Context;
 use forge_app::domain::Skill;
 use forge_app::{DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra};
 use forge_domain::SkillRepository;
-use gray_matter::{Matter, engine::YAML};
+use gray_matter::engine::YAML;
+use gray_matter::Matter;
 use serde::Deserialize;
 
 /// Repository implementation for loading skills from multiple sources:
@@ -98,13 +99,17 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> ForgeSkillRepos
         let skills: Vec<Skill> = files
             .into_iter()
             .map(|(path, content)| {
-                let name = path
+                let filename = path
                     .file_stem()
                     .and_then(|s| s.to_str())
                     .unwrap_or("unknown")
                     .to_string();
 
-                let description = extract_description(&content);
+                let (metadata_name, description) = extract_metadata(&content);
+
+                // Use name from front matter if present, otherwise use filename
+                let name = metadata_name.unwrap_or(filename);
+                let description = description.unwrap_or_default();
 
                 Skill::new(name, path.display().to_string(), content, description)
             })
@@ -114,29 +119,37 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> ForgeSkillRepos
     }
 }
 
-/// Extracts the description from the skill markdown content using YAML front matter
+/// Private type for parsing skill YAML front matter
+#[derive(Debug, Deserialize)]
+struct SkillMetadata {
+    /// Optional name of the skill (overrides filename if present)
+    name: Option<String>,
+    /// Optional description of the skill
+    description: Option<String>,
+}
+
+/// Extracts metadata from the skill markdown content using YAML front matter
 ///
-/// Parses YAML front matter from the markdown content and extracts the `description` field.
-/// Expected format:
+/// Parses YAML front matter from the markdown content and extracts skill
+/// metadata. Expected format:
 /// ```markdown
 /// ---
+/// name: "skill-name"
 /// description: "Your description here"
 /// ---
 /// # Skill content...
 /// ```
 ///
-/// If no front matter or description is found, returns an empty string.
-fn extract_description(content: &str) -> String {
+/// Returns a tuple of (name, description) where both are Option<String>.
+fn extract_metadata(content: &str) -> (Option<String>, Option<String>) {
     let matter = Matter::<YAML>::new();
-    let result = matter.parse(content);
-    
+    let result = matter.parse::<SkillMetadata>(content);
+
     result
-        .data
-        .and_then(|data| data.as_mapping())
-        .and_then(|map| map.get(&serde_yaml::Value::String("description".to_string())))
-        .and_then(|val| val.as_str())
-        .map(|s| s.to_string())
-        .unwrap_or_default()
+        .ok()
+        .and_then(|parsed| parsed.data)
+        .map(|metadata| (metadata.name, metadata.description))
+        .unwrap_or((None, None))
 }
 
 /// Resolves skill conflicts by keeping the last occurrence of each skill name
@@ -225,11 +238,11 @@ mod tests {
         assert!(actual[0].command.contains("creating effective skills"));
     }
 
-
     #[test]
-    fn test_extract_description_with_front_matter() {
+    fn test_extract_metadata_with_name_and_description() {
         // Fixture
         let content = r#"---
+name: "pdf-handler"
 description: "This is a skill for handling PDF files"
 ---
 
@@ -238,42 +251,60 @@ description: "This is a skill for handling PDF files"
 Content here..."#;
 
         // Act
-        let actual = extract_description(content);
+        let actual = extract_metadata(content);
 
         // Assert
-        let expected = "This is a skill for handling PDF files";
+        let expected = (
+            Some("pdf-handler".to_string()),
+            Some("This is a skill for handling PDF files".to_string()),
+        );
         assert_eq!(actual, expected);
     }
 
     #[test]
-    fn test_extract_description_no_front_matter() {
-        // Fixture
-        let content = "# Skill Title\n\nThis is content without front matter.";
-
-        // Act
-        let actual = extract_description(content);
-
-        // Assert
-        let expected = "";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_extract_description_front_matter_without_description() {
+    fn test_extract_metadata_with_name_only() {
         // Fixture
         let content = r#"---
-title: "My Skill"
-author: "John Doe"
+name: "custom-skill-name"
 ---
 
 # Skill Content"#;
 
         // Act
-        let actual = extract_description(content);
+        let actual = extract_metadata(content);
 
         // Assert
-        let expected = "";
+        let expected = (Some("custom-skill-name".to_string()), None);
         assert_eq!(actual, expected);
     }
 
+    #[test]
+    fn test_extract_metadata_with_description_only() {
+        // Fixture
+        let content = r#"---
+description: "Just a description"
+---
+
+# Skill Content"#;
+
+        // Act
+        let actual = extract_metadata(content);
+
+        // Assert
+        let expected = (None, Some("Just a description".to_string()));
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_extract_metadata_no_front_matter() {
+        // Fixture
+        let content = "# Skill Title\n\nContent without front matter.";
+
+        // Act
+        let actual = extract_metadata(content);
+
+        // Assert
+        let expected = (None, None);
+        assert_eq!(actual, expected);
+    }
 }
