@@ -19,6 +19,12 @@ pub struct WorkspaceAuth {
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
+impl From<WorkspaceAuth> for crate::AuthDetails {
+    fn from(auth: WorkspaceAuth) -> Self {
+        crate::AuthDetails::ApiKey(auth.token)
+    }
+}
+
 impl WorkspaceAuth {
     /// Create a new indexing auth record
     pub fn new(user_id: UserId, token: crate::ApiKey) -> Self {

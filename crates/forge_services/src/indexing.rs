@@ -6,8 +6,8 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{ContextEngineService, FileReaderInfra, Walker, WalkerInfra, compute_hash};
 use forge_domain::{
-    ContextEngineRepository, CredentialsRepository, FileUploadResponse, UserId, WorkspaceId,
-    WorkspaceRepository,
+    AuthCredential, ContextEngineRepository, FileUploadResponse, ProviderId, ProviderRepository,
+    UserId, WorkspaceId, WorkspaceRepository,
 };
 use futures::future::join_all;
 use tracing::{info, warn};
@@ -38,6 +38,50 @@ impl<F> ForgeIndexingService<F> {
     /// Creates a new indexing service with the provided infrastructure.
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
+    }
+
+    /// Extract WorkspaceAuth components from AuthCredential
+    ///
+    /// # Errors
+    /// Returns an error if the credential is not an API key or contains invalid
+    /// data
+    fn extract_workspace_auth(
+        credential: &AuthCredential,
+    ) -> Result<(forge_domain::ApiKey, UserId)> {
+        use forge_domain::AuthDetails;
+
+        match &credential.auth_details {
+            AuthDetails::ApiKey(token) => {
+                // Extract user_id from URL params
+                let user_id_str = credential
+                    .url_params
+                    .get(&"user_id".to_string().into())
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("Missing user_id in ForgeServices credential")
+                    })?;
+                let user_id = UserId::from_string(user_id_str.as_str())?;
+
+                Ok((token.clone(), user_id))
+            }
+            _ => anyhow::bail!("ForgeServices credential must be an API key"),
+        }
+    }
+
+    /// Convert WorkspaceAuth to AuthCredential for storage
+    fn workspace_auth_to_credential(auth: &forge_domain::WorkspaceAuth) -> AuthCredential {
+        use std::collections::HashMap;
+
+        let mut url_params = HashMap::new();
+        url_params.insert(
+            "user_id".to_string().into(),
+            auth.user_id.to_string().into(),
+        );
+
+        AuthCredential {
+            id: ProviderId::ForgeServices,
+            auth_details: auth.clone().into(),
+            url_params,
+        }
     }
 
     /// Fetches server files, deletes outdated/orphaned ones, and returns
@@ -205,7 +249,7 @@ impl<F> ForgeIndexingService<F> {
 #[async_trait]
 impl<
     F: WorkspaceRepository
-        + CredentialsRepository
+        + ProviderRepository
         + ContextEngineRepository
         + WalkerInfra
         + FileReaderInfra,
@@ -221,13 +265,13 @@ impl<
         info!(canonical_path = %canonical_path.display(), "Resolved canonical path");
 
         // Get auth token (must already exist - caller should call ensure_auth first)
-        let auth = self
+        let credential = self
             .infra
-            .get_auth()
+            .get_credential(&ProviderId::ForgeServices)
             .await?
             .context("No authentication credentials found. Please authenticate first.")?;
-        let token = auth.token.clone();
-        let user_id = auth.user_id;
+
+        let (token, user_id) = Self::extract_workspace_auth(&credential)?;
 
         let existing_workspace = self.infra.find_by_path(&canonical_path).await?;
 
@@ -337,11 +381,13 @@ impl<
             .ok_or(forge_domain::Error::WorkspaceNotFound)?;
 
         // Step 3: Get auth token
-        let auth = self
+        let credential = self
             .infra
-            .get_auth()
+            .get_credential(&ProviderId::ForgeServices)
             .await?
             .ok_or(forge_domain::Error::AuthTokenNotFound)?;
+
+        let (token, _) = Self::extract_workspace_auth(&credential)?;
 
         // Step 4: Search the codebase
         let search_query = forge_domain::CodeBase::new(
@@ -352,7 +398,7 @@ impl<
 
         let results = self
             .infra
-            .search(&search_query, &auth.token)
+            .search(&search_query, &token)
             .await
             .context("Failed to search")?;
 
@@ -362,16 +408,18 @@ impl<
     /// Lists all workspaces.
     async fn list_codebase(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
         // Get auth token
-        let auth = self
+        let credential = self
             .infra
-            .get_auth()
+            .get_credential(&ProviderId::ForgeServices)
             .await?
             .ok_or(forge_domain::Error::AuthTokenNotFound)?;
+
+        let (token, _) = Self::extract_workspace_auth(&credential)?;
 
         // List all workspaces for this user
         self.infra
             .as_ref()
-            .list_workspaces(&auth.token)
+            .list_workspaces(&token)
             .await
             .context("Failed to list workspaces")
     }
@@ -379,18 +427,20 @@ impl<
     /// Retrieves workspace information for a specific path.
     async fn get_workspace_info(&self, path: PathBuf) -> Result<Option<forge_domain::WorkspaceInfo>>
     where
-        F: WorkspaceRepository + ContextEngineRepository + CredentialsRepository,
+        F: WorkspaceRepository + ContextEngineRepository + ProviderRepository,
     {
         let path = path
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
 
         // Get auth token
-        let auth = self
+        let credential = self
             .infra
-            .get_auth()
+            .get_credential(&ProviderId::ForgeServices)
             .await?
             .ok_or(forge_domain::Error::AuthTokenNotFound)?;
+
+        let (token, _) = Self::extract_workspace_auth(&credential)?;
 
         // Find workspace by path
         let workspace = self.infra.find_by_path(&path).await?;
@@ -399,7 +449,7 @@ impl<
             // Get detailed workspace info from server
             self.infra
                 .as_ref()
-                .get_workspace(&workspace.workspace_id, &auth.token)
+                .get_workspace(&workspace.workspace_id, &token)
                 .await
                 .context("Failed to get workspace info")
         } else {
@@ -410,16 +460,18 @@ impl<
     /// Deletes a workspace from both the server and local database.
     async fn delete_codebase(&self, workspace_id: &forge_domain::WorkspaceId) -> Result<()> {
         // Get auth token
-        let auth = self
+        let credential = self
             .infra
-            .get_auth()
+            .get_credential(&ProviderId::ForgeServices)
             .await?
             .ok_or(forge_domain::Error::AuthTokenNotFound)?;
+
+        let (token, _) = Self::extract_workspace_auth(&credential)?;
 
         // Delete from server
         self.infra
             .as_ref()
-            .delete_workspace(workspace_id, &auth.token)
+            .delete_workspace(workspace_id, &token)
             .await
             .context("Failed to delete workspace from server")?;
 
@@ -450,7 +502,11 @@ impl<
     }
 
     async fn is_authenticated(&self) -> Result<bool> {
-        Ok(self.infra.get_auth().await?.is_some())
+        Ok(self
+            .infra
+            .get_credential(&ProviderId::ForgeServices)
+            .await?
+            .is_some())
     }
 
     async fn create_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth> {
@@ -461,9 +517,10 @@ impl<
             .await
             .context("Failed to authenticate with indexing service")?;
 
-        // Store the auth in database
+        // Convert to AuthCredential and store
+        let credential = Self::workspace_auth_to_credential(&auth);
         self.infra
-            .set_auth(&auth)
+            .upsert_credential(credential)
             .await
             .context("Failed to store authentication credentials")?;
 
@@ -474,7 +531,7 @@ impl<
 // Additional authentication methods for ForgeIndexingService
 impl<F> ForgeIndexingService<F>
 where
-    F: CredentialsRepository + WorkspaceRepository + ContextEngineRepository,
+    F: ProviderRepository + WorkspaceRepository + ContextEngineRepository,
 {
     /// Login to the indexing service by storing an authentication token
     ///
@@ -493,9 +550,10 @@ where
             .await
             .context("Failed to authenticate with indexing service")?;
 
-        // Store the auth in database
+        // Convert to AuthCredential and store in credential.json
+        let credential = Self::workspace_auth_to_credential(&auth);
         self.infra
-            .set_auth(&auth)
+            .upsert_credential(credential)
             .await
             .context("Failed to store authentication credentials")?;
 
@@ -509,7 +567,7 @@ where
     /// Returns an error if deletion fails
     pub async fn logout(&self) -> Result<()> {
         self.infra
-            .delete_auth()
+            .remove_credential(&ProviderId::ForgeServices)
             .await
             .context("Failed to logout from indexing service")?;
 
@@ -630,28 +688,48 @@ mod tests {
     }
 
     #[async_trait::async_trait]
-    impl CredentialsRepository for MockInfra {
-        async fn set_auth(&self, _auth: &WorkspaceAuth) -> Result<()> {
+    impl ProviderRepository for MockInfra {
+        async fn get_all_providers(&self) -> Result<Vec<forge_domain::AnyProvider>> {
+            Ok(vec![])
+        }
+
+        async fn get_provider(&self, _id: ProviderId) -> Result<forge_domain::Provider<url::Url>> {
+            unimplemented!("Not needed for indexing tests")
+        }
+
+        async fn upsert_credential(&self, _credential: AuthCredential) -> Result<()> {
             Ok(())
         }
 
-        async fn get_auth(&self) -> Result<Option<WorkspaceAuth>> {
-            if self.authenticated {
+        async fn get_credential(&self, id: &ProviderId) -> Result<Option<AuthCredential>> {
+            if *id == ProviderId::ForgeServices && self.authenticated {
                 let user_id = self
                     .workspace
                     .as_ref()
                     .map(|w| w.user_id.clone())
                     .unwrap_or_else(UserId::generate);
-                Ok(Some(WorkspaceAuth::new(
-                    user_id,
-                    "test_token".to_string().into(),
-                )))
+
+                let mut url_params = std::collections::HashMap::new();
+                url_params.insert("user_id".to_string().into(), user_id.to_string().into());
+
+                Ok(Some(AuthCredential {
+                    id: ProviderId::ForgeServices,
+                    auth_details: forge_domain::AuthDetails::ApiKey(
+                        "test_token".to_string().into(),
+                    ),
+                    url_params,
+                }))
             } else {
                 Ok(None)
             }
         }
-        async fn delete_auth(&self) -> Result<()> {
+
+        async fn remove_credential(&self, _id: &ProviderId) -> Result<()> {
             Ok(())
+        }
+
+        async fn migrate_env_credentials(&self) -> Result<Option<forge_domain::MigrationResult>> {
+            Ok(None)
         }
     }
 

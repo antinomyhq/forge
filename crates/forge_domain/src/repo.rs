@@ -116,19 +116,6 @@ pub trait WorkspaceRepository: Send + Sync {
     async fn delete(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()>;
 }
 
-/// Repository for managing indexing service authentication credentials
-#[async_trait::async_trait]
-pub trait CredentialsRepository: Send + Sync {
-    /// Store authentication credentials in database
-    async fn set_auth(&self, auth: &WorkspaceAuth) -> anyhow::Result<()>;
-
-    /// Get stored authentication (both token and user_id)
-    async fn get_auth(&self) -> anyhow::Result<Option<WorkspaceAuth>>;
-
-    /// Delete stored authentication (both user_id and token)
-    async fn delete_auth(&self) -> anyhow::Result<()>;
-}
-
 /// Repository for managing codebase indexing and search operations
 #[async_trait::async_trait]
 pub trait ContextEngineRepository: Send + Sync {
