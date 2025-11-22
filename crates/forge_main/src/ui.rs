@@ -118,8 +118,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 .select_model()
                 .await?
                 .ok_or(anyhow::anyhow!("Model selection is required to continue"))?;
-            let active_agent = self.api.get_active_agent().await;
-            self.api.set_default_model(active_agent, model).await?;
+            let provider_id = self.api.get_default_provider().await?.id;
+            self.api.set_default_model(model, provider_id).await?;
         }
 
         Ok(())
